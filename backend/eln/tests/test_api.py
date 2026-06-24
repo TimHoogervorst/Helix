@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, User
-from eln.models import NotebookEntry
+from eln.models import NotebookEntry, Mention
 
 EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 TEXT_DOC = {
@@ -38,6 +38,7 @@ class ElnApiTests(TestCase):
         response = self.client.post(
             "/api/eln/entries/",
             {"title": "Test Entry", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["title"], "Test Entry")
@@ -50,6 +51,7 @@ class ElnApiTests(TestCase):
         response = self.client.post(
             "/api/eln/entries/",
             {"title": "Bad", "content": "not a dict", "folder": self.folder.id},
+            format="json",
         )
         self.assertEqual(response.status_code, 400)
 
@@ -80,6 +82,7 @@ class ElnApiTests(TestCase):
         response = self.client.put(
             f"/api/eln/entries/{entry.id}/",
             {"title": "New Title", "content": new_doc, "folder": self.folder.id},
+            format="json",
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["title"], "New Title")
@@ -110,3 +113,86 @@ class ElnApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 20)
         self.assertIsNotNone(response.data["next"])
+
+
+class MentionSyncOnSaveTests(TestCase):
+    """Integration: creating/updating entries triggers mention sync."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="testpass123")
+        self.folder = Folder.objects.create(name="Default")
+
+        # Create a target entry that will be referenced.
+        self.target = NotebookEntry.objects.create(
+            title="Target Entry", content=EMPTY_DOC, folder=self.folder, author=self.user
+        )
+
+    def _make_doc_with_ref(self, display_id):
+        """Build a TipTap doc containing a reference node pointing at *display_id*."""
+        return {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "See "},
+                        {"type": "reference", "attrs": {"displayId": display_id}},
+                        {"type": "text", "text": " for details."},
+                    ],
+                }
+            ],
+        }
+
+    def test_create_entry_with_reference_creates_mention(self):
+        """POST with a reference node → Mention row is created."""
+        doc = self._make_doc_with_ref(self.target.display_id)
+        response = self.client.post(
+            "/api/eln/entries/",
+            {"title": "Ref Entry", "content": doc, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Mention.objects.count(), 1)
+        mention = Mention.objects.first()
+        self.assertEqual(mention.source_id, response.data["id"])
+        self.assertEqual(mention.target_id, self.target.id)
+
+    def test_update_entry_add_reference_creates_mention(self):
+        """PUT with a new reference node → Mention created."""
+        entry = NotebookEntry.objects.create(
+            title="No Refs Yet", content=EMPTY_DOC, folder=self.folder, author=self.user
+        )
+        self.assertEqual(Mention.objects.count(), 0)
+
+        doc = self._make_doc_with_ref(self.target.display_id)
+        response = self.client.put(
+            f"/api/eln/entries/{entry.id}/",
+            {"title": "Now With Ref", "content": doc, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Mention.objects.count(), 1)
+        mention = Mention.objects.first()
+        self.assertEqual(mention.source_id, entry.id)
+        self.assertEqual(mention.target_id, self.target.id)
+
+    def test_update_entry_remove_reference_deletes_mention(self):
+        """PUT that removes a reference node → Mention deleted."""
+        doc_with_ref = self._make_doc_with_ref(self.target.display_id)
+        entry = NotebookEntry.objects.create(
+            title="Has Ref", content=doc_with_ref, folder=self.folder, author=self.user
+        )
+        # Manually sync since the creation through ORM doesn't go through the view.
+        from references.services import sync_mentions
+        sync_mentions(entry, doc_with_ref)
+        self.assertEqual(Mention.objects.count(), 1)
+
+        # Now update via API to remove the reference.
+        response = self.client.put(
+            f"/api/eln/entries/{entry.id}/",
+            {"title": "No Ref Now", "content": EMPTY_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Mention.objects.count(), 0)

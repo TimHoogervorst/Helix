@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 
+from references.services import sync_mentions
+
 from .models import NotebookEntry
 from .serializers import NotebookEntrySerializer, NotebookEntryCreateSerializer
 
@@ -34,7 +36,12 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         if folder is None:
             from core.models import Folder
             folder, _ = Folder.objects.get_or_create(name="Default", parent=None)
-        serializer.save(author=author, folder=folder)
+        instance = serializer.save(author=author, folder=folder)
+        sync_mentions(instance, instance.content)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        sync_mentions(instance, instance.content)
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)

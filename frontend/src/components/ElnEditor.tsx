@@ -6,6 +6,9 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { get, post, put, del } from "../api/client";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types/eln";
+import Reference from "../extensions/Reference";
+import ReferenceSuggestion from "../extensions/ReferenceSuggestion";
+import { ReferenceProvider, useReferenceContext } from "./ReferenceProvider";
 
 interface Folder {
   id: number;
@@ -16,14 +19,57 @@ interface ElnEditorProps {
   entryId?: number;
 }
 
-type EditorMode = "loading" | "view" | "edit-new" | "edit-existing" | "saving" | "error";
+type EditorMode =
+  | "loading"
+  | "view"
+  | "edit-new"
+  | "edit-existing"
+  | "saving"
+  | "error";
 
-function ElnEditor({ entryId }: ElnEditorProps) {
+/**
+ * Hook: walk the TipTap JSON tree and collect all ``displayId`` values
+ * from ``reference`` nodes.
+ */
+function collectReferenceIds(doc: TipTapDoc): string[] {
+  const ids: string[] = [];
+
+  function walk(node: unknown) {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+
+    if (n.type === "reference") {
+      const attrs = n.attrs as Record<string, unknown> | undefined;
+      const displayId = attrs?.displayId;
+      if (typeof displayId === "string") {
+        ids.push(displayId);
+      }
+      return; // reference nodes are atomic
+    }
+
+    // Recurse into content arrays
+    const content = n.content;
+    if (Array.isArray(content)) {
+      for (const child of content) {
+        walk(child);
+      }
+    }
+  }
+
+  walk(doc);
+  return ids;
+}
+
+/** Inner component that lives inside ReferenceProvider so it can use the context. */
+function ElnEditorInner({ entryId }: ElnEditorProps) {
   const navigate = useNavigate();
   const isNew = entryId === undefined;
+  const { resolveIds } = useReferenceContext();
 
   // ── State ──
-  const [mode, setMode] = useState<EditorMode>(isNew ? "edit-new" : "loading");
+  const [mode, setMode] = useState<EditorMode>(
+    isNew ? "edit-new" : "loading"
+  );
   const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [title, setTitle] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
@@ -33,7 +79,6 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Track if content was ever loaded so we don't reset the editor unnecessarily
   const contentLoaded = useRef(false);
 
   // ── TipTap Editor ──
@@ -45,8 +90,12 @@ function ElnEditor({ entryId }: ElnEditorProps) {
       Placeholder.configure({
         placeholder: "Start writing…",
       }),
+      Reference,
+      ReferenceSuggestion,
     ],
-    content: isNew ? EMPTY_DOC : { type: "doc", content: [{ type: "paragraph" }] },
+    content: isNew
+      ? EMPTY_DOC
+      : { type: "doc", content: [{ type: "paragraph" }] },
     editable: isNew,
     editorProps: {
       attributes: {
@@ -73,17 +122,28 @@ function ElnEditor({ entryId }: ElnEditorProps) {
         setInitialTitle(data.title);
         setInitialContent(data.content);
         setFolderId(data.folder);
+
+        // Batch-resolve references found in the loaded content
+        const refIds = collectReferenceIds(data.content);
+        if (refIds.length > 0) {
+          resolveIds(refIds);
+        }
+
         setMode("view");
       })
       .catch((err) => {
         setError(err.message);
         setMode("error");
       });
-  }, [entryId]);
+  }, [entryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Load content into editor when viewing or editing an existing entry ──
+  // ── Load content into editor ──
   useEffect(() => {
-    if ((mode === "view" || mode === "edit-existing") && editor && !contentLoaded.current) {
+    if (
+      (mode === "view" || mode === "edit-existing") &&
+      editor &&
+      !contentLoaded.current
+    ) {
       editor.commands.setContent(initialContent);
       contentLoaded.current = true;
     }
@@ -93,7 +153,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   useEffect(() => {
     get<Folder[]>("/core/folders/")
       .then(setFolders)
-      .catch(() => {}); // Silently fail — folder selector just won't populate
+      .catch(() => {});
   }, []);
 
   // ── Toggle editable ──
@@ -118,15 +178,19 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   // ── Actions ──
 
   const enterEditMode = useCallback(() => {
+    // Resolve any references in the current content before editing
+    const refIds = collectReferenceIds(currentContent);
+    if (refIds.length > 0) {
+      resolveIds(refIds);
+    }
     setMode("edit-existing");
-  }, []);
+  }, [currentContent, resolveIds]);
 
   const handleCancel = useCallback(() => {
     if (isNew) {
       navigate("/eln");
       return;
     }
-    // Revert and go back to view
     setTitle(initialTitle);
     if (editor) {
       editor.commands.setContent(initialContent);
@@ -189,12 +253,10 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   const isEdit = mode === "edit-new" || mode === "edit-existing";
   const isSaving = mode === "saving";
 
-  // ── Loading ──
   if (mode === "loading") {
     return <p className="empty">Loading…</p>;
   }
 
-  // ── Error ──
   if (mode === "error") {
     return (
       <div>
@@ -206,7 +268,6 @@ function ElnEditor({ entryId }: ElnEditorProps) {
 
   return (
     <div className={`editor-container${isSaving ? " saving" : ""}`}>
-      {/* ── Paper Page ── */}
       <div className="paper-page">
         {/* ── Top Bar ── */}
         <div className="editor-top-bar">
@@ -257,10 +318,15 @@ function ElnEditor({ entryId }: ElnEditorProps) {
 
             {isEdit ? (
               <>
-                <span className={`save-indicator${isDirty ? " is-dirty" : ""}`}>
+                <span
+                  className={`save-indicator${isDirty ? " is-dirty" : ""}`}
+                >
                   {isDirty ? "Unsaved changes" : "Saved"}
                 </span>
-                <button onClick={handleSave} disabled={isSaving || !title.trim()}>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || !title.trim()}
+                >
                   {isSaving ? "Saving…" : "Save"}
                 </button>
                 <button
@@ -309,10 +375,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
           {editor && (
             <>
               {isEdit && (
-                <BubbleMenu
-                  editor={editor}
-                  className="bubble-menu"
-                >
+                <BubbleMenu editor={editor} className="bubble-menu">
                   <button
                     onClick={() => editor.chain().focus().toggleBold().run()}
                     className={editor.isActive("bold") ? "is-active" : ""}
@@ -335,7 +398,9 @@ function ElnEditor({ entryId }: ElnEditorProps) {
                       editor.chain().focus().toggleHeading({ level: 1 }).run()
                     }
                     className={
-                      editor.isActive("heading", { level: 1 }) ? "is-active" : ""
+                      editor.isActive("heading", { level: 1 })
+                        ? "is-active"
+                        : ""
                     }
                     title="Heading 1"
                   >
@@ -346,7 +411,9 @@ function ElnEditor({ entryId }: ElnEditorProps) {
                       editor.chain().focus().toggleHeading({ level: 2 }).run()
                     }
                     className={
-                      editor.isActive("heading", { level: 2 }) ? "is-active" : ""
+                      editor.isActive("heading", { level: 2 })
+                        ? "is-active"
+                        : ""
                     }
                     title="Heading 2"
                   >
@@ -357,7 +424,9 @@ function ElnEditor({ entryId }: ElnEditorProps) {
                       editor.chain().focus().toggleHeading({ level: 3 }).run()
                     }
                     className={
-                      editor.isActive("heading", { level: 3 }) ? "is-active" : ""
+                      editor.isActive("heading", { level: 3 })
+                        ? "is-active"
+                        : ""
                     }
                     title="Heading 3"
                   >
@@ -370,7 +439,9 @@ function ElnEditor({ entryId }: ElnEditorProps) {
                     onClick={() =>
                       editor.chain().focus().toggleBulletList().run()
                     }
-                    className={editor.isActive("bulletList") ? "is-active" : ""}
+                    className={
+                      editor.isActive("bulletList") ? "is-active" : ""
+                    }
                     title="Bullet list"
                   >
                     •≡
@@ -379,7 +450,9 @@ function ElnEditor({ entryId }: ElnEditorProps) {
                     onClick={() =>
                       editor.chain().focus().toggleOrderedList().run()
                     }
-                    className={editor.isActive("orderedList") ? "is-active" : ""}
+                    className={
+                      editor.isActive("orderedList") ? "is-active" : ""
+                    }
                     title="Numbered list"
                   >
                     1≡
@@ -391,7 +464,9 @@ function ElnEditor({ entryId }: ElnEditorProps) {
                     onClick={() =>
                       editor.chain().focus().toggleBlockquote().run()
                     }
-                    className={editor.isActive("blockquote") ? "is-active" : ""}
+                    className={
+                      editor.isActive("blockquote") ? "is-active" : ""
+                    }
                     title="Blockquote"
                   >
                     "
@@ -404,6 +479,15 @@ function ElnEditor({ entryId }: ElnEditorProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Wrapper that provides the ReferenceContext. */
+function ElnEditor(props: ElnEditorProps) {
+  return (
+    <ReferenceProvider>
+      <ElnEditorInner {...props} />
+    </ReferenceProvider>
   );
 }
 

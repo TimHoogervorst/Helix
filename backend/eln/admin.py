@@ -12,5 +12,5 @@ class NotebookEntryAdmin(admin.ModelAdmin):
 
 @admin.register(Mention)
 class MentionAdmin(admin.ModelAdmin):
-    list_display = ["source_entry", "target_type", "target_id"]
-    list_filter = ["target_type"]
+    list_display = ["source_type", "source_id", "target_type", "target_id"]
+    list_filter = ["source_type", "target_type"]

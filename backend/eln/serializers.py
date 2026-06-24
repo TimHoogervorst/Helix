@@ -21,11 +21,12 @@ def validate_tiptap_json(value):
 
 
 class MentionSerializer(serializers.ModelSerializer):
+    source_type_name = serializers.CharField(source="source_type.model", read_only=True)
     target_type_name = serializers.CharField(source="target_type.model", read_only=True)
 
     class Meta:
         model = Mention
-        fields = ["id", "source_entry", "target_type", "target_type_name", "target_id", "context"]
+        fields = ["id", "source_type", "source_type_name", "source_id", "target_type", "target_type_name", "target_id", "context"]
         read_only_fields = ["id"]
 
 

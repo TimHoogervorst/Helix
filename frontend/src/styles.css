@@ -498,3 +498,124 @@ h1 {
   font-size: 0.85rem;
   padding: 0.375rem 0.75rem;
 }
+
+/* ── Reference Node (inline badge) ── */
+
+.reference-node {
+  display: inline;
+  white-space: nowrap;
+}
+
+/* Loading state: plain #E1 text */
+.reference-node:not(.is-resolved):not(.is-broken) {
+  color: var(--gray-700);
+}
+
+/* Resolved: light-blue pill */
+.reference-node.is-resolved .ref-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05em 0.4em;
+  font-size: 0.9em;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
+  border-radius: 4px;
+  color: var(--blue-700);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  vertical-align: baseline;
+}
+.reference-node.is-resolved .ref-link:hover {
+  background: var(--blue-100);
+  border-color: var(--blue-500);
+  text-decoration: none;
+  color: var(--blue-700);
+}
+
+.reference-node .ref-icon {
+  font-size: 0.85em;
+}
+.reference-node .ref-id {
+  font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-weight: 600;
+  font-size: 0.85em;
+}
+.reference-node .ref-title {
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Broken: red pill */
+.reference-node.is-broken {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05em 0.4em;
+  font-size: 0.9em;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  color: #dc2626;
+  cursor: help;
+  vertical-align: baseline;
+}
+.reference-node.is-broken .ref-id {
+  text-decoration: line-through;
+  text-decoration-color: #fca5a5;
+}
+
+/* ── Reference Autocomplete Dropdown ── */
+
+.reference-dropdown {
+  position: absolute;
+  z-index: 1000;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+  min-width: 220px;
+  padding: 0.25rem;
+}
+
+.reference-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.1s;
+}
+.reference-dropdown-item:hover,
+.reference-dropdown-item.is-selected {
+  background: var(--blue-50);
+}
+.reference-dropdown-item.is-empty {
+  color: var(--gray-400);
+  cursor: default;
+}
+.reference-dropdown-item.is-empty:hover {
+  background: transparent;
+}
+
+.ref-dropdown-id {
+  font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-weight: 600;
+  font-size: 0.85em;
+  color: var(--gray-700);
+  flex-shrink: 0;
+}
+
+.ref-dropdown-title {
+  color: var(--gray-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

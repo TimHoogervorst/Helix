@@ -1,6 +1,7 @@
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models.functions import Length
 
 
 class NotebookEntry(models.Model):
@@ -20,6 +21,9 @@ class NotebookEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Reverse relation for mentions where this entry is the source.
+    mentions = GenericRelation("eln.Mention", content_type_field="source_type", object_id_field="source_id")
+
     class Meta:
         db_table = "eln_entry"
         ordering = ["-created_at"]
@@ -33,7 +37,8 @@ class NotebookEntry(models.Model):
             last = (
                 NotebookEntry.objects
                 .filter(display_id__startswith=prefix)
-                .order_by("-display_id")
+                .annotate(id_len=Length("display_id"))
+                .order_by("-id_len", "-display_id")
                 .values_list("display_id", flat=True)
                 .first()
             )
@@ -46,18 +51,22 @@ class NotebookEntry(models.Model):
 
 
 class Mention(models.Model):
-    """A parsed reference from an ELN entry to another object."""
+    """A parsed reference from one content object to another."""
 
-    source_entry = models.ForeignKey(
-        NotebookEntry, on_delete=models.CASCADE, related_name="mentions"
-    )
+    # Generic FK: source of the mention (NotebookEntry, etc.)
+    source_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, related_name="mention_sources")
+    source_id = models.PositiveIntegerField()
+    source = GenericForeignKey("source_type", "source_id")
+
+    # Generic FK: target of the mention
     target_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     target_id = models.PositiveIntegerField()
     target = GenericForeignKey("target_type", "target_id")
+
     context = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "eln_mention"
 
     def __str__(self):
-        return f"Mention in {self.source_entry_id} → {self.target_type}.{self.target_id}"
+        return f"Mention in {self.source_type}.{self.source_id} → {self.target_type}.{self.target_id}"

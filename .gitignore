@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.eggs/
+*.egg
+
+# Django
+*.log
+*.pot
+*.pyc
+staticfiles/
+
+# SQLite (used for local testing)
+*.sqlite3
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+
+# Docker
+pgdata/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local

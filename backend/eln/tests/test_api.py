@@ -5,7 +5,6 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from django.test import TestCase
 from rest_framework.test import APIClient
-from rest_framework.authtoken.models import Token
 
 from core.models import Folder, User
 from eln.models import NotebookEntry
@@ -15,11 +14,7 @@ class ElnApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.token = Token.objects.create(user=self.user)
         self.folder = Folder.objects.create(name="Default")
-
-    def _auth_header(self):
-        return {"HTTP_AUTHORIZATION": f"Token {self.token.key}"}
 
     def test_list_entries_empty(self):
         """GET /api/eln/entries/ returns empty list with 200."""
@@ -27,25 +22,16 @@ class ElnApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
 
-    def test_create_entry_authenticated(self):
-        """POST with valid token returns 201, entry appears in DB."""
+    def test_create_entry(self):
+        """POST returns 201, entry appears in DB."""
         response = self.client.post(
             "/api/eln/entries/",
             {"title": "Test Entry", "content": "Hello world", "folder": self.folder.id},
-            **self._auth_header(),
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["title"], "Test Entry")
-        self.assertEqual(response.data["author_username"], "testuser")
+        self.assertIsNone(response.data["author_username"])
         self.assertEqual(NotebookEntry.objects.count(), 1)
-
-    def test_create_entry_unauthenticated(self):
-        """POST without token returns 401."""
-        response = self.client.post(
-            "/api/eln/entries/",
-            {"title": "Test", "content": "Hello", "folder": self.folder.id},
-        )
-        self.assertEqual(response.status_code, 401)
 
     def test_retrieve_entry(self):
         """GET by ID returns full entry including content."""
@@ -65,7 +51,6 @@ class ElnApiTests(TestCase):
         response = self.client.put(
             f"/api/eln/entries/{entry.id}/",
             {"title": "New Title", "content": "New content", "folder": self.folder.id},
-            **self._auth_header(),
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["title"], "New Title")
@@ -78,9 +63,7 @@ class ElnApiTests(TestCase):
         entry = NotebookEntry.objects.create(
             title="To Delete", content="Bye", folder=self.folder, author=self.user
         )
-        response = self.client.delete(
-            f"/api/eln/entries/{entry.id}/", **self._auth_header()
-        )
+        response = self.client.delete(f"/api/eln/entries/{entry.id}/")
         self.assertEqual(response.status_code, 204)
         self.assertEqual(NotebookEntry.objects.count(), 0)
 

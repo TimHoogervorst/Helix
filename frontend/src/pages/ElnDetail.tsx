@@ -40,16 +40,16 @@ function ElnDetail() {
     }
   };
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
-  if (!entry) return <p>Entry not found.</p>;
+  if (loading) return <p className="empty">Loading…</p>;
+  if (error) return <div className="error">Error: {error}</div>;
+  if (!entry) return <p className="empty">Entry not found.</p>;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+      <div className="toolbar">
         <div>
           <h1>{entry.title}</h1>
-          <p style={{ color: "#666", fontSize: "0.9rem" }}>
+          <p className="meta" style={{ margin: 0 }}>
             by {entry.author_username} · Folder: {entry.folder_name} ·{" "}
             {new Date(entry.created_at).toLocaleString()}
             {entry.updated_at !== entry.created_at &&
@@ -60,23 +60,14 @@ function ElnDetail() {
           <Link to={`/eln/${id}/edit`}>
             <button>Edit</button>
           </Link>
-          <button onClick={handleDelete} disabled={deleting} style={{ color: "red" }}>
-            {deleting ? "Deleting..." : "Delete"}
+          <button onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Deleting…" : "Delete"}
           </button>
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: "1.5rem",
-          padding: "1rem",
-          border: "1px solid #eee",
-          borderRadius: 4,
-          whiteSpace: "pre-wrap",
-          lineHeight: 1.6,
-        }}
-      >
-        {entry.content || <em style={{ color: "#999" }}>No content.</em>}
+      <div className="content-box">
+        {entry.content || <em style={{ color: "#9ca3af" }}>No content.</em>}
       </div>
     </div>
   );

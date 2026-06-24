@@ -3,7 +3,6 @@ import Layout from "./components/Layout";
 import ElnList from "./pages/ElnList";
 import ElnNew from "./pages/ElnNew";
 import ElnDetail from "./pages/ElnDetail";
-import Login from "./pages/Login";
 
 function App() {
   return (
@@ -13,7 +12,6 @@ function App() {
         <Route path="/eln" element={<ElnList />} />
         <Route path="/eln/new" element={<ElnNew />} />
         <Route path="/eln/:id" element={<ElnDetail />} />
-        <Route path="/login" element={<Login />} />
       </Route>
     </Routes>
   );

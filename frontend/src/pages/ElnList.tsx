@@ -45,49 +45,39 @@ function ElnList() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="toolbar">
         <h1>Notebook Entries</h1>
         <Link to="/eln/new">
           <button>+ New Entry</button>
         </Link>
       </div>
 
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: "red" }}>Error: {error}</p>}
+      {loading && <p className="empty">Loading…</p>}
+      {error && <div className="error">Error: {error}</div>}
 
       {!loading && !error && entries.length === 0 && (
-        <p>No entries yet. Create your first entry!</p>
+        <p className="empty">No entries yet. Create your first entry!</p>
       )}
 
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {entries.map((entry) => (
-          <li
-            key={entry.id}
-            style={{
-              border: "1px solid #eee",
-              padding: "1rem",
-              marginBottom: "0.5rem",
-              borderRadius: 4,
-            }}
-          >
-            <Link to={`/eln/${entry.id}`} style={{ fontSize: "1.1rem", fontWeight: 500 }}>
-              {entry.title}
-            </Link>
-            <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-              by {entry.author_username} · {new Date(entry.created_at).toLocaleString()}
-            </div>
-          </li>
-        ))}
-      </ul>
+      {entries.map((entry) => (
+        <div key={entry.id} className="entry-item">
+          <Link to={`/eln/${entry.id}`}>{entry.title}</Link>
+          <div className="meta">
+            by {entry.author_username} · {new Date(entry.created_at).toLocaleString()}
+          </div>
+        </div>
+      ))}
 
-      <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-        {previous && (
-          <button onClick={() => fetchEntries(previous)}>← Previous</button>
-        )}
-        {next && (
-          <button onClick={() => fetchEntries(next)}>Next →</button>
-        )}
-      </div>
+      {(previous || next) && (
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", marginTop: "1.5rem" }}>
+          {previous && (
+            <button onClick={() => fetchEntries(previous)}>← Previous</button>
+          )}
+          {next && (
+            <button onClick={() => fetchEntries(next)}>Next →</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

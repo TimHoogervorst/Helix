@@ -23,25 +23,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     ...(customHeaders as Record<string, string>),
   };
 
-  const token = localStorage.getItem("auth_token");
-  if (token) {
-    headers["Authorization"] = `Token ${token}`;
-  }
-
   const response = await fetch(`${BASE_URL}${path}`, {
     ...rest,
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
-
-  if (response.status === 401) {
-    localStorage.removeItem("auth_token");
-    // Only redirect if not already on login-related pages
-    if (!window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
-    }
-    throw new ApiError(401, { detail: "Authentication required" });
-  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);

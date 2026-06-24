@@ -42,65 +42,56 @@ function ElnNew() {
   };
 
   if (folders.length === 0 && !error) {
-    return <p>Loading...</p>;
+    return <p className="empty">Loading…</p>;
   }
 
   return (
     <div>
       <h1>New Notebook Entry</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <div className="error">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "1rem" }}>
-          <label>
-            Title:
-            <br />
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-              placeholder="Entry title..."
-            />
-          </label>
+          <label htmlFor="title">Title</label>
+          <input
+            id="title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            placeholder="Entry title…"
+          />
         </div>
 
         <div style={{ marginBottom: "1rem" }}>
-          <label>
-            Folder:
-            <br />
-            <select
-              value={folderId ?? ""}
-              onChange={(e) => setFolderId(e.target.value ? Number(e.target.value) : null)}
-              style={{ padding: "0.5rem", fontSize: "1rem" }}
-            >
-              <option value="">-- Select a folder --</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <label htmlFor="folder">Folder</label>
+          <select
+            id="folder"
+            value={folderId ?? ""}
+            onChange={(e) => setFolderId(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">-- Select a folder --</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ marginBottom: "1rem" }}>
-          <label>
-            Content:
-            <br />
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={12}
-              style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-              placeholder="Write your entry here..."
-            />
-          </label>
+          <label htmlFor="content">Content</label>
+          <textarea
+            id="content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={12}
+            placeholder="Write your entry here…"
+          />
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button type="submit" disabled={submitting || !title.trim()}>
-            {submitting ? "Creating..." : "Create Entry"}
+            {submitting ? "Creating…" : "Create Entry"}
           </button>
           <button type="button" onClick={() => navigate("/eln")}>
             Cancel

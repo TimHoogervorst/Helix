@@ -1,36 +1,113 @@
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from .models import EntityType, Entity, Action
-from .serializers import EntityTypeSerializer, EntitySerializer, ActionSerializer
+from .serializers import (
+    EntityTypeSerializer,
+    EntityTypeDetailSerializer,
+    EntitySerializer,
+    EntityBatchSerializer,
+    ActionSerializer,
+)
 
 
-class EntityTypeViewSet(viewsets.ReadOnlyModelViewSet):
+class EntityTypeViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for LIMS entity types (read-only for Phase 1).
+    API endpoint for LIMS entity types (schemas).
 
-    list: GET /api/lims/entity-types/ — list all entity types
-    retrieve: GET /api/lims/entity-types/{id}/ — get single entity type
+    list: GET /api/lims/entity-types/
+    create: POST /api/lims/entity-types/
+    retrieve: GET /api/lims/entity-types/{id}/
+    update: PUT /api/lims/entity-types/{id}/
+    partial_update: PATCH /api/lims/entity-types/{id}/
+    destroy: DELETE /api/lims/entity-types/{id}/ — soft-deletes (sets is_active=False)
     """
 
     queryset = EntityType.objects.all()
-    serializer_class = EntityTypeSerializer
     permission_classes = []
     pagination_class = None
 
+    def get_serializer_class(self):
+        if self.action in ("list", "retrieve"):
+            return EntityTypeDetailSerializer
+        return EntityTypeSerializer
 
-class EntityViewSet(viewsets.ReadOnlyModelViewSet):
+    def perform_destroy(self, instance):
+        """Soft-delete: set is_active=False instead of removing the row."""
+        instance.is_active = False
+        instance.save(update_fields=["is_active"])
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EntityViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for LIMS entities (read-only for Phase 1).
+    API endpoint for LIMS entities.
 
-    list: GET /api/lims/entities/ — list all entities (paginated, filterable by entity_type)
-    retrieve: GET /api/lims/entities/{id}/ — get single entity with properties
+    list: GET /api/lims/entities/ — paginated, filterable by ?search= and ?type=
+    retrieve: GET /api/lims/entities/{display_id}/ — lookup by display_id or pk
+    create: POST /api/lims/entities/ — create entity
+    update: PUT /api/lims/entities/{display_id}/
+    partial_update: PATCH /api/lims/entities/{display_id}/
+    destroy: DELETE /api/lims/entities/{display_id}/
+    batch: POST /api/lims/entities/batch/ — batch resolve display IDs
     """
 
     queryset = Entity.objects.select_related("entity_type", "created_by", "folder")
     serializer_class = EntitySerializer
     permission_classes = []
+    lookup_field = "display_id"
     filterset_fields = ["entity_type"]
+    search_fields = ["display_id", "name"]
+
+    def perform_create(self, serializer):
+        author = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(created_by=author)
+
+    def filter_queryset(self, queryset):
+        # Support ?type= as an alias for ?entity_type=
+        type_id = self.request.query_params.get("type")
+        if type_id:
+            queryset = queryset.filter(entity_type_id=type_id)
+        return super().filter_queryset(queryset)
+
+    @action(detail=False, methods=["post"])
+    def batch(self, request):
+        """Batch-resolve entity display IDs to their details.
+
+        POST /api/lims/entities/batch/
+        Body: {"ids": ["BLOOD1", "DNA2"]}
+        Returns: {"BLOOD1": {...}, "DNA2": {...}, "NONEXIST1": null}
+        """
+        input_serializer = EntityBatchSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        ids = input_serializer.validated_data["ids"]
+
+        result = {}
+        entities = Entity.objects.filter(display_id__in=ids).select_related("entity_type")
+        entity_map = {e.display_id: e for e in entities}
+
+        for display_id in ids:
+            entity = entity_map.get(display_id)
+            if entity is None:
+                result[display_id] = None
+            else:
+                result[display_id] = {
+                    "id": entity.pk,
+                    "display_id": entity.display_id,
+                    "name": entity.name,
+                    "entity_type_id": entity.entity_type_id,
+                    "entity_type_name": entity.entity_type.name,
+                    "properties": entity.properties,
+                    "folder_id": entity.folder_id,
+                    "created_at": entity.created_at.isoformat(),
+                }
+
+        return Response(result)
 
 
 class ActionViewSet(viewsets.ReadOnlyModelViewSet):

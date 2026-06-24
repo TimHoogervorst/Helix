@@ -5,7 +5,11 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .services import PREFIX_MAP, MODEL_TYPE_MAP, resolve_display_id
+from .services import (
+    _get_dynamic_prefix_map,
+    _get_dynamic_model_type_map,
+    resolve_display_id,
+)
 
 
 @api_view(["POST"])
@@ -14,10 +18,11 @@ def resolve_view(request):
     Batch-resolve display IDs to target details.
 
     POST /api/references/resolve/
-    Body: {"ids": ["E1", "E2"]}
-    Returns: {"E1": {...}, "E2": null}
+    Body: {"ids": ["E1", "BLOOD1"]}
+    Returns: {"E1": {...}, "BLOOD1": {...}, "NONEXIST": null}
     """
     ids = request.data.get("ids", [])
+    model_type_map = _get_dynamic_model_type_map()
     result = {}
     for display_id in ids:
         resolved = resolve_display_id(display_id)
@@ -26,8 +31,8 @@ def resolve_view(request):
             result[display_id] = {
                 "id": instance.pk,
                 "display_id": getattr(instance, "display_id", str(instance.pk)),
-                "title": getattr(instance, "title", str(instance)),
-                "type": MODEL_TYPE_MAP.get(type(instance), ct.model),
+                "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
+                "type": model_type_map.get(type(instance), ct.model),
             }
         else:
             result[display_id] = None
@@ -46,14 +51,17 @@ def search_view(request):
     if not query:
         return Response({"results": []})
 
+    pmap = _get_dynamic_prefix_map()
+    model_type_map = _get_dynamic_model_type_map()
+
     results = []
-    for prefix, model in PREFIX_MAP.items():
+    for prefix, model in pmap.items():
         qs = model.objects.filter(display_id__istartswith=query)
         for instance in qs:
             results.append({
                 "display_id": instance.display_id,
-                "title": instance.title,
-                "type": MODEL_TYPE_MAP.get(type(instance), "entry"),
+                "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
+                "type": model_type_map.get(type(instance), "entry"),
             })
 
     return Response({"results": results})

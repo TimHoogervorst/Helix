@@ -1,10 +1,29 @@
 from django.db import models
+from django.db.models.functions import Length
 
 
 class EntityType(models.Model):
-    """A type/category of LIMS entity (e.g., DNA, Chemical, Buffer)."""
+    """A type/category of LIMS entity (e.g., DNA, Chemical, Buffer).
+
+    Carries a prefix for entity display_id generation and a JSON schema
+    (``columns``) that defines the properties entities of this type can have.
+    """
 
     name = models.CharField(max_length=255, unique=True)
+    prefix = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="Uppercase letters, e.g. BLOOD. Used to generate display IDs like BLOOD1.",
+    )
+    columns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Ordered array of column definitions: {name, type, required, default, units, description}.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Soft-delete flag. Inactive schemas are hidden from dropdowns but preserve existing entities.",
+    )
 
     class Meta:
         db_table = "lims_entity_type"
@@ -15,14 +34,27 @@ class EntityType(models.Model):
 
 
 class Entity(models.Model):
-    """A structured LIMS entity representing a physical sample or item."""
+    """A structured LIMS entity representing a physical sample or item.
 
+    display_id is auto-generated from the EntityType prefix on first save
+    (same pattern as NotebookEntry.display_id).
+    """
+
+    display_id = models.CharField(
+        max_length=50, unique=True, editable=False, null=True
+    )
     name = models.CharField(max_length=500)
     entity_type = models.ForeignKey(
         EntityType, on_delete=models.CASCADE, related_name="entities"
     )
-    barcode = models.CharField(max_length=255, unique=True, null=True, blank=True)
     properties = models.JSONField(default=dict, blank=True)
+    source_entry = models.ForeignKey(
+        "eln.NotebookEntry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lims_entities",
+    )
     folder = models.ForeignKey(
         "core.Folder",
         on_delete=models.SET_NULL,
@@ -41,7 +73,27 @@ class Entity(models.Model):
         verbose_name_plural = "entities"
 
     def __str__(self):
+        if self.display_id:
+            return f"{self.display_id} — {self.name}"
         return f"{self.name} ({self.entity_type.name})"
+
+    def save(self, *args, **kwargs):
+        if self.display_id is None:
+            prefix = self.entity_type.prefix
+            last = (
+                Entity.objects
+                .filter(display_id__startswith=prefix)
+                .annotate(id_len=Length("display_id"))
+                .order_by("-id_len", "-display_id")
+                .values_list("display_id", flat=True)
+                .first()
+            )
+            if last:
+                num = int(last[len(prefix):])
+            else:
+                num = 0
+            self.display_id = f"{prefix}{num + 1}"
+        super().save(*args, **kwargs)
 
 
 class Action(models.Model):

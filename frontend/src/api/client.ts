@@ -2,6 +2,7 @@ const BASE_URL = "/api";
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
+  signal?: AbortSignal;
 }
 
 class ApiError extends Error {
@@ -42,20 +43,20 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return response.json();
 }
 
-export function get<T>(path: string): Promise<T> {
-  return request<T>(path, { method: "GET" });
+export function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: "GET", signal });
 }
 
-export function post<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: "POST", body });
+export function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: "POST", body, signal });
 }
 
-export function put<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: "PUT", body });
+export function put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: "PUT", body, signal });
 }
 
-export function del<T>(path: string): Promise<T> {
-  return request<T>(path, { method: "DELETE" });
+export function del<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: "DELETE", signal });
 }
 
 export { ApiError };

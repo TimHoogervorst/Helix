@@ -141,3 +141,76 @@ class SearchApiTests(TestCase):
         results = response.data["results"]
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["display_id"], self.e1.display_id)
+
+
+# ── Slice 1: Dynamic PREFIX_MAP — entity references ──
+
+class EntityReferenceTests(TestCase):
+    """Entity display IDs resolve and search through the references endpoints."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="testpass123")
+        self.folder = Folder.objects.create(name="Default")
+
+        from lims.models import EntityType, Entity
+
+        self.blood_type = EntityType.objects.create(
+            name="Blood Sample", prefix="BLOOD", columns=[]
+        )
+        self.entity = Entity.objects.create(
+            name="Patient Blood #1",
+            entity_type=self.blood_type,
+            folder=self.folder,
+            created_by=self.user,
+        )
+
+    def test_resolve_entity_display_id(self):
+        """Entity display IDs are resolved via PREFIX_MAP."""
+        response = self.client.post(
+            "/api/references/resolve/",
+            {"ids": [self.entity.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.entity.display_id, response.data)
+        result = response.data[self.entity.display_id]
+        self.assertIsNotNone(result)
+        self.assertEqual(result["display_id"], self.entity.display_id)
+        self.assertEqual(result["title"], "Patient Blood #1")
+        self.assertEqual(result["type"], "entity")
+
+    def test_resolve_mixed_entry_and_entity_ids(self):
+        """Both entry (E#) and entity (prefix#) IDs resolve."""
+        entry = NotebookEntry.objects.create(
+            title="An Entry", content=EMPTY_DOC,
+            folder=self.folder, author=self.user,
+        )
+
+        response = self.client.post(
+            "/api/references/resolve/",
+            {"ids": [entry.display_id, self.entity.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.data[entry.display_id])
+        self.assertIsNotNone(response.data[self.entity.display_id])
+        self.assertEqual(response.data[entry.display_id]["type"], "entry")
+        self.assertEqual(response.data[self.entity.display_id]["type"], "entity")
+
+    def test_search_finds_entities_by_prefix(self):
+        """GET /api/references/search/ includes entities when prefix matches."""
+        response = self.client.get(f"/api/references/search/?q={self.entity.display_id}")
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["display_id"], self.entity.display_id)
+        self.assertEqual(results[0]["type"], "entity")
+
+    def test_search_finds_entities_by_partial_prefix(self):
+        """Search by partial prefix (e.g., 'BLO') returns matching entities."""
+        response = self.client.get("/api/references/search/?q=BLO")
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["display_id"], self.entity.display_id)

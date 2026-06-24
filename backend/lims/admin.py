@@ -5,14 +5,14 @@ from .models import Entity, EntityType, Action
 
 @admin.register(EntityType)
 class EntityTypeAdmin(admin.ModelAdmin):
-    list_display = ["name"]
-    search_fields = ["name"]
+    list_display = ["name", "prefix", "is_active"]
+    search_fields = ["name", "prefix"]
 
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ["name", "entity_type", "barcode", "folder", "created_by", "created_at"]
-    search_fields = ["name", "barcode"]
+    list_display = ["display_id", "name", "entity_type", "folder", "created_by", "created_at"]
+    search_fields = ["display_id", "name"]
     list_filter = ["entity_type", "created_at"]
 
 

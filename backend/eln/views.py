@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 
 from references.services import sync_mentions
+from lims.services import sync_entities
 
 from .models import NotebookEntry
 from .serializers import NotebookEntrySerializer, NotebookEntryCreateSerializer
@@ -37,11 +38,24 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
             from core.models import Folder
             folder, _ = Folder.objects.get_or_create(name="Default", parent=None)
         instance = serializer.save(author=author, folder=folder)
-        sync_mentions(instance, instance.content)
+        # Sync entities first (patches entityIds into content),
+        # then sync mentions (may find new reference nodes in table cells)
+        content = sync_entities(instance, instance.content)
+        sync_mentions(instance, content)
+        # Save updated content with patched entityIds
+        if content != instance.content:
+            instance.content = content
+            instance.save(update_fields=["content"])
 
     def perform_update(self, serializer):
         instance = serializer.save()
-        sync_mentions(instance, instance.content)
+        # Sync entities first, then mentions
+        content = sync_entities(instance, instance.content)
+        sync_mentions(instance, content)
+        # Save updated content with patched entityIds
+        if content != instance.content:
+            instance.content = content
+            instance.save(update_fields=["content"])
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)

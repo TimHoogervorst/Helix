@@ -619,3 +619,1050 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── Slash-command dropdown ─────────────────────────────────────── */
+
+.slash-dropdown {
+  position: absolute;
+  z-index: 1001;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 300px;
+  overflow-y: auto;
+  min-width: 260px;
+  padding: 0.25rem;
+}
+
+.slash-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.1s;
+}
+.slash-dropdown-item:hover,
+.slash-dropdown-item.is-selected {
+  background: var(--blue-50);
+}
+.slash-dropdown-item.is-empty {
+  color: var(--gray-400);
+  cursor: default;
+}
+.slash-dropdown-item.is-empty:hover {
+  background: transparent;
+}
+
+.slash-item-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+}
+
+.slash-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.slash-item-label {
+  font-weight: 600;
+  color: var(--gray-800);
+  font-size: 0.9rem;
+}
+
+.slash-item-desc {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Nav spacer & gear ── */
+
+.nav-spacer {
+  flex: 1;
+}
+
+.nav-gear {
+  font-size: 1.2rem;
+  text-decoration: none;
+  padding: 0 0.25rem;
+}
+
+/* ── LIMS Page ── */
+
+.lims-page {
+  max-width: 1100px;
+}
+
+.lims-search-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.lims-search-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.lims-type-select {
+  width: auto;
+  min-width: 160px;
+}
+
+.lims-table-container {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.lims-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.lims-table th,
+.lims-table td {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--gray-200);
+  font-size: 0.9rem;
+}
+
+.lims-table th {
+  background: var(--gray-50);
+  font-weight: 600;
+  color: var(--gray-700);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.lims-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lims-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.lims-row:hover {
+  background: var(--blue-50);
+}
+
+.lims-row.is-selected {
+  background: var(--blue-100);
+}
+
+.lims-date {
+  color: var(--gray-500);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.lims-no-source {
+  color: var(--gray-400);
+}
+
+.lims-load-more {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+/* ── LIMS Detail Card ── */
+
+.lims-detail-card {
+  margin-top: 1.5rem;
+}
+
+.lims-detail-card .detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.lims-detail-card .detail-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.lims-detail-card .detail-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.detail-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.detail-properties h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+  color: var(--gray-700);
+}
+
+.properties-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.properties-table th,
+.properties-table td {
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.properties-table th {
+  background: var(--gray-50);
+  font-weight: 600;
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+
+.prop-key {
+  font-weight: 500;
+  font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 0.85em;
+  color: var(--gray-700);
+  width: 40%;
+}
+
+/* ── Settings Page ── */
+
+.settings-section {
+  margin-top: 1rem;
+}
+
+.settings-section h2 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.new-schema-form {
+  margin-bottom: 1.5rem;
+}
+
+.new-schema-form .form-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.new-schema-form .form-row label {
+  flex: 1;
+}
+
+.schema-card {
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.schema-card.is-inactive {
+  opacity: 0.6;
+}
+
+.schema-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.schema-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.schema-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.schema-meta {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+}
+
+.schema-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inactive-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+
+/* ── Column Editor ── */
+
+.column-editor {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-200);
+}
+
+.column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.column-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.drag-handles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drag-btn {
+  display: block;
+  padding: 0;
+  width: 22px;
+  height: 18px;
+  font-size: 0.55rem;
+  line-height: 1;
+  background: transparent;
+  color: var(--gray-400);
+  border: 1px solid var(--gray-200);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.drag-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.drag-btn:not(:disabled):hover {
+  color: var(--gray-700);
+  border-color: var(--gray-300);
+}
+
+.col-name {
+  width: 160px;
+  flex: 0 1 160px;
+}
+
+.col-type {
+  width: 120px;
+}
+
+.col-required {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  margin: 0;
+}
+
+.col-required input[type="checkbox"] {
+  width: auto;
+}
+
+.column-editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* ── limsTable Node ── */
+
+.lims-table-wrapper {
+  margin: 1rem 0;
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.lims-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.05rem 0.4rem;
+  background: var(--gray-50);
+  gap: 0.25rem;
+}
+
+/* Schema-backed tables → blue header bar */
+.lims-table-header.is-schema {
+  background: var(--blue-50);
+}
+
+.lims-table-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+/* Match specificity with global input[type="text"] so these win. */
+input.lims-table-title-input {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 500;
+  font-size: 0.92rem;
+  color: var(--gray-600);
+  padding: 0.05rem 0;
+  width: 100%;
+  max-width: none;
+  outline: none;
+  box-shadow: none;
+}
+input.lims-table-title-input:focus {
+  color: var(--gray-700);
+  outline: none;
+  box-shadow: none;
+}
+
+.lims-table-header-right {
+  display: flex;
+  gap: 0.15rem;
+}
+
+/* Minimal icon-only button */
+.lims-table-header-btn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--gray-400);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+.lims-table-header-btn:hover {
+  color: var(--blue-600);
+  background: var(--blue-50);
+}
+
+.lims-table-plain-hint {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.7rem;
+  color: var(--gray-400);
+  background: var(--blue-50);
+  border-top: 1px solid var(--blue-200);
+  text-align: center;
+}
+
+/* Table element inside limsTable */
+.lims-table-el {
+  width: auto;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.lims-table-el th,
+.lims-table-el td {
+  width: 120px;
+  border: none;
+  border-bottom: 1px solid var(--gray-200);
+  border-right: 1px solid var(--gray-200);
+  padding: 0.2rem 0.75rem;
+  font-size: 0.9rem;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.lims-table-el th:last-child,
+.lims-table-el td:last-child {
+  border-right: none;
+}
+
+.lims-table-el tr:last-child td,
+.lims-table-el tr:last-child th {
+  border-bottom: none;
+}
+
+.lims-table-el th {
+  background: var(--gray-50);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--gray-700);
+}
+
+.lims-table-el td > p,
+.lims-table-el th > p {
+  margin: 0;
+}
+
+/* ── Column Header Row (schema-backed tables) ── */
+
+.lims-table-column-headers {
+  display: flex;
+  border-bottom: 1px solid var(--blue-200);
+  background: var(--blue-50);
+  overflow-x: auto;
+}
+
+.lims-table-col-header {
+  width: 120px;
+  flex: none;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-right: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+.lims-table-col-header.is-custom {
+  color: var(--gray-500);
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* When the column-headers row is shown (schema-backed), de-emphasise <th>
+   cells in the table body — the schema column names above serve as the
+   visual header instead. */
+.lims-table-column-headers + .lims-table-area .lims-table-el th {
+  background: transparent;
+  font-weight: normal;
+  font-size: 0.9rem;
+  color: inherit;
+}
+
+/* ── Table-area wrapper (for mouse tracking) ── */
+
+.lims-table-area {
+  position: relative;
+}
+
+/* ── Row / Column insert markers ── */
+
+.lims-insert-marker {
+  z-index: 450;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--blue-400);
+  background: var(--white);
+  color: var(--blue-500);
+  font-size: 0.85rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s;
+  transform: scale(0.8);
+  pointer-events: none;
+}
+
+.lims-insert-marker.is-visible {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* ── Schema Popup ── */
+
+.lims-schema-popup {
+  z-index: 500;
+  width: 320px;
+  max-height: 300px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.lims-schema-popup-header {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.lims-schema-popup-header input {
+  width: 100%;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.lims-schema-popup-list {
+  overflow-y: auto;
+  max-height: 240px;
+  padding: 0.25rem;
+}
+
+.lims-schema-popup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.1s;
+}
+.lims-schema-popup-item:hover {
+  background: var(--blue-50);
+}
+.lims-schema-popup-item.is-empty {
+  color: var(--gray-400);
+  cursor: default;
+  justify-content: center;
+}
+.lims-schema-popup-item.is-empty:hover {
+  background: transparent;
+}
+
+.lims-schema-popup-name {
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.lims-schema-popup-desc {
+  font-size: 0.75rem;
+  color: var(--gray-400);
+}
+
+/* ── AG Grid Notion-style theme ──────────────────────────────────────── */
+
+.eln-grid-theme {
+  --ag-border-color: transparent;
+  --ag-row-border-color: #f0f0f0;
+  --ag-header-column-separator-color: transparent;
+  --ag-header-column-separator-height: 100%;
+  --ag-header-column-resize-handle-color: #d4d4d8;
+  --ag-header-column-resize-handle-height: 60%;
+  --ag-header-background-color: #f4f4f5;
+  --ag-odd-row-background-color: #fff;
+  --ag-even-row-background-color: #fff;
+  --ag-row-hover-color: #f8f8f8;
+  --ag-selected-row-background-color: #f0f4ff;
+  --ag-font-size: 14px;
+  --ag-font-family: inherit;
+  --ag-header-height: 34px;
+  --ag-row-height: 40px;
+  --ag-cell-horizontal-padding: 12px;
+  --ag-input-focus-border-color: var(--blue-400, #60a5fa);
+  --ag-range-selection-border-color: var(--blue-300, #93c5fd);
+  --ag-checkbox-checked-color: var(--blue-500, #3b82f6);
+  --ag-checkbox-unchecked-color: #d4d4d8;
+}
+
+/* Remove AG Grid's default outer border */
+.eln-grid-theme .ag-root-wrapper {
+  border: none !important;
+  border-radius: 0;
+}
+
+/* Header row: gray background, subtle bottom rule */
+.eln-grid-theme .ag-header {
+  border-bottom: 1px solid #e0e0e0 !important;
+  background: #f4f4f5 !important;
+}
+
+.eln-grid-theme .ag-header-cell {
+  padding-left: 12px;
+  padding-right: 12px;
+  border-right: none !important;
+  font-weight: 500;
+  font-size: 0.82em;
+  color: #52525b;
+  text-transform: none;
+}
+
+/* Cells: no vertical borders */
+.eln-grid-theme .ag-cell {
+  border-right: none !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+  display: flex;
+  align-items: center;
+  line-height: 1.4;
+}
+
+/* Remove bottom border from last row */
+.eln-grid-theme .ag-row:last-child .ag-cell {
+  border-bottom: none !important;
+}
+
+/* Edit input — match Notion feel */
+.eln-grid-theme .ag-cell-editor input {
+  padding: 0 12px;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* Checkbox inside boolean cells */
+.eln-grid-theme .ag-checkbox-input-wrapper {
+  margin: 0;
+}
+
+/* Index column (#) — matches header gray */
+.eln-grid-theme .ag-cell.eln-grid-index-cell {
+  background: #f4f4f5 !important;
+  color: #52525b !important;
+  font-size: 0.82em;
+  font-family: var(--font-mono, monospace);
+  border-bottom: none !important;
+}
+
+/* Index column header */
+.eln-grid-theme .ag-header-cell.eln-grid-index-header {
+  background: #f4f4f5 !important;
+}
+
+/* ── ELN Table Card (wraps title bar + grid) ────────────────────────── */
+
+.eln-table-card {
+  background: var(--white, #fff);
+  border-radius: 8px;
+  border: none;
+  overflow: hidden;
+}
+
+/* ── Title bar ──────────────────────────────────────────────────────── */
+
+.eln-table-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--white, #fff);
+  border-bottom: 1px solid var(--gray-100, #f4f4f5);
+}
+
+.eln-table-title-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.eln-table-title-icon {
+  font-size: 1.1em;
+  color: var(--gray-400, #a1a1aa);
+  user-select: none;
+}
+
+.eln-table-title-text {
+  font-size: 0.95em;
+  font-weight: 500;
+  color: var(--gray-800, #27272a);
+  padding: 2px 4px;
+  border-radius: 4px;
+  outline: none;
+  cursor: text;
+  min-width: 60px;
+}
+
+.eln-table-title-text:hover {
+  background: var(--gray-50, #fafafa);
+}
+
+.eln-table-title-text:focus {
+  background: var(--gray-100, #f4f4f5);
+}
+
+.eln-table-title-right {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── Gear button & menu ─────────────────────────────────────────────── */
+
+.eln-table-gear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 1.05em;
+  cursor: pointer;
+  color: var(--gray-400, #a1a1aa);
+  transition: background 0.15s, color 0.15s;
+}
+
+.eln-table-gear-btn:hover {
+  background: var(--gray-100, #f4f4f5);
+  color: var(--gray-600, #52525b);
+}
+
+.eln-table-gear-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 500;
+  min-width: 180px;
+  background: var(--white, #fff);
+  border: 1px solid var(--gray-200, #e4e4e7);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+}
+
+.eln-table-gear-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  font-size: 0.85em;
+  color: var(--gray-700, #3f3f46);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.eln-table-gear-item:hover {
+  background: var(--gray-50, #fafafa);
+}
+
+.eln-table-gear-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--gray-100, #f4f4f5);
+}
+
+/* ── Gear panel (schema picker / add column form) ───────────────────── */
+
+.eln-table-gear-panel {
+  min-width: 220px;
+}
+
+.eln-table-gear-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--gray-100, #f4f4f5);
+  margin-bottom: 4px;
+}
+
+.eln-table-gear-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--gray-500, #71717a);
+  font-size: 0.85em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.eln-table-gear-back:hover {
+  background: var(--gray-100, #f4f4f5);
+  color: var(--gray-700, #3f3f46);
+}
+
+.eln-table-gear-panel-title {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--gray-500, #71717a);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eln-table-gear-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.eln-table-gear-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--gray-200, #e4e4e7);
+  border-radius: 4px;
+  font-size: 0.84em;
+  font-family: inherit;
+  color: var(--gray-800, #27272a);
+  background: var(--white, #fff);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.eln-table-gear-input:focus {
+  border-color: var(--blue-400, #60a5fa);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+.eln-table-gear-select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--gray-200, #e4e4e7);
+  border-radius: 4px;
+  font-size: 0.84em;
+  font-family: inherit;
+  color: var(--gray-800, #27272a);
+  background: var(--white, #fff);
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.eln-table-gear-select:focus {
+  border-color: var(--blue-400, #60a5fa);
+}
+
+.eln-table-gear-confirm {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--blue-500, #3b82f6);
+  color: #fff;
+  font-size: 0.84em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.eln-table-gear-confirm:hover {
+  background: var(--blue-600, #2563eb);
+}
+
+.eln-table-gear-confirm:disabled {
+  background: var(--gray-300, #d4d4d8);
+  cursor: default;
+}
+
+.eln-table-gear-hint {
+  font-size: 0.82em;
+  color: var(--gray-400, #a1a1aa);
+  padding: 8px 4px;
+  text-align: center;
+}
+
+.eln-table-schema-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.eln-table-schema-name {
+  font-weight: 500;
+}
+
+.eln-table-schema-prefix {
+  font-size: 0.78em;
+  color: var(--gray-400, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+}
+
+/* ── Bottom "+" button — flush under the # column ──────────────────── */
+
+.eln-table-add-row-tag {
+  padding: 0 12px 4px;
+  background: var(--white, #fff);
+}
+
+.eln-table-add-row-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--blue-300, #93c5fd);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 1em;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--blue-400, #60a5fa);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.eln-table-add-row-btn:hover {
+  background: var(--blue-50, #eff6ff);
+  color: var(--blue-500, #3b82f6);
+  border-color: var(--blue-400, #60a5fa);
+}
+
+/* ── Cell selection — modern Notion-style outlines ─────────────────── */
+
+.eln-grid-theme .ag-cell-focus {
+  border: 2px solid var(--blue-300, #93c5fd) !important;
+  outline: none !important;
+}
+
+/* Keep the focus ring when editing too */
+.eln-grid-theme .ag-cell.ag-cell-editing {
+  border: 2px solid var(--blue-300, #93c5fd) !important;
+}
+
+/* Suppress the range-selection overlay (we disable ranges, but just in case) */
+.eln-grid-theme .ag-cell-range-selected-1,
+.eln-grid-theme .ag-cell-range-selected-2,
+.eln-grid-theme .ag-cell-range-selected-3,
+.eln-grid-theme .ag-cell-range-selected-4 {
+  background-color: transparent !important;
+  border: none !important;
+}

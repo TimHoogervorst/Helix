@@ -4,11 +4,15 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TableKit } from "@tiptap/extension-table";
 import { get, post, put, del } from "../api/client";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types/eln";
 import Reference from "../extensions/Reference";
 import ReferenceSuggestion from "../extensions/ReferenceSuggestion";
+import LimsTable from "../extensions/LimsTable";
+import SlashCommands from "../extensions/SlashCommands";
 import { ReferenceProvider, useReferenceContext } from "./ReferenceProvider";
+import { LimsEntityProvider, useLimsEntityContext } from "./LimsEntityProvider";
 
 interface Folder {
   id: number;
@@ -60,11 +64,50 @@ function collectReferenceIds(doc: TipTapDoc): string[] {
   return ids;
 }
 
-/** Inner component that lives inside ReferenceProvider so it can use the context. */
+/**
+ * Hook: walk the TipTap JSON tree and collect entityIds from limsTable nodes.
+ */
+function collectLimsEntityIds(doc: TipTapDoc): string[] {
+  const ids: string[] = [];
+
+  function walk(node: unknown) {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+
+    if (n.type === "limsTable") {
+      const attrs = n.attrs as Record<string, unknown> | undefined;
+      const rows = attrs?.rows;
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          if (row && typeof row === "object") {
+            const r = row as Record<string, unknown>;
+            if (r.entityId != null && typeof r.displayId === "string") {
+              ids.push(r.displayId);
+            }
+          }
+        }
+      }
+    }
+
+    const content = n.content;
+    if (Array.isArray(content)) {
+      for (const child of content) {
+        walk(child);
+      }
+    }
+  }
+
+  walk(doc);
+  return ids;
+}
+
+/** Inner component that lives inside ReferenceProvider + LimsEntityProvider
+    so it can use both contexts. */
 function ElnEditorInner({ entryId }: ElnEditorProps) {
   const navigate = useNavigate();
   const isNew = entryId === undefined;
   const { resolveIds } = useReferenceContext();
+  const { resolveEntityIds } = useLimsEntityContext();
 
   // ── State ──
   const [mode, setMode] = useState<EditorMode>(
@@ -92,6 +135,9 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
       }),
       Reference,
       ReferenceSuggestion,
+      SlashCommands,
+      TableKit,
+      LimsTable,
     ],
     content: isNew
       ? EMPTY_DOC
@@ -115,8 +161,11 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
     if (!entryId) return;
 
     setMode("loading");
-    get<EntryDetail>(`/eln/entries/${entryId}/`)
+    const controller = new AbortController();
+
+    get<EntryDetail>(`/eln/entries/${entryId}/`, controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return;
         setEntry(data);
         setTitle(data.title);
         setInitialTitle(data.title);
@@ -129,12 +178,22 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
           resolveIds(refIds);
         }
 
+        // Collect entity IDs from limsTable nodes for batch resolution
+        const entityIds = collectLimsEntityIds(data.content);
+        if (entityIds.length > 0) {
+          resolveEntityIds(entityIds);
+        }
+
         setMode("view");
       })
       .catch((err) => {
-        setError(err.message);
+        if (controller.signal.aborted) return;
+        const message = err instanceof Error ? err.message : "Failed to load entry";
+        setError(message);
         setMode("error");
       });
+
+    return () => controller.abort();
   }, [entryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load content into editor ──
@@ -183,8 +242,13 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
     if (refIds.length > 0) {
       resolveIds(refIds);
     }
+    // Resolve any LIMS entity IDs
+    const entityIds = collectLimsEntityIds(currentContent);
+    if (entityIds.length > 0) {
+      resolveEntityIds(entityIds);
+    }
     setMode("edit-existing");
-  }, [currentContent, resolveIds]);
+  }, [currentContent, resolveIds, resolveEntityIds]);
 
   const handleCancel = useCallback(() => {
     if (isNew) {
@@ -215,12 +279,19 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
 
     try {
       if (isNew) {
-        const created = await post<{ id: number }>("/eln/entries/", payload);
+        const created = await post<EntryDetail>("/eln/entries/", payload);
         navigate(`/eln/${created.id}`);
       } else {
-        await put(`/eln/entries/${entryId!}/`, payload);
+        const updated = await put<EntryDetail>(`/eln/entries/${entryId!}/`, payload);
+        // Replace editor content with response (entityIds are patched by backend)
+        const responseContent = updated.content || editor.getJSON();
         setInitialTitle(title.trim());
-        setInitialContent(editor.getJSON());
+        setInitialContent(responseContent);
+        // Re-resolve references and entity IDs from the updated content
+        const refIds = collectReferenceIds(responseContent);
+        if (refIds.length > 0) resolveIds(refIds);
+        const entityIds = collectLimsEntityIds(responseContent);
+        if (entityIds.length > 0) resolveEntityIds(entityIds);
         contentLoaded.current = false;
         setMode("view");
       }
@@ -482,11 +553,13 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
   );
 }
 
-/** Wrapper that provides the ReferenceContext. */
+/** Wrapper that provides both ReferenceContext and LimsEntityContext. */
 function ElnEditor(props: ElnEditorProps) {
   return (
     <ReferenceProvider>
-      <ElnEditorInner {...props} />
+      <LimsEntityProvider>
+        <ElnEditorInner {...props} />
+      </LimsEntityProvider>
     </ReferenceProvider>
   );
 }

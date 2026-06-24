@@ -1,23 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { get } from "../api/client";
-
-interface Entry {
-  id: number;
-  title: string;
-  author_username: string;
-  created_at: string;
-}
+import type { EntryListItem } from "../types/eln";
 
 interface PageResponse {
-  results: Entry[];
+  results: EntryListItem[];
   next: string | null;
   previous: string | null;
   count: number;
 }
 
 function ElnList() {
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<EntryListItem[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [previous, setPrevious] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +55,7 @@ function ElnList() {
 
       {entries.map((entry) => (
         <div key={entry.id} className="entry-item">
+          <span className="eln-badge">{entry.display_id}</span>
           <Link to={`/eln/${entry.id}`}>{entry.title}</Link>
           <div className="meta">
             by {entry.author_username} · {new Date(entry.created_at).toLocaleString()}

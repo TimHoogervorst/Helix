@@ -5,6 +5,21 @@ from core.models import Folder
 from .models import NotebookEntry, Mention
 
 
+def validate_tiptap_json(value):
+    """Validate that content conforms to a TipTap/ProseMirror document shape."""
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Content must be a JSON object.")
+    if value.get("type") != "doc":
+        raise serializers.ValidationError(
+            "Content must be a TipTap document with type='doc'."
+        )
+    if "content" not in value:
+        raise serializers.ValidationError(
+            "Content must have a 'content' array."
+        )
+    return value
+
+
 class MentionSerializer(serializers.ModelSerializer):
     target_type_name = serializers.CharField(source="target_type.model", read_only=True)
 
@@ -23,6 +38,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
         model = NotebookEntry
         fields = [
             "id",
+            "display_id",
             "title",
             "content",
             "folder",
@@ -33,7 +49,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "updated_at",
             "mentions",
         ]
-        read_only_fields = ["id", "author", "created_at", "updated_at"]
+        read_only_fields = ["id", "display_id", "author", "created_at", "updated_at"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
@@ -45,6 +61,7 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
     folder = serializers.PrimaryKeyRelatedField(
         queryset=Folder.objects.all(), required=False
     )
+    content = serializers.JSONField(validators=[validate_tiptap_json])
 
     class Meta:
         model = NotebookEntry

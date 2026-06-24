@@ -9,6 +9,17 @@ from rest_framework.test import APIClient
 from core.models import Folder, User
 from eln.models import NotebookEntry
 
+EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
+TEXT_DOC = {
+    "type": "doc",
+    "content": [
+        {
+            "type": "paragraph",
+            "content": [{"type": "text", "text": "Hello world"}],
+        }
+    ],
+}
+
 
 class ElnApiTests(TestCase):
     def setUp(self):
@@ -26,42 +37,61 @@ class ElnApiTests(TestCase):
         """POST returns 201, entry appears in DB."""
         response = self.client.post(
             "/api/eln/entries/",
-            {"title": "Test Entry", "content": "Hello world", "folder": self.folder.id},
+            {"title": "Test Entry", "content": TEXT_DOC, "folder": self.folder.id},
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["title"], "Test Entry")
         self.assertIsNone(response.data["author_username"])
+        self.assertEqual(response.data["content"], TEXT_DOC)
         self.assertEqual(NotebookEntry.objects.count(), 1)
+
+    def test_create_entry_invalid_content(self):
+        """POST with non-document content returns 400."""
+        response = self.client.post(
+            "/api/eln/entries/",
+            {"title": "Bad", "content": "not a dict", "folder": self.folder.id},
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_retrieve_entry(self):
         """GET by ID returns full entry including content."""
         entry = NotebookEntry.objects.create(
-            title="My Entry", content="Some content", folder=self.folder, author=self.user
+            title="My Entry", content=TEXT_DOC, folder=self.folder, author=self.user
         )
         response = self.client.get(f"/api/eln/entries/{entry.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["title"], "My Entry")
-        self.assertEqual(response.data["content"], "Some content")
+        self.assertEqual(response.data["content"], TEXT_DOC)
 
     def test_update_entry(self):
         """PUT updates title and content, returns 200."""
         entry = NotebookEntry.objects.create(
-            title="Old Title", content="Old content", folder=self.folder, author=self.user
+            title="Old Title", content=TEXT_DOC, folder=self.folder, author=self.user
         )
+        new_doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Updated content"}],
+                }
+            ],
+        }
         response = self.client.put(
             f"/api/eln/entries/{entry.id}/",
-            {"title": "New Title", "content": "New content", "folder": self.folder.id},
+            {"title": "New Title", "content": new_doc, "folder": self.folder.id},
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["title"], "New Title")
+        self.assertEqual(response.data["content"], new_doc)
         entry.refresh_from_db()
         self.assertEqual(entry.title, "New Title")
-        self.assertEqual(entry.content, "New content")
+        self.assertEqual(entry.content, new_doc)
 
     def test_delete_entry(self):
         """DELETE removes entry, subsequent GET returns 404."""
         entry = NotebookEntry.objects.create(
-            title="To Delete", content="Bye", folder=self.folder, author=self.user
+            title="To Delete", content=EMPTY_DOC, folder=self.folder, author=self.user
         )
         response = self.client.delete(f"/api/eln/entries/{entry.id}/")
         self.assertEqual(response.status_code, 204)
@@ -72,7 +102,7 @@ class ElnApiTests(TestCase):
         for i in range(50):
             NotebookEntry.objects.create(
                 title=f"Entry {i}",
-                content=f"Content {i}",
+                content=EMPTY_DOC,
                 folder=self.folder,
                 author=self.user,
             )

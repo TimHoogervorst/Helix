@@ -111,7 +111,8 @@ nav {
   padding: 0.75rem 1.5rem;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: space-between;
+  position: relative;
 }
 nav a {
   color: var(--gray-700);
@@ -121,10 +122,22 @@ nav a:hover {
   color: var(--blue-600);
   text-decoration: none;
 }
-nav a:first-child {
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.nav-left a:first-child {
   color: var(--blue-600);
   font-size: 1.1rem;
   font-weight: 700;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
 }
 
 /* Cards */
@@ -685,11 +698,93 @@ h1 {
   text-overflow: ellipsis;
 }
 
-/* ── Nav spacer & gear ── */
+/* ── Nav search bar (LIMS) ── */
 
-.nav-spacer {
-  flex: 1;
+.nav-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
+
+.nav-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-search-icon {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  font-size: 0.85rem;
+  pointer-events: none;
+  filter: grayscale(1);
+  line-height: 1;
+}
+
+input.nav-search-input {
+  width: 560px;
+  height: 34px;
+  padding: 0 0.75rem 0 2rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  outline: none;
+  background: var(--white);
+  color: var(--gray-900);
+}
+
+input.nav-search-input:focus {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px var(--blue-100);
+}
+
+.nav-type-select {
+  width: auto;
+  min-width: 130px;
+  height: 34px;
+  padding: 0 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  outline: none;
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.nav-type-select:focus {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px var(--blue-100);
+}
+
+.nav-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 0.9rem;
+  background: var(--blue-600);
+  color: var(--white);
+  border: 1px solid var(--blue-600);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.nav-search-btn:hover {
+  background: var(--blue-700);
+  border-color: var(--blue-700);
+}
+
+/* ── Nav gear ── */
 
 .nav-gear {
   font-size: 1.2rem;
@@ -700,24 +795,55 @@ h1 {
 /* ── LIMS Page ── */
 
 .lims-page {
-  max-width: 1100px;
+  /* default: constrained by parent .page */
 }
 
-.lims-search-bar {
+.lims-page.has-detail {
+  /* Break out of parent .page max-width to use full viewport */
+  position: relative;
+  width: 100vw;
+  max-width: 100vw;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* ── Master–Detail Layout ── */
+
+.lims-master-detail {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
 }
 
-.lims-search-input {
-  flex: 1;
-  min-width: 200px;
+.lims-master-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  transition: flex 0.3s ease;
 }
 
-.lims-type-select {
-  width: auto;
-  min-width: 160px;
+.lims-master-detail.has-detail .lims-master-panel {
+  flex: 1 1 0;
+}
+
+.lims-detail-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  animation: lims-slide-in 0.25s ease-out;
+}
+
+@keyframes lims-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .lims-table-container {
@@ -786,7 +912,7 @@ h1 {
 /* ── LIMS Detail Card ── */
 
 .lims-detail-card {
-  margin-top: 1.5rem;
+  margin-top: 0;
 }
 
 .lims-detail-card .detail-header {
@@ -802,6 +928,28 @@ h1 {
   gap: 0.5rem;
   margin: 0;
   font-size: 1.2rem;
+}
+
+.lims-detail-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  color: var(--gray-600);
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.lims-detail-close:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
 }
 
 .lims-detail-card .detail-body {
@@ -856,6 +1004,23 @@ h1 {
   font-size: 0.85em;
   color: var(--gray-700);
   width: 40%;
+}
+
+/* ── Responsive: stack vertically on narrow screens ── */
+
+@media (max-width: 800px) {
+  .lims-master-detail {
+    flex-direction: column;
+  }
+
+  .lims-master-detail.has-detail .lims-master-panel {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
+  .lims-detail-panel {
+    width: 100%;
+  }
 }
 
 /* ── Settings Page ── */

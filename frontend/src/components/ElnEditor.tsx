@@ -4,11 +4,15 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TableKit } from "@tiptap/extension-table";
 import { get, post, put, del } from "../api/client";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types/eln";
 import Reference from "../extensions/Reference";
 import ReferenceSuggestion from "../extensions/ReferenceSuggestion";
-import { ReferenceProvider, useReferenceContext } from "./ReferenceProvider";
+import LimsTable from "../extensions/LimsTable";
+import SlashCommands from "../extensions/SlashCommands";
+import { useReferenceContext } from "./ReferenceProvider";
+import ReferenceBadge from "./ReferenceBadge";
 
 interface Folder {
   id: number;
@@ -28,10 +32,10 @@ type EditorMode =
   | "error";
 
 /**
- * Hook: walk the TipTap JSON tree and collect all ``displayId`` values
- * from ``reference`` nodes.
+ * Walk the TipTap JSON tree and collect all ``displayId`` values
+ * from ``reference`` nodes and limsTable entity rows.
  */
-function collectReferenceIds(doc: TipTapDoc): string[] {
+function collectDisplayIds(doc: TipTapDoc): string[] {
   const ids: string[] = [];
 
   function walk(node: unknown) {
@@ -47,7 +51,21 @@ function collectReferenceIds(doc: TipTapDoc): string[] {
       return; // reference nodes are atomic
     }
 
-    // Recurse into content arrays
+    if (n.type === "limsTable") {
+      const attrs = n.attrs as Record<string, unknown> | undefined;
+      const rows = attrs?.rows;
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          if (row && typeof row === "object") {
+            const r = row as Record<string, unknown>;
+            if (r.entityId != null && typeof r.displayId === "string") {
+              ids.push(r.displayId);
+            }
+          }
+        }
+      }
+    }
+
     const content = n.content;
     if (Array.isArray(content)) {
       for (const child of content) {
@@ -60,8 +78,8 @@ function collectReferenceIds(doc: TipTapDoc): string[] {
   return ids;
 }
 
-/** Inner component that lives inside ReferenceProvider so it can use the context. */
-function ElnEditorInner({ entryId }: ElnEditorProps) {
+/** Editor component — ReferenceProvider is provided by Layout. */
+function ElnEditor({ entryId }: ElnEditorProps) {
   const navigate = useNavigate();
   const isNew = entryId === undefined;
   const { resolveIds } = useReferenceContext();
@@ -92,6 +110,9 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
       }),
       Reference,
       ReferenceSuggestion,
+      SlashCommands,
+      TableKit,
+      LimsTable,
     ],
     content: isNew
       ? EMPTY_DOC
@@ -115,16 +136,19 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
     if (!entryId) return;
 
     setMode("loading");
-    get<EntryDetail>(`/eln/entries/${entryId}/`)
+    const controller = new AbortController();
+
+    get<EntryDetail>(`/eln/entries/${entryId}/`, controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return;
         setEntry(data);
         setTitle(data.title);
         setInitialTitle(data.title);
         setInitialContent(data.content);
         setFolderId(data.folder);
 
-        // Batch-resolve references found in the loaded content
-        const refIds = collectReferenceIds(data.content);
+        // Batch-resolve all display IDs found in the loaded content
+        const refIds = collectDisplayIds(data.content);
         if (refIds.length > 0) {
           resolveIds(refIds);
         }
@@ -132,9 +156,13 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
         setMode("view");
       })
       .catch((err) => {
-        setError(err.message);
+        if (controller.signal.aborted) return;
+        const message = err instanceof Error ? err.message : "Failed to load entry";
+        setError(message);
         setMode("error");
       });
+
+    return () => controller.abort();
   }, [entryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load content into editor ──
@@ -179,7 +207,7 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
 
   const enterEditMode = useCallback(() => {
     // Resolve any references in the current content before editing
-    const refIds = collectReferenceIds(currentContent);
+    const refIds = collectDisplayIds(currentContent);
     if (refIds.length > 0) {
       resolveIds(refIds);
     }
@@ -215,12 +243,17 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
 
     try {
       if (isNew) {
-        const created = await post<{ id: number }>("/eln/entries/", payload);
+        const created = await post<EntryDetail>("/eln/entries/", payload);
         navigate(`/eln/${created.id}`);
       } else {
-        await put(`/eln/entries/${entryId!}/`, payload);
+        const updated = await put<EntryDetail>(`/eln/entries/${entryId!}/`, payload);
+        // Replace editor content with response (entityIds are patched by backend)
+        const responseContent = updated.content || editor.getJSON();
         setInitialTitle(title.trim());
-        setInitialContent(editor.getJSON());
+        setInitialContent(responseContent);
+        // Re-resolve all display IDs from the updated content
+        const refIds = collectDisplayIds(responseContent);
+        if (refIds.length > 0) resolveIds(refIds);
         contentLoaded.current = false;
         setMode("view");
       }
@@ -288,7 +321,17 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
             <div className="meta-row">
               {entry && (
                 <>
-                  <span className="eln-badge">{entry.display_id}</span>{" "}
+                  <ReferenceBadge
+                    displayId={entry.display_id}
+                    clickable={false}
+                    resolved={{
+                      displayId: entry.display_id,
+                      title: entry.title,
+                      type: "entry",
+                      id: entry.id,
+                      icon: "📄",
+                    }}
+                  />{" "}
                   {entry.author_username && `by ${entry.author_username} · `}
                   Created {formatDate(entry.created_at)}
                   {entry.updated_at !== entry.created_at &&
@@ -479,15 +522,6 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
         </div>
       </div>
     </div>
-  );
-}
-
-/** Wrapper that provides the ReferenceContext. */
-function ElnEditor(props: ElnEditorProps) {
-  return (
-    <ReferenceProvider>
-      <ElnEditorInner {...props} />
-    </ReferenceProvider>
   );
 }
 

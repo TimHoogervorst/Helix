@@ -84,15 +84,22 @@ DATABASES = {
 if os.environ.get("DATABASE_URL"):
     import re
     url = os.environ["DATABASE_URL"]
-    m = re.match(r"postgres://(?P<user>.+):(?P<password>.+)@(?P<host>.+):(?P<port>\d+)/(?P<name>.+)", url)
-    if m:
-        DATABASES["default"].update({
-            "NAME": m.group("name"),
-            "USER": m.group("user"),
-            "PASSWORD": m.group("password"),
-            "HOST": m.group("host"),
-            "PORT": m.group("port"),
-        })
+    # Support sqlite:// for local testing
+    if url.startswith("sqlite"):
+        DATABASES["default"] = {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": url.replace("sqlite://", ""),
+        }
+    else:
+        m = re.match(r"postgres://(?P<user>.+):(?P<password>.+)@(?P<host>.+):(?P<port>\d+)/(?P<name>.+)", url)
+        if m:
+            DATABASES["default"].update({
+                "NAME": m.group("name"),
+                "USER": m.group("user"),
+                "PASSWORD": m.group("password"),
+                "HOST": m.group("host"),
+                "PORT": m.group("port"),
+            })
 
 
 # Password validation

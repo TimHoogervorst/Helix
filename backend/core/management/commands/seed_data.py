@@ -18,7 +18,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self._seed_superuser()
         self._seed_folders()
-        self._seed_entity_types()
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
 
     def _seed_superuser(self):
@@ -37,9 +36,14 @@ class Command(BaseCommand):
 
     def _seed_entity_types(self):
         created = 0
-        for name in ["DNA", "Chemical", "General"]:
+        defaults = [
+            ("DNA", "DNA"),
+            ("Chemical", "CHEM"),
+            ("General", "GEN"),
+        ]
+        for name, prefix in defaults:
             if not EntityType.objects.filter(name=name).exists():
-                EntityType.objects.create(name=name)
+                EntityType.objects.create(name=name, prefix=prefix, columns=[])
                 created += 1
         if created:
             self.stdout.write(self.style.SUCCESS(f"Created {created} entity types."))

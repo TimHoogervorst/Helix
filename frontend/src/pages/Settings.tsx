@@ -15,7 +15,10 @@ function Settings() {
   const [dirtyEdits, setDirtyEdits] = useState<Map<number, EntityType>>(new Map());
   const [saving, setSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [emojiPopoverId, setEmojiPopoverId] = useState<number | null>(null);
+  const [emojiPopover, setEmojiPopover] = useState<{
+    id: number;
+    source: "header" | "body";
+  } | null>(null);
 
   // New schema form
   const [showNew, setShowNew] = useState(false);
@@ -165,7 +168,7 @@ function Settings() {
       next.set(id, { ...et, icon: emoji });
       return next;
     });
-    setEmojiPopoverId(null);
+    setEmojiPopover(null);
   };
 
   // ── Save all dirty schemas ──
@@ -393,8 +396,10 @@ function Settings() {
                   <span style={{ position: "relative", cursor: "pointer", userSelect: "none" }}>
                     <span
                       onClick={() =>
-                        setEmojiPopoverId(
-                          emojiPopoverId === selectedEntity.id ? null : selectedEntity.id
+                        setEmojiPopover((prev) =>
+                          prev?.id === selectedEntity.id && prev?.source === "header"
+                            ? null
+                            : { id: selectedEntity.id, source: "header" }
                         )
                       }
                       style={{ fontSize: "1.2rem" }}
@@ -402,10 +407,11 @@ function Settings() {
                     >
                       {editingEntity.icon || "🧪"}
                     </span>
-                    {emojiPopoverId === selectedEntity.id && (
+                    {emojiPopover?.id === selectedEntity.id &&
+                      emojiPopover?.source === "header" && (
                       <span
                         className="settings-emoji-popover"
-                        onMouseLeave={() => setEmojiPopoverId(null)}
+                        onMouseLeave={() => setEmojiPopover(null)}
                       >
                         {CURATED_EMOJIS.map((emoji) => (
                           <button
@@ -457,8 +463,38 @@ function Settings() {
                 </div>
                 <div className="detail-field">
                   <span className="detail-label">Icon</span>
-                  <span style={{ fontSize: "1.2rem" }}>
-                    {editingEntity.icon || "🧪"}
+                  <span style={{ position: "relative", cursor: "pointer", userSelect: "none", display: "inline-block" }}>
+                    <span
+                      onClick={() =>
+                        setEmojiPopover((prev) =>
+                          prev?.id === selectedEntity.id && prev?.source === "body"
+                            ? null
+                            : { id: selectedEntity.id, source: "body" }
+                        )
+                      }
+                      style={{ fontSize: "1.2rem" }}
+                      title="Change icon"
+                    >
+                      {editingEntity.icon || "🧪"}
+                    </span>
+                    {emojiPopover?.id === selectedEntity.id &&
+                      emojiPopover?.source === "body" && (
+                      <span
+                        className="settings-emoji-popover"
+                        onMouseLeave={() => setEmojiPopover(null)}
+                      >
+                        {CURATED_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            className={`settings-emoji-option${editingEntity.icon === emoji ? " is-selected" : ""}`}
+                            onClick={() => setEntityTypeEmoji(selectedEntity.id, emoji)}
+                            title={`Set icon to ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="detail-field">

@@ -1446,6 +1446,9 @@ input.nav-search-input:focus {
 }
 
 .settings-detail-card .detail-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 1.15rem;
   margin: 0;
 }
@@ -1457,6 +1460,9 @@ input.nav-search-input:focus {
 }
 
 .settings-detail-card .detail-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 

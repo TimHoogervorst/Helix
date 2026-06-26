@@ -10,7 +10,7 @@
  *   Resolved — icon + displayId + title
  *   Broken   — red pill, displayId only (clickable mode only)
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useReferenceContext } from "./ReferenceProvider";
 import type { ResolvedRef } from "../types/references";
 
@@ -63,12 +63,17 @@ function ReferenceBadge({
 }: ReferenceBadgeProps) {
   const { resolutionMap, resolveIds } = useReferenceContext();
 
+  // Stable reference to resolveIds so that resolutionMap changes don't
+  // re-trigger every badge's effect (prevents O(N²) re-renders).
+  const resolveIdsRef = useRef(resolveIds);
+  resolveIdsRef.current = resolveIds;
+
   // Auto-resolve when clickable and no pre-resolved data provided
   useEffect(() => {
     if (clickable && resolved === undefined) {
-      resolveIds([displayId]);
+      resolveIdsRef.current([displayId]);
     }
-  }, [clickable, resolved, displayId, resolveIds]);
+  }, [clickable, resolved, displayId]); // resolveIds intentionally omitted
 
   // ── Non-clickable + omitted/null resolved → bare displayId, minimal styling ──
   if (!clickable && (resolved === undefined || resolved === null)) {

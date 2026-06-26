@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from references.services import sync_mentions
@@ -14,10 +15,11 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
 
     list: GET /api/eln/entries/ — list all entries (paginated)
     create: POST /api/eln/entries/ — create a new entry
-    retrieve: GET /api/eln/entries/{id}/ — get single entry with full content
-    update: PUT /api/eln/entries/{id}/ — update entry
-    partial_update: PATCH /api/eln/entries/{id}/ — partial update
-    destroy: DELETE /api/eln/entries/{id}/ — delete entry
+    retrieve: GET /api/eln/entries/{display_id}/ — lookup by display_id
+    update: PUT /api/eln/entries/{display_id}/ — update entry
+    partial_update: PATCH /api/eln/entries/{display_id}/ — partial update
+    destroy: DELETE /api/eln/entries/{display_id}/ — delete entry
+    delete_all: DELETE /api/eln/entries/delete_all/ — delete all entries
     """
 
     queryset = NotebookEntry.objects.select_related("author", "folder").prefetch_related(
@@ -25,6 +27,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
     )
     serializer_class = NotebookEntrySerializer
     permission_classes = []
+    lookup_field = "display_id"
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -64,3 +67,9 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         read_serializer = NotebookEntrySerializer(write_serializer.instance)
         headers = self.get_success_headers(read_serializer.data)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=False, methods=["delete"], url_path="delete_all")
+    def delete_all(self, request):
+        """Delete ALL notebook entries. Danger zone endpoint for testing."""
+        count, _ = NotebookEntry.objects.all().delete()
+        return Response({"deleted": count})

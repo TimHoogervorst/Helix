@@ -20,7 +20,7 @@ interface Folder {
 }
 
 interface ElnEditorProps {
-  entryId?: number;
+  entryId?: string;
 }
 
 type EditorMode =
@@ -244,7 +244,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
     try {
       if (isNew) {
         const created = await post<EntryDetail>("/eln/entries/", payload);
-        navigate(`/eln/${created.id}`);
+        navigate(`/eln/${created.display_id}`);
       } else {
         const updated = await put<EntryDetail>(`/eln/entries/${entryId!}/`, payload);
         // Replace editor content with response (entityIds are patched by backend)

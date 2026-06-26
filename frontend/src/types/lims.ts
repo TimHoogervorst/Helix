@@ -37,6 +37,7 @@ export interface EntityListItem {
   entity_type_icon: string;
   properties: Record<string, unknown>;
   source_entry: number | null;
+  source_entry_display_id: string | null;
   folder: number | null;
   created_by: number | null;
   created_by_username: string | null;

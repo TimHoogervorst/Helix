@@ -67,7 +67,7 @@ function ElnList() {
               icon: "📄",
             }}
           />
-          <Link to={`/eln/${entry.id}`}>{entry.title}</Link>
+          <Link to={`/eln/${entry.display_id}`}>{entry.title}</Link>
           <div className="meta">
             by {entry.author_username} · {new Date(entry.created_at).toLocaleString()}
           </div>

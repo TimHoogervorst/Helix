@@ -51,7 +51,7 @@ function badgeHref(resolved: BadgeResolved): string {
   if (resolved.type === "entity") {
     return `/lims?entity=${encodeURIComponent(resolved.displayId)}`;
   }
-  return `/eln/${resolved.id}`;
+  return `/eln/${resolved.displayId}`;
 }
 
 // ── Component ────────────────────────────────────────────────────────────

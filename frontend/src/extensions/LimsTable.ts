@@ -19,6 +19,7 @@ const LimsTable = Node.create({
   // Void node — no TipTap-editable children.  AG Grid handles all editing.
   atom: true,
   isolating: true,
+  selectable: false,
 
   addAttributes() {
     return {

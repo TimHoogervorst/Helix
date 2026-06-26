@@ -12,6 +12,7 @@ import type { AgGridReact as AgGridReactType } from "ag-grid-react";
 import type {
   ColDef,
   CellValueChangedEvent,
+  CellMouseDownEvent,
 } from "ag-grid-community";
 import type { GridColumn, GridRow, EntityType } from "../types/lims";
 import { get } from "../api/client";
@@ -122,8 +123,10 @@ function LimsTableNode(props: NodeViewProps) {
   const rows: GridRow[] = (node.attrs.rows as GridRow[]) ?? [];
 
   const gridRef = useRef<AgGridReactType>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showGearMenu, setShowGearMenu] = useState(false);
   const gearBtnRef = useRef<HTMLButtonElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
 
   // Counter for generating unique #new-N displayIds
   const newRowCounter = useRef(
@@ -314,6 +317,21 @@ function LimsTableNode(props: NodeViewProps) {
     updateAttributes({ rows: rows.filter((r) => !ids.has(r.displayId)) });
   }, [rows, updateAttributes]);
 
+  // ── Ensure AG Grid cell editing starts inside ProseMirror's non-editable wrapper ─
+  const handleCellMouseDown = useCallback((params: CellMouseDownEvent) => {
+    // Only trigger editing for editable columns (skip the index column)
+    const rowIndex = params.rowIndex;
+    if (rowIndex == null || !params.column || !params.colDef.editable) return;
+    // Defer so ProseMirror's mousedown selection logic completes first
+    const { column } = params;
+    setTimeout(() => {
+      gridRef.current?.api.startEditingCell({
+        rowIndex,
+        colKey: column,
+      });
+    }, 0);
+  }, []);
+
   const handleTitleBlur = useCallback(
     (e: React.FocusEvent<HTMLSpanElement>) => {
       const newTitle = e.currentTarget.textContent?.trim() || "Table";
@@ -338,10 +356,11 @@ function LimsTableNode(props: NodeViewProps) {
   useEffect(() => {
     if (!showGearMenu) return;
     const handleClick = (e: MouseEvent) => {
-      if (
-        gearBtnRef.current &&
-        !gearBtnRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      // Only close if the click is outside BOTH the gear button AND the menu container
+      const insideGearBtn = gearBtnRef.current?.contains(target);
+      const insideMenu = menuContainerRef.current?.contains(target);
+      if (!insideGearBtn && !insideMenu) {
         setShowGearMenu(false);
       }
     };
@@ -354,6 +373,22 @@ function LimsTableNode(props: NodeViewProps) {
       document.removeEventListener("mousedown", handleClick);
     };
   }, [showGearMenu]);
+
+  // ── Prevent ProseMirror from intercepting events inside the AG Grid ────
+  // ProseMirror listens on its editor element (ancestor of this NodeView).
+  // Its mousedown handler adjusts editor selection/focus, which interferes
+  // with AG Grid cell editing.  We stop native bubble-phase propagation so
+  // ProseMirror never sees these events, letting AG Grid manage its own
+  // editing lifecycle independently.
+  useEffect(() => {
+    const el = gridContainerRef.current;
+    if (!el) return;
+    const stop = (e: MouseEvent) => {
+      e.stopPropagation();
+    };
+    el.addEventListener("mousedown", stop);
+    return () => el.removeEventListener("mousedown", stop);
+  }, []);
 
   return (
     <NodeViewWrapper className="lims-table-wrapper" contentEditable={false}>
@@ -377,7 +412,7 @@ function LimsTableNode(props: NodeViewProps) {
               </span>
             )}
           </div>
-          <div className="eln-table-title-right">
+          <div className="eln-table-title-right" ref={menuContainerRef}>
             <button
               ref={gearBtnRef}
               type="button"
@@ -517,6 +552,7 @@ function LimsTableNode(props: NodeViewProps) {
 
         {/* AG Grid */}
         <div
+          ref={gridContainerRef}
           className="eln-grid-theme ag-theme-alpine"
           style={{ width: "100%" }}
         >
@@ -529,6 +565,7 @@ function LimsTableNode(props: NodeViewProps) {
             rowSelection="single"
             suppressRowClickSelection={true}
             enableRangeSelection={false}
+            onCellMouseDown={handleCellMouseDown}
             onCellValueChanged={handleCellValueChanged}
             getRowId={(p) => p.data.displayId}
             undoRedoCellEditing={true}

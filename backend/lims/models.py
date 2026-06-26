@@ -63,7 +63,11 @@ class Entity(models.Model):
         related_name="entities",
     )
     created_by = models.ForeignKey(
-        "core.User", on_delete=models.CASCADE, related_name="entities"
+        "core.User",
+        on_delete=models.CASCADE,
+        related_name="entities",
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

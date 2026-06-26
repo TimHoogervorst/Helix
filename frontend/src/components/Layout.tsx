@@ -3,15 +3,19 @@ import { useState, useEffect } from "react";
 import { get } from "../api/client";
 import type { EntityType } from "../types/lims";
 import { useLimsView } from "../context/LimsViewContext";
+import { useLibraryView } from "../context/LibraryViewContext";
 import { ReferenceProvider } from "./ReferenceProvider";
 
 function Layout() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const isLims = location.pathname.startsWith("/lims");
+  const isLibrary = location.pathname.startsWith("/library");
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const { viewState } = useLimsView();
+  const { viewState: libraryViewState } = useLibraryView();
 
+  // Fetch entity types for LIMS search type dropdown
   useEffect(() => {
     if (isLims) {
       get<EntityType[]>("/lims/entity-types/")
@@ -19,6 +23,11 @@ function Layout() {
         .catch(() => {});
     }
   }, [isLims]);
+
+  // Prime the CSRF cookie so unsafe API requests (POST/PUT/DELETE) work
+  useEffect(() => {
+    get("/core/csrf/").catch(() => {});
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +41,17 @@ function Layout() {
     setSearchParams(params);
   };
 
+  const handleLibrarySearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const s = (formData.get("search") as string) || "";
+    const params = new URLSearchParams(searchParams);
+    if (s) params.set("search", s);
+    else params.delete("search");
+    setSearchParams(params);
+  };
+
   const currentSearch = searchParams.get("search") || "";
   const currentType = searchParams.get("type") || "";
 
@@ -42,9 +62,10 @@ function Layout() {
           <Link to="/eln">OpenScience</Link>
           <Link to="/eln">Notebook</Link>
           <Link to="/lims">LIMS</Link>
+          <Link to="/library">Library</Link>
         </div>
 
-        {isLims && viewState !== "expanded" && (
+        {isLims && !isLibrary && viewState !== "expanded" && (
           <form className="nav-search-bar" onSubmit={handleSearch}>
             <div className="nav-search-input-wrap">
               <span className="nav-search-icon">🔍</span>
@@ -68,6 +89,24 @@ function Layout() {
                 </option>
               ))}
             </select>
+            <button type="submit" className="nav-search-btn" title="Search">
+              🔍
+            </button>
+          </form>
+        )}
+
+        {isLibrary && libraryViewState !== "expanded" && (
+          <form className="nav-search-bar" onSubmit={handleLibrarySearch}>
+            <div className="nav-search-input-wrap">
+              <span className="nav-search-icon">🔍</span>
+              <input
+                type="text"
+                name="search"
+                defaultValue={currentSearch}
+                placeholder="Search by name or ID…"
+                className="nav-search-input"
+              />
+            </div>
             <button type="submit" className="nav-search-btn" title="Search">
               🔍
             </button>

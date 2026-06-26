@@ -1,7 +1,15 @@
+from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import viewsets
 
 from .models import Folder
 from .serializers import FolderSerializer
+
+
+@ensure_csrf_cookie
+def csrf_token_view(request):
+    """Return a CSRF token cookie for the SPA frontend."""
+    return JsonResponse({"detail": "CSRF cookie set"})
 
 
 class FolderViewSet(viewsets.ReadOnlyModelViewSet):

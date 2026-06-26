@@ -60,7 +60,7 @@ class ElnApiTests(TestCase):
         entry = NotebookEntry.objects.create(
             title="My Entry", content=TEXT_DOC, folder=self.folder, author=self.user
         )
-        response = self.client.get(f"/api/eln/entries/{entry.id}/")
+        response = self.client.get(f"/api/eln/entries/{entry.display_id}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["title"], "My Entry")
         self.assertEqual(response.data["content"], TEXT_DOC)
@@ -80,7 +80,7 @@ class ElnApiTests(TestCase):
             ],
         }
         response = self.client.put(
-            f"/api/eln/entries/{entry.id}/",
+            f"/api/eln/entries/{entry.display_id}/",
             {"title": "New Title", "content": new_doc, "folder": self.folder.id},
             format="json",
         )
@@ -96,7 +96,7 @@ class ElnApiTests(TestCase):
         entry = NotebookEntry.objects.create(
             title="To Delete", content=EMPTY_DOC, folder=self.folder, author=self.user
         )
-        response = self.client.delete(f"/api/eln/entries/{entry.id}/")
+        response = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
         self.assertEqual(response.status_code, 204)
         self.assertEqual(NotebookEntry.objects.count(), 0)
 
@@ -167,7 +167,7 @@ class MentionSyncOnSaveTests(TestCase):
 
         doc = self._make_doc_with_ref(self.target.display_id)
         response = self.client.put(
-            f"/api/eln/entries/{entry.id}/",
+            f"/api/eln/entries/{entry.display_id}/",
             {"title": "Now With Ref", "content": doc, "folder": self.folder.id},
             format="json",
         )
@@ -190,7 +190,7 @@ class MentionSyncOnSaveTests(TestCase):
 
         # Now update via API to remove the reference.
         response = self.client.put(
-            f"/api/eln/entries/{entry.id}/",
+            f"/api/eln/entries/{entry.display_id}/",
             {"title": "No Ref Now", "content": EMPTY_DOC, "folder": self.folder.id},
             format="json",
         )

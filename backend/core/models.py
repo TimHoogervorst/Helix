@@ -29,6 +29,17 @@ class Folder(models.Model):
         db_table = "core_folder"
         ordering = ["name"]
 
+    @property
+    def path(self) -> str:
+        """Full /-separated path from root to this folder (e.g. /Projects/Sub)."""
+        segments = []
+        node = self
+        while node is not None:
+            segments.append(node.name)
+            node = node.parent
+        segments.reverse()
+        return "/" + "/".join(segments)
+
     def __str__(self):
         if self.parent:
             return f"{self.parent.name} / {self.name}"

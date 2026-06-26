@@ -13,7 +13,7 @@ class NotebookEntry(models.Model):
         max_length=20, unique=True, editable=False, null=True
     )
     folder = models.ForeignKey(
-        "core.Folder", on_delete=models.CASCADE, related_name="entries"
+        "core.Folder", on_delete=models.CASCADE, related_name="entries", null=True, blank=True
     )
     author = models.ForeignKey(
         "core.User", on_delete=models.CASCADE, related_name="entries", null=True, blank=True

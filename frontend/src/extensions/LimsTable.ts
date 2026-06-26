@@ -35,6 +35,14 @@ const LimsTable = Node.create({
           "data-schema-id": attributes.schemaId ?? "",
         }),
       },
+      schemaName: {
+        default: null,
+        parseHTML: (element) =>
+          element.getAttribute("data-schema-name") || null,
+        renderHTML: (attributes) => ({
+          "data-schema-name": attributes.schemaName ?? "",
+        }),
+      },
       title: {
         default: "Table",
         parseHTML: (element) =>

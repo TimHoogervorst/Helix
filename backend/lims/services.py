@@ -57,105 +57,158 @@ def sync_entities(entry, tiptap_json):
     """
     Sync the Entity rows for *entry* to match the limsTable nodes in *tiptap_json*.
 
-    1. Walk the JSON for nodes with ``type == "limsTable"``.
-    2. For each: read ``attrs.rows`` (array of {entityId, displayId, values}).
-    3. Diff against existing Entity rows for this ``source_entry``.
-    4. Create new entities (generate display_id), update existing entity
-       properties, delete removed entities.
-    5. Patch entityId and displayId back into each row in ``attrs.rows``.
-    6. Return the updated content dict.
+    Strategy (two-pass to correctly handle multiple tables sharing one schema):
 
-    Plain tables (``schemaId`` is null) and tables with inactive schemas are skipped.
+    1. **Collect** — walk the JSON for limsTable nodes, group them by
+       ``schemaId``.  Plain tables and inactive schemas are skipped.
+    2. **Reconcile** — for each schema group, collect ALL rows across ALL
+       tables that use that schema.  Diff against the existing Entity set
+       for ``(source_entry, entity_type)``.  Create / update / delete
+       entities based on the full row set, so that entities belonging to
+       *any* table with that schema survive.
+    3. **Patch** — write the resolved ``entityId`` / ``displayId`` back
+       into every row in every table.
+
+    Returns the updated content dict (a deep copy).
     """
-    # Cache of schema_id → EntityType for quick lookup
-    schema_cache = {}
+    # ── Pass 1: collect tables, group by schema ─────────────────────────
+    schema_cache = {}          # schema_id → EntityType
+    tables_by_schema = {}      # schema_id → list of dicts {node, columns, rows}
 
-    def handle_lims_table(node):
+    def collect_lims_tables(node):
+        """Walk helper — collect limsTable nodes into tables_by_schema."""
         attrs = node.get("attrs", {})
         schema_id = attrs.get("schemaId")
 
         if schema_id is None:
-            # Plain table — skip entity sync
-            return node
+            return  # plain table, skip
 
         # Load schema if not cached
         if schema_id not in schema_cache:
             try:
                 et = EntityType.objects.get(pk=schema_id)
             except EntityType.DoesNotExist:
-                return node
+                return
             if not et.is_active:
-                return node
+                return
             schema_cache[schema_id] = et
 
-        entity_type = schema_cache[schema_id]
-        columns = attrs.get("columns", [])
-        rows = attrs.get("rows", [])
-        table_title = attrs.get("title", "Table")
+        tables_by_schema.setdefault(schema_id, []).append({
+            "node": node,
+            "columns": attrs.get("columns", []),
+            "rows": attrs.get("rows", []),
+            "title": attrs.get("title", "Table"),
+        })
 
-        # Get existing entities for this source_entry + schema
+    _walk_lims_tables(tiptap_json, collect_lims_tables)
+
+    if not tables_by_schema:
+        return tiptap_json
+
+    # ── Pass 2: reconcile entities per schema ───────────────────────────
+    # Map: (schema_id, row_index within that schema's global row list) → entity
+    row_entity_map = {}  # key = (schema_id, global_row_idx) → Entity
+
+    for schema_id, tables in tables_by_schema.items():
+        entity_type = schema_cache[schema_id]
+
+        # Collect ALL rows across all tables for this schema
+        # We track (table_idx, row_idx) so we can patch back later.
+        all_rows = []  # list of (table_idx, row_idx, row_dict)
+        for ti, table in enumerate(tables):
+            for ri, row in enumerate(table["rows"]):
+                all_rows.append((ti, ri, row))
+
+        # Get existing entities for this source_entry + entity_type
         existing_entities = list(
             Entity.objects.filter(
                 source_entry=entry,
                 entity_type=entity_type,
             )
         )
+        existing_by_id = {e.id: e for e in existing_entities}
         existing_by_display_id = {e.display_id: e for e in existing_entities}
 
-        new_rows = []
-        seen_display_ids = set()
+        seen_entity_ids = set()
 
-        for i, row in enumerate(rows):
+        for ti, ri, row in all_rows:
             entity_id = row.get("entityId")
             display_id = row.get("displayId", "")
             values = row.get("values", {})
 
             # Build properties dict from column definitions
+            table = tables[ti]
             properties = {}
-            for col_def in columns:
+            for col_def in table["columns"]:
                 col_name = col_def["name"]
                 properties[col_name] = values.get(
                     col_name, col_def.get("default", "")
                 )
 
-            if entity_id and display_id and display_id in existing_by_display_id:
-                # Update existing entity
+            # Resolve the existing entity
+            entity = None
+            if entity_id and entity_id in existing_by_id:
+                entity = existing_by_id[entity_id]
+            elif display_id and display_id in existing_by_display_id:
                 entity = existing_by_display_id[display_id]
+
+            if entity is not None:
+                # Update existing entity
                 entity.properties = properties
-                entity.name = f"{table_title} row {i + 1}"
+                entity.name = f"{table['title']} row {ri + 1}"
                 entity.save(update_fields=["properties", "name"])
-                new_rows.append({
-                    **row,
-                    "entityId": entity.id,
-                    "displayId": entity.display_id,
-                })
-                seen_display_ids.add(entity.display_id)
             else:
                 # Create new entity
                 entity = Entity.objects.create(
-                    name=f"{table_title} row {i + 1}",
+                    name=f"{table['title']} row {ri + 1}",
                     entity_type=entity_type,
                     properties=properties,
                     source_entry=entry,
                     folder=entry.folder,
                     created_by=entry.author,
                 )
+
+            seen_entity_ids.add(entity.id)
+            row_entity_map[(schema_id, ti, ri)] = entity
+
+        # Delete entities that no longer appear in ANY table of this schema
+        for e in existing_entities:
+            if e.id not in seen_entity_ids:
+                e.delete()
+
+    # ── Pass 3: patch entityId / displayId back into the rows ───────────
+    # Use encounter-order counters per schema to match tables between
+    # the collect walk and the patch walk (node identity differs because
+    # _walk_lims_tables builds new dicts).
+    patch_counters = {sid: 0 for sid in tables_by_schema}
+
+    def patch_lims_tables(node):
+        """Walk helper — patch entityId/displayId into rows using row_entity_map."""
+        attrs = node.get("attrs", {})
+        schema_id = attrs.get("schemaId")
+
+        if schema_id is None or schema_id not in tables_by_schema:
+            return node
+
+        ti = patch_counters[schema_id]
+        patch_counters[schema_id] += 1
+
+        table_info = tables_by_schema[schema_id][ti]
+        new_rows = []
+        for ri, row in enumerate(table_info["rows"]):
+            entity = row_entity_map.get((schema_id, ti, ri))
+            if entity is not None:
                 new_rows.append({
                     **row,
                     "entityId": entity.id,
                     "displayId": entity.display_id,
                 })
-                seen_display_ids.add(entity.display_id)
+            else:
+                new_rows.append(row)
 
-        # Delete entities that were removed from the table
-        for e in existing_entities:
-            if e.display_id not in seen_display_ids:
-                e.delete()
-
-        # Return updated node with patched rows
         new_node = dict(node)
         new_node["attrs"] = dict(attrs)
         new_node["attrs"]["rows"] = new_rows
         return new_node
 
-    return _walk_lims_tables(tiptap_json, handle_lims_table)
+    return _walk_lims_tables(tiptap_json, patch_lims_tables)

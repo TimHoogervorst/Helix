@@ -37,7 +37,7 @@ class EntityTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EntityType
-        fields = ["id", "name", "prefix", "columns", "is_active"]
+        fields = ["id", "name", "prefix", "icon", "columns", "is_active"]
         read_only_fields = ["id", "is_active"]
 
     def validate_prefix(self, value):
@@ -58,12 +58,13 @@ class EntityTypeDetailSerializer(serializers.ModelSerializer):
     """Read serializer that includes is_active (used for list/retrieve)."""
     class Meta:
         model = EntityType
-        fields = ["id", "name", "prefix", "columns", "is_active"]
+        fields = ["id", "name", "prefix", "icon", "columns", "is_active"]
 
 
 class EntitySerializer(serializers.ModelSerializer):
     entity_type_name = serializers.CharField(source="entity_type.name", read_only=True)
     entity_type_prefix = serializers.CharField(source="entity_type.prefix", read_only=True)
+    entity_type_icon = serializers.CharField(source="entity_type.icon", read_only=True, default="🧪")
     created_by_username = serializers.CharField(source="created_by.username", read_only=True)
 
     class Meta:
@@ -75,6 +76,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "entity_type",
             "entity_type_name",
             "entity_type_prefix",
+            "entity_type_icon",
             "properties",
             "source_entry",
             "folder",

@@ -20,6 +20,11 @@ class EntityType(models.Model):
         blank=True,
         help_text="Ordered array of column definitions: {name, type, required, default, units, description}.",
     )
+    icon = models.CharField(
+        max_length=10,
+        default="🧪",
+        help_text="Single emoji used as the icon for this entity type in reference badges.",
+    )
     is_active = models.BooleanField(
         default=True,
         help_text="Soft-delete flag. Inactive schemas are hidden from dropdowns but preserve existing entities.",

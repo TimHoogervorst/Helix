@@ -13,6 +13,7 @@ export interface EntityType {
   id: number;
   name: string;
   prefix: string;
+  icon: string;
   columns: ColumnDef[];
   is_active: boolean;
 }
@@ -21,6 +22,7 @@ export interface EntityType {
 export interface EntityTypePayload {
   name: string;
   prefix: string;
+  icon?: string;
   columns: ColumnDef[];
 }
 
@@ -32,6 +34,7 @@ export interface EntityListItem {
   entity_type: number;
   entity_type_name: string;
   entity_type_prefix: string;
+  entity_type_icon: string;
   properties: Record<string, unknown>;
   source_entry: number | null;
   folder: number | null;
@@ -86,6 +89,11 @@ export interface GridRow {
   /** Cell values keyed by column name. */
   values: Record<string, unknown>;
 }
+
+// ── LIMS Page View State ──────────────────────────────────────────────
+
+/** The three-panel layout view state for the LIMS entity browser. */
+export type ViewState = "list" | "detail" | "expanded";
 
 /** The full table data stored in the limsTable node attribute. */
 export interface GridTableData {

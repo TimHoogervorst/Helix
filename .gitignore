@@ -34,3 +34,7 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+
+# MCP
+.playwright-mcp

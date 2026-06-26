@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { get } from "../api/client";
-import type { EntityListItem, PaginatedResponse } from "../types/lims";
+import type { EntityListItem, PaginatedResponse, ViewState } from "../types/lims";
+import { useLimsView } from "../context/LimsViewContext";
+import LimsDetailCard from "../components/LimsDetailCard";
+import LimsMoreDetailPanel from "../components/LimsMoreDetailPanel";
+import LimsCollapsedStrip from "../components/LimsCollapsedStrip";
+import ReferenceBadge from "../components/ReferenceBadge";
 
 function LimsList() {
   const [searchParams] = useSearchParams();
@@ -14,47 +19,138 @@ function LimsList() {
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<EntityListItem | null>(null);
+  const [viewState, setViewState] = useState<ViewState>("list");
+  const [exiting, setExiting] = useState(false);
 
-  const fetchEntities = useCallback(async (url?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const path = url
-        ? url.replace("/api", "")
-        : `/lims/entities/?search=${encodeURIComponent(search)}&type=${typeFilter}`;
-      const data = await get<PaginatedResponse<EntityListItem>>(path);
-      if (url) {
-        setEntities((prev) => [...prev, ...data.results]);
-      } else {
-        setEntities(data.results);
+  // Sync viewState to the Layout nav bar via context
+  const { setViewState: setContextViewState } = useLimsView();
+  const updateViewState = useCallback(
+    (state: ViewState) => {
+      setViewState(state);
+      setContextViewState(state);
+    },
+    [setContextViewState],
+  );
+
+  const fetchEntities = useCallback(
+    async (url?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const path = url
+          ? url.replace("/api", "")
+          : `/lims/entities/?search=${encodeURIComponent(search)}&type=${typeFilter}`;
+        const data = await get<PaginatedResponse<EntityListItem>>(path);
+        if (url) {
+          setEntities((prev) => [...prev, ...data.results]);
+        } else {
+          setEntities(data.results);
+        }
+        setNextUrl(data.next);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load");
+      } finally {
+        setLoading(false);
       }
-      setNextUrl(data.next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, typeFilter]);
+    },
+    [search, typeFilter],
+  );
 
   useEffect(() => {
     fetchEntities();
   }, [fetchEntities]);
 
-  const handleSelect = (entity: EntityListItem) => {
-    if (selectedId === entity.display_id) {
-      setSelectedId(null);
-      setSelectedEntity(null);
+  // ── State machine transitions ──────────────────────────────────────
+
+  const selectEntity = (entity: EntityListItem) => {
+    setSelectedId(entity.display_id);
+    setSelectedEntity(entity);
+  };
+
+  const clearSelection = () => {
+    setSelectedId(null);
+    setSelectedEntity(null);
+  };
+
+  const goToList = () => {
+    if (viewState === "expanded") {
+      setExiting(true);
+      setTimeout(() => {
+        updateViewState("list");
+        clearSelection();
+        setExiting(false);
+      }, 250);
     } else {
-      setSelectedId(entity.display_id);
-      setSelectedEntity(entity);
+      updateViewState("list");
+      clearSelection();
     }
   };
 
-  const loadMore = () => {
+  const goToDetail = (entity: EntityListItem) => {
+    selectEntity(entity);
+    updateViewState("detail");
+  };
+
+  const goToExpanded = (entity: EntityListItem) => {
+    selectEntity(entity);
+    updateViewState("expanded");
+  };
+
+  const expandFromDetail = () => {
+    // selectedEntity is already set
+    updateViewState("expanded");
+  };
+
+  const collapseFromExpanded = () => {
+    setExiting(true);
+    setTimeout(() => {
+      updateViewState("detail");
+      setExiting(false);
+    }, 250);
+  };
+
+  // ── Row click handlers ─────────────────────────────────────────────
+
+  const handleRowClick = (entity: EntityListItem) => {
+    if (viewState === "expanded") return; // no row selection in expanded
+
+    if (viewState === "detail" && selectedId === entity.display_id) {
+      // Toggle off: clicking selected row returns to list
+      goToList();
+    } else {
+      goToDetail(entity);
+    }
+  };
+
+  const handleRowExpand = (entity: EntityListItem) => {
+    goToExpanded(entity);
+  };
+
+  // ── Collapsed strip → detail ───────────────────────────────────────
+
+  const handleStripExpand = () => {
+    // Same as collapseFromExpanded — go back to detail
+    collapseFromExpanded();
+  };
+
+  const handleLoadMore = () => {
     if (nextUrl) fetchEntities(nextUrl);
   };
 
   const formatDate = (iso: string) => new Date(iso).toLocaleString();
+
+  // ── Compute page-level CSS classes ─────────────────────────────────
+
+  const pageClass =
+    `page lims-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+
+  const masterDetailClass =
+    `lims-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+
+  const masterPanelClass =
+    `lims-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
+
+  // ── Render ─────────────────────────────────────────────────────────
 
   if (loading && entities.length === 0) {
     return (
@@ -65,132 +161,117 @@ function LimsList() {
   }
 
   return (
-    <div className={`page lims-page${selectedEntity ? " has-detail" : ""}`}>
+    <div className={pageClass}>
       {error && <div className="error">{error}</div>}
 
       {/* Master–Detail Layout */}
-      <div className={`lims-master-detail ${selectedEntity ? "has-detail" : ""}`}>
-        {/* Left Panel: Entity Table */}
-        <div className="lims-master-panel">
-          <div className="lims-table-container">
-            <table className="lims-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Created</th>
-                  <th>Source</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entities.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="empty">
-                      No entities found.
-                    </td>
-                  </tr>
-                )}
-                {entities.map((entity) => (
-                  <tr
-                    key={entity.display_id}
-                    className={`lims-row ${selectedId === entity.display_id ? "is-selected" : ""}`}
-                    onClick={() => handleSelect(entity)}
-                  >
-                    <td>
-                      <span className="eln-badge">{entity.display_id}</span>
-                    </td>
-                    <td>{entity.name}</td>
-                    <td>{entity.entity_type_name}</td>
-                    <td className="lims-date">{formatDate(entity.created_at)}</td>
-                    <td>
-                      {entity.source_entry ? (
-                        <span className="eln-badge">E{entity.source_entry}</span>
-                      ) : (
-                        <span className="lims-no-source">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className={masterDetailClass}>
+        {/* Left Panel: Entity Table (or Collapsed Strip) */}
+        <div className={masterPanelClass}>
+          {viewState === "expanded" ? (
+            <LimsCollapsedStrip onExpand={handleStripExpand} />
+          ) : (
+            <>
+              <div className="lims-table-container">
+                <table className="lims-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Created</th>
+                      <th>Source</th>
+                      <th className="lims-row-expand-header"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entities.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="empty">
+                          No entities found.
+                        </td>
+                      </tr>
+                    )}
+                    {entities.map((entity) => (
+                      <tr
+                        key={entity.display_id}
+                        className={`lims-row${selectedId === entity.display_id ? " is-selected" : ""}`}
+                        onClick={() => handleRowClick(entity)}
+                      >
+                        <td>
+                          <ReferenceBadge
+                            displayId={entity.display_id}
+                            clickable={false}
+                            resolved={{
+                              displayId: entity.display_id,
+                              title: entity.name,
+                              type: "entity",
+                              id: entity.id,
+                              icon: entity.entity_type_icon || "🧪",
+                            }}
+                          />
+                        </td>
+                        <td>{entity.name}</td>
+                        <td>{entity.entity_type_name}</td>
+                        <td className="lims-date">
+                          {formatDate(entity.created_at)}
+                        </td>
+                        <td>
+                          {entity.source_entry ? (
+                            <ReferenceBadge
+                              displayId={`E${entity.source_entry}`}
+                              clickable
+                            />
+                          ) : (
+                            <span className="lims-no-source">—</span>
+                          )}
+                        </td>
+                        <td style={{ width: 40, padding: "0.25rem" }}>
+                          <button
+                            className="lims-row-expand-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRowExpand(entity);
+                            }}
+                            title="Expand to full detail"
+                          >
+                            &gt;
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          {nextUrl && (
-            <div className="lims-load-more">
-              <button onClick={loadMore} disabled={loading}>
-                {loading ? "Loading…" : "Load More"}
-              </button>
-            </div>
+              {nextUrl && (
+                <div className="lims-load-more">
+                  <button onClick={handleLoadMore} disabled={loading}>
+                    {loading ? "Loading…" : "Load More"}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Right Panel: Detail Card */}
-        {selectedEntity && (
-          <div className="lims-detail-panel">
-            <div className="card lims-detail-card">
-              <div className="detail-header">
-                <h2>
-                  <span className="eln-badge">{selectedEntity.display_id}</span>
-                  {selectedEntity.name}
-                </h2>
-                <button
-                  className="lims-detail-close"
-                  onClick={() => { setSelectedId(null); setSelectedEntity(null); }}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="detail-body">
-                <div className="detail-field">
-                  <span className="detail-label">Type</span>
-                  <span>{selectedEntity.entity_type_name} ({selectedEntity.entity_type_prefix})</span>
-                </div>
-                <div className="detail-field">
-                  <span className="detail-label">Created</span>
-                  <span>{formatDate(selectedEntity.created_at)}</span>
-                </div>
-                <div className="detail-field">
-                  <span className="detail-label">By</span>
-                  <span>{selectedEntity.created_by_username || "—"}</span>
-                </div>
-                {selectedEntity.source_entry && (
-                  <div className="detail-field">
-                    <span className="detail-label">Source Entry</span>
-                    <a href={`/eln/${selectedEntity.source_entry}`}>
-                      E{selectedEntity.source_entry}
-                    </a>
-                  </div>
-                )}
-              </div>
-              {/* Properties */}
-              {selectedEntity.properties && Object.keys(selectedEntity.properties).length > 0 && (
-                <div className="detail-properties">
-                  <h3>Properties</h3>
-                  <table className="properties-table">
-                    <thead>
-                      <tr>
-                        <th>Field</th>
-                        <th>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(selectedEntity.properties).map(([key, value]) => (
-                        <tr key={key}>
-                          <td className="prop-key">{key}</td>
-                          <td className="prop-value">
-                            {typeof value === "boolean"
-                              ? (value ? "✓" : "✗")
-                              : String(value ?? "—")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Middle Panel: Detail Card (summary) */}
+        {selectedEntity && (viewState === "detail" || viewState === "expanded") && (
+          <LimsDetailCard
+            entity={selectedEntity}
+            viewState={viewState}
+            onClose={goToList}
+            onExpand={expandFromDetail}
+            onCollapse={collapseFromExpanded}
+          />
+        )}
+
+        {/* Right Panel: More-Detail (expanded only) */}
+        {selectedEntity && viewState === "expanded" && (
+          <LimsMoreDetailPanel
+            entity={selectedEntity}
+            isExiting={exiting}
+          />
         )}
       </div>
     </div>

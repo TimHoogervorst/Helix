@@ -1,16 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { get, post, put, del } from "../api/client";
 import type { EntityType, EntityTypePayload, ColumnDef } from "../types/lims";
+import ReferenceBadge from "../components/ReferenceBadge";
 
 const ALLOWED_TYPES = ["Text", "Number", "Date", "Boolean", "Reference"];
+
+const CURATED_EMOJIS = ["🧪", "🩸", "🐁", "🌿", "👤", "🧬", "🔬"];
 
 function Settings() {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [editing, setEditing] = useState<EntityType | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dirtyEdits, setDirtyEdits] = useState<Map<number, EntityType>>(new Map());
   const [saving, setSaving] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [emojiPopoverId, setEmojiPopoverId] = useState<number | null>(null);
 
   // New schema form
   const [showNew, setShowNew] = useState(false);
@@ -53,183 +58,391 @@ function Settings() {
     }
   };
 
-  // ── Delete (soft) ──
+  // ── Delete (soft / deactivate) ──
   const handleDelete = async (et: EntityType) => {
     if (!window.confirm(`Deactivate schema "${et.name}"?`)) return;
     try {
       await del(`/lims/entity-types/${et.id}/`);
+      setDirtyEdits((prev) => {
+        const next = new Map(prev);
+        next.delete(et.id);
+        return next;
+      });
+      if (selectedId === et.id) setSelectedId(null);
       await fetchTypes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
     }
   };
 
-  // ── Edit columns ──
-  const startEditing = (et: EntityType) => {
-    setEditing({ ...et, columns: [...et.columns] });
-    setExpandedId(et.id);
+  // ── Select a schema → open in detail panel & start editing ──
+  const handleSelect = (et: EntityType) => {
+    if (selectedId === et.id) {
+      setSelectedId(null);
+    } else {
+      setSelectedId(et.id);
+      setDirtyEdits((prev) => {
+        if (prev.has(et.id)) return prev;
+        const next = new Map(prev);
+        next.set(et.id, {
+          ...et,
+          icon: et.icon || "🧪",
+          columns: et.columns.map((c) => ({ ...c })),
+        });
+        return next;
+      });
+    }
   };
 
-  const addColumn = () => {
-    if (!editing) return;
-    setEditing({
-      ...editing,
-      columns: [...editing.columns, { name: "", type: "Text" as const }],
+  // ── Column editing helpers (operate on dirty copy) ──
+
+  const addColumn = (id: number) => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const et = next.get(id);
+      if (!et) return prev;
+      next.set(id, {
+        ...et,
+        columns: [...et.columns, { name: "", type: "Text" as const }],
+      });
+      return next;
     });
   };
 
-  const updateColumn = (index: number, field: keyof ColumnDef, value: string | boolean) => {
-    if (!editing) return;
-    const cols = [...editing.columns];
-    cols[index] = { ...cols[index], [field]: value };
-    setEditing({ ...editing, columns: cols });
+  const updateColumn = (
+    id: number,
+    index: number,
+    field: keyof ColumnDef,
+    value: string | boolean,
+  ) => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const et = next.get(id);
+      if (!et) return prev;
+      const cols = [...et.columns];
+      cols[index] = { ...cols[index], [field]: value };
+      next.set(id, { ...et, columns: cols });
+      return next;
+    });
   };
 
-  const removeColumn = (index: number) => {
-    if (!editing) return;
-    const cols = editing.columns.filter((_, i) => i !== index);
-    setEditing({ ...editing, columns: cols });
+  const removeColumn = (id: number, index: number) => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const et = next.get(id);
+      if (!et) return prev;
+      next.set(id, {
+        ...et,
+        columns: et.columns.filter((_, i) => i !== index),
+      });
+      return next;
+    });
   };
 
-  const moveColumn = (index: number, direction: "up" | "down") => {
-    if (!editing) return;
-    const cols = [...editing.columns];
-    const target = direction === "up" ? index - 1 : index + 1;
-    if (target < 0 || target >= cols.length) return;
-    [cols[index], cols[target]] = [cols[target], cols[index]];
-    setEditing({ ...editing, columns: cols });
+  const moveColumn = (id: number, index: number, direction: "up" | "down") => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const et = next.get(id);
+      if (!et) return prev;
+      const cols = [...et.columns];
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= cols.length) return prev;
+      [cols[index], cols[target]] = [cols[target], cols[index]];
+      next.set(id, { ...et, columns: cols });
+      return next;
+    });
   };
 
-  const saveEditing = async () => {
-    if (!editing) return;
+  const setEntityTypeEmoji = (id: number, emoji: string) => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const et = next.get(id);
+      if (!et) return prev;
+      next.set(id, { ...et, icon: emoji });
+      return next;
+    });
+    setEmojiPopoverId(null);
+  };
+
+  // ── Save all dirty schemas ──
+  const saveAllChanges = async () => {
+    if (dirtyEdits.size === 0) return;
     setSaving(true);
     setError(null);
-    try {
-      const payload: EntityTypePayload = {
-        name: editing.name,
-        prefix: editing.prefix,
-        columns: editing.columns,
-      };
-      await put(`/lims/entity-types/${editing.id}/`, payload);
-      setEditing(null);
-      setExpandedId(null);
-      await fetchTypes();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(false);
+    let failed = 0;
+    for (const [, et] of dirtyEdits) {
+      try {
+        const payload: EntityTypePayload = {
+          name: et.name,
+          prefix: et.prefix,
+          icon: et.icon,
+          columns: et.columns,
+        };
+        await put(`/lims/entity-types/${et.id}/`, payload);
+      } catch {
+        failed++;
+      }
     }
+    setDirtyEdits(new Map());
+    await fetchTypes();
+    if (failed > 0) {
+      setError(`Failed to save ${failed} schema${failed > 1 ? "s" : ""}`);
+    }
+    setSaving(false);
+  };
+
+  // ── Discard edits for one schema ──
+  const discardEdits = (id: number) => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   if (loading) return <p className="empty">Loading…</p>;
 
-  return (
-    <div className="page">
-      <div className="toolbar">
-        <h1>Settings</h1>
-      </div>
+  const selectedEntity = selectedId
+    ? entityTypes.find((et) => et.id === selectedId) ?? null
+    : null;
+  const editingEntity = selectedId ? dirtyEdits.get(selectedId) : undefined;
+  const visibleTypes = showArchived
+    ? entityTypes
+    : entityTypes.filter((et) => et.is_active);
+  const dirtyCount = dirtyEdits.size;
 
+  return (
+    <div className={`page settings-page${selectedEntity ? " has-detail" : ""}`}>
       {error && <div className="error">{error}</div>}
 
-      <section className="settings-section">
-        <div className="toolbar">
-          <h2>Schemas</h2>
-          <button onClick={() => setShowNew(!showNew)}>
-            {showNew ? "Cancel" : "New Schema"}
-          </button>
+      {/* Save button bar */}
+      <div className="save-bar">
+        <button
+          className="save-all-btn"
+          onClick={saveAllChanges}
+          disabled={saving || dirtyCount === 0}
+        >
+          {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
+        </button>
+      </div>
+
+      {/* Master–Detail Layout */}
+      <div
+        className={`settings-master-detail ${selectedEntity ? "has-detail" : ""}`}
+      >
+        {/* Left Panel: Schema List */}
+        <div className="settings-master-panel">
+          <section className="settings-section">
+            <div className="toolbar">
+              <h2>Schemas</h2>
+              <div className="toolbar-actions">
+                <button
+                  onClick={() => setShowArchived(!showArchived)}
+                  className="archive-toggle-btn"
+                  title={
+                    showArchived
+                      ? "Hide archived items"
+                      : "Show archived items"
+                  }
+                >
+                  {showArchived ? "📦" : "📂"}
+                </button>
+                <button
+                  onClick={() => setShowNew(!showNew)}
+                  className="new-schema-btn"
+                  title="New Schema"
+                >
+                  {showNew ? "Cancel" : "+"}
+                </button>
+              </div>
+            </div>
+
+            {/* New schema form */}
+            {showNew && (
+              <div className="card new-schema-form">
+                <div className="form-row">
+                  <label>
+                    Name
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="e.g., Blood Sample"
+                    />
+                  </label>
+                  <label>
+                    Prefix
+                    <input
+                      type="text"
+                      value={newPrefix}
+                      onChange={(e) =>
+                        setNewPrefix(e.target.value.toUpperCase())
+                      }
+                      placeholder="e.g., BLOOD"
+                      maxLength={20}
+                      style={{ width: "120px" }}
+                    />
+                  </label>
+                </div>
+                <button
+                  onClick={handleCreate}
+                  disabled={
+                    saving || !newName.trim() || !newPrefix.trim()
+                  }
+                >
+                  {saving ? "Creating…" : "Create"}
+                </button>
+              </div>
+            )}
+
+            {/* Schema list */}
+            {visibleTypes.map((et) => (
+              <div
+                key={et.id}
+                className={`card schema-card${!et.is_active ? " is-inactive" : ""}${selectedId === et.id ? " is-selected" : ""}`}
+              >
+                <div
+                  className="schema-header"
+                  onClick={() => handleSelect(et)}
+                >
+                  <div className="schema-info">
+                    <span className="schema-name">{et.name}</span>
+                    <ReferenceBadge
+                      displayId={`${et.prefix}…`}
+                      clickable={false}
+                    />
+                    <span className="schema-meta">
+                      {et.columns.length} column
+                      {et.columns.length !== 1 ? "s" : ""}
+                    </span>
+                    {!et.is_active && (
+                      <span className="inactive-tag">Inactive</span>
+                    )}
+                    {dirtyEdits.has(et.id) && (
+                      <span className="dirty-tag">Edited</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {visibleTypes.length === 0 && (
+              <p className="empty">No schemas found.</p>
+            )}
+          </section>
         </div>
 
-        {/* New schema form */}
-        {showNew && (
-          <div className="card new-schema-form">
-            <div className="form-row">
-              <label>
-                Name
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g., Blood Sample"
-                />
-              </label>
-              <label>
-                Prefix
-                <input
-                  type="text"
-                  value={newPrefix}
-                  onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
-                  placeholder="e.g., BLOOD"
-                  maxLength={20}
-                  style={{ width: "120px" }}
-                />
-              </label>
-            </div>
-            <button onClick={handleCreate} disabled={saving || !newName.trim() || !newPrefix.trim()}>
-              {saving ? "Creating…" : "Create"}
-            </button>
-          </div>
-        )}
-
-        {/* Schema list */}
-        {entityTypes.map((et) => (
-          <div key={et.id} className={`card schema-card ${!et.is_active ? "is-inactive" : ""}`}>
-            <div
-              className="schema-header"
-              onClick={() => setExpandedId(expandedId === et.id ? null : et.id)}
-            >
-              <div className="schema-info">
-                <span className="schema-name">{et.name}</span>
-                <span className="eln-badge">{et.prefix}</span>
-                <span className="schema-meta">
-                  {et.columns.length} column{et.columns.length !== 1 ? "s" : ""}
-                </span>
-                {!et.is_active && <span className="inactive-tag">Inactive</span>}
-              </div>
-              <div className="schema-actions" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => startEditing(et)}
-                  style={{
-                    background: "transparent",
-                    color: "var(--gray-700)",
-                    border: "1px solid var(--gray-300)",
-                  }}
-                >
-                  Edit
-                </button>
-                {et.is_active && (
+        {/* Right Panel: Detail / Column Editor */}
+        {selectedEntity && editingEntity && (
+          <div className="settings-detail-panel">
+            <div className="card settings-detail-card">
+              <div className="detail-header">
+                <h2>
+                  <ReferenceBadge
+                    displayId={`${editingEntity.prefix}…`}
+                    clickable={false}
+                  />
+                  <span style={{ position: "relative", cursor: "pointer", userSelect: "none" }}>
+                    <span
+                      onClick={() =>
+                        setEmojiPopoverId(
+                          emojiPopoverId === selectedEntity.id ? null : selectedEntity.id
+                        )
+                      }
+                      style={{ fontSize: "1.2rem" }}
+                      title="Change icon"
+                    >
+                      {editingEntity.icon || "🧪"}
+                    </span>
+                    {emojiPopoverId === selectedEntity.id && (
+                      <span
+                        className="settings-emoji-popover"
+                        onMouseLeave={() => setEmojiPopoverId(null)}
+                      >
+                        {CURATED_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            className={`settings-emoji-option${editingEntity.icon === emoji ? " is-selected" : ""}`}
+                            onClick={() => setEntityTypeEmoji(selectedEntity.id, emoji)}
+                            title={`Set icon to ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </span>
+                    )}
+                  </span>
+                  {selectedEntity.name}
+                </h2>
+                <div className="detail-header-actions">
+                  {selectedEntity.is_active && (
+                    <button
+                      className="deactivate-btn"
+                      onClick={() => handleDelete(selectedEntity)}
+                      title="Deactivate schema"
+                    >
+                      🗑️
+                    </button>
+                  )}
                   <button
-                    onClick={() => handleDelete(et)}
-                    style={{
-                      background: "transparent",
-                      color: "#dc2626",
-                      border: "1px solid #fecaca",
-                    }}
+                    className="lims-detail-close"
+                    onClick={() => setSelectedId(null)}
                   >
-                    Deactivate
+                    ×
                   </button>
-                )}
+                </div>
               </div>
-            </div>
 
-            {/* Expanded column editor */}
-            {expandedId === et.id && editing && editing.id === et.id && (
+              <div className="detail-body">
+                <div className="detail-field">
+                  <span className="detail-label">Status</span>
+                  <span>
+                    {selectedEntity.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="detail-field">
+                  <span className="detail-label">Prefix</span>
+                  <ReferenceBadge
+                    displayId={`${editingEntity.prefix}…`}
+                    clickable={false}
+                  />
+                </div>
+                <div className="detail-field">
+                  <span className="detail-label">Icon</span>
+                  <span style={{ fontSize: "1.2rem" }}>
+                    {editingEntity.icon || "🧪"}
+                  </span>
+                </div>
+                <div className="detail-field">
+                  <span className="detail-label">Columns</span>
+                  <span>{editingEntity.columns.length}</span>
+                </div>
+              </div>
+
+              {/* Inline Column Editor */}
               <div className="column-editor">
+                <h3>Columns</h3>
                 <div className="column-list">
-                  {editing.columns.map((col, i) => (
+                  {editingEntity.columns.map((col, i) => (
                     <div key={i} className="column-row">
                       <div className="drag-handles">
                         <button
                           className="drag-btn"
                           disabled={i === 0}
-                          onClick={() => moveColumn(i, "up")}
+                          onClick={() =>
+                            moveColumn(selectedEntity.id, i, "up")
+                          }
                           title="Move up"
                         >
                           ▲
                         </button>
                         <button
                           className="drag-btn"
-                          disabled={i === editing.columns.length - 1}
-                          onClick={() => moveColumn(i, "down")}
+                          disabled={
+                            i === editingEntity.columns.length - 1
+                          }
+                          onClick={() =>
+                            moveColumn(selectedEntity.id, i, "down")
+                          }
                           title="Move down"
                         >
                           ▼
@@ -238,30 +451,55 @@ function Settings() {
                       <input
                         type="text"
                         value={col.name}
-                        onChange={(e) => updateColumn(i, "name", e.target.value)}
+                        onChange={(e) =>
+                          updateColumn(
+                            selectedEntity.id,
+                            i,
+                            "name",
+                            e.target.value,
+                          )
+                        }
                         placeholder="Column name"
                         className="col-name"
                       />
                       <select
                         value={col.type}
-                        onChange={(e) => updateColumn(i, "type", e.target.value)}
+                        onChange={(e) =>
+                          updateColumn(
+                            selectedEntity.id,
+                            i,
+                            "type",
+                            e.target.value,
+                          )
+                        }
                         className="col-type"
                       >
                         {ALLOWED_TYPES.map((t) => (
-                          <option key={t} value={t}>{t}</option>
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
                         ))}
                       </select>
                       <label className="col-required">
                         <input
                           type="checkbox"
                           checked={col.required ?? false}
-                          onChange={(e) => updateColumn(i, "required", e.target.checked)}
+                          onChange={(e) =>
+                            updateColumn(
+                              selectedEntity.id,
+                              i,
+                              "required",
+                              e.target.checked,
+                            )
+                          }
                         />
                         Required
                       </label>
                       <button
                         className="col-remove"
-                        onClick={() => removeColumn(i)}
+                        onClick={() =>
+                          removeColumn(selectedEntity.id, i)
+                        }
                         title="Remove column"
                         style={{
                           background: "transparent",
@@ -277,26 +515,25 @@ function Settings() {
                   ))}
                 </div>
                 <div className="column-editor-actions">
-                  <button onClick={addColumn}>+ Add Column</button>
-                  <button onClick={saveEditing} disabled={saving}>
-                    {saving ? "Saving…" : "Save"}
+                  <button onClick={() => addColumn(selectedEntity.id)}>
+                    + Add Column
                   </button>
                   <button
-                    onClick={() => { setEditing(null); setExpandedId(null); }}
+                    onClick={() => discardEdits(selectedEntity.id)}
                     style={{
                       background: "transparent",
                       color: "var(--gray-700)",
                       border: "1px solid var(--gray-300)",
                     }}
                   >
-                    Cancel
+                    Discard Changes
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        ))}
-      </section>
+        )}
+      </div>
     </div>
   );
 }

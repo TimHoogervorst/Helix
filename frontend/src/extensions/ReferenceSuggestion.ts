@@ -106,6 +106,7 @@ function dropdownRenderer() {
                   display_id: currentQuery.toUpperCase(),
                   title: "",
                   type: "entry",
+                  icon: "📄",
                 };
           currentCommand(item);
           selectedIndex = 0;
@@ -197,9 +198,11 @@ const ReferenceSuggestion = Extension.create({
 
         allow: ({ state, range }: { state: any; range: any }) => {
           const $from = state.doc.resolve(range.from);
+          const parentType = $from.parent.type.name;
           return (
-            $from.parent.type.name === "paragraph" ||
-            $from.parent.type.name === "text"
+            parentType === "paragraph" ||
+            parentType === "text" ||
+            parentType === "tableCell"
           );
         },
 

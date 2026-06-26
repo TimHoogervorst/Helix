@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from .services import (
     _get_dynamic_prefix_map,
     _get_dynamic_model_type_map,
+    _get_icon,
     resolve_display_id,
 )
 
@@ -28,11 +29,13 @@ def resolve_view(request):
         resolved = resolve_display_id(display_id)
         if resolved:
             instance, ct = resolved
+            model_type = model_type_map.get(type(instance), ct.model)
             result[display_id] = {
                 "id": instance.pk,
                 "display_id": getattr(instance, "display_id", str(instance.pk)),
                 "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
-                "type": model_type_map.get(type(instance), ct.model),
+                "type": model_type,
+                "icon": _get_icon(instance, model_type),
             }
         else:
             result[display_id] = None
@@ -58,10 +61,12 @@ def search_view(request):
     for prefix, model in pmap.items():
         qs = model.objects.filter(display_id__istartswith=query)
         for instance in qs:
+            model_type = model_type_map.get(type(instance), "entry")
             results.append({
                 "display_id": instance.display_id,
                 "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
-                "type": model_type_map.get(type(instance), "entry"),
+                "type": model_type,
+                "icon": _get_icon(instance, model_type),
             })
 
     return Response({"results": results})

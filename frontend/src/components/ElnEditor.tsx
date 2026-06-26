@@ -11,8 +11,8 @@ import Reference from "../extensions/Reference";
 import ReferenceSuggestion from "../extensions/ReferenceSuggestion";
 import LimsTable from "../extensions/LimsTable";
 import SlashCommands from "../extensions/SlashCommands";
-import { ReferenceProvider, useReferenceContext } from "./ReferenceProvider";
-import { LimsEntityProvider, useLimsEntityContext } from "./LimsEntityProvider";
+import { useReferenceContext } from "./ReferenceProvider";
+import ReferenceBadge from "./ReferenceBadge";
 
 interface Folder {
   id: number;
@@ -32,10 +32,10 @@ type EditorMode =
   | "error";
 
 /**
- * Hook: walk the TipTap JSON tree and collect all ``displayId`` values
- * from ``reference`` nodes.
+ * Walk the TipTap JSON tree and collect all ``displayId`` values
+ * from ``reference`` nodes and limsTable entity rows.
  */
-function collectReferenceIds(doc: TipTapDoc): string[] {
+function collectDisplayIds(doc: TipTapDoc): string[] {
   const ids: string[] = [];
 
   function walk(node: unknown) {
@@ -50,29 +50,6 @@ function collectReferenceIds(doc: TipTapDoc): string[] {
       }
       return; // reference nodes are atomic
     }
-
-    // Recurse into content arrays
-    const content = n.content;
-    if (Array.isArray(content)) {
-      for (const child of content) {
-        walk(child);
-      }
-    }
-  }
-
-  walk(doc);
-  return ids;
-}
-
-/**
- * Hook: walk the TipTap JSON tree and collect entityIds from limsTable nodes.
- */
-function collectLimsEntityIds(doc: TipTapDoc): string[] {
-  const ids: string[] = [];
-
-  function walk(node: unknown) {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
 
     if (n.type === "limsTable") {
       const attrs = n.attrs as Record<string, unknown> | undefined;
@@ -101,13 +78,11 @@ function collectLimsEntityIds(doc: TipTapDoc): string[] {
   return ids;
 }
 
-/** Inner component that lives inside ReferenceProvider + LimsEntityProvider
-    so it can use both contexts. */
-function ElnEditorInner({ entryId }: ElnEditorProps) {
+/** Editor component — ReferenceProvider is provided by Layout. */
+function ElnEditor({ entryId }: ElnEditorProps) {
   const navigate = useNavigate();
   const isNew = entryId === undefined;
   const { resolveIds } = useReferenceContext();
-  const { resolveEntityIds } = useLimsEntityContext();
 
   // ── State ──
   const [mode, setMode] = useState<EditorMode>(
@@ -172,16 +147,10 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
         setInitialContent(data.content);
         setFolderId(data.folder);
 
-        // Batch-resolve references found in the loaded content
-        const refIds = collectReferenceIds(data.content);
+        // Batch-resolve all display IDs found in the loaded content
+        const refIds = collectDisplayIds(data.content);
         if (refIds.length > 0) {
           resolveIds(refIds);
-        }
-
-        // Collect entity IDs from limsTable nodes for batch resolution
-        const entityIds = collectLimsEntityIds(data.content);
-        if (entityIds.length > 0) {
-          resolveEntityIds(entityIds);
         }
 
         setMode("view");
@@ -238,17 +207,12 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
 
   const enterEditMode = useCallback(() => {
     // Resolve any references in the current content before editing
-    const refIds = collectReferenceIds(currentContent);
+    const refIds = collectDisplayIds(currentContent);
     if (refIds.length > 0) {
       resolveIds(refIds);
     }
-    // Resolve any LIMS entity IDs
-    const entityIds = collectLimsEntityIds(currentContent);
-    if (entityIds.length > 0) {
-      resolveEntityIds(entityIds);
-    }
     setMode("edit-existing");
-  }, [currentContent, resolveIds, resolveEntityIds]);
+  }, [currentContent, resolveIds]);
 
   const handleCancel = useCallback(() => {
     if (isNew) {
@@ -287,11 +251,9 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
         const responseContent = updated.content || editor.getJSON();
         setInitialTitle(title.trim());
         setInitialContent(responseContent);
-        // Re-resolve references and entity IDs from the updated content
-        const refIds = collectReferenceIds(responseContent);
+        // Re-resolve all display IDs from the updated content
+        const refIds = collectDisplayIds(responseContent);
         if (refIds.length > 0) resolveIds(refIds);
-        const entityIds = collectLimsEntityIds(responseContent);
-        if (entityIds.length > 0) resolveEntityIds(entityIds);
         contentLoaded.current = false;
         setMode("view");
       }
@@ -359,7 +321,17 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
             <div className="meta-row">
               {entry && (
                 <>
-                  <span className="eln-badge">{entry.display_id}</span>{" "}
+                  <ReferenceBadge
+                    displayId={entry.display_id}
+                    clickable={false}
+                    resolved={{
+                      displayId: entry.display_id,
+                      title: entry.title,
+                      type: "entry",
+                      id: entry.id,
+                      icon: "📄",
+                    }}
+                  />{" "}
                   {entry.author_username && `by ${entry.author_username} · `}
                   Created {formatDate(entry.created_at)}
                   {entry.updated_at !== entry.created_at &&
@@ -550,17 +522,6 @@ function ElnEditorInner({ entryId }: ElnEditorProps) {
         </div>
       </div>
     </div>
-  );
-}
-
-/** Wrapper that provides both ReferenceContext and LimsEntityContext. */
-function ElnEditor(props: ElnEditorProps) {
-  return (
-    <ReferenceProvider>
-      <LimsEntityProvider>
-        <ElnEditorInner {...props} />
-      </LimsEntityProvider>
-    </ReferenceProvider>
   );
 }
 

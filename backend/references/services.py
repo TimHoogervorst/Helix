@@ -90,6 +90,25 @@ def resolve_display_id(display_id: str):
     return instance, ct
 
 
+def _get_icon(instance, model_type: str) -> str:
+    """
+    Return the emoji icon for a resolved reference.
+
+    - ELN entries: hardcoded ``"📄"``
+    - LIMS entities: the entity type's configured icon, or ``"🧪"`` if none set
+    """
+    if model_type == "entry":
+        return "📄"
+    # Entity
+    try:
+        entity_type = instance.entity_type
+        if entity_type and getattr(entity_type, "icon", None):
+            return entity_type.icon
+    except AttributeError:
+        pass
+    return "🧪"
+
+
 def walk_reference_nodes(node):
     """
     Recursively yield all ``displayId`` values from reference nodes in a TipTap JSON tree.

@@ -16,6 +16,7 @@ import type {
 } from "ag-grid-community";
 import type { GridColumn, GridRow, EntityType } from "../types/lims";
 import { get } from "../api/client";
+import { DisplayIdCellRenderer, ReferenceCellRenderer } from "./ReferenceBadgeCellRenderer";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {
@@ -74,6 +75,14 @@ function columnDefFor(c: GridColumn, _index: number): ColDef<GridRow> {
         cellRenderer: "agCheckboxCellRenderer",
         cellStyle: { display: "flex", alignItems: "center", justifyContent: "center" },
       };
+    case "Reference":
+      return {
+        ...base,
+        cellRenderer: ReferenceCellRenderer,
+        valueFormatter: undefined,
+        cellEditor: "agTextCellEditor",
+        cellStyle: { display: "flex", alignItems: "center", padding: 0 },
+      };
     case "Text":
     default:
       return { ...base, type: "textColumn" };
@@ -89,13 +98,8 @@ const INDEX_COL: ColDef<GridRow> = {
   cellClass: "eln-grid-index-cell",
   headerClass: "eln-grid-index-header",
   valueGetter: (p) => p.data?.displayId ?? "",
+  cellRenderer: DisplayIdCellRenderer,
   suppressNavigable: true,
-  cellStyle: {
-    background: "#f4f4f5",
-    color: "#52525b",
-    fontSize: "0.82em",
-    fontFamily: "var(--font-mono, monospace)",
-  },
 };
 
 // ── Default values per type for new rows ───────────────────────────────
@@ -118,6 +122,7 @@ function LimsTableNode(props: NodeViewProps) {
 
   // Read attrs from the TipTap node (source of truth)
   const schemaId = (node.attrs.schemaId as number | null) ?? null;
+  const schemaName = (node.attrs.schemaName as string | null) ?? null;
   const title = (node.attrs.title as string) || "Table";
   const columns: GridColumn[] = (node.attrs.columns as GridColumn[]) ?? [];
   const rows: GridRow[] = (node.attrs.rows as GridRow[]) ?? [];
@@ -256,6 +261,7 @@ function LimsTableNode(props: NodeViewProps) {
 
       updateAttributes({
         schemaId: entityType.id,
+        schemaName: entityType.name,
         columns: newColumns,
         rows: newRows,
       });
@@ -292,7 +298,8 @@ function LimsTableNode(props: NodeViewProps) {
       const updatedRows = rows.map((r) => {
         if (r.displayId !== ev.data.displayId) return r;
         return {
-          ...r,
+          entityId: r.entityId ?? ev.data.entityId ?? null,
+          displayId: r.displayId,
           values: { ...r.values, [colName]: ev.newValue },
         };
       });
@@ -374,6 +381,22 @@ function LimsTableNode(props: NodeViewProps) {
     };
   }, [showGearMenu]);
 
+  // ── Backfill schema name for pre-existing tables that have schemaId but no stored name
+  useEffect(() => {
+    if (schemaId === null || schemaName !== null) return;
+    let cancelled = false;
+    get<EntityType>(`/lims/entity-types/${schemaId}/`)
+      .then((et) => {
+        if (!cancelled && et?.name) {
+          updateAttributes({ schemaName: et.name });
+        }
+      })
+      .catch(() => {
+        // keep fallback
+      });
+    return () => { cancelled = true; };
+  }, [schemaId, schemaName, updateAttributes]);
+
   // ── Prevent ProseMirror from intercepting events inside the AG Grid ────
   // ProseMirror listens on its editor element (ancestor of this NodeView).
   // Its mousedown handler adjusts editor selection/focus, which interferes
@@ -392,7 +415,7 @@ function LimsTableNode(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="lims-table-wrapper" contentEditable={false}>
-      <div className="eln-table-card">
+      <div className={`eln-table-card${schemaId !== null ? " eln-table-card--schema-backed" : ""}`}>
         {/* Title bar */}
         <div className="eln-table-title-bar">
           <div className="eln-table-title-left">
@@ -407,8 +430,8 @@ function LimsTableNode(props: NodeViewProps) {
               {title}
             </span>
             {schemaId !== null && (
-              <span className="eln-table-schema-badge" title={`Schema ID: ${schemaId}`}>
-                Schema-backed
+              <span className="eln-table-schema-label" title={`Schema ID: ${schemaId}`}>
+                {schemaName || `Schema #${schemaId}`}
               </span>
             )}
           </div>

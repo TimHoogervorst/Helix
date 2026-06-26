@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { get } from "../api/client";
 import type { EntryListItem } from "../types/eln";
+import ReferenceBadge from "../components/ReferenceBadge";
 
 interface PageResponse {
   results: EntryListItem[];
@@ -55,7 +56,17 @@ function ElnList() {
 
       {entries.map((entry) => (
         <div key={entry.id} className="entry-item">
-          <span className="eln-badge">{entry.display_id}</span>
+          <ReferenceBadge
+            displayId={entry.display_id}
+            clickable={false}
+            resolved={{
+              displayId: entry.display_id,
+              title: entry.title,
+              type: "entry",
+              id: entry.id,
+              icon: "📄",
+            }}
+          />
           <Link to={`/eln/${entry.id}`}>{entry.title}</Link>
           <div className="meta">
             by {entry.author_username} · {new Date(entry.created_at).toLocaleString()}

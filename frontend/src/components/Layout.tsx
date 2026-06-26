@@ -2,12 +2,15 @@ import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { get } from "../api/client";
 import type { EntityType } from "../types/lims";
+import { useLimsView } from "../context/LimsViewContext";
+import { ReferenceProvider } from "./ReferenceProvider";
 
 function Layout() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const isLims = location.pathname.startsWith("/lims");
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
+  const { viewState } = useLimsView();
 
   useEffect(() => {
     if (isLims) {
@@ -33,7 +36,7 @@ function Layout() {
   const currentType = searchParams.get("type") || "";
 
   return (
-    <>
+    <ReferenceProvider>
       <nav>
         <div className="nav-left">
           <Link to="/eln">OpenScience</Link>
@@ -41,7 +44,7 @@ function Layout() {
           <Link to="/lims">LIMS</Link>
         </div>
 
-        {isLims && (
+        {isLims && viewState !== "expanded" && (
           <form className="nav-search-bar" onSubmit={handleSearch}>
             <div className="nav-search-input-wrap">
               <span className="nav-search-icon">🔍</span>
@@ -80,7 +83,7 @@ function Layout() {
       <div className="page">
         <Outlet />
       </div>
-    </>
+    </ReferenceProvider>
   );
 }
 

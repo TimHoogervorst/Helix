@@ -217,9 +217,9 @@ function LimsList() {
                           {formatDate(entity.created_at)}
                         </td>
                         <td>
-                          {entity.source_entry ? (
+                          {entity.source_entry_display_id ? (
                             <ReferenceBadge
-                              displayId={`E${entity.source_entry}`}
+                              displayId={entity.source_entry_display_id}
                               clickable
                             />
                           ) : (

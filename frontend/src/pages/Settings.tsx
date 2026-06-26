@@ -22,6 +22,10 @@ function Settings() {
   const [newName, setNewName] = useState("");
   const [newPrefix, setNewPrefix] = useState("");
 
+  // Danger zone
+  const [dangerLoading, setDangerLoading] = useState<string | null>(null);
+  const [dangerResult, setDangerResult] = useState<string | null>(null);
+
   const fetchTypes = useCallback(async () => {
     try {
       const data = await get<EntityType[]>("/lims/entity-types/");
@@ -198,6 +202,51 @@ function Settings() {
       next.delete(id);
       return next;
     });
+  };
+
+  // ── Danger Zone handlers ──
+
+  const handleDeleteAllElms = async () => {
+    if (!window.confirm("DELETE ALL ELNs? This will permanently delete every notebook entry. This cannot be undone.")) return;
+    setDangerLoading("elns");
+    setDangerResult(null);
+    try {
+      await del("/eln/entries/delete_all/");
+      setDangerResult("All ELN entries deleted.");
+    } catch (err) {
+      setDangerResult(`Failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setDangerLoading(null);
+    }
+  };
+
+  const handleDeleteAllEntities = async () => {
+    if (!window.confirm("DELETE ALL ENTITIES? This will permanently delete every LIMS entity. This cannot be undone.")) return;
+    setDangerLoading("entities");
+    setDangerResult(null);
+    try {
+      await del("/lims/entities/delete_all/");
+      setDangerResult("All entities deleted.");
+    } catch (err) {
+      setDangerResult(`Failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setDangerLoading(null);
+    }
+  };
+
+  const handleDeleteEverything = async () => {
+    if (!window.confirm("DELETE EVERYTHING? This will permanently delete all ELN entries, entities, and schemas. This cannot be undone.")) return;
+    setDangerLoading("everything");
+    setDangerResult(null);
+    try {
+      await del("/delete-everything/");
+      setDangerResult("Everything deleted — all ELN entries, entities, and schemas cleared.");
+      await fetchTypes();
+    } catch (err) {
+      setDangerResult(`Failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setDangerLoading(null);
+    }
   };
 
   if (loading) return <p className="empty">Loading…</p>;
@@ -534,6 +583,44 @@ function Settings() {
           </div>
         )}
       </div>
+
+      {/* Danger Zone */}
+      <section className="settings-danger-zone">
+        <h2>⚠️ Danger Zone</h2>
+        <p className="danger-zone-desc">
+          These actions are destructive and cannot be undone. For testing use only.
+        </p>
+
+        {dangerResult && (
+          <div className={dangerResult.startsWith("Failed") ? "error" : "danger-success"}>
+            {dangerResult}
+          </div>
+        )}
+
+        <div className="danger-zone-actions">
+          <button
+            className="danger-btn danger-btn-elns"
+            onClick={handleDeleteAllElms}
+            disabled={dangerLoading !== null}
+          >
+            {dangerLoading === "elns" ? "Deleting…" : "🗑️ DELETE ALL ELNs"}
+          </button>
+          <button
+            className="danger-btn danger-btn-entities"
+            onClick={handleDeleteAllEntities}
+            disabled={dangerLoading !== null}
+          >
+            {dangerLoading === "entities" ? "Deleting…" : "🗑️ DELETE ALL ENTITIES"}
+          </button>
+          <button
+            className="danger-btn danger-btn-everything"
+            onClick={handleDeleteEverything}
+            disabled={dangerLoading !== null}
+          >
+            {dangerLoading === "everything" ? "Deleting…" : "💀 DELETE EVERYTHING"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

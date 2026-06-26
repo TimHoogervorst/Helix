@@ -2295,3 +2295,87 @@ input.lims-table-title-input:focus {
   background: var(--blue-100);
   border-color: var(--blue-300);
 }
+
+/* ── Settings Danger Zone ──────────────────────────────────────────── */
+
+.settings-danger-zone {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #fecaca;
+}
+
+.settings-danger-zone h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem;
+  color: #dc2626;
+}
+
+.danger-zone-desc {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  margin: 0 0 1rem;
+}
+
+.danger-success {
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.danger-zone-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.danger-btn {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  border: 2px solid transparent;
+}
+
+.danger-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.danger-btn-elns {
+  background: #fff5f5;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.danger-btn-elns:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.danger-btn-entities {
+  background: #fff7ed;
+  color: #ea580c;
+  border-color: #fed7aa;
+}
+
+.danger-btn-entities:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fdba74;
+}
+
+.danger-btn-everything {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.danger-btn-everything:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #7f1d1d;
+}

@@ -97,7 +97,7 @@ describe("clickable (blue)", () => {
     expect(badge).toHaveClass("is-clickable");
     expect(badge).toHaveClass("is-resolved");
     expect(badge.tagName).toBe("A");
-    expect(badge).toHaveAttribute("href", "/eln/1");
+    expect(badge).toHaveAttribute("href", "/eln/E1");
   });
 
   it("navigates to /lims?entity= for entity references", () => {

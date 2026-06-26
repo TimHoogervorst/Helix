@@ -22,6 +22,7 @@ class EntityTypeViewSet(viewsets.ModelViewSet):
     update: PUT /api/lims/entity-types/{id}/
     partial_update: PATCH /api/lims/entity-types/{id}/
     destroy: DELETE /api/lims/entity-types/{id}/ — soft-deletes (sets is_active=False)
+    delete_all: DELETE /api/lims/entity-types/delete_all/ — hard-deletes all schemas
     """
 
     queryset = EntityType.objects.all()
@@ -43,6 +44,14 @@ class EntityTypeViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=False, methods=["delete"], url_path="delete_all")
+    def delete_all(self, request):
+        """Hard-delete ALL entity types (schemas). Danger zone endpoint for testing."""
+        # Delete entities first to avoid FK constraint issues
+        Entity.objects.all().delete()
+        count, _ = EntityType.objects.all().delete()
+        return Response({"deleted": count})
+
 
 class EntityViewSet(viewsets.ModelViewSet):
     """
@@ -55,6 +64,7 @@ class EntityViewSet(viewsets.ModelViewSet):
     partial_update: PATCH /api/lims/entities/{display_id}/
     destroy: DELETE /api/lims/entities/{display_id}/
     batch: POST /api/lims/entities/batch/ — batch resolve display IDs
+    delete_all: DELETE /api/lims/entities/delete_all/ — delete all entities
     """
 
     queryset = Entity.objects.select_related("entity_type", "created_by", "folder")
@@ -108,6 +118,12 @@ class EntityViewSet(viewsets.ModelViewSet):
                 }
 
         return Response(result)
+
+    @action(detail=False, methods=["delete"], url_path="delete_all")
+    def delete_all(self, request):
+        """Delete ALL entities. Danger zone endpoint for testing."""
+        count, _ = Entity.objects.all().delete()
+        return Response({"deleted": count})
 
 
 class ActionViewSet(viewsets.ReadOnlyModelViewSet):

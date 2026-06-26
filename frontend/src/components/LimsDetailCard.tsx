@@ -79,11 +79,11 @@ function LimsDetailCard({
             <span className="detail-label">By</span>
             <span>{entity.created_by_username || "—"}</span>
           </div>
-          {entity.source_entry && (
+          {entity.source_entry_display_id && (
             <div className="detail-field">
               <span className="detail-label">Source Entry</span>
               <ReferenceBadge
-                displayId={`E${entity.source_entry}`}
+                displayId={entity.source_entry_display_id}
                 clickable
               />
             </div>

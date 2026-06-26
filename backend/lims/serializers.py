@@ -66,6 +66,9 @@ class EntitySerializer(serializers.ModelSerializer):
     entity_type_prefix = serializers.CharField(source="entity_type.prefix", read_only=True)
     entity_type_icon = serializers.CharField(source="entity_type.icon", read_only=True, default="🧪")
     created_by_username = serializers.CharField(source="created_by.username", read_only=True)
+    source_entry_display_id = serializers.CharField(
+        source="source_entry.display_id", read_only=True, default=None
+    )
 
     class Meta:
         model = Entity
@@ -79,6 +82,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "entity_type_icon",
             "properties",
             "source_entry",
+            "source_entry_display_id",
             "folder",
             "created_by",
             "created_by_username",

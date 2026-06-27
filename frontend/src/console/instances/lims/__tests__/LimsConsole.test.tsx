@@ -1,0 +1,403 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import LimsConsole from "../LimsConsole";
+import type { EntityListItem, PaginatedResponse } from "../../../../types/lims";
+
+// ── API client mock ───────────────────────────────────────────────────────
+
+const mockGet = vi.fn();
+vi.mock("../../../../api/client", () => ({
+  get: (...args: unknown[]) => mockGet(...args),
+}));
+
+// ── useConsoleView mock (controllable viewState) ──────────────────────────
+
+let mockViewState = "list";
+
+vi.mock("../../../../console/core/useConsoleView", () => ({
+  useConsoleView: () => ({
+    viewState: mockViewState,
+    isExiting: false,
+    isDetailExiting: false,
+    goToDetail: vi.fn(),
+    goToExpanded: vi.fn(),
+    collapseFromExpanded: vi.fn(),
+    closeAll: vi.fn(),
+    updateViewState: vi.fn(),
+  }),
+}));
+
+// ── ConsoleProvider mock (passthrough) ────────────────────────────────────
+
+vi.mock("../../../../console/core/ConsoleProvider", () => ({
+  useConsole: () => ({
+    viewState: "list",
+    setViewState: vi.fn(),
+  }),
+  ConsoleProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
+// ── Heavy component mocks ────────────────────────────────────────────────
+
+vi.mock("../../../../components/ReferenceBadge", () => ({
+  default: ({
+    displayId,
+    resolved,
+    clickable,
+  }: {
+    displayId: string;
+    resolved?: { title: string; icon?: string; type?: string };
+    clickable?: boolean;
+  }) => (
+    <span
+      data-testid="ref-badge"
+      data-display-id={displayId}
+      data-clickable={clickable ? "true" : "false"}
+    >
+      {resolved?.icon ? `${resolved.icon} ` : ""}
+      {resolved?.title ?? displayId}
+    </span>
+  ),
+}));
+
+vi.mock("../../../../workspaces/lims/LimsDetailCard", () => ({
+  default: ({ entity }: { entity: EntityListItem }) => (
+    <div data-testid="lims-detail-card">Detail for {entity.display_id}</div>
+  ),
+}));
+
+vi.mock("../../../../workspaces/lims/EntityWorkspace", () => ({
+  default: ({ entity }: { entity: EntityListItem }) => (
+    <div data-testid="entity-workspace">
+      Workspace for {entity.display_id}
+    </div>
+  ),
+}));
+
+// ── Test data fixtures ────────────────────────────────────────────────────
+
+const emptyResponse: PaginatedResponse<EntityListItem> = {
+  count: 0,
+  next: null,
+  previous: null,
+  results: [],
+};
+
+const populatedResponse: PaginatedResponse<EntityListItem> = {
+  count: 2,
+  next: null,
+  previous: null,
+  results: [
+    {
+      id: 1,
+      display_id: "BLOOD1",
+      name: "Sample A",
+      entity_type: 1,
+      entity_type_name: "Blood",
+      entity_type_prefix: "BLOOD",
+      entity_type_icon: "🩸",
+      properties: {},
+      source_entry: null,
+      source_entry_display_id: null,
+      folder: null,
+      created_by: null,
+      created_by_username: null,
+      created_at: "2025-01-01T00:00:00Z",
+    },
+    {
+      id: 2,
+      display_id: "BLOOD2",
+      name: "Sample B",
+      entity_type: 1,
+      entity_type_name: "Blood",
+      entity_type_prefix: "BLOOD",
+      entity_type_icon: "🩸",
+      properties: {},
+      source_entry: 5,
+      source_entry_display_id: "E5",
+      folder: null,
+      created_by: null,
+      created_by_username: null,
+      created_at: "2025-01-02T00:00:00Z",
+    },
+  ],
+};
+
+const paginatedResponse: PaginatedResponse<EntityListItem> = {
+  count: 3,
+  next: "/api/lims/entities/?search=&type=&offset=2",
+  previous: null,
+  results: [...populatedResponse.results],
+};
+
+const secondPageResponse: PaginatedResponse<EntityListItem> = {
+  count: 3,
+  next: null,
+  previous: null,
+  results: [
+    {
+      id: 3,
+      display_id: "BLOOD3",
+      name: "Sample C",
+      entity_type: 1,
+      entity_type_name: "Blood",
+      entity_type_prefix: "BLOOD",
+      entity_type_icon: "🩸",
+      properties: {},
+      source_entry: null,
+      source_entry_display_id: null,
+      folder: null,
+      created_by: null,
+      created_by_username: null,
+      created_at: "2025-01-03T00:00:00Z",
+    },
+  ],
+};
+
+// ── Render helper ─────────────────────────────────────────────────────────
+
+function renderLims(initialRoute = "/lims") {
+  return render(
+    <MemoryRouter initialEntries={[initialRoute]}>
+      <LimsConsole />
+    </MemoryRouter>,
+  );
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────
+
+describe("LimsConsole", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockViewState = "list";
+  });
+
+  // ── Loading / empty / error states ──────────────────────────────────
+
+  it("shows loading state initially", () => {
+    mockGet.mockReturnValue(new Promise(() => {})); // never resolves
+    renderLims();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+  });
+
+  it("shows empty state when no entities", async () => {
+    mockGet.mockResolvedValue(emptyResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("No entities found.")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error state with error message", async () => {
+    mockGet.mockRejectedValue(new Error("Network error"));
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Network error")).toBeInTheDocument();
+    });
+  });
+
+  // ── Entity rendering ────────────────────────────────────────────────
+
+  it("renders entities from API", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Sample B")).toBeInTheDocument();
+    expect(screen.getAllByText("Blood").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders entity type icons", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      const badges = screen.getAllByTestId("ref-badge");
+      expect(badges.length).toBeGreaterThanOrEqual(1);
+    });
+    const iconBadge = screen.getAllByTestId("ref-badge")[0];
+    expect(iconBadge.textContent).toContain("Sample A");
+  });
+
+  it("renders source entry ReferenceBadge when source exists", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample B")).toBeInTheDocument();
+    });
+    // Entity BLOOD2 has source_entry_display_id "E5"
+    const sourceBadges = screen.getAllByTestId("ref-badge");
+    const sourceBadge = sourceBadges.find(
+      (b) => b.getAttribute("data-display-id") === "E5",
+    );
+    expect(sourceBadge).toBeTruthy();
+  });
+
+  it("renders source entry ReferenceBadge as clickable", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample B")).toBeInTheDocument();
+    });
+    const sourceBadges = screen.getAllByTestId("ref-badge");
+    const sourceBadge = sourceBadges.find(
+      (b) => b.getAttribute("data-display-id") === "E5",
+    );
+    expect(sourceBadge).toBeTruthy();
+    expect(sourceBadge!.getAttribute("data-clickable")).toBe("true");
+  });
+
+  it("renders dash for missing source entry", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    // Entity BLOOD1 has no source_entry_display_id → dash
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  // ── URL param passing ───────────────────────────────────────────────
+
+  it("passes search param from URL to API", async () => {
+    mockGet.mockResolvedValue(emptyResponse);
+    renderLims("/lims?search=PCR");
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith(
+        expect.stringContaining("search=PCR"),
+      );
+    });
+  });
+
+  it("passes type filter from URL to API", async () => {
+    mockGet.mockResolvedValue(emptyResponse);
+    renderLims("/lims?type=5");
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith(
+        expect.stringContaining("type=5"),
+      );
+    });
+  });
+
+  it("passes both search and type params to API", async () => {
+    mockGet.mockResolvedValue(emptyResponse);
+    renderLims("/lims?search=PCR&type=5");
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith(
+        expect.stringContaining("search=PCR"),
+      );
+      expect(mockGet).toHaveBeenCalledWith(
+        expect.stringContaining("type=5"),
+      );
+    });
+  });
+
+  // ── Row selection ───────────────────────────────────────────────────
+
+  it("highlights selected row on click", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    const row = screen.getByText("Sample A").closest("tr")!;
+    fireEvent.click(row);
+    expect(row.className).toContain("is-selected");
+  });
+
+  it("deselects on second click (toggle back to list)", async () => {
+    // Start in "detail" state so the toggle logic activates
+    mockViewState = "detail";
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    const row = screen.getByText("Sample A").closest("tr")!;
+    // First click in detail state: selects the row
+    fireEvent.click(row);
+    expect(row.className).toContain("is-selected");
+    // Second click in detail state on same row: toggles back to list (deselects)
+    fireEvent.click(row);
+    expect(row.className).not.toContain("is-selected");
+  });
+
+  // ── Expand / navigation ─────────────────────────────────────────────
+
+  it("renders expand button for each entity row", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    const expandBtns = screen.getAllByTitle("Expand to full detail");
+    expect(expandBtns.length).toBe(2);
+    // Clicking expand button should not crash
+    fireEvent.click(expandBtns[0]);
+    // Expand button navigation changes the URL without error
+  });
+
+  it("expand button click stops propagation to row handler", async () => {
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    const row = screen.getByText("Sample A").closest("tr")!;
+    const expandBtn = row.querySelector(
+      ".console-master-row-expand-btn",
+    ) as HTMLElement;
+    fireEvent.click(expandBtn);
+    // Row should NOT get is-selected since expand stops propagation
+    expect(row.className).not.toContain("is-selected");
+  });
+
+  // ── Load More pagination ────────────────────────────────────────────
+
+  it("shows Load More button when more pages exist", async () => {
+    mockGet.mockResolvedValue(paginatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Load More")).toBeInTheDocument();
+  });
+
+  it("Load More fetches next page and appends rows", async () => {
+    mockGet
+      .mockResolvedValueOnce(paginatedResponse)
+      .mockResolvedValueOnce(secondPageResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    const loadMoreBtn = screen.getByText("Load More");
+    fireEvent.click(loadMoreBtn);
+    await waitFor(() => {
+      expect(screen.getByText("Sample C")).toBeInTheDocument();
+    });
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    // Second call should use the next URL (without /api prefix — the component strips it)
+    expect(mockGet).toHaveBeenLastCalledWith(
+      "/lims/entities/?search=&type=&offset=2",
+    );
+  });
+
+  // ── Expanded state behavior ─────────────────────────────────────────
+
+  it("row click does nothing in expanded viewState", async () => {
+    mockViewState = "expanded";
+    mockGet.mockResolvedValue(populatedResponse);
+    renderLims();
+    await waitFor(() => {
+      expect(screen.getByText("Sample A")).toBeInTheDocument();
+    });
+    const row = screen.getByText("Sample A").closest("tr")!;
+    fireEvent.click(row);
+    // Row should NOT become selected when in expanded state
+    expect(row.className).not.toContain("is-selected");
+  });
+});

@@ -7,9 +7,9 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, User
+from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from workspaces.eln.models import NotebookEntry, Mention
 
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 TEXT_DOC = {
     "type": "doc",
     "content": [
@@ -128,25 +128,9 @@ class MentionSyncOnSaveTests(TestCase):
             title="Target Entry", content=EMPTY_DOC, folder=self.folder, author=self.user
         )
 
-    def _make_doc_with_ref(self, display_id):
-        """Build a TipTap doc containing a reference node pointing at *display_id*."""
-        return {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "See "},
-                        {"type": "reference", "attrs": {"displayId": display_id}},
-                        {"type": "text", "text": " for details."},
-                    ],
-                }
-            ],
-        }
-
     def test_create_entry_with_reference_creates_mention(self):
         """POST with a reference node → Mention row is created."""
-        doc = self._make_doc_with_ref(self.target.display_id)
+        doc = make_doc_with_ref(self.target.display_id)
         response = self.client.post(
             "/api/eln/entries/",
             {"title": "Ref Entry", "content": doc, "folder": self.folder.id},
@@ -165,7 +149,7 @@ class MentionSyncOnSaveTests(TestCase):
         )
         self.assertEqual(Mention.objects.count(), 0)
 
-        doc = self._make_doc_with_ref(self.target.display_id)
+        doc = make_doc_with_ref(self.target.display_id)
         response = self.client.put(
             f"/api/eln/entries/{entry.display_id}/",
             {"title": "Now With Ref", "content": doc, "folder": self.folder.id},
@@ -179,7 +163,7 @@ class MentionSyncOnSaveTests(TestCase):
 
     def test_update_entry_remove_reference_deletes_mention(self):
         """PUT that removes a reference node → Mention deleted."""
-        doc_with_ref = self._make_doc_with_ref(self.target.display_id)
+        doc_with_ref = make_doc_with_ref(self.target.display_id)
         entry = NotebookEntry.objects.create(
             title="Has Ref", content=doc_with_ref, folder=self.folder, author=self.user
         )

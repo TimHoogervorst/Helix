@@ -4,56 +4,9 @@ Tests for the LIMS services: sync_entities, walk_lims_tables.
 from django.test import TestCase
 
 from core.models import Folder, User
+from core.tests.factories import EMPTY_DOC, make_lims_table_doc
 from workspaces.eln.models import NotebookEntry
 from workspaces.lims.models import EntityType, Entity
-
-
-# ── TipTap document fixtures ──
-
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
-
-
-def make_lims_table_doc(schema_id, rows_data=None, entity_type=None):
-    """Build a TipTap doc containing a single limsTable v2 node.
-
-    Args:
-        schema_id: PK of the EntityType.
-        rows_data: List of dicts with column-name keys, e.g.
-            ``[{"volume": "50", "patient": "Alice"}]``.
-            If None, an empty rows array is used.
-        entity_type: Optional EntityType instance; used to populate
-            ``attrs.columns``. If omitted, columns will be empty.
-
-    Each row in ``rows_data`` becomes
-    ``{entityId: None, displayId: "#new", values: {...}}``.
-    """
-    if rows_data is None:
-        rows_data = []
-
-    # Derive columns from entity type if provided
-    columns = []
-    if entity_type is not None:
-        columns = entity_type.columns
-
-    rows = [
-        {"entityId": None, "displayId": "#new", "values": row}
-        for row in rows_data
-    ]
-
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "limsTable",
-                "attrs": {
-                    "schemaId": schema_id,
-                    "title": "Test Table",
-                    "columns": columns,
-                    "rows": rows,
-                },
-            }
-        ],
-    }
 
 
 class SyncEntitiesTests(TestCase):

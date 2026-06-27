@@ -7,9 +7,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, User
+from core.tests.factories import EMPTY_DOC
 from workspaces.eln.models import NotebookEntry
-
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 
 
 class LibraryApiTests(TestCase):

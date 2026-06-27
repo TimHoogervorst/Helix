@@ -10,60 +10,9 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from core.models import Folder, User
+from core.tests.factories import EMPTY_DOC, make_lims_table_doc, make_doc_with_ref
 from workspaces.eln.models import NotebookEntry, Mention
 from workspaces.lims.models import EntityType, Entity
-
-
-# ── TipTap document fixtures ────────────────────────────────────────────
-
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
-
-
-def make_lims_table_doc(schema_id, rows_data=None, entity_type=None):
-    """Build a TipTap doc containing a single limsTable v2 node."""
-    if rows_data is None:
-        rows_data = []
-
-    columns = []
-    if entity_type is not None:
-        columns = entity_type.columns
-
-    rows = [
-        {"entityId": None, "displayId": "#new", "values": row}
-        for row in rows_data
-    ]
-
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "limsTable",
-                "attrs": {
-                    "schemaId": schema_id,
-                    "title": "Test Table",
-                    "columns": columns,
-                    "rows": rows,
-                },
-            }
-        ],
-    }
-
-
-def make_doc_with_ref(display_id):
-    """Build a TipTap doc containing a reference node pointing at *display_id*."""
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "See "},
-                    {"type": "reference", "attrs": {"displayId": display_id}},
-                    {"type": "text", "text": " for details."},
-                ],
-            }
-        ],
-    }
 
 
 class SyncEntryContentTests(TestCase):

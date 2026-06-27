@@ -4,11 +4,8 @@ Tests for the references service: sync_mentions, resolve_display_id, PREFIX_MAP.
 from django.test import TestCase
 
 from core.models import Folder, User
+from core.tests.factories import EMPTY_DOC
 from workspaces.eln.models import NotebookEntry, Mention
-
-# --- TipTap document fixtures ---
-
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 
 DOC_WITH_ONE_REFERENCE = {
     "type": "doc",

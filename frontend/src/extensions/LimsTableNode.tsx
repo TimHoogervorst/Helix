@@ -28,13 +28,13 @@ const TYPE_SYMBOL: Record<string, string> = {
 };
 
 /** Build a header name string: symbol + name (e.g. "Aa Notes", "# Volume"). */
-function headerWithSymbol(c: GridColumn): string {
+export function headerWithSymbol(c: GridColumn): string {
   const sym = TYPE_SYMBOL[c.type] ?? "Aa";
   return `${sym} ${c.name}`; //   = non-breaking thin space
 }
 
 // ── Map our column type → AG Grid colDef overrides ────────────────────
-function columnDefFor(c: GridColumn, _index: number): ColDef<GridRow> {
+export function columnDefFor(c: GridColumn, _index: number): ColDef<GridRow> {
   const base: ColDef<GridRow> = {
     field: `values.${c.name}`,
     headerName: headerWithSymbol(c),
@@ -103,7 +103,7 @@ const INDEX_COL: ColDef<GridRow> = {
 };
 
 // ── Default values per type for new rows ───────────────────────────────
-function emptyValues(columns: GridColumn[]): Record<string, unknown> {
+export function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   const vals: Record<string, unknown> = {};
   for (const c of columns) {
     switch (c.type) {

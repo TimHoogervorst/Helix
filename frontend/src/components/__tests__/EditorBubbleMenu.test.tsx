@@ -4,7 +4,7 @@
  * The BubbleMenu plugin uses a 250ms updateDelay setTimeout to debounce
  * show/hide. We use fake timers so we can flush the debounce synchronously.
  */
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";

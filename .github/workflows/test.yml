@@ -28,6 +28,25 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: openscience
+          POSTGRES_USER: openscience
+          POSTGRES_PASSWORD: openscience
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_DB: openscience
+      POSTGRES_USER: openscience
+      POSTGRES_PASSWORD: openscience
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

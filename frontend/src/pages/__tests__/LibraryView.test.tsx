@@ -11,13 +11,13 @@ vi.mock("../../api/library", () => ({
   getLibraryContents: (...args: unknown[]) => mockGetLibraryContents(...args),
 }));
 
-// Mock context
-vi.mock("../../context/LibraryViewContext", () => ({
-  useLibraryView: () => ({
+// Mock BrowserProvider
+vi.mock("../../components/browser/BrowserProvider", () => ({
+  useBrowser: () => ({
     viewState: "list",
     setViewState: vi.fn(),
   }),
-  LibraryViewProvider: ({ children }: { children: React.ReactNode }) => children,
+  BrowserProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock ReferenceBadge

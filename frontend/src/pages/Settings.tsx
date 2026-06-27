@@ -439,7 +439,7 @@ function Settings() {
                     </button>
                   )}
                   <button
-                    className="lims-detail-close"
+                    className="browser-detail-close"
                     onClick={() => setSelectedId(null)}
                   >
                     ×

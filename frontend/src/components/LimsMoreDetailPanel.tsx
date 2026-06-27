@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { EntityListItem } from "../types/lims";
+import BrowserWorkspacePanel from "./browser/BrowserWorkspacePanel";
 
 /** Tab configuration — add entries here for future tabs. */
 interface TabConfig {
@@ -20,7 +21,7 @@ interface LimsMoreDetailPanelProps {
 
 function PlaceholderTab({ label }: { label: string }) {
   return (
-    <div className="lims-properties-empty">
+    <div className="browser-properties-empty">
       {label} — coming soon.
     </div>
   );
@@ -30,22 +31,20 @@ function LimsMoreDetailPanel({ entity: _entity, isExiting }: LimsMoreDetailPanel
   const [activeTab, setActiveTab] = useState(TABS[0].id);
 
   return (
-    <div
-      className={`lims-more-detail-panel${isExiting ? " is-exiting" : ""}`}
-    >
+    <BrowserWorkspacePanel isExiting={isExiting}>
       <div className="card">
-        <div className="lims-tab-bar">
+        <div className="browser-tab-bar">
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              className={`lims-tab${activeTab === tab.id ? " is-active" : ""}`}
+              className={`browser-tab${activeTab === tab.id ? " is-active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <div className="lims-tab-content">
+        <div className="browser-tab-content">
           {TABS.map((tab) =>
             activeTab === tab.id ? (
               <PlaceholderTab key={tab.id} label={tab.label} />
@@ -53,7 +52,7 @@ function LimsMoreDetailPanel({ entity: _entity, isExiting }: LimsMoreDetailPanel
           )}
         </div>
       </div>
-    </div>
+    </BrowserWorkspacePanel>
   );
 }
 

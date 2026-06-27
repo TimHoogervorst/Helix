@@ -1,24 +1,21 @@
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models.functions import Length
+
+from core.abstracts import BrowsableItem
 
 
-class NotebookEntry(models.Model):
+class NotebookEntry(BrowsableItem):
     """An ELN notebook entry containing narrative text."""
 
     title = models.CharField(max_length=500)
     content = models.JSONField(blank=True, default=dict)
-    display_id = models.CharField(
-        max_length=20, unique=True, editable=False, null=True
-    )
     folder = models.ForeignKey(
         "core.Folder", on_delete=models.CASCADE, related_name="entries", null=True, blank=True
     )
     author = models.ForeignKey(
         "core.User", on_delete=models.CASCADE, related_name="entries", null=True, blank=True
     )
-    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     # Reverse relation for mentions where this entry is the source.
@@ -31,23 +28,8 @@ class NotebookEntry(models.Model):
     def __str__(self):
         return f"{self.display_id} — {self.title}" if self.display_id else self.title
 
-    def save(self, *args, **kwargs):
-        if self.display_id is None:
-            prefix = "E"
-            last = (
-                NotebookEntry.objects
-                .filter(display_id__startswith=prefix)
-                .annotate(id_len=Length("display_id"))
-                .order_by("-id_len", "-display_id")
-                .values_list("display_id", flat=True)
-                .first()
-            )
-            if last:
-                num = int(last[len(prefix):])
-            else:
-                num = 0
-            self.display_id = f"{prefix}{num + 1}"
-        super().save(*args, **kwargs)
+    def _get_display_id_prefix(self) -> str:
+        return "E"
 
 
 class Mention(models.Model):

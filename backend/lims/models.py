@@ -1,5 +1,6 @@
 from django.db import models
-from django.db.models.functions import Length
+
+from core.abstracts import BrowsableItem
 
 
 class EntityType(models.Model):
@@ -38,16 +39,13 @@ class EntityType(models.Model):
         return self.name
 
 
-class Entity(models.Model):
+class Entity(BrowsableItem):
     """A structured LIMS entity representing a physical sample or item.
 
     display_id is auto-generated from the EntityType prefix on first save
     (same pattern as NotebookEntry.display_id).
     """
 
-    display_id = models.CharField(
-        max_length=50, unique=True, editable=False, null=True
-    )
     name = models.CharField(max_length=500)
     entity_type = models.ForeignKey(
         EntityType, on_delete=models.CASCADE, related_name="entities"
@@ -74,7 +72,6 @@ class Entity(models.Model):
         null=True,
         blank=True,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "lims_entity"
@@ -86,23 +83,8 @@ class Entity(models.Model):
             return f"{self.display_id} — {self.name}"
         return f"{self.name} ({self.entity_type.name})"
 
-    def save(self, *args, **kwargs):
-        if self.display_id is None:
-            prefix = self.entity_type.prefix
-            last = (
-                Entity.objects
-                .filter(display_id__startswith=prefix)
-                .annotate(id_len=Length("display_id"))
-                .order_by("-id_len", "-display_id")
-                .values_list("display_id", flat=True)
-                .first()
-            )
-            if last:
-                num = int(last[len(prefix):])
-            else:
-                num = 0
-            self.display_id = f"{prefix}{num + 1}"
-        super().save(*args, **kwargs)
+    def _get_display_id_prefix(self) -> str:
+        return self.entity_type.prefix
 
 
 class Action(models.Model):

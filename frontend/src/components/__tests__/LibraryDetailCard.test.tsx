@@ -121,7 +121,7 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    const link = screen.getByTitle("Open entry");
+    const link = screen.getByTitle("Open in workspace");
     expect(link).toBeInTheDocument();
     expect(link.getAttribute("href")).toBe("/eln/E123");
   });
@@ -139,7 +139,7 @@ describe("LibraryDetailCard", () => {
       </MemoryRouter>,
     );
     // The outer panel div should have the is-exiting class
-    const panel = document.querySelector(".library-detail-panel");
+    const panel = document.querySelector(".browser-detail-panel");
     expect(panel).not.toBeNull();
     expect(panel!.className).toContain("is-exiting");
   });
@@ -156,12 +156,12 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    const panel = document.querySelector(".library-detail-panel");
+    const panel = document.querySelector(".browser-detail-panel");
     expect(panel).not.toBeNull();
     expect(panel!.className).not.toContain("is-exiting");
   });
 
-  it("has slide-in animation via library-detail-panel class", () => {
+  it("has slide-in animation via browser-detail-panel class", () => {
     render(
       <MemoryRouter>
         <LibraryDetailCard
@@ -172,10 +172,10 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    const panel = document.querySelector(".library-detail-panel");
+    const panel = document.querySelector(".browser-detail-panel");
     expect(panel).not.toBeNull();
     // The panel renders with the class that includes the slide-in animation in CSS
-    expect(panel!.className).toContain("library-detail-panel");
+    expect(panel!.className).toContain("browser-detail-panel");
   });
 
   it("shows collapse button in expanded view", () => {
@@ -189,7 +189,7 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByTitle("Back to summary")).toBeInTheDocument();
+    expect(screen.getByTitle("Collapse to summary")).toBeInTheDocument();
   });
 
   it("calls onClose when × is clicked", () => {
@@ -204,7 +204,7 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByTitle("Close"));
+    fireEvent.click(screen.getByTitle("Close detail"));
     expect(handleClose).toHaveBeenCalled();
   });
 
@@ -220,7 +220,7 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByTitle("Back to summary"));
+    fireEvent.click(screen.getByTitle("Collapse to summary"));
     expect(handleCollapse).toHaveBeenCalled();
   });
 

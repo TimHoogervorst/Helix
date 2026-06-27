@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import type { ViewState } from "../types/lims";
 import type { LibraryItem, LibraryEntryItem } from "../types/library";
-import { useLibraryView } from "../context/LibraryViewContext";
+import { useBrowserView } from "../components/browser/useBrowserView";
 import { getLibraryContents } from "../api/library";
 import LibraryBreadcrumbs from "../components/LibraryBreadcrumbs";
 import LibraryTable from "../components/LibraryTable";
-import LibraryCollapsedStrip from "../components/LibraryCollapsedStrip";
+import BrowserCollapsedStrip from "../components/browser/BrowserCollapsedStrip";
 import LibraryNewDropdown from "../components/LibraryNewDropdown";
 import LibraryDetailCard from "../components/LibraryDetailCard";
 import LibraryMoreDetailPanel from "../components/LibraryMoreDetailPanel";
@@ -23,20 +22,17 @@ function LibraryView() {
   const [error, setError] = useState<string | null>(null);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<LibraryEntryItem | null>(null);
-  const [viewState, setViewState] = useState<ViewState>("list");
-  const [exiting, setExiting] = useState(false);
-  const [detailExiting, setDetailExiting] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
 
-  // Sync viewState to Layout nav bar via context
-  const { setViewState: setContextViewState } = useLibraryView();
-  const updateViewState = useCallback(
-    (state: ViewState) => {
-      setViewState(state);
-      setContextViewState(state);
-    },
-    [setContextViewState],
-  );
+  const {
+    viewState,
+    isExiting,
+    isDetailExiting,
+    goToDetail,
+    collapseFromExpanded: collapseFromExpandedBase,
+    closeAll: closeAllBase,
+    updateViewState,
+  } = useBrowserView();
 
   const fetchItems = useCallback(
     async (page?: number) => {
@@ -83,40 +79,20 @@ function LibraryView() {
     }
   }, [selectId, loading, items]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── State machine transitions ──────────────────────────────────────
+  // ── State machine transitions (wrapping shared hook) ──────────────
 
   const goToList = () => {
-    if (viewState === "expanded") {
-      setExiting(true);
-      setTimeout(() => {
-        updateViewState("list");
-        setSelectedItem(null);
-        setExiting(false);
-      }, 250);
-    } else if (viewState === "detail") {
-      setDetailExiting(true);
-      setTimeout(() => {
-        updateViewState("list");
-        setSelectedItem(null);
-        setDetailExiting(false);
-      }, 250);
-    } else {
-      updateViewState("list");
-      setSelectedItem(null);
-    }
+    closeAllBase(); // handles exit animations internally
+    setSelectedItem(null);
   };
 
-  const goToDetail = (entry: LibraryEntryItem) => {
+  const goToDetailForEntry = (entry: LibraryEntryItem) => {
     setSelectedItem(entry);
-    updateViewState("detail");
+    goToDetail();
   };
 
   const collapseFromExpanded = () => {
-    setExiting(true);
-    setTimeout(() => {
-      updateViewState("detail");
-      setExiting(false);
-    }, 250);
+    collapseFromExpandedBase();
   };
 
   // ── Folder navigation ──────────────────────────────────────────────
@@ -155,7 +131,7 @@ function LibraryView() {
     if (viewState === "detail" && selectedItem?.id === item.id) {
       goToList();
     } else {
-      goToDetail(item);
+      goToDetailForEntry(item);
     }
   };
 
@@ -176,13 +152,13 @@ function LibraryView() {
   // ── Compute page-level CSS classes ─────────────────────────────────
 
   const pageClass =
-    `page library-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `page browser-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterDetailClass =
-    `library-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `browser-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterPanelClass =
-    `library-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
+    `browser-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -218,7 +194,7 @@ function LibraryView() {
         {/* Left Panel: Table (or Collapsed Strip) */}
         <div className={masterPanelClass}>
           {viewState === "expanded" ? (
-            <LibraryCollapsedStrip onExpand={collapseFromExpanded} />
+            <BrowserCollapsedStrip onExpand={collapseFromExpanded} title="Back to detail" />
           ) : (
             <>
               <LibraryTable
@@ -230,7 +206,7 @@ function LibraryView() {
               />
 
               {nextUrl && (
-                <div className="library-load-more">
+                <div className="browser-load-more">
                   <button onClick={handleLoadMore} disabled={loading}>
                     {loading ? "Loading…" : "Load More"}
                   </button>
@@ -248,7 +224,7 @@ function LibraryView() {
             viewState={viewState}
             onClose={goToList}
             onCollapse={collapseFromExpanded}
-            isDetailExiting={detailExiting}
+            isDetailExiting={isDetailExiting}
           />
         )}
 
@@ -256,7 +232,7 @@ function LibraryView() {
         {selectedItem && viewState === "expanded" && (
           <LibraryMoreDetailPanel
             entry={selectedItem}
-            isExiting={exiting}
+            isExiting={isExiting}
           />
         )}
       </div>

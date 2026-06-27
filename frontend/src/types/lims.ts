@@ -93,8 +93,8 @@ export interface GridRow {
 
 // ── LIMS Page View State ──────────────────────────────────────────────
 
-/** The three-panel layout view state for the LIMS entity browser. */
-export type ViewState = "list" | "detail" | "expanded";
+// Re-exported from shared browser types for backward compatibility.
+export type { ViewState } from "./browser";
 
 /** The full table data stored in the limsTable node attribute. */
 export interface GridTableData {

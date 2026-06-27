@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { get } from "../api/client";
-import type { EntityListItem, PaginatedResponse, ViewState } from "../types/lims";
-import { useLimsView } from "../context/LimsViewContext";
+import type { EntityListItem, PaginatedResponse } from "../types/lims";
+import { useBrowserView } from "../components/browser/useBrowserView";
 import LimsDetailCard from "../components/LimsDetailCard";
 import LimsMoreDetailPanel from "../components/LimsMoreDetailPanel";
-import LimsCollapsedStrip from "../components/LimsCollapsedStrip";
+import BrowserCollapsedStrip from "../components/browser/BrowserCollapsedStrip";
+import BrowserMasterPanel, {
+  type MasterColumn,
+} from "../components/browser/BrowserMasterPanel";
 import ReferenceBadge from "../components/ReferenceBadge";
 
 function LimsList() {
@@ -19,18 +22,16 @@ function LimsList() {
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<EntityListItem | null>(null);
-  const [viewState, setViewState] = useState<ViewState>("list");
-  const [exiting, setExiting] = useState(false);
 
-  // Sync viewState to the Layout nav bar via context
-  const { setViewState: setContextViewState } = useLimsView();
-  const updateViewState = useCallback(
-    (state: ViewState) => {
-      setViewState(state);
-      setContextViewState(state);
-    },
-    [setContextViewState],
-  );
+  const navigate = useNavigate();
+
+  const {
+    viewState,
+    isExiting,
+    goToDetail,
+    collapseFromExpanded: collapseFromExpandedBase,
+    closeAll: closeAllBase,
+  } = useBrowserView();
 
   const fetchEntities = useCallback(
     async (url?: string) => {
@@ -60,7 +61,7 @@ function LimsList() {
     fetchEntities();
   }, [fetchEntities]);
 
-  // ── State machine transitions ──────────────────────────────────────
+  // ── State machine transitions (wrapping shared hook) ──────────────
 
   const selectEntity = (entity: EntityListItem) => {
     setSelectedId(entity.display_id);
@@ -73,40 +74,17 @@ function LimsList() {
   };
 
   const goToList = () => {
-    if (viewState === "expanded") {
-      setExiting(true);
-      setTimeout(() => {
-        updateViewState("list");
-        clearSelection();
-        setExiting(false);
-      }, 250);
-    } else {
-      updateViewState("list");
-      clearSelection();
-    }
+    closeAllBase(); // handles exit animations internally
+    clearSelection();
   };
 
-  const goToDetail = (entity: EntityListItem) => {
+  const goToDetailForEntity = (entity: EntityListItem) => {
     selectEntity(entity);
-    updateViewState("detail");
-  };
-
-  const goToExpanded = (entity: EntityListItem) => {
-    selectEntity(entity);
-    updateViewState("expanded");
-  };
-
-  const expandFromDetail = () => {
-    // selectedEntity is already set
-    updateViewState("expanded");
+    goToDetail();
   };
 
   const collapseFromExpanded = () => {
-    setExiting(true);
-    setTimeout(() => {
-      updateViewState("detail");
-      setExiting(false);
-    }, 250);
+    collapseFromExpandedBase();
   };
 
   // ── Row click handlers ─────────────────────────────────────────────
@@ -118,12 +96,12 @@ function LimsList() {
       // Toggle off: clicking selected row returns to list
       goToList();
     } else {
-      goToDetail(entity);
+      goToDetailForEntity(entity);
     }
   };
 
   const handleRowExpand = (entity: EntityListItem) => {
-    goToExpanded(entity);
+    navigate(`/lims/${entity.display_id}`);
   };
 
   // ── Collapsed strip → detail ───────────────────────────────────────
@@ -137,18 +115,25 @@ function LimsList() {
     if (nextUrl) fetchEntities(nextUrl);
   };
 
-  const formatDate = (iso: string) => new Date(iso).toLocaleString();
+  const LIMS_COLUMNS: MasterColumn[] = [
+    { label: "ID" },
+    { label: "Name" },
+    { label: "Type" },
+    { label: "Created" },
+    { label: "Source" },
+    { className: "browser-master-row-expand-header", label: "" },
+  ];
 
   // ── Compute page-level CSS classes ─────────────────────────────────
 
   const pageClass =
-    `page lims-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `page browser-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterDetailClass =
-    `lims-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `browser-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterPanelClass =
-    `lims-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
+    `browser-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -169,89 +154,66 @@ function LimsList() {
         {/* Left Panel: Entity Table (or Collapsed Strip) */}
         <div className={masterPanelClass}>
           {viewState === "expanded" ? (
-            <LimsCollapsedStrip onExpand={handleStripExpand} />
+            <BrowserCollapsedStrip onExpand={handleStripExpand} title="Expand entity list" />
           ) : (
-            <>
-              <div className="lims-table-container">
-                <table className="lims-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Type</th>
-                      <th>Created</th>
-                      <th>Source</th>
-                      <th className="lims-row-expand-header"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entities.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="empty">
-                          No entities found.
-                        </td>
-                      </tr>
+            <BrowserMasterPanel
+              columns={LIMS_COLUMNS}
+              colSpan={6}
+              itemCount={entities.length}
+              emptyMessage="No entities found."
+              hasMore={!!nextUrl}
+              onLoadMore={handleLoadMore}
+              loadingMore={loading}
+            >
+              {entities.map((entity) => (
+                <tr
+                  key={entity.display_id}
+                  className={`browser-master-row${selectedId === entity.display_id ? " is-selected" : ""}`}
+                  onClick={() => handleRowClick(entity)}
+                >
+                  <td>
+                    <ReferenceBadge
+                      displayId={entity.display_id}
+                      clickable={false}
+                      resolved={{
+                        displayId: entity.display_id,
+                        title: entity.name,
+                        type: "entity",
+                        id: entity.id,
+                        icon: entity.entity_type_icon || "🧪",
+                      }}
+                    />
+                  </td>
+                  <td>{entity.name}</td>
+                  <td>{entity.entity_type_name}</td>
+                  <td className="browser-master-date">
+                    {new Date(entity.created_at).toLocaleString()}
+                  </td>
+                  <td>
+                    {entity.source_entry_display_id ? (
+                      <ReferenceBadge
+                        displayId={entity.source_entry_display_id}
+                        clickable
+                      />
+                    ) : (
+                      <span className="lims-no-source">—</span>
                     )}
-                    {entities.map((entity) => (
-                      <tr
-                        key={entity.display_id}
-                        className={`lims-row${selectedId === entity.display_id ? " is-selected" : ""}`}
-                        onClick={() => handleRowClick(entity)}
-                      >
-                        <td>
-                          <ReferenceBadge
-                            displayId={entity.display_id}
-                            clickable={false}
-                            resolved={{
-                              displayId: entity.display_id,
-                              title: entity.name,
-                              type: "entity",
-                              id: entity.id,
-                              icon: entity.entity_type_icon || "🧪",
-                            }}
-                          />
-                        </td>
-                        <td>{entity.name}</td>
-                        <td>{entity.entity_type_name}</td>
-                        <td className="lims-date">
-                          {formatDate(entity.created_at)}
-                        </td>
-                        <td>
-                          {entity.source_entry_display_id ? (
-                            <ReferenceBadge
-                              displayId={entity.source_entry_display_id}
-                              clickable
-                            />
-                          ) : (
-                            <span className="lims-no-source">—</span>
-                          )}
-                        </td>
-                        <td style={{ width: 40, padding: "0.25rem" }}>
-                          <button
-                            className="lims-row-expand-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRowExpand(entity);
-                            }}
-                            title="Expand to full detail"
-                          >
-                            &gt;
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {nextUrl && (
-                <div className="lims-load-more">
-                  <button onClick={handleLoadMore} disabled={loading}>
-                    {loading ? "Loading…" : "Load More"}
-                  </button>
-                </div>
-              )}
-            </>
+                  </td>
+                  <td style={{ width: 40, padding: "0.25rem" }}>
+                    <button
+                      className="browser-master-row-expand-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowExpand(entity);
+                      }}
+                      title="Expand to full detail"
+                    >
+                      &gt;
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </BrowserMasterPanel>
           )}
         </div>
 
@@ -261,7 +223,6 @@ function LimsList() {
             entity={selectedEntity}
             viewState={viewState}
             onClose={goToList}
-            onExpand={expandFromDetail}
             onCollapse={collapseFromExpanded}
           />
         )}
@@ -270,7 +231,7 @@ function LimsList() {
         {selectedEntity && viewState === "expanded" && (
           <LimsMoreDetailPanel
             entity={selectedEntity}
-            isExiting={exiting}
+            isExiting={isExiting}
           />
         )}
       </div>

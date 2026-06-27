@@ -2,8 +2,7 @@ import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { get } from "../api/client";
 import type { EntityType } from "../types/lims";
-import { useLimsView } from "../context/LimsViewContext";
-import { useLibraryView } from "../context/LibraryViewContext";
+import { useBrowser } from "../components/browser/BrowserProvider";
 import { ReferenceProvider } from "./ReferenceProvider";
 
 function Layout() {
@@ -12,8 +11,7 @@ function Layout() {
   const isLims = location.pathname.startsWith("/lims");
   const isLibrary = location.pathname.startsWith("/library");
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
-  const { viewState } = useLimsView();
-  const { viewState: libraryViewState } = useLibraryView();
+  const { viewState } = useBrowser();
 
   // Fetch entity types for LIMS search type dropdown
   useEffect(() => {
@@ -64,7 +62,7 @@ function Layout() {
           <Link to="/lims">LIMS</Link>
         </div>
 
-        {isLims && !isLibrary && viewState !== "expanded" && (
+        {isLims && viewState !== "expanded" && (
           <form className="nav-search-bar" onSubmit={handleSearch}>
             <div className="nav-search-input-wrap">
               <span className="nav-search-icon">🔍</span>
@@ -94,7 +92,7 @@ function Layout() {
           </form>
         )}
 
-        {isLibrary && libraryViewState !== "expanded" && (
+        {isLibrary && viewState !== "expanded" && (
           <form className="nav-search-bar" onSubmit={handleLibrarySearch}>
             <div className="nav-search-input-wrap">
               <span className="nav-search-icon">🔍</span>

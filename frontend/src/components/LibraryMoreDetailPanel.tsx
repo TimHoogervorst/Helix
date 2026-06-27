@@ -1,5 +1,6 @@
 import type { LibraryEntryItem } from "../types/library";
 import ElnEditor from "./ElnEditor";
+import BrowserWorkspacePanel from "./browser/BrowserWorkspacePanel";
 
 interface LibraryMoreDetailPanelProps {
   entry: LibraryEntryItem;
@@ -13,11 +14,9 @@ interface LibraryMoreDetailPanelProps {
  */
 function LibraryMoreDetailPanel({ entry, isExiting }: LibraryMoreDetailPanelProps) {
   return (
-    <div
-      className={`library-more-detail-panel${isExiting ? " is-exiting" : ""}`}
-    >
+    <BrowserWorkspacePanel isExiting={isExiting}>
       <ElnEditor entryId={entry.display_id} embedded />
-    </div>
+    </BrowserWorkspacePanel>
   );
 }
 

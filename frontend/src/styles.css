@@ -867,12 +867,12 @@ input.nav-search-input:focus {
 
 /* ── LIMS Page ── */
 
-.lims-page {
+.browser-page {
   /* default: constrained by parent .page */
 }
 
-.lims-page.has-detail,
-.lims-page.is-expanded {
+.browser-page.has-detail,
+.browser-page.is-expanded {
   /* Break out of parent .page max-width to use full viewport */
   position: relative;
   width: 100vw;
@@ -887,41 +887,41 @@ input.nav-search-input:focus {
 
 /* ── Master–Detail Layout ── */
 
-.lims-master-detail {
+.browser-master-detail {
   display: flex;
   gap: 1.5rem;
   align-items: flex-start;
 }
 
 /* Three-panel state: ensure all three panels are flex children */
-.lims-master-detail.is-expanded {
+.browser-master-detail.is-expanded {
   gap: 1rem;
 }
 
-.lims-master-panel {
+.browser-master-panel {
   flex: 1 1 0;
   min-width: 0;
   transition: flex 0.3s ease, max-width 0.3s ease, width 0.3s ease;
 }
 
-.lims-master-detail.has-detail .lims-master-panel {
+.browser-master-detail.has-detail .browser-master-panel {
   flex: 1 1 0;
 }
 
 /* Collapsed master panel (expanded view) */
-.lims-master-panel.is-collapsed {
+.browser-master-panel.is-collapsed {
   flex: 0 0 40px;
   max-width: 40px;
   overflow: hidden;
 }
 
-.lims-detail-panel {
+.browser-detail-panel {
   flex: 1 1 0;
   min-width: 0;
-  animation: lims-slide-in 0.25s ease-out;
+  animation: browser-slide-in 0.25s ease-out;
 }
 
-@keyframes lims-slide-in {
+@keyframes browser-slide-in {
   from {
     opacity: 0;
     transform: translateX(12px);
@@ -932,7 +932,7 @@ input.nav-search-input:focus {
   }
 }
 
-@keyframes lims-slide-out-right {
+@keyframes browser-slide-out-right {
   from {
     opacity: 1;
     transform: translateX(0);
@@ -945,7 +945,7 @@ input.nav-search-input:focus {
 
 /* ── Collapsed Strip (left panel in expanded state) ── */
 
-.lims-collapsed-strip {
+.browser-collapsed-strip {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -956,7 +956,7 @@ input.nav-search-input:focus {
   background: var(--gray-50);
 }
 
-.lims-collapsed-strip-btn {
+.browser-collapsed-strip-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -973,14 +973,14 @@ input.nav-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.lims-collapsed-strip-btn:hover {
+.browser-collapsed-strip-btn:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
 /* ── Row Expand Button ── */
 
-.lims-row-expand-btn {
+.browser-master-row-expand-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -998,37 +998,37 @@ input.nav-search-input:focus {
   opacity: 0;
 }
 
-.lims-row:hover .lims-row-expand-btn {
+.browser-master-row:hover .browser-master-row-expand-btn {
   opacity: 1;
 }
 
-.lims-row-expand-btn:hover {
+.browser-master-row-expand-btn:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
 /* ── More-Detail Panel (right panel in expanded state) ── */
 
-.lims-more-detail-panel {
+.browser-workspace-panel {
   flex: 1 1 0;
   min-width: 0;
-  animation: lims-slide-in 0.25s ease-out;
+  animation: browser-slide-in 0.25s ease-out;
 }
 
-.lims-more-detail-panel.is-exiting {
-  animation: lims-slide-out-right 0.25s ease-out forwards;
+.browser-workspace-panel.is-exiting {
+  animation: browser-slide-out-right 0.25s ease-out forwards;
 }
 
 /* ── Tab Bar (inside more-detail panel) ── */
 
-.lims-tab-bar {
+.browser-tab-bar {
   display: flex;
   gap: 0;
   border-bottom: 2px solid var(--gray-200);
   margin-bottom: 1rem;
 }
 
-.lims-tab {
+.browser-tab {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 500;
@@ -1042,37 +1042,37 @@ input.nav-search-input:focus {
   transition: color 0.15s, border-color 0.15s;
 }
 
-.lims-tab:hover {
+.browser-tab:hover {
   color: var(--white);
 }
 
-.lims-tab.is-active {
+.browser-tab.is-active {
   color: var(--blue-500);
   border-bottom-color: var(--blue-500);
 }
 
-.lims-tab.is-active:hover {
+.browser-tab.is-active:hover {
   color: var(--white);
 }
 
-.lims-tab-content {
+.browser-tab-content {
   /* tab content area */
 }
 
 /* Empty properties placeholder */
-.lims-properties-empty {
+.browser-properties-empty {
   color: var(--gray-400);
   text-align: center;
   padding: 2rem 1rem;
   font-size: 0.9rem;
 }
 
-.lims-table-container {
+.browser-master-table-container {
   overflow-x: auto;
   margin-bottom: 1rem;
 }
 
-.lims-table {
+.browser-master-table {
   width: 100%;
   border-collapse: collapse;
   background: var(--white);
@@ -1081,15 +1081,15 @@ input.nav-search-input:focus {
   overflow: hidden;
 }
 
-.lims-table th,
-.lims-table td {
+.browser-master-table th,
+.browser-master-table td {
   text-align: left;
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--gray-200);
   font-size: 0.9rem;
 }
 
-.lims-table th {
+.browser-master-table th {
   background: var(--gray-50);
   font-weight: 600;
   color: var(--gray-700);
@@ -1098,24 +1098,24 @@ input.nav-search-input:focus {
   letter-spacing: 0.03em;
 }
 
-.lims-table tbody tr:last-child td {
+.browser-master-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.lims-row {
+.browser-master-row {
   cursor: pointer;
   transition: background 0.1s;
 }
 
-.lims-row:hover {
+.browser-master-row:hover {
   background: var(--blue-50);
 }
 
-.lims-row.is-selected {
+.browser-master-row.is-selected {
   background: var(--blue-100);
 }
 
-.lims-date {
+.browser-master-date {
   color: var(--gray-500);
   font-size: 0.85rem;
   white-space: nowrap;
@@ -1125,25 +1125,25 @@ input.nav-search-input:focus {
   color: var(--gray-400);
 }
 
-.lims-load-more {
+.browser-load-more {
   text-align: center;
   margin-bottom: 1.5rem;
 }
 
 /* ── LIMS Detail Card ── */
 
-.lims-detail-card {
+.browser-detail-card {
   margin-top: 0;
 }
 
-.lims-detail-card .detail-header {
+.browser-detail-card .detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
 }
 
-.lims-detail-card .detail-header h2 {
+.browser-detail-card .detail-header h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1157,9 +1157,9 @@ input.nav-search-input:focus {
   gap: 0.5rem;
 }
 
-.lims-detail-close,
-.lims-detail-expand,
-.lims-detail-collapse {
+.browser-detail-close,
+.browser-detail-expand,
+.browser-detail-collapse {
   width: 32px;
   height: 32px;
   display: flex;
@@ -1176,14 +1176,14 @@ input.nav-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.lims-detail-close:hover,
-.lims-detail-expand:hover,
-.lims-detail-collapse:hover {
+.browser-detail-close:hover,
+.browser-detail-expand:hover,
+.browser-detail-collapse:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
-.lims-detail-card .detail-body {
+.browser-detail-card .detail-body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.5rem;
@@ -1240,22 +1240,22 @@ input.nav-search-input:focus {
 /* ── Responsive: stack vertically on narrow screens ── */
 
 @media (max-width: 800px) {
-  .lims-master-detail {
+  .browser-master-detail {
     flex-direction: column;
   }
 
-  .lims-master-detail.has-detail .lims-master-panel {
+  .browser-master-detail.has-detail .browser-master-panel {
     flex: 1 1 auto;
     max-width: none;
   }
 
-  .lims-master-panel.is-collapsed {
+  .browser-master-panel.is-collapsed {
     flex: 1 1 auto;
     max-width: none;
     overflow: visible;
   }
 
-  .lims-collapsed-strip {
+  .browser-collapsed-strip {
     flex-direction: row;
     justify-content: flex-start;
     padding: 0.25rem 0.25rem;
@@ -1264,11 +1264,11 @@ input.nav-search-input:focus {
     border-bottom: 1px solid var(--gray-200);
   }
 
-  .lims-detail-panel {
+  .browser-detail-panel {
     width: 100%;
   }
 
-  .lims-more-detail-panel {
+  .browser-workspace-panel {
     width: 100%;
   }
 
@@ -2445,12 +2445,12 @@ input.lims-table-title-input:focus {
 
 /* ── Library Page ── */
 
-.library-page {
+.browser-page {
   /* default: constrained by parent .page */
 }
 
-.library-page.has-detail,
-.library-page.is-expanded {
+.browser-page.has-detail,
+.browser-page.is-expanded {
   /* Break out of parent .page max-width to use full viewport */
   position: relative;
   width: 100vw;
@@ -2634,67 +2634,45 @@ input.library-search-input:focus {
 
 /* ── Master–Detail Layout ── */
 
-.library-master-detail {
+.browser-master-detail {
   display: flex;
   gap: 1.5rem;
   align-items: flex-start;
 }
 
-.library-master-detail.is-expanded {
+.browser-master-detail.is-expanded {
   gap: 1rem;
 }
 
-.library-master-panel {
+.browser-master-panel {
   flex: 1 1 0;
   min-width: 0;
   transition: flex 0.3s ease, max-width 0.3s ease, width 0.3s ease;
 }
 
-.library-master-detail.has-detail .library-master-panel {
+.browser-master-detail.has-detail .browser-master-panel {
   flex: 1 1 0;
 }
 
-.library-master-panel.is-collapsed {
+.browser-master-panel.is-collapsed {
   flex: 0 0 40px;
   max-width: 40px;
   overflow: hidden;
 }
 
-.library-detail-panel {
+.browser-detail-panel {
   flex: 1 1 0;
   min-width: 0;
-  animation: library-slide-in 0.25s ease-out;
+  animation: browser-slide-in 0.25s ease-out;
 }
 
-.library-detail-panel.is-exiting {
-  animation: library-slide-out-right 0.25s ease-out forwards;
-}
-
-@keyframes library-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes library-slide-out-right {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(24px);
-  }
+.browser-detail-panel.is-exiting {
+  animation: browser-slide-out-right 0.25s ease-out forwards;
 }
 
 /* ── Collapsed Strip (left panel in expanded state) ── */
 
-.library-collapsed-strip {
+.browser-collapsed-strip {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2705,7 +2683,7 @@ input.library-search-input:focus {
   background: var(--gray-50);
 }
 
-.library-collapsed-strip-btn {
+.browser-collapsed-strip-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -2722,19 +2700,19 @@ input.library-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.library-collapsed-strip-btn:hover {
+.browser-collapsed-strip-btn:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
 /* ── Library Table ── */
 
-.library-table-container {
+.browser-master-table-container {
   overflow-x: auto;
   margin-bottom: 1rem;
 }
 
-.library-table {
+.browser-master-table {
   width: 100%;
   border-collapse: collapse;
   background: var(--white);
@@ -2743,15 +2721,15 @@ input.library-search-input:focus {
   overflow: hidden;
 }
 
-.library-table th,
-.library-table td {
+.browser-master-table th,
+.browser-master-table td {
   text-align: left;
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--gray-200);
   font-size: 0.9rem;
 }
 
-.library-table th {
+.browser-master-table th {
   background: var(--gray-50);
   font-weight: 600;
   color: var(--gray-700);
@@ -2760,24 +2738,24 @@ input.library-search-input:focus {
   letter-spacing: 0.03em;
 }
 
-.library-table tbody tr:last-child td {
+.browser-master-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.library-row {
+.browser-master-row {
   cursor: pointer;
   transition: background 0.1s;
 }
 
-.library-row:hover {
+.browser-master-row:hover {
   background: var(--blue-50);
 }
 
-.library-row.is-selected {
+.browser-master-row.is-selected {
   background: var(--blue-100);
 }
 
-.library-date {
+.browser-master-date {
   color: var(--gray-500);
   font-size: 0.85rem;
   white-space: nowrap;
@@ -2792,14 +2770,14 @@ input.library-search-input:focus {
   color: var(--gray-800);
 }
 
-.library-load-more {
+.browser-load-more {
   text-align: center;
   margin-bottom: 1.5rem;
 }
 
 /* ── Row Expand Button ── */
 
-.library-row-expand-btn {
+.browser-master-row-expand-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -2817,29 +2795,29 @@ input.library-search-input:focus {
   opacity: 0;
 }
 
-.library-row:hover .library-row-expand-btn {
+.browser-master-row:hover .browser-master-row-expand-btn {
   opacity: 1;
 }
 
-.library-row-expand-btn:hover {
+.browser-master-row-expand-btn:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
 /* ── Library Detail Card ── */
 
-.library-detail-card {
+.browser-detail-card {
   margin-top: 0;
 }
 
-.library-detail-card .detail-header {
+.browser-detail-card .detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
 }
 
-.library-detail-card .detail-header h2 {
+.browser-detail-card .detail-header h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -2847,9 +2825,9 @@ input.library-search-input:focus {
   font-size: 1.2rem;
 }
 
-.library-detail-close,
-.library-detail-expand,
-.library-detail-collapse {
+.browser-detail-close,
+.browser-detail-expand,
+.browser-detail-collapse {
   width: 32px;
   height: 32px;
   display: flex;
@@ -2866,14 +2844,14 @@ input.library-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.library-detail-close:hover,
-.library-detail-expand:hover,
-.library-detail-collapse:hover {
+.browser-detail-close:hover,
+.browser-detail-expand:hover,
+.browser-detail-collapse:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
-.library-detail-card .detail-body {
+.browser-detail-card .detail-body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.5rem;
@@ -2891,14 +2869,14 @@ input.library-search-input:focus {
 
 /* ── Library More-Detail Panel ── */
 
-.library-more-detail-panel {
+.browser-workspace-panel {
   flex: 1 1 0;
   min-width: 0;
-  animation: library-slide-in 0.25s ease-out;
+  animation: browser-slide-in 0.25s ease-out;
 }
 
-.library-more-detail-panel.is-exiting {
-  animation: library-slide-out-right 0.25s ease-out forwards;
+.browser-workspace-panel.is-exiting {
+  animation: browser-slide-out-right 0.25s ease-out forwards;
 }
 
 /* ── Library New Dropdown ── */
@@ -2993,41 +2971,9 @@ input.library-new-folder-input:focus {
   min-height: 200px;
 }
 
-/* ── Responsive ── */
+/* ── Responsive: Library-specific ── */
 
 @media (max-width: 800px) {
-  .library-master-detail {
-    flex-direction: column;
-  }
-
-  .library-master-detail.has-detail .library-master-panel {
-    flex: 1 1 auto;
-    max-width: none;
-  }
-
-  .library-master-panel.is-collapsed {
-    flex: 1 1 auto;
-    max-width: none;
-    overflow: visible;
-  }
-
-  .library-collapsed-strip {
-    flex-direction: row;
-    justify-content: flex-start;
-    padding: 0.25rem 0.25rem;
-    min-height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--gray-200);
-  }
-
-  .library-detail-panel {
-    width: 100%;
-  }
-
-  .library-more-detail-panel {
-    width: 100%;
-  }
-
   .library-header {
     flex-direction: column;
     align-items: stretch;

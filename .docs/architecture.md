@@ -14,7 +14,7 @@ Open-source ELN/LIMS for research-focused labs. Goal: flexibility + extensibilit
 
 | # | Decision | Rationale | Date |
 |---|----------|-----------|------|
-| 1 | ELN-first, LIMS-integrated (Benchling model) | ELN is the primary interface; LIMS capabilities are integrated, not a separate system | 2026-06-24 |
+| 1 | ELN-first, LIMS-integrated | ELN is the primary interface; LIMS capabilities are integrated, not a separate system | 2026-06-24 |
 | 2 | Async collaboration in v1 (not real-time) | Versioned entries + optimistic locking solves actual lab needs. Real-time CRDT/WebSocket sync deferred to later. | 2026-06-24 |
 | 3 | Plugins as Python packages + config toggle (v1) | `pip install` + `INSTALLED_APPS` toggle. In-browser marketplace deferred. Only first-party plugins (MolBio) in the demo. | 2026-06-24 |
 | 4 | Plugin model: modding, not external API | Plugins inherit from core classes, register via hooks. Core discovers and surfaces them. Like a mod library, not microservices. | 2026-06-24 |

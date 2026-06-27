@@ -1,7 +1,7 @@
 """Abstract base classes shared across apps.
 
 BrowsableItem provides the auto-generated display_id and created_at
-fields used by any model that appears in the browser Master Panel
+fields used by any model that appears in the console Master Panel
 (NotebookEntry, Entity, etc.).
 """
 
@@ -10,7 +10,7 @@ from django.db.models.functions import Length
 
 
 class BrowsableItem(models.Model):
-    """Abstract model for items that appear in the three-panel browser UI.
+    """Abstract model for items that appear in the three-panel console UI.
 
     Provides:
     * ``display_id`` — unique human-readable ID auto-generated on first save

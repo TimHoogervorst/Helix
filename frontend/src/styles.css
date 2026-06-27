@@ -865,7 +865,7 @@ input.nav-search-input:focus {
   padding: 0 0.25rem;
 }
 
-/* ── Browser Shared: Animations, Tabs, Helpers ── */
+/* ── Console Shared: Animations, Tabs, Helpers ── */
 
 @keyframes console-slide-in {
   from {

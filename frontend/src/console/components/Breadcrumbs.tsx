@@ -1,10 +1,10 @@
-interface LibraryBreadcrumbsProps {
+interface BreadcrumbsProps {
   path: string;
   onNavigate: (path: string) => void;
   onUp: () => void;
 }
 
-function LibraryBreadcrumbs({ path, onNavigate, onUp }: LibraryBreadcrumbsProps) {
+function Breadcrumbs({ path, onNavigate, onUp }: BreadcrumbsProps) {
   const segments = path.split("/").filter(Boolean);
 
   return (
@@ -48,4 +48,4 @@ function LibraryBreadcrumbs({ path, onNavigate, onUp }: LibraryBreadcrumbsProps)
   );
 }
 
-export default LibraryBreadcrumbs;
+export default Breadcrumbs;

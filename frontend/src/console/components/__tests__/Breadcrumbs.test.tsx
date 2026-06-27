@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import LibraryBreadcrumbs from "../LibraryBreadcrumbs";
+import Breadcrumbs from "../Breadcrumbs";
 
-describe("LibraryBreadcrumbs", () => {
+describe("Breadcrumbs", () => {
   it("renders root as current when path is empty", () => {
     render(
-      <LibraryBreadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
+      <Breadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
     );
     const root = screen.getByText(/root/);
     expect(root.className).toContain("is-current");
@@ -13,7 +13,7 @@ describe("LibraryBreadcrumbs", () => {
 
   it("renders root as clickable when in a subfolder", () => {
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments"
         onNavigate={vi.fn()}
         onUp={vi.fn()}
@@ -25,7 +25,7 @@ describe("LibraryBreadcrumbs", () => {
 
   it("renders path segments separated by /", () => {
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments/Q1"
         onNavigate={vi.fn()}
         onUp={vi.fn()}
@@ -37,7 +37,7 @@ describe("LibraryBreadcrumbs", () => {
 
   it("marks the last segment as current", () => {
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments/Q1"
         onNavigate={vi.fn()}
         onUp={vi.fn()}
@@ -54,7 +54,7 @@ describe("LibraryBreadcrumbs", () => {
   it("calls onNavigate with empty string when root is clicked", () => {
     const handleNavigate = vi.fn();
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments"
         onNavigate={handleNavigate}
         onUp={vi.fn()}
@@ -67,7 +67,7 @@ describe("LibraryBreadcrumbs", () => {
   it("calls onNavigate with segment path when intermediate segment is clicked", () => {
     const handleNavigate = vi.fn();
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments/Q1/Sub"
         onNavigate={handleNavigate}
         onUp={vi.fn()}
@@ -80,7 +80,7 @@ describe("LibraryBreadcrumbs", () => {
   it("does not call onNavigate when clicking current (last) segment", () => {
     const handleNavigate = vi.fn();
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments"
         onNavigate={handleNavigate}
         onUp={vi.fn()}
@@ -93,7 +93,7 @@ describe("LibraryBreadcrumbs", () => {
   it("calls onUp when back button is clicked", () => {
     const handleUp = vi.fn();
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments"
         onNavigate={vi.fn()}
         onUp={handleUp}
@@ -105,14 +105,14 @@ describe("LibraryBreadcrumbs", () => {
 
   it("disables back button at root", () => {
     render(
-      <LibraryBreadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
+      <Breadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
     );
     expect(screen.getByTitle("Go up")).toBeDisabled();
   });
 
   it("enables back button in subfolder", () => {
     render(
-      <LibraryBreadcrumbs
+      <Breadcrumbs
         path="/Experiments"
         onNavigate={vi.fn()}
         onUp={vi.fn()}

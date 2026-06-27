@@ -4,7 +4,7 @@ import type { LibraryItem, LibraryEntryItem } from "../../../types/library";
 import { useConsoleView } from "../../../console/core/useConsoleView";
 import ConsolePage from "../../../console/core/ConsolePage";
 import { getLibraryContents } from "../../../api/library";
-import LibraryBreadcrumbs from "../../../components/LibraryBreadcrumbs";
+import Breadcrumbs from "../../components/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import ElnDetailCard from "../../../workspaces/eln/ElnDetailCard";
@@ -158,7 +158,7 @@ function LibraryConsole() {
       collapsedTitle="Back to detail"
       header={
         <div className="library-header">
-          <LibraryBreadcrumbs
+          <Breadcrumbs
             path={currentPath}
             onNavigate={navigateToPath}
             onUp={navigateUp}

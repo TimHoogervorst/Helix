@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { get } from "../api/client";
-import type { EntityListItem, PaginatedResponse } from "../types/lims";
-import { useConsoleView } from "../console/core/useConsoleView";
-import ConsolePage from "../console/core/ConsolePage";
-import LimsDetailCard from "../workspaces/lims/LimsDetailCard";
-import EntityWorkspace from "../workspaces/lims/EntityWorkspace";
+import { get } from "../../../api/client";
+import type { EntityListItem, PaginatedResponse } from "../../../types/lims";
+import { useConsoleView } from "../../../console/core/useConsoleView";
+import ConsolePage from "../../../console/core/ConsolePage";
+import LimsDetailCard from "../../../workspaces/lims/LimsDetailCard";
+import EntityWorkspace from "../../../workspaces/lims/EntityWorkspace";
 import ConsoleMasterPanel, {
   type MasterColumn,
-} from "../console/core/ConsoleMasterPanel";
-import ReferenceBadge from "../components/ReferenceBadge";
+} from "../../../console/core/ConsoleMasterPanel";
+import ReferenceBadge from "../../../components/ReferenceBadge";
 
-function LimsList() {
+function LimsConsole() {
   const [searchParams] = useSearchParams();
   const search = searchParams.get("search") || "";
   const typeFilter = searchParams.get("type") || "";
@@ -207,4 +207,4 @@ function LimsList() {
   );
 }
 
-export default LimsList;
+export default LimsConsole;

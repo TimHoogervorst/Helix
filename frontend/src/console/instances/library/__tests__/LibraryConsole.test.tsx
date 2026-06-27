@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import LibraryView from "../LibraryView";
-import type { LibraryContentsResponse } from "../../types/library";
+import LibraryConsole from "../LibraryConsole";
+import type { LibraryContentsResponse } from "../../../../types/library";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
 const mockGetLibraryContents = vi.fn();
-vi.mock("../../api/library", () => ({
+vi.mock("../../../../api/library", () => ({
   getLibraryContents: (...args: unknown[]) => mockGetLibraryContents(...args),
 }));
 
 // Mock ConsoleProvider
-vi.mock("../../console/core/ConsoleProvider", () => ({
+vi.mock("../../../../console/core/ConsoleProvider", () => ({
   useConsole: () => ({
     viewState: "list",
     setViewState: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("../../console/core/ConsoleProvider", () => ({
 }));
 
 // Mock ReferenceBadge
-vi.mock("../../components/ReferenceBadge", () => ({
+vi.mock("../../../../components/ReferenceBadge", () => ({
   default: ({
     displayId,
     resolved,
@@ -36,7 +36,7 @@ vi.mock("../../components/ReferenceBadge", () => ({
 }));
 
 // Mock ContentPreview (TipTap is heavy)
-vi.mock("../../components/ContentPreview", () => ({
+vi.mock("../../../../components/ContentPreview", () => ({
   default: ({ content }: { content: unknown }) => (
     <div data-testid="content-preview">
       {content ? "Content rendered" : "No content"}
@@ -45,7 +45,7 @@ vi.mock("../../components/ContentPreview", () => ({
 }));
 
 // Mock useContentPreview
-vi.mock("../../hooks/useContentPreview", () => ({
+vi.mock("../../../../hooks/useContentPreview", () => ({
   useContentPreview: () => ({
     content: {
       type: "doc",
@@ -57,7 +57,7 @@ vi.mock("../../hooks/useContentPreview", () => ({
 }));
 
 // Mock ElnEditor (heavy, tested separately)
-vi.mock("../../components/ElnEditor", () => ({
+vi.mock("../../../../components/ElnEditor", () => ({
   default: ({ entryId }: { entryId?: string }) => (
     <div data-testid="eln-editor">Editor for {entryId}</div>
   ),
@@ -112,14 +112,14 @@ const populatedResponse: LibraryContentsResponse = {
 function renderLibrary(initialRoute = "/library") {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
-      <LibraryView />
+      <LibraryConsole />
     </MemoryRouter>,
   );
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
 
-describe("LibraryView", () => {
+describe("LibraryConsole", () => {
   beforeEach(() => {
     mockGetLibraryContents.mockReset();
   });

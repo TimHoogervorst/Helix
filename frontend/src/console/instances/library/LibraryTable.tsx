@@ -1,8 +1,8 @@
-import type { LibraryItem } from "../types/library";
-import ReferenceBadge from "./ReferenceBadge";
+import type { LibraryItem } from "../../../types/library";
+import ReferenceBadge from "../../../components/ReferenceBadge";
 import ConsoleMasterPanel, {
   type MasterColumn,
-} from "../console/core/ConsoleMasterPanel";
+} from "../../../console/core/ConsoleMasterPanel";
 
 interface LibraryTableProps {
   items: LibraryItem[];

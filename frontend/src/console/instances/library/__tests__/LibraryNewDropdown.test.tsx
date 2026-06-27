@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import LibraryNewDropdown from "../LibraryNewDropdown";
 
 // Mock the API client
-vi.mock("../../api/client", () => ({
+vi.mock("../../../../api/client", () => ({
   post: vi.fn().mockResolvedValue({ id: 99, name: "NewFolder" }),
   get: vi.fn(),
 }));

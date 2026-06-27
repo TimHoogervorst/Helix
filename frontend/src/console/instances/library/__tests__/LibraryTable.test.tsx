@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LibraryTable from "../LibraryTable";
-import type { LibraryItem } from "../../types/library";
+import type { LibraryItem } from "../../../../types/library";
 
 // ReferenceBadge renders inside the table; we mock it to keep the test isolated
-vi.mock("../ReferenceBadge", () => ({
+vi.mock("../../../../components/ReferenceBadge", () => ({
   default: ({
     displayId,
     resolved,

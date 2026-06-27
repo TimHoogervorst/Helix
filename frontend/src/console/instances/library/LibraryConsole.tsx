@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import type { LibraryItem, LibraryEntryItem } from "../types/library";
-import { useConsoleView } from "../console/core/useConsoleView";
-import ConsolePage from "../console/core/ConsolePage";
-import { getLibraryContents } from "../api/library";
-import LibraryBreadcrumbs from "../components/LibraryBreadcrumbs";
-import LibraryTable from "../components/LibraryTable";
-import LibraryNewDropdown from "../components/LibraryNewDropdown";
-import ElnDetailCard from "../workspaces/eln/ElnDetailCard";
-import ElnWorkspace from "../workspaces/eln/ElnWorkspace";
+import type { LibraryItem, LibraryEntryItem } from "../../../types/library";
+import { useConsoleView } from "../../../console/core/useConsoleView";
+import ConsolePage from "../../../console/core/ConsolePage";
+import { getLibraryContents } from "../../../api/library";
+import LibraryBreadcrumbs from "../../../components/LibraryBreadcrumbs";
+import LibraryTable from "./LibraryTable";
+import LibraryNewDropdown from "./LibraryNewDropdown";
+import ElnDetailCard from "../../../workspaces/eln/ElnDetailCard";
+import ElnWorkspace from "../../../workspaces/eln/ElnWorkspace";
 
-function LibraryView() {
+function LibraryConsole() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPath = searchParams.get("path") || "";
@@ -208,4 +208,4 @@ function LibraryView() {
   );
 }
 
-export default LibraryView;
+export default LibraryConsole;

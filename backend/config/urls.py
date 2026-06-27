@@ -55,6 +55,7 @@ urlpatterns = [
     path("api/eln/", include("eln.urls")),
     path("api/lims/", include("lims.urls")),
     path("api/core/", include("core.urls")),
+    path("api/library/", include("library.urls")),
     path("api/references/", include("references.urls")),
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),

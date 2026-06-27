@@ -16,13 +16,35 @@ class ApiError extends Error {
   }
 }
 
+// ── CSRF token helpers (Django expects X-CSRFToken on unsafe methods) ──────
+
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(";").shift() ?? null;
+  return null;
+}
+
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+// ── Request ────────────────────────────────────────────────────────────────
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers: customHeaders, ...rest } = options;
+  const method = (rest.method || "GET").toUpperCase();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(customHeaders as Record<string, string>),
   };
+
+  // Attach Django CSRF token for unsafe methods (same-origin only)
+  if (UNSAFE_METHODS.has(method)) {
+    const csrfToken = getCookie("csrftoken");
+    if (csrfToken) {
+      headers["X-CSRFToken"] = csrfToken;
+    }
+  }
 
   const response = await fetch(`${BASE_URL}${path}`, {
     ...rest,

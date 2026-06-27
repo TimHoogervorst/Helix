@@ -17,8 +17,9 @@ export interface EntryDetail {
   display_id: string;
   title: string;
   content: TipTapDoc;
-  folder: number;
+  folder: number | null;
   folder_name: string;
+  folder_path: string;
   author: number | null;
   author_username: string | null;
   created_at: string;

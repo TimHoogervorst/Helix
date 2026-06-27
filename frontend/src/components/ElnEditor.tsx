@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -21,6 +21,10 @@ interface Folder {
 
 interface ElnEditorProps {
   entryId?: string;
+  /** When true, hides the title and folder selector for Library embedded use. */
+  embedded?: boolean;
+  /** Pre-select this folder when creating a new entry (Library new-entry flow). */
+  initialFolderId?: number | null;
 }
 
 type EditorMode =
@@ -79,7 +83,7 @@ function collectDisplayIds(doc: TipTapDoc): string[] {
 }
 
 /** Editor component — ReferenceProvider is provided by Layout. */
-function ElnEditor({ entryId }: ElnEditorProps) {
+function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProps) {
   const navigate = useNavigate();
   const isNew = entryId === undefined;
   const { resolveIds } = useReferenceContext();
@@ -92,7 +96,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   const [title, setTitle] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
   const [initialContent, setInitialContent] = useState<TipTapDoc>(EMPTY_DOC);
-  const [folderId, setFolderId] = useState<number | null>(null);
+  const [folderId, setFolderId] = useState<number | null>(initialFolderId ?? null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -216,7 +220,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
 
   const handleCancel = useCallback(() => {
     if (isNew) {
-      navigate("/eln");
+      navigate("/library");
       return;
     }
     setTitle(initialTitle);
@@ -270,7 +274,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
     setError(null);
     try {
       await del(`/eln/entries/${entryId}/`);
-      navigate("/eln");
+      navigate("/library");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
       setDeleting(false);
@@ -294,14 +298,194 @@ function ElnEditor({ entryId }: ElnEditorProps) {
     return (
       <div>
         <div className="error">{error}</div>
-        <button onClick={() => navigate("/eln")}>← Back to entries</button>
+        <button onClick={() => navigate("/library")}>← Back to entries</button>
       </div>
     );
   }
 
   return (
-    <div className={`editor-container${isSaving ? " saving" : ""}`}>
-      <div className="paper-page">
+    <div className={`editor-container${isSaving ? " saving" : ""}${embedded ? " is-embedded" : ""}`}>
+      {embedded ? (
+        /* Embedded: no paper-page, no title, no folder selector */
+        <>
+          {/* ── Error banner ── */}
+          {error && <div className="error">{error}</div>}
+
+          {/* ── Edit / Save / Cancel toolbar ── */}
+          <div className="eln-embedded-toolbar">
+            {isEdit ? (
+              <>
+                <span className={`save-indicator${isDirty ? " is-dirty" : ""}`}>
+                  {isDirty ? "Unsaved changes" : "Saved"}
+                </span>
+                <button onClick={handleSave} disabled={isSaving || !title.trim()}>
+                  {isSaving ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  style={{
+                    background: "transparent",
+                    color: "var(--gray-700)",
+                    border: "1px solid var(--gray-300)",
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={enterEditMode}>Edit</button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  style={{
+                    background: "transparent",
+                    color: "#dc2626",
+                    border: "1px solid #fecaca",
+                  }}
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* ── Editor Content ── */}
+          <div
+            className={`editor-content${!isEdit ? " view-mode" : ""}`}
+            onClick={() => {
+              if (!isEdit && mode === "view") enterEditMode();
+            }}
+          >
+            {editor && (
+              <>
+                {isEdit && (
+                  <BubbleMenu editor={editor} className="bubble-menu">
+                    <button
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                      className={editor.isActive("bold") ? "is-active" : ""}
+                      title="Bold"
+                    >
+                      B
+                    </button>
+                    <button
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                      className={editor.isActive("italic") ? "is-active" : ""}
+                      title="Italic"
+                    >
+                      <em>I</em>
+                    </button>
+
+                    <span className="divider" />
+
+                    <button
+                      onClick={() =>
+                        editor.chain().focus().toggleHeading({ level: 1 }).run()
+                      }
+                      className={
+                        editor.isActive("heading", { level: 1 })
+                          ? "is-active"
+                          : ""
+                      }
+                      title="Heading 1"
+                    >
+                      H<span className="heading-level">1</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        editor.chain().focus().toggleHeading({ level: 2 }).run()
+                      }
+                      className={
+                        editor.isActive("heading", { level: 2 })
+                          ? "is-active"
+                          : ""
+                      }
+                      title="Heading 2"
+                    >
+                      H<span className="heading-level">2</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        editor.chain().focus().toggleHeading({ level: 3 }).run()
+                      }
+                      className={
+                        editor.isActive("heading", { level: 3 })
+                          ? "is-active"
+                          : ""
+                      }
+                      title="Heading 3"
+                    >
+                      H<span className="heading-level">3</span>
+                    </button>
+
+                    <span className="divider" />
+
+                    <button
+                      onClick={() =>
+                        editor.chain().focus().toggleBulletList().run()
+                      }
+                      className={
+                        editor.isActive("bulletList") ? "is-active" : ""
+                      }
+                      title="Bullet list"
+                    >
+                      •≡
+                    </button>
+                    <button
+                      onClick={() =>
+                        editor.chain().focus().toggleOrderedList().run()
+                      }
+                      className={
+                        editor.isActive("orderedList") ? "is-active" : ""
+                      }
+                      title="Numbered list"
+                    >
+                      1≡
+                    </button>
+
+                    <span className="divider" />
+
+                    <button
+                      onClick={() =>
+                        editor.chain().focus().toggleBlockquote().run()
+                      }
+                      className={
+                        editor.isActive("blockquote") ? "is-active" : ""
+                      }
+                      title="Blockquote"
+                    >
+                      "
+                    </button>
+                  </BubbleMenu>
+                )}
+                <EditorContent editor={editor} />
+              </>
+            )}
+          </div>
+        </>
+      ) : (
+        /* ── Normal (non-embedded) mode: full paper-page layout ── */
+      <div className="eln-full-layout">
+        {/* ── Left Sidebar: "Open in Library" button ── */}
+        <div className="eln-sidebar-left">
+          <Link
+            to={(() => {
+              const params = new URLSearchParams();
+              if (entry?.folder_path) params.set("path", entry.folder_path);
+              if (entry?.display_id) params.set("select", entry.display_id);
+              const qs = params.toString();
+              return qs ? `/library?${qs}` : "/library";
+            })()}
+            className="eln-library-btn"
+            title="Show in Library"
+          >
+            &gt;
+          </Link>
+          <span className="eln-sidebar-divider" />
+        </div>
+
+        <div className="paper-page">
         {/* ── Top Bar ── */}
         <div className="editor-top-bar">
           <div className="title-col">
@@ -521,6 +705,8 @@ function ElnEditor({ entryId }: ElnEditorProps) {
           )}
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }

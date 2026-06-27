@@ -6,9 +6,19 @@
 
 ## Core Concepts
 
+### Library
+
+The organizational container that holds the Folder hierarchy and all its contents — ELN Entries, Entities, and (later) other file types. Users browse the Library at `/library`, navigating through folders to find and organize their work.
+
+The Library presents a unified, filesystem-like view: at any folder level, both child folders and entries appear together in a single list, sorted with folders first. The Library is the *browsing surface* for the Folder tree — it is not a separate data model, but a presentation model layered on top of the Folder hierarchy.
+
+**Invariant:** Every item surfaced in the Library belongs to exactly one Folder (or lives at root).
+
+**Synonyms:** ELN (previous name — now means the entry editor specifically), Notebook (previous name — now refers to the entry editor)
+
 ### Folder
 
-A hierarchical container that owns Notebook Entries, Entities, and child Folders. Folders form a tree — the primary organizational structure of the system. Permissions are assigned to Folders and inherit downward.
+A hierarchical container that owns Notebook Entries, Entities, and child Folders. Folders form a tree — the primary organizational structure of the system. Permissions are assigned to Folders and inherit downward. Users navigate the folder tree through the Library.
 
 **Synonyms:** directory, project (rejected — "project" implies a temporary endeavor; Folders are a permanent organizational structure)
 
@@ -91,6 +101,8 @@ Actions are **user-explicit** — the user records them deliberately. They are n
 ## Relationship Summary
 
 ```
+Library ──▶ Folder tree (the Library is the browsing surface for the folder hierarchy)
+
 Folder ──┬── Folder (parent/child, recursive)
          ├── NotebookEntry (1:N — entry lives in one folder)
          └── Entity (1:N — entity lives in one folder)
@@ -109,6 +121,10 @@ User ──▶ Entity (1:N — creator of entities)
 ---
 
 ## Key Distinctions
+
+### Library vs Folder
+
+A **Folder** is a data-model concept — a node in the folder tree with a parent, a name, and contents. The **Library** is the presentation layer that lets users browse, navigate, and search the folder hierarchy. The Library shows a mixed list of folders and entries at any path; folders are navigated *into*, entries are opened.
 
 ### Entry vs Entity
 

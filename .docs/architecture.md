@@ -33,6 +33,7 @@ Open-source ELN/LIMS for research-focused labs. Goal: flexibility + extensibilit
 | 17 | Docker-based deployment | docker-compose with Django + Postgres + (later) React static serving. Plugins configured via environment/volume, not in-browser install. | 2026-06-24 |
 | 18 | Simple token auth (DRF TokenAuthentication) | Per-user auth tokens. Not JWT, not sessions. MCP tokens and API tokens deferred. Just hashed/salted passwords + token for the demo. | 2026-06-24 |
 | 19 | Demo goal: functional prototype (A) | Fewer features, fully working, solid architecture. Something that can be expanded, not a lazy combined system. | 2026-06-24 |
+| 20 | Library as unified filesystem-like browser | Mixed table of folders + entries with breadcrumb navigation. Reuses LIMS three-step fold pattern (list → detail card → expanded editor). Single API endpoint returns mixed content sorted folders-first. See [ADR-0003](../docs/adr/0003-library-filesystem-browsing.md). | 2026-06-26 |
 
 ---
 

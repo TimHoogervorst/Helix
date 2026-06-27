@@ -1,8 +1,10 @@
 """
 API views for inline reference resolution and search.
 """
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .services import (
@@ -14,6 +16,8 @@ from .services import (
 
 
 @api_view(["POST"])
+@authentication_classes([])  # No SessionAuthentication → no DRF CSRF check
+@permission_classes([AllowAny])
 def resolve_view(request):
     """
     Batch-resolve display IDs to target details.
@@ -21,6 +25,11 @@ def resolve_view(request):
     POST /api/references/resolve/
     Body: {"ids": ["E1", "BLOOD1"]}
     Returns: {"E1": {...}, "BLOOD1": {...}, "NONEXIST": null}
+
+    CSRF is skipped via @csrf_exempt on the module-level wrapper below.
+    DRF's SessionAuthentication.enforce_csrf() would otherwise re-check
+    CSRF with view_func=None, ignoring @csrf_exempt. We avoid that by
+    setting authentication_classes=[] on this read-only endpoint.
     """
     ids = request.data.get("ids", [])
     model_type_map = _get_dynamic_model_type_map()
@@ -40,6 +49,11 @@ def resolve_view(request):
         else:
             result[display_id] = None
     return Response(result)
+
+
+# Wrap with csrf_exempt AFTER api_view so Django's CsrfViewMiddleware sees it.
+# (api_view wraps the function first, then csrf_exempt wraps that.)
+resolve_view = csrf_exempt(resolve_view)
 
 
 @api_view(["GET"])

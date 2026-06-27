@@ -33,6 +33,7 @@ class MentionSerializer(serializers.ModelSerializer):
 class NotebookEntrySerializer(serializers.ModelSerializer):
     author_username = serializers.SerializerMethodField()
     folder_name = serializers.CharField(source="folder.name", read_only=True)
+    folder_path = serializers.SerializerMethodField()
     mentions = MentionSerializer(many=True, read_only=True)
 
     class Meta:
@@ -44,6 +45,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "content",
             "folder",
             "folder_name",
+            "folder_path",
             "author",
             "author_username",
             "created_at",
@@ -55,12 +57,17 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
 
+    def get_folder_path(self, obj):
+        if obj.folder:
+            return obj.folder.path
+        return ""
+
 
 class NotebookEntryCreateSerializer(serializers.ModelSerializer):
     """Write-only serializer. Folder defaults to 'Default' if omitted."""
 
     folder = serializers.PrimaryKeyRelatedField(
-        queryset=Folder.objects.all(), required=False
+        queryset=Folder.objects.all(), required=False, allow_null=True
     )
     content = serializers.JSONField(validators=[validate_tiptap_json])
 

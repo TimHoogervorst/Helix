@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "core",
     "eln",
     "lims",
+    "library",
     "references",
 ]
 

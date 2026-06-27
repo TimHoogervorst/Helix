@@ -36,11 +36,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None
-        folder = serializer.validated_data.get("folder")
-        if folder is None:
-            from core.models import Folder
-            folder, _ = Folder.objects.get_or_create(name="Default", parent=None)
-        instance = serializer.save(author=author, folder=folder)
+        instance = serializer.save(author=author)
         # Sync entities first (patches entityIds into content),
         # then sync mentions (may find new reference nodes in table cells)
         content = sync_entities(instance, instance.content)

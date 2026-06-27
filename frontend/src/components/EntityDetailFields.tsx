@@ -77,7 +77,7 @@ function EntityDetailFields({
         ) : (
           <div className="detail-properties">
             <h3>Properties</h3>
-            <p className="browser-properties-empty">No properties defined.</p>
+            <p className="console-properties-empty">No properties defined.</p>
           </div>
         ))}
     </>

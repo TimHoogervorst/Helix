@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { get } from "../api/client";
 import type { EntityListItem, PaginatedResponse } from "../types/lims";
-import { useBrowserView } from "../components/browser/useBrowserView";
-import BrowserPage from "../components/browser/BrowserPage";
+import { useConsoleView } from "../console/core/useConsoleView";
+import ConsolePage from "../console/core/ConsolePage";
 import LimsDetailCard from "../components/LimsDetailCard";
 import LimsMoreDetailPanel from "../components/LimsMoreDetailPanel";
-import BrowserMasterPanel, {
+import ConsoleMasterPanel, {
   type MasterColumn,
-} from "../components/browser/BrowserMasterPanel";
+} from "../console/core/ConsoleMasterPanel";
 import ReferenceBadge from "../components/ReferenceBadge";
 
 function LimsList() {
@@ -31,7 +31,7 @@ function LimsList() {
     goToDetail,
     collapseFromExpanded: collapseFromExpandedBase,
     closeAll: closeAllBase,
-  } = useBrowserView();
+  } = useConsoleView();
 
   const fetchEntities = useCallback(
     async (url?: string) => {
@@ -114,18 +114,18 @@ function LimsList() {
     { label: "Type" },
     { label: "Created" },
     { label: "Source" },
-    { className: "browser-master-row-expand-header", label: "" },
+    { className: "console-master-row-expand-header", label: "" },
   ];
 
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <BrowserPage
+    <ConsolePage
       loading={loading && entities.length === 0}
       error={error}
       collapsedTitle="Expand entity list"
       table={
-        <BrowserMasterPanel
+        <ConsoleMasterPanel
           columns={LIMS_COLUMNS}
           colSpan={6}
           itemCount={entities.length}
@@ -137,7 +137,7 @@ function LimsList() {
           {entities.map((entity) => (
             <tr
               key={entity.display_id}
-              className={`browser-master-row${selectedId === entity.display_id ? " is-selected" : ""}`}
+              className={`console-master-row${selectedId === entity.display_id ? " is-selected" : ""}`}
               onClick={() => handleRowClick(entity)}
             >
               <td>
@@ -155,7 +155,7 @@ function LimsList() {
               </td>
               <td>{entity.name}</td>
               <td>{entity.entity_type_name}</td>
-              <td className="browser-master-date">
+              <td className="console-master-date">
                 {new Date(entity.created_at).toLocaleString()}
               </td>
               <td>
@@ -170,7 +170,7 @@ function LimsList() {
               </td>
               <td style={{ width: 40, padding: "0.25rem" }}>
                 <button
-                  className="browser-master-row-expand-btn"
+                  className="console-master-row-expand-btn"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRowExpand(entity);
@@ -182,7 +182,7 @@ function LimsList() {
               </td>
             </tr>
           ))}
-        </BrowserMasterPanel>
+        </ConsoleMasterPanel>
       }
       detail={
         selectedEntity &&

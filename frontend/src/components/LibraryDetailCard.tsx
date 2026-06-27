@@ -1,8 +1,8 @@
-import type { ViewState } from "../types/browser";
+import type { ViewState } from "../types/console";
 import type { LibraryEntryItem } from "../types/library";
 import ReferenceBadge from "./ReferenceBadge";
 import ContentPreview from "./ContentPreview";
-import BrowserDetailPanel from "./browser/BrowserDetailPanel";
+import ConsoleDetailPanel from "../console/core/ConsoleDetailPanel";
 import { useContentPreview } from "../hooks/useContentPreview";
 
 interface LibraryDetailCardProps {
@@ -27,7 +27,7 @@ function LibraryDetailCard({
   const { content, loading, error } = useContentPreview(entry.display_id);
 
   return (
-    <BrowserDetailPanel
+    <ConsoleDetailPanel
       viewState={viewState}
       onClose={onClose}
       onCollapse={onCollapse}
@@ -77,7 +77,7 @@ function LibraryDetailCard({
       {loading && <p className="empty">Loading content…</p>}
       {error && <div className="error">{error}</div>}
       {!loading && !error && <ContentPreview content={content} />}
-    </BrowserDetailPanel>
+    </ConsoleDetailPanel>
   );
 }
 

@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { useBrowserView } from "./useBrowserView";
-import { useBrowser } from "./BrowserProvider";
-import BrowserCollapsedStrip from "./BrowserCollapsedStrip";
+import { useConsoleView } from "./useConsoleView";
+import { useConsole } from "./ConsoleProvider";
+import ConsoleCollapsedStrip from "./ConsoleCollapsedStrip";
 
-export interface BrowserPageProps {
+export interface ConsolePageProps {
   /** Optional header area (breadcrumbs, search, buttons). Rendered above the layout. */
   header?: ReactNode;
   /** When true, shows a "Loading…" placeholder. */
@@ -27,14 +27,14 @@ export interface BrowserPageProps {
 }
 
 /**
- * Shared Browser Page layout.
+ * Shared Console Page layout.
  *
  * Absorbs the duplicated CSS class computation and master–detail–expanded
  * layout JSX that was previously copy-pasted between LimsList and LibraryView.
  * Each page becomes a thin data-fetching component that passes slots to
- * BrowserPage.
+ * ConsolePage.
  */
-function BrowserPage({
+function ConsolePage({
   header,
   loading = false,
   error,
@@ -45,21 +45,21 @@ function BrowserPage({
   hasMore = false,
   onLoadMore,
   loadingMore = false,
-}: BrowserPageProps) {
-  // Read viewState from shared context so BrowserPage stays in sync
-  // with the page component's useBrowserView instance.
-  const { viewState } = useBrowser();
-  const { collapseFromExpanded } = useBrowserView();
+}: ConsolePageProps) {
+  // Read viewState from shared context so ConsolePage stays in sync
+  // with the page component's useConsoleView instance.
+  const { viewState } = useConsole();
+  const { collapseFromExpanded } = useConsoleView();
 
   // ── Compute page-level CSS classes ─────────────────────────────────
   const pageClass =
-    `page browser-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `page console-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterDetailClass =
-    `browser-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `console-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterPanelClass =
-    `browser-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
+    `console-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
 
   // ── Loading placeholder ──────────────────────────────────────────────
   if (loading) {
@@ -82,7 +82,7 @@ function BrowserPage({
         {/* Left Panel: Table (or Collapsed Strip) */}
         <div className={masterPanelClass}>
           {viewState === "expanded" ? (
-            <BrowserCollapsedStrip
+            <ConsoleCollapsedStrip
               onExpand={collapseFromExpanded}
               title={collapsedTitle}
             />
@@ -90,7 +90,7 @@ function BrowserPage({
             <>
               {table}
               {hasMore && onLoadMore && (
-                <div className="browser-load-more">
+                <div className="console-load-more">
                   <button onClick={onLoadMore} disabled={loadingMore}>
                     {loadingMore ? "Loading…" : "Load More"}
                   </button>
@@ -110,4 +110,4 @@ function BrowserPage({
   );
 }
 
-export default BrowserPage;
+export default ConsolePage;

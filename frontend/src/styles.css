@@ -867,7 +867,7 @@ input.nav-search-input:focus {
 
 /* ── Browser Shared: Animations, Tabs, Helpers ── */
 
-@keyframes browser-slide-in {
+@keyframes console-slide-in {
   from {
     opacity: 0;
     transform: translateX(12px);
@@ -878,7 +878,7 @@ input.nav-search-input:focus {
   }
 }
 
-@keyframes browser-slide-out-right {
+@keyframes console-slide-out-right {
   from {
     opacity: 1;
     transform: translateX(0);
@@ -891,14 +891,14 @@ input.nav-search-input:focus {
 
 /* ── Tab Bar (inside workspace panel) ── */
 
-.browser-tab-bar {
+.console-tab-bar {
   display: flex;
   gap: 0;
   border-bottom: 2px solid var(--gray-200);
   margin-bottom: 1rem;
 }
 
-.browser-tab {
+.console-tab {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 500;
@@ -912,25 +912,25 @@ input.nav-search-input:focus {
   transition: color 0.15s, border-color 0.15s;
 }
 
-.browser-tab:hover {
+.console-tab:hover {
   color: var(--white);
 }
 
-.browser-tab.is-active {
+.console-tab.is-active {
   color: var(--blue-500);
   border-bottom-color: var(--blue-500);
 }
 
-.browser-tab.is-active:hover {
+.console-tab.is-active:hover {
   color: var(--white);
 }
 
-.browser-tab-content {
+.console-tab-content {
   /* tab content area */
 }
 
 /* Empty properties placeholder */
-.browser-properties-empty {
+.console-properties-empty {
   color: var(--gray-400);
   text-align: center;
   padding: 2rem 1rem;
@@ -991,22 +991,22 @@ input.nav-search-input:focus {
 /* ── Responsive: stack vertically on narrow screens ── */
 
 @media (max-width: 800px) {
-  .browser-master-detail {
+  .console-master-detail {
     flex-direction: column;
   }
 
-  .browser-master-detail.has-detail .browser-master-panel {
+  .console-master-detail.has-detail .console-master-panel {
     flex: 1 1 auto;
     max-width: none;
   }
 
-  .browser-master-panel.is-collapsed {
+  .console-master-panel.is-collapsed {
     flex: 1 1 auto;
     max-width: none;
     overflow: visible;
   }
 
-  .browser-collapsed-strip {
+  .console-collapsed-strip {
     flex-direction: row;
     justify-content: flex-start;
     padding: 0.25rem 0.25rem;
@@ -1015,11 +1015,11 @@ input.nav-search-input:focus {
     border-bottom: 1px solid var(--gray-200);
   }
 
-  .browser-detail-panel {
+  .console-detail-panel {
     width: 100%;
   }
 
-  .browser-workspace-panel {
+  .console-workspace-panel {
     width: 100%;
   }
 
@@ -2196,12 +2196,12 @@ input.lims-table-title-input:focus {
 
 /* ── Library Page ── */
 
-.browser-page {
+.console-page {
   /* default: constrained by parent .page */
 }
 
-.browser-page.has-detail,
-.browser-page.is-expanded {
+.console-page.has-detail,
+.console-page.is-expanded {
   /* Break out of parent .page max-width to use full viewport */
   position: relative;
   width: 100vw;
@@ -2385,45 +2385,45 @@ input.library-search-input:focus {
 
 /* ── Master–Detail Layout ── */
 
-.browser-master-detail {
+.console-master-detail {
   display: flex;
   gap: 1.5rem;
   align-items: flex-start;
 }
 
-.browser-master-detail.is-expanded {
+.console-master-detail.is-expanded {
   gap: 1rem;
 }
 
-.browser-master-panel {
+.console-master-panel {
   flex: 1 1 0;
   min-width: 0;
   transition: flex 0.3s ease, max-width 0.3s ease, width 0.3s ease;
 }
 
-.browser-master-detail.has-detail .browser-master-panel {
+.console-master-detail.has-detail .console-master-panel {
   flex: 1 1 0;
 }
 
-.browser-master-panel.is-collapsed {
+.console-master-panel.is-collapsed {
   flex: 0 0 40px;
   max-width: 40px;
   overflow: hidden;
 }
 
-.browser-detail-panel {
+.console-detail-panel {
   flex: 1 1 0;
   min-width: 0;
-  animation: browser-slide-in 0.25s ease-out;
+  animation: console-slide-in 0.25s ease-out;
 }
 
-.browser-detail-panel.is-exiting {
-  animation: browser-slide-out-right 0.25s ease-out forwards;
+.console-detail-panel.is-exiting {
+  animation: console-slide-out-right 0.25s ease-out forwards;
 }
 
 /* ── Collapsed Strip (left panel in expanded state) ── */
 
-.browser-collapsed-strip {
+.console-collapsed-strip {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2434,7 +2434,7 @@ input.library-search-input:focus {
   background: var(--gray-50);
 }
 
-.browser-collapsed-strip-btn {
+.console-collapsed-strip-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -2451,19 +2451,19 @@ input.library-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.browser-collapsed-strip-btn:hover {
+.console-collapsed-strip-btn:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
 /* ── Library Table ── */
 
-.browser-master-table-container {
+.console-master-table-container {
   overflow-x: auto;
   margin-bottom: 1rem;
 }
 
-.browser-master-table {
+.console-master-table {
   width: 100%;
   border-collapse: collapse;
   background: var(--white);
@@ -2472,15 +2472,15 @@ input.library-search-input:focus {
   overflow: hidden;
 }
 
-.browser-master-table th,
-.browser-master-table td {
+.console-master-table th,
+.console-master-table td {
   text-align: left;
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--gray-200);
   font-size: 0.9rem;
 }
 
-.browser-master-table th {
+.console-master-table th {
   background: var(--gray-50);
   font-weight: 600;
   color: var(--gray-700);
@@ -2489,24 +2489,24 @@ input.library-search-input:focus {
   letter-spacing: 0.03em;
 }
 
-.browser-master-table tbody tr:last-child td {
+.console-master-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.browser-master-row {
+.console-master-row {
   cursor: pointer;
   transition: background 0.1s;
 }
 
-.browser-master-row:hover {
+.console-master-row:hover {
   background: var(--blue-50);
 }
 
-.browser-master-row.is-selected {
+.console-master-row.is-selected {
   background: var(--blue-100);
 }
 
-.browser-master-date {
+.console-master-date {
   color: var(--gray-500);
   font-size: 0.85rem;
   white-space: nowrap;
@@ -2521,14 +2521,14 @@ input.library-search-input:focus {
   color: var(--gray-800);
 }
 
-.browser-load-more {
+.console-load-more {
   text-align: center;
   margin-bottom: 1.5rem;
 }
 
 /* ── Row Expand Button ── */
 
-.browser-master-row-expand-btn {
+.console-master-row-expand-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -2546,29 +2546,29 @@ input.library-search-input:focus {
   opacity: 0;
 }
 
-.browser-master-row:hover .browser-master-row-expand-btn {
+.console-master-row:hover .console-master-row-expand-btn {
   opacity: 1;
 }
 
-.browser-master-row-expand-btn:hover {
+.console-master-row-expand-btn:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
 /* ── Library Detail Card ── */
 
-.browser-detail-card {
+.console-detail-card {
   margin-top: 0;
 }
 
-.browser-detail-card .detail-header {
+.console-detail-card .detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
 }
 
-.browser-detail-card .detail-header h2 {
+.console-detail-card .detail-header h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -2576,9 +2576,9 @@ input.library-search-input:focus {
   font-size: 1.2rem;
 }
 
-.browser-detail-close,
-.browser-detail-expand,
-.browser-detail-collapse {
+.console-detail-close,
+.console-detail-expand,
+.console-detail-collapse {
   width: 32px;
   height: 32px;
   display: flex;
@@ -2595,14 +2595,14 @@ input.library-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.browser-detail-close:hover,
-.browser-detail-expand:hover,
-.browser-detail-collapse:hover {
+.console-detail-close:hover,
+.console-detail-expand:hover,
+.console-detail-collapse:hover {
   background: var(--gray-100);
   color: var(--gray-900);
 }
 
-.browser-detail-card .detail-body {
+.console-detail-card .detail-body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.5rem;
@@ -2620,14 +2620,14 @@ input.library-search-input:focus {
 
 /* ── Library More-Detail Panel ── */
 
-.browser-workspace-panel {
+.console-workspace-panel {
   flex: 1 1 0;
   min-width: 0;
-  animation: browser-slide-in 0.25s ease-out;
+  animation: console-slide-in 0.25s ease-out;
 }
 
-.browser-workspace-panel.is-exiting {
-  animation: browser-slide-out-right 0.25s ease-out forwards;
+.console-workspace-panel.is-exiting {
+  animation: console-slide-out-right 0.25s ease-out forwards;
 }
 
 /* ── Library New Dropdown ── */

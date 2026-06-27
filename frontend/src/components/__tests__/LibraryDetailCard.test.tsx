@@ -139,7 +139,7 @@ describe("LibraryDetailCard", () => {
       </MemoryRouter>,
     );
     // The outer panel div should have the is-exiting class
-    const panel = document.querySelector(".browser-detail-panel");
+    const panel = document.querySelector(".console-detail-panel");
     expect(panel).not.toBeNull();
     expect(panel!.className).toContain("is-exiting");
   });
@@ -156,7 +156,7 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    const panel = document.querySelector(".browser-detail-panel");
+    const panel = document.querySelector(".console-detail-panel");
     expect(panel).not.toBeNull();
     expect(panel!.className).not.toContain("is-exiting");
   });
@@ -172,10 +172,10 @@ describe("LibraryDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    const panel = document.querySelector(".browser-detail-panel");
+    const panel = document.querySelector(".console-detail-panel");
     expect(panel).not.toBeNull();
     // The panel renders with the class that includes the slide-in animation in CSS
-    expect(panel!.className).toContain("browser-detail-panel");
+    expect(panel!.className).toContain("console-detail-panel");
   });
 
   it("shows collapse button in expanded view", () => {

@@ -4,7 +4,7 @@ import { get } from "../api/client";
 import type { EntityListItem } from "../types/lims";
 import ReferenceBadge from "../components/ReferenceBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
-import BrowserWorkspacePanel from "../components/browser/BrowserWorkspacePanel";
+import ConsoleWorkspacePanel from "../console/core/ConsoleWorkspacePanel";
 
 /** Tab configuration — matches the tabs in LimsMoreDetailPanel. */
 interface TabConfig {
@@ -20,7 +20,7 @@ const TABS: TabConfig[] = [
 
 function PlaceholderTab({ label }: { label: string }) {
   return (
-    <div className="browser-properties-empty">
+    <div className="console-properties-empty">
       {label} — coming soon.
     </div>
   );
@@ -117,20 +117,20 @@ function EntityWorkspace() {
       </div>
 
       {/* Workspace panel with tabs */}
-      <BrowserWorkspacePanel dedicatedUrl={`/lims/${entity.display_id}`}>
+      <ConsoleWorkspacePanel dedicatedUrl={`/lims/${entity.display_id}`}>
         <div className="card">
-          <div className="browser-tab-bar">
+          <div className="console-tab-bar">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
-                className={`browser-tab${activeTab === tab.id ? " is-active" : ""}`}
+                className={`console-tab${activeTab === tab.id ? " is-active" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 {tab.label}
               </button>
             ))}
           </div>
-          <div className="browser-tab-content">
+          <div className="console-tab-content">
             {TABS.map((tab) =>
               activeTab === tab.id ? (
                 <PlaceholderTab key={tab.id} label={tab.label} />
@@ -138,7 +138,7 @@ function EntityWorkspace() {
             )}
           </div>
         </div>
-      </BrowserWorkspacePanel>
+      </ConsoleWorkspacePanel>
     </div>
   );
 }

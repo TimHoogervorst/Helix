@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-export interface BrowserWorkspacePanelProps {
+export interface ConsoleWorkspacePanelProps {
   children: ReactNode;
   /** When true, applies the exit animation class. */
   isExiting?: boolean;
@@ -17,20 +17,20 @@ export interface BrowserWorkspacePanelProps {
  * rendered in the panel header.  The `children` slot is the domain-specific
  * content (editor, tabbed view, etc.).
  */
-function BrowserWorkspacePanel({
+function ConsoleWorkspacePanel({
   children,
   isExiting = false,
   dedicatedUrl,
-}: BrowserWorkspacePanelProps) {
-  const panelClass = `browser-workspace-panel${isExiting ? " is-exiting" : ""}`;
+}: ConsoleWorkspacePanelProps) {
+  const panelClass = `console-workspace-panel${isExiting ? " is-exiting" : ""}`;
 
   return (
     <div className={panelClass}>
       {dedicatedUrl && (
-        <div className="browser-workspace-header">
+        <div className="console-workspace-header">
           <Link
             to={dedicatedUrl}
-            className="browser-workspace-dedicated-link"
+            className="console-workspace-dedicated-link"
             title="Open in dedicated page"
           >
             ↗
@@ -42,4 +42,4 @@ function BrowserWorkspacePanel({
   );
 }
 
-export default BrowserWorkspacePanel;
+export default ConsoleWorkspacePanel;

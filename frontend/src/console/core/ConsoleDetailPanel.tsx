@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { ViewState } from "../../types/browser";
+import type { ViewState } from "../../types/console";
 
-export interface BrowserDetailPanelProps {
+export interface ConsoleDetailPanelProps {
   children: ReactNode;
   /** Current view state (controls which action buttons appear). */
   viewState: ViewState;
@@ -25,7 +25,7 @@ export interface BrowserDetailPanelProps {
  * and a `children` slot for domain-specific content.  Used internally by
  * LimsDetailCard and LibraryDetailCard.
  */
-function BrowserDetailPanel({
+function ConsoleDetailPanel({
   children,
   viewState,
   onClose,
@@ -33,26 +33,26 @@ function BrowserDetailPanel({
   expandUrl,
   onExpand,
   isExiting = false,
-}: BrowserDetailPanelProps) {
-  const panelClass = `browser-detail-panel${isExiting ? " is-exiting" : ""}`;
+}: ConsoleDetailPanelProps) {
+  const panelClass = `console-detail-panel${isExiting ? " is-exiting" : ""}`;
 
   return (
     <div className={panelClass}>
-      <div className="card browser-detail-card">
+      <div className="card console-detail-card">
         {/* Header with action buttons injected by the shell */}
-        <div className="browser-detail-header-actions">
+        <div className="console-detail-header-actions">
           {viewState === "detail" &&
             (expandUrl ? (
               <Link
                 to={expandUrl}
-                className="browser-detail-expand"
+                className="console-detail-expand"
                 title="Open in workspace"
               >
                 &gt;
               </Link>
             ) : onExpand ? (
               <button
-                className="browser-detail-expand"
+                className="console-detail-expand"
                 onClick={onExpand}
                 title="Expand to full detail"
               >
@@ -62,7 +62,7 @@ function BrowserDetailPanel({
 
           {viewState === "expanded" && onCollapse && (
             <button
-              className="browser-detail-collapse"
+              className="console-detail-collapse"
               onClick={onCollapse}
               title="Collapse to summary"
             >
@@ -71,7 +71,7 @@ function BrowserDetailPanel({
           )}
 
           <button
-            className="browser-detail-close"
+            className="console-detail-close"
             onClick={onClose}
             title="Close detail"
           >
@@ -85,4 +85,4 @@ function BrowserDetailPanel({
   );
 }
 
-export default BrowserDetailPanel;
+export default ConsoleDetailPanel;

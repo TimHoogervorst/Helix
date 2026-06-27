@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { ViewState } from "../../../types/browser";
-import type { BrowserViewState } from "../useBrowserView";
+import type { ViewState } from "../../../types/console";
+import type { ConsoleViewState } from "../useConsoleView";
 
-// ── Mock useBrowserView ──────────────────────────────────────────────
+// ── Mock useConsoleView ──────────────────────────────────────────────
 let mockViewState: ViewState = "list";
 let mockCollapseFromExpanded = vi.fn();
 
-vi.mock("../useBrowserView", () => ({
-  useBrowserView: (): BrowserViewState => ({
+vi.mock("../useConsoleView", () => ({
+  useConsoleView: (): ConsoleViewState => ({
     viewState: mockViewState,
     isExiting: false,
     isDetailExiting: false,
@@ -20,26 +20,26 @@ vi.mock("../useBrowserView", () => ({
   }),
 }));
 
-// ── Mock useBrowser (context) — BrowserPage reads viewState from here ─
-vi.mock("../BrowserProvider", () => ({
-  useBrowser: () => ({
+// ── Mock useConsole (context) — ConsolePage reads viewState from here ─
+vi.mock("../ConsoleProvider", () => ({
+  useConsole: () => ({
     viewState: mockViewState,
     setViewState: vi.fn(),
   }),
 }));
 
-import BrowserPage from "../BrowserPage";
+import ConsolePage from "../ConsolePage";
 
 beforeEach(() => {
   mockViewState = "list";
   mockCollapseFromExpanded = vi.fn();
 });
 
-describe("BrowserPage", () => {
+describe("ConsolePage", () => {
   // ── Loading state ──────────────────────────────────────────────────
   it("renders loading placeholder when loading is true", () => {
     render(
-      <BrowserPage loading table={<div>table</div>} />,
+      <ConsolePage loading table={<div>table</div>} />,
     );
     expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.queryByText("table")).not.toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("BrowserPage", () => {
 
   it("renders content instead of loading when loading is false", () => {
     render(
-      <BrowserPage table={<div>table content</div>} />,
+      <ConsolePage table={<div>table content</div>} />,
     );
     expect(screen.getByText("table content")).toBeInTheDocument();
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
@@ -56,7 +56,7 @@ describe("BrowserPage", () => {
   // ── Header slot ────────────────────────────────────────────────────
   it("renders header slot when provided", () => {
     render(
-      <BrowserPage
+      <ConsolePage
         header={<div data-testid="header">breadcrumbs here</div>}
         table={<div>table</div>}
       />,
@@ -66,14 +66,14 @@ describe("BrowserPage", () => {
   });
 
   it("does not render header when omitted", () => {
-    render(<BrowserPage table={<div>table</div>} />);
+    render(<ConsolePage table={<div>table</div>} />);
     expect(screen.queryByTestId("header-area")).not.toBeInTheDocument();
   });
 
   // ── Error ──────────────────────────────────────────────────────────
   it("renders error message when provided", () => {
     render(
-      <BrowserPage
+      <ConsolePage
         error="Something went wrong"
         table={<div>table</div>}
       />,
@@ -82,7 +82,7 @@ describe("BrowserPage", () => {
   });
 
   it("does not render error when null", () => {
-    render(<BrowserPage table={<div>table</div>} error={null} />);
+    render(<ConsolePage table={<div>table</div>} error={null} />);
     expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
   });
 
@@ -90,7 +90,7 @@ describe("BrowserPage", () => {
   it("renders table slot in list view state", () => {
     mockViewState = "list";
     render(
-      <BrowserPage table={<div data-testid="table-area">rows here</div>} />,
+      <ConsolePage table={<div data-testid="table-area">rows here</div>} />,
     );
     expect(screen.getByTestId("table-area")).toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe("BrowserPage", () => {
   it("renders table slot in detail view state", () => {
     mockViewState = "detail";
     render(
-      <BrowserPage table={<div data-testid="table-area">rows here</div>} />,
+      <ConsolePage table={<div data-testid="table-area">rows here</div>} />,
     );
     expect(screen.getByTestId("table-area")).toBeInTheDocument();
   });
@@ -106,7 +106,7 @@ describe("BrowserPage", () => {
   // ── Detail slot ────────────────────────────────────────────────────
   it("renders detail slot when provided", () => {
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div>table</div>}
         detail={<div data-testid="detail-area">detail card</div>}
       />,
@@ -115,7 +115,7 @@ describe("BrowserPage", () => {
   });
 
   it("does not render detail slot when omitted", () => {
-    render(<BrowserPage table={<div>table</div>} />);
+    render(<ConsolePage table={<div>table</div>} />);
     // Verify there's no stray detail area
     expect(screen.queryByTestId("detail-area")).not.toBeInTheDocument();
   });
@@ -123,7 +123,7 @@ describe("BrowserPage", () => {
   // ── Workspace slot ─────────────────────────────────────────────────
   it("renders workspace slot when provided", () => {
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div>table</div>}
         workspace={<div data-testid="workspace-area">tabs here</div>}
       />,
@@ -132,7 +132,7 @@ describe("BrowserPage", () => {
   });
 
   it("does not render workspace slot when omitted", () => {
-    render(<BrowserPage table={<div>table</div>} />);
+    render(<ConsolePage table={<div>table</div>} />);
     expect(screen.queryByTestId("workspace-area")).not.toBeInTheDocument();
   });
 
@@ -140,7 +140,7 @@ describe("BrowserPage", () => {
   it("renders collapsed strip instead of table in expanded state", () => {
     mockViewState = "expanded";
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div data-testid="table-area">table</div>}
         collapsedTitle="Back to detail"
       />,
@@ -155,7 +155,7 @@ describe("BrowserPage", () => {
   it("calls collapseFromExpanded when collapsed strip is clicked", () => {
     mockViewState = "expanded";
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div>table</div>}
         collapsedTitle="Back to detail"
       />,
@@ -166,37 +166,37 @@ describe("BrowserPage", () => {
   });
 
   // ── CSS classes ────────────────────────────────────────────────────
-  it("applies page-level browser-page class", () => {
+  it("applies page-level console-page class", () => {
     const { container } = render(
-      <BrowserPage table={<div>table</div>} />,
+      <ConsolePage table={<div>table</div>} />,
     );
-    // The outer-most div with `browser-page` class
-    expect(container.querySelector(".browser-page")).toBeInTheDocument();
+    // The outer-most div with `console-page` class
+    expect(container.querySelector(".console-page")).toBeInTheDocument();
   });
 
   it("adds has-detail and is-expanded classes in expanded state", () => {
     mockViewState = "expanded";
     const { container } = render(
-      <BrowserPage table={<div>table</div>} />,
+      <ConsolePage table={<div>table</div>} />,
     );
-    const page = container.querySelector(".browser-page");
+    const page = container.querySelector(".console-page");
     expect(page).toBeInTheDocument();
     expect(page!.classList.contains("has-detail")).toBe(true);
     expect(page!.classList.contains("is-expanded")).toBe(true);
     expect(
-      container.querySelector(".browser-master-detail.is-expanded"),
+      container.querySelector(".console-master-detail.is-expanded"),
     ).toBeInTheDocument();
     expect(
-      container.querySelector(".browser-master-panel.is-collapsed"),
+      container.querySelector(".console-master-panel.is-collapsed"),
     ).toBeInTheDocument();
   });
 
   it("adds has-detail but not is-expanded in detail state", () => {
     mockViewState = "detail";
     const { container } = render(
-      <BrowserPage table={<div>table</div>} />,
+      <ConsolePage table={<div>table</div>} />,
     );
-    const page = container.querySelector(".browser-page");
+    const page = container.querySelector(".console-page");
     expect(page!.classList.contains("has-detail")).toBe(true);
     expect(page!.classList.contains("is-expanded")).toBe(false);
   });
@@ -204,9 +204,9 @@ describe("BrowserPage", () => {
   it("has neither has-detail nor is-expanded in list state", () => {
     mockViewState = "list";
     const { container } = render(
-      <BrowserPage table={<div>table</div>} />,
+      <ConsolePage table={<div>table</div>} />,
     );
-    const page = container.querySelector(".browser-page");
+    const page = container.querySelector(".console-page");
     expect(page!.classList.contains("has-detail")).toBe(false);
     expect(page!.classList.contains("is-expanded")).toBe(false);
   });
@@ -215,7 +215,7 @@ describe("BrowserPage", () => {
   it("renders Load More button when hasMore is true", () => {
     const handleLoadMore = vi.fn();
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div>table</div>}
         hasMore
         onLoadMore={handleLoadMore}
@@ -226,14 +226,14 @@ describe("BrowserPage", () => {
 
   it("does not render Load More when hasMore is false", () => {
     render(
-      <BrowserPage table={<div>table</div>} hasMore={false} />,
+      <ConsolePage table={<div>table</div>} hasMore={false} />,
     );
     expect(screen.queryByText("Load More")).not.toBeInTheDocument();
   });
 
   it("disables Load More button when loadingMore is true", () => {
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div>table</div>}
         hasMore
         onLoadMore={vi.fn()}
@@ -247,7 +247,7 @@ describe("BrowserPage", () => {
   it("calls onLoadMore when Load More is clicked", () => {
     const handleLoadMore = vi.fn();
     render(
-      <BrowserPage
+      <ConsolePage
         table={<div>table</div>}
         hasMore
         onLoadMore={handleLoadMore}
@@ -259,7 +259,7 @@ describe("BrowserPage", () => {
 
   it("does not render Load More when hasMore is true but onLoadMore is missing", () => {
     render(
-      <BrowserPage table={<div>table</div>} hasMore />,
+      <ConsolePage table={<div>table</div>} hasMore />,
     );
     expect(screen.queryByText("Load More")).not.toBeInTheDocument();
   });

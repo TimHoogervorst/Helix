@@ -1,7 +1,7 @@
 import type { EntityListItem } from "../types/lims";
-import type { ViewState } from "../types/browser";
+import type { ViewState } from "../types/console";
 import ReferenceBadge from "./ReferenceBadge";
-import BrowserDetailPanel from "./browser/BrowserDetailPanel";
+import ConsoleDetailPanel from "../console/core/ConsoleDetailPanel";
 import EntityDetailFields from "./EntityDetailFields";
 
 interface LimsDetailCardProps {
@@ -18,7 +18,7 @@ function LimsDetailCard({
   onCollapse,
 }: LimsDetailCardProps) {
   return (
-    <BrowserDetailPanel
+    <ConsoleDetailPanel
       viewState={viewState}
       onClose={onClose}
       expandUrl={`/lims/${entity.display_id}`}
@@ -41,7 +41,7 @@ function LimsDetailCard({
         </h2>
       </div>
       <EntityDetailFields entity={entity} />
-    </BrowserDetailPanel>
+    </ConsoleDetailPanel>
   );
 }
 

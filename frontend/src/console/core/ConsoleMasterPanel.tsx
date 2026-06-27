@@ -6,7 +6,7 @@ export interface MasterColumn {
   className?: string;
 }
 
-export interface BrowserMasterPanelProps {
+export interface ConsoleMasterPanelProps {
   columns: MasterColumn[];
   /** Number of columns (used for empty-state colspan). */
   colSpan: number;
@@ -30,7 +30,7 @@ export interface BrowserMasterPanelProps {
  * and a Load More button.  Row rendering is entirely controlled by the
  * `children` prop — each consumer renders its own <tbody> rows.
  */
-function BrowserMasterPanel({
+function ConsoleMasterPanel({
   columns,
   colSpan,
   children,
@@ -39,12 +39,12 @@ function BrowserMasterPanel({
   hasMore = false,
   onLoadMore,
   loadingMore = false,
-}: BrowserMasterPanelProps) {
+}: ConsoleMasterPanelProps) {
   const showLoadMore = hasMore && onLoadMore;
 
   return (
-    <div className="browser-master-table-container">
-      <table className="browser-master-table">
+    <div className="console-master-table-container">
+      <table className="console-master-table">
         <thead>
           <tr>
             {columns.map((col, i) => (
@@ -68,7 +68,7 @@ function BrowserMasterPanel({
       </table>
 
       {showLoadMore && (
-        <div className="browser-load-more">
+        <div className="console-load-more">
           <button onClick={onLoadMore} disabled={loadingMore}>
             {loadingMore ? "Loading…" : "Load More"}
           </button>
@@ -78,4 +78,4 @@ function BrowserMasterPanel({
   );
 }
 
-export default BrowserMasterPanel;
+export default ConsoleMasterPanel;

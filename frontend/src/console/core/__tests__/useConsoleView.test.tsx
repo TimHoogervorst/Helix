@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { BrowserProvider } from "../BrowserProvider";
-import { useBrowserView } from "../useBrowserView";
+import { ConsoleProvider } from "../ConsoleProvider";
+import { useConsoleView } from "../useConsoleView";
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  return <BrowserProvider>{children}</BrowserProvider>;
+  return <ConsoleProvider>{children}</ConsoleProvider>;
 }
 
-describe("useBrowserView", () => {
+describe("useConsoleView", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -17,14 +17,14 @@ describe("useBrowserView", () => {
   });
 
   it("starts in list state", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     expect(result.current.viewState).toBe("list");
     expect(result.current.isExiting).toBe(false);
     expect(result.current.isDetailExiting).toBe(false);
   });
 
   it("goToDetail transitions list → detail", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     act(() => {
       result.current.goToDetail();
     });
@@ -33,7 +33,7 @@ describe("useBrowserView", () => {
   });
 
   it("goToExpanded transitions detail → expanded", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     act(() => {
       result.current.goToDetail();
     });
@@ -44,7 +44,7 @@ describe("useBrowserView", () => {
   });
 
   it("collapseFromExpanded transitions expanded → detail with exit animation", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     // Go to expanded first
     act(() => {
       result.current.goToDetail();
@@ -70,7 +70,7 @@ describe("useBrowserView", () => {
   });
 
   it("closeAll from expanded returns to list with exit animation", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     act(() => {
       result.current.goToDetail();
     });
@@ -93,7 +93,7 @@ describe("useBrowserView", () => {
   });
 
   it("closeAll from detail returns to list with detail exit animation", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     act(() => {
       result.current.goToDetail();
     });
@@ -113,7 +113,7 @@ describe("useBrowserView", () => {
   });
 
   it("closeAll from list stays in list (no-op)", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     act(() => {
       result.current.closeAll();
     });
@@ -122,7 +122,7 @@ describe("useBrowserView", () => {
   });
 
   it("updateViewState sets state and clears exiting flags", () => {
-    const { result } = renderHook(() => useBrowserView(), { wrapper });
+    const { result } = renderHook(() => useConsoleView(), { wrapper });
     act(() => {
       result.current.updateViewState("detail");
     });

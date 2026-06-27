@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import BrowserDetailPanel from "../BrowserDetailPanel";
+import ConsoleDetailPanel from "../ConsoleDetailPanel";
 
 function renderPanel(overrides: Record<string, unknown> = {}) {
   const defaults = {
@@ -11,14 +11,14 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
   const props = { ...defaults, ...overrides };
   return render(
     <MemoryRouter>
-      <BrowserDetailPanel {...props}>
+      <ConsoleDetailPanel {...props}>
         <div data-testid="child">Content</div>
-      </BrowserDetailPanel>
+      </ConsoleDetailPanel>
     </MemoryRouter>,
   );
 }
 
-describe("BrowserDetailPanel", () => {
+describe("ConsoleDetailPanel", () => {
   it("renders children", () => {
     renderPanel();
     expect(screen.getByTestId("child")).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("BrowserDetailPanel", () => {
 
   it("applies is-exiting class when isExiting is true", () => {
     renderPanel({ isExiting: true });
-    const panel = document.querySelector(".browser-detail-panel");
+    const panel = document.querySelector(".console-detail-panel");
     expect(panel?.classList.contains("is-exiting")).toBe(true);
   });
 });

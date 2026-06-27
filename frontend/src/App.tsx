@@ -6,11 +6,11 @@ import LimsList from "./pages/LimsList";
 import EntityWorkspace from "./pages/EntityWorkspace";
 import LibraryView from "./pages/LibraryView";
 import Settings from "./pages/settings/SettingsPage";
-import { BrowserProvider } from "./components/browser/BrowserProvider";
+import { ConsoleProvider } from "./console/core/ConsoleProvider";
 
 function App() {
   return (
-    <BrowserProvider>
+    <ConsoleProvider>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/library" replace />} />
@@ -23,7 +23,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
-    </BrowserProvider>
+    </ConsoleProvider>
   );
 }
 

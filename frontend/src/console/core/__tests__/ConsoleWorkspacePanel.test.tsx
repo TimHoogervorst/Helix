@@ -1,34 +1,34 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import BrowserWorkspacePanel from "../BrowserWorkspacePanel";
+import ConsoleWorkspacePanel from "../ConsoleWorkspacePanel";
 
-describe("BrowserWorkspacePanel", () => {
+describe("ConsoleWorkspacePanel", () => {
   it("renders children", () => {
     render(
-      <BrowserWorkspacePanel>
+      <ConsoleWorkspacePanel>
         <div data-testid="child">Workspace content</div>
-      </BrowserWorkspacePanel>,
+      </ConsoleWorkspacePanel>,
     );
     expect(screen.getByTestId("child")).toBeInTheDocument();
   });
 
   it("applies is-exiting class when isExiting is true", () => {
     render(
-      <BrowserWorkspacePanel isExiting>
+      <ConsoleWorkspacePanel isExiting>
         <div>Content</div>
-      </BrowserWorkspacePanel>,
+      </ConsoleWorkspacePanel>,
     );
-    const panel = document.querySelector(".browser-workspace-panel");
+    const panel = document.querySelector(".console-workspace-panel");
     expect(panel?.classList.contains("is-exiting")).toBe(true);
   });
 
   it("does not apply is-exiting class by default", () => {
     render(
-      <BrowserWorkspacePanel>
+      <ConsoleWorkspacePanel>
         <div>Content</div>
-      </BrowserWorkspacePanel>,
+      </ConsoleWorkspacePanel>,
     );
-    const panel = document.querySelector(".browser-workspace-panel");
+    const panel = document.querySelector(".console-workspace-panel");
     expect(panel?.classList.contains("is-exiting")).toBe(false);
   });
 });

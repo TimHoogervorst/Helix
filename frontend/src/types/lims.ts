@@ -93,8 +93,8 @@ export interface GridRow {
 
 // ── LIMS Page View State ──────────────────────────────────────────────
 
-// Re-exported from shared browser types for backward compatibility.
-export type { ViewState } from "./browser";
+// Re-exported from shared console types for backward compatibility.
+export type { ViewState } from "./console";
 
 /** The full table data stored in the limsTable node attribute. */
 export interface GridTableData {

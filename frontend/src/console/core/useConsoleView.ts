@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
-import type { ViewState } from "../../types/browser";
-import { useBrowser } from "./BrowserProvider";
+import type { ViewState } from "../../types/console";
+import { useConsole } from "./ConsoleProvider";
 
-export interface BrowserViewState {
+export interface ConsoleViewState {
   /** Current view state. */
   viewState: ViewState;
   /** True while the Workspace panel plays its exit animation. */
@@ -17,24 +17,24 @@ export interface BrowserViewState {
   collapseFromExpanded: () => void;
   /** Return to list view, with appropriate exit animations. */
   closeAll: () => void;
-  /** Raw viewState setter that syncs to BrowserProvider context. */
+  /** Raw viewState setter that syncs to ConsoleProvider context. */
   updateViewState: (state: ViewState) => void;
 }
 
 /**
- * Shared View State machine hook for browser pages (LIMS, Library).
+ * Shared View State machine hook for console pages (LIMS, Library).
  *
- * Each browser page calls this once and wires the returned transition
+ * Each console page calls this once and wires the returned transition
  * functions to its row click handlers.  The hook syncs viewState to the
- * top-level BrowserProvider so Layout can hide the search bar in Expanded
+ * top-level ConsoleProvider so Layout can hide the search bar in Expanded
  * state.
  */
-export function useBrowserView(): BrowserViewState {
+export function useConsoleView(): ConsoleViewState {
   const [viewState, setViewState] = useState<ViewState>("list");
   const [isExiting, setIsExiting] = useState(false);
   const [isDetailExiting, setIsDetailExiting] = useState(false);
 
-  const { setViewState: setContextViewState } = useBrowser();
+  const { setViewState: setContextViewState } = useConsole();
 
   const updateViewState = useCallback(
     (state: ViewState) => {
@@ -45,7 +45,7 @@ export function useBrowserView(): BrowserViewState {
   );
 
   // Sync initial "list" state to context on mount so navigating between
-  // browser pages always resets the Layout nav bar.
+  // console pages always resets the Layout nav bar.
   useEffect(() => {
     setContextViewState("list");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

@@ -2,7 +2,7 @@ import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { get } from "../api/client";
 import type { EntityType } from "../types/lims";
-import { useBrowser } from "../components/browser/BrowserProvider";
+import { useConsole } from "../console/core/ConsoleProvider";
 import { ReferenceProvider } from "./ReferenceProvider";
 
 function Layout() {
@@ -11,7 +11,7 @@ function Layout() {
   const isLims = location.pathname.startsWith("/lims");
   const isLibrary = location.pathname.startsWith("/library");
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
-  const { viewState } = useBrowser();
+  const { viewState } = useConsole();
 
   // Fetch entity types for LIMS search type dropdown
   useEffect(() => {

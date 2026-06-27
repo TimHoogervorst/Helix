@@ -1,8 +1,8 @@
 import type { LibraryItem } from "../types/library";
 import ReferenceBadge from "./ReferenceBadge";
-import BrowserMasterPanel, {
+import ConsoleMasterPanel, {
   type MasterColumn,
-} from "./browser/BrowserMasterPanel";
+} from "../console/core/ConsoleMasterPanel";
 
 interface LibraryTableProps {
   items: LibraryItem[];
@@ -18,7 +18,7 @@ const COLUMNS: MasterColumn[] = [
   { label: "Type" },
   { label: "Created" },
   { label: "Folder" },
-  { className: "browser-master-row-expand-header", label: "" },
+  { className: "console-master-row-expand-header", label: "" },
 ];
 
 function formatDate(iso: string) {
@@ -33,7 +33,7 @@ function LibraryTable({
   onFolderNavigate,
 }: LibraryTableProps) {
   return (
-    <BrowserMasterPanel
+    <ConsoleMasterPanel
       columns={COLUMNS}
       colSpan={6}
       itemCount={items.length}
@@ -45,7 +45,7 @@ function LibraryTable({
         return (
           <tr
             key={`${item.type}-${item.id}`}
-            className={`browser-master-row${isSelected ? " is-selected" : ""}`}
+            className={`console-master-row${isSelected ? " is-selected" : ""}`}
             onClick={() => onRowClick(item)}
           >
             <td>
@@ -77,7 +77,7 @@ function LibraryTable({
             <td>
               {item.type === "folder" ? "—" : "ELN Entry"}
             </td>
-            <td className="browser-master-date">
+            <td className="console-master-date">
               {formatDate(item.created_at)}
             </td>
             <td>
@@ -88,7 +88,7 @@ function LibraryTable({
             <td style={{ width: 40, padding: "0.25rem" }}>
               {item.type === "entry" && (
                 <button
-                  className="browser-master-row-expand-btn"
+                  className="console-master-row-expand-btn"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRowExpand(item);
@@ -100,7 +100,7 @@ function LibraryTable({
               )}
               {item.type === "folder" && (
                 <button
-                  className="browser-master-row-expand-btn"
+                  className="console-master-row-expand-btn"
                   onClick={(e) => {
                     e.stopPropagation();
                     onFolderNavigate(item.name);
@@ -114,7 +114,7 @@ function LibraryTable({
           </tr>
         );
       })}
-    </BrowserMasterPanel>
+    </ConsoleMasterPanel>
   );
 }
 

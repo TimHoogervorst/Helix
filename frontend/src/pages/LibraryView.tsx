@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import type { LibraryItem, LibraryEntryItem } from "../types/library";
-import { useBrowserView } from "../components/browser/useBrowserView";
-import BrowserPage from "../components/browser/BrowserPage";
+import { useConsoleView } from "../console/core/useConsoleView";
+import ConsolePage from "../console/core/ConsolePage";
 import { getLibraryContents } from "../api/library";
 import LibraryBreadcrumbs from "../components/LibraryBreadcrumbs";
 import LibraryTable from "../components/LibraryTable";
@@ -32,7 +32,7 @@ function LibraryView() {
     collapseFromExpanded: collapseFromExpandedBase,
     closeAll: closeAllBase,
     updateViewState,
-  } = useBrowserView();
+  } = useConsoleView();
 
   const fetchItems = useCallback(
     async (page?: number) => {
@@ -152,7 +152,7 @@ function LibraryView() {
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <BrowserPage
+    <ConsolePage
       loading={loading && items.length === 0}
       error={error}
       collapsedTitle="Back to detail"

@@ -91,7 +91,13 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
         )
         invalidate_prefix_cache(sender=EntityType)
 
-        result = resolve_display_id("Blood" + str(entity.pk))
+        # Use the actual display_id (e.g. "BLOOD1") but with mixed-case
+        # prefix, to test case-insensitive prefix extraction.  We derive
+        # the numeric suffix from the real display_id so this works even
+        # when PK sequences have been consumed by prior tests (PostgreSQL
+        # does not reset sequences on transaction rollback).
+        numeric_suffix = entity.display_id[len(blood_type.prefix):]
+        result = resolve_display_id("Blood" + numeric_suffix)
         self.assertIsNotNone(result)
         instance, _ = result
         self.assertEqual(instance.pk, entity.pk)

@@ -39,3 +39,4 @@ Thumbs.db
 
 # MCP
 .playwright-mcp
+backend/test.db

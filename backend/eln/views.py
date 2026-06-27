@@ -2,11 +2,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from references.services import sync_mentions
-from lims.services import sync_entities
-
 from .models import NotebookEntry
 from .serializers import NotebookEntrySerializer, NotebookEntryCreateSerializer
+from .sync import sync_entry_content
 
 
 class NotebookEntryViewSet(viewsets.ModelViewSet):
@@ -37,24 +35,11 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None
         instance = serializer.save(author=author)
-        # Sync entities first (patches entityIds into content),
-        # then sync mentions (may find new reference nodes in table cells)
-        content = sync_entities(instance, instance.content)
-        sync_mentions(instance, content)
-        # Save updated content with patched entityIds
-        if content != instance.content:
-            instance.content = content
-            instance.save(update_fields=["content"])
+        sync_entry_content(instance)
 
     def perform_update(self, serializer):
         instance = serializer.save()
-        # Sync entities first, then mentions
-        content = sync_entities(instance, instance.content)
-        sync_mentions(instance, content)
-        # Save updated content with patched entityIds
-        if content != instance.content:
-            instance.content = content
-            instance.save(update_fields=["content"])
+        sync_entry_content(instance)
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)

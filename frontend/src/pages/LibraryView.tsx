@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import type { LibraryItem, LibraryEntryItem } from "../types/library";
 import { useBrowserView } from "../components/browser/useBrowserView";
+import BrowserPage from "../components/browser/BrowserPage";
 import { getLibraryContents } from "../api/library";
 import LibraryBreadcrumbs from "../components/LibraryBreadcrumbs";
 import LibraryTable from "../components/LibraryTable";
-import BrowserCollapsedStrip from "../components/browser/BrowserCollapsedStrip";
 import LibraryNewDropdown from "../components/LibraryNewDropdown";
 import LibraryDetailCard from "../components/LibraryDetailCard";
 import LibraryMoreDetailPanel from "../components/LibraryMoreDetailPanel";
@@ -149,75 +149,43 @@ function LibraryView() {
     }
   };
 
-  // ── Compute page-level CSS classes ─────────────────────────────────
-
-  const pageClass =
-    `page browser-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
-
-  const masterDetailClass =
-    `browser-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
-
-  const masterPanelClass =
-    `browser-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
-
   // ── Render ─────────────────────────────────────────────────────────
 
-  if (loading && items.length === 0) {
-    return (
-      <div className="page">
-        <p className="empty">Loading…</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={pageClass}>
-      {/* Header: Breadcrumbs + New dropdown */}
-      <div className="library-header">
-        <LibraryBreadcrumbs
-          path={currentPath}
-          onNavigate={navigateToPath}
-          onUp={navigateUp}
-        />
+    <BrowserPage
+      loading={loading && items.length === 0}
+      error={error}
+      collapsedTitle="Back to detail"
+      header={
+        <div className="library-header">
+          <LibraryBreadcrumbs
+            path={currentPath}
+            onNavigate={navigateToPath}
+            onUp={navigateUp}
+          />
 
-        <LibraryNewDropdown
-          currentPath={currentPath}
-          currentFolderId={currentFolderId}
-          onCreated={fetchItems}
-        />
-      </div>
-
-      {error && <div className="error">{error}</div>}
-
-      {/* Master–Detail Layout */}
-      <div className={masterDetailClass}>
-        {/* Left Panel: Table (or Collapsed Strip) */}
-        <div className={masterPanelClass}>
-          {viewState === "expanded" ? (
-            <BrowserCollapsedStrip onExpand={collapseFromExpanded} title="Back to detail" />
-          ) : (
-            <>
-              <LibraryTable
-                items={items}
-                selectedId={selectedItem?.id ?? null}
-                onRowClick={handleRowClick}
-                onRowExpand={handleRowExpand}
-                onFolderNavigate={navigateToFolder}
-              />
-
-              {nextUrl && (
-                <div className="browser-load-more">
-                  <button onClick={handleLoadMore} disabled={loading}>
-                    {loading ? "Loading…" : "Load More"}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+          <LibraryNewDropdown
+            currentPath={currentPath}
+            currentFolderId={currentFolderId}
+            onCreated={fetchItems}
+          />
         </div>
-
-        {/* Middle Panel: Detail Card */}
-        {selectedItem && (viewState === "detail" || viewState === "expanded") && (
+      }
+      table={
+        <LibraryTable
+          items={items}
+          selectedId={selectedItem?.id ?? null}
+          onRowClick={handleRowClick}
+          onRowExpand={handleRowExpand}
+          onFolderNavigate={navigateToFolder}
+        />
+      }
+      hasMore={!!nextUrl}
+      onLoadMore={handleLoadMore}
+      loadingMore={loading}
+      detail={
+        selectedItem &&
+        (viewState === "detail" || viewState === "expanded") ? (
           <LibraryDetailCard
             key={selectedItem.display_id}
             entry={selectedItem}
@@ -226,17 +194,17 @@ function LibraryView() {
             onCollapse={collapseFromExpanded}
             isDetailExiting={isDetailExiting}
           />
-        )}
-
-        {/* Right Panel: More-Detail (expanded only) */}
-        {selectedItem && viewState === "expanded" && (
+        ) : undefined
+      }
+      workspace={
+        selectedItem && viewState === "expanded" ? (
           <LibraryMoreDetailPanel
             entry={selectedItem}
             isExiting={isExiting}
           />
-        )}
-      </div>
-    </div>
+        ) : undefined
+      }
+    />
   );
 }
 

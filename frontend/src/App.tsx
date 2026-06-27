@@ -5,7 +5,7 @@ import ElnDetail from "./pages/ElnDetail";
 import LimsList from "./pages/LimsList";
 import EntityWorkspace from "./pages/EntityWorkspace";
 import LibraryView from "./pages/LibraryView";
-import Settings from "./pages/Settings";
+import Settings from "./pages/settings/SettingsPage";
 import { BrowserProvider } from "./components/browser/BrowserProvider";
 
 function App() {

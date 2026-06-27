@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { get } from "../api/client";
 import type { EntityListItem } from "../types/lims";
 import ReferenceBadge from "../components/ReferenceBadge";
+import EntityDetailFields from "../components/EntityDetailFields";
 import BrowserWorkspacePanel from "../components/browser/BrowserWorkspacePanel";
 
 /** Tab configuration — matches the tabs in LimsMoreDetailPanel. */
@@ -62,8 +63,6 @@ function EntityWorkspace() {
     };
   }, [displayId]);
 
-  const formatDate = (iso: string) => new Date(iso).toLocaleString();
-
   if (loading) {
     return (
       <div className="page">
@@ -114,31 +113,7 @@ function EntityWorkspace() {
             {entity.name}
           </h2>
         </div>
-        <div className="detail-body">
-          <div className="detail-field">
-            <span className="detail-label">Type</span>
-            <span>
-              {entity.entity_type_name} ({entity.entity_type_prefix})
-            </span>
-          </div>
-          <div className="detail-field">
-            <span className="detail-label">Created</span>
-            <span>{formatDate(entity.created_at)}</span>
-          </div>
-          <div className="detail-field">
-            <span className="detail-label">By</span>
-            <span>{entity.created_by_username || "—"}</span>
-          </div>
-          {entity.source_entry_display_id && (
-            <div className="detail-field">
-              <span className="detail-label">Source Entry</span>
-              <ReferenceBadge
-                displayId={entity.source_entry_display_id}
-                clickable
-              />
-            </div>
-          )}
-        </div>
+        <EntityDetailFields entity={entity} showProperties />
       </div>
 
       {/* Workspace panel with tabs */}

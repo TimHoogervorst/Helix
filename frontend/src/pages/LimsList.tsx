@@ -3,9 +3,9 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { get } from "../api/client";
 import type { EntityListItem, PaginatedResponse } from "../types/lims";
 import { useBrowserView } from "../components/browser/useBrowserView";
+import BrowserPage from "../components/browser/BrowserPage";
 import LimsDetailCard from "../components/LimsDetailCard";
 import LimsMoreDetailPanel from "../components/LimsMoreDetailPanel";
-import BrowserCollapsedStrip from "../components/browser/BrowserCollapsedStrip";
 import BrowserMasterPanel, {
   type MasterColumn,
 } from "../components/browser/BrowserMasterPanel";
@@ -104,13 +104,6 @@ function LimsList() {
     navigate(`/lims/${entity.display_id}`);
   };
 
-  // ── Collapsed strip → detail ───────────────────────────────────────
-
-  const handleStripExpand = () => {
-    // Same as collapseFromExpanded — go back to detail
-    collapseFromExpanded();
-  };
-
   const handleLoadMore = () => {
     if (nextUrl) fetchEntities(nextUrl);
   };
@@ -124,118 +117,93 @@ function LimsList() {
     { className: "browser-master-row-expand-header", label: "" },
   ];
 
-  // ── Compute page-level CSS classes ─────────────────────────────────
-
-  const pageClass =
-    `page browser-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
-
-  const masterDetailClass =
-    `browser-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
-
-  const masterPanelClass =
-    `browser-master-panel${viewState === "expanded" ? " is-collapsed" : ""}`;
-
   // ── Render ─────────────────────────────────────────────────────────
 
-  if (loading && entities.length === 0) {
-    return (
-      <div className="page">
-        <p className="empty">Loading…</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={pageClass}>
-      {error && <div className="error">{error}</div>}
-
-      {/* Master–Detail Layout */}
-      <div className={masterDetailClass}>
-        {/* Left Panel: Entity Table (or Collapsed Strip) */}
-        <div className={masterPanelClass}>
-          {viewState === "expanded" ? (
-            <BrowserCollapsedStrip onExpand={handleStripExpand} title="Expand entity list" />
-          ) : (
-            <BrowserMasterPanel
-              columns={LIMS_COLUMNS}
-              colSpan={6}
-              itemCount={entities.length}
-              emptyMessage="No entities found."
-              hasMore={!!nextUrl}
-              onLoadMore={handleLoadMore}
-              loadingMore={loading}
+    <BrowserPage
+      loading={loading && entities.length === 0}
+      error={error}
+      collapsedTitle="Expand entity list"
+      table={
+        <BrowserMasterPanel
+          columns={LIMS_COLUMNS}
+          colSpan={6}
+          itemCount={entities.length}
+          emptyMessage="No entities found."
+          hasMore={!!nextUrl}
+          onLoadMore={handleLoadMore}
+          loadingMore={loading}
+        >
+          {entities.map((entity) => (
+            <tr
+              key={entity.display_id}
+              className={`browser-master-row${selectedId === entity.display_id ? " is-selected" : ""}`}
+              onClick={() => handleRowClick(entity)}
             >
-              {entities.map((entity) => (
-                <tr
-                  key={entity.display_id}
-                  className={`browser-master-row${selectedId === entity.display_id ? " is-selected" : ""}`}
-                  onClick={() => handleRowClick(entity)}
+              <td>
+                <ReferenceBadge
+                  displayId={entity.display_id}
+                  clickable={false}
+                  resolved={{
+                    displayId: entity.display_id,
+                    title: entity.name,
+                    type: "entity",
+                    id: entity.id,
+                    icon: entity.entity_type_icon || "🧪",
+                  }}
+                />
+              </td>
+              <td>{entity.name}</td>
+              <td>{entity.entity_type_name}</td>
+              <td className="browser-master-date">
+                {new Date(entity.created_at).toLocaleString()}
+              </td>
+              <td>
+                {entity.source_entry_display_id ? (
+                  <ReferenceBadge
+                    displayId={entity.source_entry_display_id}
+                    clickable
+                  />
+                ) : (
+                  <span className="lims-no-source">—</span>
+                )}
+              </td>
+              <td style={{ width: 40, padding: "0.25rem" }}>
+                <button
+                  className="browser-master-row-expand-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRowExpand(entity);
+                  }}
+                  title="Expand to full detail"
                 >
-                  <td>
-                    <ReferenceBadge
-                      displayId={entity.display_id}
-                      clickable={false}
-                      resolved={{
-                        displayId: entity.display_id,
-                        title: entity.name,
-                        type: "entity",
-                        id: entity.id,
-                        icon: entity.entity_type_icon || "🧪",
-                      }}
-                    />
-                  </td>
-                  <td>{entity.name}</td>
-                  <td>{entity.entity_type_name}</td>
-                  <td className="browser-master-date">
-                    {new Date(entity.created_at).toLocaleString()}
-                  </td>
-                  <td>
-                    {entity.source_entry_display_id ? (
-                      <ReferenceBadge
-                        displayId={entity.source_entry_display_id}
-                        clickable
-                      />
-                    ) : (
-                      <span className="lims-no-source">—</span>
-                    )}
-                  </td>
-                  <td style={{ width: 40, padding: "0.25rem" }}>
-                    <button
-                      className="browser-master-row-expand-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRowExpand(entity);
-                      }}
-                      title="Expand to full detail"
-                    >
-                      &gt;
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </BrowserMasterPanel>
-          )}
-        </div>
-
-        {/* Middle Panel: Detail Card (summary) */}
-        {selectedEntity && (viewState === "detail" || viewState === "expanded") && (
+                  &gt;
+                </button>
+              </td>
+            </tr>
+          ))}
+        </BrowserMasterPanel>
+      }
+      detail={
+        selectedEntity &&
+        (viewState === "detail" || viewState === "expanded") ? (
           <LimsDetailCard
             entity={selectedEntity}
             viewState={viewState}
             onClose={goToList}
             onCollapse={collapseFromExpanded}
           />
-        )}
-
-        {/* Right Panel: More-Detail (expanded only) */}
-        {selectedEntity && viewState === "expanded" && (
+        ) : undefined
+      }
+      workspace={
+        selectedEntity && viewState === "expanded" ? (
           <LimsMoreDetailPanel
             entity={selectedEntity}
             isExiting={isExiting}
           />
-        )}
-      </div>
-    </div>
+        ) : undefined
+      }
+    />
   );
 }
 

@@ -6,51 +6,26 @@ attribute model (attrs.columns + attrs.rows), diffs against existing
 Entity rows for the owning entry, creates/updates/deletes entities,
 and patches the entity display IDs back into attrs.rows.
 """
+from core.walker import walk_tiptap_tree
+
 from .models import EntityType, Entity
 
 
 def _walk_lims_tables(node, handler):
     """
     Walk a TipTap JSON tree. Call ``handler(lims_table_node)`` for each
-    ``limsTable`` node found. Returns a modified copy of the tree (or the
-    same tree if handler returns None).
+    ``limsTable`` node found.
+
+    Thin wrapper around ``core.walker.walk_tiptap_tree`` — the handler is
+    only invoked for nodes whose ``type`` is ``"limsTable"``.
     """
-    if not isinstance(node, dict):
-        return node
 
-    if node.get("type") == "limsTable":
-        return handler(node)
+    def lims_handler(n):
+        if n.get("type") == "limsTable":
+            return handler(n)
+        return None
 
-    # Recurse into content arrays and nested objects
-    modified = False
-    new_node = dict(node)
-    for key, value in node.items():
-        if key == "content" and isinstance(value, list):
-            new_children = []
-            for child in value:
-                new_child = _walk_lims_tables(child, handler)
-                if new_child is not child:
-                    modified = True
-                new_children.append(new_child)
-            new_node[key] = new_children
-        elif isinstance(value, dict):
-            new_val = _walk_lims_tables(value, handler)
-            if new_val is not value:
-                modified = True
-            new_node[key] = new_val
-        elif isinstance(value, list):
-            new_list = []
-            for item in value:
-                if isinstance(item, dict):
-                    new_item = _walk_lims_tables(item, handler)
-                    if new_item is not item:
-                        modified = True
-                    new_list.append(new_item)
-                else:
-                    new_list.append(item)
-            new_node[key] = new_list
-
-    return new_node
+    return walk_tiptap_tree(node, lims_handler)
 
 
 def sync_entities(entry, tiptap_json):
@@ -179,7 +154,7 @@ def sync_entities(entry, tiptap_json):
     # ── Pass 3: patch entityId / displayId back into the rows ───────────
     # Use encounter-order counters per schema to match tables between
     # the collect walk and the patch walk (node identity differs because
-    # _walk_lims_tables builds new dicts).
+    # walk_tiptap_tree builds new dicts when handlers transform nodes).
     patch_counters = {sid: 0 for sid in tables_by_schema}
 
     def patch_lims_tables(node):

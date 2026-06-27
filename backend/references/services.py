@@ -6,6 +6,8 @@ Entity prefixes are loaded dynamically from the LIMS EntityType table.
 """
 from django.contrib.contenttypes.models import ContentType
 
+from core.walker import walk_tiptap_tree
+
 from eln.models import NotebookEntry
 
 
@@ -111,7 +113,10 @@ def _get_icon(instance, model_type: str) -> str:
 
 def walk_reference_nodes(node):
     """
-    Recursively yield all ``displayId`` values from reference nodes in a TipTap JSON tree.
+    Return all ``displayId`` values from reference nodes in a TipTap JSON tree.
+
+    Delegates traversal to ``core.walker.walk_tiptap_tree``; the domain
+    logic (which ProseMirror node types carry reference data) stays here.
 
     Handles two formats:
 
@@ -122,42 +127,37 @@ def walk_reference_nodes(node):
        {values: {colName: "BLOOD1"}}]}}`` where Reference-type column values
        are stored as plain display_id strings.
     """
-    if not isinstance(node, dict):
-        return
+    found_ids = []
 
-    if node.get("type") == "reference":
-        attrs = node.get("attrs", {})
-        display_id = attrs.get("displayId")
-        if display_id:
-            yield display_id
-        return  # reference nodes are atomic — no children to recurse into
+    def discover(n):
+        if n.get("type") == "reference":
+            display_id = n.get("attrs", {}).get("displayId")
+            if display_id:
+                found_ids.append(display_id)
+            return None
 
-    # For limsTable v2 nodes: scan attrs.rows[].values for Reference-type columns
-    if node.get("type") == "limsTable":
-        attrs = node.get("attrs", {})
-        columns = attrs.get("columns", [])
-        ref_col_names = {
-            c["name"] for c in columns
-            if isinstance(c, dict) and c.get("type") == "Reference"
-        }
-        if ref_col_names:
-            rows = attrs.get("rows", [])
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                values = row.get("values", {})
-                for col_name in ref_col_names:
-                    val = values.get(col_name)
-                    if isinstance(val, str) and val.strip():
-                        yield val
+        if n.get("type") == "limsTable":
+            attrs = n.get("attrs", {})
+            columns = attrs.get("columns", [])
+            ref_col_names = {
+                c["name"] for c in columns
+                if isinstance(c, dict) and c.get("type") == "Reference"
+            }
+            if ref_col_names:
+                for row in attrs.get("rows", []):
+                    if not isinstance(row, dict):
+                        continue
+                    values = row.get("values", {})
+                    for col_name in ref_col_names:
+                        val = values.get(col_name)
+                        if isinstance(val, str) and val.strip():
+                            found_ids.append(val)
+            return None
 
-    # Recurse into content arrays, attrs, and nested objects
-    for key, value in node.items():
-        if isinstance(value, list):
-            for item in value:
-                yield from walk_reference_nodes(item)
-        elif isinstance(value, dict):
-            yield from walk_reference_nodes(value)
+        return None
+
+    walk_tiptap_tree(node, discover)
+    return found_ids
 
 
 def sync_mentions(source, tiptap_json):

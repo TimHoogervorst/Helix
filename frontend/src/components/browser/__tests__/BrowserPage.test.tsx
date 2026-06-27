@@ -1,0 +1,266 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import type { ViewState } from "../../../types/browser";
+import type { BrowserViewState } from "../useBrowserView";
+
+// ── Mock useBrowserView ──────────────────────────────────────────────
+let mockViewState: ViewState = "list";
+let mockCollapseFromExpanded = vi.fn();
+
+vi.mock("../useBrowserView", () => ({
+  useBrowserView: (): BrowserViewState => ({
+    viewState: mockViewState,
+    isExiting: false,
+    isDetailExiting: false,
+    goToDetail: vi.fn(),
+    goToExpanded: vi.fn(),
+    collapseFromExpanded: mockCollapseFromExpanded,
+    closeAll: vi.fn(),
+    updateViewState: vi.fn(),
+  }),
+}));
+
+// ── Mock useBrowser (context) — BrowserPage reads viewState from here ─
+vi.mock("../BrowserProvider", () => ({
+  useBrowser: () => ({
+    viewState: mockViewState,
+    setViewState: vi.fn(),
+  }),
+}));
+
+import BrowserPage from "../BrowserPage";
+
+beforeEach(() => {
+  mockViewState = "list";
+  mockCollapseFromExpanded = vi.fn();
+});
+
+describe("BrowserPage", () => {
+  // ── Loading state ──────────────────────────────────────────────────
+  it("renders loading placeholder when loading is true", () => {
+    render(
+      <BrowserPage loading table={<div>table</div>} />,
+    );
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.queryByText("table")).not.toBeInTheDocument();
+  });
+
+  it("renders content instead of loading when loading is false", () => {
+    render(
+      <BrowserPage table={<div>table content</div>} />,
+    );
+    expect(screen.getByText("table content")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
+  // ── Header slot ────────────────────────────────────────────────────
+  it("renders header slot when provided", () => {
+    render(
+      <BrowserPage
+        header={<div data-testid="header">breadcrumbs here</div>}
+        table={<div>table</div>}
+      />,
+    );
+    expect(screen.getByTestId("header")).toBeInTheDocument();
+    expect(screen.getByText("breadcrumbs here")).toBeInTheDocument();
+  });
+
+  it("does not render header when omitted", () => {
+    render(<BrowserPage table={<div>table</div>} />);
+    expect(screen.queryByTestId("header-area")).not.toBeInTheDocument();
+  });
+
+  // ── Error ──────────────────────────────────────────────────────────
+  it("renders error message when provided", () => {
+    render(
+      <BrowserPage
+        error="Something went wrong"
+        table={<div>table</div>}
+      />,
+    );
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  });
+
+  it("does not render error when null", () => {
+    render(<BrowserPage table={<div>table</div>} error={null} />);
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
+  });
+
+  // ── Table slot ─────────────────────────────────────────────────────
+  it("renders table slot in list view state", () => {
+    mockViewState = "list";
+    render(
+      <BrowserPage table={<div data-testid="table-area">rows here</div>} />,
+    );
+    expect(screen.getByTestId("table-area")).toBeInTheDocument();
+  });
+
+  it("renders table slot in detail view state", () => {
+    mockViewState = "detail";
+    render(
+      <BrowserPage table={<div data-testid="table-area">rows here</div>} />,
+    );
+    expect(screen.getByTestId("table-area")).toBeInTheDocument();
+  });
+
+  // ── Detail slot ────────────────────────────────────────────────────
+  it("renders detail slot when provided", () => {
+    render(
+      <BrowserPage
+        table={<div>table</div>}
+        detail={<div data-testid="detail-area">detail card</div>}
+      />,
+    );
+    expect(screen.getByTestId("detail-area")).toBeInTheDocument();
+  });
+
+  it("does not render detail slot when omitted", () => {
+    render(<BrowserPage table={<div>table</div>} />);
+    // Verify there's no stray detail area
+    expect(screen.queryByTestId("detail-area")).not.toBeInTheDocument();
+  });
+
+  // ── Workspace slot ─────────────────────────────────────────────────
+  it("renders workspace slot when provided", () => {
+    render(
+      <BrowserPage
+        table={<div>table</div>}
+        workspace={<div data-testid="workspace-area">tabs here</div>}
+      />,
+    );
+    expect(screen.getByTestId("workspace-area")).toBeInTheDocument();
+  });
+
+  it("does not render workspace slot when omitted", () => {
+    render(<BrowserPage table={<div>table</div>} />);
+    expect(screen.queryByTestId("workspace-area")).not.toBeInTheDocument();
+  });
+
+  // ── Collapsed strip (expanded state) ───────────────────────────────
+  it("renders collapsed strip instead of table in expanded state", () => {
+    mockViewState = "expanded";
+    render(
+      <BrowserPage
+        table={<div data-testid="table-area">table</div>}
+        collapsedTitle="Back to detail"
+      />,
+    );
+    // Table should be hidden
+    expect(screen.queryByTestId("table-area")).not.toBeInTheDocument();
+    // Collapsed strip expand button should be present
+    const expandBtn = screen.getByTitle("Back to detail");
+    expect(expandBtn).toBeInTheDocument();
+  });
+
+  it("calls collapseFromExpanded when collapsed strip is clicked", () => {
+    mockViewState = "expanded";
+    render(
+      <BrowserPage
+        table={<div>table</div>}
+        collapsedTitle="Back to detail"
+      />,
+    );
+    const expandBtn = screen.getByTitle("Back to detail");
+    fireEvent.click(expandBtn);
+    expect(mockCollapseFromExpanded).toHaveBeenCalledOnce();
+  });
+
+  // ── CSS classes ────────────────────────────────────────────────────
+  it("applies page-level browser-page class", () => {
+    const { container } = render(
+      <BrowserPage table={<div>table</div>} />,
+    );
+    // The outer-most div with `browser-page` class
+    expect(container.querySelector(".browser-page")).toBeInTheDocument();
+  });
+
+  it("adds has-detail and is-expanded classes in expanded state", () => {
+    mockViewState = "expanded";
+    const { container } = render(
+      <BrowserPage table={<div>table</div>} />,
+    );
+    const page = container.querySelector(".browser-page");
+    expect(page).toBeInTheDocument();
+    expect(page!.classList.contains("has-detail")).toBe(true);
+    expect(page!.classList.contains("is-expanded")).toBe(true);
+    expect(
+      container.querySelector(".browser-master-detail.is-expanded"),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(".browser-master-panel.is-collapsed"),
+    ).toBeInTheDocument();
+  });
+
+  it("adds has-detail but not is-expanded in detail state", () => {
+    mockViewState = "detail";
+    const { container } = render(
+      <BrowserPage table={<div>table</div>} />,
+    );
+    const page = container.querySelector(".browser-page");
+    expect(page!.classList.contains("has-detail")).toBe(true);
+    expect(page!.classList.contains("is-expanded")).toBe(false);
+  });
+
+  it("has neither has-detail nor is-expanded in list state", () => {
+    mockViewState = "list";
+    const { container } = render(
+      <BrowserPage table={<div>table</div>} />,
+    );
+    const page = container.querySelector(".browser-page");
+    expect(page!.classList.contains("has-detail")).toBe(false);
+    expect(page!.classList.contains("is-expanded")).toBe(false);
+  });
+
+  // ── Load More ─────────────────────────────────────────────────────
+  it("renders Load More button when hasMore is true", () => {
+    const handleLoadMore = vi.fn();
+    render(
+      <BrowserPage
+        table={<div>table</div>}
+        hasMore
+        onLoadMore={handleLoadMore}
+      />,
+    );
+    expect(screen.getByText("Load More")).toBeInTheDocument();
+  });
+
+  it("does not render Load More when hasMore is false", () => {
+    render(
+      <BrowserPage table={<div>table</div>} hasMore={false} />,
+    );
+    expect(screen.queryByText("Load More")).not.toBeInTheDocument();
+  });
+
+  it("disables Load More button when loadingMore is true", () => {
+    render(
+      <BrowserPage
+        table={<div>table</div>}
+        hasMore
+        onLoadMore={vi.fn()}
+        loadingMore
+      />,
+    );
+    const btn = screen.getByText("Loading…");
+    expect(btn).toBeDisabled();
+  });
+
+  it("calls onLoadMore when Load More is clicked", () => {
+    const handleLoadMore = vi.fn();
+    render(
+      <BrowserPage
+        table={<div>table</div>}
+        hasMore
+        onLoadMore={handleLoadMore}
+      />,
+    );
+    fireEvent.click(screen.getByText("Load More"));
+    expect(handleLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it("does not render Load More when hasMore is true but onLoadMore is missing", () => {
+    render(
+      <BrowserPage table={<div>table</div>} hasMore />,
+    );
+    expect(screen.queryByText("Load More")).not.toBeInTheDocument();
+  });
+});

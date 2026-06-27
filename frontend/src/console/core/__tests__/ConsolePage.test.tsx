@@ -65,9 +65,24 @@ describe("ConsolePage", () => {
     expect(screen.getByText("breadcrumbs here")).toBeInTheDocument();
   });
 
-  it("does not render header when omitted", () => {
+  it("wraps header content inside console-page-header container", () => {
+    render(
+      <ConsolePage
+        header={<div data-testid="header">breadcrumbs here</div>}
+        table={<div>table</div>}
+      />,
+    );
+    const container = document.querySelector(".console-page-header");
+    expect(container).toBeInTheDocument();
+    expect(container?.children.length).toBe(1);
+    expect(container?.children[0]).toBe(screen.getByTestId("header"));
+  });
+
+  it("renders empty header container when header is omitted", () => {
     render(<ConsolePage table={<div>table</div>} />);
-    expect(screen.queryByTestId("header-area")).not.toBeInTheDocument();
+    const headerContainer = document.querySelector(".console-page-header");
+    expect(headerContainer).toBeInTheDocument();
+    expect(headerContainer?.children.length).toBe(0);
   });
 
   // ── Error ──────────────────────────────────────────────────────────

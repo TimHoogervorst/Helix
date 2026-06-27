@@ -153,7 +153,7 @@ nav a:hover {
 .page {
   max-width: 960px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: 0.75rem 1.5rem;
 }
 
 /* Headings */
@@ -2174,13 +2174,19 @@ input.lims-table-title-input:focus {
   padding-right: 1.5rem;
 }
 
+/* ── Console Page Header ── */
+
+.console-page-header {
+  min-height: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
 /* ── Library Header (breadcrumbs + search + new) ── */
 
 .library-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
@@ -2189,27 +2195,30 @@ input.lims-table-title-input:focus {
 .library-breadcrumbs {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
-  font-size: 0.8rem;
+  gap: 0.1rem;
+  font-size: 0.75rem;
   color: var(--gray-500);
   flex-wrap: wrap;
   margin-right: auto;
+  line-height: 1.2;
+  /* Override global nav styles — breadcrumbs should be plain text, not a white box */
+  background: none;
+  padding: 0;
+  border-bottom: none;
+  justify-content: normal;
+  position: static;
 }
 
 .library-breadcrumb-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
+  display: inline;
   padding: 0;
   background: none;
   border: none;
   color: var(--gray-400);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   cursor: pointer;
-  margin-right: 0.15rem;
   transition: color 0.15s;
+  line-height: 1;
 }
 
 .library-breadcrumb-btn:hover:not(:disabled) {
@@ -2250,7 +2259,7 @@ input.lims-table-title-input:focus {
 .library-breadcrumb-seg-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.1rem;
 }
 
 /* ── Library Search Bar ── */
@@ -2324,10 +2333,10 @@ input.library-search-input:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1;
   background: var(--blue-600);

@@ -220,7 +220,7 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
 
   const handleCancel = useCallback(() => {
     if (isNew) {
-      navigate("/eln");
+      navigate("/library");
       return;
     }
     setTitle(initialTitle);
@@ -274,7 +274,7 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
     setError(null);
     try {
       await del(`/eln/entries/${entryId}/`);
-      navigate("/eln");
+      navigate("/library");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
       setDeleting(false);
@@ -298,7 +298,7 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
     return (
       <div>
         <div className="error">{error}</div>
-        <button onClick={() => navigate("/eln")}>← Back to entries</button>
+        <button onClick={() => navigate("/library")}>← Back to entries</button>
       </div>
     );
   }

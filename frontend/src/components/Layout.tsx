@@ -59,10 +59,9 @@ function Layout() {
     <ReferenceProvider>
       <nav>
         <div className="nav-left">
-          <Link to="/eln">OpenScience</Link>
-          <Link to="/eln">Notebook</Link>
-          <Link to="/lims">LIMS</Link>
+          <Link to="/library">OpenScience</Link>
           <Link to="/library">Library</Link>
+          <Link to="/lims">LIMS</Link>
         </div>
 
         {isLims && !isLibrary && viewState !== "expanded" && (

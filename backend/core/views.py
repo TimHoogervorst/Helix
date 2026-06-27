@@ -12,12 +12,15 @@ def csrf_token_view(request):
     return JsonResponse({"detail": "CSRF cookie set"})
 
 
-class FolderViewSet(viewsets.ReadOnlyModelViewSet):
+class FolderViewSet(viewsets.ModelViewSet):
     """
     API endpoint for folders.
 
-    list: GET /api/core/folders/ — list root folders (parent is null)
-    retrieve: GET /api/core/folders/{id}/ — get folder with children
+    list:     GET    /api/core/folders/      — list root folders (parent is null)
+    retrieve: GET    /api/core/folders/{id}/  — get folder with children
+    create:   POST   /api/core/folders/       — create a folder
+    update:   PUT    /api/core/folders/{id}/  — update a folder
+    destroy:  DELETE /api/core/folders/{id}/  — delete a folder
     """
 
     queryset = Folder.objects.filter(parent__isnull=True)

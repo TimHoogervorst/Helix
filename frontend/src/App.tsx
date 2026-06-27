@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
-import ElnList from "./pages/ElnList";
 import ElnNew from "./pages/ElnNew";
 import ElnDetail from "./pages/ElnDetail";
 import LimsList from "./pages/LimsList";
@@ -15,8 +14,8 @@ function App() {
       <LibraryViewProvider>
         <Routes>
           <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/eln" replace />} />
-            <Route path="/eln" element={<ElnList />} />
+            <Route path="/" element={<Navigate to="/library" replace />} />
+            <Route path="/eln" element={<Navigate to="/library" replace />} />
             <Route path="/eln/new" element={<ElnNew />} />
             <Route path="/eln/:id" element={<ElnDetail />} />
             <Route path="/lims" element={<LimsList />} />

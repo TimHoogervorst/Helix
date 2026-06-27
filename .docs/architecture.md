@@ -34,6 +34,7 @@ Open-source ELN/LIMS for research-focused labs. Goal: flexibility + extensibilit
 | 18 | Simple token auth (DRF TokenAuthentication) | Per-user auth tokens. Not JWT, not sessions. MCP tokens and API tokens deferred. Just hashed/salted passwords + token for the demo. | 2026-06-24 |
 | 19 | Demo goal: functional prototype (A) | Fewer features, fully working, solid architecture. Something that can be expanded, not a lazy combined system. | 2026-06-24 |
 | 20 | Library as unified filesystem-like browser | Mixed table of folders + entries with breadcrumb navigation. Reuses LIMS three-step fold pattern (list → detail card → expanded editor). Single API endpoint returns mixed content sorted folders-first. See [ADR-0003](../docs/adr/0003-library-filesystem-browsing.md). | 2026-06-26 |
+| 21 | Unified Browser Pattern — shared components + backend base | Extracted shared `browser/` components (Master/Detail/Workspace panels, View State machine) from duplicated LIMS and Library code. Added `BrowsableItem` abstract Django model for shared display ID generation. Canonicalized terminology: Master/Detail/Workspace panels, List/Detail/Expanded states, Item types. See [ADR-0004](../docs/adr/0004-unified-browser-pattern.md) and [PRD-10](prd-10-unified-browser-pattern.md). | 2026-06-27 |
 
 ---
 

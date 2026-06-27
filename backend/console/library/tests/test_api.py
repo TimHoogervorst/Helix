@@ -3,20 +3,15 @@ Tests for the Library API endpoints.
 
 All tests exercise the API through HTTP calls using DRF's APIClient.
 """
-from django.test import TestCase
-from rest_framework.test import APIClient
-
-from core.models import Folder, User
+from core.models import Folder
+from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
 from workspaces.eln.models import NotebookEntry
 
 
-class LibraryApiTests(TestCase):
+class LibraryApiTests(BaseTestCase):
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(
-            username="testuser", password="testpass123"
-        )
+        super().setUp()
 
         # Create folder structure:
         #   root/

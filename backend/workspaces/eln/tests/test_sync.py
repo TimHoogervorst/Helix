@@ -7,20 +7,17 @@ because sync_entities and sync_mentions both require the database.
 """
 from unittest.mock import patch
 
-from django.test import TestCase
-
-from core.models import Folder, User
+from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_lims_table_doc, make_doc_with_ref
 from workspaces.eln.models import NotebookEntry, Mention
 from workspaces.lims.models import EntityType, Entity
 
 
-class SyncEntryContentTests(TestCase):
+class SyncEntryContentTests(BaseServiceTestCase):
     """Tests for sync_entry_content pipeline."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
         self.entry = NotebookEntry.objects.create(
             title="Test Entry", content=EMPTY_DOC,
             folder=self.folder, author=self.user,

@@ -3,10 +3,7 @@ Tests for the ELN API endpoints.
 
 All tests exercise the API through HTTP calls using DRF's APIClient.
 """
-from django.test import TestCase
-from rest_framework.test import APIClient
-
-from core.models import Folder, User
+from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from workspaces.eln.models import NotebookEntry, Mention
 
@@ -21,11 +18,9 @@ TEXT_DOC = {
 }
 
 
-class ElnApiTests(TestCase):
+class ElnApiTests(BaseTestCase):
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
     def test_list_entries_empty(self):
         """GET /api/eln/entries/ returns empty list with 200."""
@@ -115,13 +110,11 @@ class ElnApiTests(TestCase):
         self.assertIsNotNone(response.data["next"])
 
 
-class MentionSyncOnSaveTests(TestCase):
+class MentionSyncOnSaveTests(BaseTestCase):
     """Integration: creating/updating entries triggers mention sync."""
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
         # Create a target entry that will be referenced.
         self.target = NotebookEntry.objects.create(

@@ -6,17 +6,16 @@ Tracer bullet: Entity auto-generates display_id from its EntityType prefix.
 from django.test import TestCase
 from django.db.utils import IntegrityError
 
-from core.models import Folder, User
+from core.tests.base import BaseServiceTestCase
 from workspaces.eln.models import NotebookEntry
 from workspaces.lims.models import EntityType, Entity
 
 
-class EntityDisplayIdTests(TestCase):
+class EntityDisplayIdTests(BaseServiceTestCase):
     """Entity.save() auto-generates display_id = {prefix}{number}."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
     def test_entity_auto_generates_display_id_on_create(self):
         """Creating an entity with a prefixed EntityType generates display_id."""
@@ -101,12 +100,11 @@ class EntityTypeSchemaTests(TestCase):
             EntityType.objects.create(name="DNA V2", prefix="DNA", columns=[])
 
 
-class EntitySourceEntryTests(TestCase):
+class EntitySourceEntryTests(BaseServiceTestCase):
     """Entity.source_entry links to the owning NotebookEntry."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
     def test_entity_can_have_source_entry(self):
         """Entity.source_entry FK points to the ELN entry that owns it."""

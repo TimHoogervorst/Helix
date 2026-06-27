@@ -4,15 +4,13 @@ Tests for the LIMS API endpoints.
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import Folder, User
+from core.tests.base import BaseTestCase
 from workspaces.lims.models import EntityType, Entity
 
 
-class LimsApiTests(TestCase):
+class LimsApiTests(BaseTestCase):
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
         EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
         EntityType.objects.create(name="Chemical", prefix="CHEM", columns=[])
 
@@ -175,13 +173,11 @@ class EntityTypeColumnValidationTests(TestCase):
 
 # ── Slice 2: Entity API ──
 
-class EntityApiTests(TestCase):
+class EntityApiTests(BaseTestCase):
     """Entity listing, detail (by display_id), and batch resolve."""
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
         self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[
             {"name": "concentration", "type": "Number"},
         ])

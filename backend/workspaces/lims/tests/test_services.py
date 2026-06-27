@@ -3,18 +3,17 @@ Tests for the LIMS services: sync_entities, walk_lims_tables.
 """
 from django.test import TestCase
 
-from core.models import Folder, User
+from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_lims_table_doc
 from workspaces.eln.models import NotebookEntry
 from workspaces.lims.models import EntityType, Entity
 
 
-class SyncEntitiesTests(TestCase):
+class SyncEntitiesTests(BaseServiceTestCase):
     """Tracer-bullet + incremental tests for sync_entities()."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
         self.entry = NotebookEntry.objects.create(
             title="Entry With Table", content=EMPTY_DOC,
             folder=self.folder, author=self.user,

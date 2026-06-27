@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ColumnEditor from "../ColumnEditor";
-import type { ColumnDef } from "../../../types/lims";
+import { makeColumnDef } from "../../../test/factories";
 
-const columns: ColumnDef[] = [
-  { name: "volume", type: "Number", required: true },
-  { name: "notes", type: "Text", required: false },
+const columns = [
+  makeColumnDef({ required: true }),
+  makeColumnDef({ name: "notes", type: "Text", required: false }),
 ];
 
 describe("ColumnEditor", () => {

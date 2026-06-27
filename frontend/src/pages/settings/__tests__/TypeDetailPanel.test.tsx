@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TypeDetailPanel from "../TypeDetailPanel";
 import type { EntityType } from "../../../types/lims";
+import { makeEntityType, makeColumnDef } from "../../../test/factories";
 
 // Mock ReferenceBadge
 vi.mock("../../../components/ReferenceBadge", () => ({
@@ -10,17 +11,12 @@ vi.mock("../../../components/ReferenceBadge", () => ({
   ),
 }));
 
-const liveEntity: EntityType = {
-  id: 1,
-  name: "Blood Sample",
-  prefix: "BLOOD",
-  icon: "🩸",
-  is_active: true,
+const liveEntity: EntityType = makeEntityType({
   columns: [
-    { name: "volume", type: "Number", required: true },
-    { name: "hemolyzed", type: "Boolean" },
+    makeColumnDef({ required: true }),
+    makeColumnDef({ name: "hemolyzed", type: "Boolean" }),
   ],
-};
+});
 
 const editingEntity: EntityType = {
   ...liveEntity,

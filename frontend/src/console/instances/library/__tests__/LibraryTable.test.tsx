@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LibraryTable from "../LibraryTable";
-import type { LibraryItem } from "../../../../types/library";
+import { makeLibraryFolder, makeLibraryEntry } from "../../../../test/factories";
 
 // ReferenceBadge renders inside the table; we mock it to keep the test isolated
 vi.mock("../../../../components/ReferenceBadge", () => ({
@@ -18,49 +18,30 @@ vi.mock("../../../../components/ReferenceBadge", () => ({
   ),
 }));
 
-const mockFolders: LibraryItem[] = [
-  {
-    type: "folder",
-    id: 1,
-    name: "Experiments",
-    parent: null,
-    created_at: "2025-01-01T00:00:00Z",
-  },
-  {
-    type: "folder",
-    id: 2,
-    name: "Protocols",
-    parent: null,
-    created_at: "2025-01-02T00:00:00Z",
-  },
+const mockFolders = [
+  makeLibraryFolder({ id: 1 }),
+  makeLibraryFolder({ id: 2, name: "Protocols", created_at: "2025-01-02T00:00:00Z" }),
 ];
 
-const mockEntries: LibraryItem[] = [
-  {
-    type: "entry",
+const mockEntries = [
+  makeLibraryEntry({
     id: 10,
-    display_id: "E1",
-    title: "PCR Results",
     folder: 1,
     folder_name: "Experiments",
     author_username: "testuser",
     created_at: "2025-01-03T00:00:00Z",
     updated_at: "2025-01-03T00:00:00Z",
-  },
-  {
-    type: "entry",
+  }),
+  makeLibraryEntry({
     id: 11,
     display_id: "E2",
     title: "Gel Image",
-    folder: null,
-    folder_name: null,
-    author_username: null,
     created_at: "2025-01-04T00:00:00Z",
     updated_at: "2025-01-04T00:00:00Z",
-  },
+  }),
 ];
 
-const mixedItems: LibraryItem[] = [...mockFolders, ...mockEntries];
+const mixedItems = [...mockFolders, ...mockEntries];
 
 describe("LibraryTable", () => {
   it("renders a table with the correct headers", () => {

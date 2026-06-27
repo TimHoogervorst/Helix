@@ -5,20 +5,8 @@
  * and node creation via JSON.
  */
 import { describe, it, expect } from "vitest";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
 import Reference from "../Reference";
-
-function createEditor(content?: any) {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  const editor = new Editor({
-    element: el,
-    extensions: [StarterKit, Reference],
-    content: content || { type: "doc", content: [{ type: "paragraph" }] },
-  });
-  return editor;
-}
+import { createTestEditor } from "../../test/factories";
 
 describe("Reference", () => {
   // ── Input rule regex ──────────────────────────────────────────────────
@@ -64,7 +52,7 @@ describe("Reference", () => {
   // ── Node creation via JSON ────────────────────────────────────────────
 
   it("creates a reference node via setContent with JSON", () => {
-    const editor = createEditor();
+    const editor = createTestEditor([Reference]);
     editor.commands.setContent({
       type: "doc",
       content: [
@@ -87,7 +75,7 @@ describe("Reference", () => {
   });
 
   it("creates a reference node with long numeric suffix", () => {
-    const editor = createEditor();
+    const editor = createTestEditor([Reference]);
     editor.commands.setContent({
       type: "doc",
       content: [
@@ -110,7 +98,7 @@ describe("Reference", () => {
   // ── HTML parse/render round-trip ────────────────────────────────────
 
   it("parses reference from HTML data-display-id span", () => {
-    const editor = createEditor(
+    const editor = createTestEditor([Reference],
       '<p>See <span data-display-id="E1"></span> for details.</p>',
     );
     const doc = editor.getJSON();
@@ -121,7 +109,7 @@ describe("Reference", () => {
   });
 
   it("HTML round-trip: render → parse preserves displayId", () => {
-    const editor = createEditor();
+    const editor = createTestEditor([Reference]);
     // Set content with a reference node and render to HTML.
     editor.commands.setContent({
       type: "doc",

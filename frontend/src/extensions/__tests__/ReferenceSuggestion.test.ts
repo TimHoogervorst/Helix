@@ -5,13 +5,12 @@
  * integration (suggestion loads, Space-to-convert logic).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
 import Reference from "../Reference";
 import ReferenceSuggestion, {
   DISPLAY_ID_PATTERN,
   fetchItems,
 } from "../ReferenceSuggestion";
+import { createTestEditor } from "../../test/factories";
 
 // ── Mock API client ───────────────────────────────────────────────────────
 const mockGet = vi.fn();
@@ -107,55 +106,40 @@ describe("fetchItems", () => {
 
 // ── Editor integration ────────────────────────────────────────────────────
 
-function createEditor() {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  const editor = new Editor({
-    element: el,
-    extensions: [StarterKit, Reference, ReferenceSuggestion],
-    content: { type: "doc", content: [{ type: "paragraph" }] },
-  });
-  return { editor, el };
-}
-
 describe("ReferenceSuggestion editor integration", () => {
   it("editor creates successfully with ReferenceSuggestion extension", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([Reference, ReferenceSuggestion]);
     expect(editor).toBeTruthy();
     editor.destroy();
-    el.remove();
   });
 
   it("typing # does not crash the editor", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([Reference, ReferenceSuggestion]);
     expect(() => {
       editor.commands.insertContent("#");
     }).not.toThrow();
     editor.destroy();
-    el.remove();
   });
 
   it("typing #E1 does not crash the editor", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([Reference, ReferenceSuggestion]);
     expect(() => {
       editor.commands.insertContent("#E1");
     }).not.toThrow();
     editor.destroy();
-    el.remove();
   });
 
   it("can insert content after # trigger", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([Reference, ReferenceSuggestion]);
     editor.commands.insertContent("#test");
     const text = editor.getText();
     expect(text).toContain("#test");
     editor.destroy();
-    el.remove();
   });
 
   it("Reference and ReferenceSuggestion work together", () => {
     // Create content with a reference node — both extensions must coexist
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([Reference, ReferenceSuggestion]);
     editor.commands.setContent({
       type: "doc",
       content: [
@@ -174,6 +158,5 @@ describe("ReferenceSuggestion editor integration", () => {
     const refNode = para?.content?.find((n: any) => n.type === "reference");
     expect(refNode).toBeTruthy();
     editor.destroy();
-    el.remove();
   });
 });

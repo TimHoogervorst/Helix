@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import EntityDetailFields from "../EntityDetailFields";
 import type { EntityListItem } from "../../types/lims";
+import { makeEntityListItem } from "../../test/factories";
 
 // Mock ReferenceBadge
 // Using vi.mock at module level — needs vi imported
@@ -22,14 +23,7 @@ vi.mock("../ReferenceBadge", () => ({
   ),
 }));
 
-const entity: EntityListItem = {
-  id: 1,
-  display_id: "BLOOD1",
-  name: "Sample A",
-  entity_type: 1,
-  entity_type_name: "Blood Sample",
-  entity_type_prefix: "BLOOD",
-  entity_type_icon: "🩸",
+const entity: EntityListItem = makeEntityListItem({
   properties: {
     volume: 5,
     active: true,
@@ -38,11 +32,9 @@ const entity: EntityListItem = {
   },
   source_entry: 10,
   source_entry_display_id: "E42",
-  folder: null,
-  created_by: null,
   created_by_username: "jdoe",
   created_at: "2025-06-01T12:00:00Z",
-};
+});
 
 describe("EntityDetailFields", () => {
   it("renders Type field with name and prefix", () => {

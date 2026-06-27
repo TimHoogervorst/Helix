@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import LimsConsole from "../LimsConsole";
 import type { EntityListItem, PaginatedResponse } from "../../../../types/lims";
+import { emptyPage, makeEntityListItem, makeEntityPage } from "../../../../test/factories";
 
 // ── API client mock ───────────────────────────────────────────────────────
 
@@ -79,83 +80,39 @@ vi.mock("../../../../workspaces/lims/EntityWorkspace", () => ({
 
 // ── Test data fixtures ────────────────────────────────────────────────────
 
-const emptyResponse: PaginatedResponse<EntityListItem> = {
-  count: 0,
-  next: null,
-  previous: null,
-  results: [],
-};
+const emptyResponse = emptyPage<EntityListItem>();
 
-const populatedResponse: PaginatedResponse<EntityListItem> = {
-  count: 2,
-  next: null,
-  previous: null,
-  results: [
-    {
-      id: 1,
-      display_id: "BLOOD1",
-      name: "Sample A",
-      entity_type: 1,
-      entity_type_name: "Blood",
-      entity_type_prefix: "BLOOD",
-      entity_type_icon: "🩸",
-      properties: {},
-      source_entry: null,
-      source_entry_display_id: null,
-      folder: null,
-      created_by: null,
-      created_by_username: null,
-      created_at: "2025-01-01T00:00:00Z",
-    },
-    {
-      id: 2,
-      display_id: "BLOOD2",
-      name: "Sample B",
-      entity_type: 1,
-      entity_type_name: "Blood",
-      entity_type_prefix: "BLOOD",
-      entity_type_icon: "🩸",
-      properties: {},
-      source_entry: 5,
-      source_entry_display_id: "E5",
-      folder: null,
-      created_by: null,
-      created_by_username: null,
-      created_at: "2025-01-02T00:00:00Z",
-    },
-  ],
-};
+const twoEntities = [
+  makeEntityListItem({ id: 1, entity_type_name: "Blood" }),
+  makeEntityListItem({
+    id: 2,
+    display_id: "BLOOD2",
+    name: "Sample B",
+    entity_type_name: "Blood",
+    source_entry: 5,
+    source_entry_display_id: "E5",
+    created_at: "2025-01-02T00:00:00Z",
+  }),
+];
+
+const populatedResponse = makeEntityPage(twoEntities);
 
 const paginatedResponse: PaginatedResponse<EntityListItem> = {
   count: 3,
   next: "/api/lims/entities/?search=&type=&offset=2",
   previous: null,
-  results: [...populatedResponse.results],
+  results: [...twoEntities],
 };
 
-const secondPageResponse: PaginatedResponse<EntityListItem> = {
-  count: 3,
-  next: null,
-  previous: null,
-  results: [
-    {
-      id: 3,
-      display_id: "BLOOD3",
-      name: "Sample C",
-      entity_type: 1,
-      entity_type_name: "Blood",
-      entity_type_prefix: "BLOOD",
-      entity_type_icon: "🩸",
-      properties: {},
-      source_entry: null,
-      source_entry_display_id: null,
-      folder: null,
-      created_by: null,
-      created_by_username: null,
-      created_at: "2025-01-03T00:00:00Z",
-    },
-  ],
-};
+const secondPageResponse = makeEntityPage([
+  makeEntityListItem({
+    id: 3,
+    display_id: "BLOOD3",
+    name: "Sample C",
+    entity_type_name: "Blood",
+    created_at: "2025-01-03T00:00:00Z",
+  }),
+]);
 
 // ── Render helper ─────────────────────────────────────────────────────────
 

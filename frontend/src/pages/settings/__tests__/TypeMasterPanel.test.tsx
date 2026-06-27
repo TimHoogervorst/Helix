@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TypeMasterPanel from "../TypeMasterPanel";
 import type { EntityType } from "../../../types/lims";
+import { makeEntityType, makeColumnDef } from "../../../test/factories";
 
 // Mock ReferenceBadge
 vi.mock("../../../components/ReferenceBadge", () => ({
@@ -10,26 +11,21 @@ vi.mock("../../../components/ReferenceBadge", () => ({
   ),
 }));
 
-const types: EntityType[] = [
-  {
-    id: 1,
-    name: "Blood Sample",
-    prefix: "BLOOD",
-    icon: "🩸",
-    is_active: true,
+const types = [
+  makeEntityType({
     columns: [
-      { name: "volume", type: "Number" },
-      { name: "hemolyzed", type: "Boolean" },
+      makeColumnDef(),
+      makeColumnDef({ name: "hemolyzed", type: "Boolean" }),
     ],
-  },
-  {
+  }),
+  makeEntityType({
     id: 2,
     name: "Mice",
     prefix: "MICE",
     icon: "🐁",
     is_active: false,
-    columns: [{ name: "strain", type: "Text" }],
-  },
+    columns: [makeColumnDef({ name: "strain", type: "Text" })],
+  }),
 ];
 
 const dirtyEdits = new Map<number, EntityType>();

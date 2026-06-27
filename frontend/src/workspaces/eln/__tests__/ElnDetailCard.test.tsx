@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ElnDetailCard from "../ElnDetailCard";
-import type { LibraryEntryItem } from "../../../types/library";
+import { makeLibraryEntry } from "../../../test/factories";
 
 // Mock the content preview hook
 vi.mock("../../../hooks/useContentPreview", () => ({
@@ -45,8 +45,7 @@ vi.mock("../../../components/ContentPreview", () => ({
   ),
 }));
 
-const entry: LibraryEntryItem = {
-  type: "entry",
+const entry = makeLibraryEntry({
   id: 1,
   display_id: "E123",
   title: "Test Entry",
@@ -55,7 +54,7 @@ const entry: LibraryEntryItem = {
   author_username: "testuser",
   created_at: "2025-06-01T12:00:00Z",
   updated_at: "2025-06-02T15:30:00Z",
-};
+});
 
 describe("ElnDetailCard", () => {
   it("renders entry title and ReferenceBadge", () => {
@@ -92,11 +91,7 @@ describe("ElnDetailCard", () => {
   });
 
   it("shows 'root' when folder_name is null", () => {
-    const rootEntry: LibraryEntryItem = {
-      ...entry,
-      folder: null,
-      folder_name: null,
-    };
+    const rootEntry = { ...entry, folder: null, folder_name: null };
     render(
       <MemoryRouter>
         <ElnDetailCard
@@ -239,10 +234,7 @@ describe("ElnDetailCard", () => {
   });
 
   it("shows dash for null author_username", () => {
-    const noAuthor: LibraryEntryItem = {
-      ...entry,
-      author_username: null,
-    };
+    const noAuthor = { ...entry, author_username: null };
     render(
       <MemoryRouter>
         <ElnDetailCard

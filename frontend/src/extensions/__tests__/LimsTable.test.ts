@@ -5,27 +5,15 @@
  * parsing with malformed fallback, HTML round-trip, and parseHTML tag.
  */
 import { describe, it, expect } from "vitest";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
 import LimsTable from "../LimsTable";
-
-function createEditor(content?: any) {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  const editor = new Editor({
-    element: el,
-    extensions: [StarterKit, LimsTable],
-    content: content || { type: "doc", content: [{ type: "paragraph" }] },
-  });
-  return editor;
-}
+import { createTestEditor } from "../../test/factories";
 
 describe("LimsTable", () => {
   // ── schemaId parsing ─────────────────────────────────────────────────
 
   describe("schemaId attribute parsing", () => {
     it("parses a valid integer schemaId", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table" data-schema-id="42"></div>',
       );
       const doc = editor.getJSON();
@@ -35,7 +23,7 @@ describe("LimsTable", () => {
     });
 
     it("returns null for empty schemaId", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table" data-schema-id=""></div>',
       );
       const doc = editor.getJSON();
@@ -45,7 +33,7 @@ describe("LimsTable", () => {
     });
 
     it("returns null for missing schemaId attribute", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table"></div>',
       );
       const doc = editor.getJSON();
@@ -55,7 +43,7 @@ describe("LimsTable", () => {
     });
 
     it("returns null for non-numeric schemaId", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table" data-schema-id="abc"></div>',
       );
       const doc = editor.getJSON();
@@ -74,7 +62,7 @@ describe("LimsTable", () => {
         { name: "Volume", type: "Number", units: "mL" },
       ];
       const html = `<div data-type="lims-table" data-columns='${JSON.stringify(columns)}'></div>`;
-      const editor = createEditor(html);
+      const editor = createTestEditor([LimsTable],html);
       const doc = editor.getJSON();
       const table = doc.content?.find((n: any) => n.type === "limsTable");
       expect(table?.attrs?.columns).toEqual(columns);
@@ -82,7 +70,7 @@ describe("LimsTable", () => {
     });
 
     it("returns empty array for missing columns", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table"></div>',
       );
       const doc = editor.getJSON();
@@ -92,7 +80,7 @@ describe("LimsTable", () => {
     });
 
     it("returns empty array for malformed columns JSON", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table" data-columns="{invalid json}"></div>',
       );
       const doc = editor.getJSON();
@@ -109,7 +97,7 @@ describe("LimsTable", () => {
         { entityId: 42, displayId: "E1", values: { "Col A": "world" } },
       ];
       const html = `<div data-type="lims-table" data-rows='${JSON.stringify(rows)}'></div>`;
-      const editor = createEditor(html);
+      const editor = createTestEditor([LimsTable],html);
       const doc = editor.getJSON();
       const table = doc.content?.find((n: any) => n.type === "limsTable");
       expect(table?.attrs?.rows).toEqual(rows);
@@ -117,7 +105,7 @@ describe("LimsTable", () => {
     });
 
     it("returns empty array for missing rows", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table"></div>',
       );
       const doc = editor.getJSON();
@@ -127,7 +115,7 @@ describe("LimsTable", () => {
     });
 
     it("returns empty array for malformed rows JSON", () => {
-      const editor = createEditor(
+      const editor = createTestEditor([LimsTable],
         '<div data-type="lims-table" data-rows="{{bad}}"></div>',
       );
       const doc = editor.getJSON();
@@ -140,7 +128,7 @@ describe("LimsTable", () => {
   // ── HTML round-trip ──────────────────────────────────────────────────
 
   it("HTML round-trip: render → parse preserves all attributes", () => {
-    const editor = createEditor();
+    const editor = createTestEditor([LimsTable],);
     const columns = [
       { name: "Name", type: "Text" },
       { name: "Count", type: "Number" },
@@ -180,7 +168,7 @@ describe("LimsTable", () => {
   });
 
   it("HTML round-trip with null schemaId", () => {
-    const editor = createEditor();
+    const editor = createTestEditor([LimsTable],);
     editor.commands.setContent({
       type: "doc",
       content: [
@@ -202,7 +190,7 @@ describe("LimsTable", () => {
   // ── parseHTML tag matching ───────────────────────────────────────────
 
   it("matches div[data-type='lims-table']", () => {
-    const editor = createEditor(
+    const editor = createTestEditor([LimsTable],
       '<div data-type="lims-table" data-title="Test"></div>',
     );
     const doc = editor.getJSON();
@@ -215,7 +203,7 @@ describe("LimsTable", () => {
   // ── Default values ───────────────────────────────────────────────────
 
   it("default title is 'Table'", () => {
-    const editor = createEditor(
+    const editor = createTestEditor([LimsTable],
       '<div data-type="lims-table"></div>',
     );
     const doc = editor.getJSON();
@@ -225,7 +213,7 @@ describe("LimsTable", () => {
   });
 
   it("default columns and rows are empty arrays", () => {
-    const editor = createEditor(
+    const editor = createTestEditor([LimsTable],
       '<div data-type="lims-table"></div>',
     );
     const doc = editor.getJSON();

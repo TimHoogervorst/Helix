@@ -5,13 +5,12 @@
  * integration (extension loads, slash insertion doesn't crash).
  */
 import { describe, it, expect } from "vitest";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
 import SlashCommands, {
   fuzzyMatch,
   getCommands,
 } from "../SlashCommands";
 import LimsTable from "../LimsTable";
+import { createTestEditor } from "../../test/factories";
 
 // ── fuzzyMatch (pure function) ────────────────────────────────────────────
 
@@ -112,47 +111,33 @@ describe("getCommands", () => {
 
 // ── Editor integration ────────────────────────────────────────────────────
 
-function createEditor() {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  const editor = new Editor({
-    element: el,
-    extensions: [StarterKit, SlashCommands, LimsTable],
-    content: { type: "doc", content: [{ type: "paragraph" }] },
-  });
-  return { editor, el };
-}
-
 describe("SlashCommands editor integration", () => {
   it("editor creates successfully with SlashCommands extension", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([SlashCommands, LimsTable]);
     expect(editor).toBeTruthy();
     expect(editor.getJSON()).toBeTruthy();
     editor.destroy();
-    el.remove();
   });
 
   it("typing / does not crash the editor", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([SlashCommands, LimsTable]);
     // insertContent with "/" text — should insert without crashing
     expect(() => {
       editor.commands.insertContent("/");
     }).not.toThrow();
     editor.destroy();
-    el.remove();
   });
 
   it("typing multiple slashes does not crash", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([SlashCommands, LimsTable]);
     expect(() => {
       editor.commands.insertContent("some text /Table");
     }).not.toThrow();
     editor.destroy();
-    el.remove();
   });
 
   it("Table command action inserts a limsTable node", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([SlashCommands, LimsTable]);
     const commands = getCommands();
     const tableCmd = commands.find((c) => c.label === "Table")!;
     const from = editor.state.selection.from;
@@ -164,16 +149,14 @@ describe("SlashCommands editor integration", () => {
     expect(tableNode?.attrs?.columns).toHaveLength(2);
     expect(tableNode?.attrs?.rows).toHaveLength(2);
     editor.destroy();
-    el.remove();
   });
 
   it("editor remains editable after slash extension loads", () => {
-    const { editor, el } = createEditor();
+    const editor = createTestEditor([SlashCommands, LimsTable]);
     expect(editor.isEditable).toBe(true);
     editor.commands.insertContent("Hello, world!");
     const text = editor.getText();
     expect(text).toContain("Hello, world!");
     editor.destroy();
-    el.remove();
   });
 });

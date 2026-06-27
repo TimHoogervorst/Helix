@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import LibraryConsole from "../LibraryConsole";
-import type { LibraryContentsResponse } from "../../../../types/library";
+import { makeLibraryFolder, makeLibraryEntry, makeLibraryContents } from "../../../../test/factories";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -65,47 +65,24 @@ vi.mock("../../../../components/ElnEditor", () => ({
 
 // ── Fixtures ─────────────────────────────────────────────────────────
 
-const emptyResponse: LibraryContentsResponse = {
-  count: 0,
-  next: null,
-  previous: null,
-  results: [],
-  current_folder_id: null,
-};
+const emptyResponse = makeLibraryContents();
 
-const populatedResponse: LibraryContentsResponse = {
-  count: 3,
-  next: null,
-  previous: null,
-  results: [
-    {
-      type: "folder",
-      id: 1,
-      name: "Experiments",
-      parent: null,
-      created_at: "2025-01-01T00:00:00Z",
-    },
-    {
-      type: "folder",
-      id: 2,
-      name: "Protocols",
-      parent: null,
-      created_at: "2025-01-02T00:00:00Z",
-    },
-    {
-      type: "entry",
+const populatedResponse = makeLibraryContents(
+  [
+    makeLibraryFolder({ id: 1 }),
+    makeLibraryFolder({ id: 2, name: "Protocols", created_at: "2025-01-02T00:00:00Z" }),
+  ],
+  [
+    makeLibraryEntry({
       id: 10,
-      display_id: "E1",
-      title: "PCR Results",
       folder: 1,
       folder_name: "Experiments",
       author_username: "testuser",
       created_at: "2025-01-03T00:00:00Z",
       updated_at: "2025-01-03T00:00:00Z",
-    },
+    }),
   ],
-  current_folder_id: null,
-};
+);
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

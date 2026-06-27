@@ -7,10 +7,8 @@
  */
 import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
-import Suggestion, {
-  type SuggestionProps,
-  type SuggestionKeyDownProps,
-} from "@tiptap/suggestion";
+import Suggestion from "@tiptap/suggestion";
+import { createSuggestionDropdown } from "./suggestionDropdown";
 
 const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 
@@ -65,126 +63,32 @@ export function getCommands(): SlashCommand[] {
   ];
 }
 
-// ── Dropdown renderer (raw DOM) ─────────────────────────────────────
-
-interface CommandState {
-  command: ((item: SlashCommand) => void) | null;
-  commands: SlashCommand[];
-  selectedIndex: number;
-}
+// ── Dropdown renderer (via shared factory) ─────────────────────────────
 
 function dropdownRenderer() {
-  let popup: HTMLDivElement | null = null;
-  const state: CommandState = {
-    command: null,
-    commands: [],
-    selectedIndex: 0,
-  };
+  return createSuggestionDropdown<SlashCommand>({
+    popupClass: "slash-dropdown",
+    emptyClass: "slash-dropdown-item is-empty",
 
-  function ensurePopup(): HTMLDivElement {
-    if (!popup) {
-      popup = document.createElement("div");
-      popup.className = "slash-dropdown";
-      document.body.appendChild(popup);
-    }
-    return popup;
-  }
+    renderItem: (item, _i, _isSelected) =>
+      `<span class="slash-item-icon">${item.icon}</span>
+       <div class="slash-item-body">
+         <span class="slash-item-label">${item.label}</span>
+         <span class="slash-item-desc">${item.description}</span>
+       </div>`,
 
-  function updatePosition(rect: DOMRect | null, el: HTMLElement) {
-    if (!rect) return;
-    el.style.top = `${rect.bottom + window.scrollY + 4}px`;
-    el.style.left = `${rect.left + window.scrollX}px`;
-  }
-
-  return {
-    onStart: (props: SuggestionProps<SlashCommand>) => {
-      ensurePopup().style.display = "block";
-      state.selectedIndex = 0;
-      updatePosition(props.clientRect?.() ?? null, popup!);
-    },
-
-    onUpdate: (props: SuggestionProps<SlashCommand>) => {
-      if (!popup) return;
-
-      state.command = props.command;
-      state.commands = props.items;
-
-      updatePosition(props.clientRect?.() ?? null, popup);
-
-      if (props.items.length === 0) {
-        popup.innerHTML =
-          '<div class="slash-dropdown-item is-empty">No commands matching "/"</div>';
-        return;
-      }
-
-      popup.innerHTML = props.items
-        .map(
-          (item, i) =>
-            `<div class="slash-dropdown-item${i === state.selectedIndex ? " is-selected" : ""}">
-              <span class="slash-item-icon">${item.icon}</span>
-              <div class="slash-item-body">
-                <span class="slash-item-label">${item.label}</span>
-                <span class="slash-item-desc">${item.description}</span>
-              </div>
-            </div>`
-        )
-        .join("");
-    },
-
-    onKeyDown: (props: SuggestionKeyDownProps) => {
-      if (!popup) return false;
-
-      const itemEls = popup.querySelectorAll(
-        ".slash-dropdown-item:not(.is-empty)"
-      );
-
-      if (props.event.key === "ArrowDown") {
-        state.selectedIndex = Math.min(
-          state.selectedIndex + 1,
-          itemEls.length - 1
-        );
-        itemEls.forEach((el, i) =>
-          el.classList.toggle("is-selected", i === state.selectedIndex)
-        );
-        return true;
-      }
-      if (props.event.key === "ArrowUp") {
-        state.selectedIndex = Math.max(state.selectedIndex - 1, 0);
-        itemEls.forEach((el, i) =>
-          el.classList.toggle("is-selected", i === state.selectedIndex)
-        );
-        return true;
-      }
-      if (props.event.key === "Enter" || props.event.key === "Tab") {
-        if (state.command && state.commands[state.selectedIndex]) {
-          state.command(state.commands[state.selectedIndex]);
-          state.selectedIndex = 0;
-          return true;
-        }
-      }
-      if (props.event.key === "Escape") {
-        if (popup) {
-          popup.style.display = "none";
-          popup.innerHTML = "";
-        }
-        state.selectedIndex = 0;
-        state.command = null;
-        state.commands = [];
+    onExtraKeyDown: (props, state) => {
+      if (
+        props.event.key === "Tab" &&
+        state.command &&
+        state.items[state.selectedIndex]
+      ) {
+        state.command(state.items[state.selectedIndex]);
         return true;
       }
       return false;
     },
-
-    onExit: () => {
-      if (popup) {
-        popup.style.display = "none";
-        popup.innerHTML = "";
-      }
-      state.selectedIndex = 0;
-      state.command = null;
-      state.commands = [];
-    },
-  };
+  })();
 }
 
 // ── Fuse-style fuzzy filter ─────────────────────────────────────────

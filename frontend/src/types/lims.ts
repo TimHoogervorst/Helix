@@ -91,11 +91,6 @@ export interface GridRow {
   values: Record<string, unknown>;
 }
 
-// ── LIMS Page View State ──────────────────────────────────────────────
-
-// Re-exported from shared console types for backward compatibility.
-export type { ViewState } from "./console";
-
 /** The full table data stored in the limsTable node attribute. */
 export interface GridTableData {
   schemaId: number | null;

@@ -13,9 +13,7 @@ interface ElnDetailCardProps {
   isDetailExiting?: boolean;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
-}
+import { formatDate } from "../../utils/format";
 
 function ElnDetailCard({
   entry,

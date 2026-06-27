@@ -21,9 +21,7 @@ const COLUMNS: MasterColumn[] = [
   { className: "console-master-row-expand-header", label: "" },
 ];
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
-}
+import { formatDate } from "../../../utils/format";
 
 function LibraryTable({
   items,

@@ -10,7 +10,7 @@ export interface EntityDetailFieldsProps {
   children?: ReactNode;
 }
 
-const formatDate = (iso: string) => new Date(iso).toLocaleString();
+import { formatDate } from "../utils/format";
 
 function EntityDetailFields({
   entity,

@@ -8,12 +8,12 @@ from django.contrib.contenttypes.models import ContentType
 
 from core.walker import walk_tiptap_tree
 
-from eln.models import NotebookEntry
+from workspaces.eln.models import NotebookEntry
 
 
 def _get_entity_model():
     """Lazy-import to avoid circular imports at module level."""
-    from lims.models import Entity
+    from workspaces.lims.models import Entity
     return Entity
 
 
@@ -39,7 +39,7 @@ def _get_dynamic_prefix_map():
 
     # Dynamically load entity prefixes
     try:
-        from lims.models import EntityType
+        from workspaces.lims.models import EntityType
         # Use cached/simple query — no need for select_related
         for et in EntityType.objects.values_list("prefix", flat=True):
             pmap[et] = _get_entity_model()
@@ -169,7 +169,7 @@ def sync_mentions(source, tiptap_json):
     3. Diff against existing Mention rows for this source.
     4. Create new mentions, delete removed ones.
     """
-    from eln.models import Mention
+    from workspaces.eln.models import Mention
 
     # Collect resolved target references from the document
     resolved_targets = set()

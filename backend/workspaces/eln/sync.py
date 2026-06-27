@@ -8,7 +8,7 @@ mentions, then conditional save.
 Adding a third sync step (e.g. Protocol widgets) changes this file alone
 — the view layer stays one call.
 """
-from lims.services import sync_entities
+from workspaces.lims.services import sync_entities
 from references.services import sync_mentions
 
 from .models import NotebookEntry

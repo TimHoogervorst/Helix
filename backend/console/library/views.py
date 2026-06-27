@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
 from core.models import Folder
-from eln.models import NotebookEntry
+from workspaces.eln.models import NotebookEntry
 
 
 class MixedListPagination(PageNumberPagination):

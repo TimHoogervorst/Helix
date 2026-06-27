@@ -3,7 +3,7 @@ Tests for the # reference parser (pure function).
 """
 from django.test import SimpleTestCase
 
-from eln.parser import parse_references
+from workspaces.eln.parser import parse_references
 
 
 class ParserTests(SimpleTestCase):

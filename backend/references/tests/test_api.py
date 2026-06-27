@@ -8,7 +8,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, User
-from eln.models import NotebookEntry
+from workspaces.eln.models import NotebookEntry
 
 
 EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
@@ -153,7 +153,7 @@ class EntityReferenceTests(TestCase):
         self.user = User.objects.create_user(username="testuser", password="testpass123")
         self.folder = Folder.objects.create(name="Default")
 
-        from lims.models import EntityType, Entity
+        from workspaces.lims.models import EntityType, Entity
 
         self.blood_type = EntityType.objects.create(
             name="Blood Sample", prefix="BLOOD", columns=[]
@@ -226,7 +226,7 @@ class IconInReferencesTests(TestCase):
         self.user = User.objects.create_user(username="testuser", password="testpass123")
         self.folder = Folder.objects.create(name="Default")
 
-        from lims.models import EntityType, Entity
+        from workspaces.lims.models import EntityType, Entity
 
         self.blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", icon="🩸", columns=[]
@@ -268,7 +268,7 @@ class IconInReferencesTests(TestCase):
 
     def test_resolve_entity_default_icon(self):
         """Entity with entity type having default icon resolves with '🧪'."""
-        from lims.models import EntityType, Entity
+        from workspaces.lims.models import EntityType, Entity
 
         default_type = EntityType.objects.create(
             name="Default", prefix="DEF", columns=[]

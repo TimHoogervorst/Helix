@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, User
-from lims.models import EntityType, Entity
+from workspaces.lims.models import EntityType, Entity
 
 
 class LimsApiTests(TestCase):

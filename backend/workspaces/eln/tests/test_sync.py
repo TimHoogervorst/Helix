@@ -10,8 +10,8 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from core.models import Folder, User
-from eln.models import NotebookEntry, Mention
-from lims.models import EntityType, Entity
+from workspaces.eln.models import NotebookEntry, Mention
+from workspaces.lims.models import EntityType, Entity
 
 
 # ── TipTap document fixtures ────────────────────────────────────────────
@@ -91,7 +91,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_noop_empty_entry(self):
         """Entry with no limsTable or reference nodes → no changes, no save."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         with patch.object(NotebookEntry, "save") as mock_save:
             result = sync_entry_content(self.entry)
@@ -105,7 +105,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_syncs_entities_from_table(self):
         """limsTable creates Entity rows, patches IDs into content, saves."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -136,7 +136,7 @@ class SyncEntryContentTests(TestCase):
         is removed, orphan cleanup is not performed (this is existing
         behaviour — not changed by this refactoring).
         """
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         # Create two entities via limsTable
         doc = make_lims_table_doc(
@@ -168,7 +168,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_syncs_mentions_from_refs(self):
         """Reference nodes create Mention rows."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         self.entry.content = make_doc_with_ref(self.target.display_id)
         self.entry.save()
@@ -182,7 +182,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_removed_refs_delete_mentions(self):
         """Reference node removed → Mention deleted."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         # Create mention
         self.entry.content = make_doc_with_ref(self.target.display_id)
@@ -198,7 +198,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_unresolvable_refs_skipped(self):
         """Reference to nonexistent display_id → silently skipped."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         self.entry.content = make_doc_with_ref("E99999")
         self.entry.save()
@@ -213,7 +213,7 @@ class SyncEntryContentTests(TestCase):
         """When an entry has both limsTable and reference nodes, entities
         are synced before mentions so that newly created entity display IDs
         are resolvable by reference nodes in table cells."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         # Create an EntityType with a Reference column
         ref_type = EntityType.objects.create(
@@ -270,7 +270,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_content_patched_on_save(self):
         """Entity IDs and displayIds are written back to JSON content."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -291,7 +291,7 @@ class SyncEntryContentTests(TestCase):
 
     def test_no_unnecessary_save(self):
         """Unchanged content after sync → no save() call."""
-        from eln.sync import sync_entry_content
+        from workspaces.eln.sync import sync_entry_content
 
         # Sync once to stabilise content (entity IDs patched in)
         doc = make_lims_table_doc(

@@ -4,7 +4,7 @@ Tests for the references service: sync_mentions, resolve_display_id, PREFIX_MAP.
 from django.test import TestCase
 
 from core.models import Folder, User
-from eln.models import NotebookEntry, Mention
+from workspaces.eln.models import NotebookEntry, Mention
 
 # --- TipTap document fixtures ---
 

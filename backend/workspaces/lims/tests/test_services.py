@@ -4,8 +4,8 @@ Tests for the LIMS services: sync_entities, walk_lims_tables.
 from django.test import TestCase
 
 from core.models import Folder, User
-from eln.models import NotebookEntry
-from lims.models import EntityType, Entity
+from workspaces.eln.models import NotebookEntry
+from workspaces.lims.models import EntityType, Entity
 
 
 # ── TipTap document fixtures ──
@@ -75,7 +75,7 @@ class SyncEntitiesTests(TestCase):
 
     def test_tracer_sync_creates_entity_from_lims_table(self):
         """A limsTable with one row → one Entity created, displayId patched in attrs.rows."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -100,7 +100,7 @@ class SyncEntitiesTests(TestCase):
 
     def test_sync_creates_multiple_entities(self):
         """Each row in the limsTable gets its own Entity."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -119,7 +119,7 @@ class SyncEntitiesTests(TestCase):
 
     def test_sync_updates_existing_entity_properties(self):
         """Re-saving with changed cell values updates entity properties."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         # First save creates the entity
         doc = make_lims_table_doc(
@@ -156,7 +156,7 @@ class SyncEntitiesTests(TestCase):
         """Full frontend→backend→frontend→backend round-trip without manual
         entityId injection: patched content from the first sync is re-submitted
         (simulating the editor round-trip), and must update — not duplicate."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         # ── First save (simulates POST from frontend with entityId: null) ──
         doc1 = make_lims_table_doc(
@@ -206,7 +206,7 @@ class SyncEntitiesTests(TestCase):
     def test_roundtrip_add_and_remove_row_preserves_existing(self):
         """Adding a new row and removing an old row in one save must create
         one entity, delete one entity, and preserve the remaining one."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         # ── First save: 2 rows ──
         doc1 = make_lims_table_doc(
@@ -261,7 +261,7 @@ class SyncEntitiesTests(TestCase):
     def test_multiple_tables_same_schema_do_not_cross_delete(self):
         """Two limsTable nodes sharing the same schema must not delete each
         other's entities — the original bug that caused entity duplication."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         # Build a doc with TWO limsTable nodes, both using the same schema
         doc = {
@@ -338,7 +338,7 @@ class SyncEntitiesTests(TestCase):
     def test_multiple_tables_same_schema_row_changes(self):
         """Two tables same schema: add a row to one, remove from the other,
         modify a value in the third — everything survives correctly."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         doc = {
             "type": "doc",
@@ -426,7 +426,7 @@ class SyncEntitiesTests(TestCase):
 
         Uses the patched content from the first sync for the second sync,
         matching the real frontend round-trip."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         # Create two entities
         doc = make_lims_table_doc(
@@ -461,7 +461,7 @@ class SyncEntitiesTests(TestCase):
 
     def test_sync_skips_plain_tables(self):
         """Tables without schemaId are ignored (plain tables)."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         doc = {
             "type": "doc",
@@ -489,7 +489,7 @@ class SyncEntitiesTests(TestCase):
 
     def test_sync_empty_table_noop(self):
         """A limsTable with no rows is a no-op."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id, rows_data=[], entity_type=self.blood_type,
@@ -500,9 +500,9 @@ class SyncEntitiesTests(TestCase):
 
     def test_sync_reference_cells_create_mentions(self):
         """Reference-type columns inside limsTable v2 trigger mention sync."""
-        from lims.services import sync_entities
+        from workspaces.lims.services import sync_entities
         from references.services import sync_mentions
-        from eln.models import Mention
+        from workspaces.eln.models import Mention
 
         # Create a target entry to reference
         target = NotebookEntry.objects.create(
@@ -557,7 +557,7 @@ class EntityTypeIconTests(TestCase):
 
     def test_icon_in_serializer(self):
         """EntityTypeSerializer includes the icon field."""
-        from lims.serializers import EntityTypeSerializer
+        from workspaces.lims.serializers import EntityTypeSerializer
 
         et = EntityType.objects.create(
             name="DNA", prefix="DNA", icon="🧬", columns=[]

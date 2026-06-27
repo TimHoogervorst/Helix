@@ -3,8 +3,8 @@
 from django.test import TestCase
 
 from core.abstracts import BrowsableItem
-from eln.models import NotebookEntry
-from lims.models import Entity, EntityType
+from workspaces.eln.models import NotebookEntry
+from workspaces.lims.models import Entity, EntityType
 
 
 class BrowsableItemDisplayIdTests(TestCase):

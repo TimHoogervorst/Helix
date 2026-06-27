@@ -7,8 +7,8 @@ from django.test import TestCase
 from django.db.utils import IntegrityError
 
 from core.models import Folder, User
-from eln.models import NotebookEntry
-from lims.models import EntityType, Entity
+from workspaces.eln.models import NotebookEntry
+from workspaces.lims.models import EntityType, Entity
 
 
 class EntityDisplayIdTests(TestCase):

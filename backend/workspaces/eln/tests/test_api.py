@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, User
-from eln.models import NotebookEntry, Mention
+from workspaces.eln.models import NotebookEntry, Mention
 
 EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 TEXT_DOC = {

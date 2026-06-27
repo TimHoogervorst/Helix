@@ -30,9 +30,9 @@ INSTALLED_APPS = [
     "django_filters",
     # OpenScience apps
     "core",
-    "eln",
-    "lims",
-    "library",
+    "workspaces.eln",
+    "workspaces.lims",
+    "console.library",
     "references",
 ]
 

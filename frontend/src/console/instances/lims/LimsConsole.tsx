@@ -12,9 +12,10 @@ import ConsoleMasterPanel, {
 import ReferenceBadge from "../../../components/ReferenceBadge";
 
 function LimsConsole() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("search") || "";
   const typeFilter = searchParams.get("type") || "";
+  const selectId = searchParams.get("select") || "";
 
   const [entities, setEntities] = useState<EntityListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +32,7 @@ function LimsConsole() {
     goToDetail,
     collapseFromExpanded: collapseFromExpandedBase,
     closeAll: closeAllBase,
+    updateViewState,
   } = useConsoleView();
 
   const fetchEntities = useCallback(
@@ -60,6 +62,23 @@ function LimsConsole() {
   useEffect(() => {
     fetchEntities();
   }, [fetchEntities]);
+
+  // ── Auto-select entity when arriving from workspace (via ?select=<display_id>) ──
+  useEffect(() => {
+    if (!selectId || loading || entities.length === 0) return;
+
+    const target = entities.find((e) => e.display_id === selectId);
+
+    if (target) {
+      setSelectedId(target.display_id);
+      setSelectedEntity(target);
+      updateViewState("detail");
+      // Clear the select param so it doesn't stick on refresh / re-navigation
+      const next = new URLSearchParams(searchParams);
+      next.delete("select");
+      setSearchParams(next, { replace: true });
+    }
+  }, [selectId, loading, entities]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── State machine transitions (wrapping shared hook) ──────────────
 

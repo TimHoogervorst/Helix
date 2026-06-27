@@ -255,46 +255,6 @@ h1 {
   position: relative;
 }
 
-.eln-sidebar-left {
-  position: fixed;
-  left: 1rem;
-  top: 4.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  z-index: 5;
-}
-
-.eln-sidebar-divider {
-  width: 0;
-  height: 48px;
-  border-left: 1.5px solid var(--gray-300);
-  user-select: none;
-}
-
-.eln-library-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--gray-300);
-  border-radius: 6px;
-  background: var(--white);
-  color: var(--gray-600);
-  font-size: 1.1rem;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.eln-library-btn:hover {
-  background: var(--gray-50);
-  border-color: var(--gray-400);
-  color: var(--gray-900);
-}
-
 /* ── Top Bar (inside paper page) ── */
 
 .editor-top-bar {
@@ -2576,19 +2536,26 @@ input.library-search-input:focus {
   font-size: 1.2rem;
 }
 
+.console-detail-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .console-detail-close,
 .console-detail-expand,
 .console-detail-collapse {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: 1px solid var(--gray-300);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--gray-600);
-  font-size: 1.2rem;
+  font-size: 0.85rem;
   cursor: pointer;
   line-height: 1;
   padding: 0;
@@ -2628,6 +2595,49 @@ input.library-search-input:focus {
 
 .console-workspace-panel.is-exiting {
   animation: console-slide-out-right 0.25s ease-out forwards;
+}
+
+/* ── Workspace Back Button (fixed to far left of viewport) ── */
+
+.console-workspace-back {
+  position: fixed;
+  left: 1rem;
+  top: 4.5rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+}
+
+.console-workspace-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  color: var(--gray-600);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.console-workspace-back-btn:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.console-workspace-back-divider {
+  width: 0;
+  height: 24px;
+  border-left: 1.5px solid var(--gray-300);
+  user-select: none;
 }
 
 /* ── Library New Dropdown ── */

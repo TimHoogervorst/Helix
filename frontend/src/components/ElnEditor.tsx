@@ -8,7 +8,7 @@
  *   - formatDate        — shared date formatter
  */
 import { useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc } from "../types/eln";
 import { useEntryEditor } from "../hooks/useEntryEditor";
@@ -169,24 +169,6 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
       ) : (
         /* ── Normal (non-embedded) mode: full paper-page layout ── */
         <div className="eln-full-layout">
-          {/* ── Left Sidebar: "Open in Library" button ── */}
-          <div className="eln-sidebar-left">
-            <Link
-              to={(() => {
-                const params = new URLSearchParams();
-                if (entry?.folder_path) params.set("path", entry.folder_path);
-                if (entry?.display_id) params.set("select", entry.display_id);
-                const qs = params.toString();
-                return qs ? `/library?${qs}` : "/library";
-              })()}
-              className="eln-library-btn"
-              title="Show in Library"
-            >
-              &gt;
-            </Link>
-            <span className="eln-sidebar-divider" />
-          </div>
-
           <div className="paper-page">
             {/* ── Top Bar ── */}
             <div className="editor-top-bar">

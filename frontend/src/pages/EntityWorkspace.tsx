@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { get } from "../api/client";
 import type { EntityListItem } from "../types/lims";
 import ReferenceBadge from "../components/ReferenceBadge";
@@ -88,13 +88,6 @@ function EntityWorkspace() {
 
   return (
     <div className="page">
-      {/* Back navigation */}
-      <div style={{ marginBottom: "1rem" }}>
-        <Link to="/lims" className="btn">
-          ← Back to LIMS
-        </Link>
-      </div>
-
       {/* Entity header */}
       <div className="card" style={{ marginBottom: "1rem" }}>
         <div className="detail-header">
@@ -117,7 +110,7 @@ function EntityWorkspace() {
       </div>
 
       {/* Workspace panel with tabs */}
-      <ConsoleWorkspacePanel dedicatedUrl={`/lims/${entity.display_id}`}>
+      <ConsoleWorkspacePanel backUrl={`/lims?select=${entity.display_id}`}>
         <div className="card">
           <div className="console-tab-bar">
             {TABS.map((tab) => (

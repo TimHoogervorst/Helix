@@ -5,11 +5,11 @@
 
 ---
 
-## The Browser Pattern (Three-Way-Split)
+## The Console Pattern (Three-Way-Split)
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Browser** | A concrete instance of the three-panel browsing pattern, backed by a route and a data source: **Library** and **LIMS** | — |
+| **Console** | A concrete instance of the three-panel browsing pattern, backed by a route and a data source: **Library** and **LIMS** | — |
 | **Master Panel** | The left panel containing the item table — the primary list of browsable things | index, item list, table panel |
 | **Detail Panel** | The middle panel showing a summary card for the selected item — key metadata at a glance | summary card, intermediate detail, info panel |
 | **Workspace Panel** | The right panel containing the full work surface for the selected item — a slot filled by the item type | canvas, work surface, full detail, editor panel, "more detail panel" |
@@ -23,12 +23,12 @@
 | **Detail** | Master Panel + Detail Panel visible. Mental model: "What is this thing?" | preview, inspect mode |
 | **Expanded** | Master Panel collapsed to thin strip + Detail Panel + Workspace Panel all visible. Mental model: "I want to work with this" | edit mode, full view |
 
-## Concrete Browsers
+## Concrete Consoles
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Library** | The browser at `/library` — filesystem-like view over the Folder hierarchy, showing Folders and Entries mixed (folders first) | ELN browser, file explorer |
-| **LIMS** | The browser at `/lims` — database-like flat, filterable, searchable table of Entities | entity browser, sample database |
+| **Library** | The console at `/library` — filesystem-like view over the Folder hierarchy, showing Folders and Entries mixed (folders first) | ELN console, file explorer |
+| **LIMS** | The console at `/lims` — database-like flat, filterable, searchable table of Entities | entity console, sample database |
 
 ## Items
 
@@ -70,10 +70,10 @@
 |------|-----------|-----------------|
 | **Display ID** | An auto-generated human-readable identifier in `<PREFIX><N>` format (e.g., `E1`, `DNA42`, `BLOOD3`). Gap-tolerant — deleted IDs are never reclaimed | ID, identifier, ref |
 | **Prefix** | The letter portion of a display ID. Static for ELN (`E` → Entry), dynamic for LIMS (EntityType prefix → Entity). Used for reference routing | ID prefix, type prefix |
-| **ReferenceBadge** | A clickable UI badge showing a display ID (e.g., `E12`, `BLOOD1`). Clicking navigates to the target's canonical browser | badge, ref chip, #-badge |
+| **ReferenceBadge** | A clickable UI badge showing a display ID (e.g., `E12`, `BLOOD1`). Clicking navigates to the target's canonical console | badge, ref chip, #-badge |
 | **Content Sync Pipeline** | The ordered pipeline that processes an Entry on save: entities synced first (from limsTable nodes), then mentions synced (from reference nodes and Reference columns) | sync pipeline, entry sync |
 | **Tree Walker** | A shared depth-first utility that walks a TipTap JSON tree, calling a handler per node. Pure utility — zero domain knowledge | walker, document walker |
-| **Breadcrumb** | Navigation bar showing the current folder path as clickable segments in the Library browser. Current folder is bold; up-button (`↑`) moves to parent | path bar, nav trail |
+| **Breadcrumb** | Navigation bar showing the current folder path as clickable segments in the Library console. Current folder is bold; up-button (`↑`) moves to parent | path bar, nav trail |
 
 ## Dedicated URL
 
@@ -83,14 +83,14 @@
 | **EntityWorkspace** | The standalone page at `/lims/:displayId` showing a single Entity's full detail with tabbed Workspace (Properties, Activity, Insights, Storage) | entity detail page, entity permalink |
 | **ElnEditor** | The TipTap editor component that renders in two modes: **embedded** (inside the Library's Workspace Panel) and **standalone** (at `/eln/:id`) | entry editor, notebook editor |
 
-## Shared Browser Components
+## Shared Console Components
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **BrowserProvider** | React Context holding the View State at the top level of a browser page — lets layout react to state changes | ViewContext (deprecated) |
-| **BrowserPage** | Shared page-level layout component combining Master-Detail-Expanded structure with CSS class computation for both Library and LIMS | — |
-| **BrowserCollapsedStrip** | Thin vertical strip (~40px) shown when Master Panel is collapsed in Expanded state. Contains a single expand button | collapsed strip, LimsCollapsedStrip (deprecated), LibraryCollapsedStrip (deprecated) |
-| **useBrowserView** | Shared hook implementing the View State machine with entry/exit animations (250ms) and transitional states (`isExiting`, `isDetailExiting`) | — |
+| **ConsoleProvider** | React Context holding the View State at the top level of a console page — lets layout react to state changes | ViewContext (deprecated) |
+| **ConsolePage** | Shared page-level layout component combining Master-Detail-Expanded structure with CSS class computation for both Library and LIMS | — |
+| **ConsoleCollapsedStrip** | Thin vertical strip (~40px) shown when Master Panel is collapsed in Expanded state. Contains a single expand button | collapsed strip, LimsCollapsedStrip (deprecated), LibraryCollapsedStrip (deprecated) |
+| **useConsoleView** | Shared hook implementing the View State machine with entry/exit animations (250ms) and transitional states (`isExiting`, `isDetailExiting`) | — |
 
 ## Entity Type Management (Settings)
 
@@ -116,15 +116,15 @@
 - An **Action** is performed by exactly one **User**
 - An **Entity Type** defines exactly one **Prefix** for display ID generation
 - An **Entity Type** has one **Column Schema** (JSON array of column definitions)
-- A **Browser** surfaces one or more **Item** types in its Master Panel
+- A **Console** surfaces one or more **Item** types in its Master Panel
 - A **Master Panel**, **Detail Panel**, and **Workspace Panel** together form the three-panel layout
 - **View State** determines which panels are visible: **List** (Master only), **Detail** (Master + Detail), **Expanded** (Master collapsed + Detail + Workspace)
 - Each **Item** type has a dedicated **Workspace** content: Entry → TipTap editor, Entity → tabbed detail view
 - A **LimsTable Node** syncs to one or more **Entity** records on save
 
 ```
-Library Browser ──▶ Folder tree (Library is the browsing surface for the folder hierarchy)
-LIMS Browser ──▶ Entity table (LIMS is the browsing surface for the entity database)
+Library Console ──▶ Folder tree (Library is the browsing surface for the folder hierarchy)
+LIMS Console ──▶ Entity table (LIMS is the browsing surface for the entity database)
 
 Folder ──┬── Folder (parent/child, recursive)
          ├── Entry (1:N — entry lives in one folder)
@@ -142,16 +142,16 @@ User ──▶ Entry (1:N — author)
 User ──▶ Action (1:N — performer)
 User ──▶ Entity (1:N — creator)
 
-Browser (abstract) ──▶ Master Panel ──▶ Item table
+Console (abstract) ──▶ Master Panel ──▶ Item table
                     ├── Detail Panel ──▶ summary card
                     └── Workspace Panel ──▶ type-specific work surface (slot)
 ```
 
 ## Key Distinctions
 
-### Browser vs Data Model
+### Console vs Data Model
 
-A **Browser** (Library, LIMS) is a UI/UX construct — the three-panel surface users interact with. The **data models** (Folder, Entry, Entity, EntityType) are backend records. Browsers are presentation layers; data models are persistent storage.
+A **Console** (Library, LIMS) is a UI/UX construct — the three-panel surface users interact with. The **data models** (Folder, Entry, Entity, EntityType) are backend records. Consoles are presentation layers; data models are persistent storage.
 
 ### Entry vs Rich-Text Document
 
@@ -163,7 +163,7 @@ An **Entry** is the database record (id, title, author, folder, dates). The **Ri
 |-----------|-------|--------|
 | Nature | Unstructured narrative | Structured data |
 | Content | Rich-Text Document (TipTap blocks) | Typed properties (JSON, schema-driven) |
-| Browser | Library (within folder hierarchy) | LIMS (flat, filterable) |
+| Console | Library (within folder hierarchy) | LIMS (flat, filterable) |
 | Workspace | TipTap editor | Tabbed detail (Activity, Insights, Storage) |
 
 ### Mention vs Action
@@ -172,7 +172,7 @@ A **Mention** is a passive link: "I referenced sample #42." An **Action** is an 
 
 ### Folder vs Library
 
-A **Folder** is a data-model concept — a node in the folder tree. The **Library** is the Browser that lets users navigate the folder hierarchy.
+A **Folder** is a data-model concept — a node in the folder tree. The **Library** is the Console that lets users navigate the folder hierarchy.
 
 ### Master vs Detail vs Workspace
 
@@ -188,7 +188,7 @@ The Detail Panel is the **gateway** to the Workspace — you cannot skip from Li
 
 | State | Mental model | Transition |
 |-------|-------------|------------|
-| **List** | "I'm looking for something" | Open the browser |
+| **List** | "I'm looking for something" | Open the console |
 | **Detail** | "What is this thing?" | Click a row |
 | **Expanded** | "I want to work with this" | Click expand in Detail header |
 
@@ -196,7 +196,7 @@ States advance left-to-right and collapse back. Skipping states is not allowed.
 
 ## Example Dialogue
 
-> **Dev:** "When a user clicks an **Entity** row in the **LIMS** browser's **Master Panel**, does it go straight to the **Workspace**?"
+> **Dev:** "When a user clicks an **Entity** row in the **LIMS** console's **Master Panel**, does it go straight to the **Workspace**?"
 
 > **Domain expert:** "No — it opens the **Detail Panel** first. The user sees a summary card with the Entity's type, creator, dates, and properties. The **Detail Panel** is the gateway — you always pass through **Detail** state before reaching **Expanded**."
 
@@ -210,7 +210,7 @@ States advance left-to-right and collapse back. Skipping states is not allowed.
 
 > **Dev:** "What about cross-references? If an **Entry** contains a **Mention** to `#BLOOD1`, and the user clicks the **ReferenceBadge**?"
 
-> **Domain expert:** "That navigates to the **Entity**'s **Dedicated URL** — `/lims/BLOOD1` — full **EntityWorkspace** page. The user leaves the **Library** browser. It's a known UX rough edge: we want a tabbed Workspace later that can preview the Entity inline without leaving the Entry editor."
+> **Domain expert:** "That navigates to the **Entity**'s **Dedicated URL** — `/lims/BLOOD1` — full **EntityWorkspace** page. The user leaves the **Library** console. It's a known UX rough edge: we want a tabbed Workspace later that can preview the Entity inline without leaving the Entry editor."
 
 > **Dev:** "And when the user saves an **Entry**, the **Content Sync Pipeline** runs. What order?"
 
@@ -220,16 +220,16 @@ States advance left-to-right and collapse back. Skipping states is not allowed.
 
 | Old Term | Canonical Replacement |
 |----------|---------------------|
-| "three-step fold" / "LIMS three-step fold" | "Three-Panel Browser" or "Master/Detail/Workspace" |
-| LimsCollapsedStrip / LibraryCollapsedStrip | BrowserCollapsedStrip |
-| LimsViewContext / LibraryViewContext | BrowserProvider |
-| LimsDetailCard / LibraryDetailCard | Uses BrowserDetailPanel shell |
-| LimsMoreDetailPanel / LibraryMoreDetailPanel | Uses BrowserWorkspacePanel shell |
+| "three-step fold" / "LIMS three-step fold" | "Three-Panel Console" or "Master/Detail/Workspace" |
+| LimsCollapsedStrip / LibraryCollapsedStrip | ConsoleCollapsedStrip |
+| LimsViewContext / LibraryViewContext | ConsoleProvider |
+| LimsDetailCard / LibraryDetailCard | Uses ConsoleDetailPanel shell |
+| LimsMoreDetailPanel / LibraryMoreDetailPanel | Uses ConsoleWorkspacePanel shell |
 | "more detail panel" | Workspace Panel |
 | "sample" | Entity |
 | "project" | Folder |
-| "ELN browser" | Library |
-| ViewState in lims.ts | ViewState in types/browser.ts (shared) |
+| "ELN browser" / "ELN console" | Library Console |
+| ViewState in lims.ts | ViewState in types/console.ts (shared) |
 
 ## Flagged Ambiguities
 
@@ -237,4 +237,4 @@ States advance left-to-right and collapse back. Skipping states is not allowed.
 - **"Detail"** names both a **Panel** (the middle panel showing a summary card) and a **View State** (Master + Detail visible, Workspace hidden). Always qualify: say **Detail Panel** or **Detail state** — never bare "Detail."
 - **"Expanded"** names both a **View State** and the action of expanding. Prefer "enter Expanded state" or "expand to Workspace" over bare "expanded."
 - **"content"** was used to mean both the Rich-Text Document inside an Entry and the children array of any TipTap node. Prefer **"Rich-Text Document"** for the Entry's content and **"child nodes"** or **"children"** for the structural sense.
-- **"browser"** in JavaScript contexts means the web browser. In domain contexts it means a concrete Browser instance (Library or LIMS). Disambiguate by capitalization: **Browser** (domain), browser (web platform).
+- **"console"** in some contexts means the terminal/command-line. In domain contexts it means a concrete Console instance (Library or LIMS) following the Console Pattern. Disambiguate by capitalization and context: **Console** (domain, the three-panel browsing surface), console (terminal), browser (web platform).

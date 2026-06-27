@@ -19,6 +19,7 @@ staticfiles/
 node_modules/
 dist/
 .vite/
+coverage/
 
 # Docker
 pgdata/
@@ -38,3 +39,4 @@ Thumbs.db
 
 # MCP
 .playwright-mcp
+backend/test.db

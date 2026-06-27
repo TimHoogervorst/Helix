@@ -12,6 +12,8 @@ and onboarding reference for contributors.
 |---|-------|------|--------|
 | [0001](0001-tiptap-json-content-format.md) | TipTap JSON for ELN Entry Content | 2026-06-24 | Accepted |
 | [0002](0002-display-id-prefix-routing.md) | Display ID System with Prefix-Based Routing | 2026-06-25 | Accepted |
+| [0003](0003-library-filesystem-browsing.md) | Library as Unified Filesystem-Like Console | 2026-06-26 | Accepted |
+| [0004](0004-unified-console-pattern.md) | Unified Console Pattern for LIMS and Library | 2026-06-27 | Accepted |
 
 ## Creating a New ADR
 

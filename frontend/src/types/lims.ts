@@ -91,11 +91,6 @@ export interface GridRow {
   values: Record<string, unknown>;
 }
 
-// ── LIMS Page View State ──────────────────────────────────────────────
-
-/** The three-panel layout view state for the LIMS entity browser. */
-export type ViewState = "list" | "detail" | "expanded";
-
 /** The full table data stored in the limsTable node attribute. */
 export interface GridTableData {
   schemaId: number | null;

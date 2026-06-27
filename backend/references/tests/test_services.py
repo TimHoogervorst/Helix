@@ -1,14 +1,9 @@
 """
 Tests for the references service: sync_mentions, resolve_display_id, PREFIX_MAP.
 """
-from django.test import TestCase
-
-from core.models import Folder, User
-from eln.models import NotebookEntry, Mention
-
-# --- TipTap document fixtures ---
-
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
+from core.tests.base import BaseServiceTestCase
+from core.tests.factories import EMPTY_DOC
+from workspaces.eln.models import NotebookEntry, Mention
 
 DOC_WITH_ONE_REFERENCE = {
     "type": "doc",
@@ -57,12 +52,11 @@ DOC_WITH_NESTED_REFERENCE = {
 }
 
 
-class SyncMentionsTests(TestCase):
+class SyncMentionsTests(BaseServiceTestCase):
     """Tracer-bullet + incremental tests for sync_mentions()."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
         self.source = NotebookEntry.objects.create(
             title="Source Entry", content=EMPTY_DOC, folder=self.folder, author=self.user
         )

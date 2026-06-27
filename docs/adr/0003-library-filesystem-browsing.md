@@ -1,4 +1,4 @@
-# ADR-0003: Library as Unified Filesystem-Like Browser
+# ADR-0003: Library as Unified Filesystem-Like Console
 
 > Date: 2026-06-26
 > Status: Accepted

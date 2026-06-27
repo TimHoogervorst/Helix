@@ -4,23 +4,16 @@ Tests for the references API endpoints.
 POST /api/references/resolve/   — batch-resolve display IDs
 GET  /api/references/search/    — search by display_id prefix
 """
-from django.test import TestCase
-from rest_framework.test import APIClient
-
-from core.models import Folder, User
-from eln.models import NotebookEntry
+from core.tests.base import BaseTestCase
+from core.tests.factories import EMPTY_DOC
+from workspaces.eln.models import NotebookEntry
 
 
-EMPTY_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
-
-
-class ResolveApiTests(TestCase):
+class ResolveApiTests(BaseTestCase):
     """POST /api/references/resolve/"""
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
     def test_resolve_valid_ids(self):
         """Valid display IDs resolve to target details."""
@@ -93,13 +86,11 @@ class ResolveApiTests(TestCase):
         self.assertEqual(response.data, {"X1": None})
 
 
-class SearchApiTests(TestCase):
+class SearchApiTests(BaseTestCase):
     """GET /api/references/search/?q=..."""
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
         self.e1 = NotebookEntry.objects.create(
             title="PCR Protocol", content=EMPTY_DOC, folder=self.folder, author=self.user
@@ -145,15 +136,13 @@ class SearchApiTests(TestCase):
 
 # ── Slice 1: Dynamic PREFIX_MAP — entity references ──
 
-class EntityReferenceTests(TestCase):
+class EntityReferenceTests(BaseTestCase):
     """Entity display IDs resolve and search through the references endpoints."""
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
-        from lims.models import EntityType, Entity
+        from workspaces.lims.models import EntityType, Entity
 
         self.blood_type = EntityType.objects.create(
             name="Blood Sample", prefix="BLOOD", columns=[]
@@ -218,15 +207,13 @@ class EntityReferenceTests(TestCase):
 
 # ── Icon field in references API ───────────────────────────────────────
 
-class IconInReferencesTests(TestCase):
+class IconInReferencesTests(BaseTestCase):
     """Verify that resolve and search endpoints include the icon field."""
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="testpass123")
-        self.folder = Folder.objects.create(name="Default")
+        super().setUp()
 
-        from lims.models import EntityType, Entity
+        from workspaces.lims.models import EntityType, Entity
 
         self.blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", icon="🩸", columns=[]
@@ -268,7 +255,7 @@ class IconInReferencesTests(TestCase):
 
     def test_resolve_entity_default_icon(self):
         """Entity with entity type having default icon resolves with '🧪'."""
-        from lims.models import EntityType, Entity
+        from workspaces.lims.models import EntityType, Entity
 
         default_type = EntityType.objects.create(
             name="Default", prefix="DEF", columns=[]

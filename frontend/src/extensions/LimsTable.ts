@@ -9,7 +9,7 @@
  */
 import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import LimsTableNode from "../components/LimsTableNode";
+import LimsTableNode from "./LimsTableNode";
 
 const LimsTable = Node.create({
   name: "limsTable",

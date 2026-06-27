@@ -7,8 +7,8 @@ import { getLibraryContents } from "../api/library";
 import LibraryBreadcrumbs from "../components/LibraryBreadcrumbs";
 import LibraryTable from "../components/LibraryTable";
 import LibraryNewDropdown from "../components/LibraryNewDropdown";
-import LibraryDetailCard from "../components/LibraryDetailCard";
-import LibraryMoreDetailPanel from "../components/LibraryMoreDetailPanel";
+import ElnDetailCard from "../workspaces/eln/ElnDetailCard";
+import ElnWorkspace from "../workspaces/eln/ElnWorkspace";
 
 function LibraryView() {
   const navigate = useNavigate();
@@ -186,7 +186,7 @@ function LibraryView() {
       detail={
         selectedItem &&
         (viewState === "detail" || viewState === "expanded") ? (
-          <LibraryDetailCard
+          <ElnDetailCard
             key={selectedItem.display_id}
             entry={selectedItem}
             viewState={viewState}
@@ -198,7 +198,7 @@ function LibraryView() {
       }
       workspace={
         selectedItem && viewState === "expanded" ? (
-          <LibraryMoreDetailPanel
+          <ElnWorkspace
             entry={selectedItem}
             isExiting={isExiting}
           />

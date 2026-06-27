@@ -4,8 +4,8 @@ import { get } from "../api/client";
 import type { EntityListItem, PaginatedResponse } from "../types/lims";
 import { useConsoleView } from "../console/core/useConsoleView";
 import ConsolePage from "../console/core/ConsolePage";
-import LimsDetailCard from "../components/LimsDetailCard";
-import LimsMoreDetailPanel from "../components/LimsMoreDetailPanel";
+import LimsDetailCard from "../workspaces/lims/LimsDetailCard";
+import EntityWorkspace from "../workspaces/lims/EntityWorkspace";
 import ConsoleMasterPanel, {
   type MasterColumn,
 } from "../console/core/ConsoleMasterPanel";
@@ -197,7 +197,7 @@ function LimsList() {
       }
       workspace={
         selectedEntity && viewState === "expanded" ? (
-          <LimsMoreDetailPanel
+          <EntityWorkspace
             entity={selectedEntity}
             isExiting={isExiting}
           />

@@ -1,8 +1,8 @@
-import type { LibraryEntryItem } from "../types/library";
-import ElnEditor from "./ElnEditor";
-import ConsoleWorkspacePanel from "../console/core/ConsoleWorkspacePanel";
+import type { LibraryEntryItem } from "../../types/library";
+import ElnEditor from "../../components/ElnEditor";
+import ConsoleWorkspacePanel from "../../console/core/ConsoleWorkspacePanel";
 
-interface LibraryMoreDetailPanelProps {
+interface ElnWorkspaceProps {
   entry: LibraryEntryItem;
   isExiting: boolean;
 }
@@ -12,7 +12,7 @@ interface LibraryMoreDetailPanelProps {
  * Renders the full ElnEditor in embedded mode — no paper-page,
  * no redundant title (shown in the detail card).
  */
-function LibraryMoreDetailPanel({ entry, isExiting }: LibraryMoreDetailPanelProps) {
+function ElnWorkspace({ entry, isExiting }: ElnWorkspaceProps) {
   return (
     <ConsoleWorkspacePanel isExiting={isExiting}>
       <ElnEditor entryId={entry.display_id} embedded />
@@ -20,4 +20,4 @@ function LibraryMoreDetailPanel({ entry, isExiting }: LibraryMoreDetailPanelProp
   );
 }
 
-export default LibraryMoreDetailPanel;
+export default ElnWorkspace;

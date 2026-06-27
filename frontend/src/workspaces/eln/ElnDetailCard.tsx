@@ -1,11 +1,11 @@
-import type { ViewState } from "../types/console";
-import type { LibraryEntryItem } from "../types/library";
-import ReferenceBadge from "./ReferenceBadge";
-import ContentPreview from "./ContentPreview";
-import ConsoleDetailPanel from "../console/core/ConsoleDetailPanel";
-import { useContentPreview } from "../hooks/useContentPreview";
+import type { ViewState } from "../../types/console";
+import type { LibraryEntryItem } from "../../types/library";
+import ReferenceBadge from "../../components/ReferenceBadge";
+import ContentPreview from "../../components/ContentPreview";
+import ConsoleDetailPanel from "../../console/core/ConsoleDetailPanel";
+import { useContentPreview } from "../../hooks/useContentPreview";
 
-interface LibraryDetailCardProps {
+interface ElnDetailCardProps {
   entry: LibraryEntryItem;
   viewState: ViewState;
   onClose: () => void;
@@ -17,13 +17,13 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
-function LibraryDetailCard({
+function ElnDetailCard({
   entry,
   viewState,
   onClose,
   onCollapse,
   isDetailExiting = false,
-}: LibraryDetailCardProps) {
+}: ElnDetailCardProps) {
   const { content, loading, error } = useContentPreview(entry.display_id);
 
   return (
@@ -81,4 +81,4 @@ function LibraryDetailCard({
   );
 }
 
-export default LibraryDetailCard;
+export default ElnDetailCard;

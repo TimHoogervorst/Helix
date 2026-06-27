@@ -16,7 +16,7 @@ import type {
 } from "ag-grid-community";
 import type { GridColumn, GridRow, EntityType } from "../types/lims";
 import { get } from "../api/client";
-import { DisplayIdCellRenderer, ReferenceCellRenderer } from "./ReferenceBadgeCellRenderer";
+import { DisplayIdCellRenderer, ReferenceCellRenderer } from "../components/ReferenceBadgeCellRenderer";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {
@@ -30,7 +30,7 @@ const TYPE_SYMBOL: Record<string, string> = {
 /** Build a header name string: symbol + name (e.g. "Aa Notes", "# Volume"). */
 function headerWithSymbol(c: GridColumn): string {
   const sym = TYPE_SYMBOL[c.type] ?? "Aa";
-  return `${sym} ${c.name}`; //   = non-breaking thin space
+  return `${sym} ${c.name}`; //   = non-breaking thin space
 }
 
 // ── Map our column type → AG Grid colDef overrides ────────────────────

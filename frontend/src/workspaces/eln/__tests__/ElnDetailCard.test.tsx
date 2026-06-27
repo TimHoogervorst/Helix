@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import LibraryDetailCard from "../LibraryDetailCard";
-import type { LibraryEntryItem } from "../../types/library";
+import ElnDetailCard from "../ElnDetailCard";
+import type { LibraryEntryItem } from "../../../types/library";
 
 // Mock the content preview hook
-vi.mock("../../hooks/useContentPreview", () => ({
+vi.mock("../../../hooks/useContentPreview", () => ({
   useContentPreview: () => ({
     content: {
       type: "doc",
@@ -22,7 +22,7 @@ vi.mock("../../hooks/useContentPreview", () => ({
 }));
 
 // Mock ReferenceBadge
-vi.mock("../ReferenceBadge", () => ({
+vi.mock("../../../components/ReferenceBadge", () => ({
   default: ({
     displayId,
     resolved,
@@ -37,7 +37,7 @@ vi.mock("../ReferenceBadge", () => ({
 }));
 
 // Mock ContentPreview (TipTap is heavy for jsdom)
-vi.mock("../ContentPreview", () => ({
+vi.mock("../../../components/ContentPreview", () => ({
   default: ({ content }: { content: unknown }) => (
     <div data-testid="content-preview">
       {content ? "Content rendered" : "No content"}
@@ -57,11 +57,11 @@ const entry: LibraryEntryItem = {
   updated_at: "2025-06-02T15:30:00Z",
 };
 
-describe("LibraryDetailCard", () => {
+describe("ElnDetailCard", () => {
   it("renders entry title and ReferenceBadge", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -78,7 +78,7 @@ describe("LibraryDetailCard", () => {
   it("renders metadata fields", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -99,7 +99,7 @@ describe("LibraryDetailCard", () => {
     };
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={rootEntry}
           viewState="detail"
           onClose={vi.fn()}
@@ -113,7 +113,7 @@ describe("LibraryDetailCard", () => {
   it("shows open-entry link in detail view", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -129,7 +129,7 @@ describe("LibraryDetailCard", () => {
   it("applies exit animation class when isDetailExiting is true", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -147,7 +147,7 @@ describe("LibraryDetailCard", () => {
   it("does not apply exit class when isDetailExiting is false", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -161,10 +161,10 @@ describe("LibraryDetailCard", () => {
     expect(panel!.className).not.toContain("is-exiting");
   });
 
-  it("has slide-in animation via browser-detail-panel class", () => {
+  it("has slide-in animation via console-detail-panel class", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -181,7 +181,7 @@ describe("LibraryDetailCard", () => {
   it("shows collapse button in expanded view", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="expanded"
           onClose={vi.fn()}
@@ -196,7 +196,7 @@ describe("LibraryDetailCard", () => {
     const handleClose = vi.fn();
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={handleClose}
@@ -212,7 +212,7 @@ describe("LibraryDetailCard", () => {
     const handleCollapse = vi.fn();
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="expanded"
           onClose={vi.fn()}
@@ -227,7 +227,7 @@ describe("LibraryDetailCard", () => {
   it("renders content preview", () => {
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={entry}
           viewState="detail"
           onClose={vi.fn()}
@@ -245,7 +245,7 @@ describe("LibraryDetailCard", () => {
     };
     render(
       <MemoryRouter>
-        <LibraryDetailCard
+        <ElnDetailCard
           entry={noAuthor}
           viewState="detail"
           onClose={vi.fn()}

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { EntityListItem } from "../types/lims";
-import ConsoleWorkspacePanel from "../console/core/ConsoleWorkspacePanel";
+import type { EntityListItem } from "../../types/lims";
+import ConsoleWorkspacePanel from "../../console/core/ConsoleWorkspacePanel";
 
 /** Tab configuration — add entries here for future tabs. */
 interface TabConfig {
@@ -14,7 +14,7 @@ const TABS: TabConfig[] = [
   { id: "storage", label: "Storage" },
 ];
 
-interface LimsMoreDetailPanelProps {
+interface EntityWorkspaceProps {
   entity: EntityListItem;
   isExiting: boolean;
 }
@@ -27,7 +27,7 @@ function PlaceholderTab({ label }: { label: string }) {
   );
 }
 
-function LimsMoreDetailPanel({ entity: _entity, isExiting }: LimsMoreDetailPanelProps) {
+function EntityWorkspace({ entity: _entity, isExiting }: EntityWorkspaceProps) {
   const [activeTab, setActiveTab] = useState(TABS[0].id);
 
   return (
@@ -56,4 +56,4 @@ function LimsMoreDetailPanel({ entity: _entity, isExiting }: LimsMoreDetailPanel
   );
 }
 
-export default LimsMoreDetailPanel;
+export default EntityWorkspace;

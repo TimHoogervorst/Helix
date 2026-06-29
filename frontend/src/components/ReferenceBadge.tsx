@@ -52,7 +52,7 @@ function toBadgeResolved(r: ResolvedRef): BadgeResolved {
 /** Build the navigation href for a resolved badge. */
 function badgeHref(resolved: BadgeResolved): string {
   if (resolved.type === "entity") {
-    return `/lims?entity=${encodeURIComponent(resolved.displayId)}`;
+    return `/lims/${resolved.displayId}`;
   }
   return `/eln/${resolved.displayId}`;
 }

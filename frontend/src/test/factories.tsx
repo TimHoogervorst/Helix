@@ -314,7 +314,7 @@ export function makeMockReferenceBadge(
     if (isClickable && hasResolved) {
       const href =
         resolved!.type === "entity"
-          ? `/lims?entity=${encodeURIComponent(resolved!.displayId)}`
+          ? `/lims/${resolved!.displayId}`
           : `/eln/${resolved!.displayId}`;
 
       return (

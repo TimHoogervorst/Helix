@@ -100,7 +100,7 @@ describe("clickable (blue)", () => {
     expect(badge).toHaveAttribute("href", "/eln/E1");
   });
 
-  it("navigates to /lims?entity= for entity references", () => {
+  it("navigates to /lims/:displayId for entity references", () => {
     renderBadge({
       displayId: "BLOOD1",
       clickable: true,
@@ -108,7 +108,7 @@ describe("clickable (blue)", () => {
     });
     const badge = screen.getByText("BLOOD1").closest(".reference-badge")!;
     expect(badge.tagName).toBe("A");
-    expect(badge).toHaveAttribute("href", "/lims?entity=BLOOD1");
+    expect(badge).toHaveAttribute("href", "/lims/BLOOD1");
   });
 
   it("renders red broken pill when resolved is null", () => {

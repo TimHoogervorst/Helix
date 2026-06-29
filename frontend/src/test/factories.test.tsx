@@ -124,7 +124,7 @@ describe("clickable + resolved", () => {
 
     const badge = screen.getByTestId("ref-badge");
     expect(badge.tagName).toBe("A");
-    expect(badge).toHaveAttribute("href", "/lims?entity=BLOOD1");
+    expect(badge).toHaveAttribute("href", "/lims/BLOOD1");
   });
 });
 

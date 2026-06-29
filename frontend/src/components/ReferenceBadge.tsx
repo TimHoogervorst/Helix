@@ -31,6 +31,9 @@ export interface ReferenceBadgeProps {
   clickable?: boolean;
   /** Pre-resolved data (skips auto-resolve) */
   resolved?: BadgeResolved | null;
+  /** When true and resolved data exists, omit the title span.
+   *  Silently ignored when no resolved title is present (loading/broken/bare). */
+  compact?: boolean;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -60,6 +63,7 @@ function ReferenceBadge({
   displayId,
   clickable = false,
   resolved,
+  compact = false,
 }: ReferenceBadgeProps) {
   const { resolutionMap, resolveIds } = useReferenceContext();
 
@@ -90,7 +94,7 @@ function ReferenceBadge({
       <span className="reference-badge is-nonclickable is-resolved">
         <span className="ref-badge-icon">{resolved.icon}</span>
         <span className="ref-badge-id">{displayId}</span>
-        <span className="ref-badge-title">{resolved.title}</span>
+        {!compact && <span className="ref-badge-title">{resolved.title}</span>}
       </span>
     );
   }
@@ -113,7 +117,7 @@ function ReferenceBadge({
       >
         <span className="ref-badge-icon">{resolved.icon}</span>
         <span className="ref-badge-id">{displayId}</span>
-        <span className="ref-badge-title">{resolved.title}</span>
+        {!compact && <span className="ref-badge-title">{resolved.title}</span>}
       </a>
     );
   }
@@ -148,7 +152,7 @@ function ReferenceBadge({
     >
       <span className="ref-badge-icon">{resolvedData.icon}</span>
       <span className="ref-badge-id">{displayId}</span>
-      <span className="ref-badge-title">{resolvedData.title}</span>
+      {!compact && <span className="ref-badge-title">{resolvedData.title}</span>}
     </a>
   );
 }

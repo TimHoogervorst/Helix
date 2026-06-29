@@ -8,7 +8,7 @@
  *   - formatDate        — shared date formatter
  */
 import { useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc } from "../types/eln";
 import { useEntryEditor } from "../hooks/useEntryEditor";
@@ -167,147 +167,127 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
           </div>
         </>
       ) : (
-        /* ── Normal (non-embedded) mode: full paper-page layout ── */
+        /* ── Normal (non-embedded) mode ── */
         <div className="eln-full-layout">
-          {/* ── Left Sidebar: "Open in Library" button ── */}
-          <div className="eln-sidebar-left">
-            <Link
-              to={(() => {
-                const params = new URLSearchParams();
-                if (entry?.folder_path) params.set("path", entry.folder_path);
-                if (entry?.display_id) params.set("select", entry.display_id);
-                const qs = params.toString();
-                return qs ? `/library?${qs}` : "/library";
-              })()}
-              className="eln-library-btn"
-              title="Show in Library"
-            >
-              &gt;
-            </Link>
-            <span className="eln-sidebar-divider" />
-          </div>
-
           <div className="paper-page">
-            {/* ── Top Bar ── */}
-            <div className="editor-top-bar">
-              <div className="title-col">
-                {isEdit ? (
-                  <input
-                    className="title-input"
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Untitled"
-                    autoFocus={isNew}
-                  />
-                ) : (
-                  <h1 className="title-display">{title || "Untitled"}</h1>
-                )}
+          {/* ── Top Bar ── */}
+          <div className="editor-top-bar">
+            <div className="title-col">
+              {isEdit ? (
+                <input
+                  className="title-input"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Untitled"
+                  autoFocus={isNew}
+                />
+              ) : (
+                <h1 className="title-display">{title || "Untitled"}</h1>
+              )}
 
-                <div className="meta-row">
-                  {entry && (
-                    <>
-                      <ReferenceBadge
-                        displayId={entry.display_id}
-                        clickable={false}
-                        resolved={{
-                          displayId: entry.display_id,
-                          title: entry.title,
-                          type: "entry",
-                          id: entry.id,
-                          icon: "📄",
-                        }}
-                      />{" "}
-                      {entry.author_username && `by ${entry.author_username} · `}
-                      Created {formatDate(entry.created_at)}
-                      {entry.updated_at !== entry.created_at &&
-                        ` · Updated ${formatDate(entry.updated_at)}`}
-                    </>
-                  )}
-                  {isNew && "New entry"}
-                </div>
-              </div>
-
-              <div className="actions">
-                {isNew && folders.length > 0 && (
-                  <select
-                    value={folderId ?? ""}
-                    onChange={(e) =>
-                      setFolderId(e.target.value ? Number(e.target.value) : null)
-                    }
-                  >
-                    <option value="">Folder…</option>
-                    {folders.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {isEdit ? (
+              <div className="meta-row">
+                {entry && (
                   <>
-                    <span
-                      className={`save-indicator${isDirty ? " is-dirty" : ""}`}
-                    >
-                      {isDirty ? "Unsaved changes" : "Saved"}
-                    </span>
-                    <button
-                      onClick={save}
-                      disabled={isSaving || !title.trim()}
-                    >
-                      {isSaving ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      onClick={cancel}
-                      disabled={isSaving}
-                      style={{
-                        background: "transparent",
-                        color: "var(--gray-700)",
-                        border: "1px solid var(--gray-300)",
+                    <ReferenceBadge
+                      displayId={entry.display_id}
+                      clickable={false}
+                      resolved={{
+                        displayId: entry.display_id,
+                        title: entry.title,
+                        type: "entry",
+                        id: entry.id,
+                        icon: "📄",
                       }}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={enterEditMode}>Edit</button>
-                    <button
-                      onClick={deleteEntry}
-                      disabled={deleting}
-                      style={{
-                        background: "transparent",
-                        color: "#dc2626",
-                        border: "1px solid #fecaca",
-                      }}
-                    >
-                      {deleting ? "Deleting…" : "Delete"}
-                    </button>
+                    />{" "}
+                    {entry.author_username && `by ${entry.author_username} · `}
+                    Last updated {formatDate(entry.updated_at)}
                   </>
                 )}
+                {isNew && "New entry"}
               </div>
             </div>
 
-            {/* ── Error banner ── */}
-            {error && <div className="error">{error}</div>}
+            <div className="actions">
+              {isNew && folders.length > 0 && (
+                <select
+                  value={folderId ?? ""}
+                  onChange={(e) =>
+                    setFolderId(e.target.value ? Number(e.target.value) : null)
+                  }
+                >
+                  <option value="">Folder…</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
-            {/* ── Editor Content ── */}
-            <div
-              className={`editor-content${!isEdit ? " view-mode" : ""}`}
-              onClick={() => {
-                if (!isEdit && mode === "view") {
-                  enterEditMode();
-                }
-              }}
-            >
-              {editor && (
+              {isEdit ? (
                 <>
-                  {isEdit && <EditorBubbleMenu editor={editor} />}
-                  <EditorContent editor={editor} />
+                  <span
+                    className={`save-indicator${isDirty ? " is-dirty" : ""}`}
+                  >
+                    {isDirty ? "Unsaved changes" : "Saved"}
+                  </span>
+                  <button
+                    onClick={save}
+                    disabled={isSaving || !title.trim()}
+                  >
+                    {isSaving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={cancel}
+                    disabled={isSaving}
+                    style={{
+                      background: "transparent",
+                      color: "var(--gray-700)",
+                      border: "1px solid var(--gray-300)",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={enterEditMode}>Edit</button>
+                  <button
+                    onClick={deleteEntry}
+                    disabled={deleting}
+                    style={{
+                      background: "transparent",
+                      color: "#dc2626",
+                      border: "1px solid #fecaca",
+                    }}
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </button>
                 </>
               )}
             </div>
+          </div>
+
+          {/* ── Error banner ── */}
+          {error && <div className="error">{error}</div>}
+
+          {/* ── Editor Content ── */}
+          <div
+            className={`editor-content${!isEdit ? " view-mode" : ""}`}
+            onClick={() => {
+              if (!isEdit && mode === "view") {
+                enterEditMode();
+              }
+            }}
+          >
+            {editor && (
+              <>
+                {isEdit && <EditorBubbleMenu editor={editor} />}
+                <EditorContent editor={editor} />
+              </>
+            )}
+          </div>
           </div>
         </div>
       )}

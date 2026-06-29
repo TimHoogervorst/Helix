@@ -53,7 +53,7 @@ function ConsolePage({
 
   // ── Compute page-level CSS classes ─────────────────────────────────
   const pageClass =
-    `page console-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
+    `console-page${viewState === "detail" || viewState === "expanded" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
 
   const masterDetailClass =
     `console-master-detail${viewState === "detail" ? " has-detail" : ""}${viewState === "expanded" ? " is-expanded" : ""}`;
@@ -64,7 +64,7 @@ function ConsolePage({
   // ── Loading placeholder ──────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="page">
+      <div className="console-page">
         <p className="empty">Loading…</p>
       </div>
     );
@@ -73,7 +73,9 @@ function ConsolePage({
   // ── Render ───────────────────────────────────────────────────────────
   return (
     <div className={pageClass}>
-      {header}
+      <div className="console-page-header">
+        {header}
+      </div>
 
       {error && <div className="error">{error}</div>}
 

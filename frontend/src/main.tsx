@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import "./styles.css";

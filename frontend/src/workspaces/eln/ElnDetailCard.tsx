@@ -37,6 +37,7 @@ function ElnDetailCard({
           <ReferenceBadge
             displayId={entry.display_id}
             clickable={false}
+            compact={true}
             resolved={{
               displayId: entry.display_id,
               title: entry.title,

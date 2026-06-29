@@ -163,6 +163,7 @@ function LimsConsole() {
                 <ReferenceBadge
                   displayId={entity.display_id}
                   clickable={false}
+                  compact={true}
                   resolved={{
                     displayId: entity.display_id,
                     title: entity.name,

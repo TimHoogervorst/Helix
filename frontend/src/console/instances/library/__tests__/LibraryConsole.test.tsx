@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { makeLibraryFolder, makeLibraryEntry, makeLibraryContents, makeMockReferenceBadge } from "../../../../test/factories";
 import LibraryConsole from "../LibraryConsole";
-import { makeLibraryFolder, makeLibraryEntry, makeLibraryContents } from "../../../../test/factories";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -22,17 +22,7 @@ vi.mock("../../../../console/core/ConsoleProvider", () => ({
 
 // Mock ReferenceBadge
 vi.mock("../../../../components/ReferenceBadge", () => ({
-  default: ({
-    displayId,
-    resolved,
-  }: {
-    displayId: string;
-    resolved?: { title: string };
-  }) => (
-    <span data-testid="ref-badge" data-display-id={displayId}>
-      {resolved?.title ?? displayId}
-    </span>
-  ),
+  default: makeMockReferenceBadge(),
 }));
 
 // Mock ContentPreview (TipTap is heavy)
@@ -130,8 +120,10 @@ describe("LibraryConsole", () => {
     await waitFor(() => {
       expect(screen.getByText(/Protocols/)).toBeInTheDocument();
     });
-    // Title appears in both ReferenceBadge and the Name column
-    expect(screen.getAllByText("PCR Results").length).toBeGreaterThanOrEqual(2);
+    // Title appears in the Name column; badge renders displayId
+    const badge = screen.getByTestId("ref-badge");
+    expect(badge).toHaveAttribute("data-display-id", "E1");
+    expect(screen.getByText("PCR Results")).toBeInTheDocument();
     // Experiments appears in both folder name and entry's folder_name column
     expect(screen.getAllByText(/Experiments/).length).toBeGreaterThanOrEqual(2);
   });

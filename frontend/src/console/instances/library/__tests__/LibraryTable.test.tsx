@@ -1,21 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { makeLibraryFolder, makeLibraryEntry, makeMockReferenceBadge } from "../../../../test/factories";
 import LibraryTable from "../LibraryTable";
-import { makeLibraryFolder, makeLibraryEntry } from "../../../../test/factories";
 
 // ReferenceBadge renders inside the table; we mock it to keep the test isolated
 vi.mock("../../../../components/ReferenceBadge", () => ({
-  default: ({
-    displayId,
-    resolved,
-  }: {
-    displayId: string;
-    resolved?: { title: string };
-  }) => (
-    <span data-testid="ref-badge" data-display-id={displayId}>
-      {resolved?.title ?? displayId}
-    </span>
-  ),
+  default: makeMockReferenceBadge(),
 }));
 
 const mockFolders = [
@@ -101,9 +91,13 @@ describe("LibraryTable", () => {
         onFolderNavigate={vi.fn()}
       />,
     );
-    // Title appears in both the badge and the name column
-    expect(screen.getAllByText("PCR Results").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("Gel Image").length).toBeGreaterThanOrEqual(2);
+    // Title appears in the Name column; badge renders displayId
+    expect(screen.getByText("PCR Results")).toBeInTheDocument();
+    expect(screen.getByText("Gel Image")).toBeInTheDocument();
+    const badges = screen.getAllByTestId("ref-badge");
+    expect(badges).toHaveLength(2);
+    expect(badges[0]).toHaveAttribute("data-display-id", "E1");
+    expect(badges[1]).toHaveAttribute("data-display-id", "E2");
   });
 
   it("highlights the selected entry row", () => {

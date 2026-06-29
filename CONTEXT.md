@@ -275,3 +275,33 @@ The Detail panel is the **gateway** to the Workspace. Users see the summary, dec
 | **List** | "I'm looking for something" | Open the console |
 | **Detail** | "What is this thing?" | Click a row |
 | **Expanded** | "I want to work with this" | Click expand button in Detail header |
+
+---
+
+## Design Language
+
+> Visual design terms that form the ubiquitous language for UI decisions. For the full reference document, see [docs/styling-guide.md](docs/styling-guide.md).
+
+### Semantic Icon Size
+
+A named icon size token — not an ad-hoc pixel value. The three canonical sizes are **sm** (14px, for inline icons inside text or badges), **md** (18px, the default for button icons), and **lg** (24px, for standalone action icons and empty states). Using tokens ensures consistency and makes size changes systematic.
+
+**Synonyms:** icon size token, named icon size
+
+### Tooltip Rule
+
+The hard rule that every icon-only button must have a `title` attribute (native browser tooltip) and an `aria-label` attribute (screen reader label). No exceptions — an unlabeled icon button is inaccessible and ambiguous. This rule applies to all buttons containing only an SVG icon.
+
+**Synonyms:** mandatory tooltip, icon accessibility rule
+
+### Typographic Scale
+
+The set of six canonical font sizes expressed as CSS custom properties: `--text-xs` (12px) through `--text-2xl` (24px). Every component references a scale token rather than a raw size. The scale uses `rem` units, so it respects the user's browser font size preference.
+
+**Synonyms:** type scale, font size tokens
+
+### Action → Icon Mapping
+
+The curated table that assigns exactly one Lucide icon to each user-facing action (e.g., Save → `Save`, Delete → `Trash2`, Settings → `Settings`). This mapping is authoritative — two different buttons for the same action must use the same icon. The mapping lives in the styling guide, not in code, so it can be consulted during design review before implementation.
+
+**Synonyms:** icon catalog, icon assignments

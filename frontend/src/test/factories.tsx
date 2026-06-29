@@ -27,10 +27,6 @@ import type {
   LibraryFolderItem,
   LibraryContentsResponse,
 } from "../types/library";
-import type {
-  BadgeResolved,
-  ReferenceBadgeProps,
-} from "../components/ReferenceBadge";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 
@@ -197,6 +193,26 @@ export function createTestEditor(
 }
 
 // ── ReferenceBadge mock ──────────────────────────────────────────────────────
+
+/**
+ * Inline type definitions (instead of importing from ReferenceBadge)
+ * so that consumer test files can `vi.mock` ReferenceBadge without
+ * creating a circular module dependency during Vitest hoisting.
+ */
+
+interface BadgeResolved {
+  displayId: string;
+  title: string;
+  type: "entry" | "entity";
+  id: number;
+  icon: string;
+}
+
+interface ReferenceBadgeProps {
+  displayId: string;
+  clickable?: boolean;
+  resolved?: BadgeResolved | null;
+}
 
 /** Configuration for the ReferenceBadge mock factory. */
 interface MockReferenceBadgeConfig {

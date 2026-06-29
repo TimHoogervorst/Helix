@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import LimsConsole from "../LimsConsole";
 import type { EntityListItem, PaginatedResponse } from "../../../../types/lims";
-import { emptyPage, makeEntityListItem, makeEntityPage } from "../../../../test/factories";
+import { emptyPage, makeEntityListItem, makeEntityPage, makeMockReferenceBadge } from "../../../../test/factories";
+import LimsConsole from "../LimsConsole";
 
 // ── API client mock ───────────────────────────────────────────────────────
 
@@ -44,24 +44,7 @@ vi.mock("../../../../console/core/ConsoleProvider", () => ({
 // ── Heavy component mocks ────────────────────────────────────────────────
 
 vi.mock("../../../../components/ReferenceBadge", () => ({
-  default: ({
-    displayId,
-    resolved,
-    clickable,
-  }: {
-    displayId: string;
-    resolved?: { title: string; icon?: string; type?: string };
-    clickable?: boolean;
-  }) => (
-    <span
-      data-testid="ref-badge"
-      data-display-id={displayId}
-      data-clickable={clickable ? "true" : "false"}
-    >
-      {resolved?.icon ? `${resolved.icon} ` : ""}
-      {resolved?.title ?? displayId}
-    </span>
-  ),
+  default: makeMockReferenceBadge({ clickable: true }),
 }));
 
 vi.mock("../../../../workspaces/lims/LimsDetailCard", () => ({
@@ -176,7 +159,7 @@ describe("LimsConsole", () => {
       expect(badges.length).toBeGreaterThanOrEqual(1);
     });
     const iconBadge = screen.getAllByTestId("ref-badge")[0];
-    expect(iconBadge.textContent).toContain("Sample A");
+    expect(iconBadge).toHaveAttribute("data-display-id", "BLOOD1");
   });
 
   it("renders source entry ReferenceBadge when source exists", async () => {

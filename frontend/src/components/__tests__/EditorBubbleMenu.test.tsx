@@ -83,8 +83,8 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    expect(screen.getByTitle("Bold")).toBeDefined();
-    expect(screen.getByTitle("Italic")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Bold" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Italic" })).toBeDefined();
   });
 
   it("toggles bold when Bold button is clicked", () => {
@@ -92,7 +92,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const boldBtn = screen.getByTitle("Bold");
+    const boldBtn = screen.getByRole("button", { name: "Bold" });
     fireEvent.click(boldBtn);
 
     expect(editor.isActive("bold")).toBe(true);
@@ -106,7 +106,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const italicBtn = screen.getByTitle("Italic");
+    const italicBtn = screen.getByRole("button", { name: "Italic" });
     fireEvent.click(italicBtn);
 
     expect(editor.isActive("italic")).toBe(true);
@@ -117,7 +117,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const h1Btn = screen.getByTitle("Heading 1");
+    const h1Btn = screen.getByRole("button", { name: "Heading 1" });
     fireEvent.click(h1Btn);
 
     expect(editor.isActive("heading", { level: 1 })).toBe(true);
@@ -128,7 +128,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const h2Btn = screen.getByTitle("Heading 2");
+    const h2Btn = screen.getByRole("button", { name: "Heading 2" });
     fireEvent.click(h2Btn);
 
     expect(editor.isActive("heading", { level: 2 })).toBe(true);
@@ -139,7 +139,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const h3Btn = screen.getByTitle("Heading 3");
+    const h3Btn = screen.getByRole("button", { name: "Heading 3" });
     fireEvent.click(h3Btn);
 
     expect(editor.isActive("heading", { level: 3 })).toBe(true);
@@ -150,7 +150,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const bulletBtn = screen.getByTitle("Bullet list");
+    const bulletBtn = screen.getByRole("button", { name: "Bullet list" });
     fireEvent.click(bulletBtn);
 
     expect(editor.isActive("bulletList")).toBe(true);
@@ -161,7 +161,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const orderedBtn = screen.getByTitle("Numbered list");
+    const orderedBtn = screen.getByRole("button", { name: "Numbered list" });
     fireEvent.click(orderedBtn);
 
     expect(editor.isActive("orderedList")).toBe(true);
@@ -172,7 +172,7 @@ describe("EditorBubbleMenu", () => {
     renderMenu(editor);
     selectText(editor);
 
-    const quoteBtn = screen.getByTitle("Blockquote");
+    const quoteBtn = screen.getByRole("button", { name: "Blockquote" });
     fireEvent.click(quoteBtn);
 
     expect(editor.isActive("blockquote")).toBe(true);
@@ -193,7 +193,7 @@ describe("EditorBubbleMenu", () => {
     });
 
     // Click Bold — this modifies editor state but doesn't trigger React re-render
-    const boldBtn = screen.getByTitle("Bold");
+    const boldBtn = screen.getByRole("button", { name: "Bold" });
     fireEvent.click(boldBtn);
 
     // Force re-render so className picks up editor.isActive("bold")
@@ -204,6 +204,6 @@ describe("EditorBubbleMenu", () => {
       </>,
     );
 
-    expect(screen.getByTitle("Bold").className).toContain("is-active");
+    expect(screen.getByRole("button", { name: "Bold" }).className).toContain("is-active");
   });
 });

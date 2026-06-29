@@ -508,14 +508,6 @@ h1 {
   margin: 0 0.25rem;
 }
 
-/* Heading-level indicator on the heading toggle button */
-.bubble-menu .heading-level {
-  font-size: 0.65rem;
-  font-weight: 700;
-  margin-left: 0.125rem;
-  opacity: 0.8;
-}
-
 /* ── Unified Reference Badge ── */
 
 .reference-badge {

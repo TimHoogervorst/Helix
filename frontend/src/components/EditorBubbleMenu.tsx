@@ -1,11 +1,21 @@
 /**
  * EditorBubbleMenu — formatting toolbar that floats above text selection.
  *
- * Renders 9 formatting buttons inside TipTap's `<BubbleMenu>`.
+ * Renders 8 formatting buttons inside TipTap's `<BubbleMenu>`.
  * Extracted from ElnEditor.tsx where it was copy-pasted in two branches.
  */
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { Editor } from "@tiptap/core";
+import {
+  Bold,
+  Italic,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Quote,
+} from "lucide-react";
 
 interface EditorBubbleMenuProps {
   editor: Editor;
@@ -18,15 +28,17 @@ function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
         onClick={() => editor.chain().focus().toggleBold().run()}
         className={editor.isActive("bold") ? "is-active" : ""}
         title="Bold"
+        aria-label="Bold"
       >
-        B
+        <Bold size={18} />
       </button>
       <button
         onClick={() => editor.chain().focus().toggleItalic().run()}
         className={editor.isActive("italic") ? "is-active" : ""}
         title="Italic"
+        aria-label="Italic"
       >
-        <em>I</em>
+        <Italic size={18} />
       </button>
 
       <span className="divider" />
@@ -39,8 +51,9 @@ function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           editor.isActive("heading", { level: 1 }) ? "is-active" : ""
         }
         title="Heading 1"
+        aria-label="Heading 1"
       >
-        H<span className="heading-level">1</span>
+        <Heading1 size={18} />
       </button>
       <button
         onClick={() =>
@@ -50,8 +63,9 @@ function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           editor.isActive("heading", { level: 2 }) ? "is-active" : ""
         }
         title="Heading 2"
+        aria-label="Heading 2"
       >
-        H<span className="heading-level">2</span>
+        <Heading2 size={18} />
       </button>
       <button
         onClick={() =>
@@ -61,8 +75,9 @@ function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           editor.isActive("heading", { level: 3 }) ? "is-active" : ""
         }
         title="Heading 3"
+        aria-label="Heading 3"
       >
-        H<span className="heading-level">3</span>
+        <Heading3 size={18} />
       </button>
 
       <span className="divider" />
@@ -71,15 +86,17 @@ function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         className={editor.isActive("bulletList") ? "is-active" : ""}
         title="Bullet list"
+        aria-label="Bullet list"
       >
-        •≡
+        <List size={18} />
       </button>
       <button
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         className={editor.isActive("orderedList") ? "is-active" : ""}
         title="Numbered list"
+        aria-label="Numbered list"
       >
-        1≡
+        <ListOrdered size={18} />
       </button>
 
       <span className="divider" />
@@ -88,8 +105,9 @@ function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
         className={editor.isActive("blockquote") ? "is-active" : ""}
         title="Blockquote"
+        aria-label="Blockquote"
       >
-        "
+        <Quote size={18} />
       </button>
     </BubbleMenu>
   );

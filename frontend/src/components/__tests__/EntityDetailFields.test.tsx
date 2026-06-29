@@ -1,26 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import EntityDetailFields from "../EntityDetailFields";
 import type { EntityListItem } from "../../types/lims";
-import { makeEntityListItem } from "../../test/factories";
+import { makeEntityListItem, makeMockReferenceBadge } from "../../test/factories";
+import EntityDetailFields from "../EntityDetailFields";
 
 // Mock ReferenceBadge
-// Using vi.mock at module level — needs vi imported
-import { vi } from "vitest";
-
 vi.mock("../ReferenceBadge", () => ({
-  default: ({
-    displayId,
-    clickable,
-  }: {
-    displayId: string;
-    clickable?: boolean;
-  }) => (
-    <span data-testid="ref-badge" data-display-id={displayId}>
-      {displayId}
-      {clickable ? " (link)" : ""}
-    </span>
-  ),
+  default: makeMockReferenceBadge(),
 }));
 
 const entity: EntityListItem = makeEntityListItem({

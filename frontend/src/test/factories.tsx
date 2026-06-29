@@ -15,6 +15,7 @@
  * Mirrors the backend pattern: ``backend/core/tests/factories.py``.
  */
 
+import { vi } from "vitest";
 import type {
   EntityListItem,
   PaginatedResponse,
@@ -189,4 +190,155 @@ export function createTestEditor(
     content: content ?? { type: "doc", content: [{ type: "paragraph" }] },
   });
   return editor;
+}
+
+// ── ReferenceBadge mock ──────────────────────────────────────────────────────
+
+/**
+ * Inline type definitions (instead of importing from ReferenceBadge)
+ * so that consumer test files can `vi.mock` ReferenceBadge without
+ * creating a circular module dependency during Vitest hoisting.
+ */
+
+interface BadgeResolved {
+  displayId: string;
+  title: string;
+  type: "entry" | "entity";
+  id: number;
+  icon: string;
+}
+
+interface ReferenceBadgeProps {
+  displayId: string;
+  clickable?: boolean;
+  resolved?: BadgeResolved | null;
+}
+
+/** Configuration for the ReferenceBadge mock factory. */
+interface MockReferenceBadgeConfig {
+  /** Render as clickable (blue pill / anchor). Default false. */
+  clickable?: boolean;
+  /** Pre-resolved data. undefined = loading, null = broken, data = resolved. */
+  resolved?: BadgeResolved | null;
+  /** Omit the title span when resolved. Silently ignored in loading/broken states. */
+  compact?: boolean;
+  /** Override the default "ref-badge" data-testid. */
+  testId?: string;
+}
+
+/**
+ * Create a canonical mock for the ReferenceBadge component.
+ *
+ * The returned ``vi.fn()`` mock renders structurally realistic DOM — CSS classes,
+ * data attributes, child spans, and link wrapping — matching the real
+ * component's output for the given config.
+ *
+ * Usage:
+ *
+ *     vi.mock("../components/ReferenceBadge", () => ({
+ *       default: makeMockReferenceBadge({ compact: true }),
+ *     }));
+ */
+export function makeMockReferenceBadge(
+  config: MockReferenceBadgeConfig = {},
+) {
+  const {
+    clickable = false,
+    resolved = undefined,
+    compact = false,
+    testId = "ref-badge",
+  } = config;
+
+  const isClickable = clickable;
+  const hasResolved = resolved !== undefined && resolved !== null;
+  const isBroken = clickable && resolved === null;
+  const isLoading = clickable && resolved === undefined;
+  const showTitle = hasResolved && !compact;
+
+  return vi.fn((props: ReferenceBadgeProps) => {
+    const { displayId } = props;
+
+    // ── Build CSS classes ──────────────────────────────────────────────
+    const classes = ["reference-badge"];
+    if (isClickable) {
+      classes.push("is-clickable");
+    } else {
+      classes.push("is-nonclickable");
+    }
+    if (hasResolved) classes.push("is-resolved");
+    if (isBroken) classes.push("is-broken");
+
+    // ── Loading state: just text, no child spans ────────────────────────
+    if (isLoading) {
+      return (
+        <span
+          data-testid={testId}
+          data-display-id={displayId}
+          className={classes.join(" ")}
+          data-clickable="true"
+        >
+          {displayId}
+        </span>
+      );
+    }
+
+    // ── Build children ──────────────────────────────────────────────────
+    const children: React.ReactNode[] = [];
+
+    // Icon span (resolved only, not broken)
+    if (hasResolved) {
+      children.push(
+        <span key="icon" className="ref-badge-icon">
+          {resolved!.icon}
+        </span>,
+      );
+    }
+
+    // ID span
+    children.push(
+      <span key="id" className="ref-badge-id">
+        {displayId}
+      </span>,
+    );
+
+    // Title span (resolved + not compact)
+    if (showTitle) {
+      children.push(
+        <span key="title" className="ref-badge-title">
+          {resolved!.title}
+        </span>,
+      );
+    }
+
+    // ── Anchor: clickable + resolved ────────────────────────────────────
+    if (isClickable && hasResolved) {
+      const href =
+        resolved!.type === "entity"
+          ? `/lims/${resolved!.displayId}`
+          : `/eln/${resolved!.displayId}`;
+
+      return (
+        <a
+          data-testid={testId}
+          data-display-id={displayId}
+          className={classes.join(" ")}
+          href={href}
+          data-clickable="true"
+        >
+          {children}
+        </a>
+      );
+    }
+
+    // ── Span: all other states ──────────────────────────────────────────
+    const spanProps: Record<string, string> = {
+      "data-testid": testId,
+      "data-display-id": displayId,
+      className: classes.join(" "),
+    };
+    if (isClickable) spanProps["data-clickable"] = "true";
+    if (isBroken) spanProps["title"] = "Reference not found";
+
+    return <span {...spanProps}>{children}</span>;
+  });
 }

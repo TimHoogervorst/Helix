@@ -100,7 +100,7 @@ describe("clickable (blue)", () => {
     expect(badge).toHaveAttribute("href", "/eln/E1");
   });
 
-  it("navigates to /lims?entity= for entity references", () => {
+  it("navigates to /lims/:displayId for entity references", () => {
     renderBadge({
       displayId: "BLOOD1",
       clickable: true,
@@ -108,7 +108,7 @@ describe("clickable (blue)", () => {
     });
     const badge = screen.getByText("BLOOD1").closest(".reference-badge")!;
     expect(badge.tagName).toBe("A");
-    expect(badge).toHaveAttribute("href", "/lims?entity=BLOOD1");
+    expect(badge).toHaveAttribute("href", "/lims/BLOOD1");
   });
 
   it("renders red broken pill when resolved is null", () => {
@@ -123,6 +123,92 @@ describe("clickable (blue)", () => {
     expect(badge).toHaveAttribute("title", "Reference not found");
     // No icon in broken state
     expect(badge.querySelector(".ref-badge-icon")).toBeNull();
+  });
+});
+
+// ── Compact mode ─────────────────────────────────────────────────────
+
+describe("compact mode", () => {
+  it("renders icon + id but no title span when compact + resolved (non-clickable)", () => {
+    renderBadge({
+      displayId: "E1",
+      clickable: false,
+      resolved: resolvedEntry,
+      compact: true,
+    });
+    expect(screen.getByText("📄")).toBeInTheDocument();
+    expect(screen.getByText("E1")).toBeInTheDocument();
+    expect(screen.queryByText("PCR Protocol")).toBeNull();
+    // Badge is still resolved-styled
+    const badge = screen.getByText("E1").closest(".reference-badge")!;
+    expect(badge).toHaveClass("is-nonclickable");
+    expect(badge).toHaveClass("is-resolved");
+  });
+
+  it("renders <a> with icon + id but no title when compact + clickable + resolved", () => {
+    renderBadge({
+      displayId: "E1",
+      clickable: true,
+      resolved: resolvedEntry,
+      compact: true,
+    });
+    expect(screen.getByText("📄")).toBeInTheDocument();
+    expect(screen.getByText("E1")).toBeInTheDocument();
+    expect(screen.queryByText("PCR Protocol")).toBeNull();
+    const badge = screen.getByText("E1").closest(".reference-badge")!;
+    expect(badge).toHaveClass("is-clickable");
+    expect(badge).toHaveClass("is-resolved");
+    expect(badge.tagName).toBe("A");
+    expect(badge).toHaveAttribute("href", "/eln/E1");
+  });
+
+  it("silently ignores compact when resolved is null (non-clickable fallback)", () => {
+    renderBadge({
+      displayId: "E1",
+      clickable: false,
+      resolved: null,
+      compact: true,
+    });
+    // Bare displayId fallback, no error
+    const el = screen.getByText("E1");
+    expect(el).toBeInTheDocument();
+    expect(el.closest(".reference-badge")).toHaveClass("is-nonclickable");
+    expect(el.closest(".reference-badge")).not.toHaveClass("is-resolved");
+  });
+
+  it("silently ignores compact when resolved is omitted (loading state)", () => {
+    renderBadge({
+      displayId: "E1",
+      clickable: true,
+      compact: true,
+    });
+    // Loading state — still shows bare displayId
+    const badge = document.querySelector(".reference-badge.is-clickable");
+    expect(badge).toBeInTheDocument();
+    expect(badge).not.toHaveClass("is-resolved");
+    expect(badge).not.toHaveClass("is-broken");
+  });
+
+  it("silently ignores compact in broken state", () => {
+    renderBadge({
+      displayId: "NONEXIST",
+      clickable: true,
+      resolved: null,
+      compact: true,
+    });
+    const badge = screen.getByText("NONEXIST").closest(".reference-badge")!;
+    expect(badge).toHaveClass("is-broken");
+    expect(badge).toHaveAttribute("title", "Reference not found");
+  });
+
+  it("defaults compact to false — title still renders when resolved", () => {
+    renderBadge({
+      displayId: "E1",
+      clickable: false,
+      resolved: resolvedEntry,
+    });
+    // compact defaults to false, so title should be present
+    expect(screen.getByText("PCR Protocol")).toBeInTheDocument();
   });
 });
 

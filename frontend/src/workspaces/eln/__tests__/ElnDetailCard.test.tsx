@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { makeLibraryEntry, makeMockReferenceBadge } from "../../../test/factories";
 import ElnDetailCard from "../ElnDetailCard";
-import { makeLibraryEntry } from "../../../test/factories";
 
 // Mock the content preview hook
 vi.mock("../../../hooks/useContentPreview", () => ({
@@ -23,17 +23,7 @@ vi.mock("../../../hooks/useContentPreview", () => ({
 
 // Mock ReferenceBadge
 vi.mock("../../../components/ReferenceBadge", () => ({
-  default: ({
-    displayId,
-    resolved,
-  }: {
-    displayId: string;
-    resolved?: { title: string };
-  }) => (
-    <span data-testid="ref-badge" data-display-id={displayId}>
-      {resolved?.title ?? displayId}
-    </span>
-  ),
+  default: makeMockReferenceBadge(),
 }));
 
 // Mock ContentPreview (TipTap is heavy for jsdom)
@@ -68,10 +58,11 @@ describe("ElnDetailCard", () => {
         />
       </MemoryRouter>,
     );
-    // The title appears in both the h2 text and the ReferenceBadge mock
-    const headings = screen.getAllByText("Test Entry");
-    expect(headings.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByTestId("ref-badge")).toBeInTheDocument();
+    // Title appears in h2; badge renders the displayId
+    const badge = screen.getByTestId("ref-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute("data-display-id", "E123");
+    expect(screen.getByText("Test Entry")).toBeInTheDocument();
   });
 
   it("renders metadata fields", () => {

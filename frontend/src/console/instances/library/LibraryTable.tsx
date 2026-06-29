@@ -51,6 +51,7 @@ function LibraryTable({
                 <ReferenceBadge
                   displayId={item.display_id}
                   clickable={false}
+                  compact={true}
                   resolved={{
                     displayId: item.display_id,
                     title: item.title,

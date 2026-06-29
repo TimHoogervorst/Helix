@@ -1,14 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import TypeDetailPanel from "../TypeDetailPanel";
 import type { EntityType } from "../../../types/lims";
-import { makeEntityType, makeColumnDef } from "../../../test/factories";
+import { makeEntityType, makeColumnDef, makeMockReferenceBadge } from "../../../test/factories";
+import TypeDetailPanel from "../TypeDetailPanel";
 
 // Mock ReferenceBadge
 vi.mock("../../../components/ReferenceBadge", () => ({
-  default: ({ displayId }: { displayId: string }) => (
-    <span data-testid="ref-badge">{displayId}</span>
-  ),
+  default: makeMockReferenceBadge(),
 }));
 
 const liveEntity: EntityType = makeEntityType({

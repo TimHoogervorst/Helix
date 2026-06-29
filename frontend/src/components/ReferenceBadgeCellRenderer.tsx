@@ -35,7 +35,7 @@ export function DisplayIdCellRenderer({ value }: CustomCellRendererProps) {
   }
 
   // Real display IDs get clickable badges
-  return <ReferenceBadge displayId={displayId} clickable />;
+  return <ReferenceBadge displayId={displayId} clickable compact={true} />;
 }
 
 /**

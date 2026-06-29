@@ -27,21 +27,25 @@ describe("ConsoleDetailPanel", () => {
   it("renders close button and fires onClose", () => {
     const onClose = vi.fn();
     renderPanel({ onClose });
-    fireEvent.click(screen.getByTitle("Close detail"));
+    const btn = screen.getByRole("button", { name: "Close detail" });
+    expect(btn).toHaveAttribute("aria-label", "Close detail");
+    fireEvent.click(btn);
     expect(onClose).toHaveBeenCalled();
   });
 
   it("renders expand link when expandUrl is provided and viewState is detail", () => {
     renderPanel({ expandUrl: "/lims/TEST1" });
-    const link = screen.getByTitle("Open in workspace");
-    expect(link.tagName).toBe("A");
+    const link = screen.getByRole("link", { name: "Open in workspace" });
+    expect(link).toHaveAttribute("aria-label", "Open in workspace");
     expect(link.getAttribute("href")).toBe("/lims/TEST1");
   });
 
   it("renders expand button when onExpand is provided (no expandUrl)", () => {
     const onExpand = vi.fn();
     renderPanel({ onExpand });
-    fireEvent.click(screen.getByTitle("Expand to full detail"));
+    const btn = screen.getByRole("button", { name: "Expand to full detail" });
+    expect(btn).toHaveAttribute("aria-label", "Expand to full detail");
+    fireEvent.click(btn);
     expect(onExpand).toHaveBeenCalled();
   });
 
@@ -53,7 +57,9 @@ describe("ConsoleDetailPanel", () => {
   it("renders collapse button in expanded state", () => {
     const onCollapse = vi.fn();
     renderPanel({ viewState: "expanded", onCollapse });
-    fireEvent.click(screen.getByTitle("Collapse to summary"));
+    const btn = screen.getByRole("button", { name: "Collapse to summary" });
+    expect(btn).toHaveAttribute("aria-label", "Collapse to summary");
+    fireEvent.click(btn);
     expect(onCollapse).toHaveBeenCalled();
   });
 

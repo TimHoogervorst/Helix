@@ -1,3 +1,5 @@
+import { ArrowUp } from "lucide-react";
+
 interface BreadcrumbsProps {
   path: string;
   onNavigate: (path: string) => void;
@@ -14,8 +16,9 @@ function Breadcrumbs({ path, onNavigate, onUp }: BreadcrumbsProps) {
         onClick={onUp}
         disabled={segments.length === 0}
         title="Go up"
+        aria-label="Go up"
       >
-        ↑
+        <ArrowUp size={18} />
       </button>
       <span
         className={`library-breadcrumb-seg${segments.length === 0 ? " is-current" : ""}`}

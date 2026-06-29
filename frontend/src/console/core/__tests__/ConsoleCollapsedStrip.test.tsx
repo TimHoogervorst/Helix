@@ -3,20 +3,26 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import ConsoleCollapsedStrip from "../ConsoleCollapsedStrip";
 
 describe("ConsoleCollapsedStrip", () => {
-  it("renders a button with the given title", () => {
+  it("renders a button with the given title and aria-label", () => {
     render(<ConsoleCollapsedStrip onExpand={vi.fn()} title="Back to detail" />);
-    expect(screen.getByTitle("Back to detail")).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "Back to detail" });
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveAttribute("aria-label", "Back to detail");
   });
 
   it("calls onExpand when button is clicked", () => {
     const handleExpand = vi.fn();
     render(<ConsoleCollapsedStrip onExpand={handleExpand} title="Expand" />);
-    fireEvent.click(screen.getByTitle("Expand"));
+    const btn = screen.getByRole("button", { name: "Expand" });
+    expect(btn).toHaveAttribute("aria-label", "Expand");
+    fireEvent.click(btn);
     expect(handleExpand).toHaveBeenCalled();
   });
 
   it("renders different titles via prop", () => {
     render(<ConsoleCollapsedStrip onExpand={vi.fn()} title="Expand entity list" />);
-    expect(screen.getByTitle("Expand entity list")).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "Expand entity list" });
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveAttribute("aria-label", "Expand entity list");
   });
 });

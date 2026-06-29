@@ -30,6 +30,9 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
   const navigate = useNavigate();
   const isNew = entryId === undefined;
 
+  // ── Content ref (synced on every editor update and on every render) ──
+  const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
+
   // ── TipTap Editor ──
   const editor = useEditor({
     extensions: createElnExtensions(),
@@ -42,10 +45,17 @@ function ElnEditor({ entryId, embedded = false, initialFolderId }: ElnEditorProp
         class: "ProseMirror",
       },
     },
+    // Keep contentRef in sync on every editor update, even when React
+    // suppresses re-renders (useEditorState selector returns null by
+    // default, so ElnEditor does NOT re-render on transactions).
+    onUpdate: ({ editor }) => {
+      contentRef.current = editor.getJSON() as TipTapDoc;
+    },
   });
 
-  // ── Content ref (synced before hook reads it) ──
-  const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
+  // Sync on every render to cover cases outside PM transactions
+  // (e.g. initial editor creation, setContent in useEffect, mode transitions).
+  // Redundant with onUpdate for normal edits but ensures contentRef is never stale.
   contentRef.current = editor?.getJSON() ?? EMPTY_DOC;
 
   // ── State machine ──

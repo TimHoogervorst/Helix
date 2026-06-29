@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import type { ViewState } from "../../types/console";
 
 export interface ConsoleDetailPanelProps {
@@ -47,16 +48,18 @@ function ConsoleDetailPanel({
                 to={expandUrl}
                 className="console-detail-expand"
                 title="Open in workspace"
+                aria-label="Open in workspace"
               >
-                &gt;
+                <Maximize2 size={18} />
               </Link>
             ) : onExpand ? (
               <button
                 className="console-detail-expand"
                 onClick={onExpand}
                 title="Expand to full detail"
+                aria-label="Expand to full detail"
               >
-                &gt;
+                <Maximize2 size={18} />
               </button>
             ) : null)}
 
@@ -65,8 +68,9 @@ function ConsoleDetailPanel({
               className="console-detail-collapse"
               onClick={onCollapse}
               title="Collapse to summary"
+              aria-label="Collapse to summary"
             >
-              &lt;
+              <Minimize2 size={18} />
             </button>
           )}
 
@@ -74,8 +78,9 @@ function ConsoleDetailPanel({
             className="console-detail-close"
             onClick={onClose}
             title="Close detail"
+            aria-label="Close detail"
           >
-            &times;
+            <X size={18} />
           </button>
         </div>
 

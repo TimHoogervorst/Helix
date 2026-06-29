@@ -99,7 +99,9 @@ describe("Breadcrumbs", () => {
         onUp={handleUp}
       />,
     );
-    fireEvent.click(screen.getByTitle("Go up"));
+    const btn = screen.getByRole("button", { name: "Go up" });
+    expect(btn).toHaveAttribute("aria-label", "Go up");
+    fireEvent.click(btn);
     expect(handleUp).toHaveBeenCalled();
   });
 
@@ -107,7 +109,7 @@ describe("Breadcrumbs", () => {
     render(
       <Breadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
     );
-    expect(screen.getByTitle("Go up")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Go up" })).toBeDisabled();
   });
 
   it("enables back button in subfolder", () => {
@@ -118,6 +120,6 @@ describe("Breadcrumbs", () => {
         onUp={vi.fn()}
       />,
     );
-    expect(screen.getByTitle("Go up")).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Go up" })).not.toBeDisabled();
   });
 });

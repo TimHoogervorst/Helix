@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { Search, Settings } from "lucide-react";
 import { get } from "../api/client";
 import type { EntityType } from "../types/lims";
 import { useConsole } from "../console/core/ConsoleProvider";
@@ -65,7 +66,7 @@ function Layout() {
         {isLims && viewState !== "expanded" && (
           <form className="nav-search-bar" onSubmit={handleSearch}>
             <div className="nav-search-input-wrap">
-              <span className="nav-search-icon">🔍</span>
+              <Search size={14} className="nav-search-icon" />
               <input
                 type="text"
                 name="search"
@@ -86,8 +87,8 @@ function Layout() {
                 </option>
               ))}
             </select>
-            <button type="submit" className="nav-search-btn" title="Search">
-              🔍
+            <button type="submit" className="nav-search-btn" title="Search" aria-label="Search">
+              <Search size={18} />
             </button>
           </form>
         )}
@@ -95,7 +96,7 @@ function Layout() {
         {isLibrary && viewState !== "expanded" && (
           <form className="nav-search-bar" onSubmit={handleLibrarySearch}>
             <div className="nav-search-input-wrap">
-              <span className="nav-search-icon">🔍</span>
+              <Search size={14} className="nav-search-icon" />
               <input
                 type="text"
                 name="search"
@@ -104,15 +105,15 @@ function Layout() {
                 className="nav-search-input"
               />
             </div>
-            <button type="submit" className="nav-search-btn" title="Search">
-              🔍
+            <button type="submit" className="nav-search-btn" title="Search" aria-label="Search">
+              <Search size={18} />
             </button>
           </form>
         )}
 
         <div className="nav-right">
-          <Link to="/settings" className="nav-gear" title="Settings">
-            ⚙️
+          <Link to="/settings" className="nav-gear" title="Settings" aria-label="Settings">
+            <Settings size={18} />
           </Link>
         </div>
       </nav>

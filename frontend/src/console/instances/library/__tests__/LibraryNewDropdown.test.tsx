@@ -30,25 +30,25 @@ describe("LibraryNewDropdown", () => {
   it("opens menu on + click", () => {
     renderDropdown();
     fireEvent.click(screen.getByTitle("New folder or entry"));
-    expect(screen.getByText("📁 New Folder")).toBeInTheDocument();
-    expect(screen.getByText("📄 New ELN Entry")).toBeInTheDocument();
+    expect(screen.getByText("New Folder")).toBeInTheDocument();
+    expect(screen.getByText("New ELN Entry")).toBeInTheDocument();
   });
 
   it("shows folder input when New Folder is clicked", () => {
     renderDropdown();
     fireEvent.click(screen.getByTitle("New folder or entry"));
-    fireEvent.click(screen.getByText("📁 New Folder"));
+    fireEvent.click(screen.getByText("New Folder"));
     expect(screen.getByPlaceholderText("Folder name…")).toBeInTheDocument();
   });
 
   it("cancels folder creation on Escape", () => {
     renderDropdown();
     fireEvent.click(screen.getByTitle("New folder or entry"));
-    fireEvent.click(screen.getByText("📁 New Folder"));
+    fireEvent.click(screen.getByText("New Folder"));
     const input = screen.getByPlaceholderText("Folder name…");
     fireEvent.keyDown(input, { key: "Escape" });
     // Should go back to menu
-    expect(screen.getByText("📁 New Folder")).toBeInTheDocument();
-    expect(screen.getByText("📄 New ELN Entry")).toBeInTheDocument();
+    expect(screen.getByText("New Folder")).toBeInTheDocument();
+    expect(screen.getByText("New ELN Entry")).toBeInTheDocument();
   });
 });

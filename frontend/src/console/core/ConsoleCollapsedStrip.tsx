@@ -1,3 +1,5 @@
+import { Maximize2 } from "lucide-react";
+
 interface ConsoleCollapsedStripProps {
   onExpand: () => void;
   /** Accessible title for the expand button. */
@@ -11,8 +13,9 @@ function ConsoleCollapsedStrip({ onExpand, title }: ConsoleCollapsedStripProps) 
         className="console-collapsed-strip-btn"
         onClick={onExpand}
         title={title}
+        aria-label={title}
       >
-        &gt;
+        <Maximize2 size={18} />
       </button>
     </div>
   );

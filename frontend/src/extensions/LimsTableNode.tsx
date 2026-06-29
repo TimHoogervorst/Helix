@@ -188,9 +188,17 @@ function LimsTableNode(props: NodeViewProps) {
       values: { ...row.values, [name]: defaultVal },
     }));
 
-    updateAttributes({
-      columns: [...columns, newColumn],
-      rows: newRows,
+    // Defer the ProseMirror transaction to avoid a flushSync conflict
+    // (same pattern as handleSelectSchema).
+    queueMicrotask(() => {
+      try {
+        updateAttributes({
+          columns: [...columns, newColumn],
+          rows: newRows,
+        });
+      } catch (err) {
+        console.error("Failed to add column:", err);
+      }
     });
     closePanel();
   }, [
@@ -259,11 +267,21 @@ function LimsTableNode(props: NodeViewProps) {
         return { entityId: null, displayId: row.displayId, values: newValues };
       });
 
-      updateAttributes({
-        schemaId: entityType.id,
-        schemaName: entityType.name,
-        columns: newColumns,
-        rows: newRows,
+      // Defer the ProseMirror transaction to avoid a flushSync conflict:
+      // dispatching synchronously during React's event phase causes
+      // TipTap's useSyncExternalStore to call flushSync() internally,
+      // which React rejects because it is already processing the event.
+      queueMicrotask(() => {
+        try {
+          updateAttributes({
+            schemaId: entityType.id,
+            schemaName: entityType.name,
+            columns: newColumns,
+            rows: newRows,
+          });
+        } catch (err) {
+          console.error("Failed to apply schema:", err);
+        }
       });
       closePanel();
     },

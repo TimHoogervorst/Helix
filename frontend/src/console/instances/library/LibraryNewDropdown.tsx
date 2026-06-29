@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus, FolderPlus, FileText } from "lucide-react";
 import { post } from "../../../api/client";
 
 interface LibraryNewDropdownProps {
@@ -95,8 +96,9 @@ function LibraryNewDropdown({
         className="library-new-btn"
         onClick={() => setOpen((prev) => !prev)}
         title="New folder or entry"
+        aria-label="New folder or entry"
       >
-        +
+        <Plus size={18} />
       </button>
 
       {open && (
@@ -117,10 +119,10 @@ function LibraryNewDropdown({
           ) : (
             <>
               <button className="library-new-menu-item" onClick={handleNewFolder}>
-                📁 New Folder
+                <FolderPlus size={18} /> New Folder
               </button>
               <button className="library-new-menu-item" onClick={handleNewEntry}>
-                📄 New ELN Entry
+                <FileText size={18} /> New ELN Entry
               </button>
             </>
           )}

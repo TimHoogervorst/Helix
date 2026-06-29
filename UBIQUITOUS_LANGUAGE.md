@@ -36,7 +36,7 @@
 |------|-----------|-----------------|
 | **Item** | Any row that appears in a Master Panel table. Minimum contract: display ID, name/title, type discriminator, creation timestamp | row, record, list item |
 | **Entry** | A single page of narrative lab documentation — unstructured rich-text content. Belongs to exactly one Folder | ELN entry, NotebookEntry, ELN page, notebook page |
-| **Entity** | A trackable physical or conceptual lab item with structured, typed properties. Belongs to exactly one EntityType | sample (rejected — too narrow), lab item |
+| **Entity** | A trackable physical or conceptual lab item with structured, typed properties and a user-assigned Name Column. Belongs to exactly one EntityType | sample (rejected — too narrow), lab item |
 | **Folder** | A hierarchical container that owns Entries, Entities, and child Folders. Containers, not content — no Detail or Workspace | directory, project (rejected — implies temporary) |
 
 ## Core Organisation
@@ -61,8 +61,9 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Entity Type** | A classification/schema for Entities defining what kind of thing it is (e.g., "DNA", "Buffer"), its display ID prefix, and its JSON property columns | sample type (rejected), category, schema |
+| **Name Column** | An implicit, always-present pseudo-column on every Entity Type representing the entity's identity. Not stored in the Column Schema — surfaced as a gray, non-editable row in the ColumnEditor and as an editable text cell (second column, after `#`) in LimsTable nodes. User-assigned; required on save. Stored as `Entity.name` | entity name, title column |
 | **Action** | A user-explicit recorded operation performed on an Entity (e.g., "Used", "Measured", "Aliquoted"). Not inferred from text | event, operation, activity |
-| **Column Schema** | The JSON array on an Entity Type defining what properties its Entities have — each column has a name, type (Text, Number, Date, Boolean, Reference), optional defaults, units, and description | property definitions, field schema |
+| **Column Schema** | The JSON array on an Entity Type defining what properties its Entities have — each column has a name, type (Text, Number, Date, Boolean, Reference), optional defaults, units, and description. Does **not** include the Name Column, which is a first-class property | property definitions, field schema |
 
 ## Cross-Cutting Concepts
 
@@ -108,6 +109,7 @@
 - An **Entry** is authored by exactly one **User**
 - An **Entry** has exactly one **Rich-Text Document**
 - An **Entry** can have many **Mentions** to other Entries and Entities
+- An **Entity** has exactly one **Name Column** (stored as `Entity.name`, user-assigned, required)
 - An **Entity** belongs to exactly one **Entity Type**
 - An **Entity** belongs to exactly one **Folder**
 - An **Entity** optionally has one source **Entry** (where it was created)
@@ -215,6 +217,14 @@ States advance left-to-right and collapse back. Skipping states is not allowed.
 > **Dev:** "And when the user saves an **Entry**, the **Content Sync Pipeline** runs. What order?"
 
 > **Domain expert:** "**Entities** sync first — **LimsTable Nodes** create/update/delete **Entity** records and patch their display IDs back into the document. Then **Mentions** sync — **Reference Nodes** and Reference-type columns are parsed, resolved, and stored. Entities first because a newly created Entity's **Display ID** might be referenced by a Mention in the same document."
+
+> **Dev:** "What about the **Name Column** — is it part of the **Column Schema**?"
+
+> **Domain expert:** "No. The **Name Column** is implicit — every **Entity Type** has one, but it's not stored in the `columns` JSON array. It's a first-class property: `Entity.name`. When you create a column named 'Name' in the **ColumnEditor**, you get blocked — it's already taken as the default identity column."
+
+> **Dev:** "So in the LimsTable, the Name Column always appears second, right after the `#` index column. And the user types the entity name right there in the cell?"
+
+> **Domain expert:** "Exactly. On save, if any Name cell is blank, validation blocks the save with 'Name not filled in.' The old auto-generated names like 'Table row 3' are gone — every entity gets a real user-assigned name now."
 
 ## Deprecated Term Mappings
 

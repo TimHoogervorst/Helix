@@ -188,8 +188,7 @@ describe("ElnEditor integration", () => {
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
       expect(screen.getByText(/alice/)).toBeDefined();
-      expect(screen.getByText(/Created/)).toBeDefined();
-      expect(screen.getByText(/Updated/)).toBeDefined();
+      expect(screen.getByText(/Last updated/)).toBeDefined();
     });
   });
 

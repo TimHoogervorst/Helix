@@ -1,6 +1,7 @@
 /* OpenScience — base styles (Phase 1 scaffold) */
 
 :root {
+  /* ── Color palette ── */
   --blue-50: #eff6ff;
   --blue-100: #dbeafe;
   --blue-200: #bfdbfe;
@@ -16,6 +17,19 @@
   --gray-500: #6b7280;
   --gray-700: #374151;
   --gray-900: #111827;
+
+  /* ── Typographic scale (rem-based) ── */
+  --text-xs: 0.75rem;    /* 12px — badges, captions, tooltips */
+  --text-sm: 0.875rem;   /* 14px — secondary text, form labels, data grid cells */
+  --text-base: 1rem;     /* 16px — body text, default */
+  --text-lg: 1.125rem;   /* 18px — emphasized body, card titles */
+  --text-xl: 1.25rem;    /* 20px — section headings, page sub-titles */
+  --text-2xl: 1.5rem;    /* 24px — page titles, console headers */
+
+  /* ── Icon sizes ── */
+  --icon-sm: 14px;       /* inline icons inside text, badges, reference chips */
+  --icon-md: 18px;       /* button icons, form field adornments */
+  --icon-lg: 24px;       /* standalone action icons, empty states */
 }
 
 *,

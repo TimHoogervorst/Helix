@@ -3,10 +3,11 @@
  * pure utility functions.
  *
  * Covers: headerWithSymbol, emptyValues, columnDefFor, and component
- * rendering (title, schema badge, gear menu, title editing).
+ * rendering (title, schema badge, gear menu, title editing, schema
+ * selection, column addition).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import {
   headerWithSymbol,
@@ -430,5 +431,119 @@ describe("LimsTableNode component", () => {
     fireEvent.keyDown(titleSpan, { key: "Enter" });
     // The element should lose focus after Enter
     expect(document.activeElement).not.toBe(titleSpan);
+  });
+
+  // ── Load Schema ─────────────────────────────────────────────────────
+
+  it("selecting a schema calls updateAttributes with schema data", async () => {
+    const updateAttributes = vi.fn();
+    mockGet.mockResolvedValue([
+      {
+        id: 42,
+        name: "Blood Samples",
+        prefix: "BS",
+        is_active: true,
+        columns: [
+          { name: "Volume", type: "Number", required: false },
+          { name: "Notes", type: "Text", required: false },
+        ],
+      },
+    ]);
+
+    render(
+      <LimsTableNode {...makeNodeViewProps({ updateAttributes })} />,
+    );
+
+    // Open gear menu
+    fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
+    // Open Load Schema panel
+    fireEvent.click(screen.getByText("Load Schema…"));
+
+    // Wait for schema list to load
+    const schemaBtn = await screen.findByText("Blood Samples");
+    fireEvent.click(schemaBtn);
+
+    // updateAttributes is deferred via queueMicrotask — wait for it
+    await waitFor(() => {
+      expect(updateAttributes).toHaveBeenCalledTimes(1);
+    });
+    expect(updateAttributes).toHaveBeenCalledWith({
+      schemaId: 42,
+      schemaName: "Blood Samples",
+      columns: [
+        { name: "Volume", type: "Number", required: false },
+        { name: "Notes", type: "Text", required: false },
+      ],
+      rows: expect.any(Array),
+    });
+
+    // Rows should be remapped to the new schema columns
+    const [[callArgs]] = updateAttributes.mock.calls;
+    expect(callArgs.rows).toHaveLength(2);
+    // "Volume" was in the original columns and its value 100 is preserved;
+    // "Notes" was also in the original columns and "Hello" is preserved.
+    expect(callArgs.rows[0].values).toEqual({
+      Volume: 100,
+      Notes: "Hello",
+    });
+  });
+
+  it("selecting a schema closes the schema panel", async () => {
+    // Use a schema name that does NOT match the existing badge ("Samples")
+    mockGet.mockResolvedValue([
+      {
+        id: 1,
+        name: "Blood Work",
+        prefix: "BW",
+        is_active: true,
+        columns: [],
+      },
+    ]);
+
+    render(<LimsTableNode {...makeNodeViewProps()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
+    fireEvent.click(screen.getByText("Load Schema…"));
+    const schemaBtn = await screen.findByText("Blood Work");
+    fireEvent.click(schemaBtn);
+
+    // Panel should close after selection — wait for the state update
+    await waitFor(() => {
+      expect(screen.queryByText("Load Schema")).toBeNull();
+    });
+  });
+
+  // ── Add Column ──────────────────────────────────────────────────────
+
+  it("adding a column calls updateAttributes with new column and updated rows", async () => {
+    const updateAttributes = vi.fn();
+    render(
+      <LimsTableNode {...makeNodeViewProps({ updateAttributes })} />,
+    );
+
+    // Open gear menu → Add Column panel
+    fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
+    fireEvent.click(screen.getByText("Add Column…"));
+
+    // Fill in column name — fireEvent.change triggers React's onChange
+    const nameInput = screen.getByPlaceholderText("Column name");
+    fireEvent.change(nameInput, { target: { value: "Temperature" } });
+
+    // Click Add — should now be enabled
+    fireEvent.click(screen.getByText("Add"));
+
+    // updateAttributes is deferred via queueMicrotask — wait for it
+    await waitFor(() => {
+      expect(updateAttributes).toHaveBeenCalledTimes(1);
+    });
+    const [[callArgs]] = updateAttributes.mock.calls;
+    expect(callArgs.columns).toHaveLength(6); // 5 existing + 1 new
+    expect(callArgs.columns[5]).toMatchObject({
+      name: "Temperature",
+      type: "Text",
+      isCustom: true,
+    });
+    // Rows should include the new column with default value
+    expect(callArgs.rows[0].values).toHaveProperty("Temperature", "");
   });
 });

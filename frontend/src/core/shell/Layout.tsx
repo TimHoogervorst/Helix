@@ -6,7 +6,6 @@ import {
   House,
   Star,
   Book,
-  Database,
   Pin,
   PinOff,
   FileText,
@@ -14,6 +13,7 @@ import {
 import { get } from "../api/client";
 import { ReferenceProvider } from "../references/ReferenceProvider";
 import { usePinnedWorkspaces } from "../../hooks/usePinnedWorkspaces";
+import { ModRegistry } from "../mod-system/ModRegistry";
 
 function Layout() {
   const location = useLocation();
@@ -103,14 +103,22 @@ function Layout() {
             >
               <Book className="h-3.5 w-3.5" aria-hidden="true" /> Library
             </Link>
-            <Link
-              to="/lims"
-              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith("/lims") ? " bg-muted font-medium text-foreground" : ""}`}
-              title="Database"
-              aria-label="Database"
-            >
-              <Database className="h-3.5 w-3.5" aria-hidden="true" /> Database
-            </Link>
+            {[...ModRegistry.getInstance().getConsoles().values()]
+              .sort((a, b) => a.order - b.order)
+              .map((c) => {
+                const Icon = c.icon;
+                return (
+                  <Link
+                    key={c.id}
+                    to={c.route}
+                    className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith(c.route) ? " bg-muted font-medium text-foreground" : ""}`}
+                    title={c.label}
+                    aria-label={c.label}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {c.label}
+                  </Link>
+                );
+              })}
           </nav>
 
           {/* Workspace section header */}

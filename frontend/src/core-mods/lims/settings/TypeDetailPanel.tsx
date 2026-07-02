@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { EntityType, ColumnDef } from "../../types/lims";
-import ReferenceBadge from "../../components/ReferenceBadge";
+import type { EntityType, ColumnDef } from "../types";
+import ReferenceBadge from "../../../components/ReferenceBadge";
 import ColumnEditor, { type ColumnEditorProps } from "./ColumnEditor";
 
 const CURATED_EMOJIS = ["🧪", "🩸", "🐁", "🌿", "👤", "🧬", "🔬"];

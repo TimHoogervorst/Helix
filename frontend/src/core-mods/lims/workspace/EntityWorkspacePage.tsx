@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get } from "../api/client";
-import type { EntityListItem } from "../types/lims";
-import ReferenceBadge from "../components/ReferenceBadge";
+import { get } from "../../../api/client";
+import type { EntityListItem } from "../types";
+import ReferenceBadge from "../../../components/ReferenceBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
-import EntityWorkspacePanel from "../workspaces/lims/EntityWorkspace";
+import EntityWorkspacePanel from "./EntityWorkspace";
 
 /**
  * Full-page entity workspace (route: /lims/:displayId).

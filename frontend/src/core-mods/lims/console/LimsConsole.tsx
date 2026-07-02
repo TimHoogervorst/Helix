@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { get } from "../../../api/client";
-import type { EntityListItem, PaginatedResponse } from "../../../types/lims";
+import type { EntityListItem, PaginatedResponse } from "../types";
 import { useConsoleView } from "../../../console/core/useConsoleView";
 import ConsolePage from "../../../console/core/ConsolePage";
-import LimsDetailCard from "../../../workspaces/lims/LimsDetailCard";
-import EntityWorkspace from "../../../workspaces/lims/EntityWorkspace";
+import LimsDetailCard from "../workspace/LimsDetailCard";
+import EntityWorkspace from "../workspace/EntityWorkspace";
 import ConsoleMasterPanel, {
   type MasterColumn,
 } from "../../../console/core/ConsoleMasterPanel";

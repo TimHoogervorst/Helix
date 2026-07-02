@@ -1,4 +1,4 @@
-import type { ColumnDef } from "../../types/lims";
+import type { ColumnDef } from "../types";
 
 const ALLOWED_TYPES = ["Text", "Number", "Date", "Boolean", "Reference"];
 

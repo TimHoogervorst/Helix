@@ -1,5 +1,5 @@
-import type { EntityType } from "../../types/lims";
-import ReferenceBadge from "../../components/ReferenceBadge";
+import type { EntityType } from "../types";
+import ReferenceBadge from "../../../components/ReferenceBadge";
 
 export interface TypeMasterPanelProps {
   /** Entity types to display (already filtered per showArchived). */

@@ -20,14 +20,14 @@ export interface ModManifest {
 export interface ConsoleConfig {
   id: string;
   label: string;
-  icon: ComponentType;
+  icon: ComponentType<any>;
   route: string;
-  component: ComponentType;
+  component: ComponentType<any>;
   order: number;
   defaults: {
-    row?: ComponentType;
-    detailCard?: ComponentType;
-    workspace?: ComponentType;
+    row?: ComponentType<any>;
+    detailCard?: ComponentType<any>;
+    workspace?: ComponentType<any>;
   };
   accepts?: {
     only?: string[];
@@ -43,15 +43,15 @@ export interface WorkspaceConfig {
   /** Which consoles host this workspace. */
   consoleIds: string[];
   label: string;
-  icon?: ComponentType;
+  icon?: ComponentType<any>;
   /** Standalone page route — auto-registers as a route. */
   route: string;
   /** Custom row renderer (falls back to console default). */
-  row?: ComponentType;
+  row?: ComponentType<any>;
   /** Custom detail card (falls back to console default). */
-  detailCard?: ComponentType;
+  detailCard?: ComponentType<any>;
   /** Custom workspace (falls back to console default). */
-  workspace?: ComponentType;
+  workspace?: ComponentType<any>;
 }
 
 // ── Settings Section ──────────────────────────────────────────────────────
@@ -60,8 +60,8 @@ export interface SettingsSectionConfig {
   id: string;
   modId: string;
   label: string;
-  icon?: ComponentType;
-  component: ComponentType;
+  icon?: ComponentType<any>;
+  component: ComponentType<any>;
   order: number;
 }
 
@@ -71,7 +71,7 @@ export interface RouteConfig {
   id: string;
   modId: string;
   path: string;
-  component: ComponentType;
+  component: ComponentType<any>;
 }
 
 // ── Sidebar Action ────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export interface RouteConfig {
 export interface SidebarActionConfig {
   id: string;
   workspaceId: string;
-  component: ComponentType;
+  component: ComponentType<any>;
   position: "inline" | "hover";
 }
 
@@ -91,7 +91,7 @@ export type SlashContext = Record<string, unknown>;
 export interface SlashCommandConfig {
   id: string;
   label: string;
-  icon?: ComponentType;
+  icon?: ComponentType<any>;
   workspaces: string[];
   action: (context: SlashContext) => void;
 }

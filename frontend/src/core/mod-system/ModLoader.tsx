@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ModRegistry } from "./ModRegistry";
 import type { ModManifest } from "./types";
 
@@ -46,11 +46,20 @@ export function ModLoader({ children }: ModLoaderProps) {
   // Boot runs exactly once on mount.  useRef gate prevents duplicate
   // registration when React StrictMode double-invokes the effect body.
   const didBoot = useRef(false);
+  const [booted, setBooted] = useState(false);
+
   useEffect(() => {
     if (didBoot.current) return;
     didBoot.current = true;
     bootModSystem();
+    setBooted(true);
   }, []);
+
+  // When mods exist, block children until boot completes.  This prevents
+  // LegacyApp / Layout from rendering with an empty registry on the first
+  // paint (the singleton mutation does not trigger a React re-render).
+  const hasMods = Object.keys(modModules).length > 0;
+  if (hasMods && !booted) return null;
 
   return <>{children}</>;
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EntityListItem, PaginatedResponse } from "../../../../types/lims";
+import type { EntityListItem, PaginatedResponse } from "../../types";
 import { emptyPage, makeEntityListItem, makeEntityPage, makeMockReferenceBadge } from "../../../../test/factories";
 import LimsConsole from "../LimsConsole";
 
@@ -47,13 +47,13 @@ vi.mock("../../../../components/ReferenceBadge", () => ({
   default: makeMockReferenceBadge({ clickable: true }),
 }));
 
-vi.mock("../../../../workspaces/lims/LimsDetailCard", () => ({
+vi.mock("../../workspace/LimsDetailCard", () => ({
   default: ({ entity }: { entity: EntityListItem }) => (
     <div data-testid="lims-detail-card">Detail for {entity.display_id}</div>
   ),
 }));
 
-vi.mock("../../../../workspaces/lims/EntityWorkspace", () => ({
+vi.mock("../../workspace/EntityWorkspace", () => ({
   default: ({ entity }: { entity: EntityListItem }) => (
     <div data-testid="entity-workspace">
       Workspace for {entity.display_id}

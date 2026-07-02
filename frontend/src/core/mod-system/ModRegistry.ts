@@ -31,6 +31,11 @@ export class ModRegistry {
     return ModRegistry.instance;
   }
 
+  /** Reset the singleton. For use in tests only. */
+  static _reset(): void {
+    ModRegistry.instance = null;
+  }
+
   // ── Internal stores ───────────────────────────────────────────────────
 
   private consoles = new Map<string, ConsoleConfig>();

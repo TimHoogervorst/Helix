@@ -21,7 +21,7 @@ import type {
   PaginatedResponse,
   EntityType,
   ColumnDef,
-} from "../types/lims";
+} from "../core-mods/lims/types";
 import type {
   LibraryEntryItem,
   LibraryFolderItem,

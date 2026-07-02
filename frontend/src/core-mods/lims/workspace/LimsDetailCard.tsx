@@ -1,8 +1,8 @@
-import type { EntityListItem } from "../../types/lims";
-import type { ViewState } from "../../types/console";
-import ReferenceBadge from "../../components/ReferenceBadge";
-import ConsoleDetailPanel from "../../console/core/ConsoleDetailPanel";
-import EntityDetailFields from "../../components/EntityDetailFields";
+import type { EntityListItem } from "../types";
+import type { ViewState } from "../../../types/console";
+import ReferenceBadge from "../../../components/ReferenceBadge";
+import ConsoleDetailPanel from "../../../console/core/ConsoleDetailPanel";
+import EntityDetailFields from "../components/EntityDetailFields";
 
 interface LimsDetailCardProps {
   entity: EntityListItem;

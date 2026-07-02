@@ -20,7 +20,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { Database } from "lucide-react";
 import { makePinnedWorkspace } from "../../test/factories";
+import { ModRegistry } from "../../core/mod-system/ModRegistry";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -51,6 +53,17 @@ function renderLayout(initialRoute = "/library") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ModRegistry._reset();
+  // Register a mock LIMS console so the dynamic sidebar renders Database
+  ModRegistry.getInstance().registerConsole({
+    id: "lims",
+    label: "Database",
+    icon: Database,
+    route: "/lims",
+    component: () => null,
+    order: 30,
+    defaults: {},
+  });
   // Default: no pins, no CSRF error
   mockGet.mockResolvedValue([]);
 });

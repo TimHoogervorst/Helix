@@ -104,6 +104,48 @@ export function collectDisplayIds(doc: TipTapDoc): string[] {
   return ids;
 }
 
+/**
+ * Walk the TipTap JSON tree and validate that every schema-backed limsTable
+ * row has a non-empty ``__name``.  Returns ``true`` if all names are filled,
+ * or ``false`` if any row in a schema-backed table has a blank name.
+ */
+export function validateEntityNames(doc: TipTapDoc): boolean {
+  function walk(node: unknown): boolean {
+    if (!node || typeof node !== "object") return true;
+    const n = node as Record<string, unknown>;
+
+    if (n.type === "limsTable") {
+      const attrs = n.attrs as Record<string, unknown> | undefined;
+      const schemaId = attrs?.schemaId;
+      // Only validate schema-backed tables
+      if (schemaId != null) {
+        const rows = attrs?.rows;
+        if (Array.isArray(rows)) {
+          for (const row of rows) {
+            if (row && typeof row === "object") {
+              const r = row as Record<string, unknown>;
+              const name = (r.__name as string | undefined) ?? "";
+              if (name.trim() === "") {
+                return false;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const content = n.content;
+    if (Array.isArray(content)) {
+      for (const child of content) {
+        if (!walk(child)) return false;
+      }
+    }
+    return true;
+  }
+
+  return walk(doc);
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useEntryEditor({
@@ -213,6 +255,12 @@ export function useEntryEditor({
 
   const save = useCallback(async () => {
     if (!title.trim()) return;
+
+    // Validate that all schema-backed tables have names filled in
+    if (!validateEntityNames(contentRef.current)) {
+      alert("Name not filled in.");
+      return;
+    }
 
     setMode("saving");
     setError(null);

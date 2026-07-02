@@ -25,6 +25,7 @@ def make_lims_table_doc(
     schema_id: int,
     rows_data: list[dict] | None = None,
     entity_type: object | None = None,
+    row_names: list[str] | None = None,
 ) -> dict:
     """Build a TipTap doc containing a single limsTable v2 node.
 
@@ -35,9 +36,11 @@ def make_lims_table_doc(
             If ``None``, an empty rows array is used.
         entity_type: Optional EntityType instance; used to populate
             ``attrs.columns``.  If omitted, columns will be empty.
+        row_names: Optional list of entity names (``__name``) for each row.
+            Defaults to ``"Row {i+1}"``.
 
     Each row in ``rows_data`` becomes
-    ``{entityId: None, displayId: "#new", values: {...}}``.
+    ``{entityId: None, displayId: "#new", __name: ..., values: {...}}``.
     """
     if rows_data is None:
         rows_data = []
@@ -47,10 +50,15 @@ def make_lims_table_doc(
     if entity_type is not None:
         columns = entity_type.columns
 
-    rows = [
-        {"entityId": None, "displayId": "#new", "values": row}
-        for row in rows_data
-    ]
+    rows = []
+    for i, row in enumerate(rows_data):
+        name = row_names[i] if row_names and i < len(row_names) else f"Row {i + 1}"
+        rows.append({
+            "entityId": None,
+            "displayId": "#new",
+            "__name": name,
+            "values": row,
+        })
 
     return {
         "type": "doc",

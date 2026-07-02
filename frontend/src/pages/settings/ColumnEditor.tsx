@@ -15,12 +15,18 @@ export interface ColumnEditorProps {
   onDiscard: () => void;
 }
 
+/** Check whether a column name collides with the implicit Name pseudo-column. */
+function isNameCollision(value: string): boolean {
+  return value.trim().toLowerCase() === "name";
+}
+
 /**
  * Inline column editing table.
  *
- * Renders a list of column definitions with controls for name, type,
- * required flag, ordering, and removal.  All mutations are callbacks
- * owned by the parent orchestrator.
+ * Renders a gray, non-editable "Name" pseudo-column at the top of the list
+ * (representing the implicit ``Entity.name`` field), followed by user-defined
+ * columns with full editing controls.  Adding a column named "Name"
+ * (case-insensitive, trimmed) fires an alert and aborts.
  */
 function ColumnEditor({
   columns,
@@ -30,10 +36,40 @@ function ColumnEditor({
   onMove,
   onDiscard,
 }: ColumnEditorProps) {
+  const handleNameChange = (
+    index: number,
+    field: keyof ColumnDef,
+    value: string,
+  ) => {
+    if (field === "name" && isNameCollision(value)) {
+      alert("Name is already a default column.");
+      return;
+    }
+    onUpdate(index, field, value);
+  };
+
   return (
     <div className="column-editor">
       <h3>Columns</h3>
       <div className="column-list">
+        {/* ── Implicit Name pseudo-column (gray, non-editable) ── */}
+        <div className="column-row column-row--system" data-testid="name-pseudo-column">
+          <div className="drag-handles" />
+          <input
+            type="text"
+            value="Name"
+            disabled
+            className="col-name col-name--system"
+            title="Name is an implicit column on every schema — it cannot be edited or removed."
+          />
+          <select disabled className="col-type col-type--system">
+            <option>Text</option>
+          </select>
+          <div className="col-required" />
+          <div className="col-remove" />
+        </div>
+
+        {/* ── User-defined columns ── */}
         {columns.map((col, i) => (
           <div key={i} className="column-row">
             <div className="drag-handles">
@@ -57,7 +93,9 @@ function ColumnEditor({
             <input
               type="text"
               value={col.name}
-              onChange={(e) => onUpdate(i, "name", e.target.value)}
+              onChange={(e) =>
+                handleNameChange(i, "name", e.target.value)
+              }
               placeholder="Column name"
               className="col-name"
             />

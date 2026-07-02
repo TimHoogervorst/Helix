@@ -1140,6 +1140,24 @@ input.nav-search-input:focus {
   width: 120px;
 }
 
+/* ── Name pseudo-column (system row) ── */
+
+.column-row--system {
+  opacity: 0.55;
+}
+
+.column-row--system input:disabled,
+.column-row--system select:disabled {
+  background: var(--gray-100);
+  color: var(--gray-500);
+  cursor: not-allowed;
+  border-color: var(--gray-200);
+}
+
+.col-name--system {
+  font-style: italic;
+}
+
 .col-required {
   display: flex;
   align-items: center;

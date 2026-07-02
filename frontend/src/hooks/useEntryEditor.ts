@@ -10,7 +10,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../api/client";
-import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types/eln";
+import { listTags, createTag, attachTags, detachTag } from "../api/eln";
+import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types/eln";
 import { useReferenceContext } from "../components/ReferenceProvider";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -46,9 +47,16 @@ export interface UseEntryEditorReturn {
   folderId: number | null;
   setFolderId: (id: number | null) => void;
   folders: Folder[];
+  status: string;
+  setStatus: (s: string) => void;
   error: string | null;
   deleting: boolean;
   isDirty: boolean;
+  tags: Tag[];
+  addTag: (tag: Tag) => Promise<void>;
+  removeTag: (tagId: number) => Promise<void>;
+  createAndAttachTag: (name: string, color: string) => Promise<Tag | null>;
+  searchTags: (query: string) => Promise<Tag[]>;
   save(): Promise<void>;
   cancel(): void;
   deleteEntry(): Promise<void>;
@@ -169,6 +177,9 @@ export function useEntryEditor({
     initialFolderId ?? null,
   );
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [status, setStatus] = useState("in_progress");
+  const [initialStatus, setInitialStatus] = useState("in_progress");
+  const [tags, setTags] = useState<Tag[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -176,6 +187,7 @@ export function useEntryEditor({
   const currentContent = contentRef.current;
   const isDirty =
     title !== initialTitle ||
+    status !== initialStatus ||
     JSON.stringify(currentContent) !== JSON.stringify(initialContent);
 
   // ── Fetch entry ──
@@ -193,6 +205,9 @@ export function useEntryEditor({
         setInitialTitle(data.title);
         setInitialContent(data.content);
         setFolderId(data.folder);
+        setStatus(data.status || "in_progress");
+        setInitialStatus(data.status || "in_progress");
+        setTags(data.tags || []);
 
         // Batch-resolve all display IDs found in the loaded content
         const refIds = collectDisplayIds(data.content);
@@ -243,6 +258,66 @@ export function useEntryEditor({
     setMode("edit-existing");
   }, [currentContent, resolveIds]);
 
+  // ── Tag management ──
+
+  const addTag = useCallback(async (tag: Tag) => {
+    setTags((prev) => {
+      if (prev.some((t) => t.id === tag.id)) return prev;
+      return [...prev, tag];
+    });
+
+    // For existing entries, attach immediately on the backend
+    if (!isNew && entryId) {
+      try {
+        const updated = await attachTags(entryId, [tag.id]);
+        setEntry(updated);
+      } catch {
+        // Rollback on failure
+        setTags((prev) => prev.filter((t) => t.id !== tag.id));
+      }
+    }
+  }, [isNew, entryId]);
+
+  const removeTag = useCallback(async (tagId: number) => {
+    const removed = tags.find((t) => t.id === tagId);
+    setTags((prev) => prev.filter((t) => t.id !== tagId));
+
+    // For existing entries, detach immediately on the backend
+    if (!isNew && entryId && removed) {
+      try {
+        const updated = await detachTag(entryId, tagId);
+        setEntry(updated);
+      } catch {
+        // Rollback on failure
+        setTags((prev) => [...prev, removed]);
+      }
+    }
+  }, [isNew, entryId, tags]);
+
+  const searchTags = useCallback(async (query: string): Promise<Tag[]> => {
+    if (!query.trim()) return [];
+    try {
+      return await listTags(query);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const createAndAttachTag = useCallback(async (name: string, color: string): Promise<Tag | null> => {
+    try {
+      const newTag = await createTag(name, color);
+
+      // Attach to existing entry or add locally for new entries
+      if (!isNew && entryId) {
+        await attachTags(entryId, [newTag.id]);
+      }
+      setTags((prev) => [...prev, newTag]);
+      return newTag;
+    } catch {
+      return null;
+    }
+  }, [isNew, entryId]);
+
   const cancel = useCallback(() => {
     if (isNew) {
       navigate("/library");
@@ -250,8 +325,10 @@ export function useEntryEditor({
     }
     setTitle(initialTitle);
     setFolderId(entry?.folder ?? null);
+    setStatus(initialStatus);
+    setTags(entry?.tags || []);
     setMode("view");
-  }, [isNew, initialTitle, entry, navigate]);
+  }, [isNew, initialTitle, initialStatus, entry, navigate]);
 
   const save = useCallback(async () => {
     if (!title.trim()) return;
@@ -269,6 +346,8 @@ export function useEntryEditor({
       title: title.trim(),
       content: contentRef.current,
       folder: folderId,
+      status,
+      ...(isNew ? { tag_ids: tags.map((t) => t.id) } : {}),
     };
 
     try {
@@ -282,8 +361,10 @@ export function useEntryEditor({
         );
         // Replace content with response (entityIds are patched by backend)
         const responseContent = updated.content || contentRef.current;
+        setEntry(updated);
         setInitialTitle(title.trim());
         setInitialContent(responseContent);
+        setInitialStatus(updated.status || "in_progress");
         // Re-resolve all display IDs from the updated content
         const refIds = collectDisplayIds(responseContent);
         if (refIds.length > 0) resolveIds(refIds);
@@ -293,7 +374,7 @@ export function useEntryEditor({
       setError(err instanceof Error ? err.message : "Failed to save");
       setMode(isNew ? "edit-new" : "edit-existing");
     }
-  }, [title, contentRef, folderId, isNew, entryId, navigate, resolveIds]);
+  }, [title, contentRef, folderId, status, isNew, entryId, navigate, resolveIds]);
 
   const deleteEntry = useCallback(async () => {
     if (!entryId || !window.confirm("Delete this entry permanently?")) return;
@@ -319,9 +400,16 @@ export function useEntryEditor({
     folderId,
     setFolderId,
     folders,
+    status,
+    setStatus,
     error,
     deleting,
     isDirty,
+    tags,
+    addTag,
+    removeTag,
+    createAndAttachTag,
+    searchTags,
     save,
     cancel,
     deleteEntry,

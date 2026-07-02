@@ -11,6 +11,13 @@ export interface EntryListItem {
   updated_at: string;
 }
 
+/** A tag attached to an entry. */
+export interface Tag {
+  id: number;
+  name: string;
+  color: string;
+}
+
 /** A full entry returned by the detail endpoint. */
 export interface EntryDetail {
   id: number;
@@ -24,6 +31,9 @@ export interface EntryDetail {
   author_username: string | null;
   created_at: string;
   updated_at: string;
+  status: string;
+  status_display: string;
+  tags: Tag[];
 }
 
 /** Payload for creating a new entry. */

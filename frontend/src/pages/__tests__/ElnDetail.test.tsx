@@ -1,9 +1,9 @@
 /**
  * Tests for ElnDetail — 3-column ELN entry page.
  *
- * Verifies the top toolbar (breadcrumbs, status badge, editor action buttons,
- * ghost icon buttons, avatars, share/sign & witness), content area, and metadata
- * panel with all four sections: Metadata, Linked Entities, Attachments, Activity.
+ * Verifies the top toolbar (breadcrumbs, editor action buttons, ghost icon
+ * buttons, avatars, share/sign & witness), content area, and metadata panel
+ * with wired sections: Metadata, Linked Entities, Attachments, Activity.
  *
  * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
  * toolbar via state lifted from ElnEditor through onStateChange + ref.
@@ -35,6 +35,13 @@ vi.mock("../../components/ElnEditor", () => ({
             isSaving: false,
             isDirty: false,
             deleting: false,
+            entry: null,
+            folders: [
+              { id: 1, name: "CRISPR-Cas9 Optimization" },
+              { id: 2, name: "General" },
+            ],
+            folderId: null,
+            status: "in_progress",
           });
         }, 0);
         return () => clearTimeout(t);
@@ -47,6 +54,8 @@ vi.mock("../../components/ElnEditor", () => ({
         cancel: vi.fn(),
         deleteEntry: vi.fn(),
         enterEditMode: vi.fn(),
+        setFolderId: vi.fn(),
+        setStatus: vi.fn(),
       }));
 
       return (
@@ -77,11 +86,14 @@ import ElnDetail from "../ElnDetail";
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
 describe("ElnDetail — 3-column layout", () => {
-  // ── Top toolbar: breadcrumbs & status badge ─────────────────────────────
+  // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 
   it("renders breadcrumb with folder icon and path", () => {
     renderAtRoute("/eln/EXP-0284");
-    expect(screen.getByText("CRISPR-Cas9 Optimization")).toBeDefined();
+    // Without entry data, breadcrumb shows fallback "—"
+    // (metadata panel also shows "—" for multiple fields, so getAllByText is needed)
+    const dashes = screen.getAllByText("—");
+    expect(dashes.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("EXP-0284")).toBeDefined();
   });
 
@@ -90,10 +102,9 @@ describe("ElnDetail — 3-column layout", () => {
     expect(screen.getByText("New")).toBeDefined();
   });
 
-  it("renders Draft status badge with lock icon in the top toolbar", () => {
+  it("does NOT render a Draft status badge in the top toolbar", () => {
     renderAtRoute("/eln/EXP-0284");
-    // The top toolbar has a "Draft" badge; the metadata panel shows "In progress"
-    expect(screen.getByText("Draft")).toBeDefined();
+    expect(screen.queryByText("Draft")).toBeNull();
   });
 
   // ── Top toolbar: ghost icon buttons (History, Comments, Star) ───────────
@@ -201,7 +212,7 @@ describe("ElnDetail — 3-column layout", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════
-  // ── Metadata panel ── (PRD #5)
+  // ── Metadata panel ── (PRD #6)
   // ═══════════════════════════════════════════════════════════════════════════════
 
   describe("Metadata Panel — Section 1: Metadata", () => {
@@ -210,39 +221,58 @@ describe("ElnDetail — 3-column layout", () => {
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
     });
 
-    it("renders all metadata key-value pairs with placeholder values", () => {
+    it("renders metadata keys: Owner, Project, Started, Status, Folder", () => {
       renderAtRoute("/eln/EXP-0284");
 
       expect(screen.getByText("Owner")).toBeDefined();
-      expect(screen.getByText("Dr. Mira Kato")).toBeDefined();
-
-      expect(screen.getByText("Witness")).toBeDefined();
-      expect(screen.getByText("Pending — J. Silva")).toBeDefined();
-
       expect(screen.getByText("Project")).toBeDefined();
-      expect(screen.getByText("CRISPR-Cas9 Opt.")).toBeDefined();
-
       expect(screen.getByText("Started")).toBeDefined();
-      expect(screen.getByText("2026-06-28 09:14")).toBeDefined();
-
-      expect(screen.getByText("Instrument")).toBeDefined();
-      expect(screen.getByText("Nanodrop One · Bio-Rad C1000")).toBeDefined();
-
       expect(screen.getByText("Status")).toBeDefined();
+      expect(screen.getByText("Folder")).toBeDefined();
     });
 
-    it("renders the Witness value in italic", () => {
+    it("does NOT render Witness or Instrument rows", () => {
       renderAtRoute("/eln/EXP-0284");
-      const witnessValue = screen.getByText("Pending — J. Silva");
-      expect(witnessValue.className).toContain("italic");
+      expect(screen.queryByText("Witness")).toBeNull();
+      expect(screen.queryByText("Instrument")).toBeNull();
     });
 
-    it("renders Status chip as 'In progress' with warn styling", () => {
+    it("shows fallback '—' for Owner, Project, Started when no entry data", () => {
       renderAtRoute("/eln/EXP-0284");
-      const statusChip = screen.getByText("In progress");
-      expect(statusChip).toBeDefined();
+
+      // With no entry data, each value should show "—"
+      // The breadcrumb also shows "—", so there will be multiple
+      const dashes = screen.getAllByText("—");
+      expect(dashes.length).toBeGreaterThanOrEqual(3); // breadcrumb + Owner + Project + Started + Folder
+    });
+
+    it("renders Status chip as 'In progress' with warn styling in view mode", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const statusChip = screen.getByTestId("status-chip");
+      expect(statusChip.textContent).toBe("In progress");
       expect(statusChip.className).toContain("bg-warn");
       expect(statusChip.className).toContain("text-warn-foreground");
+    });
+
+    it("renders Status as dropdown in edit mode for new entries", async () => {
+      renderAtRoute("/eln/new");
+      const statusSelect = await screen.findByTestId("status-select");
+      expect(statusSelect).toBeDefined();
+      expect((statusSelect as HTMLSelectElement).value).toBe("in_progress");
+    });
+
+    it("renders Folder as dropdown in edit mode for new entries", async () => {
+      renderAtRoute("/eln/new");
+      const folderSelect = await screen.findByTestId("folder-select");
+      expect(folderSelect).toBeDefined();
+    });
+
+    it("renders Folder name in view mode", () => {
+      renderAtRoute("/eln/EXP-0284");
+      // Folder is in view mode and shows "—" (no entry data)
+      const dashes = screen.getAllByText("—");
+      // At least one dash is from the Folder row
+      expect(dashes.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -315,7 +345,6 @@ describe("ElnDetail — 3-column layout", () => {
       renderAtRoute("/eln/EXP-0284");
 
       // Activity 1: Mira K. added bar chart FIG-01 · 14 min ago
-      // Mira K. appears in 2 activities, so use getAllByText
       expect(screen.getAllByText("Mira K.").length).toBe(2);
       expect(screen.getByText("added bar chart FIG-01")).toBeDefined();
       expect(screen.getByText("· 14 min ago")).toBeDefined();

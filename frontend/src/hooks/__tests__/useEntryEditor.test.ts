@@ -306,6 +306,8 @@ describe("useEntryEditor", () => {
       title: "My New Entry",
       content: EMPTY_DOC,
       folder: null,
+      status: "in_progress",
+      tag_ids: [],
     });
     expect(mockNavigate).toHaveBeenCalledWith("/eln/NEW1");
   });
@@ -372,9 +374,11 @@ describe("useEntryEditor", () => {
       title: "Updated Title",
       content: EMPTY_DOC,
       folder: null,
+      status: "in_progress",
     });
     expect(result.current.mode).toBe("view");
     expect(result.current.initialTitle).toBe("Updated Title");
+    expect(result.current.entry).toEqual(updatedResponse);
   });
 
   // ── Cancel ─────────────────────────────────────────────────────────────────
@@ -638,6 +642,28 @@ describe("useEntryEditor", () => {
     });
 
     expect(result.current.folderId).toBe(42);
+  });
+
+  // ── initialFolderId ──────────────────────────────────────────────────────
+
+  it("initializes folderId from initialFolderId option", () => {
+    const contentRef = { current: EMPTY_DOC };
+    const { result } = renderHook(() =>
+      useEntryEditor(
+        makeOptions({ isNew: true, initialFolderId: 7, contentRef }),
+      ),
+    );
+
+    expect(result.current.folderId).toBe(7);
+  });
+
+  it("defaults folderId to null when initialFolderId is not provided", () => {
+    const contentRef = { current: EMPTY_DOC };
+    const { result } = renderHook(() =>
+      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+    );
+
+    expect(result.current.folderId).toBeNull();
   });
 });
 

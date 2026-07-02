@@ -6,7 +6,6 @@ import {
   Star,
   Share2,
   CircleCheck,
-  Lock,
   Folder,
   ChevronRight,
   Save,
@@ -77,6 +76,11 @@ function ElnDetail() {
     isSaving: false,
     isDirty: false,
     deleting: false,
+    entry: null,
+    folders: [],
+    folderId: null,
+    status: "in_progress",
+    tags: [],
   });
   const handleStateChange = useCallback((state: ElnEditorState) => {
     setEditorState(state);
@@ -88,29 +92,28 @@ function ElnDetail() {
   const showActions =
     editorState.mode !== "loading" && editorState.mode !== "error";
 
+  // ── Derived metadata for the panel ──
+  const entry = editorState.entry;
+  const isEdit = editorState.isEdit;
+  const breadcrumbName = entry?.folder_name || "—";
+
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       {/* ── Top toolbar ── */}
       <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
-        {/* Left: breadcrumbs + status */}
+        {/* Left: breadcrumbs */}
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Folder
             className="h-3.5 w-3.5 text-muted-foreground"
             aria-hidden="true"
           />
-          <span>CRISPR-Cas9 Optimization</span>
+          <span>{breadcrumbName}</span>
           <ChevronRight
             className="h-3.5 w-3.5 text-muted-foreground/60"
             aria-hidden="true"
           />
           <span className="font-medium text-foreground">
             {entryDisplayId}
-          </span>
-
-          {/* Status badge */}
-          <span className="ml-3 inline-flex items-center gap-1 rounded border border-hairline bg-panel px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            <Lock className="h-2.5 w-2.5" aria-hidden="true" />
-            Draft
           </span>
         </div>
 
@@ -221,32 +224,87 @@ function ElnDetail() {
               <dl className="space-y-2.5 text-[13px]">
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Owner</dt>
-                  <dd className="text-right">Dr. Mira Kato</dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Witness</dt>
-                  <dd className="text-right italic text-muted-foreground">
-                    Pending — J. Silva
+                  <dd className="text-right">
+                    {entry?.author_username || "—"}
                   </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Project</dt>
-                  <dd className="text-right">CRISPR-Cas9 Opt.</dd>
+                  <dd className="text-right">
+                    {entry?.folder_name || "—"}
+                  </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Started</dt>
-                  <dd className="text-right">2026-06-28 09:14</dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Instrument</dt>
-                  <dd className="text-right">Nanodrop One · Bio-Rad C1000</dd>
+                  <dd className="text-right">
+                    {entry
+                      ? new Date(entry.created_at).toLocaleDateString(
+                          "en-CA",
+                        ) +
+                        " " +
+                        new Date(entry.created_at).toLocaleTimeString(
+                          "en-GB",
+                          { hour: "2-digit", minute: "2-digit" },
+                        )
+                      : "—"}
+                  </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Status</dt>
                   <dd className="text-right">
-                    <span className="inline-flex items-center gap-1 rounded border border-hairline bg-warn px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-warn-foreground">
-                      In progress
-                    </span>
+                    {isEdit ? (
+                      <select
+                        value={editorState.status}
+                        onChange={(e) =>
+                          editorRef.current?.setStatus(e.target.value)
+                        }
+                        className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
+                        data-testid="status-select"
+                      >
+                        <option value="in_progress">In Progress</option>
+                        <option value="finished">Finished</option>
+                      </select>
+                    ) : (
+                      <span
+                        className={
+                          "inline-flex items-center gap-1 rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider " +
+                          (editorState.status === "finished"
+                            ? "bg-success text-success-foreground"
+                            : "bg-warn text-warn-foreground")
+                        }
+                        data-testid="status-chip"
+                      >
+                        {editorState.status === "finished"
+                          ? "Finished"
+                          : "In progress"}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Folder</dt>
+                  <dd className="text-right">
+                    {isEdit ? (
+                      <select
+                        value={editorState.folderId ?? ""}
+                        onChange={(e) =>
+                          editorRef.current?.setFolderId(
+                            e.target.value ? Number(e.target.value) : null,
+                          )
+                        }
+                        className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
+                        data-testid="folder-select"
+                      >
+                        <option value="">Folder…</option>
+                        {editorState.folders.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      entry?.folder_name || "—"
+                    )}
                   </dd>
                 </div>
               </dl>

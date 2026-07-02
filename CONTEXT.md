@@ -194,7 +194,7 @@ A parsed reference from one Notebook Entry to another object (another Entry, an 
 
 **Invariant:** A Mention has exactly one source entry and exactly one target object.
 
-**Cross-console navigation:** Clicking a ReferenceBadge for a Mention navigates to the target's canonical console — `#BLOOD1` opens the LIMS console, `#E12` opens the Library console. This is a known UX rough edge in pre-1.0: the user leaves their current context. A future tabbed-Workspace feature will allow inline preview of cross-references without leaving the current console.
+**Cross-console navigation:** Clicking a ReferenceBadge for a Mention navigates to the target's canonical console — `#BLOOD1` opens the LIMS console, `#E12` opens the Library console. This leaves the user's current context. Pinned Workspaces (see below) mitigate this by providing quick sidebar switching between workspaces.
 
 **Synonyms:** reference, link, `#`-ref
 
@@ -238,6 +238,28 @@ Actions are **user-explicit** — the user records them deliberately. They are n
 
 ---
 
+## Sidebar & Navigation
+
+### Pinned Workspace
+
+A workspace (Entity or Entry) that a User has bookmarked for quick access. Pinned Workspaces appear in the sidebar's Workspace section and persist across sessions. Each pin stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation.
+
+Clicking a Pinned Workspace navigates directly to its dedicated URL. The sidebar also shows the **current** workspace — the workspace the user is actively viewing — with a "Current" badge. If the current workspace is not yet pinned, it appears as a temporary row at the top of the list with a pin button. Pinning it moves it into the pinned list.
+
+**Lifecycle:**
+- A User pins a workspace via the sidebar (hover to reveal the pin button on the Current row)
+- A User unpins a workspace via the sidebar (hover to reveal the unpin button on a pinned row)
+- If the current workspace is unpinned while being viewed, it moves from the pinned list back to the temporary Current slot
+- Pinned Workspaces are ordered newest-first by pin time
+
+**Invariant:** A Pinned Workspace belongs to exactly one User. A User cannot pin the same workspace URL twice.
+
+**Out of scope:** workspace history (recently opened), inline workspace previews, drag-to-reorder.
+
+**Synonyms:** bookmarked workspace, saved workspace, workspace tab
+
+---
+
 ## Relationship Summary
 
 ```
@@ -263,6 +285,7 @@ Tag (standalone — reusable labels with name + color, managed inline on entries
 User ──▶ NotebookEntry (1:N — author of entries)
 User ──▶ Action (1:N — performer of actions)
 User ──▶ Entity (1:N — creator of entities)
+User ──▶ PinnedWorkspace (1:N — user bookmarks workspaces)
 
 NotebookEntry.status ──cascades to──▶ Entity.status (only via source_entry FK)
 

@@ -2,6 +2,11 @@ from django.db import models
 
 from core.abstracts import BrowsableItem
 
+STATUS_CHOICES = [
+    ("in_progress", "In Progress"),
+    ("finished", "Finished"),
+]
+
 
 class EntityType(models.Model):
     """A type/category of LIMS entity (e.g., DNA, Chemical, Buffer).
@@ -51,6 +56,11 @@ class Entity(BrowsableItem):
         EntityType, on_delete=models.CASCADE, related_name="entities"
     )
     properties = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="in_progress",
+    )
     source_entry = models.ForeignKey(
         "eln.NotebookEntry",
         on_delete=models.SET_NULL,

@@ -242,22 +242,31 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  // ── Tags placeholder ───────────────────────────────────────────────────────
+  // ── Tags section ───────────────────────────────────────────────────────
 
-  it("renders tags section with placeholder chip", async () => {
+  it("renders tags section (empty when entry has no tags)", async () => {
+    mockGet.mockResolvedValue(makeEntry());
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
       const tags = screen.getByTestId("tags-section");
       expect(tags).toBeDefined();
-      expect(tags.textContent).toContain("SpCas9-HF1");
     });
+    // Tags section exists but has no chip children when entry has no tags
+    const tagsSection = screen.getByTestId("tags-section");
+    expect(tagsSection.querySelectorAll("span.inline-flex").length).toBe(0);
   });
 
-  it("renders tag chip with tooltip", async () => {
+  it("renders tag chips when entry has tags", async () => {
+    mockGet.mockResolvedValue(makeEntry({
+      tags: [
+        { id: 1, name: "CRISPR", color: "enzyme" },
+        { id: 2, name: "QC", color: "success" },
+      ],
+    }));
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
-      const chip = screen.getByTitle("Placeholder — tags coming soon");
-      expect(chip).toBeDefined();
+      expect(screen.getByText("CRISPR")).toBeDefined();
+      expect(screen.getByText("QC")).toBeDefined();
     });
   });
 

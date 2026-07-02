@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from core.models import Folder
 
-from .models import NotebookEntry, Mention
+from .models import NotebookEntry, Mention, Tag
 
 
 def validate_tiptap_json(value):
@@ -30,11 +30,20 @@ class MentionSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
 
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ["id", "name", "color"]
+        read_only_fields = ["id"]
+
+
 class NotebookEntrySerializer(serializers.ModelSerializer):
     author_username = serializers.SerializerMethodField()
     folder_name = serializers.CharField(source="folder.name", read_only=True)
     folder_path = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
     mentions = MentionSerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = NotebookEntry
@@ -50,7 +59,10 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "author_username",
             "created_at",
             "updated_at",
+            "status",
+            "status_display",
             "mentions",
+            "tags",
         ]
         read_only_fields = ["id", "display_id", "author", "created_at", "updated_at"]
 
@@ -70,7 +82,25 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
         queryset=Folder.objects.all(), required=False, allow_null=True
     )
     content = serializers.JSONField(validators=[validate_tiptap_json])
+    status = serializers.ChoiceField(choices=["in_progress", "finished"], required=False)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False, write_only=True
+    )
 
     class Meta:
         model = NotebookEntry
-        fields = ["title", "content", "folder"]
+        fields = ["title", "content", "folder", "status", "tag_ids"]
+
+    def create(self, validated_data):
+        tag_ids = validated_data.pop("tag_ids", [])
+        entry = super().create(validated_data)
+        if tag_ids:
+            entry.tags.set(tag_ids)
+        return entry
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop("tag_ids", None)
+        instance = super().update(instance, validated_data)
+        if tag_ids is not None:
+            instance.tags.set(tag_ids)
+        return instance

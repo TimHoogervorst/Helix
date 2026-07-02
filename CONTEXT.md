@@ -1,4 +1,4 @@
-# OpenScience — Domain Glossary
+# Helix — Domain Glossary
 
 > This is the canonical glossary. It defines terms, not implementation. For architecture decisions, see [docs/adr/](docs/adr/).
 
@@ -281,6 +281,14 @@ The Detail panel is the **gateway** to the Workspace. Users see the summary, dec
 ## Design Language
 
 > Visual design terms that form the ubiquitous language for UI decisions. For the full reference document, see [docs/styling-guide.md](docs/styling-guide.md).
+
+### Global Sidebar
+
+The persistent 256px navigation rail on the left edge of the application. Replaces the horizontal top navigation bar. Contains the Helix brand, contextual search, navigation links (Home, Library, LIMS, Settings), a Workspace tree (for folder/entry hierarchy), and the current user's avatar. Always visible — does not collapse or auto-hide.
+
+The Sidebar is a **global shell** — it wraps every page and provides the primary navigation surface for the entire application. Each page renders its own chrome (toolbars, panels) inside the remaining viewport.
+
+**Synonyms:** nav rail, left nav, app sidebar
 
 ### Semantic Icon Size
 

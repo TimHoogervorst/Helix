@@ -1,15 +1,275 @@
 import { useParams } from "react-router-dom";
+import {
+  History,
+  MessageSquare,
+  Star,
+  Share2,
+  CircleCheck,
+  Lock,
+  Folder,
+  ChevronRight,
+} from "lucide-react";
 import ElnEditor from "../components/ElnEditor";
-import ConsoleWorkspacePanel from "../console/core/ConsoleWorkspacePanel";
+
+/** Placeholder icon button with tooltip — all wired in future PRDs. */
+function IconButton({
+  icon: Icon,
+  label,
+  tooltip,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  tooltip: string;
+}) {
+  return (
+    <button
+      className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+      aria-label={label}
+      title={tooltip}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** Hardcoded user avatar circle — real user data in future PRD. */
+function Avatar({
+  initials,
+  bgClass,
+}: {
+  initials: string;
+  bgClass: string;
+}) {
+  return (
+    <span
+      className={`inline-grid h-6 w-6 shrink-0 place-items-center rounded-full ${bgClass} font-mono text-[9.5px] font-medium ring-2 ring-background`}
+    >
+      {initials}
+    </span>
+  );
+}
 
 function ElnDetail() {
   const { id } = useParams<{ id: string }>();
+  const entryDisplayId = id ?? "New";
 
   return (
-    <div className="page">
-      <ConsoleWorkspacePanel backUrl={`/library?select=${id}`}>
-        <ElnEditor entryId={id} />
-      </ConsoleWorkspacePanel>
+    <div className="flex min-w-0 flex-1 flex-col">
+      {/* ── Top toolbar ── */}
+      <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
+        {/* Left: breadcrumbs + status */}
+        <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          <Folder
+            className="h-3.5 w-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span>CRISPR-Cas9 Optimization</span>
+          <ChevronRight
+            className="h-3.5 w-3.5 text-muted-foreground/60"
+            aria-hidden="true"
+          />
+          <span className="font-medium text-foreground">
+            {entryDisplayId}
+          </span>
+
+          {/* Status badge */}
+          <span className="ml-3 inline-flex items-center gap-1 rounded border border-hairline bg-panel px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Lock className="h-2.5 w-2.5" aria-hidden="true" />
+            Draft
+          </span>
+        </div>
+
+        {/* Right: actions + avatars + share */}
+        <div className="flex items-center gap-1">
+          <IconButton
+            icon={History}
+            label="History"
+            tooltip="Placeholder — version history coming soon"
+          />
+          <IconButton
+            icon={MessageSquare}
+            label="Comments"
+            tooltip="Placeholder — comments coming soon"
+          />
+          <IconButton
+            icon={Star}
+            label="Star"
+            tooltip="Placeholder — bookmark coming soon"
+          />
+
+          {/* Separator */}
+          <div className="mx-1.5 h-4 w-px bg-hairline" aria-hidden="true" />
+
+          {/* User avatars */}
+          <div className="flex -space-x-1.5">
+            <Avatar initials="MK" bgClass="bg-enzyme text-enzyme-foreground" />
+            <Avatar initials="JS" bgClass="bg-flask text-flask-foreground" />
+            <Avatar initials="AR" bgClass="bg-solvent text-solvent-foreground" />
+          </div>
+
+          {/* Share button */}
+          <button
+            className="ml-2 flex items-center gap-1.5 rounded-md border border-hairline bg-panel px-2.5 py-1 text-[12px] hover:bg-muted"
+            aria-label="Share"
+            title="Placeholder — sharing coming soon"
+          >
+            <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Share
+          </button>
+
+          {/* Sign & Witness button */}
+          <button
+            className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover:opacity-90"
+            aria-label="Sign & Witness"
+            title="Placeholder — sign & witness coming soon"
+          >
+            <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            Sign &amp; witness
+          </button>
+        </div>
+      </div>
+
+      {/* ── Content + Metadata ── */}
+      <div className="flex min-w-0 flex-1">
+        {/* Main content area */}
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
+            <ElnEditor entryId={id} />
+          </div>
+        </main>
+
+        {/* Metadata panel — visible at xl and above */}
+        <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
+          <div className="space-y-6 overflow-auto px-4 py-6">
+            {/* ── Metadata ── */}
+            <section>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Metadata
+              </h3>
+              <dl className="space-y-2.5 text-[13px]">
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Owner</dt>
+                  <dd className="text-right">Dr. Mira Kato</dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Witness</dt>
+                  <dd className="text-right text-muted-foreground">—</dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Project</dt>
+                  <dd className="text-right">CRISPR-Cas9 Opt.</dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Started</dt>
+                  <dd className="text-right">2026-06-28 09:14</dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Instrument</dt>
+                  <dd className="text-right">Nanodrop One</dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Status</dt>
+                  <dd className="text-right">
+                    <span className="inline-flex items-center gap-1 rounded border border-hairline bg-panel px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <Lock className="h-2.5 w-2.5" aria-hidden="true" />
+                      Draft
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            {/* ── Linked entities ── */}
+            <section>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Linked entities
+              </h3>
+              <ul className="space-y-2 text-[13px]">
+                <li className="flex items-center gap-2 rounded border border-hairline bg-panel px-2.5 py-1.5">
+                  <span className="font-mono text-[11px] text-primary">
+                    RGT-0042
+                  </span>
+                  <span className="text-muted-foreground">Cas9 Nuclease</span>
+                </li>
+                <li className="flex items-center gap-2 rounded border border-hairline bg-panel px-2.5 py-1.5">
+                  <span className="font-mono text-[11px] text-primary">
+                    CEL-0012
+                  </span>
+                  <span className="text-muted-foreground">HEK293T Cells</span>
+                </li>
+                <li className="flex items-center gap-2 rounded border border-hairline bg-panel px-2.5 py-1.5">
+                  <span className="font-mono text-[11px] text-primary">
+                    PLA-0089
+                  </span>
+                  <span className="text-muted-foreground">96-Well Plate</span>
+                </li>
+              </ul>
+            </section>
+
+            {/* ── Attachments ── */}
+            <section>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Attachments
+              </h3>
+              <ul className="space-y-1.5 text-[12px]">
+                <li className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted">
+                  <span>gel-image.png</span>
+                  <span className="text-muted-foreground">2.1 MB</span>
+                </li>
+                <li className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted">
+                  <span>protocol-v3.pdf</span>
+                  <span className="text-muted-foreground">456 KB</span>
+                </li>
+              </ul>
+            </section>
+
+            {/* ── Activity ── */}
+            <section>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Activity
+              </h3>
+              <ul className="space-y-2 text-[12px]">
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    aria-hidden="true"
+                  />
+                  <span className="text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Dr. Mira Kato
+                    </span>{" "}
+                    created this entry
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    aria-hidden="true"
+                  />
+                  <span className="text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Dr. Mira Kato
+                    </span>{" "}
+                    edited title &amp; protocol
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    aria-hidden="true"
+                  />
+                  <span className="text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      James Saito
+                    </span>{" "}
+                    added a comment
+                  </span>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

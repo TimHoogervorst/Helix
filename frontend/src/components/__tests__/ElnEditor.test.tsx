@@ -1,8 +1,8 @@
 /**
  * Integration tests for ElnEditor — verifies the composed modules work together.
  *
- * Mocks the API client, router, ReferenceProvider, TipTap useEditor/EditorContent,
- * and EditorBubbleMenu so tests focus on the component's orchestration:
+ * Mocks the API client, router, ReferenceProvider, and TipTap useEditor/EditorContent
+ * so tests focus on the component's orchestration:
  * mode transitions, UI rendering, and wiring between modules.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -43,11 +43,6 @@ vi.mock("../ReferenceProvider", () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
   }),
-}));
-
-/** Mock EditorBubbleMenu to avoid the real BubbleMenu's TipTap plugin dependency. */
-vi.mock("../EditorBubbleMenu", () => ({
-  default: () => <div data-testid="bubble-menu">BubbleMenu mock</div>,
 }));
 
 /** Stub editor returned by useEditor mock. */
@@ -98,11 +93,7 @@ function makeEntry(overrides?: Record<string, unknown>) {
 }
 
 function renderEditor(
-  props: {
-    entryId?: string;
-    embedded?: boolean;
-    initialFolderId?: number | null;
-  } = {},
+  props: { entryId?: string } = {},
 ) {
   return render(
     <MemoryRouter>
@@ -268,23 +259,38 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  // ── Embedded mode ──────────────────────────────────────────────────────────
-
-  it("renders Edit button in embedded view mode", async () => {
-    renderEditor({ entryId: "E1", embedded: true });
-    await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
-    });
-  });
-
-  // ── Editor content & BubbleMenu ────────────────────────────────────────────
+  // ── Editor content ─────────────────────────────────────────────────────────
 
   it("renders editor content", () => {
     renderEditor({});
     expect(screen.getByTestId("editor-content")).toBeDefined();
   });
 
-  it("renders EditorBubbleMenu when editing", async () => {
+  // ── No paper-page wrapper ──────────────────────────────────────────────────
+
+  it("does not render paper-page wrapper", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      expect(screen.getByText("Edit")).toBeDefined();
+    });
+    expect(document.querySelector(".paper-page")).toBeNull();
+  });
+
+  // ── No embedded mode — removed ─────────────────────────────────────────────
+
+  it("renders top bar with title area for existing entry", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      // Top bar should render with title-display in view mode
+      expect(screen.getByText("Edit")).toBeDefined();
+      expect(screen.getByText("Delete")).toBeDefined();
+      expect(screen.getByRole("heading")).toBeDefined();
+    });
+  });
+
+  // ── No bubble menu rendered ────────────────────────────────────────────────
+
+  it("does not render a bubble menu", async () => {
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
       expect(screen.getByText("Edit")).toBeDefined();
@@ -293,7 +299,10 @@ describe("ElnEditor integration", () => {
     fireEvent.click(screen.getByText("Edit"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("bubble-menu")).toBeDefined();
+      expect(screen.getByText("Save")).toBeDefined();
     });
+
+    // Bubble menu mock used to have data-testid="bubble-menu"
+    expect(screen.queryByTestId("bubble-menu")).toBeNull();
   });
 });

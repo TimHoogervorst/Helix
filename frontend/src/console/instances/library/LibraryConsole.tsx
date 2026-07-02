@@ -7,8 +7,6 @@ import { getLibraryContents } from "../../../api/library";
 import Breadcrumbs from "../../components/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
-import ElnDetailCard from "../../../workspaces/eln/ElnDetailCard";
-import ElnWorkspace from "../../../workspaces/eln/ElnWorkspace";
 
 function LibraryConsole() {
   const navigate = useNavigate();
@@ -24,15 +22,7 @@ function LibraryConsole() {
   const [selectedItem, setSelectedItem] = useState<LibraryEntryItem | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
 
-  const {
-    viewState,
-    isExiting,
-    isDetailExiting,
-    goToDetail,
-    collapseFromExpanded: collapseFromExpandedBase,
-    closeAll: closeAllBase,
-    updateViewState,
-  } = useConsoleView();
+  const { updateViewState } = useConsoleView();
 
   const fetchItems = useCallback(
     async (page?: number) => {
@@ -79,22 +69,6 @@ function LibraryConsole() {
     }
   }, [selectId, loading, items]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── State machine transitions (wrapping shared hook) ──────────────
-
-  const goToList = () => {
-    closeAllBase(); // handles exit animations internally
-    setSelectedItem(null);
-  };
-
-  const goToDetailForEntry = (entry: LibraryEntryItem) => {
-    setSelectedItem(entry);
-    goToDetail();
-  };
-
-  const collapseFromExpanded = () => {
-    collapseFromExpandedBase();
-  };
-
   // ── Folder navigation ──────────────────────────────────────────────
 
   const navigateToPath = (path: string) => {
@@ -121,18 +95,13 @@ function LibraryConsole() {
   // ── Row handlers ───────────────────────────────────────────────────
 
   const handleRowClick = (item: LibraryItem) => {
-    if (viewState === "expanded") return;
-
     if (item.type === "folder") {
       navigateToFolder(item.name);
       return;
     }
 
-    if (viewState === "detail" && selectedItem?.id === item.id) {
-      goToList();
-    } else {
-      goToDetailForEntry(item);
-    }
+    // Entries navigate to full-page ELN editor
+    navigate(`/eln/${item.display_id}`);
   };
 
   const handleRowExpand = (item: LibraryItem) => {
@@ -183,27 +152,6 @@ function LibraryConsole() {
       hasMore={!!nextUrl}
       onLoadMore={handleLoadMore}
       loadingMore={loading}
-      detail={
-        selectedItem &&
-        (viewState === "detail" || viewState === "expanded") ? (
-          <ElnDetailCard
-            key={selectedItem.display_id}
-            entry={selectedItem}
-            viewState={viewState}
-            onClose={goToList}
-            onCollapse={collapseFromExpanded}
-            isDetailExiting={isDetailExiting}
-          />
-        ) : undefined
-      }
-      workspace={
-        selectedItem && viewState === "expanded" ? (
-          <ElnWorkspace
-            entry={selectedItem}
-            isExiting={isExiting}
-          />
-        ) : undefined
-      }
     />
   );
 }

@@ -1,5 +1,5 @@
 """
-URL configuration for OpenScience project.
+URL configuration for Helix project.
 """
 from django.contrib import admin
 from django.urls import path, include

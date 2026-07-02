@@ -75,6 +75,7 @@
 | **Content Sync Pipeline** | The ordered pipeline that processes an Entry on save: entities synced first (from limsTable nodes), then mentions synced (from reference nodes and Reference columns) | sync pipeline, entry sync |
 | **Tree Walker** | A shared depth-first utility that walks a TipTap JSON tree, calling a handler per node. Pure utility — zero domain knowledge | walker, document walker |
 | **Breadcrumb** | Navigation bar showing the current folder path as clickable segments in the Library console. Current folder is bold; up-button (`↑`) moves to parent | path bar, nav trail |
+| **Pinned Workspace** | A workspace (Entry or Entity) that a User has bookmarked for quick access from the sidebar. Persists across sessions via backend storage. The sidebar also shows the **current** workspace with a "Current" badge — if unpinned, it appears as a temporary row at the top with a pin button. Pinned workspaces are ordered newest-first. One User can have many Pinned Workspaces; a User cannot pin the same URL twice | bookmarked workspace, saved workspace, workspace tab |
 
 ## Dedicated URL
 
@@ -143,6 +144,7 @@ EntityType ──▶ Entity (1:N — type classifies many entities)
 User ──▶ Entry (1:N — author)
 User ──▶ Action (1:N — performer)
 User ──▶ Entity (1:N — creator)
+User ──▶ PinnedWorkspace (1:N — bookmarked workspaces)
 
 Console (abstract) ──▶ Master Panel ──▶ Item table
                     ├── Detail Panel ──▶ summary card

@@ -86,7 +86,12 @@ function LibraryNewDropdown({
 
   const handleNewEntry = () => {
     const returnUrl = `/library?path=${encodeURIComponent(currentPath || "/")}`;
-    navigate(`/eln/new?returnUrl=${encodeURIComponent(returnUrl)}`);
+    const params = new URLSearchParams();
+    params.set("returnUrl", returnUrl);
+    if (currentFolderId != null) {
+      params.set("folderId", String(currentFolderId));
+    }
+    navigate(`/eln/new?${params.toString()}`);
     setOpen(false);
   };
 

@@ -10,7 +10,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../api/client";
-import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types/eln";
+import { listTags, createTag, attachTags, detachTag, updateTag } from "../api/eln";
+import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types/eln";
 import { useReferenceContext } from "../components/ReferenceProvider";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -43,16 +44,90 @@ export interface UseEntryEditorReturn {
   setTitle: (t: string) => void;
   initialTitle: string;
   initialContent: TipTapDoc;
+  description: string;
+  setDescription: (d: string) => void;
   folderId: number | null;
   setFolderId: (id: number | null) => void;
   folders: Folder[];
+  status: string;
+  setStatus: (s: string) => void;
   error: string | null;
   deleting: boolean;
   isDirty: boolean;
+  tags: Tag[];
+  addTag: (tag: Tag) => Promise<void>;
+  removeTag: (tagId: number) => Promise<void>;
+  createAndAttachTag: (name: string, color: string, icon?: string) => Promise<Tag | null>;
+  changeTagIcon: (tagId: number, icon: string) => Promise<void>;
+  searchTags: (query: string) => Promise<Tag[]>;
   save(): Promise<void>;
   cancel(): void;
   deleteEntry(): Promise<void>;
   enterEditMode(): void;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Recursively extract all plain text from a TipTap JSON node.
+ * Handles marks (bold, italic, etc.) by traversing into children.
+ */
+function extractText(node: unknown): string {
+  if (!node || typeof node !== "object") return "";
+  const n = node as Record<string, unknown>;
+  if (n.type === "text" && typeof n.text === "string") {
+    return n.text;
+  }
+  const children = n.content;
+  if (Array.isArray(children)) {
+    return children.map((c) => extractText(c)).join("");
+  }
+  return "";
+}
+
+/**
+ * Split a TipTap document into its first paragraph (the description) and
+ * the rest of the document (everything after the first paragraph).
+ *
+ * Returns the description text and a new document with remaining content.
+ * If the first node is not a paragraph, description is empty and doc is unchanged.
+ */
+function splitFirstParagraph(
+  doc: TipTapDoc,
+): { description: string; body: TipTapDoc } {
+  if (!doc || typeof doc !== "object") {
+    return { description: "", body: doc };
+  }
+  const d = doc as Record<string, unknown>;
+  const content = d.content;
+  if (!Array.isArray(content) || content.length === 0) {
+    return { description: "", body: doc };
+  }
+  const first = content[0] as Record<string, unknown> | undefined;
+  if (first && first.type === "paragraph") {
+    const description = extractText(first);
+    const body = { ...d, content: content.slice(1) };
+    return { description, body };
+  }
+  return { description: "", body: doc };
+}
+
+/**
+ * Prepend a description paragraph to a TipTap document.
+ */
+function prependDescription(
+  doc: TipTapDoc,
+  description: string,
+): TipTapDoc {
+  const para = {
+    type: "paragraph",
+    content: description
+      ? [{ type: "text", text: description }]
+      : [],
+  };
+  const d = doc as Record<string, unknown>;
+  const content = Array.isArray(d.content) ? d.content : [];
+  return { ...d, content: [para, ...content] };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,6 +244,11 @@ export function useEntryEditor({
     initialFolderId ?? null,
   );
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [status, setStatus] = useState("in_progress");
+  const [initialStatus, setInitialStatus] = useState("in_progress");
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [description, setDescriptionState] = useState("");
+  const [initialDescription, setInitialDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -176,6 +256,8 @@ export function useEntryEditor({
   const currentContent = contentRef.current;
   const isDirty =
     title !== initialTitle ||
+    description !== initialDescription ||
+    status !== initialStatus ||
     JSON.stringify(currentContent) !== JSON.stringify(initialContent);
 
   // ── Fetch entry ──
@@ -188,13 +270,20 @@ export function useEntryEditor({
     get<EntryDetail>(`/eln/entries/${entryId}/`, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
+        // Split first paragraph into description; rest stays in the editor
+        const { description: desc, body } = splitFirstParagraph(data.content);
         setEntry(data);
         setTitle(data.title);
         setInitialTitle(data.title);
-        setInitialContent(data.content);
+        setDescriptionState(desc);
+        setInitialDescription(desc);
+        setInitialContent(body);
         setFolderId(data.folder);
+        setStatus(data.status || "in_progress");
+        setInitialStatus(data.status || "in_progress");
+        setTags(data.tags || []);
 
-        // Batch-resolve all display IDs found in the loaded content
+        // Batch-resolve all display IDs found in the loaded content (body only)
         const refIds = collectDisplayIds(data.content);
         if (refIds.length > 0) {
           resolveIds(refIds);
@@ -243,15 +332,104 @@ export function useEntryEditor({
     setMode("edit-existing");
   }, [currentContent, resolveIds]);
 
+  // ── Tag management ──
+
+  const addTag = useCallback(async (tag: Tag) => {
+    setTags((prev) => {
+      if (prev.some((t) => t.id === tag.id)) return prev;
+      return [...prev, tag];
+    });
+
+    // For existing entries, attach immediately on the backend
+    if (!isNew && entryId) {
+      try {
+        const updated = await attachTags(entryId, [tag.id]);
+        setEntry(updated);
+      } catch {
+        // Rollback on failure
+        setTags((prev) => prev.filter((t) => t.id !== tag.id));
+      }
+    }
+  }, [isNew, entryId]);
+
+  const removeTag = useCallback(async (tagId: number) => {
+    const removed = tags.find((t) => t.id === tagId);
+    setTags((prev) => prev.filter((t) => t.id !== tagId));
+
+    // For existing entries, detach immediately on the backend
+    if (!isNew && entryId && removed) {
+      try {
+        const updated = await detachTag(entryId, tagId);
+        setEntry(updated);
+      } catch {
+        // Rollback on failure
+        setTags((prev) => [...prev, removed]);
+      }
+    }
+  }, [isNew, entryId, tags]);
+
+  const searchTags = useCallback(async (query: string): Promise<Tag[]> => {
+    if (!query.trim()) return [];
+    try {
+      return await listTags(query);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const createAndAttachTag = useCallback(async (name: string, color: string, icon?: string): Promise<Tag | null> => {
+    try {
+      // Check if a tag with this name already exists in the database.
+      // If so, attach the existing tag (preserving its colour & icon)
+      // instead of hitting the unique-constraint error.
+      const existingList = await listTags(name);
+      const exactMatch = existingList.find(
+        (t) => t.name.toLowerCase() === name.toLowerCase(),
+      );
+
+      let tag: Tag;
+      if (exactMatch) {
+        tag = exactMatch;
+      } else {
+        tag = await createTag(name, color, icon);
+      }
+
+      // Attach to existing entry or add locally for new entries
+      if (!isNew && entryId) {
+        await attachTags(entryId, [tag.id]);
+      }
+      setTags((prev) => [...prev, tag]);
+      return tag;
+    } catch {
+      return null;
+    }
+  }, [isNew, entryId]);
+
+  const changeTagIcon = useCallback(async (tagId: number, icon: string) => {
+    try {
+      const updated = await updateTag(tagId, { icon });
+      setTags((prev) => prev.map((t) => (t.id === tagId ? updated : t)));
+    } catch {
+      // Silently ignore — no rollback needed
+    }
+  }, []);
+
+  const setDescription = useCallback((d: string) => {
+    setDescriptionState(d);
+  }, []);
+
   const cancel = useCallback(() => {
     if (isNew) {
       navigate("/library");
       return;
     }
     setTitle(initialTitle);
+    setDescriptionState(initialDescription);
     setFolderId(entry?.folder ?? null);
+    setStatus(initialStatus);
+    setTags(entry?.tags || []);
     setMode("view");
-  }, [isNew, initialTitle, entry, navigate]);
+  }, [isNew, initialTitle, initialDescription, initialStatus, entry, navigate]);
 
   const save = useCallback(async () => {
     if (!title.trim()) return;
@@ -265,10 +443,15 @@ export function useEntryEditor({
     setMode("saving");
     setError(null);
 
+    // Prepend description as the first paragraph of the TipTap document
+    const fullContent = prependDescription(contentRef.current, description);
+
     const payload = {
       title: title.trim(),
-      content: contentRef.current,
+      content: fullContent,
       folder: folderId,
+      status,
+      ...(isNew ? { tag_ids: tags.map((t) => t.id) } : {}),
     };
 
     try {
@@ -282,8 +465,14 @@ export function useEntryEditor({
         );
         // Replace content with response (entityIds are patched by backend)
         const responseContent = updated.content || contentRef.current;
+        // Re-split response content to keep description and body in sync
+        const { description: newDesc, body: newBody } = splitFirstParagraph(responseContent);
+        setEntry(updated);
         setInitialTitle(title.trim());
-        setInitialContent(responseContent);
+        setDescriptionState(newDesc);
+        setInitialDescription(newDesc);
+        setInitialContent(newBody);
+        setInitialStatus(updated.status || "in_progress");
         // Re-resolve all display IDs from the updated content
         const refIds = collectDisplayIds(responseContent);
         if (refIds.length > 0) resolveIds(refIds);
@@ -293,7 +482,7 @@ export function useEntryEditor({
       setError(err instanceof Error ? err.message : "Failed to save");
       setMode(isNew ? "edit-new" : "edit-existing");
     }
-  }, [title, contentRef, folderId, isNew, entryId, navigate, resolveIds]);
+  }, [title, contentRef, folderId, status, isNew, entryId, navigate, resolveIds]);
 
   const deleteEntry = useCallback(async () => {
     if (!entryId || !window.confirm("Delete this entry permanently?")) return;
@@ -316,12 +505,22 @@ export function useEntryEditor({
     setTitle,
     initialTitle,
     initialContent,
+    description,
+    setDescription,
     folderId,
     setFolderId,
     folders,
+    status,
+    setStatus,
     error,
     deleting,
     isDirty,
+    tags,
+    addTag,
+    removeTag,
+    createAndAttachTag,
+    changeTagIcon,
+    searchTags,
     save,
     cancel,
     deleteEntry,

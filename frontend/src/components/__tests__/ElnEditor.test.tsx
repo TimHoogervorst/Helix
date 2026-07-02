@@ -223,41 +223,41 @@ describe("ElnEditor integration", () => {
 
   // ── Title input styling ────────────────────────────────────────────────────
 
-  it("renders title input with serif font class in new-entry edit mode", () => {
+  it("renders title element with serif font class in new-entry edit mode", () => {
     renderEditor({});
-    const input = screen.getByTestId("title-input");
-    expect(input).toBeDefined();
-    expect(input.className).toContain("font-serif");
-    expect(input.className).toContain("text-[42px]");
+    const title = screen.getByTestId("title-display");
+    expect(title).toBeDefined();
+    expect(title.tagName).toBe("H1");
+    expect(title.className).toContain("font-serif");
+    expect(title.className).toContain("text-[42px]");
+    expect(title.getAttribute("contentEditable")).toBe("true");
   });
 
-  // ── Description placeholder ────────────────────────────────────────────────
+  // ── Tags section ───────────────────────────────────────────────────────
 
-  it("renders description placeholder text", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      const desc = screen.getByTestId("description");
-      expect(desc).toBeDefined();
-      expect(desc.textContent).toContain("sgRNA screen");
-    });
-  });
-
-  // ── Tags placeholder ───────────────────────────────────────────────────────
-
-  it("renders tags section with placeholder chip", async () => {
+  it("renders tags section (empty when entry has no tags)", async () => {
+    mockGet.mockResolvedValue(makeEntry());
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
       const tags = screen.getByTestId("tags-section");
       expect(tags).toBeDefined();
-      expect(tags.textContent).toContain("SpCas9-HF1");
     });
+    // Tags section exists but has no chip children when entry has no tags
+    const tagsSection = screen.getByTestId("tags-section");
+    expect(tagsSection.querySelectorAll("span.inline-flex").length).toBe(0);
   });
 
-  it("renders tag chip with tooltip", async () => {
+  it("renders tag chips when entry has tags", async () => {
+    mockGet.mockResolvedValue(makeEntry({
+      tags: [
+        { id: 1, name: "CRISPR", color: "enzyme" },
+        { id: 2, name: "QC", color: "success" },
+      ],
+    }));
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
-      const chip = screen.getByTitle("Placeholder — tags coming soon");
-      expect(chip).toBeDefined();
+      expect(screen.getByText("CRISPR")).toBeDefined();
+      expect(screen.getByText("QC")).toBeDefined();
     });
   });
 
@@ -377,17 +377,51 @@ describe("ElnEditor integration", () => {
     expect(screen.getByText("New entry")).toBeDefined();
   });
 
-  it("renders title input for new entries", () => {
+  it("renders title as contentEditable H1 for new entries", () => {
     renderEditor({});
-    const input = screen.getByTestId("title-input");
-    expect(input).toBeDefined();
-    expect(input.tagName).toBe("INPUT");
+    const title = screen.getByTestId("title-display");
+    expect(title).toBeDefined();
+    expect(title.tagName).toBe("H1");
+    expect(title.getAttribute("contentEditable")).toBe("true");
   });
 
-  it("autofocuses title input for new entries", () => {
-    renderEditor({});
-    const input = screen.getByTestId("title-input");
-    expect(input).toBe(document.activeElement);
+  it("shows description in view mode when content has a first paragraph", async () => {
+    mockGet.mockResolvedValue(
+      makeEntry({
+        title: "My Entry",
+        display_id: "E1",
+        content: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "A brief summary of the experiment." }],
+            },
+            { type: "paragraph" },
+          ],
+        },
+      }),
+    );
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const desc = screen.getByTestId("description");
+      expect(desc).toBeDefined();
+      expect(desc.textContent).toContain("A brief summary of the experiment.");
+    });
+  });
+
+  it("shows 'No description' fallback when content has no first paragraph", async () => {
+    mockGet.mockResolvedValue(
+      makeEntry({
+        content: { type: "doc", content: [] },
+      }),
+    );
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const desc = screen.getByTestId("description");
+      expect(desc).toBeDefined();
+      expect(desc.textContent).toContain("No description");
+    });
   });
 
   // ── Action buttons are NOT in ElnEditor ────────────────────────────────────

@@ -77,6 +77,10 @@ export function put<T>(path: string, body: unknown, signal?: AbortSignal): Promi
   return request<T>(path, { method: "PUT", body, signal });
 }
 
+export function patch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: "PATCH", body, signal });
+}
+
 export function del<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { method: "DELETE", signal });
 }

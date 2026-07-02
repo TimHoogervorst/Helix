@@ -4,6 +4,54 @@ from django.db import models
 
 from core.abstracts import BrowsableItem
 
+STATUS_CHOICES = [
+    ("in_progress", "In Progress"),
+    ("finished", "Finished"),
+]
+
+TAG_COLOR_CHOICES = [
+    ("enzyme", "Enzyme"),
+    ("flask", "Flask"),
+    ("solvent", "Solvent"),
+    ("warn", "Warn"),
+    ("primary", "Primary"),
+    ("success", "Success"),
+    ("destructive", "Destructive"),
+    ("muted", "Muted"),
+]
+
+TAG_ICON_CHOICES = [
+    ("circle", "Circle"),
+    ("dna", "DNA"),
+    ("rat", "Rat"),
+    ("leaf", "Leaf"),
+    ("cog", "Machine"),
+    ("notebook", "Entry"),
+    ("user", "Person"),
+    ("folder", "Folder"),
+]
+
+
+class Tag(models.Model):
+    """A reusable label attached to NotebookEntry instances.
+
+    Tags are managed inline on the entry page — no global tag management.
+    Each tag has a unique case-insensitive name, a colour from a preset
+    palette of semantic design tokens, and an icon from a preset set.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    color = models.CharField(max_length=50, choices=TAG_COLOR_CHOICES, default="primary")
+    icon = models.CharField(max_length=50, choices=TAG_ICON_CHOICES, default="circle")
+    entries = models.ManyToManyField("NotebookEntry", related_name="tags")
+
+    class Meta:
+        db_table = "eln_tag"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
 
 class NotebookEntry(BrowsableItem):
     """An ELN notebook entry containing narrative text."""
@@ -15,6 +63,11 @@ class NotebookEntry(BrowsableItem):
     )
     author = models.ForeignKey(
         "core.User", on_delete=models.CASCADE, related_name="entries", null=True, blank=True
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="in_progress",
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -30,6 +83,14 @@ class NotebookEntry(BrowsableItem):
 
     def _get_display_id_prefix(self) -> str:
         return "E"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if not is_new:
+            from workspaces.lims.models import Entity
+
+            Entity.objects.filter(source_entry=self).update(status=self.status)
 
 
 class Mention(models.Model):

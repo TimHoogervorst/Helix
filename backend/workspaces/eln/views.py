@@ -2,8 +2,12 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import NotebookEntry
-from .serializers import NotebookEntrySerializer, NotebookEntryCreateSerializer
+from .models import NotebookEntry, Tag
+from .serializers import (
+    NotebookEntrySerializer,
+    NotebookEntryCreateSerializer,
+    TagSerializer,
+)
 from .sync import sync_entry_content
 
 
@@ -18,6 +22,8 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
     partial_update: PATCH /api/eln/entries/{display_id}/ — partial update
     destroy: DELETE /api/eln/entries/{display_id}/ — delete entry
     delete_all: DELETE /api/eln/entries/delete_all/ — delete all entries
+    attach_tags: POST /api/eln/entries/{display_id}/tags/ — attach one or more tags
+    detach_tag: DELETE /api/eln/entries/{display_id}/tags/{tag_id}/ — detach a tag
     """
 
     queryset = NotebookEntry.objects.select_related("author", "folder").prefetch_related(
@@ -54,3 +60,56 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         """Delete ALL notebook entries. Danger zone endpoint for testing."""
         count, _ = NotebookEntry.objects.all().delete()
         return Response({"deleted": count})
+
+    @action(detail=True, methods=["post"], url_path="tags")
+    def attach_tags(self, request, display_id=None):
+        """Attach one or more tags to the entry.
+
+        Body: {"tag_ids": [1, 2, 3]}
+        """
+        entry = self.get_object()
+        tag_ids = request.data.get("tag_ids", [])
+        if not isinstance(tag_ids, list):
+            return Response(
+                {"error": "tag_ids must be a list"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        tags = Tag.objects.filter(id__in=tag_ids)
+        entry.tags.add(*tags)
+        read_serializer = NotebookEntrySerializer(entry)
+        return Response(read_serializer.data)
+
+    @action(detail=True, methods=["delete"], url_path="tags/(?P<tag_id>[^/.]+)")
+    def detach_tag(self, request, display_id=None, tag_id=None):
+        """Detach a tag from the entry."""
+        entry = self.get_object()
+        try:
+            tag = Tag.objects.get(id=tag_id)
+        except Tag.DoesNotExist:
+            return Response(
+                {"error": "Tag not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        entry.tags.remove(tag)
+        read_serializer = NotebookEntrySerializer(entry)
+        return Response(read_serializer.data)
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for tags.
+
+    list: GET /api/eln/tags/?q=... — list/search tags
+    create: POST /api/eln/tags/ — create a new tag (name + color)
+    """
+
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = []
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        query = self.request.query_params.get("q", "").strip()
+        if query:
+            qs = qs.filter(name__icontains=query)
+        return qs

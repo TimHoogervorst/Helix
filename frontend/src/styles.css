@@ -1,35 +1,78 @@
-/* OpenScience — base styles (Phase 1 scaffold) */
+/* Helix — base styles (Phase 1 scaffold) */
 
-:root {
-  /* ── Color palette ── */
+@import "tailwindcss";
+
+@theme {
+  /* ── Typography fonts ── */
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono",
+    "Cascadia Code", Consolas, monospace;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+
+  /* ── Semantic colours (named by role, not by value) ── */
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-border: #e2e8f0;
+  --color-hairline: #f1f5f9;
+  --color-surface: #f8fafc;
+  --color-panel: #ffffff;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #eff6ff;
+  --color-accent-foreground: #1e40af;
+  --color-enzyme: #ecfdf5;
+  --color-enzyme-foreground: #065f46;
+  --color-flask: #eff6ff;
+  --color-flask-foreground: #1e40af;
+  --color-solvent: #fefce8;
+  --color-solvent-foreground: #854d0e;
+  --color-warn: #fef2f2;
+  --color-warn-foreground: #991b1b;
+  --color-success: #f0fdf4;
+  --color-success-foreground: #166534;
+
+  /* ── Layout ── */
+  --sidebar-width: 256px;
+
+  /* ── Legacy palette (keep existing var() references working) ── */
   --blue-50: #eff6ff;
   --blue-100: #dbeafe;
   --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
   --blue-500: #3b82f6;
   --blue-600: #2563eb;
   --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a5f;
   --white: #ffffff;
+
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
   --gray-300: #d1d5db;
   --gray-400: #9ca3af;
   --gray-500: #6b7280;
+  --gray-600: #4b5563;
   --gray-700: #374151;
+  --gray-800: #1f2937;
   --gray-900: #111827;
 
-  /* ── Typographic scale (rem-based) ── */
-  --text-xs: 0.75rem;    /* 12px — badges, captions, tooltips */
-  --text-sm: 0.875rem;   /* 14px — secondary text, form labels, data grid cells */
-  --text-base: 1rem;     /* 16px — body text, default */
-  --text-lg: 1.125rem;   /* 18px — emphasized body, card titles */
-  --text-xl: 1.25rem;    /* 20px — section headings, page sub-titles */
-  --text-2xl: 1.5rem;    /* 24px — page titles, console headers */
+  /* ── Legacy typographic scale (rem-based) ── */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
 
-  /* ── Icon sizes ── */
-  --icon-sm: 14px;       /* inline icons inside text, badges, reference chips */
-  --icon-md: 18px;       /* button icons, form field adornments */
-  --icon-lg: 24px;       /* standalone action icons, empty states */
+  /* ── Legacy icon sizes ── */
+  --icon-sm: 14px;
+  --icon-md: 18px;
+  --icon-lg: 24px;
 }
 
 *,
@@ -40,8 +83,6 @@
 
 body {
   margin: 0;
-  font-family: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   color: var(--gray-900);
   background: var(--gray-50);
   line-height: 1.6;

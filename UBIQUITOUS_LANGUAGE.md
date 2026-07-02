@@ -1,6 +1,6 @@
 # Ubiquitous Language
 
-> Canonical domain glossary for OpenScience. Defines terms, not implementation.
+> Canonical domain glossary for Helix. Defines terms, not implementation.
 > For architecture decisions, see [docs/adr/](docs/adr/).
 
 ---

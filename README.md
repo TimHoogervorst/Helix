@@ -1,4 +1,4 @@
-# OpenScience
+# Helix
 
 Open-source ELN/LIMS for research labs. Flexible, extensible, AI-native.
 

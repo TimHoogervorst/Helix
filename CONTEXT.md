@@ -1,4 +1,4 @@
-# OpenScience — Domain Glossary
+# Helix — Domain Glossary
 
 > This is the canonical glossary. It defines terms, not implementation. For architecture decisions, see [docs/adr/](docs/adr/).
 

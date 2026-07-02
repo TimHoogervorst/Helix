@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-OpenScience is in active pre-1.0 development. Security updates are provided for the
+Helix is in active pre-1.0 development. Security updates are provided for the
 current development branch only.
 
 | Version | Supported          |
@@ -39,7 +39,7 @@ No advance notice is given beyond the maintainer team.
 
 ## Security Considerations
 
-OpenScience is a lab data management system. Key security boundaries:
+Helix is a lab data management system. Key security boundaries:
 
 - **Authentication & Authorization**: Access control via Django's auth system.
   RBAC (Reader / Creator / Designer / Admin roles at the folder level) is planned

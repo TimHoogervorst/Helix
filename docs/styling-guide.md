@@ -1,4 +1,4 @@
-# OpenScience — Styling Guide
+# Helix — Styling Guide
 
 > The canonical reference for visual design decisions. Covers fonts, icons, typographic scale, and button patterns. For domain vocabulary, see [CONTEXT.md](../CONTEXT.md). For architecture decisions, see [docs/adr/](adr/).
 

@@ -58,7 +58,7 @@ function Layout() {
     <ReferenceProvider>
       <nav>
         <div className="nav-left">
-          <Link to="/library">OpenScience</Link>
+          <Link to="/library">Helix</Link>
           <Link to="/library">Library</Link>
           <Link to="/lims">LIMS</Link>
         </div>

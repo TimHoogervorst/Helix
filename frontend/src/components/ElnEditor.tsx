@@ -6,10 +6,14 @@
  *   - createElnExtensions — TipTap extension factory
  *
  * Content layout (PRD #4):
- *   Actions bar → Metadata line → Title → Description → Tags → Divider → ProseMirror
+ *   Status bar → Metadata line → Title → Description → Tags → Divider → ProseMirror
+ *
+ * Action buttons (Save/Cancel/Edit/Delete) are exposed via ref so the parent
+ * (ElnDetail) can render them in the top toolbar as ghost icon buttons.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
+import { Dna } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc } from "../types/eln";
 import { useEntryEditor } from "../hooks/useEntryEditor";
@@ -20,12 +24,35 @@ function formatDateShort(iso: string): string {
   return new Date(iso).toISOString().split("T")[0];
 }
 
-interface ElnEditorProps {
-  entryId?: string;
+/** Public handle exposed to parent components via ref. */
+export interface ElnEditorHandle {
+  save: () => void;
+  cancel: () => void;
+  deleteEntry: () => void;
+  enterEditMode: () => void;
 }
 
-/** Editor component — ReferenceProvider is provided by Layout. */
-function ElnEditor({ entryId }: ElnEditorProps) {
+/** Snapshot of editor state pushed to parent via onStateChange. */
+export interface ElnEditorState {
+  mode: string;
+  isEdit: boolean;
+  isSaving: boolean;
+  isDirty: boolean;
+  deleting: boolean;
+}
+
+interface ElnEditorProps {
+  entryId?: string;
+  /** Called whenever editor mode/state changes so the parent can render
+   *  the correct action buttons (Save/Cancel vs Edit/Delete). */
+  onStateChange?: (state: ElnEditorState) => void;
+}
+
+/** Editor component — ReferenceProvider is provided by Layout.
+ *  Action buttons are exposed via ref so the parent can render them in
+ *  the top toolbar. */
+const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
+  function ElnEditor({ entryId, onStateChange }, ref) {
   const navigate = useNavigate();
   const isNew = entryId === undefined;
 
@@ -76,6 +103,19 @@ function ElnEditor({ entryId }: ElnEditorProps) {
     enterEditMode,
   } = useEntryEditor({ entryId, isNew, contentRef });
 
+  // ── Expose actions to parent via ref ──
+  // Store latest callbacks in a ref so useImperativeHandle doesn't
+  // re-attach on every render.
+  const actionsRef = useRef({ save, cancel, deleteEntry, enterEditMode });
+  actionsRef.current = { save, cancel, deleteEntry, enterEditMode };
+
+  useImperativeHandle(ref, () => ({
+    save: () => actionsRef.current.save(),
+    cancel: () => actionsRef.current.cancel(),
+    deleteEntry: () => actionsRef.current.deleteEntry(),
+    enterEditMode: () => actionsRef.current.enterEditMode(),
+  }), []);
+
   // ── Sync editor with hook state ──
   useEffect(() => {
     if (!editor) return;
@@ -92,10 +132,15 @@ function ElnEditor({ entryId }: ElnEditorProps) {
     }
   }, [mode, editor, initialContent]);
 
-  // ── Render helpers ──
-
+  // ── Notify parent of state changes ──
   const isEdit = mode === "edit-new" || mode === "edit-existing";
   const isSaving = mode === "saving";
+
+  useEffect(() => {
+    onStateChange?.({ mode, isEdit, isSaving, isDirty, deleting });
+  }, [mode, isEdit, isSaving, isDirty, deleting, onStateChange]);
+
+  // ── Render ──
 
   if (mode === "loading") {
     return <p className="text-center text-muted-foreground py-12">Loading…</p>;
@@ -112,7 +157,8 @@ function ElnEditor({ entryId }: ElnEditorProps) {
 
   return (
     <div className={isSaving ? "pointer-events-none opacity-60" : ""}>
-      {/* ── Actions bar ── */}
+      {/* ── Status bar (folder selector + save indicator only; action
+           buttons are rendered by ElnDetail in the top toolbar). ── */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {isNew && folders.length > 0 && (
@@ -140,34 +186,6 @@ function ElnEditor({ entryId }: ElnEditorProps) {
             </span>
           )}
         </div>
-
-        <div className="flex items-center gap-2">
-          {isEdit ? (
-            <>
-              <button onClick={save} disabled={isSaving || !title.trim()}>
-                {isSaving ? "Saving…" : "Save"}
-              </button>
-              <button
-                onClick={cancel}
-                disabled={isSaving}
-                className="border border-gray-300 bg-transparent !text-gray-700 hover:bg-muted"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={enterEditMode}>Edit</button>
-              <button
-                onClick={deleteEntry}
-                disabled={deleting}
-                className="border border-red-200 bg-transparent !text-red-600 hover:bg-red-50"
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
-            </>
-          )}
-        </div>
       </div>
 
       {/* ── Error banner ── */}
@@ -185,6 +203,8 @@ function ElnEditor({ entryId }: ElnEditorProps) {
             {entry.display_id}
             {" · "}
             Created {formatDateShort(entry.created_at)}
+            {" · "}
+            Updated {formatDateShort(entry.updated_at)}
             {" · "}v0.4{" · "}
             autosaved 2s ago
           </>
@@ -225,10 +245,10 @@ function ElnEditor({ entryId }: ElnEditorProps) {
       {/* Tags placeholder */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
         <span
-          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-enzyme px-2 py-0.5 font-mono text-[0.72rem] text-enzyme-foreground"
+          className="inline-flex items-center gap-1.5 rounded-full border border-enzyme-foreground/20 bg-enzyme px-2 py-0.5 font-mono text-[0.72rem] text-enzyme-foreground"
           title="Placeholder — tags coming soon"
         >
-          <span aria-hidden="true">🧬</span>
+          <Dna className="h-3.5 w-3.5" aria-hidden="true" />
           SpCas9-HF1
         </span>
       </div>
@@ -250,6 +270,6 @@ function ElnEditor({ entryId }: ElnEditorProps) {
       </div>
     </div>
   );
-}
+});
 
 export default ElnEditor;

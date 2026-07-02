@@ -1,21 +1,60 @@
 /**
  * Tests for ElnDetail — 3-column ELN entry page.
  *
- * Verifies the top toolbar (breadcrumbs, status badge, action buttons,
- * avatars, share/sign & witness), content area, and metadata panel.
+ * Verifies the top toolbar (breadcrumbs, status badge, editor action buttons,
+ * ghost icon buttons, avatars, share/sign & witness), content area, and metadata
+ * panel.
+ *
+ * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
+ * toolbar via state lifted from ElnEditor through onStateChange + ref.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import React from "react";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
-/** ElnEditor is a heavy TipTap component; stub it out. */
+/** ElnEditor mock that fires onStateChange so the top toolbar can render
+ *  the correct action buttons. */
 vi.mock("../../components/ElnEditor", () => ({
-  default: ({ entryId }: { entryId?: string }) => (
-    <div data-testid="eln-editor" data-entry-id={entryId ?? "new"}>
-      ElnEditor mock (id: {entryId ?? "new"})
-    </div>
+  default: React.forwardRef(
+    (
+      props: { entryId?: string; onStateChange?: (s: unknown) => void },
+      ref: React.Ref<unknown>,
+    ) => {
+      const isNew = props.entryId === undefined;
+      React.useEffect(() => {
+        // Simulate the editor loading and entering its initial mode.
+        // New entries start in edit mode; existing entries start in view mode
+        // after a brief "loading" frame.
+        const t = setTimeout(() => {
+          props.onStateChange?.({
+            mode: isNew ? "edit-new" : "view",
+            isEdit: isNew,
+            isSaving: false,
+            isDirty: false,
+            deleting: false,
+          });
+        }, 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+
+      // Expose stub actions via the ref
+      React.useImperativeHandle(ref, () => ({
+        save: vi.fn(),
+        cancel: vi.fn(),
+        deleteEntry: vi.fn(),
+        enterEditMode: vi.fn(),
+      }));
+
+      return (
+        <div data-testid="eln-editor" data-entry-id={props.entryId ?? "new"}>
+          ElnEditor mock (id: {props.entryId ?? "new"})
+        </div>
+      );
+    },
   ),
 }));
 
@@ -58,9 +97,9 @@ describe("ElnDetail — 3-column layout", () => {
     expect(badges.length).toBeGreaterThanOrEqual(1);
   });
 
-  // ── Top toolbar: action buttons ────────────────────────────────────────
+  // ── Top toolbar: ghost icon buttons (History, Comments, Star) ───────────
 
-  it("renders History, Comments, and Star icon buttons with tooltips", () => {
+  it("renders History, Comments, and Star icon buttons with tooltips", async () => {
     renderAtRoute("/eln/EXP-0284");
 
     const historyBtn = screen.getByLabelText("History");
@@ -74,6 +113,50 @@ describe("ElnDetail — 3-column layout", () => {
     const starBtn = screen.getByLabelText("Star");
     expect(starBtn).toBeDefined();
     expect(starBtn.getAttribute("title")).toContain("bookmark");
+  });
+
+  it("renders ghost icon buttons with .btn-icon class", () => {
+    renderAtRoute("/eln/EXP-0284");
+    const historyBtn = screen.getByLabelText("History");
+    expect(historyBtn.className).toContain("btn-icon");
+  });
+
+  // ── Top toolbar: editor action buttons ──────────────────────────────────
+
+  it("renders Edit and Delete icon buttons for an existing entry in view mode", async () => {
+    renderAtRoute("/eln/EXP-0284");
+
+    // The mock fires onStateChange with view mode after a tick
+    const editBtn = await screen.findByLabelText("Edit");
+    expect(editBtn).toBeDefined();
+    expect(editBtn.className).toContain("btn-icon");
+
+    const deleteBtn = screen.getByLabelText("Delete");
+    expect(deleteBtn).toBeDefined();
+    expect(deleteBtn.className).toContain("btn-icon");
+  });
+
+  it("renders Save and Cancel icon buttons for a new entry in edit mode", async () => {
+    renderAtRoute("/eln/new");
+
+    const saveBtn = await screen.findByLabelText("Save");
+    expect(saveBtn).toBeDefined();
+    expect(saveBtn.className).toContain("btn-icon");
+
+    const cancelBtn = screen.getByLabelText("Cancel");
+    expect(cancelBtn).toBeDefined();
+    expect(cancelBtn.className).toContain("btn-icon");
+  });
+
+  it("does not render editor action buttons while loading", () => {
+    // We render without waiting for onStateChange to fire —
+    // the initial state is "loading" so buttons should be absent.
+    renderAtRoute("/eln/EXP-0284");
+    // Save/Edit/Delete/Cancel should not exist yet
+    expect(screen.queryByLabelText("Save")).toBeNull();
+    expect(screen.queryByLabelText("Edit")).toBeNull();
+    expect(screen.queryByLabelText("Delete")).toBeNull();
+    expect(screen.queryByLabelText("Cancel")).toBeNull();
   });
 
   // ── Top toolbar: user avatars ──────────────────────────────────────────

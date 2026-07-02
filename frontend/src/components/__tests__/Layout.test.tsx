@@ -42,9 +42,9 @@ describe("Layout sidebar", () => {
     expect(screen.getByText("Helix")).toBeInTheDocument();
   });
 
-  it("renders the subtitle ELN · v2.4", () => {
+  it("renders the subtitle Alpha", () => {
     renderLayout();
-    expect(screen.getByText("ELN · v2.4")).toBeInTheDocument();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
   });
 
   // ── Search placeholder ─────────────────────────────────────────────────

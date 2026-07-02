@@ -1,4 +1,5 @@
 import { useParams } from "react-router-dom";
+import { useRef, useState, useCallback } from "react";
 import {
   History,
   MessageSquare,
@@ -8,24 +9,36 @@ import {
   Lock,
   Folder,
   ChevronRight,
+  Save,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 import ElnEditor from "../components/ElnEditor";
+import type { ElnEditorHandle, ElnEditorState } from "../components/ElnEditor";
 
-/** Placeholder icon button with tooltip — all wired in future PRDs. */
+/** Placeholder icon button with tooltip — all wired in future PRDs.
+ *  Uses .btn-icon so the global button background is properly overridden. */
 function IconButton({
   icon: Icon,
   label,
   tooltip,
+  disabled,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   tooltip: string;
+  disabled?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
-      className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+      className="btn-icon rounded-md"
       aria-label={label}
       title={tooltip}
+      disabled={disabled}
+      onClick={onClick}
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
     </button>
@@ -52,6 +65,24 @@ function Avatar({
 function ElnDetail() {
   const { id } = useParams<{ id: string }>();
   const entryDisplayId = id ?? "New";
+
+  // ── Editor state lifted from ElnEditor via callback ──
+  const [editorState, setEditorState] = useState<ElnEditorState>({
+    mode: "loading",
+    isEdit: false,
+    isSaving: false,
+    isDirty: false,
+    deleting: false,
+  });
+  const handleStateChange = useCallback((state: ElnEditorState) => {
+    setEditorState(state);
+  }, []);
+
+  // ── Editor actions exposed via ref ──
+  const editorRef = useRef<ElnEditorHandle>(null);
+
+  const showActions =
+    editorState.mode !== "loading" && editorState.mode !== "error";
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
@@ -81,6 +112,43 @@ function ElnDetail() {
 
         {/* Right: actions + avatars + share */}
         <div className="flex items-center gap-1">
+          {/* ── Editor action buttons (lifted from ElnEditor) ── */}
+          {showActions &&
+            (editorState.isEdit ? (
+              <>
+                <IconButton
+                  icon={Save}
+                  label="Save"
+                  tooltip="Save entry"
+                  disabled={editorState.isSaving}
+                  onClick={() => editorRef.current?.save()}
+                />
+                <IconButton
+                  icon={X}
+                  label="Cancel"
+                  tooltip="Cancel editing"
+                  disabled={editorState.isSaving}
+                  onClick={() => editorRef.current?.cancel()}
+                />
+              </>
+            ) : (
+              <>
+                <IconButton
+                  icon={Pencil}
+                  label="Edit"
+                  tooltip="Edit entry"
+                  onClick={() => editorRef.current?.enterEditMode()}
+                />
+                <IconButton
+                  icon={Trash2}
+                  label="Delete"
+                  tooltip="Delete entry"
+                  disabled={editorState.deleting}
+                  onClick={() => editorRef.current?.deleteEntry()}
+                />
+              </>
+            ))}
+
           <IconButton
             icon={History}
             label="History"
@@ -134,7 +202,7 @@ function ElnDetail() {
         {/* Main content area */}
         <main className="min-w-0 flex-1">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
-            <ElnEditor entryId={id} />
+            <ElnEditor entryId={id} ref={editorRef} onStateChange={handleStateChange} />
           </div>
         </main>
 

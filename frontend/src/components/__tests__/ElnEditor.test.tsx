@@ -6,12 +6,17 @@
  * mode transitions, UI rendering, and wiring between modules.
  *
  * PRD #4: Tests for metadata line, serif title, description, tags, divider.
+ *
+ * Action buttons (Save/Cancel/Edit/Delete) are rendered by ElnDetail via the
+ * forwarded ref — these tests verify the ref actions and onStateChange callback.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { createRef } from "react";
 
 import ElnEditor from "../ElnEditor";
+import type { ElnEditorHandle, ElnEditorState } from "../ElnEditor";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -95,11 +100,16 @@ function makeEntry(overrides?: Record<string, unknown>) {
 }
 
 function renderEditor(
-  props: { entryId?: string } = {},
+  props: {
+    entryId?: string;
+    onStateChange?: (state: ElnEditorState) => void;
+    ref?: React.Ref<ElnEditorHandle>;
+  } = {},
 ) {
+  const { entryId, onStateChange, ref } = props;
   return render(
     <MemoryRouter>
-      <ElnEditor {...props} />
+      <ElnEditor entryId={entryId} onStateChange={onStateChange} ref={ref} />
     </MemoryRouter>,
   );
 }
@@ -151,26 +161,19 @@ describe("ElnEditor integration", () => {
 
   // ── View mode ──────────────────────────────────────────────────────────────
 
-  it("shows Edit and Delete buttons in view mode after fetch", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
-      expect(screen.getByText("Delete")).toBeDefined();
-    });
-  });
-
   it("displays entry title in view mode with serif styling", async () => {
     mockGet.mockResolvedValue(
       makeEntry({ title: "My ELN Entry", display_id: "E42" }),
     );
     renderEditor({ entryId: "E42" });
+
+    // onStateChange should fire with view mode after load
+    const onStateChange = vi.fn();
+    renderEditor({ entryId: "E1", onStateChange });
     await waitFor(() => {
-      const title = screen.getByTestId("title-display");
-      expect(title).toBeDefined();
-      expect(title.textContent).toBe("My ELN Entry");
-      expect(title.tagName).toBe("H1");
-      // Should have serif font class
-      expect(title.className).toContain("font-serif");
+      const lastCall = onStateChange.mock.calls[onStateChange.mock.calls.length - 1]?.[0];
+      expect(lastCall?.mode).toBe("view");
+      expect(lastCall?.isEdit).toBe(false);
     });
   });
 
@@ -184,11 +187,12 @@ describe("ElnEditor integration", () => {
 
   // ── Metadata line ──────────────────────────────────────────────────────────
 
-  it("renders metadata line with display_id and created date for existing entry", async () => {
+  it("renders metadata line with display_id, created date, and updated date for existing entry", async () => {
     mockGet.mockResolvedValue(
       makeEntry({
         display_id: "EXP-0284",
         created_at: "2026-06-28T09:14:00Z",
+        updated_at: "2026-07-01T14:30:00Z",
       }),
     );
     renderEditor({ entryId: "EXP-0284" });
@@ -197,6 +201,8 @@ describe("ElnEditor integration", () => {
       expect(meta).toBeDefined();
       expect(meta.textContent).toContain("EXP-0284");
       expect(meta.textContent).toContain("2026-06-28");
+      expect(meta.textContent).toContain("Updated");
+      expect(meta.textContent).toContain("2026-07-01");
     });
   });
 
@@ -217,21 +223,12 @@ describe("ElnEditor integration", () => {
 
   // ── Title input styling ────────────────────────────────────────────────────
 
-  it("renders title input with serif font class in edit mode", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "Original Title" }));
-    renderEditor({ entryId: "E1" });
-
-    await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
-    });
-    fireEvent.click(screen.getByText("Edit"));
-
-    await waitFor(() => {
-      const input = screen.getByTestId("title-input");
-      expect(input).toBeDefined();
-      expect(input.className).toContain("font-serif");
-      expect(input.className).toContain("text-[42px]");
-    });
+  it("renders title input with serif font class in new-entry edit mode", () => {
+    renderEditor({});
+    const input = screen.getByTestId("title-input");
+    expect(input).toBeDefined();
+    expect(input.className).toContain("font-serif");
+    expect(input.className).toContain("text-[42px]");
   });
 
   // ── Description placeholder ────────────────────────────────────────────────
@@ -275,55 +272,104 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  // ── Edit mode transitions ─────────────────────────────────────────────────
+  // ── onStateChange callback ─────────────────────────────────────────────────
 
-  it("transitions to edit mode when Edit button is clicked", async () => {
-    renderEditor({ entryId: "E1" });
+  it("fires onStateChange with initial state on mount (loading or edit-new)", () => {
+    const onStateChange = vi.fn();
+    renderEditor({ entryId: "E1", onStateChange });
+    // First call should fire immediately with loading or view state
+    expect(onStateChange).toHaveBeenCalled();
+    const state = onStateChange.mock.calls[0][0] as ElnEditorState;
+    expect(state.mode).toBeDefined();
+    expect(typeof state.isEdit).toBe("boolean");
+  });
+
+  it("fires onStateChange with edit mode when isNew", () => {
+    const onStateChange = vi.fn();
+    renderEditor({ onStateChange });
+    // New entry starts in edit-new mode
+    expect(onStateChange).toHaveBeenCalled();
+    const firstCall = onStateChange.mock.calls[0][0] as ElnEditorState;
+    expect(firstCall.isEdit).toBe(true);
+  });
+
+  // ── Ref actions (mode transitions via forwarded ref) ────────────────────────
+
+  it("transitions to edit mode via ref.enterEditMode()", async () => {
+    const ref = createRef<ElnEditorHandle>();
+    const onStateChange = vi.fn();
+    mockGet.mockResolvedValue(
+      makeEntry({ title: "Original Title", display_id: "E99" }),
+    );
+    renderEditor({ entryId: "E99", onStateChange, ref });
+
+    // Wait for entry to load (view mode)
     await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
+      const calls = onStateChange.mock.calls;
+      const lastMode = calls[calls.length - 1]?.[0]?.mode;
+      expect(lastMode).toBe("view");
     });
 
-    fireEvent.click(screen.getByText("Edit"));
+    // Enter edit mode via ref
+    await act(() => {
+      ref.current?.enterEditMode();
+    });
 
     await waitFor(() => {
-      expect(screen.getByText("Save")).toBeDefined();
-      expect(screen.getByText("Cancel")).toBeDefined();
+      const calls = onStateChange.mock.calls;
+      const lastState = calls[calls.length - 1]?.[0] as ElnEditorState | undefined;
+      expect(lastState?.isEdit).toBe(true);
     });
   });
 
-  it("shows title input in edit mode", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "Original Title" }));
-    renderEditor({ entryId: "E1" });
+  it("cancels edit mode via ref.cancel()", async () => {
+    const ref = createRef<ElnEditorHandle>();
+    const onStateChange = vi.fn();
+    mockGet.mockResolvedValue(
+      makeEntry({ title: "Original Title", display_id: "E100" }),
+    );
+    renderEditor({ entryId: "E100", onStateChange, ref });
 
     await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
+      const lastState = onStateChange.mock.calls[onStateChange.mock.calls.length - 1]?.[0] as
+        | ElnEditorState
+        | undefined;
+      expect(lastState?.mode).toBe("view");
     });
-    fireEvent.click(screen.getByText("Edit"));
+
+    // Enter edit mode
+    await act(() => {
+      ref.current?.enterEditMode();
+    });
 
     await waitFor(() => {
-      const input = screen.getByDisplayValue("Original Title");
-      expect(input).toBeDefined();
-      expect(input.tagName).toBe("INPUT");
+      const lastState = onStateChange.mock.calls[onStateChange.mock.calls.length - 1]?.[0] as
+        | ElnEditorState
+        | undefined;
+      expect(lastState?.isEdit).toBe(true);
     });
-  });
 
-  it("shows save indicator in edit mode", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
+    // Cancel
+    await act(() => {
+      ref.current?.cancel();
     });
-    fireEvent.click(screen.getByText("Edit"));
+
     await waitFor(() => {
-      expect(screen.getByText("Saved")).toBeDefined();
+      const lastState = onStateChange.mock.calls[onStateChange.mock.calls.length - 1]?.[0] as
+        | ElnEditorState
+        | undefined;
+      expect(lastState?.isEdit).toBe(false);
+      expect(lastState?.mode).toBe("view");
     });
   });
 
   // ── New entry mode ─────────────────────────────────────────────────────────
 
   it("starts in edit mode when isNew (no entryId)", () => {
-    renderEditor({});
-    expect(screen.getByText("Save")).toBeDefined();
-    expect(screen.getByText("Cancel")).toBeDefined();
+    const onStateChange = vi.fn();
+    renderEditor({ onStateChange });
+    const state = onStateChange.mock.calls[0][0] as ElnEditorState;
+    expect(state.isEdit).toBe(true);
   });
 
   it("shows 'New entry' metadata for new entries", () => {
@@ -338,24 +384,43 @@ describe("ElnEditor integration", () => {
     expect(input.tagName).toBe("INPUT");
   });
 
-  // ── Cancel returns to view mode ────────────────────────────────────────────
+  it("autofocuses title input for new entries", () => {
+    renderEditor({});
+    const input = screen.getByTestId("title-input");
+    expect(input).toBe(document.activeElement);
+  });
 
-  it("returns to view mode on Cancel", async () => {
+  // ── Action buttons are NOT in ElnEditor ────────────────────────────────────
+
+  it("does not render Save, Edit, Delete, or Cancel text buttons (moved to ElnDetail)", async () => {
+    // New entry — no Save/Cancel text
+    const { container: newContainer } = renderEditor({});
+    expect(newContainer.textContent).not.toContain("Saving…");
+
+    // Existing entry in view mode — no Edit/Delete text
+    const { container: viewContainer } = renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
+    });
+    expect(viewContainer.textContent).not.toContain("Saving…");
+  });
+
+  it("does not render duplicate History, Comments, or Star buttons", async () => {
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
     });
+    // These aria-labels should not exist inside ElnEditor
+    expect(screen.queryByLabelText("History")).toBeNull();
+    expect(screen.queryByLabelText("Comments")).toBeNull();
+    expect(screen.queryByLabelText("Star")).toBeNull();
+  });
 
-    fireEvent.click(screen.getByText("Edit"));
-    await waitFor(() => {
-      expect(screen.getByText("Cancel")).toBeDefined();
-    });
+  // ── Save indicator ─────────────────────────────────────────────────────────
 
-    fireEvent.click(screen.getByText("Cancel"));
-    await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
-      expect(screen.getByText("Delete")).toBeDefined();
-    });
+  it("shows save indicator when in edit mode", () => {
+    renderEditor({});
+    expect(screen.getByText("Saved")).toBeDefined();
   });
 
   // ── Editor content ─────────────────────────────────────────────────────────
@@ -368,28 +433,40 @@ describe("ElnEditor integration", () => {
   // ── No paper-page wrapper ──────────────────────────────────────────────────
 
   it("does not render paper-page wrapper", async () => {
-    renderEditor({ entryId: "E1" });
+    const { container } = renderEditor({ entryId: "E1" });
     await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
     });
-    expect(document.querySelector(".paper-page")).toBeNull();
+    expect(container.querySelector(".paper-page")).toBeNull();
   });
 
   // ── No bubble menu rendered ────────────────────────────────────────────────
 
   it("does not render a bubble menu", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      expect(screen.getByText("Edit")).toBeDefined();
-    });
-
-    fireEvent.click(screen.getByText("Edit"));
+    const ref = createRef<ElnEditorHandle>();
+    const onStateChange = vi.fn();
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E200" }));
+    renderEditor({ entryId: "E200", ref, onStateChange });
 
     await waitFor(() => {
-      expect(screen.getByText("Save")).toBeDefined();
+      const lastState = onStateChange.mock.calls[onStateChange.mock.calls.length - 1]?.[0] as
+        | ElnEditorState
+        | undefined;
+      expect(lastState?.mode).toBe("view");
     });
 
-    // Bubble menu mock used to have data-testid="bubble-menu"
+    // Enter edit mode via ref
+    await act(() => {
+      ref.current?.enterEditMode();
+    });
+
+    await waitFor(() => {
+      const lastState = onStateChange.mock.calls[onStateChange.mock.calls.length - 1]?.[0] as
+        | ElnEditorState
+        | undefined;
+      expect(lastState?.isEdit).toBe(true);
+    });
+
     expect(screen.queryByTestId("bubble-menu")).toBeNull();
   });
 });

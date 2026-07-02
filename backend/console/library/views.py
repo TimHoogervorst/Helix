@@ -1,5 +1,4 @@
 from django.core.paginator import Paginator as DjangoPaginator
-from django.db import models
 from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -58,14 +57,11 @@ class LibraryContentsView(APIView):
 
     def get(self, request):
         path_str = request.query_params.get("path", "")
-        search = request.query_params.get("search", "")
 
         folder = resolve_path(path_str)  # raises Http404 if not found
 
         # ── Folders ──────────────────────────────────────────────────
         folders_qs = Folder.objects.filter(parent=folder).order_by("name")
-        if search:
-            folders_qs = folders_qs.filter(name__icontains=search)
 
         # ── Entries ──────────────────────────────────────────────────
         entries_qs = (
@@ -73,11 +69,6 @@ class LibraryContentsView(APIView):
             .select_related("author", "folder")
             .order_by("-created_at")
         )
-        if search:
-            entries_qs = entries_qs.filter(
-                models.Q(title__icontains=search)
-                | models.Q(display_id__icontains=search)
-            )
 
         # ── Build mixed list: folders first, then entries ────────────
         items = []

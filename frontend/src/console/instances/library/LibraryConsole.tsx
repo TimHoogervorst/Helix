@@ -7,14 +7,12 @@ import { getLibraryContents } from "../../../api/library";
 import Breadcrumbs from "../../components/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
-import ElnDetailCard from "../../../workspaces/eln/ElnDetailCard";
-import ElnWorkspace from "../../../workspaces/eln/ElnWorkspace";
+import LibraryDetailCard from "./LibraryDetailCard";
 
 function LibraryConsole() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPath = searchParams.get("path") || "";
-  const search = searchParams.get("search") || "";
   const selectId = searchParams.get("select") || "";
 
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -26,8 +24,6 @@ function LibraryConsole() {
 
   const {
     viewState,
-    isExiting,
-    isDetailExiting,
     goToDetail,
     collapseFromExpanded: collapseFromExpandedBase,
     closeAll: closeAllBase,
@@ -39,7 +35,7 @@ function LibraryConsole() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getLibraryContents(currentPath, page, search || undefined);
+        const data = await getLibraryContents(currentPath, page);
         if (page && page > 1) {
           setItems((prev) => [...prev, ...data.results]);
         } else {
@@ -53,7 +49,7 @@ function LibraryConsole() {
         setLoading(false);
       }
     },
-    [currentPath, search],
+    [currentPath],
   );
 
   useEffect(() => {
@@ -79,22 +75,6 @@ function LibraryConsole() {
     }
   }, [selectId, loading, items]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── State machine transitions (wrapping shared hook) ──────────────
-
-  const goToList = () => {
-    closeAllBase(); // handles exit animations internally
-    setSelectedItem(null);
-  };
-
-  const goToDetailForEntry = (entry: LibraryEntryItem) => {
-    setSelectedItem(entry);
-    goToDetail();
-  };
-
-  const collapseFromExpanded = () => {
-    collapseFromExpandedBase();
-  };
-
   // ── Folder navigation ──────────────────────────────────────────────
 
   const navigateToPath = (path: string) => {
@@ -118,17 +98,42 @@ function LibraryConsole() {
     navigateToPath(newPath);
   };
 
+  // ── State machine transitions (wrapping shared hook) ──────────────
+
+  const selectEntry = (entry: LibraryEntryItem) => {
+    setSelectedItem(entry);
+  };
+
+  const clearSelection = () => {
+    setSelectedItem(null);
+  };
+
+  const goToList = () => {
+    closeAllBase();
+    clearSelection();
+  };
+
+  const goToDetailForEntry = (entry: LibraryEntryItem) => {
+    selectEntry(entry);
+    goToDetail();
+  };
+
+  const collapseFromExpanded = () => {
+    collapseFromExpandedBase();
+  };
+
   // ── Row handlers ───────────────────────────────────────────────────
 
   const handleRowClick = (item: LibraryItem) => {
-    if (viewState === "expanded") return;
-
     if (item.type === "folder") {
       navigateToFolder(item.name);
       return;
     }
 
+    if (viewState === "expanded") return;
+
     if (viewState === "detail" && selectedItem?.id === item.id) {
+      // Toggle off: clicking selected row returns to list
       goToList();
     } else {
       goToDetailForEntry(item);
@@ -180,30 +185,20 @@ function LibraryConsole() {
           onFolderNavigate={navigateToFolder}
         />
       }
-      hasMore={!!nextUrl}
-      onLoadMore={handleLoadMore}
-      loadingMore={loading}
       detail={
         selectedItem &&
         (viewState === "detail" || viewState === "expanded") ? (
-          <ElnDetailCard
-            key={selectedItem.display_id}
+          <LibraryDetailCard
             entry={selectedItem}
             viewState={viewState}
             onClose={goToList}
             onCollapse={collapseFromExpanded}
-            isDetailExiting={isDetailExiting}
           />
         ) : undefined
       }
-      workspace={
-        selectedItem && viewState === "expanded" ? (
-          <ElnWorkspace
-            entry={selectedItem}
-            isExiting={isExiting}
-          />
-        ) : undefined
-      }
+      hasMore={!!nextUrl}
+      onLoadMore={handleLoadMore}
+      loadingMore={loading}
     />
   );
 }

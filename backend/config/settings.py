@@ -1,5 +1,5 @@
 """
-Django settings for OpenScience project.
+Django settings for Helix project.
 """
 import os
 from pathlib import Path
@@ -28,7 +28,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "django_filters",
-    # OpenScience apps
+    # Helix apps
     "core",
     "workspaces.eln",
     "workspaces.lims",
@@ -159,7 +159,7 @@ REST_FRAMEWORK = {
 # DRF Spectacular
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "OpenScience API",
+    "TITLE": "Helix API",
     "DESCRIPTION": "Open-source ELN/LIMS for research labs",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,

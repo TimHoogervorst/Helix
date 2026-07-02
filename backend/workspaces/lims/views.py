@@ -72,7 +72,6 @@ class EntityViewSet(viewsets.ModelViewSet):
     permission_classes = []
     lookup_field = "display_id"
     filterset_fields = ["entity_type"]
-    search_fields = ["display_id", "name"]
 
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None

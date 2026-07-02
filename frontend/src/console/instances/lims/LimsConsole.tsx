@@ -13,7 +13,6 @@ import ReferenceBadge from "../../../components/ReferenceBadge";
 
 function LimsConsole() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const search = searchParams.get("search") || "";
   const typeFilter = searchParams.get("type") || "";
   const selectId = searchParams.get("select") || "";
 
@@ -42,7 +41,7 @@ function LimsConsole() {
       try {
         const path = url
           ? url.replace("/api", "")
-          : `/lims/entities/?search=${encodeURIComponent(search)}&type=${typeFilter}`;
+          : `/lims/entities/?type=${typeFilter}`;
         const data = await get<PaginatedResponse<EntityListItem>>(path);
         if (url) {
           setEntities((prev) => [...prev, ...data.results]);
@@ -56,7 +55,7 @@ function LimsConsole() {
         setLoading(false);
       }
     },
-    [search, typeFilter],
+    [typeFilter],
   );
 
   useEffect(() => {

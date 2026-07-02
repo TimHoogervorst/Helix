@@ -1,4 +1,4 @@
-# OpenScience — Domain Glossary
+# Helix — Domain Glossary
 
 > This is the canonical glossary. It defines terms, not implementation. For architecture decisions, see [docs/adr/](docs/adr/).
 
@@ -134,13 +134,51 @@ The LIMS Master table renders one Item type: **Entities**. Rows are filterable b
 
 ### Notebook Entry (or "ELN Entry")
 
-A single page of narrative lab documentation. Has a title, rich-text content, an author, a folder, and timestamps. The primary unit of scientific narrative in the system.
+A single page of narrative lab documentation. Has a title, rich-text content (the Document), an author, a folder, timestamps, a status, and zero or more Tags. The primary unit of scientific narrative in the system.
 
 An entry is the *whole thing* — metadata + document content. It is not the document.
 
 **Invariant:** An entry belongs to exactly one Folder.
 
 **Synonyms:** entry, ELN page, notebook page
+
+### Entry Status
+
+A user-settable lifecycle marker on a Notebook Entry. Two states: **In Progress** (the entry is being actively authored) and **Finished** (the entry is complete). The status is displayed as a pill-shaped badge in the metadata panel and is changed via a dropdown — no separate workflow or approval step.
+
+When an entry's status changes, the new status **cascades** to every Entity whose `source_entry` is this entry — i.e., entities that were *created in* this entry. Entities merely *referenced* (via Mentions) are not affected. See [ADR 0005](docs/adr/0005-entry-status-cascade.md).
+
+**Synonyms:** state, lifecycle marker
+
+### Tag
+
+A user-created label that can be attached to a Notebook Entry. Each Tag has a **name** and a **color** (chosen from a preset palette of semantic design tokens). Tags are reusable across entries — creating a tag on one entry makes it available for all entries. Tags have no hierarchy, no permissions, and no independent lifecycle.
+
+Tags are managed **inline** on the entry page: users create, search, attach, and detach tags without leaving the entry. There is no global tag management interface.
+
+**Invariant:** A Tag's name is unique (case-insensitive). A Tag's color comes from the preset palette.
+
+**Synonyms:** label, chip, keyword
+
+### Description
+
+The summary paragraph of a Notebook Entry — a short, human-readable overview of what the entry is about. The Description is **not a separate database field**; it is stored as part of the Rich-Text Document (the TipTap JSON content). It is rendered above the main document body with distinct styling (muted color, larger text) and can be edited inline alongside the title.
+
+### Breadcrumb
+
+*(In the ELN Workspace context.)* The navigation bar at the top of the ELN Workspace showing the entry's folder path as clickable segments. Each segment links to that folder level in the Library console. Derived from the entry's `folder.path` property. When the entry has no folder, only the entry display ID is shown.
+
+**Distinction from Library Breadcrumb:** The Library breadcrumb shows the *current browsing location* in the folder tree. The ELN breadcrumb shows the *entry's home location* — where it lives. Both use the same visual pattern and link to the same Library URLs.
+
+### Shared URL
+
+A read-only link to a Notebook Entry's Workspace. The current implementation is the entry's canonical URL (`/eln/{display_id}`) — no token, no access control, no separate shared view. Anyone with the URL can view the entry. This is a placeholder; a proper sharing model with tokens, permissions, and a shared-view page is deferred to a future PRD.
+
+### Linked Entity
+
+An entity (from the LIMS domain) that is connected to a Notebook Entry through the Mention system. When a user references an entity in the TipTap content (via `@` or a `reference` node), a Mention row is created linking the entry to that entity. The Linked Entities section of the metadata panel renders these Mentions — showing the entity's type icon, name, and display ID. Each is clickable, navigating to the entity's Workspace in the LIMS console.
+
+**Distinction from entities created in the entry:** Entities whose `source_entry` is this entry (created via LIMS tables in the content) are connected through a direct FK, not through Mentions. They may or may not appear as Linked Entities. A future PRD will unify both connection types in the panel.
 
 ### Rich-Text Document
 
@@ -211,16 +249,22 @@ Folder ──┬── Folder (parent/child, recursive)
          └── Entity (1:N — entity lives in one folder)
 
 NotebookEntry ──▶ Mention (1:N — entry can mention many things)
+NotebookEntry ──▶ Tag (M:N — entry can have many tags; tags belong to many entries)
 Mention ──▶ NotebookEntry | Entity (target of the reference)
 
 Entity ──▶ Action (1:N — entity has many actions recorded)
+Entity ──▶ NotebookEntry (N:1 — source_entry, the entry where this entity was created)
 Action ──▶ NotebookEntry (N:1 — action optionally recorded in an entry)
 
 EntityType ──▶ Entity (1:N — type classifies many entities)
 
+Tag (standalone — reusable labels with name + color, managed inline on entries)
+
 User ──▶ NotebookEntry (1:N — author of entries)
 User ──▶ Action (1:N — performer of actions)
 User ──▶ Entity (1:N — creator of entities)
+
+NotebookEntry.status ──cascades to──▶ Entity.status (only via source_entry FK)
 
 Console (abstract) ──▶ Master Panel ──▶ Item table
                     ├── Detail Panel ──▶ summary card

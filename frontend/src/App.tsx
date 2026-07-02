@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
-import ElnNew from "./pages/ElnNew";
 import ElnDetail from "./pages/ElnDetail";
 import LimsConsole from "./console/instances/lims/LimsConsole";
 import EntityWorkspace from "./pages/EntityWorkspace";
@@ -15,7 +14,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/library" replace />} />
           <Route path="/eln" element={<Navigate to="/library" replace />} />
-          <Route path="/eln/new" element={<ElnNew />} />
+          <Route path="/eln/new" element={<ElnDetail />} />
           <Route path="/eln/:id" element={<ElnDetail />} />
           <Route path="/lims" element={<LimsConsole />} />
           <Route path="/lims/:displayId" element={<EntityWorkspace />} />

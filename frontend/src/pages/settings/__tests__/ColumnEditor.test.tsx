@@ -183,4 +183,133 @@ describe("ColumnEditor", () => {
     expect(screen.getByText("Columns")).toBeInTheDocument();
     expect(screen.getByText("+ Add Column")).toBeInTheDocument();
   });
+
+  // ── Name pseudo-column ──────────────────────────────────────────
+
+  it("renders a gray Name pseudo-column row at the top", () => {
+    render(
+      <ColumnEditor
+        columns={columns}
+        onAdd={vi.fn()}
+        onUpdate={vi.fn()}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+    const nameRow = screen.getByTestId("name-pseudo-column");
+    expect(nameRow).toBeInTheDocument();
+    // The Name input should be disabled
+    const nameInput = nameRow.querySelector("input");
+    expect(nameInput).toBeDisabled();
+    expect(nameInput).toHaveValue("Name");
+  });
+
+  it("shows Name pseudo-column even when columns list is empty", () => {
+    render(
+      <ColumnEditor
+        columns={[]}
+        onAdd={vi.fn()}
+        onUpdate={vi.fn()}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("name-pseudo-column")).toBeInTheDocument();
+  });
+
+  // ── Name collision blocking ─────────────────────────────────────
+
+  it("shows alert and aborts when typing 'Name' into a user column", () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onUpdate = vi.fn();
+
+    render(
+      <ColumnEditor
+        columns={columns}
+        onAdd={vi.fn()}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByDisplayValue("volume");
+    fireEvent.change(input, { target: { value: "Name" } });
+
+    expect(alertSpy).toHaveBeenCalledWith("Name is already a default column.");
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
+  });
+
+  it("shows alert when typing 'NAME' (uppercase)", () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onUpdate = vi.fn();
+
+    render(
+      <ColumnEditor
+        columns={columns}
+        onAdd={vi.fn()}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByDisplayValue("volume");
+    fireEvent.change(input, { target: { value: "NAME" } });
+
+    expect(alertSpy).toHaveBeenCalledWith("Name is already a default column.");
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
+  });
+
+  it("shows alert when typing ' Name ' (with whitespace)", () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onUpdate = vi.fn();
+
+    render(
+      <ColumnEditor
+        columns={columns}
+        onAdd={vi.fn()}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByDisplayValue("volume");
+    fireEvent.change(input, { target: { value: " Name " } });
+
+    expect(alertSpy).toHaveBeenCalledWith("Name is already a default column.");
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
+  });
+
+  it("allows valid column names that are not 'Name'", () => {
+    const onUpdate = vi.fn();
+
+    render(
+      <ColumnEditor
+        columns={columns}
+        onAdd={vi.fn()}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+        onDiscard={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByDisplayValue("volume");
+    fireEvent.change(input, { target: { value: "description" } });
+
+    expect(onUpdate).toHaveBeenCalledWith(0, "name", "description");
+  });
 });

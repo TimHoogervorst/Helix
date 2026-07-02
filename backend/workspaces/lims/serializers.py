@@ -15,7 +15,11 @@ def validate_prefix(value):
 
 
 def validate_columns(value):
-    """Each column must have a valid type from the allowed set."""
+    """Each column must have a valid type from the allowed set.
+
+    Also rejects user-defined columns named "Name" (case-insensitive,
+    trimmed) since Name is an implicit pseudo-column on every schema.
+    """
     if not isinstance(value, list):
         raise serializers.ValidationError("columns must be a JSON array.")
     for i, col in enumerate(value):
@@ -28,6 +32,14 @@ def validate_columns(value):
             )
         if "name" not in col:
             raise serializers.ValidationError(f"columns[{i}] must have a 'name' field.")
+        # Reject user-defined columns named "Name" — it is an implicit
+        # pseudo-column on every schema (stored as Entity.name).
+        col_name = col.get("name", "")
+        if isinstance(col_name, str) and col_name.strip().lower() == "name":
+            raise serializers.ValidationError(
+                f"columns[{i}] cannot use 'Name' — it is a default column "
+                f"on every schema and cannot be added as a user-defined column."
+            )
     return value
 
 

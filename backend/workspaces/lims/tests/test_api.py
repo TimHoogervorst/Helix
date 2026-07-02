@@ -170,6 +170,105 @@ class EntityTypeColumnValidationTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # ── Name pseudo-column rejection ─────────────────────────────────
+
+    def test_rejects_column_named_name(self):
+        """POST with a column named 'name' returns 400."""
+        response = self.client.post(
+            "/api/lims/entity-types/",
+            {
+                "name": "Test Schema",
+                "prefix": "TEST",
+                "columns": [
+                    {"name": "name", "type": "Text"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("columns", response.data)
+
+    def test_rejects_column_named_NAME_uppercase(self):
+        """POST with a column named 'NAME' (uppercase) returns 400."""
+        response = self.client.post(
+            "/api/lims/entity-types/",
+            {
+                "name": "Test Schema",
+                "prefix": "TEST",
+                "columns": [
+                    {"name": "NAME", "type": "Text"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_column_named_name_with_whitespace(self):
+        """POST with a column named ' Name ' (whitespace) returns 400."""
+        response = self.client.post(
+            "/api/lims/entity-types/",
+            {
+                "name": "Test Schema",
+                "prefix": "TEST",
+                "columns": [
+                    {"name": " Name ", "type": "Text"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_column_named_name_mixed_case(self):
+        """POST with a column named 'nAmE' (mixed case) returns 400."""
+        response = self.client.post(
+            "/api/lims/entity-types/",
+            {
+                "name": "Test Schema",
+                "prefix": "TEST",
+                "columns": [
+                    {"name": "nAmE", "type": "Text"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_allows_columns_not_named_name(self):
+        """POST with columns not named 'name' succeeds."""
+        response = self.client.post(
+            "/api/lims/entity-types/",
+            {
+                "name": "Valid Schema",
+                "prefix": "VALID",
+                "columns": [
+                    {"name": "volume", "type": "Number"},
+                    {"name": "description", "type": "Text"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_put_rejects_column_named_name_on_update(self):
+        """PUT with a column named 'Name' on update returns 400."""
+        et = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "vol", "type": "Number"}],
+        )
+        response = self.client.put(
+            f"/api/lims/entity-types/{et.id}/",
+            {
+                "name": "DNA",
+                "prefix": "DNA",
+                "columns": [
+                    {"name": "vol", "type": "Number"},
+                    {"name": "Name", "type": "Text"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
 
 # ── Slice 2: Entity API ──
 

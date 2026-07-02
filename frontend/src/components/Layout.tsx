@@ -58,14 +58,14 @@ function Layout() {
           {/* Navigation */}
           <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
             <button
-              className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]"
+              className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]"
               title="Home — coming soon"
               aria-label="Home"
             >
               <House className="h-3.5 w-3.5" aria-hidden="true" /> Home
             </button>
             <button
-              className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]"
+              className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]"
               title="Starred — coming soon"
               aria-label="Starred"
             >
@@ -73,7 +73,7 @@ function Layout() {
             </button>
             <Link
               to="/library"
-              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]${currentPath.startsWith("/library") ? " bg-muted font-medium text-foreground" : ""}`}
+              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith("/library") ? " bg-muted font-medium text-foreground" : ""}`}
               title="Library"
               aria-label="Library"
             >
@@ -81,7 +81,7 @@ function Layout() {
             </Link>
             <Link
               to="/lims"
-              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]${currentPath.startsWith("/lims") ? " bg-muted font-medium text-foreground" : ""}`}
+              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith("/lims") ? " bg-muted font-medium text-foreground" : ""}`}
               title="Database"
               aria-label="Database"
             >

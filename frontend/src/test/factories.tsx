@@ -27,6 +27,7 @@ import type {
   LibraryFolderItem,
   LibraryContentsResponse,
 } from "../types/library";
+import type { PinnedWorkspace } from "../types/pins";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 
@@ -53,6 +54,24 @@ export function makeEntityPage<T>(
     previous: null,
     results: entities,
   };
+}
+
+// ── Pinned Workspace ────────────────────────────────────────────────────────
+
+const _pinnedWorkspaceDefaults: PinnedWorkspace = {
+  id: 1,
+  display_id: "BLOOD1",
+  label: "Blood Sample A",
+  url: "/lims/BLOOD1",
+  created_at: "2025-01-01T00:00:00Z",
+};
+
+/** A single PinnedWorkspace with sensible defaults.
+ *  Pass ``overrides`` to customize only the fields your test cares about. */
+export function makePinnedWorkspace(
+  overrides?: Partial<PinnedWorkspace>,
+): PinnedWorkspace {
+  return { ..._pinnedWorkspaceDefaults, ...overrides };
 }
 
 // ── LIMS / Entity ───────────────────────────────────────────────────────────

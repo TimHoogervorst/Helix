@@ -1,17 +1,21 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import {
   Dna,
   Search,
   House,
   Star,
-  Beaker,
+  Book,
+  Database,
   ChevronRight,
 } from "lucide-react";
 import { get } from "../api/client";
 import { ReferenceProvider } from "./ReferenceProvider";
 
 function Layout() {
+  const location = useLocation();
+  const currentPath = location.pathname;
+
   // Prime the CSRF cookie so unsafe API requests (POST/PUT/DELETE) work
   useEffect(() => {
     get("/core/csrf/").catch(() => {});
@@ -67,13 +71,22 @@ function Layout() {
             >
               <Star className="h-3.5 w-3.5" aria-hidden="true" /> Starred
             </button>
-            <button
-              className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]"
-              title="Inventory — coming soon"
-              aria-label="Inventory"
+            <Link
+              to="/library"
+              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]${currentPath.startsWith("/library") ? " bg-muted font-medium text-foreground" : ""}`}
+              title="Library"
+              aria-label="Library"
             >
-              <Beaker className="h-3.5 w-3.5" aria-hidden="true" /> Inventory
-            </button>
+              <Book className="h-3.5 w-3.5" aria-hidden="true" /> Library
+            </Link>
+            <Link
+              to="/lims"
+              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-1 pr-2 text-[13px]${currentPath.startsWith("/lims") ? " bg-muted font-medium text-foreground" : ""}`}
+              title="Database"
+              aria-label="Database"
+            >
+              <Database className="h-3.5 w-3.5" aria-hidden="true" /> Database
+            </Link>
           </nav>
 
           {/* Workspace section header */}

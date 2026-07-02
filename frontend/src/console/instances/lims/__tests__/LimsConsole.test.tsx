@@ -202,33 +202,10 @@ describe("LimsConsole", () => {
 
   // ── URL param passing ───────────────────────────────────────────────
 
-  it("passes search param from URL to API", async () => {
-    mockGet.mockResolvedValue(emptyResponse);
-    renderLims("/lims?search=PCR");
-    await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith(
-        expect.stringContaining("search=PCR"),
-      );
-    });
-  });
-
   it("passes type filter from URL to API", async () => {
     mockGet.mockResolvedValue(emptyResponse);
     renderLims("/lims?type=5");
     await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith(
-        expect.stringContaining("type=5"),
-      );
-    });
-  });
-
-  it("passes both search and type params to API", async () => {
-    mockGet.mockResolvedValue(emptyResponse);
-    renderLims("/lims?search=PCR&type=5");
-    await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith(
-        expect.stringContaining("search=PCR"),
-      );
       expect(mockGet).toHaveBeenCalledWith(
         expect.stringContaining("type=5"),
       );

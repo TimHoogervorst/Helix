@@ -71,11 +71,30 @@ describe("Layout sidebar", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders Inventory nav button", () => {
+  it("renders Library nav link", () => {
     renderLayout();
     expect(
-      screen.getByRole("button", { name: "Inventory" }),
+      screen.getByRole("link", { name: "Library" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders Database nav link", () => {
+    renderLayout();
+    expect(
+      screen.getByRole("link", { name: "Database" }),
+    ).toBeInTheDocument();
+  });
+
+  it("Library nav link points to /library", () => {
+    renderLayout();
+    const libraryLink = screen.getByRole("link", { name: "Library" });
+    expect(libraryLink).toHaveAttribute("href", "/library");
+  });
+
+  it("Database nav link points to /lims", () => {
+    renderLayout();
+    const dbLink = screen.getByRole("link", { name: "Database" });
+    expect(dbLink).toHaveAttribute("href", "/lims");
   });
 
   // ── Workspace section ──────────────────────────────────────────────────
@@ -112,10 +131,9 @@ describe("Layout sidebar", () => {
   it("does not contain the old horizontal nav topbar", () => {
     renderLayout();
     // The <aside> is the only landmark navigation region; no old <nav>
-    // topbar element should exist.
-    const oldNavLinks = screen.queryAllByRole("link");
-    // No Link-based nav items should exist (sidebar uses buttons instead)
-    expect(oldNavLinks).toHaveLength(0);
+    // topbar element should exist. Sidebar has 2 nav links (Library, Database).
+    const navLinks = screen.getAllByRole("link");
+    expect(navLinks.length).toBeGreaterThanOrEqual(2);
   });
 
   it("does not contain OpenScience text anywhere", () => {
@@ -147,8 +165,11 @@ describe("Layout sidebar", () => {
     const starredBtn = screen.getByRole("button", { name: "Starred" });
     expect(starredBtn).toHaveAttribute("title", "Starred — coming soon");
 
-    const inventoryBtn = screen.getByRole("button", { name: "Inventory" });
-    expect(inventoryBtn).toHaveAttribute("title", "Inventory — coming soon");
+    const libraryLink = screen.getByRole("link", { name: "Library" });
+    expect(libraryLink).toHaveAttribute("title", "Library");
+
+    const dbLink = screen.getByRole("link", { name: "Database" });
+    expect(dbLink).toHaveAttribute("title", "Database");
   });
 
   // ── ReferenceProvider is still used ────────────────────────────────────

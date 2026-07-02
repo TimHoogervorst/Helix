@@ -4,35 +4,21 @@ import { get } from "../api/client";
 import type { EntityListItem } from "../types/lims";
 import ReferenceBadge from "../components/ReferenceBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
-import ConsoleWorkspacePanel from "../console/core/ConsoleWorkspacePanel";
+import EntityWorkspacePanel from "../workspaces/lims/EntityWorkspace";
 
-/** Tab configuration — matches the tabs in LimsMoreDetailPanel. */
-interface TabConfig {
-  id: string;
-  label: string;
-}
-
-const TABS: TabConfig[] = [
-  { id: "activity", label: "Activity" },
-  { id: "insights", label: "Insights" },
-  { id: "storage", label: "Storage" },
-];
-
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <div className="console-properties-empty">
-      {label} — coming soon.
-    </div>
-  );
-}
-
+/**
+ * Full-page entity workspace (route: /lims/:displayId).
+ *
+ * Thin fetcher wrapping the canonical {@link EntityWorkspacePanel} from
+ * workspaces/lims.  Fetches the entity by displayId and renders an entity
+ * header card above the shared tabbed workspace panel.
+ */
 function EntityWorkspace() {
   const { displayId } = useParams<{ displayId: string }>();
   const navigate = useNavigate();
   const [entity, setEntity] = useState<EntityListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(TABS[0].id);
 
   useEffect(() => {
     if (!displayId) return;
@@ -87,9 +73,9 @@ function EntityWorkspace() {
   }
 
   return (
-    <div className="page">
-      {/* Entity header */}
-      <div className="card" style={{ marginBottom: "1rem" }}>
+    <div className="flex gap-6 items-start p-6">
+      {/* Entity header card */}
+      <div className="card flex-1 min-w-0">
         <div className="detail-header">
           <h2>
             <ReferenceBadge
@@ -110,29 +96,11 @@ function EntityWorkspace() {
         <EntityDetailFields entity={entity} showProperties />
       </div>
 
-      {/* Workspace panel with tabs */}
-      <ConsoleWorkspacePanel backUrl={`/lims?select=${entity.display_id}`}>
-        <div className="card">
-          <div className="console-tab-bar">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                className={`console-tab${activeTab === tab.id ? " is-active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="console-tab-content">
-            {TABS.map((tab) =>
-              activeTab === tab.id ? (
-                <PlaceholderTab key={tab.id} label={tab.label} />
-              ) : null,
-            )}
-          </div>
-        </div>
-      </ConsoleWorkspacePanel>
+      {/* Workspace panel with tabs — no back button */}
+      <EntityWorkspacePanel
+        entity={entity}
+        isExiting={false}
+      />
     </div>
   );
 }

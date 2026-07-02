@@ -1,25 +1,21 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import type { EntityListItem } from "../../types/lims";
 import ConsoleWorkspacePanel from "../../console/core/ConsoleWorkspacePanel";
 
-/** Tab configuration — add entries here for future tabs. */
+/** Tab configuration — canonical source for entity workspace tabs. */
 interface TabConfig {
   id: string;
   label: string;
 }
 
-const TABS: TabConfig[] = [
+export const ENTITY_TABS: TabConfig[] = [
   { id: "activity", label: "Activity" },
   { id: "insights", label: "Insights" },
   { id: "storage", label: "Storage" },
 ];
 
-interface EntityWorkspaceProps {
-  entity: EntityListItem;
-  isExiting: boolean;
-}
-
-function PlaceholderTab({ label }: { label: string }) {
+export function PlaceholderTab({ label }: { label: string }) {
   return (
     <div className="console-properties-empty">
       {label} — coming soon.
@@ -27,14 +23,24 @@ function PlaceholderTab({ label }: { label: string }) {
   );
 }
 
-function EntityWorkspace({ entity: _entity, isExiting }: EntityWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState(TABS[0].id);
+interface EntityWorkspaceProps {
+  entity: EntityListItem;
+  isExiting: boolean;
+  /** Optional URL pointing back to the master panel (used when rendered as a full page). */
+  backUrl?: string;
+  /** Optional slot rendered above the tab bar (e.g. entity header fields). */
+  children?: ReactNode;
+}
+
+function EntityWorkspace({ entity: _entity, isExiting, backUrl, children }: EntityWorkspaceProps) {
+  const [activeTab, setActiveTab] = useState(ENTITY_TABS[0].id);
 
   return (
-    <ConsoleWorkspacePanel isExiting={isExiting}>
+    <ConsoleWorkspacePanel isExiting={isExiting} backUrl={backUrl}>
       <div className="card">
+        {children}
         <div className="console-tab-bar">
-          {TABS.map((tab) => (
+          {ENTITY_TABS.map((tab) => (
             <button
               key={tab.id}
               className={`console-tab${activeTab === tab.id ? " is-active" : ""}`}
@@ -45,7 +51,7 @@ function EntityWorkspace({ entity: _entity, isExiting }: EntityWorkspaceProps) {
           ))}
         </div>
         <div className="console-tab-content">
-          {TABS.map((tab) =>
+          {ENTITY_TABS.map((tab) =>
             activeTab === tab.id ? (
               <PlaceholderTab key={tab.id} label={tab.label} />
             ) : null,

@@ -143,19 +143,18 @@ describe("LibraryConsole", () => {
       expect(mockGetLibraryContents).toHaveBeenCalledWith(
         "/Experiments",
         undefined,
-        undefined,
       );
     });
   });
 
-  it("passes search param from URL to API", async () => {
+  it("ignores legacy search param from URL (search is removed)", async () => {
     mockGetLibraryContents.mockResolvedValue(emptyResponse);
     renderLibrary("/library?search=PCR");
     await waitFor(() => {
+      // Search param should NOT be passed to API — only path and no search argument
       expect(mockGetLibraryContents).toHaveBeenCalledWith(
         "",
         undefined,
-        "PCR",
       );
     });
   });

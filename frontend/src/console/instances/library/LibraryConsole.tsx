@@ -7,12 +7,12 @@ import { getLibraryContents } from "../../../api/library";
 import Breadcrumbs from "../../components/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
+import LibraryDetailCard from "./LibraryDetailCard";
 
 function LibraryConsole() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPath = searchParams.get("path") || "";
-  const search = searchParams.get("search") || "";
   const selectId = searchParams.get("select") || "";
 
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -22,14 +22,20 @@ function LibraryConsole() {
   const [selectedItem, setSelectedItem] = useState<LibraryEntryItem | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
 
-  const { updateViewState } = useConsoleView();
+  const {
+    viewState,
+    goToDetail,
+    collapseFromExpanded: collapseFromExpandedBase,
+    closeAll: closeAllBase,
+    updateViewState,
+  } = useConsoleView();
 
   const fetchItems = useCallback(
     async (page?: number) => {
       setLoading(true);
       setError(null);
       try {
-        const data = await getLibraryContents(currentPath, page, search || undefined);
+        const data = await getLibraryContents(currentPath, page);
         if (page && page > 1) {
           setItems((prev) => [...prev, ...data.results]);
         } else {
@@ -43,7 +49,7 @@ function LibraryConsole() {
         setLoading(false);
       }
     },
-    [currentPath, search],
+    [currentPath],
   );
 
   useEffect(() => {
@@ -92,6 +98,30 @@ function LibraryConsole() {
     navigateToPath(newPath);
   };
 
+  // ── State machine transitions (wrapping shared hook) ──────────────
+
+  const selectEntry = (entry: LibraryEntryItem) => {
+    setSelectedItem(entry);
+  };
+
+  const clearSelection = () => {
+    setSelectedItem(null);
+  };
+
+  const goToList = () => {
+    closeAllBase();
+    clearSelection();
+  };
+
+  const goToDetailForEntry = (entry: LibraryEntryItem) => {
+    selectEntry(entry);
+    goToDetail();
+  };
+
+  const collapseFromExpanded = () => {
+    collapseFromExpandedBase();
+  };
+
   // ── Row handlers ───────────────────────────────────────────────────
 
   const handleRowClick = (item: LibraryItem) => {
@@ -100,8 +130,14 @@ function LibraryConsole() {
       return;
     }
 
-    // Entries navigate to full-page ELN editor
-    navigate(`/eln/${item.display_id}`);
+    if (viewState === "expanded") return;
+
+    if (viewState === "detail" && selectedItem?.id === item.id) {
+      // Toggle off: clicking selected row returns to list
+      goToList();
+    } else {
+      goToDetailForEntry(item);
+    }
   };
 
   const handleRowExpand = (item: LibraryItem) => {
@@ -148,6 +184,17 @@ function LibraryConsole() {
           onRowExpand={handleRowExpand}
           onFolderNavigate={navigateToFolder}
         />
+      }
+      detail={
+        selectedItem &&
+        (viewState === "detail" || viewState === "expanded") ? (
+          <LibraryDetailCard
+            entry={selectedItem}
+            viewState={viewState}
+            onClose={goToList}
+            onCollapse={collapseFromExpanded}
+          />
+        ) : undefined
       }
       hasMore={!!nextUrl}
       onLoadMore={handleLoadMore}

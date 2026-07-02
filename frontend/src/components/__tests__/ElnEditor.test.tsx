@@ -4,6 +4,8 @@
  * Mocks the API client, router, ReferenceProvider, and TipTap useEditor/EditorContent
  * so tests focus on the component's orchestration:
  * mode transitions, UI rendering, and wiring between modules.
+ *
+ * PRD #4: Tests for metadata line, serif title, description, tags, divider.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -157,29 +159,119 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  it("displays entry title in view mode", async () => {
+  it("displays entry title in view mode with serif styling", async () => {
     mockGet.mockResolvedValue(
       makeEntry({ title: "My ELN Entry", display_id: "E42" }),
     );
     renderEditor({ entryId: "E42" });
     await waitFor(() => {
-      const heading = screen.getByRole("heading", { name: "My ELN Entry" });
-      expect(heading).toBeDefined();
+      const title = screen.getByTestId("title-display");
+      expect(title).toBeDefined();
+      expect(title.textContent).toBe("My ELN Entry");
+      expect(title.tagName).toBe("H1");
+      // Should have serif font class
+      expect(title.className).toContain("font-serif");
     });
   });
 
-  it("displays author and timestamps in view mode", async () => {
-    mockGet.mockResolvedValue(
-      makeEntry({
-        author_username: "alice",
-        created_at: "2025-01-15T10:30:00Z",
-        updated_at: "2025-06-20T14:00:00Z",
-      }),
-    );
+  it("shows 'Untitled' as fallback title in view mode", async () => {
+    mockGet.mockResolvedValue(makeEntry({ title: "" }));
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
-      expect(screen.getByText(/alice/)).toBeDefined();
-      expect(screen.getByText(/Last updated/)).toBeDefined();
+      expect(screen.getByText("Untitled")).toBeDefined();
+    });
+  });
+
+  // ── Metadata line ──────────────────────────────────────────────────────────
+
+  it("renders metadata line with display_id and created date for existing entry", async () => {
+    mockGet.mockResolvedValue(
+      makeEntry({
+        display_id: "EXP-0284",
+        created_at: "2026-06-28T09:14:00Z",
+      }),
+    );
+    renderEditor({ entryId: "EXP-0284" });
+    await waitFor(() => {
+      const meta = screen.getByTestId("metadata-line");
+      expect(meta).toBeDefined();
+      expect(meta.textContent).toContain("EXP-0284");
+      expect(meta.textContent).toContain("2026-06-28");
+    });
+  });
+
+  it("renders metadata line with 'New entry' for new entries", () => {
+    renderEditor({});
+    const meta = screen.getByTestId("metadata-line");
+    expect(meta).toBeDefined();
+    expect(meta.textContent).toBe("New entry");
+  });
+
+  it("renders metadata line with monospace font class", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const meta = screen.getByTestId("metadata-line");
+      expect(meta.className).toContain("font-mono");
+    });
+  });
+
+  // ── Title input styling ────────────────────────────────────────────────────
+
+  it("renders title input with serif font class in edit mode", async () => {
+    mockGet.mockResolvedValue(makeEntry({ title: "Original Title" }));
+    renderEditor({ entryId: "E1" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Edit")).toBeDefined();
+    });
+    fireEvent.click(screen.getByText("Edit"));
+
+    await waitFor(() => {
+      const input = screen.getByTestId("title-input");
+      expect(input).toBeDefined();
+      expect(input.className).toContain("font-serif");
+      expect(input.className).toContain("text-[42px]");
+    });
+  });
+
+  // ── Description placeholder ────────────────────────────────────────────────
+
+  it("renders description placeholder text", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const desc = screen.getByTestId("description");
+      expect(desc).toBeDefined();
+      expect(desc.textContent).toContain("sgRNA screen");
+    });
+  });
+
+  // ── Tags placeholder ───────────────────────────────────────────────────────
+
+  it("renders tags section with placeholder chip", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const tags = screen.getByTestId("tags-section");
+      expect(tags).toBeDefined();
+      expect(tags.textContent).toContain("SpCas9-HF1");
+    });
+  });
+
+  it("renders tag chip with tooltip", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const chip = screen.getByTitle("Placeholder — tags coming soon");
+      expect(chip).toBeDefined();
+    });
+  });
+
+  // ── Hairline divider ───────────────────────────────────────────────────────
+
+  it("renders hairline divider between header and content", async () => {
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const divider = screen.getByTestId("content-divider");
+      expect(divider).toBeDefined();
+      expect(divider.className).toContain("bg-hairline");
     });
   });
 
@@ -239,6 +331,13 @@ describe("ElnEditor integration", () => {
     expect(screen.getByText("New entry")).toBeDefined();
   });
 
+  it("renders title input for new entries", () => {
+    renderEditor({});
+    const input = screen.getByTestId("title-input");
+    expect(input).toBeDefined();
+    expect(input.tagName).toBe("INPUT");
+  });
+
   // ── Cancel returns to view mode ────────────────────────────────────────────
 
   it("returns to view mode on Cancel", async () => {
@@ -274,18 +373,6 @@ describe("ElnEditor integration", () => {
       expect(screen.getByText("Edit")).toBeDefined();
     });
     expect(document.querySelector(".paper-page")).toBeNull();
-  });
-
-  // ── No embedded mode — removed ─────────────────────────────────────────────
-
-  it("renders top bar with title area for existing entry", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      // Top bar should render with title-display in view mode
-      expect(screen.getByText("Edit")).toBeDefined();
-      expect(screen.getByText("Delete")).toBeDefined();
-      expect(screen.getByRole("heading")).toBeDefined();
-    });
   });
 
   // ── No bubble menu rendered ────────────────────────────────────────────────

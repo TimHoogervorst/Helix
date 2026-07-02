@@ -4,7 +4,9 @@
  * Composes:
  *   - useEntryEditor    — state machine hook (CRUD, dirty tracking, beforeunload)
  *   - createElnExtensions — TipTap extension factory
- *   - formatDate        — shared date formatter
+ *
+ * Content layout (PRD #4):
+ *   Actions bar → Metadata line → Title → Description → Tags → Divider → ProseMirror
  */
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -12,8 +14,11 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc } from "../types/eln";
 import { useEntryEditor } from "../hooks/useEntryEditor";
 import { createElnExtensions } from "../extensions/createElnExtensions";
-import ReferenceBadge from "./ReferenceBadge";
-import { formatDate } from "../utils/format";
+
+/** Format an ISO date string as YYYY-MM-DD. */
+function formatDateShort(iso: string): string {
+  return new Date(iso).toISOString().split("T")[0];
+}
 
 interface ElnEditorProps {
   entryId?: string;
@@ -93,7 +98,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   const isSaving = mode === "saving";
 
   if (mode === "loading") {
-    return <p className="empty">Loading…</p>;
+    return <p className="text-center text-muted-foreground py-12">Loading…</p>;
   }
 
   if (mode === "error") {
@@ -106,53 +111,17 @@ function ElnEditor({ entryId }: ElnEditorProps) {
   }
 
   return (
-    <div className={`editor-container${isSaving ? " saving" : ""}`}>
-      {/* ── Top Bar ── */}
-      <div className="editor-top-bar">
-        <div className="title-col">
-          {isEdit ? (
-            <input
-              className="title-input"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Untitled"
-              autoFocus={isNew}
-            />
-          ) : (
-            <h1 className="title-display">{title || "Untitled"}</h1>
-          )}
-
-          <div className="meta-row">
-            {entry && (
-              <>
-                <ReferenceBadge
-                  displayId={entry.display_id}
-                  clickable={false}
-                  compact={true}
-                  resolved={{
-                    displayId: entry.display_id,
-                    title: entry.title,
-                    type: "entry",
-                    id: entry.id,
-                    icon: "📄",
-                  }}
-                />{" "}
-                {entry.author_username && `by ${entry.author_username} · `}
-                Last updated {formatDate(entry.updated_at)}
-              </>
-            )}
-            {isNew && "New entry"}
-          </div>
-        </div>
-
-        <div className="actions">
+    <div className={isSaving ? "pointer-events-none opacity-60" : ""}>
+      {/* ── Actions bar ── */}
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           {isNew && folders.length > 0 && (
             <select
               value={folderId ?? ""}
               onChange={(e) =>
                 setFolderId(e.target.value ? Number(e.target.value) : null)
               }
+              className="!w-auto !min-w-[140px]"
             >
               <option value="">Folder…</option>
               {folders.map((f) => (
@@ -163,22 +132,25 @@ function ElnEditor({ entryId }: ElnEditorProps) {
             </select>
           )}
 
+          {isEdit && (
+            <span
+              className={`text-xs ${isDirty ? "text-primary" : "text-muted-foreground"}`}
+            >
+              {isDirty ? "Unsaved changes" : "Saved"}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
           {isEdit ? (
             <>
-              <span className={`save-indicator${isDirty ? " is-dirty" : ""}`}>
-                {isDirty ? "Unsaved changes" : "Saved"}
-              </span>
               <button onClick={save} disabled={isSaving || !title.trim()}>
                 {isSaving ? "Saving…" : "Save"}
               </button>
               <button
                 onClick={cancel}
                 disabled={isSaving}
-                style={{
-                  background: "transparent",
-                  color: "var(--gray-700)",
-                  border: "1px solid var(--gray-300)",
-                }}
+                className="border border-gray-300 bg-transparent !text-gray-700 hover:bg-muted"
               >
                 Cancel
               </button>
@@ -189,11 +161,7 @@ function ElnEditor({ entryId }: ElnEditorProps) {
               <button
                 onClick={deleteEntry}
                 disabled={deleting}
-                style={{
-                  background: "transparent",
-                  color: "#dc2626",
-                  border: "1px solid #fecaca",
-                }}
+                className="border border-red-200 bg-transparent !text-red-600 hover:bg-red-50"
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>
@@ -205,14 +173,78 @@ function ElnEditor({ entryId }: ElnEditorProps) {
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
 
-      {/* ── Editor Content ── */}
+      {/* ── Content area ── */}
+
+      {/* Metadata line */}
       <div
-        className={`editor-content${!isEdit ? " view-mode" : ""}`}
+        className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
+        data-testid="metadata-line"
+      >
+        {entry ? (
+          <>
+            {entry.display_id}
+            {" · "}
+            Created {formatDateShort(entry.created_at)}
+            {" · "}v0.4{" · "}
+            autosaved 2s ago
+          </>
+        ) : (
+          "New entry"
+        )}
+      </div>
+
+      {/* Title */}
+      {isEdit ? (
+        <input
+          className="mb-3 w-full bg-transparent font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground placeholder:text-muted-foreground/30 outline-none"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Untitled"
+          autoFocus={isNew}
+          data-testid="title-input"
+        />
+      ) : (
+        <h1
+          className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground"
+          data-testid="title-display"
+        >
+          {title || "Untitled"}
+        </h1>
+      )}
+
+      {/* Description placeholder */}
+      <p
+        className="max-w-2xl text-[15px] leading-relaxed text-muted-foreground"
+        data-testid="description"
+      >
+        Third iteration of the sgRNA screen using the SpCas9-HF1 variant, with
+        off-target analysis across three guide sequences and two cell lines.
+      </p>
+
+      {/* Tags placeholder */}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-enzyme px-2 py-0.5 font-mono text-[0.72rem] text-enzyme-foreground"
+          title="Placeholder — tags coming soon"
+        >
+          <span aria-hidden="true">🧬</span>
+          SpCas9-HF1
+        </span>
+      </div>
+
+      {/* Hairline divider */}
+      <div className="my-6 h-px bg-hairline" data-testid="content-divider" />
+
+      {/* ── ProseMirror Content ── */}
+      <div
+        className={`min-h-[60vh]${!isEdit ? " cursor-text" : ""}`}
         onClick={() => {
           if (!isEdit && mode === "view") {
             enterEditMode();
           }
         }}
+        data-testid="prosemirror-wrapper"
       >
         {editor && <EditorContent editor={editor} />}
       </div>

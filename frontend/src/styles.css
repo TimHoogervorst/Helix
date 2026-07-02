@@ -404,15 +404,13 @@ h1 {
   outline: none;
   min-height: 60vh;
   padding: 0;
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--gray-900);
+  color: var(--color-foreground, #0f172a);
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: var(--gray-400);
+  color: var(--color-muted-foreground, #64748b);
   pointer-events: none;
   height: 0;
 }
@@ -422,86 +420,178 @@ h1 {
   margin-top: 0.5em;
 }
 
-/* Headings */
-.ProseMirror h1,
-.editor-content.view-mode h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
+/* ── ProseMirror Typography (PRD #4) ── */
+
+.ProseMirror h1 {
+  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-size: 2.625rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
   margin-top: 1.25em;
   margin-bottom: 0.25em;
 }
-.ProseMirror h2,
-.editor-content.view-mode h2 {
-  font-size: 1.375rem;
+
+.ProseMirror h2 {
+  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-size: 1.5rem;
   font-weight: 600;
-  line-height: 1.35;
+  letter-spacing: -0.025em;
   margin-top: 1em;
   margin-bottom: 0.25em;
 }
-.ProseMirror h3,
-.editor-content.view-mode h3 {
+
+.ProseMirror h3 {
+  font-family: var(--font-sans, "Inter Variable", "Inter", sans-serif);
   font-size: 1.125rem;
   font-weight: 600;
-  line-height: 1.4;
   margin-top: 0.75em;
   margin-bottom: 0.25em;
 }
 
-/* Lists */
-.ProseMirror ul,
-.ProseMirror ol,
-.editor-content.view-mode ul,
-.editor-content.view-mode ol {
-  padding-left: 1.5rem;
-}
-.ProseMirror li,
-.editor-content.view-mode li {
-  margin-bottom: 0.25em;
+.ProseMirror p {
+  font-size: 1rem;
+  line-height: 1.7;
 }
 
-/* Blockquote */
-.ProseMirror blockquote,
-.editor-content.view-mode blockquote {
-  border-left: 3px solid var(--gray-300);
+.ProseMirror blockquote {
+  border-left: 2px solid var(--color-primary, #2563eb);
   padding-left: 1rem;
-  color: var(--gray-700);
   font-style: italic;
+  color: var(--color-muted-foreground, #64748b);
   margin-left: 0;
 }
 
-/* Inline formatting — shared between view mode and editor */
-.ProseMirror strong,
-.editor-content.view-mode strong {
-  font-weight: 600;
-  color: var(--gray-900);
-}
-
-.ProseMirror code,
-.editor-content.view-mode code {
-  background: var(--gray-100);
-  border-radius: 4px;
-  padding: 0.15em 0.35em;
+.ProseMirror code {
+  font-family: var(--font-mono, "JetBrains Mono Variable", "JetBrains Mono", monospace);
+  background: var(--color-muted, #f1f5f9);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.25em;
   font-size: 0.9em;
-  font-family: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono",
-    "Cascadia Code", Consolas, monospace;
 }
 
-.ProseMirror pre,
-.editor-content.view-mode pre {
-  background: var(--gray-900);
-  color: var(--gray-50);
-  border-radius: 8px;
+.ProseMirror pre {
+  background: var(--color-foreground, #0f172a);
+  color: var(--color-background, #ffffff);
+  border-radius: 0.5rem;
   padding: 1rem;
   overflow-x: auto;
-  font-size: 0.9em;
-  line-height: 1.5;
 }
-.ProseMirror pre code,
+
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5rem;
+}
+
+.ProseMirror li {
+  margin-bottom: 0.25em;
+}
+
+.ProseMirror a {
+  color: var(--color-primary, #2563eb);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-primary, #2563eb) 30%, transparent);
+  text-underline-offset: 2px;
+}
+
+.ProseMirror hr {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-color: var(--color-hairline, #f1f5f9);
+}
+
+/* Inline formatting */
+.ProseMirror strong {
+  font-weight: 600;
+  color: var(--color-foreground, #0f172a);
+}
+
+/* ── View-mode overrides (same styles applied when not editing) ── */
+
+.editor-content.view-mode h1 {
+  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-size: 2.625rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.editor-content.view-mode h2 {
+  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.editor-content.view-mode h3 {
+  font-family: var(--font-sans, "Inter Variable", "Inter", sans-serif);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.editor-content.view-mode p {
+  line-height: 1.7;
+}
+
+.editor-content.view-mode blockquote {
+  border-left: 2px solid var(--color-primary, #2563eb);
+  padding-left: 1rem;
+  font-style: italic;
+  color: var(--color-muted-foreground, #64748b);
+}
+
+.editor-content.view-mode code {
+  background: var(--color-muted, #f1f5f9);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.25em;
+  font-size: 0.9em;
+  font-family: var(--font-mono, "JetBrains Mono Variable", "JetBrains Mono", monospace);
+}
+
+.editor-content.view-mode pre {
+  background: var(--color-foreground, #0f172a);
+  color: var(--color-background, #ffffff);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
 .editor-content.view-mode pre code {
   background: none;
   padding: 0;
   color: inherit;
+}
+
+.editor-content.view-mode ul,
+.editor-content.view-mode ol {
+  padding-left: 1.5rem;
+}
+
+.editor-content.view-mode li {
+  margin-bottom: 0.25em;
+}
+
+.editor-content.view-mode a {
+  color: var(--color-primary, #2563eb);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-primary, #2563eb) 30%, transparent);
+  text-underline-offset: 2px;
+}
+
+.editor-content.view-mode hr {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-color: var(--color-hairline, #f1f5f9);
+}
+
+.editor-content.view-mode strong {
+  font-weight: 600;
 }
 
 /* ── Bubble Menu ── */

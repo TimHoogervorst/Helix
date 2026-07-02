@@ -9,6 +9,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import {
   useEntryEditor,
   collectDisplayIds,
+  validateEntityNames,
   type UseEntryEditorOptions,
 } from "../useEntryEditor";
 import { EMPTY_DOC, type TipTapDoc } from "../../types/eln";
@@ -714,5 +715,214 @@ describe("collectDisplayIds", () => {
   it("handles null / undefined gracefully", () => {
     const ids = collectDisplayIds(null as unknown as TipTapDoc);
     expect(ids).toEqual([]);
+  });
+});
+
+// ── validateEntityNames ───────────────────────────────────────────────────────
+
+describe("validateEntityNames", () => {
+  it("returns true for empty doc (no tables)", () => {
+    expect(validateEntityNames({ type: "doc", content: [] })).toBe(true);
+  });
+
+  it("returns true for plain table (no schemaId)", () => {
+    const doc: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: null,
+            rows: [
+              { displayId: "#1", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    expect(validateEntityNames(doc)).toBe(true);
+  });
+
+  it("returns true when all schema-backed rows have __name", () => {
+    const doc: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: 1,
+            rows: [
+              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
+              { entityId: null, displayId: "#2", __name: "Beta", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    expect(validateEntityNames(doc)).toBe(true);
+  });
+
+  it("returns false when a schema-backed row has empty __name", () => {
+    const doc: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: 1,
+            rows: [
+              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
+              { entityId: null, displayId: "#2", __name: "", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    expect(validateEntityNames(doc)).toBe(false);
+  });
+
+  it("returns false when a schema-backed row is missing __name", () => {
+    const doc: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: 1,
+            rows: [
+              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
+              { entityId: null, displayId: "#2", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    expect(validateEntityNames(doc)).toBe(false);
+  });
+
+  it("returns false when __name is whitespace only", () => {
+    const doc: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: 1,
+            rows: [
+              { entityId: null, displayId: "#1", __name: "   ", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    expect(validateEntityNames(doc)).toBe(false);
+  });
+
+  it("walks nested content for limsTable nodes", () => {
+    const doc: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "blockquote",
+          content: [
+            {
+              type: "limsTable",
+              attrs: {
+                schemaId: 1,
+                rows: [
+                  { entityId: null, displayId: "#1", __name: "", values: {} },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    expect(validateEntityNames(doc)).toBe(false);
+  });
+
+  it("handles null / undefined gracefully", () => {
+    expect(validateEntityNames(null as unknown as TipTapDoc)).toBe(true);
+  });
+});
+
+describe("save with name validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockReset();
+    mockPost.mockReset();
+    mockPut.mockReset();
+    mockNavigate.mockReset();
+    // Default: folders fetch returns empty array (prevents crash on mount)
+    mockGet.mockResolvedValue([]);
+  });
+
+  it("shows alert and does not save when Name cells are empty", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const contentWithEmptyName: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: 1,
+            rows: [
+              { entityId: null, displayId: "#1", __name: "", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    const contentRef = { current: contentWithEmptyName };
+
+    const { result } = renderHook(() =>
+      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+    );
+
+    act(() => {
+      result.current.setTitle("Test");
+    });
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith("Name not filled in.");
+    expect(mockPost).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
+  });
+
+  it("saves when all Name cells are filled", async () => {
+    mockPost.mockResolvedValue(makeEntry({ display_id: "NEW1", id: 10 }));
+    const contentWithNames: TipTapDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "limsTable",
+          attrs: {
+            schemaId: 1,
+            rows: [
+              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
+            ],
+          },
+        },
+      ],
+    };
+    const contentRef = { current: contentWithNames };
+
+    const { result } = renderHook(() =>
+      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+    );
+
+    act(() => {
+      result.current.setTitle("Test");
+    });
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(mockPost).toHaveBeenCalled();
   });
 });

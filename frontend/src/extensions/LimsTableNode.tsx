@@ -102,6 +102,28 @@ const INDEX_COL: ColDef<GridRow> = {
   suppressNavigable: true,
 };
 
+// ── Name pseudo-column — editable, reads/writes row.__name ─────────────
+const NameCellRenderer = (props: { value: string | undefined }) => {
+  if (props.value) return <span>{props.value}</span>;
+  return (
+    <span style={{ color: "var(--gray-400)", fontStyle: "italic" }}>
+      Enter name…
+    </span>
+  );
+};
+
+const NAME_COL: ColDef<GridRow> = {
+  headerName: "Name",
+  field: "__name",
+  width: 180,
+  sortable: true,
+  resizable: true,
+  editable: true,
+  cellRenderer: NameCellRenderer,
+  cellStyle: { display: "flex", alignItems: "center" },
+  headerClass: "eln-grid-name-header",
+};
+
 // ── Default values per type for new rows ───────────────────────────────
 export function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   const vals: Record<string, unknown> = {};
@@ -264,7 +286,12 @@ function LimsTableNode(props: NodeViewProps) {
           }
         }
         // Reset entity binding — entities belong to the old schema
-        return { entityId: null, displayId: row.displayId, values: newValues };
+        return {
+          entityId: null,
+          displayId: row.displayId,
+          values: newValues,
+          __name: row.__name ?? "",
+        };
       });
 
       // Defer the ProseMirror transaction to avoid a flushSync conflict:
@@ -289,10 +316,14 @@ function LimsTableNode(props: NodeViewProps) {
   );
 
   // ── ColDefs ──────────────────────────────────────────────────────────
-  const colDefs: ColDef<GridRow>[] = useMemo(
-    () => [INDEX_COL, ...columns.map(columnDefFor)],
-    [columns]
-  );
+  const colDefs: ColDef<GridRow>[] = useMemo(() => {
+    const cols = [INDEX_COL];
+    if (schemaId !== null) {
+      cols.push(NAME_COL);
+    }
+    cols.push(...columns.map(columnDefFor));
+    return cols;
+  }, [columns, schemaId]);
 
   const defaultColDef: ColDef<GridRow> = useMemo(
     () => ({
@@ -312,7 +343,19 @@ function LimsTableNode(props: NodeViewProps) {
 
   const handleCellValueChanged = useCallback(
     (ev: CellValueChangedEvent<GridRow>) => {
-      const colName = ev.colDef.field?.replace("values.", "") ?? "";
+      const field = ev.colDef.field ?? "";
+      const colName = field.replace("values.", "");
+
+      // __name is a row-level key, not inside values
+      if (colName === "__name") {
+        const updatedRows = rows.map((r) => {
+          if (r.displayId !== ev.data.displayId) return r;
+          return { ...r, __name: (ev.newValue as string) ?? "" };
+        });
+        updateAttributes({ rows: updatedRows });
+        return;
+      }
+
       const updatedRows = rows.map((r) => {
         if (r.displayId !== ev.data.displayId) return r;
         return {
@@ -331,6 +374,7 @@ function LimsTableNode(props: NodeViewProps) {
       entityId: null,
       displayId: `#new-${newRowCounter.current++}`,
       values: emptyValues(columns),
+      __name: "",
     };
     updateAttributes({ rows: [...rows, newRow] });
   }, [rows, columns, updateAttributes]);

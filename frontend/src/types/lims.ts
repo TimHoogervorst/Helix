@@ -89,6 +89,9 @@ export interface GridRow {
   displayId: string;
   /** Cell values keyed by column name. */
   values: Record<string, unknown>;
+  /** Entity name — stored at row level (not inside values), only meaningful
+   *  for schema-backed tables.  Read/written by the Name pseudo-column. */
+  __name?: string;
 }
 
 /** The full table data stored in the limsTable node attribute. */

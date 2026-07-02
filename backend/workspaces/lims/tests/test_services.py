@@ -2,6 +2,7 @@
 Tests for the LIMS services: sync_entities, walk_lims_tables.
 """
 from django.test import TestCase
+from rest_framework import serializers
 
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_lims_table_doc
@@ -40,7 +41,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
         # Entity created
         self.assertEqual(Entity.objects.count(), 1)
         entity = Entity.objects.first()
-        self.assertEqual(entity.name, "Test Table row 1")
+        self.assertEqual(entity.name, "Row 1")
         self.assertEqual(entity.entity_type, self.blood_type)
         self.assertEqual(entity.source_entry, self.entry)
         self.assertEqual(entity.properties, {"volume": "50", "patient": "Patient A"})
@@ -67,7 +68,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
         self.assertEqual(Entity.objects.count(), 2)
         names = set(Entity.objects.values_list("name", flat=True))
-        self.assertEqual(names, {"Test Table row 1", "Test Table row 2"})
+        self.assertEqual(names, {"Row 1", "Row 2"})
 
     def test_sync_updates_existing_entity_properties(self):
         """Re-saving with changed cell values updates entity properties."""
@@ -229,11 +230,13 @@ class SyncEntitiesTests(BaseServiceTestCase):
                             {
                                 "entityId": None,
                                 "displayId": "#new",
+                                "__name": "Row 1",
                                 "values": {"volume": "10", "patient": "A"},
                             },
                             {
                                 "entityId": None,
                                 "displayId": "#new",
+                                "__name": "Row 2",
                                 "values": {"volume": "20", "patient": "B"},
                             },
                         ],
@@ -250,6 +253,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
                             {
                                 "entityId": None,
                                 "displayId": "#new",
+                                "__name": "Row 3",
                                 "values": {"volume": "30", "patient": "C"},
                             },
                         ],
@@ -302,8 +306,8 @@ class SyncEntitiesTests(BaseServiceTestCase):
                         "title": "Table A",
                         "columns": self.blood_type.columns,
                         "rows": [
-                            {"entityId": None, "displayId": "#new", "values": {"volume": "10", "patient": "A"}},
-                            {"entityId": None, "displayId": "#new", "values": {"volume": "20", "patient": "B"}},
+                            {"entityId": None, "displayId": "#new", "__name": "Row 1", "values": {"volume": "10", "patient": "A"}},
+                            {"entityId": None, "displayId": "#new", "__name": "Row 2", "values": {"volume": "20", "patient": "B"}},
                         ],
                     },
                 },
@@ -314,8 +318,8 @@ class SyncEntitiesTests(BaseServiceTestCase):
                         "title": "Table B",
                         "columns": self.blood_type.columns,
                         "rows": [
-                            {"entityId": None, "displayId": "#new", "values": {"volume": "30", "patient": "C"}},
-                            {"entityId": None, "displayId": "#new", "values": {"volume": "40", "patient": "D"}},
+                            {"entityId": None, "displayId": "#new", "__name": "Row 3", "values": {"volume": "30", "patient": "C"}},
+                            {"entityId": None, "displayId": "#new", "__name": "Row 4", "values": {"volume": "40", "patient": "D"}},
                         ],
                     },
                 },
@@ -338,16 +342,16 @@ class SyncEntitiesTests(BaseServiceTestCase):
         # Table A: keep only row 0
         doc2["content"][0]["attrs"]["rows"] = [
             {"entityId": keep_id, "displayId": t1_rows[0]["displayId"],
-             "values": {"volume": "10", "patient": "A"}},
+             "__name": "Row 1", "values": {"volume": "10", "patient": "A"}},
         ]
         # Table B: modify row 0, keep row 1, add row 2
         doc2["content"][1]["attrs"]["rows"] = [
             {"entityId": modify_id, "displayId": t2_rows[0]["displayId"],
-             "values": {"volume": "99", "patient": "C-modified"}},
+             "__name": "Row 3", "values": {"volume": "99", "patient": "C-modified"}},
             {"entityId": keep2_id, "displayId": t2_rows[1]["displayId"],
-             "values": {"volume": "40", "patient": "D"}},
+             "__name": "Row 4", "values": {"volume": "40", "patient": "D"}},
             {"entityId": None, "displayId": "#new-row",
-             "values": {"volume": "50", "patient": "E"}},
+             "__name": "Row 5", "values": {"volume": "50", "patient": "E"}},
         ]
 
         patched2 = sync_entities(self.entry, doc2)
@@ -401,6 +405,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
             {
                 "entityId": kept_entity_id,
                 "displayId": kept_display_id,
+                "__name": "Row 1",
                 "values": {"volume": "10", "patient": "A"},
             }
         ]
@@ -485,6 +490,94 @@ class SyncEntitiesTests(BaseServiceTestCase):
         mention = Mention.objects.first()
         self.assertEqual(mention.source_id, self.entry.id)
         self.assertEqual(mention.target_id, target.id)
+
+    def test_sync_raises_validation_error_on_empty_name(self):
+        """sync_entities raises ValidationError when a row has an empty __name."""
+        from workspaces.lims.services import sync_entities
+
+        doc = make_lims_table_doc(
+            self.blood_type.id,
+            rows_data=[{"volume": "50", "patient": "Patient A"}],
+            entity_type=self.blood_type,
+            row_names=[""],  # empty name
+        )
+
+        with self.assertRaises(serializers.ValidationError) as ctx:
+            sync_entities(self.entry, doc)
+        self.assertIn("Entity name is required.", str(ctx.exception))
+
+    def test_sync_raises_validation_error_on_whitespace_name(self):
+        """sync_entities raises ValidationError when __name is only whitespace."""
+        from workspaces.lims.services import sync_entities
+
+        doc = make_lims_table_doc(
+            self.blood_type.id,
+            rows_data=[{"volume": "50", "patient": "Patient A"}],
+            entity_type=self.blood_type,
+            row_names=["   "],  # whitespace-only name
+        )
+
+        with self.assertRaises(serializers.ValidationError) as ctx:
+            sync_entities(self.entry, doc)
+        self.assertIn("Entity name is required.", str(ctx.exception))
+
+    def test_sync_raises_validation_error_on_missing_name(self):
+        """sync_entities raises ValidationError when __name key is missing."""
+        from workspaces.lims.services import sync_entities
+
+        doc = make_lims_table_doc(
+            self.blood_type.id,
+            rows_data=[{"volume": "50", "patient": "Patient A"}],
+            entity_type=self.blood_type,
+        )
+        # Remove __name from the row
+        del doc["content"][0]["attrs"]["rows"][0]["__name"]
+
+        with self.assertRaises(serializers.ValidationError) as ctx:
+            sync_entities(self.entry, doc)
+        self.assertIn("Entity name is required.", str(ctx.exception))
+
+    def test_sync_uses_name_from_row_data_on_create(self):
+        """sync_entities uses __name as Entity.name on create."""
+        from workspaces.lims.services import sync_entities
+
+        doc = make_lims_table_doc(
+            self.blood_type.id,
+            rows_data=[{"volume": "50", "patient": "Patient A"}],
+            entity_type=self.blood_type,
+            row_names=["Custom Name"],
+        )
+
+        sync_entities(self.entry, doc)
+        self.assertEqual(Entity.objects.count(), 1)
+        entity = Entity.objects.first()
+        self.assertEqual(entity.name, "Custom Name")
+
+    def test_sync_updates_entity_name_on_re_save(self):
+        """sync_entities updates Entity.name from __name on subsequent saves."""
+        from workspaces.lims.services import sync_entities
+
+        # First save
+        doc = make_lims_table_doc(
+            self.blood_type.id,
+            rows_data=[{"volume": "50", "patient": "Patient A"}],
+            entity_type=self.blood_type,
+            row_names=["Original Name"],
+        )
+        patched = sync_entities(self.entry, doc)
+        self.assertEqual(Entity.objects.count(), 1)
+        entity = Entity.objects.first()
+        self.assertEqual(entity.name, "Original Name")
+
+        # Second save with updated name
+        patched["content"][0]["attrs"]["rows"][0]["__name"] = "Updated Name"
+        patched["content"][0]["attrs"]["rows"][0]["values"]["volume"] = "75"
+        sync_entities(self.entry, patched)
+
+        self.assertEqual(Entity.objects.count(), 1)
+        entity.refresh_from_db()
+        self.assertEqual(entity.name, "Updated Name")
+        self.assertEqual(entity.properties["volume"], "75")
 
 
 # ── EntityType.icon field ─────────────────────────────────────────────

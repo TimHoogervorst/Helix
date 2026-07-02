@@ -6,6 +6,8 @@ attribute model (attrs.columns + attrs.rows), diffs against existing
 Entity rows for the owning entry, creates/updates/deletes entities,
 and patches the entity display IDs back into attrs.rows.
 """
+from rest_framework import serializers
+
 from core.walker import walk_tiptap_tree
 
 from .models import EntityType, Entity
@@ -111,6 +113,12 @@ def sync_entities(entry, tiptap_json):
             display_id = row.get("displayId", "")
             values = row.get("values", {})
 
+            # Read entity name from the __name row key.
+            # The frontend Name pseudo-column writes here (alongside "values", not inside it).
+            entity_name = row.get("__name", "").strip()
+            if not entity_name:
+                raise serializers.ValidationError("Entity name is required.")
+
             # Build properties dict from column definitions
             table = tables[ti]
             properties = {}
@@ -130,12 +138,12 @@ def sync_entities(entry, tiptap_json):
             if entity is not None:
                 # Update existing entity
                 entity.properties = properties
-                entity.name = f"{table['title']} row {ri + 1}"
+                entity.name = entity_name
                 entity.save(update_fields=["properties", "name"])
             else:
                 # Create new entity
                 entity = Entity.objects.create(
-                    name=f"{table['title']} row {ri + 1}",
+                    name=entity_name,
                     entity_type=entity_type,
                     properties=properties,
                     source_entry=entry,

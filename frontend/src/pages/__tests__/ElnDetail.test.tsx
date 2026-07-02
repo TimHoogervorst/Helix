@@ -3,7 +3,7 @@
  *
  * Verifies the top toolbar (breadcrumbs, status badge, editor action buttons,
  * ghost icon buttons, avatars, share/sign & witness), content area, and metadata
- * panel.
+ * panel with all four sections: Metadata, Linked Entities, Attachments, Activity.
  *
  * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
  * toolbar via state lifted from ElnEditor through onStateChange + ref.
@@ -90,11 +90,10 @@ describe("ElnDetail — 3-column layout", () => {
     expect(screen.getByText("New")).toBeDefined();
   });
 
-  it("renders Draft status badge with lock icon", () => {
+  it("renders Draft status badge with lock icon in the top toolbar", () => {
     renderAtRoute("/eln/EXP-0284");
-    // Should find two Draft badges — one in toolbar, one in metadata
-    const badges = screen.getAllByText("Draft");
-    expect(badges.length).toBeGreaterThanOrEqual(1);
+    // The top toolbar has a "Draft" badge; the metadata panel shows "In progress"
+    expect(screen.getByText("Draft")).toBeDefined();
   });
 
   // ── Top toolbar: ghost icon buttons (History, Comments, Star) ───────────
@@ -201,46 +200,147 @@ describe("ElnDetail — 3-column layout", () => {
     expect(editor.getAttribute("data-entry-id")).toBe("new");
   });
 
-  // ── Metadata panel ─────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // ── Metadata panel ── (PRD #5)
+  // ═══════════════════════════════════════════════════════════════════════════════
 
-  it("renders Metadata section with fields", () => {
-    renderAtRoute("/eln/EXP-0284");
+  describe("Metadata Panel — Section 1: Metadata", () => {
+    it("renders the Metadata section header", () => {
+      renderAtRoute("/eln/EXP-0284");
+      expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
+    });
 
-    // Section header
-    expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
+    it("renders all metadata key-value pairs with placeholder values", () => {
+      renderAtRoute("/eln/EXP-0284");
 
-    // Fields
-    expect(screen.getByText("Owner")).toBeDefined();
-    // "Dr. Mira Kato" appears in both Metadata and Activity sections
-    expect(screen.getAllByText("Dr. Mira Kato").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Witness")).toBeDefined();
-    expect(screen.getByText("Project")).toBeDefined();
-    expect(screen.getByText("CRISPR-Cas9 Opt.")).toBeDefined();
-    expect(screen.getByText("Instrument")).toBeDefined();
+      expect(screen.getByText("Owner")).toBeDefined();
+      expect(screen.getByText("Dr. Mira Kato")).toBeDefined();
+
+      expect(screen.getByText("Witness")).toBeDefined();
+      expect(screen.getByText("Pending — J. Silva")).toBeDefined();
+
+      expect(screen.getByText("Project")).toBeDefined();
+      expect(screen.getByText("CRISPR-Cas9 Opt.")).toBeDefined();
+
+      expect(screen.getByText("Started")).toBeDefined();
+      expect(screen.getByText("2026-06-28 09:14")).toBeDefined();
+
+      expect(screen.getByText("Instrument")).toBeDefined();
+      expect(screen.getByText("Nanodrop One · Bio-Rad C1000")).toBeDefined();
+
+      expect(screen.getByText("Status")).toBeDefined();
+    });
+
+    it("renders the Witness value in italic", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const witnessValue = screen.getByText("Pending — J. Silva");
+      expect(witnessValue.className).toContain("italic");
+    });
+
+    it("renders Status chip as 'In progress' with warn styling", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const statusChip = screen.getByText("In progress");
+      expect(statusChip).toBeDefined();
+      expect(statusChip.className).toContain("bg-warn");
+      expect(statusChip.className).toContain("text-warn-foreground");
+    });
   });
 
-  it("renders Linked entities section with placeholder entries", () => {
-    renderAtRoute("/eln/EXP-0284");
-    expect(screen.getByText("Linked entities")).toBeDefined();
-    expect(screen.getByText("RGT-0042")).toBeDefined();
-    expect(screen.getByText("Cas9 Nuclease")).toBeDefined();
-    expect(screen.getByText("CEL-0012")).toBeDefined();
-    expect(screen.getByText("PLA-0089")).toBeDefined();
+  describe("Metadata Panel — Section 2: Linked Entities", () => {
+    it("renders the Linked entities section header", () => {
+      renderAtRoute("/eln/EXP-0284");
+      expect(screen.getByText("Linked entities")).toBeDefined();
+    });
+
+    it("renders four linked entity buttons", () => {
+      renderAtRoute("/eln/EXP-0284");
+      expect(screen.getByLabelText("View EMX1 gene")).toBeDefined();
+      expect(screen.getByLabelText("View HEK293T · WT")).toBeDefined();
+      expect(screen.getByLabelText("View Plate P-24-118")).toBeDefined();
+      expect(screen.getByLabelText("View Cas9-HF1 stock")).toBeDefined();
+    });
+
+    it("renders entity names and display IDs", () => {
+      renderAtRoute("/eln/EXP-0284");
+      expect(screen.getByText("EMX1 gene")).toBeDefined();
+      expect(screen.getByText("GENE-EMX1")).toBeDefined();
+      expect(screen.getByText("HEK293T · WT")).toBeDefined();
+      expect(screen.getByText("CELL-0012")).toBeDefined();
+      expect(screen.getByText("Plate P-24-118")).toBeDefined();
+      expect(screen.getByText("PLT-118")).toBeDefined();
+      expect(screen.getByText("Cas9-HF1 stock")).toBeDefined();
+      expect(screen.getByText("REG-1042")).toBeDefined();
+    });
+
+    it("renders linked entities as buttons", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const button = screen.getByLabelText("View EMX1 gene");
+      expect(button.tagName).toBe("BUTTON");
+    });
   });
 
-  it("renders Attachments section with placeholder files", () => {
-    renderAtRoute("/eln/EXP-0284");
-    expect(screen.getByText("Attachments")).toBeDefined();
-    expect(screen.getByText("gel-image.png")).toBeDefined();
-    expect(screen.getByText("protocol-v3.pdf")).toBeDefined();
+  describe("Metadata Panel — Section 3: Attachments", () => {
+    it("renders the Attachments section header", () => {
+      renderAtRoute("/eln/EXP-0284");
+      expect(screen.getByText("Attachments")).toBeDefined();
+    });
+
+    it("renders three attachments with filenames and sizes", () => {
+      renderAtRoute("/eln/EXP-0284");
+
+      expect(screen.getByText("raw_gel_2026-06-30.tif")).toBeDefined();
+      expect(screen.getByText("4.2 MB")).toBeDefined();
+
+      expect(screen.getByText("plate_layout.xlsx")).toBeDefined();
+      expect(screen.getByText("18 KB")).toBeDefined();
+
+      expect(screen.getByText("sequencing_reads.fastq.gz")).toBeDefined();
+      expect(screen.getByText("112 MB")).toBeDefined();
+    });
+
+    it("renders filenames in mono font", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const filename = screen.getByText("raw_gel_2026-06-30.tif");
+      expect(filename.className).toContain("font-mono");
+    });
   });
 
-  it("renders Activity section with placeholder items", () => {
-    renderAtRoute("/eln/EXP-0284");
-    expect(screen.getByText("Activity")).toBeDefined();
-    // Dr. Mira Kato appears in both Metadata (Owner) and Activity items
-    const katoRefs = screen.getAllByText("Dr. Mira Kato");
-    expect(katoRefs.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("James Saito")).toBeDefined();
+  describe("Metadata Panel — Section 4: Activity", () => {
+    it("renders the Activity section header", () => {
+      renderAtRoute("/eln/EXP-0284");
+      expect(screen.getByText("Activity")).toBeDefined();
+    });
+
+    it("renders four activity items with usernames, actions, and timestamps", () => {
+      renderAtRoute("/eln/EXP-0284");
+
+      // Activity 1: Mira K. added bar chart FIG-01 · 14 min ago
+      // Mira K. appears in 2 activities, so use getAllByText
+      expect(screen.getAllByText("Mira K.").length).toBe(2);
+      expect(screen.getByText("added bar chart FIG-01")).toBeDefined();
+      expect(screen.getByText("· 14 min ago")).toBeDefined();
+
+      // Activity 2: Jordan S. commented on g4 dropout · 2 h ago
+      expect(screen.getByText("Jordan S.")).toBeDefined();
+      expect(screen.getByText("commented on g4 dropout")).toBeDefined();
+      expect(screen.getByText("· 2 h ago")).toBeDefined();
+
+      // Activity 3: Mira K. linked reagent REG-1042 · 5 h ago
+      expect(screen.getByText("linked reagent REG-1042")).toBeDefined();
+      expect(screen.getByText("· 5 h ago")).toBeDefined();
+
+      // Activity 4: System autosaved v0.4 · just now
+      expect(screen.getByText("System")).toBeDefined();
+      expect(screen.getByText("autosaved v0.4")).toBeDefined();
+      expect(screen.getByText("· just now")).toBeDefined();
+    });
+
+    it("renders four activity items", () => {
+      renderAtRoute("/eln/EXP-0284");
+      // There should be exactly 4 activity dot indicators
+      const aside = document.querySelector("aside");
+      const dots = aside?.querySelectorAll('[data-testid="activity-dot"]');
+      expect(dots?.length).toBe(4);
+    });
   });
 });

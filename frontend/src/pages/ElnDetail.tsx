@@ -13,6 +13,10 @@ import {
   Pencil,
   Trash2,
   X,
+  Dna,
+  FlaskConical,
+  Beaker,
+  Paperclip,
 } from "lucide-react";
 import ElnEditor from "../components/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../components/ElnEditor";
@@ -208,7 +212,7 @@ function ElnDetail() {
 
         {/* Metadata panel — visible at xl and above */}
         <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
-          <div className="space-y-6 overflow-auto px-4 py-6">
+          <div className="sticky top-0 max-h-screen space-y-6 overflow-y-auto px-5 py-6">
             {/* ── Metadata ── */}
             <section>
               <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -221,7 +225,9 @@ function ElnDetail() {
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Witness</dt>
-                  <dd className="text-right text-muted-foreground">—</dd>
+                  <dd className="text-right italic text-muted-foreground">
+                    Pending — J. Silva
+                  </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Project</dt>
@@ -233,14 +239,13 @@ function ElnDetail() {
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Instrument</dt>
-                  <dd className="text-right">Nanodrop One</dd>
+                  <dd className="text-right">Nanodrop One · Bio-Rad C1000</dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Status</dt>
                   <dd className="text-right">
-                    <span className="inline-flex items-center gap-1 rounded border border-hairline bg-panel px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                      <Lock className="h-2.5 w-2.5" aria-hidden="true" />
-                      Draft
+                    <span className="inline-flex items-center gap-1 rounded border border-hairline bg-warn px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-warn-foreground">
+                      In progress
                     </span>
                   </dd>
                 </div>
@@ -252,26 +257,52 @@ function ElnDetail() {
               <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 Linked entities
               </h3>
-              <ul className="space-y-2 text-[13px]">
-                <li className="flex items-center gap-2 rounded border border-hairline bg-panel px-2.5 py-1.5">
-                  <span className="font-mono text-[11px] text-primary">
-                    RGT-0042
+              <div className="space-y-1.5 text-[13px]">
+                <button
+                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
+                  aria-label="View EMX1 gene"
+                  title="Placeholder — entity navigation coming soon"
+                >
+                  <Dna className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">EMX1 gene</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                    GENE-EMX1
                   </span>
-                  <span className="text-muted-foreground">Cas9 Nuclease</span>
-                </li>
-                <li className="flex items-center gap-2 rounded border border-hairline bg-panel px-2.5 py-1.5">
-                  <span className="font-mono text-[11px] text-primary">
-                    CEL-0012
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
+                  aria-label="View HEK293T · WT"
+                  title="Placeholder — entity navigation coming soon"
+                >
+                  <FlaskConical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">HEK293T · WT</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                    CELL-0012
                   </span>
-                  <span className="text-muted-foreground">HEK293T Cells</span>
-                </li>
-                <li className="flex items-center gap-2 rounded border border-hairline bg-panel px-2.5 py-1.5">
-                  <span className="font-mono text-[11px] text-primary">
-                    PLA-0089
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
+                  aria-label="View Plate P-24-118"
+                  title="Placeholder — entity navigation coming soon"
+                >
+                  <Beaker className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">Plate P-24-118</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                    PLT-118
                   </span>
-                  <span className="text-muted-foreground">96-Well Plate</span>
-                </li>
-              </ul>
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
+                  aria-label="View Cas9-HF1 stock"
+                  title="Placeholder — entity navigation coming soon"
+                >
+                  <FlaskConical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">Cas9-HF1 stock</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                    REG-1042
+                  </span>
+                </button>
+              </div>
             </section>
 
             {/* ── Attachments ── */}
@@ -279,16 +310,23 @@ function ElnDetail() {
               <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 Attachments
               </h3>
-              <ul className="space-y-1.5 text-[12px]">
-                <li className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted">
-                  <span>gel-image.png</span>
-                  <span className="text-muted-foreground">2.1 MB</span>
-                </li>
-                <li className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted">
-                  <span>protocol-v3.pdf</span>
-                  <span className="text-muted-foreground">456 KB</span>
-                </li>
-              </ul>
+              <div className="space-y-1.5 text-[13px]">
+                <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate font-mono">raw_gel_2026-06-30.tif</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">4.2 MB</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate font-mono">plate_layout.xlsx</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">18 KB</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate font-mono">sequencing_reads.fastq.gz</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">112 MB</span>
+                </div>
+              </div>
             </section>
 
             {/* ── Activity ── */}
@@ -299,38 +337,66 @@ function ElnDetail() {
               <ul className="space-y-2 text-[12px]">
                 <li className="flex items-start gap-2">
                   <span
-                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
                     aria-hidden="true"
+                    data-testid="activity-dot"
                   />
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 flex-1 text-muted-foreground">
                     <span className="font-medium text-foreground">
-                      Dr. Mira Kato
+                      Mira K.
                     </span>{" "}
-                    created this entry
+                    added bar chart FIG-01
+                  </span>
+                  <span className="shrink-0 text-muted-foreground/70">
+                    · 14 min ago
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span
-                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
                     aria-hidden="true"
+                    data-testid="activity-dot"
                   />
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 flex-1 text-muted-foreground">
                     <span className="font-medium text-foreground">
-                      Dr. Mira Kato
+                      Jordan S.
                     </span>{" "}
-                    edited title &amp; protocol
+                    commented on g4 dropout
+                  </span>
+                  <span className="shrink-0 text-muted-foreground/70">
+                    · 2 h ago
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span
-                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
                     aria-hidden="true"
+                    data-testid="activity-dot"
                   />
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 flex-1 text-muted-foreground">
                     <span className="font-medium text-foreground">
-                      James Saito
+                      Mira K.
                     </span>{" "}
-                    added a comment
+                    linked reagent REG-1042
+                  </span>
+                  <span className="shrink-0 text-muted-foreground/70">
+                    · 5 h ago
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+                    aria-hidden="true"
+                    data-testid="activity-dot"
+                  />
+                  <span className="min-w-0 flex-1 text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      System
+                    </span>{" "}
+                    autosaved v0.4
+                  </span>
+                  <span className="shrink-0 text-muted-foreground/70">
+                    · just now
                   </span>
                 </li>
               </ul>

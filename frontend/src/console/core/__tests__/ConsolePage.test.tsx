@@ -7,7 +7,7 @@ import type { ConsoleViewState } from "../useConsoleView";
 let mockViewState: ViewState = "list";
 let mockCollapseFromExpanded = vi.fn();
 
-vi.mock("../useConsoleView", () => ({
+vi.mock("../../../core/console/useConsoleView", () => ({
   useConsoleView: (): ConsoleViewState => ({
     viewState: mockViewState,
     isExiting: false,
@@ -21,7 +21,7 @@ vi.mock("../useConsoleView", () => ({
 }));
 
 // ── Mock useConsole (context) — ConsolePage reads viewState from here ─
-vi.mock("../ConsoleProvider", () => ({
+vi.mock("../../../core/console/ConsoleContext", () => ({
   useConsole: () => ({
     viewState: mockViewState,
     setViewState: vi.fn(),

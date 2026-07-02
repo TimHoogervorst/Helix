@@ -1,24 +1,6 @@
-import { Maximize2 } from "lucide-react";
-
-interface ConsoleCollapsedStripProps {
-  onExpand: () => void;
-  /** Accessible title for the expand button. */
-  title: string;
-}
-
-function ConsoleCollapsedStrip({ onExpand, title }: ConsoleCollapsedStripProps) {
-  return (
-    <div className="console-collapsed-strip">
-      <button
-        className="console-collapsed-strip-btn"
-        onClick={onExpand}
-        title={title}
-        aria-label={title}
-      >
-        <Maximize2 size={18} />
-      </button>
-    </div>
-  );
-}
-
-export default ConsoleCollapsedStrip;
+// ═══════════════════════════════════════════════════════════════════════════
+// Re-export shim — the canonical file has moved to core/console/ConsoleCollapsedStrip.tsx.
+// This shim exists so existing imports don't break during the migration.
+// Once all consumers import from the new path, delete this file.
+// ═══════════════════════════════════════════════════════════════════════════
+export { default } from "../../core/console/ConsoleCollapsedStrip";

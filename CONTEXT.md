@@ -1,6 +1,19 @@
 # Helix — Domain Glossary
 
-> This is the canonical glossary. It defines terms, not implementation. For architecture decisions, see [docs/adr/](docs/adr/).
+> This is the canonical glossary. It defines terms, not implementation. For architecture decisions, see [docs/adr/](docs/adr/). For the mod system architecture, see [docs/mod-system.md](docs/mod-system.md).
+
+---
+
+## The Mod System
+
+> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Pins — is a mod. Core is the thin shell that loads mods and provides the frame they render into. Both internal (core mods) and future external mods use the same `register*()` API.
+
+| Term | Definition |
+|------|-----------|
+| **Mod** | A self-contained unit of functionality registered into Core. Owns consoles, workspaces, detail cards, settings, routes, and commands. |
+| **Core** | The immutable app shell: Layout, Router, Console panels, Mod Loader, Mod Registry, Reference resolution, API client. |
+| **Core Mod** | A mod under `core-mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
+| **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, detail/workspace resolution. |
 
 ---
 
@@ -58,17 +71,15 @@ The middle panel. Shows a **summary card** for the selected item — key metadat
 
 ### Workspace Panel
 
-The right panel. Launches when the user enters **Expanded** state. Contains the **full work surface** for the selected item. What renders inside the Workspace depends on the item type:
+The right panel. Launches when the user enters **Expanded** state. Contains the **full work surface** for the selected item. What renders inside the Workspace depends on the item type, resolved through the Mod Registry:
 
-- **ELN Entry** → TipTap editor (rich-text editing surface)
-- **LIMS Entity** → Tabbed detail view (Activity, Insights, Storage)
-- **Plugin-provided type** → Plugin's custom work surface (e.g., DNA sequence editor)
+- **ELN Entry** (`eln.entry`) → TipTap editor (rich-text editing surface)
+- **LIMS Entity** (`lims.entity`) → Tabbed detail view (Activity, Insights, Storage)
+- **Mod-provided type** → Mod's custom work surface (e.g., DNA sequence editor from a MolBio mod)
 
-The Workspace is a **slot** — the console provides the container, the item type provides the content. This is the extension point for future modding/plugin APIs.
+The Workspace is a **slot** — the console provides the container, the workspace type provides the content. Workspace types registered via `registerWorkspace()` can override the console's default workspace component; if they don't, the console's default workspace is used.
 
-Every Workspace has a **dedicated URL** that resolves to the item's full work surface (e.g., `/eln/E12` for an Entry editor, `/lims/BLOOD1` for an Entity's full detail). These URLs are shareable and bookmarkable — they are the canonical address of the Workspace, independent of the console context. The console's Expanded state embeds the same Workspace content in the three-panel layout; the dedicated URL renders it as a standalone page.
-
-**Invariant:** The Workspace is always launched from the Detail panel. The Detail panel remains visible in Expanded state to preserve context ("what am I working on?").
+Every Workspace has a **dedicated URL** that resolves to the item's full work surface (e.g., `/eln/E12` for an Entry editor, `/lims/BLOOD1` for an Entity's full detail). These URLs are auto-registered from `registerWorkspace({ route })` and handled by the generic `<WorkspacePage>` component. The workspace component **fetches its own data** — WorkspacePage passes `displayId` as a prop and provides a loader (Suspense fallback) and error boundary.
 
 **Synonyms:** canvas, work surface, full detail, editor panel
 
@@ -79,7 +90,7 @@ Any row that appears in a Master panel table. An Item is the generic "thing you 
 - **Entity** — structured lab data (appears only in LIMS console)
 - **Entry** — narrative notebook content (appears only in Library console)
 - **Folder** — navigable container (Library console only — clicking navigates *into* the folder rather than opening a Detail panel; no display ID or metadata)
-- **Plugin types** — future extension point
+- **Mod-provided types** — registered via `registerWorkspace()`, can appear in any console that accepts them
 
 The Item type determines which console(s) surface it, what the Detail card shows, and what renders in the Workspace. An Item type belongs to exactly one console — Entities do not appear in the Library Master table, and Entries do not appear in the LIMS Master table. Cross-references (ReferenceBadges) can point across consoles, but the Master/Detail/Workspace flow stays within a single console.
 
@@ -89,12 +100,14 @@ The Item type determines which console(s) surface it, what the Detail card shows
 
 ### Console
 
-A concrete instance of the Three-Panel Console pattern, backed by a route and a data source. The platform currently has two consoles:
+A concrete instance of the Three-Panel Console pattern, backed by a route and a data source. Each console is registered by a mod via `registerConsole()` and auto-appears in the sidebar navigation. The platform currently has two consoles:
 
-- **Library** at `/library` — filesystem-like browsing over the Folder hierarchy
-- **LIMS** at `/lims` — database-like browsing over Entities
+- **Library** at `/library` — registered by the Library core mod. Filesystem-like browsing over the Folder hierarchy. `accepts: { only: ['eln.entry'] }`.
+- **LIMS** at `/lims` — registered by the LIMS core mod. Database-like browsing over Entities. `accepts: { except: ['eln.entry'] }`.
 
-Each console is a self-contained experience with its own Master table, Detail cards, and Workspace content. They share the same panel layout, animation system, and View State machine — but differ in their data sources, search/filter behavior, and Workspace content types.
+Each console provides **default renderers** (row, detail card, workspace) that individual workspace types (registered via `registerWorkspace()`) can override. The console declares which workspace types it accepts via `accepts` (whitelist or blacklist); the workspace declares which consoles it belongs to via `consoleIds`. Both must agree for a workspace to appear in a console.
+
+Consoles are a **presentation layer** — not data models. The console shell components (ConsolePage, ConsoleMasterPanel, ConsoleDetailPanel, ConsoleWorkspacePanel) live in `core/console/` and are view-state agnostic. Console instances live in their mod's `console/` directory.
 
 ---
 
@@ -291,7 +304,15 @@ NotebookEntry.status ──cascades to──▶ Entity.status (only via source_e
 
 Console (abstract) ──▶ Master Panel ──▶ Item table
                     ├── Detail Panel ──▶ summary card
-                    └── Workspace Panel ──▶ type-specific work surface
+                    └── Workspace Panel ──▶ type-specific work surface (slot)
+
+ModLoader ──▶ Mod Registry (populated by register*() calls from mod index.ts files)
+              ├── Registered Consoles → sidebar nav + routes
+              ├── Registered Workspaces → detail cards + workspace slots + standalone routes
+              ├── Registered Settings Sections → settings shell panels
+              ├── Registered Slash Commands → ELN slash menu
+              ├── Registered Sidebar Actions → sidebar row buttons
+              └── Registered Services → mod-to-mod communication
 ```
 
 ---

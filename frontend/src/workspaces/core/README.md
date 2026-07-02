@@ -1,32 +1,22 @@
 # Workspaces Core
 
-Shared workspace infrastructure — contracts, patterns, and utilities for all workspace domains.
+> **Note:** The workspace system has been superseded by the **Mod System**. See [docs/mod-system.md](../../../docs/mod-system.md) for the current architecture.
 
-## What is a Workspace?
+This directory will be migrated to `core/mod-system/` and `core/console/` as part of the mod system restructure.
 
-A **Workspace** is the work surface for a specific item type. It has two faces:
+## Migration Map
 
-| Face | Component | Panel | When |
-|------|-----------|-------|------|
-| **Detail Card** | `<Name>DetailCard` | Console Detail panel | User clicks a row |
-| **Workspace** | `<Name>Workspace` | Console Workspace panel OR dedicated URL | User clicks expand or navigates directly |
-
-## Workspace Contract
-
-Every workspace domain must provide at minimum:
-
-| Component | Props | Purpose |
-|-----------|-------|---------|
-| `<Name>DetailCard` | `{ item, viewState, onClose, onCollapse, isDetailExiting }` | Rendered in Detail panel |
-| `<Name>Workspace` | `{ item, isExiting }` | Rendered in Workspace panel |
-
-## Dedicated URLs
-
-Workspaces can also be reached via dedicated URLs (e.g. `/eln/:id`, `/lims/:displayId`).
-The same `<Name>Workspace>` component is used — wrapped in a standalone page shell
-rather than the Console's Workspace panel.
-
-## Dependencies
-
-- **Depends on:** `console/core` (panel shell contracts)
-- **Consumed by:** Every workspace domain
+| Current | Destination |
+|---------|-------------|
+| `workspaces/core/` (contract docs) | `core/mod-system/README.md` |
+| `workspaces/_template/` | `core-mods/_template/` |
+| `workspaces/lims/` | `core-mods/lims/` |
+| `workspaces/eln/` | `core-mods/eln/` |
+| `console/instances/library/` | `core-mods/library/` |
+| `console/instances/lims/` | `core-mods/lims/console/` |
+| `pages/` (standalone workspace pages) | `core-mods/<mod>/workspace/` |
+| `components/` (shared) | `shared/` |
+| `hooks/` (shared) | `shared/` or `core-mods/<mod>/hooks/` |
+| `types/` (shared) | `core/types/` or `core-mods/<mod>/types.ts` |
+| `extensions/` (TipTap) | `core-mods/eln/editor/extensions/` |
+| `api/` | `core/api/` or `core-mods/<mod>/api.ts` |

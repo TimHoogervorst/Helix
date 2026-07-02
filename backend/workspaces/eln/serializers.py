@@ -23,17 +23,43 @@ def validate_tiptap_json(value):
 class MentionSerializer(serializers.ModelSerializer):
     source_type_name = serializers.CharField(source="source_type.model", read_only=True)
     target_type_name = serializers.CharField(source="target_type.model", read_only=True)
+    target_display_id = serializers.SerializerMethodField()
+    target_title = serializers.SerializerMethodField()
 
     class Meta:
         model = Mention
-        fields = ["id", "source_type", "source_type_name", "source_id", "target_type", "target_type_name", "target_id", "context"]
+        fields = [
+            "id", "source_type", "source_type_name", "source_id",
+            "target_type", "target_type_name", "target_id",
+            "target_display_id", "target_title", "context",
+        ]
         read_only_fields = ["id"]
+
+    def get_target_display_id(self, obj):
+        """Return the display_id of the target object if available."""
+        try:
+            target = obj.target
+            if target and hasattr(target, "display_id"):
+                return target.display_id
+        except Exception:
+            pass
+        return None
+
+    def get_target_title(self, obj):
+        """Return the title (or name) of the target object if available."""
+        try:
+            target = obj.target
+            if target:
+                return getattr(target, "title", getattr(target, "name", str(target)))
+        except Exception:
+            pass
+        return None
 
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ["id", "name", "color"]
+        fields = ["id", "name", "color", "icon"]
         read_only_fields = ["id"]
 
 

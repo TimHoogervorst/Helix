@@ -42,6 +42,8 @@ vi.mock("../../components/ElnEditor", () => ({
             ],
             folderId: null,
             status: "in_progress",
+            tags: [],
+            description: "",
           });
         }, 0);
         return () => clearTimeout(t);
@@ -180,12 +182,15 @@ describe("ElnDetail — 3-column layout", () => {
 
   // ── Top toolbar: Share & Sign & Witness ────────────────────────────────
 
-  it("renders Share button with text and tooltip", () => {
+  it("renders Share button as icon-only with green bg and tooltip", () => {
     renderAtRoute("/eln/EXP-0284");
     const shareBtn = screen.getByLabelText("Share");
     expect(shareBtn).toBeDefined();
-    expect(shareBtn.textContent).toContain("Share");
-    expect(shareBtn.getAttribute("title")).toContain("sharing");
+    // Should be icon-only (no "Share" text)
+    expect(shareBtn.textContent).toBe("");
+    expect(shareBtn.getAttribute("title")).toContain("Copy link");
+    // Should have the same green bg as Sign & Witness
+    expect(shareBtn.className).toContain("bg-primary");
   });
 
   it("renders Sign & Witness button with text and tooltip", () => {
@@ -282,30 +287,10 @@ describe("ElnDetail — 3-column layout", () => {
       expect(screen.getByText("Linked entities")).toBeDefined();
     });
 
-    it("renders four linked entity buttons", () => {
+    it("shows empty state when entry has no mentions", () => {
       renderAtRoute("/eln/EXP-0284");
-      expect(screen.getByLabelText("View EMX1 gene")).toBeDefined();
-      expect(screen.getByLabelText("View HEK293T · WT")).toBeDefined();
-      expect(screen.getByLabelText("View Plate P-24-118")).toBeDefined();
-      expect(screen.getByLabelText("View Cas9-HF1 stock")).toBeDefined();
-    });
-
-    it("renders entity names and display IDs", () => {
-      renderAtRoute("/eln/EXP-0284");
-      expect(screen.getByText("EMX1 gene")).toBeDefined();
-      expect(screen.getByText("GENE-EMX1")).toBeDefined();
-      expect(screen.getByText("HEK293T · WT")).toBeDefined();
-      expect(screen.getByText("CELL-0012")).toBeDefined();
-      expect(screen.getByText("Plate P-24-118")).toBeDefined();
-      expect(screen.getByText("PLT-118")).toBeDefined();
-      expect(screen.getByText("Cas9-HF1 stock")).toBeDefined();
-      expect(screen.getByText("REG-1042")).toBeDefined();
-    });
-
-    it("renders linked entities as buttons", () => {
-      renderAtRoute("/eln/EXP-0284");
-      const button = screen.getByLabelText("View EMX1 gene");
-      expect(button.tagName).toBe("BUTTON");
+      // The mock entry is null so mentions is empty → shows "No linked entities"
+      expect(screen.getByText("No linked entities")).toBeDefined();
     });
   });
 

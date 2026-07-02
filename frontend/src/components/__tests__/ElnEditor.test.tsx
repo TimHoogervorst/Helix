@@ -223,23 +223,14 @@ describe("ElnEditor integration", () => {
 
   // ── Title input styling ────────────────────────────────────────────────────
 
-  it("renders title input with serif font class in new-entry edit mode", () => {
+  it("renders title element with serif font class in new-entry edit mode", () => {
     renderEditor({});
-    const input = screen.getByTestId("title-input");
-    expect(input).toBeDefined();
-    expect(input.className).toContain("font-serif");
-    expect(input.className).toContain("text-[42px]");
-  });
-
-  // ── Description placeholder ────────────────────────────────────────────────
-
-  it("renders description placeholder text", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      const desc = screen.getByTestId("description");
-      expect(desc).toBeDefined();
-      expect(desc.textContent).toContain("sgRNA screen");
-    });
+    const title = screen.getByTestId("title-display");
+    expect(title).toBeDefined();
+    expect(title.tagName).toBe("H1");
+    expect(title.className).toContain("font-serif");
+    expect(title.className).toContain("text-[42px]");
+    expect(title.getAttribute("contentEditable")).toBe("true");
   });
 
   // ── Tags section ───────────────────────────────────────────────────────
@@ -386,17 +377,51 @@ describe("ElnEditor integration", () => {
     expect(screen.getByText("New entry")).toBeDefined();
   });
 
-  it("renders title input for new entries", () => {
+  it("renders title as contentEditable H1 for new entries", () => {
     renderEditor({});
-    const input = screen.getByTestId("title-input");
-    expect(input).toBeDefined();
-    expect(input.tagName).toBe("INPUT");
+    const title = screen.getByTestId("title-display");
+    expect(title).toBeDefined();
+    expect(title.tagName).toBe("H1");
+    expect(title.getAttribute("contentEditable")).toBe("true");
   });
 
-  it("autofocuses title input for new entries", () => {
-    renderEditor({});
-    const input = screen.getByTestId("title-input");
-    expect(input).toBe(document.activeElement);
+  it("shows description in view mode when content has a first paragraph", async () => {
+    mockGet.mockResolvedValue(
+      makeEntry({
+        title: "My Entry",
+        display_id: "E1",
+        content: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "A brief summary of the experiment." }],
+            },
+            { type: "paragraph" },
+          ],
+        },
+      }),
+    );
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const desc = screen.getByTestId("description");
+      expect(desc).toBeDefined();
+      expect(desc.textContent).toContain("A brief summary of the experiment.");
+    });
+  });
+
+  it("shows 'No description' fallback when content has no first paragraph", async () => {
+    mockGet.mockResolvedValue(
+      makeEntry({
+        content: { type: "doc", content: [] },
+      }),
+    );
+    renderEditor({ entryId: "E1" });
+    await waitFor(() => {
+      const desc = screen.getByTestId("description");
+      expect(desc).toBeDefined();
+      expect(desc.textContent).toContain("No description");
+    });
   });
 
   // ── Action buttons are NOT in ElnEditor ────────────────────────────────────

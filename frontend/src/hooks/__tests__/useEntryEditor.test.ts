@@ -140,7 +140,12 @@ describe("useEntryEditor", () => {
     expect(result.current.entry).toEqual(entry);
     expect(result.current.title).toBe("Loaded Entry");
     expect(result.current.initialTitle).toBe("Loaded Entry");
-    expect(result.current.initialContent).toEqual(entry.content);
+    // First paragraph extracted as description; body is the rest
+    expect(result.current.description).toBe("Hello");
+    expect(result.current.initialContent).toEqual({
+      type: "doc",
+      content: [],
+    });
     expect(mockGet).toHaveBeenCalledWith(
       "/eln/entries/E1/",
       expect.any(AbortSignal),
@@ -268,7 +273,9 @@ describe("useEntryEditor", () => {
   it("isDirty is false when title and content match initial", async () => {
     const entry = makeEntry({ title: "Same" });
     mockGet.mockResolvedValue(entry);
-    const contentRef = { current: entry.content };
+    // The contentRef reflects the editor body (first paragraph extracted as description)
+    const body = { type: "doc", content: [] };
+    const contentRef = { current: body };
 
     const { result } = renderHook(() =>
       useEntryEditor(
@@ -302,9 +309,16 @@ describe("useEntryEditor", () => {
       await result.current.save();
     });
 
+    // Description is prepended as the first paragraph
     expect(mockPost).toHaveBeenCalledWith("/eln/entries/", {
       title: "My New Entry",
-      content: EMPTY_DOC,
+      content: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [] },
+          { type: "paragraph" },
+        ],
+      },
       folder: null,
       status: "in_progress",
       tag_ids: [],
@@ -370,9 +384,16 @@ describe("useEntryEditor", () => {
       await result.current.save();
     });
 
+    // Description ("Hello") is prepended to the editor content (EMPTY_DOC)
     expect(mockPut).toHaveBeenCalledWith("/eln/entries/E1/", {
       title: "Updated Title",
-      content: EMPTY_DOC,
+      content: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "Hello" }] },
+          { type: "paragraph" },
+        ],
+      },
       folder: null,
       status: "in_progress",
     });
@@ -950,5 +971,11 @@ describe("save with name validation", () => {
     });
 
     expect(mockPost).toHaveBeenCalled();
+    // Verify the content has the description paragraph prepended
+    const callArgs = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const payload = callArgs[1];
+    const content = payload.content as TipTapDoc;
+    expect(Array.isArray(content.content)).toBe(true);
+    expect((content.content as Array<unknown>).length).toBe(2); // description para + limsTable
   });
 });

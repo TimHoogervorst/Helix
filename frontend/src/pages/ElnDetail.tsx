@@ -1,5 +1,5 @@
-import { useParams } from "react-router-dom";
-import { useRef, useState, useCallback } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useRef, useState, useCallback, useEffect } from "react";
 import {
   History,
   MessageSquare,
@@ -12,13 +12,13 @@ import {
   Pencil,
   Trash2,
   X,
-  Dna,
   FlaskConical,
-  Beaker,
   Paperclip,
+  Check,
 } from "lucide-react";
 import ElnEditor from "../components/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../components/ElnEditor";
+import { useReferenceContext } from "../components/ReferenceProvider";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -81,6 +81,7 @@ function ElnDetail() {
     folderId: null,
     status: "in_progress",
     tags: [],
+    description: "",
   });
   const handleStateChange = useCallback((state: ElnEditorState) => {
     setEditorState(state);
@@ -88,30 +89,84 @@ function ElnDetail() {
 
   // ── Editor actions exposed via ref ──
   const editorRef = useRef<ElnEditorHandle>(null);
+  const navigate = useNavigate();
 
   const showActions =
     editorState.mode !== "loading" && editorState.mode !== "error";
 
+  // ── Share state ──
+  const [shareClicked, setShareClicked] = useState(false);
+  const handleShare = useCallback(() => {
+    const url = `${window.location.origin}/eln/${entryDisplayId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareClicked(true);
+      setTimeout(() => setShareClicked(false), 2000);
+    }).catch(() => {
+      // Clipboard API may fail in insecure contexts; no-op
+    });
+  }, [entryDisplayId]);
+
+  // ── Reference resolution for linked entities ──
+  const { resolutionMap, resolveIds } = useReferenceContext();
+
+  useEffect(() => {
+    const mentions = editorState.entry?.mentions;
+    if (mentions && mentions.length > 0) {
+      const ids = mentions
+        .map((m) => m.target_display_id)
+        .filter((id): id is string => id !== null);
+      if (ids.length > 0) resolveIds(ids);
+    }
+  }, [editorState.entry?.mentions, resolveIds]);
+
   // ── Derived metadata for the panel ──
   const entry = editorState.entry;
   const isEdit = editorState.isEdit;
-  const breadcrumbName = entry?.folder_name || "—";
+  const folderPath = entry?.folder_path || "";
+  const pathSegments = folderPath.split("/").filter(Boolean);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       {/* ── Top toolbar ── */}
       <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
-        {/* Left: breadcrumbs */}
+        {/* Left: breadcrumbs — real folder path with clickable segments */}
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Folder
             className="h-3.5 w-3.5 text-muted-foreground"
             aria-hidden="true"
           />
-          <span>{breadcrumbName}</span>
-          <ChevronRight
-            className="h-3.5 w-3.5 text-muted-foreground/60"
-            aria-hidden="true"
-          />
+          {pathSegments.length > 0 ? (
+            pathSegments.map((segment, i) => {
+              const isLast = i === pathSegments.length - 1;
+              const segmentPath = "/" + pathSegments.slice(0, i + 1).join("/");
+              return (
+                <span key={i} className="flex items-center gap-1.5">
+                  {isLast ? (
+                    <span>{segment}</span>
+                  ) : (
+                    <Link
+                      to={`/library?path=${encodeURIComponent(segmentPath)}`}
+                      className="hover:text-foreground transition-colors"
+                    >
+                      {segment}
+                    </Link>
+                  )}
+                  <ChevronRight
+                    className="h-3.5 w-3.5 text-muted-foreground/60"
+                    aria-hidden="true"
+                  />
+                </span>
+              );
+            })
+          ) : (
+            <>
+              <span>—</span>
+              <ChevronRight
+                className="h-3.5 w-3.5 text-muted-foreground/60"
+                aria-hidden="true"
+              />
+            </>
+          )}
           <span className="font-medium text-foreground">
             {entryDisplayId}
           </span>
@@ -182,14 +237,22 @@ function ElnDetail() {
             <Avatar initials="AR" bgClass="bg-solvent text-solvent-foreground" />
           </div>
 
-          {/* Share button */}
+          {/* Share button — copies canonical URL to clipboard */}
           <button
-            className="ml-2 flex items-center gap-1.5 rounded-md border border-hairline bg-panel px-2.5 py-1 text-[12px] hover:bg-muted"
-            aria-label="Share"
-            title="Placeholder — sharing coming soon"
+            className={`ml-2 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] transition-colors ${
+              shareClicked
+                ? "bg-success text-success-foreground"
+                : "bg-primary text-primary-foreground hover:opacity-90"
+            }`}
+            aria-label={shareClicked ? "Copied!" : "Share"}
+            title={shareClicked ? "Copied!" : "Copy link to clipboard"}
+            onClick={handleShare}
           >
-            <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
-            Share
+            {shareClicked ? (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
           </button>
 
           {/* Sign & Witness button */}
@@ -316,50 +379,46 @@ function ElnDetail() {
                 Linked entities
               </h3>
               <div className="space-y-1.5 text-[13px]">
-                <button
-                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
-                  aria-label="View EMX1 gene"
-                  title="Placeholder — entity navigation coming soon"
-                >
-                  <Dna className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">EMX1 gene</span>
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    GENE-EMX1
-                  </span>
-                </button>
-                <button
-                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
-                  aria-label="View HEK293T · WT"
-                  title="Placeholder — entity navigation coming soon"
-                >
-                  <FlaskConical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">HEK293T · WT</span>
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    CELL-0012
-                  </span>
-                </button>
-                <button
-                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
-                  aria-label="View Plate P-24-118"
-                  title="Placeholder — entity navigation coming soon"
-                >
-                  <Beaker className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">Plate P-24-118</span>
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    PLT-118
-                  </span>
-                </button>
-                <button
-                  className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background"
-                  aria-label="View Cas9-HF1 stock"
-                  title="Placeholder — entity navigation coming soon"
-                >
-                  <FlaskConical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">Cas9-HF1 stock</span>
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    REG-1042
-                  </span>
-                </button>
+                {entry?.mentions && entry.mentions.length > 0 ? (
+                  entry.mentions.map((mention) => {
+                    const displayId = mention.target_display_id;
+                    const resolved = displayId
+                      ? resolutionMap.get(displayId)
+                      : undefined;
+                    // Use resolved title if available, otherwise fall back to mention target_title
+                    const title =
+                      resolved?.title || mention.target_title || "Unknown";
+                    const IconComponent = FlaskConical;
+                    return (
+                      <button
+                        key={mention.id}
+                        className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background transition-colors"
+                        aria-label={`View ${title}`}
+                        onClick={() =>
+                          displayId && navigate(`/lims/${displayId}`)
+                        }
+                        disabled={!displayId}
+                      >
+                        <IconComponent
+                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          {title}
+                        </span>
+                        {displayId && (
+                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                            {displayId}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="text-muted-foreground/60 text-[12px] italic px-0.5">
+                    No linked entities
+                  </p>
+                )}
               </div>
             </section>
 

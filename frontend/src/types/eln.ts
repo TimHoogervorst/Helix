@@ -16,6 +16,21 @@ export interface Tag {
   id: number;
   name: string;
   color: string;
+  icon: string;
+}
+
+/** A mention — a parsed reference from an entry body to another entity. */
+export interface Mention {
+  id: number;
+  source_type: number;
+  source_type_name: string;
+  source_id: number;
+  target_type: number;
+  target_type_name: string;
+  target_id: number;
+  target_display_id: string | null;
+  target_title: string | null;
+  context: string;
 }
 
 /** A full entry returned by the detail endpoint. */
@@ -34,6 +49,7 @@ export interface EntryDetail {
   status: string;
   status_display: string;
   tags: Tag[];
+  mentions: Mention[];
 }
 
 /** Payload for creating a new entry. */

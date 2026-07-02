@@ -20,17 +20,29 @@ TAG_COLOR_CHOICES = [
     ("muted", "Muted"),
 ]
 
+TAG_ICON_CHOICES = [
+    ("circle", "Circle"),
+    ("dna", "DNA"),
+    ("rat", "Rat"),
+    ("leaf", "Leaf"),
+    ("cog", "Machine"),
+    ("notebook", "Entry"),
+    ("user", "Person"),
+    ("folder", "Folder"),
+]
+
 
 class Tag(models.Model):
     """A reusable label attached to NotebookEntry instances.
 
     Tags are managed inline on the entry page — no global tag management.
-    Each tag has a unique case-insensitive name and a colour from a preset
-    palette of semantic design tokens.
+    Each tag has a unique case-insensitive name, a colour from a preset
+    palette of semantic design tokens, and an icon from a preset set.
     """
 
     name = models.CharField(max_length=100, unique=True)
     color = models.CharField(max_length=50, choices=TAG_COLOR_CHOICES, default="primary")
+    icon = models.CharField(max_length=50, choices=TAG_ICON_CHOICES, default="circle")
     entries = models.ManyToManyField("NotebookEntry", related_name="tags")
 
     class Meta:

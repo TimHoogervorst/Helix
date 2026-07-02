@@ -11,9 +11,9 @@
  * Action buttons (Save/Cancel/Edit/Delete/folder/status) are exposed via ref so
  * the parent (ElnDetail) can render them in the top toolbar as ghost icon buttons.
  */
-import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { X } from "lucide-react";
+import { X, Circle, Dna, Rat, Leaf, Cog, NotebookText, User, Folder } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types/eln";
 import { useEntryEditor } from "../hooks/useEntryEditor";
@@ -55,6 +55,22 @@ function getTagColor(key: string) {
   return TAG_COLORS.find((c) => c.key === key) || TAG_COLORS[7]; // default: muted
 }
 
+/** Available tag icons with their Lucide component. */
+const TAG_ICONS: { key: string; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "circle",   label: "Circle",  Icon: Circle },
+  { key: "dna",      label: "DNA",     Icon: Dna },
+  { key: "rat",      label: "Rat",     Icon: Rat },
+  { key: "leaf",     label: "Leaf",    Icon: Leaf },
+  { key: "cog",      label: "Machine", Icon: Cog },
+  { key: "notebook", label: "Entry",   Icon: NotebookText },
+  { key: "user",     label: "Person",  Icon: User },
+  { key: "folder",   label: "Folder",  Icon: Folder },
+];
+
+function getTagIcon(key: string) {
+  return TAG_ICONS.find((i) => i.key === key) || TAG_ICONS[0]; // default: circle
+}
+
 /** Snapshot of editor state pushed to parent via onStateChange. */
 export interface ElnEditorState {
   mode: string;
@@ -72,6 +88,8 @@ export interface ElnEditorState {
   status: string;
   /** Current tags on the entry. */
   tags: Tag[];
+  /** Current description text (first paragraph of TipTap content). */
+  description: string;
 }
 
 interface ElnEditorProps {
@@ -102,6 +120,12 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   // ── Content ref (synced on every editor update and on every render) ──
   const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
+
+  // ── Title ref (for contentEditable cursor preservation) ──
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+
+  // ── Description textarea ref (for auto-resize) ──
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
   // ── TipTap Editor ──
   const editor = useEditor({
@@ -135,6 +159,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     title,
     setTitle,
     initialContent,
+    description,
+    setDescription,
     folderId,
     setFolderId,
     folders,
@@ -147,6 +173,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     addTag,
     removeTag,
     createAndAttachTag,
+    changeTagIcon,
     searchTags,
     save,
     cancel,
@@ -159,6 +186,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   const [tagSuggestions, setTagSuggestions] = useState<Tag[]>([]);
   const [showTagInput, setShowTagInput] = useState(false);
   const [pendingTagName, setPendingTagName] = useState<string | null>(null);
+  const [pendingTagIcon, setPendingTagIcon] = useState<string>("circle");
+  const [iconPickerForTag, setIconPickerForTag] = useState<number | null>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
 
   const handleTagQueryChange = useCallback((value: string) => {
@@ -184,17 +213,28 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   const handleCreateTag = useCallback((name: string) => {
     setPendingTagName(name);
+    setPendingTagIcon("circle");
     setTagSuggestions([]);
   }, []);
 
   const handlePickColor = useCallback(async (colorKey: string) => {
     if (!pendingTagName) return;
-    await createAndAttachTag(pendingTagName.trim(), colorKey);
+    await createAndAttachTag(pendingTagName.trim(), colorKey, pendingTagIcon);
     setPendingTagName(null);
+    setPendingTagIcon("circle");
     setTagQuery("");
     setShowTagInput(false);
     tagInputRef.current?.focus();
-  }, [pendingTagName, createAndAttachTag]);
+  }, [pendingTagName, pendingTagIcon, createAndAttachTag]);
+
+  const handlePickIcon = useCallback((iconKey: string) => {
+    setPendingTagIcon(iconKey);
+  }, []);
+
+  const handleChangeIcon = useCallback(async (tagId: number, iconKey: string) => {
+    await changeTagIcon(tagId, iconKey);
+    setIconPickerForTag(null);
+  }, [changeTagIcon]);
 
   // ── Expose actions to parent via ref ──
   // Store latest callbacks in a ref so useImperativeHandle doesn't
@@ -231,9 +271,32 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   const isEdit = mode === "edit-new" || mode === "edit-existing";
   const isSaving = mode === "saving";
 
+  // Sync contentEditable h1 DOM when switching between view/edit modes or when
+  // title changes externally (initial load, cancel). During typing, the title
+  // and DOM are already in sync so the equality check skips the DOM write.
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    const desired = title || "Untitled";
+    if (el.textContent !== desired) {
+      el.textContent = desired;
+    }
+  }, [isEdit, title]);
+
+  // Auto-resize description textarea to fit its content exactly.
+  // Fires when description changes (typing, loading, cancel, mode switch).
+  useLayoutEffect(() => {
+    const el = descriptionRef.current;
+    if (!el) return;
+    // Reset to auto so scrollHeight reflects the true content height,
+    // then set to that height so there's no extra whitespace.
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [description, isEdit]);
+
   useEffect(() => {
-    onStateChange?.({ mode, isEdit, isSaving, isDirty, deleting, entry, folders, folderId, status, tags });
-  }, [mode, isEdit, isSaving, isDirty, deleting, entry, folders, folderId, status, tags, onStateChange]);
+    onStateChange?.({ mode, isEdit, isSaving, isDirty, deleting, entry, folders, folderId, status, tags, description });
+  }, [mode, isEdit, isSaving, isDirty, deleting, entry, folders, folderId, status, tags, description, onStateChange]);
 
   // ── Render ──
 
@@ -291,49 +354,125 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
         )}
       </div>
 
-      {/* Title */}
+      {/* Title — contentEditable h1 that stays in place across view/edit modes.
+           A ref + useLayoutEffect prevents React from resetting cursor position
+           during typing while keeping the same DOM element in both modes. */}
+      <h1
+        ref={(el) => {
+          titleRef.current = el;
+          // Autofocus new entries
+          if (el && isEdit && isNew) {
+            requestAnimationFrame(() => el.focus());
+          }
+        }}
+        contentEditable={isEdit}
+        suppressContentEditableWarning
+        onInput={(e) => {
+          if (isEdit) setTitle(e.currentTarget.textContent || "");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.preventDefault();
+        }}
+        onPaste={(e) => {
+          e.preventDefault();
+          const text = e.clipboardData.getData("text/plain");
+          document.execCommand("insertText", false, text);
+        }}
+        onBlur={() => {
+          if (title.trim() !== title) setTitle(title.trim());
+        }}
+        className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
+        data-testid="title-display"
+      >
+        {!isEdit ? (title || "Untitled") : null}
+      </h1>
+
+      {/* Description — first paragraph of TipTap content, inline-editable */}
       {isEdit ? (
-        <input
-          className="mb-3 w-full bg-transparent font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground placeholder:text-muted-foreground/30 outline-none"
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Untitled"
-          autoFocus={isNew}
-          data-testid="title-input"
+        <textarea
+          ref={descriptionRef}
+          className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Add a description…"
+          data-testid="description-input"
         />
       ) : (
-        <h1
-          className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground"
-          data-testid="title-display"
+        <p
+          className="max-w-2xl text-[15px] leading-relaxed text-muted-foreground"
+          data-testid="description"
         >
-          {title || "Untitled"}
-        </h1>
+          {description || (
+            <span className="text-muted-foreground/40 italic">
+              No description
+            </span>
+          )}
+        </p>
       )}
-
-      {/* Description placeholder */}
-      <p
-        className="max-w-2xl text-[15px] leading-relaxed text-muted-foreground"
-        data-testid="description"
-      >
-        Third iteration of the sgRNA screen using the SpCas9-HF1 variant, with
-        off-target analysis across three guide sequences and two cell lines.
-      </p>
 
       {/* Tags */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
         {tags.map((tag) => {
           const c = getTagColor(tag.color);
+          const ico = getTagIcon(tag.icon);
+          const IconComponent = ico.Icon;
+          const isOpen = iconPickerForTag === tag.id;
           return (
             <span
               key={tag.id}
               className={`inline-flex items-center gap-1 rounded-full border ${c.borderClass} ${c.bgClass} px-2 py-0.5 font-mono text-[0.72rem] ${c.textClass}`}
             >
+              {isEdit ? (
+                <span className="relative">
+                  <button
+                    type="button"
+                    className="btn-icon inline-flex h-4 w-4 items-center justify-center rounded-full !p-0"
+                    onClick={() => setIconPickerForTag(isOpen ? null : tag.id)}
+                    aria-label={`Change icon for ${tag.name}`}
+                    title={ico.label}
+                  >
+                    <IconComponent className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                  {isOpen && (
+                    <div
+                      className="absolute left-0 top-full z-50 mt-1 flex gap-0.5 rounded-md border border-hairline bg-panel px-2 py-1.5 shadow-lg"
+                      data-testid="icon-picker-popover"
+                    >
+                      {TAG_ICONS.map((ico) => {
+                        const isSelected = tag.icon === ico.key;
+                        const IconC = ico.Icon;
+                        return (
+                          <button
+                            key={ico.key}
+                            type="button"
+                            className={`btn-ghost h-7 w-7 !p-0 !justify-center ${isSelected ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                            title={ico.label}
+                            onClick={() => handleChangeIcon(tag.id, ico.key)}
+                            aria-label={`Set icon to ${ico.label}`}
+                          >
+                            <IconC className="h-4 w-4" />
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        className="btn-icon ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded"
+                        onClick={() => setIconPickerForTag(null)}
+                        aria-label="Close icon picker"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </span>
+              ) : (
+                <IconComponent className="h-3 w-3 shrink-0" aria-hidden="true" />
+              )}
               {tag.name}
               {isEdit && (
                 <button
                   type="button"
-                  className="ml-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full opacity-60 hover:opacity-100"
+                  className="btn-icon ml-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full !p-0"
                   onClick={() => removeTag(tag.id)}
                   aria-label={`Remove tag ${tag.name}`}
                 >
@@ -350,7 +489,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
             {!showTagInput && !pendingTagName ? (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 px-2 py-0.5 font-mono text-[0.72rem] text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                className="btn-ghost inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[0.72rem] text-muted-foreground hover:text-foreground"
                 onClick={() => setShowTagInput(true)}
                 data-testid="add-tag-button"
               >
@@ -359,12 +498,13 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
             ) : (
               <div className="flex flex-col gap-1">
                 {pendingTagName ? (
-                  /* ── Color picker for new tag ── */
-                  <div className="flex items-center gap-1 rounded-md border border-hairline bg-panel px-2 py-1.5" data-testid="color-picker">
-                    <span className="mr-1 font-mono text-[0.7rem] text-muted-foreground">
-                      "{pendingTagName}"
+                  /* ── Color + icon picker for new tag ── */
+                  <div className="relative flex flex-col gap-1.5 rounded-md border border-hairline bg-panel px-2 py-1.5 pr-6" data-testid="color-picker">
+                    <span className="font-mono text-[0.7rem] text-muted-foreground">
+                      New tag: "{pendingTagName}"
                     </span>
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-1">
+                      <span className="mr-0.5 font-mono text-[0.6rem] text-muted-foreground">Color</span>
                       {TAG_COLORS.map((c) => (
                         <button
                           key={c.key}
@@ -377,11 +517,30 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
                         />
                       ))}
                     </div>
+                    <div className="flex items-center gap-1">
+                      <span className="mr-0.5 font-mono text-[0.6rem] text-muted-foreground">Icon</span>
+                      {TAG_ICONS.map((ico) => {
+                        const isSelected = pendingTagIcon === ico.key;
+                        const IconC = ico.Icon;
+                        return (
+                          <button
+                            key={ico.key}
+                            type="button"
+                            className={`btn-ghost h-6 w-6 !p-0 !justify-center ${isSelected ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                            title={ico.label}
+                            onClick={() => handlePickIcon(ico.key)}
+                            aria-label={`Icon: ${ico.label}`}
+                          >
+                            <IconC className="h-3.5 w-3.5" />
+                          </button>
+                        );
+                      })}
+                    </div>
                     <button
                       type="button"
-                      className="ml-1 text-muted-foreground hover:text-foreground"
-                      onClick={() => setPendingTagName(null)}
-                      aria-label="Cancel color pick"
+                      className="absolute right-1 top-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => { setPendingTagName(null); setPendingTagIcon("circle"); }}
+                      aria-label="Cancel tag creation"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -417,42 +576,41 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
                   />
                 )}
 
-                {/* Autocomplete dropdown */}
-                {tagSuggestions.length > 0 && !pendingTagName && (
-                  <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-hairline bg-panel py-1 shadow-lg" data-testid="tag-suggestions">
-                    {tagSuggestions.map((t) => (
+                {/* Combined dropdown: existing matching tags (≤ 2) + Create new */}
+                {!pendingTagName && tagQuery.trim() && (
+                  <div className="absolute left-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-hairline bg-panel py-1 shadow-lg" data-testid="tag-suggestions">
+                    {tagSuggestions.slice(0, 2).map((t) => {
+                      const ti = getTagIcon(t.icon);
+                      const TagIcon = ti.Icon;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className="btn-ghost flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px]"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelectTag(t);
+                          }}
+                        >
+                          <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          {t.name}
+                        </button>
+                      );
+                    })}
+                    {!tags.some((t) => t.name.toLowerCase() === tagQuery.trim().toLowerCase()) && (
                       <button
-                        key={t.id}
                         type="button"
-                        className="flex w-full items-center gap-2 px-2.5 py-1 text-left text-[13px] hover:bg-muted"
+                        className="btn-ghost flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px]"
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          handleSelectTag(t);
+                          handleCreateTag(tagQuery.trim());
                         }}
                       >
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: getTagColor(t.color).hex }}
-                        />
-                        <span>{t.name}</span>
+                        <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        {tagQuery.trim()}
+                        <span className="text-muted-foreground">— Create new</span>
                       </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* "Create new" option when no exact match */}
-                {tagQuery.trim() && !pendingTagName && !tags.some((t) => t.name.toLowerCase() === tagQuery.trim().toLowerCase()) && (
-                  <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-hairline bg-panel py-1 shadow-lg">
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 px-2.5 py-1 text-left text-[13px] hover:bg-muted text-primary"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleCreateTag(tagQuery.trim());
-                      }}
-                    >
-                      + Create "{tagQuery.trim()}"
-                    </button>
+                    )}
                   </div>
                 )}
               </div>

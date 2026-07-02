@@ -393,10 +393,11 @@ describe("Pinned Workspaces", () => {
       screen.getByRole("button", { name: "Pin current workspace" }),
     );
 
-    // Should have posted to the API
+    // Should have posted to the API (label is empty since sidebar
+    // doesn't have access to the entity/entry name)
     expect(mockPost).toHaveBeenCalledWith("/core/pins/", {
       display_id: "BLOOD1",
-      label: "BLOOD1",
+      label: "",
       url: "/lims/BLOOD1",
     });
 

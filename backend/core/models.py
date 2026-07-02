@@ -59,7 +59,7 @@ class PinnedWorkspace(models.Model):
         User, on_delete=models.CASCADE, related_name="pinned_workspaces"
     )
     display_id = models.CharField(max_length=255)
-    label = models.CharField(max_length=255)
+    label = models.CharField(max_length=255, blank=True, default="")
     url = models.CharField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
 

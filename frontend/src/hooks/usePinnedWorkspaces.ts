@@ -96,11 +96,15 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     const alreadyPinned = pins.some((p) => p.url === current.url);
     if (alreadyPinned) return;
 
+    // No label available from the URL alone — the user can edit the label
+    // later, or the pin can be created from a context that provides a name.
+    const label = "";
+
     // Build an optimistic pin
     const optimistic: PinnedWorkspace = {
       id: -Date.now(), // temporary negative id
       display_id: current.displayId,
-      label: current.displayId, // will be replaced by server response
+      label,
       url: current.url,
       created_at: new Date().toISOString(),
     };
@@ -110,14 +114,14 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     try {
       const created = await post<PinnedWorkspace>("/core/pins/", {
         display_id: current.displayId,
-        label: current.displayId,
+        label,
         url: current.url,
       });
       // Replace optimistic pin with server response
       setPins((prev) => prev.map((p) => (p.id === optimistic.id ? created : p)));
     } catch {
       // Rollback on error
-      setPins((prev) => prev.filter((p) => p.id !== optimistic.id));
+      setPins((prev) => prev.filter((p) => (p.id !== optimistic.id)));
     }
   }, [current, pins]);
 

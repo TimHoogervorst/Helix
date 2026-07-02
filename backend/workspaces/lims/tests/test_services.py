@@ -186,6 +186,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
         rows2[1] = {
             "entityId": None,
             "displayId": "#new-row",
+            "__name": "Row C",
             "values": {"volume": "40", "patient": "C"},
         }
 

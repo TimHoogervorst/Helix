@@ -183,6 +183,7 @@ class SyncEntryContentTests(BaseServiceTestCase):
                             {
                                 "entityId": None,
                                 "displayId": "#new",
+                                "__name": "Ref Entity",
                                 "values": {"linked_to": self.target.display_id},
                             },
                         ],

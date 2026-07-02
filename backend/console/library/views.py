@@ -70,9 +70,14 @@ class LibraryContentsView(APIView):
             .order_by("-created_at")
         )
 
+        # ── Search ───────────────────────────────────────────────────
+        search_q = request.query_params.get("search", "").strip()
+
         # ── Build mixed list: folders first, then entries ────────────
         items = []
         for f in folders_qs:
+            if search_q and search_q.lower() not in f.name.lower():
+                continue
             items.append(
                 {
                     "type": "folder",
@@ -83,6 +88,11 @@ class LibraryContentsView(APIView):
                 }
             )
         for e in entries_qs:
+            if search_q:
+                title_match = search_q.lower() in e.title.lower()
+                did_match = search_q.lower() in (e.display_id or "").lower()
+                if not title_match and not did_match:
+                    continue
             items.append(
                 {
                     "type": "entry",

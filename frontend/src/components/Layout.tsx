@@ -166,11 +166,15 @@ function Layout() {
                     {workspaceIcon(
                       p.url.startsWith("/lims") ? "lims" : "eln",
                     )}
-                    <span className="truncate">{p.display_id}</span>
-                    {p.label && p.label !== p.display_id && (
-                      <span className="truncate text-muted-foreground">
-                        {p.label}
-                      </span>
+                    {p.label && p.label !== p.display_id ? (
+                      <>
+                        <span className="truncate">{p.label}</span>
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {p.display_id}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="truncate">{p.display_id}</span>
                     )}
                     {isActive && (
                       <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-[18px] text-muted-foreground">

@@ -100,6 +100,105 @@ class EntityTypeSchemaTests(TestCase):
             EntityType.objects.create(name="DNA V2", prefix="DNA", columns=[])
 
 
+class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
+    """When a NotebookEntry status changes, linked Entity rows update via post_save signal."""
+
+    def setUp(self):
+        super().setUp()
+        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+
+    def test_entry_status_update_cascades_to_linked_entities(self):
+        """Saving an existing entry with a new status updates linked Entity status."""
+        entry = NotebookEntry.objects.create(
+            title="Test Entry",
+            content={"type": "doc", "content": [{"type": "paragraph"}]},
+            folder=self.folder,
+            author=self.user,
+            status="in_progress",
+        )
+        entity = Entity.objects.create(
+            name="Sample A",
+            entity_type=self.dna_type,
+            source_entry=entry,
+            folder=self.folder,
+            created_by=self.user,
+            status="in_progress",
+        )
+        # Change entry status and save
+        entry.status = "finished"
+        entry.save()
+        entity.refresh_from_db()
+        self.assertEqual(entity.status, "finished")
+
+    def test_new_entry_creation_does_not_trigger_status_update(self):
+        """Creating a new NotebookEntry does not modify linked Entity rows."""
+        entry = NotebookEntry.objects.create(
+            title="Test Entry",
+            content={"type": "doc", "content": [{"type": "paragraph"}]},
+            folder=self.folder,
+            author=self.user,
+            status="in_progress",
+        )
+        entity = Entity.objects.create(
+            name="Sample A",
+            entity_type=self.dna_type,
+            source_entry=entry,
+            folder=self.folder,
+            created_by=self.user,
+            status="in_progress",
+        )
+        # Creating a new entry should not affect existing entities
+        NotebookEntry.objects.create(
+            title="Another Entry",
+            content={"type": "doc", "content": [{"type": "paragraph"}]},
+            folder=self.folder,
+            author=self.user,
+            status="finished",
+        )
+        entity.refresh_from_db()
+        self.assertEqual(entity.status, "in_progress")  # unchanged
+
+    def test_status_update_only_affects_entities_linked_to_that_entry(self):
+        """Only entities linked to the saved entry get their status updated."""
+        entry1 = NotebookEntry.objects.create(
+            title="Entry 1",
+            content={"type": "doc", "content": [{"type": "paragraph"}]},
+            folder=self.folder,
+            author=self.user,
+            status="in_progress",
+        )
+        entry2 = NotebookEntry.objects.create(
+            title="Entry 2",
+            content={"type": "doc", "content": [{"type": "paragraph"}]},
+            folder=self.folder,
+            author=self.user,
+            status="in_progress",
+        )
+        entity1 = Entity.objects.create(
+            name="Linked to Entry 1",
+            entity_type=self.dna_type,
+            source_entry=entry1,
+            folder=self.folder,
+            created_by=self.user,
+            status="in_progress",
+        )
+        entity2 = Entity.objects.create(
+            name="Linked to Entry 2",
+            entity_type=self.dna_type,
+            source_entry=entry2,
+            folder=self.folder,
+            created_by=self.user,
+            status="in_progress",
+        )
+        # Update only entry1
+        entry1.status = "finished"
+        entry1.save()
+        entity1.refresh_from_db()
+        entity2.refresh_from_db()
+        self.assertEqual(entity1.status, "finished")
+        self.assertEqual(entity2.status, "in_progress")  # unchanged
+
+
 class EntitySourceEntryTests(BaseServiceTestCase):
     """Entity.source_entry links to the owning NotebookEntry."""
 

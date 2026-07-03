@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import Reference from "../Reference";
-import { createTestEditor } from "../../test/factories";
+import { createTestEditor } from "../../../../../test/factories";
 
 describe("Reference", () => {
   // ── Input rule regex ──────────────────────────────────────────────────

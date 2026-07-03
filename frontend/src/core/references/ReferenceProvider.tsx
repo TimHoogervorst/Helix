@@ -14,7 +14,7 @@
  */
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
 import { post } from "../api/client";
-import type { ResolvedRef } from "../../types/references";
+import type { ResolvedRef } from "./types";
 
 type ResolutionMap = Map<string, ResolvedRef | null>;
 

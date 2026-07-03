@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get } from "../../../api/client";
+import { get } from "../../../core/api/client";
 import type { EntityListItem } from "../types";
 import ReferenceBadge from "../../../shared/ReferenceBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
-import EntityWorkspacePanel from "./EntityWorkspace";
+import LimsWorkspacePanel from "./LimsWorkspace";
 
 /**
- * Full-page entity workspace (route: /lims/:displayId).
+ * Full-page LIMS entity workspace (route: /lims/:displayId).
  *
- * Thin fetcher wrapping the canonical {@link EntityWorkspacePanel} from
+ * Thin fetcher wrapping the canonical {@link LimsWorkspacePanel} from
  * workspaces/lims.  Fetches the entity by displayId and renders an entity
  * header card above the shared tabbed workspace panel.
  */
-function EntityWorkspace() {
+function LimsWorkspacePage() {
   const { displayId } = useParams<{ displayId: string }>();
   const navigate = useNavigate();
   const [entity, setEntity] = useState<EntityListItem | null>(null);
@@ -97,7 +97,7 @@ function EntityWorkspace() {
       </div>
 
       {/* Workspace panel with tabs — no back button */}
-      <EntityWorkspacePanel
+      <LimsWorkspacePanel
         entity={entity}
         isExiting={false}
       />
@@ -105,4 +105,4 @@ function EntityWorkspace() {
   );
 }
 
-export default EntityWorkspace;
+export default LimsWorkspacePage;

@@ -11,8 +11,8 @@ import {
   collectDisplayIds,
   validateEntityNames,
   type UseEntryEditorOptions,
-} from "../useEntryEditor";
-import { EMPTY_DOC, type TipTapDoc } from "../../types/eln";
+} from "../hooks/useEntryEditor";
+import { EMPTY_DOC, type TipTapDoc } from "../types";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockPut = vi.fn();
 const mockDel = vi.fn();
-vi.mock("../../api/client", () => ({
+vi.mock("../../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: (...args: unknown[]) => mockPost(...args),
   put: (...args: unknown[]) => mockPut(...args),
@@ -40,7 +40,7 @@ vi.mock("../../api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn();
-vi.mock("../../core/references/ReferenceProvider", () => ({
+vi.mock("../../../core/references/ReferenceProvider", () => ({
   useReferenceContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,

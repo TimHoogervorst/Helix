@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { TipTapDoc, EntryDetail } from "../types/eln";
-import { get } from "../api/client";
+import { get } from "../core/api/client";
 
 interface UseContentPreviewResult {
   content: TipTapDoc | null;

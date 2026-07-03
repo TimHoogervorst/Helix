@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { ViewState } from "../../../types/console";
+import type { ViewState } from "../../types/console";
 import type { ConsoleViewState } from "../useConsoleView";
 
 // ── Mock useConsoleView ──────────────────────────────────────────────

@@ -1,11 +1,11 @@
-import type { ElnEntry } from "../types";
-import type { ViewState } from "../../../types/console";
+import type { EntryListItem } from "../types";
+import type { ViewState } from "../../../core/types/console";
 import ReferenceBadge from "../../../shared/ReferenceBadge";
 import ConsoleDetailPanel from "../../../core/console/ConsoleDetailPanel";
-import { formatDate } from "../../../utils/format";
+import { formatDate } from "../../../shared/format";
 
 interface ElnDetailCardProps {
-  entry: ElnEntry;
+  entry: EntryListItem;
   viewState: ViewState;
   onClose: () => void;
   onCollapse: () => void;
@@ -73,12 +73,6 @@ function ElnDetailCard({
           <div className="detail-field">
             <span className="detail-label">Author</span>
             <span>{entry.author_username}</span>
-          </div>
-        )}
-        {entry.folder_name && (
-          <div className="detail-field">
-            <span className="detail-label">Folder</span>
-            <span>{entry.folder_name}</span>
           </div>
         )}
       </div>

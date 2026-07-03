@@ -1,5 +1,5 @@
 /**
- * Tests for ElnDetail — 3-column ELN entry page.
+ * Tests for ElnWorkspacePage — 3-column ELN entry page.
  *
  * Verifies the top toolbar (breadcrumbs, editor action buttons, ghost icon
  * buttons, avatars, share/sign & witness), content area, and metadata panel
@@ -17,7 +17,7 @@ import React from "react";
 
 /** ElnEditor mock that fires onStateChange so the top toolbar can render
  *  the correct action buttons. */
-vi.mock("../../components/ElnEditor", () => ({
+vi.mock("../editor/ElnEditor", () => ({
   default: React.forwardRef(
     (
       props: { entryId?: string; onStateChange?: (s: unknown) => void },
@@ -75,19 +75,19 @@ function renderAtRoute(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/eln/:id" element={<ElnDetail />} />
-        <Route path="/eln/new" element={<ElnDetail />} />
+        <Route path="/eln/:id" element={<ElnWorkspacePage />} />
+        <Route path="/eln/new" element={<ElnWorkspacePage />} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
 // Dynamic import after mocks are hoisted
-import ElnDetail from "../ElnDetail";
+import ElnWorkspacePage from "../workspace/ElnWorkspacePage";
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
-describe("ElnDetail — 3-column layout", () => {
+describe("ElnWorkspacePage — 3-column layout", () => {
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 
   it("renders breadcrumb with folder icon and path", () => {

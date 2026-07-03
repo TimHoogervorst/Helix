@@ -6,9 +6,9 @@ import {
   registerSettingsSection,
 } from "../../core/mod-system";
 import LimsConsole from "./console/LimsConsole";
-import LimsDetailCard from "./workspace/LimsDetailCard";
-import EntityWorkspace from "./workspace/EntityWorkspace";
-import EntityWorkspacePage from "./workspace/EntityWorkspacePage";
+import LimsDetailCard from "./console/LimsDetailCard";
+import LimsWorkspace from "./workspace/LimsWorkspace";
+import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
 
 export const meta = {
@@ -28,8 +28,9 @@ export function register() {
     order: 30,
     defaults: {
       detailCard: LimsDetailCard,
-      workspace: EntityWorkspace,
+      workspace: LimsWorkspace,
     },
+    accepts: { except: ["eln.entry"] },
   });
 
   // ── Workspace: entity item type for the LIMS console ──────────────────
@@ -39,7 +40,7 @@ export function register() {
     consoleIds: ["lims"],
     route: "/lims/:displayId",
     detailCard: LimsDetailCard,
-    workspace: EntityWorkspace,
+    workspace: LimsWorkspace,
   });
 
   // ── Standalone route: full entity workspace page ──────────────────────
@@ -47,7 +48,7 @@ export function register() {
     id: "lims.entity-page",
     modId: "lims",
     path: "/lims/:displayId",
-    component: EntityWorkspacePage,
+    component: LimsWorkspacePage,
   });
 
   // ── Settings: schema CRUD (includes DangerZone) ──────────────────────

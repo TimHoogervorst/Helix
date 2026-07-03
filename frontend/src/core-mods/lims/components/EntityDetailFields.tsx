@@ -10,7 +10,7 @@ export interface EntityDetailFieldsProps {
   children?: ReactNode;
 }
 
-import { formatDate } from "../../../utils/format";
+import { formatDate } from "../../../shared/format";
 
 function EntityDetailFields({
   entity,

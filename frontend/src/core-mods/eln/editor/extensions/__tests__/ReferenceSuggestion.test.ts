@@ -10,11 +10,11 @@ import ReferenceSuggestion, {
   DISPLAY_ID_PATTERN,
   fetchItems,
 } from "../ReferenceSuggestion";
-import { createTestEditor } from "../../test/factories";
+import { createTestEditor } from "../../../../../test/factories";
 
 // ── Mock API client ───────────────────────────────────────────────────────
 const mockGet = vi.fn();
-vi.mock("../../api/client", () => ({
+vi.mock("../../../../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 

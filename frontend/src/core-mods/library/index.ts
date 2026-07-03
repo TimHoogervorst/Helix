@@ -1,7 +1,7 @@
+import { lazy } from "react";
 import { BookOpen } from "lucide-react";
 import { registerConsole } from "../../core/mod-system";
 import LibraryConsole from "./console/LibraryConsole";
-import ElnDetailCard from "../eln/console/ElnDetailCard";
 
 export const meta = {
   id: "library",
@@ -19,9 +19,10 @@ export function register() {
     component: LibraryConsole,
     order: 10, // First in sidebar
     defaults: {
-      // ELN mod owns the detail card — Library delegates rendering
-      detailCard: ElnDetailCard,
-      // TODO: add ELN mod's ElnWorkspace when the full ELN mod is created (#85)
+      // Cross-mod references use lazy imports at the registration boundary.
+      // The ELN mod owns the detail card and workspace — Library delegates.
+      detailCard: lazy(() => import("../eln/console/ElnDetailCard")),
+      workspace: lazy(() => import("../eln/workspace/ElnWorkspace")),
     },
     accepts: { only: ["eln.entry"] },
   });

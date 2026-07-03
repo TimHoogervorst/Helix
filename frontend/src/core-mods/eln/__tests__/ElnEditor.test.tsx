@@ -15,8 +15,8 @@ import { render, screen, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { createRef } from "react";
 
-import ElnEditor from "../ElnEditor";
-import type { ElnEditorHandle, ElnEditorState } from "../ElnEditor";
+import ElnEditor from "../editor/ElnEditor";
+import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockPut = vi.fn();
 const mockDel = vi.fn();
-vi.mock("../../api/client", () => ({
+vi.mock("../../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: (...args: unknown[]) => mockPost(...args),
   put: (...args: unknown[]) => mockPut(...args),
@@ -45,7 +45,7 @@ vi.mock("../../api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn().mockResolvedValue(undefined);
-vi.mock("../ReferenceProvider", () => ({
+vi.mock("../../../core/references/ReferenceProvider", () => ({
   useReferenceContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,

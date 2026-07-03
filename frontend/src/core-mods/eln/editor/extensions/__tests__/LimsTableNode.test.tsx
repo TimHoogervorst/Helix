@@ -14,7 +14,7 @@ import {
   columnDefFor,
   emptyValues,
 } from "../LimsTableNode";
-import type { GridColumn, GridRow } from "../../core-mods/lims/types";
+import type { GridColumn, GridRow } from "../../../../lims/types";
 
 // ── Mock AG Grid ──────────────────────────────────────────────────────────
 
@@ -37,13 +37,13 @@ vi.mock("ag-grid-community", () => ({
 // ── Mock API client ───────────────────────────────────────────────────────
 
 const mockGet = vi.fn();
-vi.mock("../../api/client", () => ({
+vi.mock("../../../../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 
 // ── Mock cell renderers ───────────────────────────────────────────────────
 
-vi.mock("../../components/ReferenceBadgeCellRenderer", () => ({
+vi.mock("../ReferenceBadgeCellRenderer", () => ({
   DisplayIdCellRenderer: (props: any) => (
     <span data-testid="display-id-cell">{props.value}</span>
   ),

@@ -46,20 +46,18 @@ vi.mock("../../../shared/useContentPreview", () => ({
   }),
 }));
 
-// Mock ElnDetailCard (owned by ELN mod; tested separately)
-vi.mock("../../eln/console/ElnDetailCard", () => ({
-  default: ({ entry }: { entry: { display_id: string; title: string } }) => (
-    <div data-testid="eln-detail-card">
-      Detail: {entry.title}
-    </div>
-  ),
-}));
-
-// Mock ElnEditor (heavy, tested separately)
-vi.mock("../../../components/ElnEditor", () => ({
-  default: ({ entryId }: { entryId?: string }) => (
-    <div data-testid="eln-editor">Editor for {entryId}</div>
-  ),
+// Mock ModRegistry — LibraryConsole resolves the ELN detail card via the registry
+vi.mock("../../../core/mod-system/ModRegistry", () => ({
+  ModRegistry: {
+    getInstance: () => ({
+      resolveWorkspaceRenderers: () => ({
+        detailCard: ({ entry }: { entry: { display_id: string; title: string } }) => (
+          <div data-testid="eln-detail-card">Detail: {entry.title}</div>
+        ),
+        workspace: undefined,
+      }),
+    }),
+  },
 }));
 
 // ── Fixtures ─────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put, del } from "../../../api/client";
+import { get, post, put, del } from "../../../core/api/client";
 import type { EntityType, EntityTypePayload, ColumnDef } from "../types";
 import TypeMasterPanel from "./TypeMasterPanel";
 import TypeDetailPanel from "./TypeDetailPanel";

@@ -23,7 +23,7 @@ export function PlaceholderTab({ label }: { label: string }) {
   );
 }
 
-interface EntityWorkspaceProps {
+interface LimsWorkspaceProps {
   entity: EntityListItem;
   isExiting: boolean;
   /** Optional URL pointing back to the master panel (used when rendered as a full page). */
@@ -32,7 +32,7 @@ interface EntityWorkspaceProps {
   children?: ReactNode;
 }
 
-function EntityWorkspace({ entity: _entity, isExiting, backUrl, children }: EntityWorkspaceProps) {
+function LimsWorkspace({ entity: _entity, isExiting, backUrl, children }: LimsWorkspaceProps) {
   const [activeTab, setActiveTab] = useState(ENTITY_TABS[0].id);
 
   return (
@@ -62,4 +62,4 @@ function EntityWorkspace({ entity: _entity, isExiting, backUrl, children }: Enti
   );
 }
 
-export default EntityWorkspace;
+export default LimsWorkspace;

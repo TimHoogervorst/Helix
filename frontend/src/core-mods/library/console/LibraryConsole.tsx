@@ -7,7 +7,7 @@ import { getLibraryContents } from "../api";
 import Breadcrumbs from "../../../core/console/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
-import ElnDetailCard from "../../eln/console/ElnDetailCard";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 
 function LibraryConsole() {
   const navigate = useNavigate();
@@ -154,6 +154,14 @@ function LibraryConsole() {
     }
   };
 
+  // ── Registry-driven renderer resolution ─────────────────────────
+
+  const renderers = ModRegistry.getInstance().resolveWorkspaceRenderers(
+    "eln.entry",
+    "library",
+  );
+  const DetailCard = renderers.detailCard;
+
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
@@ -187,8 +195,9 @@ function LibraryConsole() {
       }
       detail={
         selectedItem &&
+        DetailCard &&
         (viewState === "detail" || viewState === "expanded") ? (
-          <ElnDetailCard
+          <DetailCard
             entry={selectedItem}
             viewState={viewState}
             onClose={goToList}

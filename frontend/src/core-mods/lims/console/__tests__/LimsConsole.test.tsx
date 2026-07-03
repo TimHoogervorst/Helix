@@ -8,7 +8,7 @@ import LimsConsole from "../LimsConsole";
 // ── API client mock ───────────────────────────────────────────────────────
 
 const mockGet = vi.fn();
-vi.mock("../../../../api/client", () => ({
+vi.mock("../../../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 
@@ -47,13 +47,13 @@ vi.mock("../../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge({ clickable: true }),
 }));
 
-vi.mock("../../workspace/LimsDetailCard", () => ({
+vi.mock("../LimsDetailCard", () => ({
   default: ({ entity }: { entity: EntityListItem }) => (
     <div data-testid="lims-detail-card">Detail for {entity.display_id}</div>
   ),
 }));
 
-vi.mock("../../workspace/EntityWorkspace", () => ({
+vi.mock("../../workspace/LimsWorkspace", () => ({
   default: ({ entity }: { entity: EntityListItem }) => (
     <div data-testid="entity-workspace">
       Workspace for {entity.display_id}

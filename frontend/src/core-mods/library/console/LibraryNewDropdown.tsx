@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, FolderPlus, FileText } from "lucide-react";
-import { post } from "../../../api/client";
+import { post } from "../../../core/api/client";
 
 interface LibraryNewDropdownProps {
   currentPath: string;

@@ -1,5 +1,5 @@
 import type { EntityListItem } from "../types";
-import type { ViewState } from "../../../types/console";
+import type { ViewState } from "../../../core/types/console";
 import ReferenceBadge from "../../../shared/ReferenceBadge";
 import ConsoleDetailPanel from "../../../core/console/ConsoleDetailPanel";
 import EntityDetailFields from "../components/EntityDetailFields";

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import LimsTable from "../LimsTable";
-import { createTestEditor } from "../../test/factories";
+import { createTestEditor } from "../../../../../test/factories";
 
 describe("LimsTable", () => {
   // ── schemaId parsing ─────────────────────────────────────────────────

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { EntryListItem } from "../types";
 import { listEntries } from "../api";
+import { useConsoleData } from "../../../core/console/useConsoleData";
 import { useConsoleView } from "../../../core/console/useConsoleView";
 import ConsolePage from "../../../core/console/ConsolePage";
 import ElnDetailCard from "./ElnDetailCard";
@@ -9,168 +9,95 @@ import ElnTable from "./ElnTable";
 import { ModRegistry } from "../../../core/mod-system";
 
 function ElnConsole() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectId = searchParams.get("select") || "";
-
-  const [entries, setEntries] = useState<EntryListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nextUrl, setNextUrl] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<EntryListItem | null>(null);
-
   const navigate = useNavigate();
+  const view = useConsoleView();
 
-  const {
-    viewState,
-    isExiting,
-    goToDetail,
-    collapseFromExpanded: collapseFromExpandedBase,
-    closeAll: closeAllBase,
-    updateViewState,
-  } = useConsoleView();
+  // ── Data hook ─────────────────────────────────────────────────────────
 
-  const fetchEntries = useCallback(
-    async (url?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await listEntries(url);
-        if (url) {
-          setEntries((prev) => [...prev, ...data.results]);
-        } else {
-          setEntries(data.results);
-        }
-        setNextUrl(data.next);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
+  const data = useConsoleData({
+    fetchFn: listEntries,
+    getId: (e) => e.id,
+    getDisplayId: (e) => e.display_id,
+    onSelectResolved: () => view.updateViewState("detail"),
+  });
+
+  // ── Registry-driven renderer resolution ───────────────────────────────
+
+  const renderers = ModRegistry.getInstance().resolveWorkspaceRenderers(
+    "eln.entry",
+    "eln",
   );
 
-  useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
-
-  // ── Auto-select entry when arriving from workspace (via ?select=<display_id>) ──
-  useEffect(() => {
-    if (!selectId || loading || entries.length === 0) return;
-
-    const target = entries.find((e) => e.display_id === selectId);
-
-    if (target) {
-      setSelectedId(target.id);
-      setSelectedEntry(target);
-      updateViewState("detail");
-      const next = new URLSearchParams(searchParams);
-      next.delete("select");
-      setSearchParams(next, { replace: true });
-    }
-  }, [selectId, loading, entries]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Registry-driven renderer resolution ──────────────────────────────
-  const renderers = ModRegistry.getInstance().resolveWorkspaceRenderers("eln.entry", "eln");
-
-  // ── State machine transitions ────────────────────────────────────────
-
-  const selectEntry = (entry: EntryListItem) => {
-    setSelectedId(entry.id);
-    setSelectedEntry(entry);
-  };
-
-  const clearSelection = () => {
-    setSelectedId(null);
-    setSelectedEntry(null);
-  };
+  // ── State machine transitions (wrapping shared hooks) ─────────────────
 
   const goToList = () => {
-    closeAllBase();
-    clearSelection();
+    view.closeAll();
+    data.clearSelection();
   };
 
-  const goToDetailForEntry = (entry: EntryListItem) => {
-    selectEntry(entry);
-    goToDetail();
-  };
-
-  const collapseFromExpanded = () => {
-    collapseFromExpandedBase();
-  };
-
-  // ── Row click handlers ─────────────────────────────────────────────
+  // ── Row click handlers ────────────────────────────────────────────────
 
   const handleRowClick = (entry: EntryListItem) => {
-    if (viewState === "expanded") return;
-
-    if (viewState === "detail" && selectedId === entry.id) {
-      goToList();
-    } else {
-      goToDetailForEntry(entry);
-    }
+    const action = data.handleRowClick(entry, view.viewState);
+    if (action.type === "select") view.goToDetail();
+    else if (action.type === "deselect") goToList();
   };
 
   const handleRowExpand = (entry: EntryListItem) => {
     navigate(`/eln/${entry.display_id}`);
   };
 
-  const handleLoadMore = () => {
-    if (nextUrl) fetchEntries(nextUrl);
-  };
-
-  // ── Render ─────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
   const DetailComponent = renderers.detailCard;
   const WorkspaceComponent = renderers.workspace;
 
   return (
     <ConsolePage
-      loading={loading && entries.length === 0}
-      error={error}
+      loading={data.loading && data.items.length === 0}
+      error={data.error}
       collapsedTitle="Expand entry list"
       table={
         <ElnTable
-          entries={entries}
-          selectedId={selectedId}
+          entries={data.items}
+          selectedId={data.selectedId as number | null}
           onRowClick={handleRowClick}
           onRowExpand={handleRowExpand}
         />
       }
       detail={
-        selectedEntry &&
-        (viewState === "detail" || viewState === "expanded") ? (
+        data.selectedItem &&
+        (view.viewState === "detail" || view.viewState === "expanded") ? (
           DetailComponent ? (
             <DetailComponent
-              entry={selectedEntry}
-              viewState={viewState}
+              entry={data.selectedItem}
+              viewState={view.viewState}
               onClose={goToList}
-              onCollapse={collapseFromExpanded}
+              onCollapse={view.collapseFromExpanded}
             />
           ) : (
             <ElnDetailCard
-              entry={selectedEntry}
-              viewState={viewState}
+              entry={data.selectedItem}
+              viewState={view.viewState}
               onClose={goToList}
-              onCollapse={collapseFromExpanded}
+              onCollapse={view.collapseFromExpanded}
             />
           )
         ) : undefined
       }
       workspace={
-        selectedEntry && viewState === "expanded" ? (
+        data.selectedItem && view.viewState === "expanded" ? (
           WorkspaceComponent ? (
             <WorkspaceComponent
-              entry={selectedEntry}
-              isExiting={isExiting}
+              entry={data.selectedItem}
+              isExiting={view.isExiting}
             />
           ) : undefined
         ) : undefined
       }
-      hasMore={!!nextUrl}
-      onLoadMore={handleLoadMore}
-      loadingMore={loading}
+      hasMore={!!data.nextUrl}
+      onLoadMore={data.handleLoadMore}
+      loadingMore={data.loading}
     />
   );
 }

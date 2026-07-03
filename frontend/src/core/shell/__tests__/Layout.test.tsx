@@ -11,16 +11,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Database, BookOpen } from "lucide-react";
-import { ModRegistry } from "../../core/mod-system/ModRegistry";
+import { ModRegistry } from "../../mod-system/ModRegistry";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
 const mockGet = vi.fn();
-vi.mock("../../core/api/client", () => ({
+vi.mock("../../api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 
-import Layout from "../../core/shell/Layout";
+import Layout from "../Layout";
 
 function renderLayout(initialRoute = "/library") {
   return render(

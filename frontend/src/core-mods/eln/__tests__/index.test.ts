@@ -23,7 +23,7 @@ describe("eln mod registration", () => {
     expect(mod.meta.dependsOn).toEqual(["lims"]);
   });
 
-  it("registers a console with id 'eln' at route /eln", async () => {
+  it("does NOT register a console (ELN console is removed from UI)", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -33,10 +33,7 @@ describe("eln mod registration", () => {
     const consoles = registry.getConsoles();
     const elnConsole = consoles.get("eln");
 
-    expect(elnConsole).toBeDefined();
-    expect(elnConsole!.route).toBe("/eln");
-    expect(elnConsole!.accepts).toEqual({ only: ["eln.entry"] });
-    expect(elnConsole!.component).toBeTruthy();
+    expect(elnConsole).toBeUndefined();
   });
 
   it("registers a workspace with id 'eln.entry'", async () => {
@@ -50,8 +47,7 @@ describe("eln mod registration", () => {
     const ws = workspaces.get("eln.entry");
 
     expect(ws).toBeDefined();
-    expect(ws!.consoleIds).toContain("eln");
-    expect(ws!.consoleIds).toContain("library");
+    expect(ws!.consoleIds).toEqual(["library"]);
     expect(ws!.workspace).toBeTruthy();
     expect(ws!.detailCard).toBeDefined();
   });

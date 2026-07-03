@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef } from "react";
 import { useReferenceContext } from "../core/references/ReferenceProvider";
-import type { ResolvedRef } from "../types/references";
+import type { ResolvedRef } from "../core/references/types";
 
 // ── Public type ──────────────────────────────────────────────────────────
 

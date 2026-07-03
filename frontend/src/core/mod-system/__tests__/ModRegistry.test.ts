@@ -239,25 +239,21 @@ describe("ModRegistry", () => {
     vi.restoreAllMocks();
   });
 
-  // ── registerService (deferred) ───────────────────────────────────────
+  // ── registerService ───────────────────────────────────────────────────
 
-  it("registerService stores config and warns", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const config = makeService({ id: "svc1" });
+  it("registerService stores a service config", () => {
+    const handler = vi.fn(async () => "result");
+    const config = makeService({ id: "svc1", handler });
     registry.registerService(config);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("registerService('svc1')"),
-    );
-    warn.mockRestore();
+    // Verify via registry.call — it works because registerService stores the handler.
+    return expect(registry.call("svc1", "arg1")).resolves.toBe("result");
   });
 
   it("registerService throws on duplicate ID", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
     registry.registerService(makeService({ id: "svc1" }));
     expect(() => registry.registerService(makeService({ id: "svc1" }))).toThrow(
       "Duplicate service registration",
     );
-    vi.restoreAllMocks();
   });
 
   // ── resolveWorkspaceRenderers ───────────────────────────────────────
@@ -425,12 +421,38 @@ describe("ModRegistry", () => {
     expect(() => registry.validate()).not.toThrow();
   });
 
-  // ── call (deferred) ──────────────────────────────────────────────────
+  // ── call ──────────────────────────────────────────────────────────────
 
-  it("call throws not implemented", async () => {
-    await expect(registry.call("any.service")).rejects.toThrow(
-      "Service registry is not yet implemented",
+  it("call invokes the registered handler with args and returns its result", async () => {
+    const handler = vi.fn(
+      async (...args: unknown[]) => (args[0] as number) + (args[1] as number),
     );
+    registry.registerService(makeService({ id: "add", handler }));
+
+    const result = await registry.call("add", 3, 4);
+
+    expect(handler).toHaveBeenCalledWith(3, 4);
+    expect(result).toBe(7);
+  });
+
+  it("call throws a descriptive error when the service is not registered", async () => {
+    await expect(registry.call("nonexistent")).rejects.toThrow(
+      "Service 'nonexistent' is not registered.",
+    );
+  });
+
+  it("call propagates handler-thrown errors to the caller", async () => {
+    const error = new Error("handler exploded");
+    registry.registerService(
+      makeService({
+        id: "explode",
+        handler: async () => {
+          throw error;
+        },
+      }),
+    );
+
+    await expect(registry.call("explode")).rejects.toThrow("handler exploded");
   });
 
   // ── Read-only getters ───────────────────────────────────────────────

@@ -1,3 +1,4 @@
+from django.apps import apps
 from django.core.paginator import Paginator as DjangoPaginator
 from django.http import Http404
 from rest_framework.views import APIView
@@ -5,7 +6,6 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
 from core.models import Folder
-from core_mods.eln.models import NotebookEntry
 
 
 class MixedListPagination(PageNumberPagination):
@@ -65,7 +65,8 @@ class LibraryContentsView(APIView):
 
         # ── Entries ──────────────────────────────────────────────────
         entries_qs = (
-            NotebookEntry.objects.filter(folder=folder)
+            apps.get_model("eln", "NotebookEntry")
+            .objects.filter(folder=folder)
             .select_related("author", "folder")
             .order_by("-created_at")
         )

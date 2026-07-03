@@ -85,12 +85,7 @@ class NotebookEntry(BrowsableItem):
         return "E"
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None
         super().save(*args, **kwargs)
-        if not is_new:
-            from core_mods.lims.models import Entity
-
-            Entity.objects.filter(source_entry=self).update(status=self.status)
 
 
 class Mention(models.Model):

@@ -80,6 +80,26 @@ export interface EntryUpdatePayload {
   folder?: number;
 }
 
+import type { GridColumnType } from "../../shared/types";
+
+/** Summary of an entity type (schema) as returned by the LIMS API.
+ *  Only includes the fields the ELN editor actually uses — not the full
+ *  EntityType shape from the LIMS module. */
+export interface EntityTypeSummary {
+  id: number;
+  name: string;
+  prefix: string;
+  columns: {
+    name: string;
+    type: GridColumnType;
+    required?: boolean;
+    default?: string;
+    units?: string;
+    description?: string;
+  }[];
+  is_active: boolean;
+}
+
 /** An empty TipTap document — a single empty paragraph. */
 export const EMPTY_DOC: TipTapDoc = {
   type: "doc",

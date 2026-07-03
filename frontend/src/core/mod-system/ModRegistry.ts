@@ -124,16 +124,12 @@ export class ModRegistry {
   }
 
   registerService(config: ServiceConfig): void {
-    // Shape only — implementation deferred.
     if (this.services.has(config.id)) {
       throw new Error(
         `Duplicate service registration: '${config.id}' is already registered.`,
       );
     }
     this.services.set(config.id, config);
-    console.warn(
-      `[ModRegistry] registerService('${config.id}') — service registry is not yet implemented.`,
-    );
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
@@ -177,12 +173,26 @@ export class ModRegistry {
     return undefined;
   }
 
-  // ── Service invocation (deferred) ─────────────────────────────────────
+  // ── Service invocation ────────────────────────────────────────────────
 
-  async call(_serviceId: string, ..._args: unknown[]): Promise<unknown> {
-    throw new Error(
-      "Service registry is not yet implemented. Use direct imports or shared/ for now.",
-    );
+  /**
+   * Invoke a registered service by ID.
+   *
+   * Looks up the handler registered for `serviceId` and calls it with the
+   * provided arguments. Returns the handler's result.
+   *
+   * Throws if no service is registered under `serviceId`.
+   * Errors thrown by the handler propagate to the caller.
+   */
+  async call(serviceId: string, ...args: unknown[]): Promise<unknown> {
+    const config = this.services.get(serviceId);
+    if (!config) {
+      throw new Error(
+        `Service '${serviceId}' is not registered. ` +
+          `Ensure the owning mod calls registerService() before other mods try to call it.`,
+      );
+    }
+    return config.handler(...args);
   }
 
   // ── Validation ────────────────────────────────────────────────────────
@@ -264,5 +274,10 @@ export class ModRegistry {
   /** Returns a read-only view of all registered slash commands. */
   getSlashCommands(): ReadonlyMap<string, SlashCommandConfig> {
     return this.slashCommands;
+  }
+
+  /** Returns a read-only view of all registered services. */
+  getServices(): ReadonlyMap<string, ServiceConfig> {
+    return this.services;
   }
 }

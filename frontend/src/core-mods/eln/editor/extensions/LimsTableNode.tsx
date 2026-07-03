@@ -14,7 +14,8 @@ import type {
   CellValueChangedEvent,
   CellMouseDownEvent,
 } from "ag-grid-community";
-import type { GridColumn, GridRow, EntityType } from "../../../lims/types";
+import type { GridColumn, GridRow } from "../../../../shared/types";
+import type { EntityTypeSummary } from "../../types";
 import { get } from "../../../../core/api/client";
 import { DisplayIdCellRenderer, ReferenceCellRenderer } from "./ReferenceBadgeCellRenderer";
 
@@ -164,7 +165,7 @@ function LimsTableNode(props: NodeViewProps) {
   const [activePanel, setActivePanel] = useState<
     "addColumn" | "loadSchema" | null
   >(null);
-  const [schemas, setSchemas] = useState<EntityType[]>([]);
+  const [schemas, setSchemas] = useState<EntityTypeSummary[]>([]);
   const [schemasLoading, setSchemasLoading] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnType, setNewColumnType] =
@@ -251,7 +252,7 @@ function LimsTableNode(props: NodeViewProps) {
     if (schemas.length === 0) {
       setSchemasLoading(true);
       try {
-        const data = await get<EntityType[]>("/lims/entity-types/");
+        const data = await get<EntityTypeSummary[]>("/lims/entity-types/");
         setSchemas(data.filter((t) => t.is_active));
       } catch {
         // silently leave list empty
@@ -262,7 +263,7 @@ function LimsTableNode(props: NodeViewProps) {
   }, [schemas.length]);
 
   const handleSelectSchema = useCallback(
-    (entityType: EntityType) => {
+    (entityType: EntityTypeSummary) => {
       const newColumns: GridColumn[] = entityType.columns.map((c) => ({
         name: c.name,
         type: c.type,
@@ -447,7 +448,7 @@ function LimsTableNode(props: NodeViewProps) {
   useEffect(() => {
     if (schemaId === null || schemaName !== null) return;
     let cancelled = false;
-    get<EntityType>(`/lims/entity-types/${schemaId}/`)
+    get<EntityTypeSummary>(`/lims/entity-types/${schemaId}/`)
       .then((et) => {
         if (!cancelled && et?.name) {
           updateAttributes({ schemaName: et.name });

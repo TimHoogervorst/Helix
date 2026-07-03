@@ -255,3 +255,70 @@ class SyncEntryContentTests(BaseServiceTestCase):
             sync_entry_content(self.entry)
 
         mock_save.assert_not_called()
+
+    # ── Signal-based sync ──────────────────────────────────────────────
+
+    def test_signal_is_connected(self):
+        """A receiver is connected to entry_content_sync for NotebookEntry."""
+        from core.signals import entry_content_sync
+
+        receivers = entry_content_sync._live_receivers(sender=NotebookEntry)
+        self.assertTrue(
+            any(r[0] for r in receivers),
+            "No receiver connected to entry_content_sync",
+        )
+
+    def test_signal_preserves_pipeline_order(self):
+        """Receivers run before mentions, so entities sync before mention resolution."""
+        from references.services import sync_mentions
+
+        with patch(
+            "core_mods.eln.sync.sync_mentions",
+        ) as mock_mentions:
+            doc = make_lims_table_doc(
+                self.blood_type.id,
+                rows_data=[{"volume": "50", "patient": "Patient A"}],
+                entity_type=self.blood_type,
+            )
+            self.entry.content = doc
+            self.entry.save()
+
+            from core_mods.eln.sync import sync_entry_content
+
+            sync_entry_content(self.entry)
+
+            # Mentions were called (after signal processing)
+            mock_mentions.assert_called_once()
+            # The content passed to mentions already has entity IDs patched
+            _, content_arg = mock_mentions.call_args[0]
+            rows = content_arg["content"][0]["attrs"]["rows"]
+            self.assertIsNotNone(rows[0].get("entityId"))
+
+    def test_custom_receiver_modifies_content(self):
+        """An additional receiver connected to entry_content_sync can modify content.
+
+        This verifies that the signal dispatch is the extension point for
+        future mods that want to hook into the sync pipeline.
+        """
+        from core.signals import entry_content_sync
+        from core_mods.eln.sync import sync_entry_content
+
+        def adding_receiver(sender, entry, content, **kwargs):
+            """Receiver that adds 'EXTENSION_RAN' marker to the content."""
+            return {"type": "doc", "content": [{"text": "EXTENSION_RAN"}]}
+
+        entry_content_sync.connect(
+            adding_receiver, sender=NotebookEntry, dispatch_uid="test_receiver"
+        )
+        try:
+            self.entry.content = EMPTY_DOC
+            self.entry.save()
+
+            result = sync_entry_content(self.entry)
+
+            # The content was modified by the receiver (last non-None wins)
+            self.assertEqual(
+                result.content["content"][0]["text"], "EXTENSION_RAN"
+            )
+        finally:
+            entry_content_sync.disconnect(dispatch_uid="test_receiver")

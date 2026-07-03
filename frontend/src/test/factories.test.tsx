@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { makeMockReferenceBadge } from "./factories";
-import type { BadgeResolved } from "../components/ReferenceBadge";
+import type { BadgeResolved } from "../shared/ReferenceBadge";
 
 // ── Shared test data ────────────────────────────────────────────────────
 

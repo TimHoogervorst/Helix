@@ -16,7 +16,7 @@ vi.mock("../../../../api/client", () => ({
 
 let mockViewState = "list";
 
-vi.mock("../../../../console/core/useConsoleView", () => ({
+vi.mock("../../../../core/console/useConsoleView", () => ({
   useConsoleView: () => ({
     viewState: mockViewState,
     isExiting: false,
@@ -31,7 +31,7 @@ vi.mock("../../../../console/core/useConsoleView", () => ({
 
 // ── ConsoleProvider mock (passthrough) ────────────────────────────────────
 
-vi.mock("../../../../console/core/ConsoleProvider", () => ({
+vi.mock("../../../../core/console/ConsoleContext", () => ({
   useConsole: () => ({
     viewState: "list",
     setViewState: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock("../../../../console/core/ConsoleProvider", () => ({
 
 // ── Heavy component mocks ────────────────────────────────────────────────
 
-vi.mock("../../../../components/ReferenceBadge", () => ({
+vi.mock("../../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge({ clickable: true }),
 }));
 

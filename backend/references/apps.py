@@ -9,7 +9,7 @@ class ReferencesConfig(AppConfig):
         from django.db.models.signals import post_delete, post_save
 
         from references.prefix_resolver import invalidate_prefix_cache
-        from workspaces.lims.models import EntityType
+        from core_mods.lims.models import EntityType
 
         post_save.connect(invalidate_prefix_cache, sender=EntityType)
         post_delete.connect(invalidate_prefix_cache, sender=EntityType)

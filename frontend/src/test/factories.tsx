@@ -254,7 +254,7 @@ interface MockReferenceBadgeConfig {
  *
  * Usage:
  *
- *     vi.mock("../components/ReferenceBadge", () => ({
+ *     vi.mock("../shared/ReferenceBadge", () => ({
  *       default: makeMockReferenceBadge({ compact: true }),
  *     }));
  */

@@ -20,7 +20,7 @@ vi.mock("../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 
-import Layout from "../Layout";
+import Layout from "../../core/shell/Layout";
 
 function renderLayout(initialRoute = "/library") {
   return render(

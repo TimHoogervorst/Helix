@@ -12,7 +12,7 @@ vi.mock("../api", () => ({
 }));
 
 // Mock ConsoleProvider
-vi.mock("../../../console/core/ConsoleProvider", () => ({
+vi.mock("../../../core/console/ConsoleContext", () => ({
   useConsole: () => ({
     viewState: "list",
     setViewState: vi.fn(),
@@ -21,12 +21,12 @@ vi.mock("../../../console/core/ConsoleProvider", () => ({
 }));
 
 // Mock ReferenceBadge
-vi.mock("../../../components/ReferenceBadge", () => ({
+vi.mock("../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 
 // Mock ContentPreview (TipTap is heavy)
-vi.mock("../../../components/ContentPreview", () => ({
+vi.mock("../../../shared/ContentPreview", () => ({
   default: ({ content }: { content: unknown }) => (
     <div data-testid="content-preview">
       {content ? "Content rendered" : "No content"}
@@ -35,7 +35,7 @@ vi.mock("../../../components/ContentPreview", () => ({
 }));
 
 // Mock useContentPreview
-vi.mock("../../../hooks/useContentPreview", () => ({
+vi.mock("../../../shared/useContentPreview", () => ({
   useContentPreview: () => ({
     content: {
       type: "doc",

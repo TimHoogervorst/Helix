@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import type { LibraryItem, LibraryEntryItem } from "../types";
-import { useConsoleView } from "../../../console/core/useConsoleView";
-import ConsolePage from "../../../console/core/ConsolePage";
+import { useConsoleView } from "../../../core/console/useConsoleView";
+import ConsolePage from "../../../core/console/ConsolePage";
 import { getLibraryContents } from "../api";
-import Breadcrumbs from "../../../console/components/Breadcrumbs";
+import Breadcrumbs from "../../../core/console/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import ElnDetailCard from "../../eln/console/ElnDetailCard";

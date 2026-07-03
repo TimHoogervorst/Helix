@@ -1,7 +1,7 @@
 import type { ElnEntry } from "../types";
 import type { ViewState } from "../../../types/console";
-import ReferenceBadge from "../../../components/ReferenceBadge";
-import ConsoleDetailPanel from "../../../console/core/ConsoleDetailPanel";
+import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ConsoleDetailPanel from "../../../core/console/ConsoleDetailPanel";
 import { formatDate } from "../../../utils/format";
 
 interface ElnDetailCardProps {

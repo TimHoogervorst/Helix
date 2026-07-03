@@ -9,7 +9,7 @@ Creates (if they don't already exist):
 from django.core.management.base import BaseCommand
 
 from core.models import Folder, User
-from workspaces.lims.models import EntityType
+from core_mods.lims.models import EntityType
 
 
 class Command(BaseCommand):

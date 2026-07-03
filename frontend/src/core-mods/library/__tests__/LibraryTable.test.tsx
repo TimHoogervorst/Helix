@@ -4,7 +4,7 @@ import { makeLibraryFolder, makeLibraryEntry, makeMockReferenceBadge } from "../
 import LibraryTable from "../console/LibraryTable";
 
 // ReferenceBadge renders inside the table; we mock it to keep the test isolated
-vi.mock("../../../components/ReferenceBadge", () => ({
+vi.mock("../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 

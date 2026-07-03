@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { get } from "../../../api/client";
 import type { EntityListItem, PaginatedResponse } from "../types";
-import { useConsoleView } from "../../../console/core/useConsoleView";
-import ConsolePage from "../../../console/core/ConsolePage";
+import { useConsoleView } from "../../../core/console/useConsoleView";
+import ConsolePage from "../../../core/console/ConsolePage";
 import LimsDetailCard from "../workspace/LimsDetailCard";
 import EntityWorkspace from "../workspace/EntityWorkspace";
 import ConsoleMasterPanel, {
   type MasterColumn,
-} from "../../../console/core/ConsoleMasterPanel";
-import ReferenceBadge from "../../../components/ReferenceBadge";
+} from "../../../core/console/ConsoleMasterPanel";
+import ReferenceBadge from "../../../shared/ReferenceBadge";
 
 function LimsConsole() {
   const [searchParams, setSearchParams] = useSearchParams();

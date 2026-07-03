@@ -5,7 +5,7 @@ import { makeEntityType, makeColumnDef, makeMockReferenceBadge } from "../../../
 import TypeDetailPanel from "../TypeDetailPanel";
 
 // Mock ReferenceBadge
-vi.mock("../../../../components/ReferenceBadge", () => ({
+vi.mock("../../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 

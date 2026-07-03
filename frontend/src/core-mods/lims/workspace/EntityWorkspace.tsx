@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { EntityListItem } from "../types";
-import ConsoleWorkspacePanel from "../../../console/core/ConsoleWorkspacePanel";
+import ConsoleWorkspacePanel from "../../../core/console/ConsoleWorkspacePanel";
 
 /** Tab configuration — canonical source for entity workspace tabs. */
 interface TabConfig {

@@ -5,7 +5,7 @@ import { makeEntityListItem, makeMockReferenceBadge } from "../../../../test/fac
 import EntityDetailFields from "../EntityDetailFields";
 
 // Mock ReferenceBadge
-vi.mock("../../../../components/ReferenceBadge", () => ({
+vi.mock("../../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 

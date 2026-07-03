@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import ElnEditor from "../components/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../components/ElnEditor";
-import { useReferenceContext } from "../components/ReferenceProvider";
+import { useReferenceContext } from "../core/references/ReferenceProvider";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */

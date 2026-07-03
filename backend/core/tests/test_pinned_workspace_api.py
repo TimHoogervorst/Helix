@@ -36,7 +36,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
 
         # Create a pin for another user
         other_user = User.objects.create_user(username="other", password="testpass123")
-        from core.models import PinnedWorkspace
+        from core_mods.pins.models import PinnedWorkspace
 
         PinnedWorkspace.objects.create(
             user=other_user,
@@ -115,7 +115,8 @@ class PinnedWorkspaceApiTests(BaseTestCase):
 
     def test_delete_other_user_pin_returns_404(self):
         """DELETE /api/core/pins/{id}/ for another user's pin returns 404."""
-        from core.models import User, PinnedWorkspace
+        from core.models import User
+        from core_mods.pins.models import PinnedWorkspace
 
         other_user = User.objects.create_user(username="other", password="testpass123")
         other_pin = PinnedWorkspace.objects.create(

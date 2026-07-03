@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get } from "../../../api/client";
 import type { EntityListItem } from "../types";
-import ReferenceBadge from "../../../components/ReferenceBadge";
+import ReferenceBadge from "../../../shared/ReferenceBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
 import EntityWorkspacePanel from "./EntityWorkspace";
 

@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import Layout from "./components/Layout";
+import Layout from "./core/shell/Layout";
 import ElnDetail from "./pages/ElnDetail";
-import { ConsoleProvider } from "./console/core/ConsoleProvider";
+import { ConsoleProvider } from "./core/console/ConsoleContext";
 import { ModRegistry } from "./core/mod-system/ModRegistry";
 
 function LegacyApp() {

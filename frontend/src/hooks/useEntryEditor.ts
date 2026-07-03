@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../api/client";
 import { listTags, createTag, attachTags, detachTag, updateTag } from "../api/eln";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types/eln";
-import { useReferenceContext } from "../components/ReferenceProvider";
+import { useReferenceContext } from "../core/references/ReferenceProvider";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

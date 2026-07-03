@@ -19,24 +19,6 @@ function LegacyApp() {
     return <Route key={r.id} path={r.path} element={<Comp />} />;
   });
 
-  // ── Settings shell — composes registered settings sections ───────────
-  const settingsSections = registry.getSettingsSections();
-  const settingsRoute =
-    settingsSections.length > 0 ? (
-      <Route
-        key="settings"
-        path="/settings"
-        element={
-          <div className="page settings-page">
-            {settingsSections.map((s) => {
-              const Comp = s.component;
-              return <Comp key={s.id} />;
-            })}
-          </div>
-        }
-      />
-    ) : null;
-
   return (
     <ConsoleProvider>
       <Routes>
@@ -47,7 +29,6 @@ function LegacyApp() {
           <Route path="/eln/:id" element={<ElnDetail />} />
           {consoleRoutes}
           {standaloneRoutes}
-          {settingsRoute}
         </Route>
       </Routes>
     </ConsoleProvider>

@@ -416,6 +416,15 @@ describe("ModRegistry", () => {
     );
   });
 
+  it("allows sidebar action with workspaceId '*' (wildcard)", () => {
+    registry.registerMod("test-mod");
+    registry.registerSidebarAction(
+      makeSidebarAction({ id: "a1", workspaceId: "*" }),
+    );
+
+    expect(() => registry.validate()).not.toThrow();
+  });
+
   // ── call (deferred) ──────────────────────────────────────────────────
 
   it("call throws not implemented", async () => {

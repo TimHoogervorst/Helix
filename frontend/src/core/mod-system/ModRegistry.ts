@@ -223,6 +223,7 @@ export class ModRegistry {
 
     // Validate sidebar action workspaceIds resolve to registered workspaces
     for (const action of this.sidebarActions.values()) {
+      if (action.workspaceId === "*") continue; // wildcard: always valid
       if (!this.workspaces.has(action.workspaceId)) {
         throw new Error(
           `Sidebar action '${action.id}' references workspace '${action.workspaceId}' which is not registered.`,

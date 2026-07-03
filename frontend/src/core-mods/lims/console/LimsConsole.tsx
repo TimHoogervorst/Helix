@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { get } from "../../../core/api/client";
 import type { EntityListItem, PaginatedResponse } from "../types";
+import { useConsoleData } from "../../../core/console/useConsoleData";
 import { useConsoleView } from "../../../core/console/useConsoleView";
 import ConsolePage from "../../../core/console/ConsolePage";
 import LimsDetailCard from "./LimsDetailCard";
@@ -9,147 +10,79 @@ import LimsWorkspace from "../workspace/LimsWorkspace";
 import LimsTable from "./LimsTable";
 
 function LimsConsole() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const typeFilter = searchParams.get("type") || "";
-  const selectId = searchParams.get("select") || "";
 
-  const [entities, setEntities] = useState<EntityListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nextUrl, setNextUrl] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<EntityListItem | null>(null);
-
-  const {
-    viewState,
-    isExiting,
-    goToDetail,
-    collapseFromExpanded: collapseFromExpandedBase,
-    closeAll: closeAllBase,
-    updateViewState,
-  } = useConsoleView();
+  const view = useConsoleView();
 
   const fetchEntities = useCallback(
     async (url?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const path = url
-          ? url.replace("/api", "")
-          : `/lims/entities/?type=${typeFilter}`;
-        const data = await get<PaginatedResponse<EntityListItem>>(path);
-        if (url) {
-          setEntities((prev) => [...prev, ...data.results]);
-        } else {
-          setEntities(data.results);
-        }
-        setNextUrl(data.next);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load");
-      } finally {
-        setLoading(false);
-      }
+      const path = url
+        ? url.replace("/api", "")
+        : `/lims/entities/?type=${typeFilter}`;
+      return get<PaginatedResponse<EntityListItem>>(path);
     },
     [typeFilter],
   );
 
-  useEffect(() => {
-    fetchEntities();
-  }, [fetchEntities]);
+  // ── Data hook ─────────────────────────────────────────────────────────
 
-  // ── Auto-select entity when arriving from workspace (via ?select=<display_id>) ──
-  useEffect(() => {
-    if (!selectId || loading || entities.length === 0) return;
+  const data = useConsoleData({
+    fetchFn: fetchEntities,
+    filterKey: "type",
+    getId: (e) => e.display_id,
+    getDisplayId: (e) => e.display_id,
+    onSelectResolved: () => view.updateViewState("detail"),
+  });
 
-    const target = entities.find((e) => e.display_id === selectId);
-
-    if (target) {
-      setSelectedId(target.display_id);
-      setSelectedEntity(target);
-      updateViewState("detail");
-      // Clear the select param so it doesn't stick on refresh / re-navigation
-      const next = new URLSearchParams(searchParams);
-      next.delete("select");
-      setSearchParams(next, { replace: true });
-    }
-  }, [selectId, loading, entities]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── State machine transitions (wrapping shared hook) ──────────────
-
-  const selectEntity = (entity: EntityListItem) => {
-    setSelectedId(entity.display_id);
-    setSelectedEntity(entity);
-  };
-
-  const clearSelection = () => {
-    setSelectedId(null);
-    setSelectedEntity(null);
-  };
+  // ── State machine transitions (wrapping shared hooks) ─────────────────
 
   const goToList = () => {
-    closeAllBase(); // handles exit animations internally
-    clearSelection();
+    view.closeAll();
+    data.clearSelection();
   };
 
-  const goToDetailForEntity = (entity: EntityListItem) => {
-    selectEntity(entity);
-    goToDetail();
-  };
-
-  const collapseFromExpanded = () => {
-    collapseFromExpandedBase();
-  };
-
-  // ── Row click handlers ─────────────────────────────────────────────
+  // ── Row click handlers ────────────────────────────────────────────────
 
   const handleRowClick = (entity: EntityListItem) => {
-    if (viewState === "expanded") return; // no row selection in expanded
-
-    if (viewState === "detail" && selectedId === entity.display_id) {
-      // Toggle off: clicking selected row returns to list
-      goToList();
-    } else {
-      goToDetailForEntity(entity);
-    }
+    const action = data.handleRowClick(entity, view.viewState);
+    if (action.type === "select") view.goToDetail();
+    else if (action.type === "deselect") goToList();
   };
 
-  const handleLoadMore = () => {
-    if (nextUrl) fetchEntities(nextUrl);
-  };
-
-  // ── Render ─────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <ConsolePage
-      loading={loading && entities.length === 0}
-      error={error}
+      loading={data.loading && data.items.length === 0}
+      error={data.error}
       collapsedTitle="Expand entity list"
       table={
         <LimsTable
-          entities={entities}
-          selectedId={selectedId}
-          nextUrl={nextUrl}
+          entities={data.items}
+          selectedId={data.selectedId as string | null}
+          nextUrl={data.nextUrl}
           onRowClick={handleRowClick}
-          onLoadMore={handleLoadMore}
-          loadingMore={loading}
+          onLoadMore={data.handleLoadMore}
+          loadingMore={data.loading}
         />
       }
       detail={
-        selectedEntity &&
-        (viewState === "detail" || viewState === "expanded") ? (
+        data.selectedItem &&
+        (view.viewState === "detail" || view.viewState === "expanded") ? (
           <LimsDetailCard
-            entity={selectedEntity}
-            viewState={viewState}
+            entity={data.selectedItem}
+            viewState={view.viewState}
             onClose={goToList}
-            onCollapse={collapseFromExpanded}
+            onCollapse={view.collapseFromExpanded}
           />
         ) : undefined
       }
       workspace={
-        selectedEntity && viewState === "expanded" ? (
+        data.selectedItem && view.viewState === "expanded" ? (
           <LimsWorkspace
-            entity={selectedEntity}
-            isExiting={isExiting}
+            entity={data.selectedItem}
+            isExiting={view.isExiting}
           />
         ) : undefined
       }

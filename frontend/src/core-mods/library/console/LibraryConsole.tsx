@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import type { LibraryItem, LibraryEntryItem } from "../types";
+import type { LibraryItem } from "../types";
+import { useConsoleData } from "../../../core/console/useConsoleData";
 import { useConsoleView } from "../../../core/console/useConsoleView";
 import ConsolePage from "../../../core/console/ConsolePage";
 import { getLibraryContents } from "../api";
@@ -13,74 +14,46 @@ function LibraryConsole() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPath = searchParams.get("path") || "";
-  const selectId = searchParams.get("select") || "";
 
-  const [items, setItems] = useState<LibraryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nextUrl, setNextUrl] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<LibraryEntryItem | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const {
-    viewState,
-    goToDetail,
-    collapseFromExpanded: collapseFromExpandedBase,
-    closeAll: closeAllBase,
-    updateViewState,
-  } = useConsoleView();
+  const view = useConsoleView();
 
-  const fetchItems = useCallback(
-    async (page?: number) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getLibraryContents(currentPath, page);
-        if (page && page > 1) {
-          setItems((prev) => [...prev, ...data.results]);
-        } else {
-          setItems(data.results);
-        }
-        setNextUrl(data.next);
-        setCurrentFolderId(data.current_folder_id);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load");
-      } finally {
-        setLoading(false);
+  const fetchFn = useCallback(
+    async (url?: string) => {
+      void refreshKey;
+      let response;
+      if (url) {
+        const urlObj = new URL(url, window.location.origin);
+        const page = Number(urlObj.searchParams.get("page") || 2);
+        response = await getLibraryContents(currentPath, page);
+      } else {
+        response = await getLibraryContents(currentPath, undefined);
       }
+      setCurrentFolderId(response.current_folder_id);
+      return response;
     },
-    [currentPath],
+    // refreshKey is captured so that incrementing it triggers a fresh fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentPath, refreshKey],
   );
 
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
-
-  // ── Auto-select entry when arriving from ELN (via ?select=<display_id>) ──
-  useEffect(() => {
-    if (!selectId || loading || items.length === 0) return;
-
-    const target = items.find(
-      (item): item is LibraryEntryItem =>
-        item.type === "entry" && item.display_id === selectId,
-    );
-
-    if (target) {
-      setSelectedItem(target);
-      updateViewState("detail");
-      // Clear the select param so it doesn't stick on refresh / re-navigation
-      const next = new URLSearchParams(searchParams);
-      next.delete("select");
-      setSearchParams(next, { replace: true });
-    }
-  }, [selectId, loading, items]); // eslint-disable-line react-hooks/exhaustive-deps
+  const data = useConsoleData({
+    fetchFn,
+    filterKey: "path",
+    getId: (item) => item.id,
+    getDisplayId: (item) =>
+      item.type === "entry" ? item.display_id : "",
+    onSelectResolved: () => view.updateViewState("detail"),
+  });
 
   // ── Folder navigation ──────────────────────────────────────────────
 
   const navigateToPath = (path: string) => {
     setSearchParams(path ? { path } : {});
-    updateViewState("list");
-    setSelectedItem(null);
+    view.updateViewState("list");
+    data.clearSelection();
   };
 
   const navigateUp = () => {
@@ -98,28 +71,11 @@ function LibraryConsole() {
     navigateToPath(newPath);
   };
 
-  // ── State machine transitions (wrapping shared hook) ──────────────
-
-  const selectEntry = (entry: LibraryEntryItem) => {
-    setSelectedItem(entry);
-  };
-
-  const clearSelection = () => {
-    setSelectedItem(null);
-  };
+  // ── State machine transitions ──────────────────────────────────────
 
   const goToList = () => {
-    closeAllBase();
-    clearSelection();
-  };
-
-  const goToDetailForEntry = (entry: LibraryEntryItem) => {
-    selectEntry(entry);
-    goToDetail();
-  };
-
-  const collapseFromExpanded = () => {
-    collapseFromExpandedBase();
+    view.closeAll();
+    data.clearSelection();
   };
 
   // ── Row handlers ───────────────────────────────────────────────────
@@ -130,27 +86,14 @@ function LibraryConsole() {
       return;
     }
 
-    if (viewState === "expanded") return;
-
-    if (viewState === "detail" && selectedItem?.id === item.id) {
-      // Toggle off: clicking selected row returns to list
-      goToList();
-    } else {
-      goToDetailForEntry(item);
-    }
+    const action = data.handleRowClick(item, view.viewState);
+    if (action.type === "select") view.goToDetail();
+    else if (action.type === "deselect") goToList();
   };
 
   const handleRowExpand = (item: LibraryItem) => {
     if (item.type === "entry") {
       navigate(`/eln/${item.display_id}`);
-    }
-  };
-
-  const handleLoadMore = () => {
-    if (nextUrl) {
-      const url = new URL(nextUrl, window.location.origin);
-      const page = Number(url.searchParams.get("page") || 2);
-      fetchItems(page);
     }
   };
 
@@ -166,8 +109,8 @@ function LibraryConsole() {
 
   return (
     <ConsolePage
-      loading={loading && items.length === 0}
-      error={error}
+      loading={data.loading && data.items.length === 0}
+      error={data.error}
       collapsedTitle="Back to detail"
       header={
         <div className="library-header">
@@ -180,34 +123,35 @@ function LibraryConsole() {
           <LibraryNewDropdown
             currentPath={currentPath}
             currentFolderId={currentFolderId}
-            onCreated={fetchItems}
+            onCreated={() => setRefreshKey((k) => k + 1)}
           />
         </div>
       }
       table={
         <LibraryTable
-          items={items}
-          selectedId={selectedItem?.id ?? null}
+          items={data.items}
+          selectedId={data.selectedId as number | null}
           onRowClick={handleRowClick}
           onRowExpand={handleRowExpand}
           onFolderNavigate={navigateToFolder}
         />
       }
       detail={
-        selectedItem &&
+        data.selectedItem &&
+        data.selectedItem.type === "entry" &&
         DetailCard &&
-        (viewState === "detail" || viewState === "expanded") ? (
+        (view.viewState === "detail" || view.viewState === "expanded") ? (
           <DetailCard
-            entry={selectedItem}
-            viewState={viewState}
+            entry={data.selectedItem}
+            viewState={view.viewState}
             onClose={goToList}
-            onCollapse={collapseFromExpanded}
+            onCollapse={view.collapseFromExpanded}
           />
         ) : undefined
       }
-      hasMore={!!nextUrl}
-      onLoadMore={handleLoadMore}
-      loadingMore={loading}
+      hasMore={!!data.nextUrl}
+      onLoadMore={data.handleLoadMore}
+      loadingMore={data.loading}
     />
   );
 }

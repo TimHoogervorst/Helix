@@ -1,10 +1,10 @@
 import { ModLoader } from "./core/mod-system";
-import LegacyApp from "./LegacyApp";
+import Router from "./core/shell/Router";
 
 function App() {
   return (
     <ModLoader>
-      <LegacyApp />
+      <Router />
     </ModLoader>
   );
 }

@@ -27,7 +27,7 @@ import type {
   LibraryFolderItem,
   LibraryContentsResponse,
 } from "../core-mods/library/types";
-import type { PinnedWorkspace } from "../types/pins";
+import type { PinnedWorkspace } from "../core-mods/pins/types";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 

@@ -1,6 +1,6 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { type TipTapDoc, EMPTY_DOC } from "../types/eln";
+import { type TipTapDoc, EMPTY_DOC } from "../core-mods/eln/types";
 
 interface ContentPreviewProps {
   content: TipTapDoc | null;

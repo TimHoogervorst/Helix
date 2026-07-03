@@ -43,7 +43,7 @@ standalone page shell (`pages/ElnDetail.tsx`).
 ## Dependencies
 
 - **Depends on:** `console/core` (panel shell contracts), `types/library`, `components/ElnEditor`, `components/ContentPreview`, `components/ReferenceBadge`
-- **Consumed by:** `console/instances/library/LibraryConsole`, `pages/ElnDetail`
+- **Consumed by:** `core-mods/library/console/LibraryConsole`, `pages/ElnDetail`
 
 ## Extending
 

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import LibraryNewDropdown from "../LibraryNewDropdown";
+import LibraryNewDropdown from "../console/LibraryNewDropdown";
 
 // Mock the API client
-vi.mock("../../../../api/client", () => ({
+vi.mock("../../../api/client", () => ({
   post: vi.fn().mockResolvedValue({ id: 99, name: "NewFolder" }),
   get: vi.fn(),
 }));

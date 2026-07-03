@@ -1,5 +1,5 @@
-import { get } from "./client";
-import type { LibraryContentsResponse } from "../types/library";
+import { get } from "../../api/client";
+import type { LibraryContentsResponse } from "./types";
 
 /**
  * Fetch mixed folder + entry contents at the given Library path.

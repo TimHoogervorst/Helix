@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import type { LibraryItem, LibraryEntryItem } from "../../../types/library";
+import type { LibraryItem, LibraryEntryItem } from "../types";
 import { useConsoleView } from "../../../console/core/useConsoleView";
 import ConsolePage from "../../../console/core/ConsolePage";
-import { getLibraryContents } from "../../../api/library";
-import Breadcrumbs from "../../components/Breadcrumbs";
+import { getLibraryContents } from "../api";
+import Breadcrumbs from "../../../console/components/Breadcrumbs";
 import LibraryTable from "./LibraryTable";
 import LibraryNewDropdown from "./LibraryNewDropdown";
-import LibraryDetailCard from "./LibraryDetailCard";
+import ElnDetailCard from "../../eln/console/ElnDetailCard";
 
 function LibraryConsole() {
   const navigate = useNavigate();
@@ -188,7 +188,7 @@ function LibraryConsole() {
       detail={
         selectedItem &&
         (viewState === "detail" || viewState === "expanded") ? (
-          <LibraryDetailCard
+          <ElnDetailCard
             entry={selectedItem}
             viewState={viewState}
             onClose={goToList}

@@ -10,7 +10,7 @@ interface UseContentPreviewResult {
 
 /**
  * Lazy-fetches the full entry detail (including TipTap content) for a
- * given display ID. Used by LibraryDetailCard to avoid loading content
+ * given display ID. Used by ElnDetailCard to avoid loading content
  * until an entry row is clicked.
  */
 export function useContentPreview(displayId: string | null): UseContentPreviewResult {

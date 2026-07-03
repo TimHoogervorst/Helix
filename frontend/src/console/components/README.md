@@ -31,7 +31,7 @@ reusable across instances.
 ## Dependencies
 
 - **Depends on:** React (no Console Core dependency — pure props-in)
-- **Consumed by:** `console/instances/library/LibraryConsole`, any future Console instance
+- **Consumed by:** `core-mods/library/console/LibraryConsole`, any future Console instance
 
 ## Adding a New Chrome Component
 

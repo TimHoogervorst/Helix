@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import ElnDetail from "./pages/ElnDetail";
-import LibraryConsole from "./console/instances/library/LibraryConsole";
 import { ConsoleProvider } from "./console/core/ConsoleProvider";
 import { ModRegistry } from "./core/mod-system/ModRegistry";
 
@@ -48,7 +47,6 @@ function LegacyApp() {
           <Route path="/eln/:id" element={<ElnDetail />} />
           {consoleRoutes}
           {standaloneRoutes}
-          <Route path="/library" element={<LibraryConsole />} />
           {settingsRoute}
         </Route>
       </Routes>

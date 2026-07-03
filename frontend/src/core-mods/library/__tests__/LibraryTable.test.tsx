@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { makeLibraryFolder, makeLibraryEntry, makeMockReferenceBadge } from "../../../../test/factories";
-import LibraryTable from "../LibraryTable";
+import { makeLibraryFolder, makeLibraryEntry, makeMockReferenceBadge } from "../../../test/factories";
+import LibraryTable from "../console/LibraryTable";
 
 // ReferenceBadge renders inside the table; we mock it to keep the test isolated
-vi.mock("../../../../components/ReferenceBadge", () => ({
+vi.mock("../../../components/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 

@@ -1,22 +1,23 @@
-import type { LibraryEntryItem } from "../../../types/library";
+import type { ElnEntry } from "../types";
 import type { ViewState } from "../../../types/console";
 import ReferenceBadge from "../../../components/ReferenceBadge";
 import ConsoleDetailPanel from "../../../console/core/ConsoleDetailPanel";
 import { formatDate } from "../../../utils/format";
 
-interface LibraryDetailCardProps {
-  entry: LibraryEntryItem;
+interface ElnDetailCardProps {
+  entry: ElnEntry;
   viewState: ViewState;
   onClose: () => void;
   onCollapse: () => void;
 }
 
-function LibraryDetailCard({
+/** Renders ELN entry metadata in a console Detail panel. */
+function ElnDetailCard({
   entry,
   viewState,
   onClose,
   onCollapse,
-}: LibraryDetailCardProps) {
+}: ElnDetailCardProps) {
   return (
     <ConsoleDetailPanel
       viewState={viewState}
@@ -85,4 +86,4 @@ function LibraryDetailCard({
   );
 }
 
-export default LibraryDetailCard;
+export default ElnDetailCard;

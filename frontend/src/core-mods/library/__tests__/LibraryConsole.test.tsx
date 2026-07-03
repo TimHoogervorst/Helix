@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { makeLibraryFolder, makeLibraryEntry, makeLibraryContents, makeMockReferenceBadge } from "../../../../test/factories";
-import LibraryConsole from "../LibraryConsole";
+import { makeLibraryFolder, makeLibraryEntry, makeLibraryContents, makeMockReferenceBadge } from "../../../test/factories";
+import LibraryConsole from "../console/LibraryConsole";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
 const mockGetLibraryContents = vi.fn();
-vi.mock("../../../../api/library", () => ({
+vi.mock("../api", () => ({
   getLibraryContents: (...args: unknown[]) => mockGetLibraryContents(...args),
 }));
 
 // Mock ConsoleProvider
-vi.mock("../../../../console/core/ConsoleProvider", () => ({
+vi.mock("../../../console/core/ConsoleProvider", () => ({
   useConsole: () => ({
     viewState: "list",
     setViewState: vi.fn(),
@@ -21,12 +21,12 @@ vi.mock("../../../../console/core/ConsoleProvider", () => ({
 }));
 
 // Mock ReferenceBadge
-vi.mock("../../../../components/ReferenceBadge", () => ({
+vi.mock("../../../components/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 
 // Mock ContentPreview (TipTap is heavy)
-vi.mock("../../../../components/ContentPreview", () => ({
+vi.mock("../../../components/ContentPreview", () => ({
   default: ({ content }: { content: unknown }) => (
     <div data-testid="content-preview">
       {content ? "Content rendered" : "No content"}
@@ -35,7 +35,7 @@ vi.mock("../../../../components/ContentPreview", () => ({
 }));
 
 // Mock useContentPreview
-vi.mock("../../../../hooks/useContentPreview", () => ({
+vi.mock("../../../hooks/useContentPreview", () => ({
   useContentPreview: () => ({
     content: {
       type: "doc",
@@ -46,8 +46,17 @@ vi.mock("../../../../hooks/useContentPreview", () => ({
   }),
 }));
 
+// Mock ElnDetailCard (owned by ELN mod; tested separately)
+vi.mock("../../eln/console/ElnDetailCard", () => ({
+  default: ({ entry }: { entry: { display_id: string; title: string } }) => (
+    <div data-testid="eln-detail-card">
+      Detail: {entry.title}
+    </div>
+  ),
+}));
+
 // Mock ElnEditor (heavy, tested separately)
-vi.mock("../../../../components/ElnEditor", () => ({
+vi.mock("../../../components/ElnEditor", () => ({
   default: ({ entryId }: { entryId?: string }) => (
     <div data-testid="eln-editor">Editor for {entryId}</div>
   ),

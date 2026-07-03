@@ -24,7 +24,7 @@ export interface ConsoleDetailPanelProps {
  *
  * Renders the panel frame with header action buttons (close, expand, collapse)
  * and a `children` slot for domain-specific content.  Used internally by
- * LimsDetailCard and LibraryDetailCard.
+ * LimsDetailCard and ElnDetailCard.
  */
 function ConsoleDetailPanel({
   children,

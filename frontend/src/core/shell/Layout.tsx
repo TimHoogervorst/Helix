@@ -5,7 +5,6 @@ import {
   Search,
   House,
   Star,
-  Book,
   Pin,
   PinOff,
   FileText,
@@ -95,14 +94,6 @@ function Layout() {
             >
               <Star className="h-3.5 w-3.5" aria-hidden="true" /> Starred
             </button>
-            <Link
-              to="/library"
-              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith("/library") ? " bg-muted font-medium text-foreground" : ""}`}
-              title="Library"
-              aria-label="Library"
-            >
-              <Book className="h-3.5 w-3.5" aria-hidden="true" /> Library
-            </Link>
             {[...ModRegistry.getInstance().getConsoles().values()]
               .sort((a, b) => a.order - b.order)
               .map((c) => {

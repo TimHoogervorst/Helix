@@ -20,7 +20,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Database } from "lucide-react";
+import { Database, BookOpen } from "lucide-react";
 import { makePinnedWorkspace } from "../../test/factories";
 import { ModRegistry } from "../../core/mod-system/ModRegistry";
 
@@ -54,7 +54,18 @@ function renderLayout(initialRoute = "/library") {
 beforeEach(() => {
   vi.clearAllMocks();
   ModRegistry._reset();
-  // Register a mock LIMS console so the dynamic sidebar renders Database
+  // Register mock consoles so the dynamic sidebar renders nav links.
+  // Library is no longer hardcoded in Layout — it comes from registerConsole().
+  ModRegistry.getInstance().registerConsole({
+    id: "library",
+    label: "Library",
+    icon: BookOpen,
+    route: "/library",
+    component: () => null,
+    order: 10,
+    defaults: {},
+    accepts: { only: ["eln.entry"] },
+  });
   ModRegistry.getInstance().registerConsole({
     id: "lims",
     label: "Database",

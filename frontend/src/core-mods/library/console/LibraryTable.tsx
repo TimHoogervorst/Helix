@@ -1,4 +1,4 @@
-import type { LibraryItem } from "../../../types/library";
+import type { LibraryItem } from "../types";
 import ReferenceBadge from "../../../components/ReferenceBadge";
 import ConsoleMasterPanel, {
   type MasterColumn,

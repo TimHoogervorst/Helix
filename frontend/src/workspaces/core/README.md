@@ -12,7 +12,7 @@ This directory will be migrated to `core/mod-system/` and `core/console/` as par
 | `workspaces/_template/` | `core-mods/_template/` |
 | `workspaces/lims/` | `core-mods/lims/` |
 | `workspaces/eln/` | `core-mods/eln/` |
-| `console/instances/library/` | `core-mods/library/` |
+| `console/instances/library/` | `core-mods/library/` ✅ Done |
 | `console/instances/lims/` | `core-mods/lims/console/` |
 | `pages/` (standalone workspace pages) | `core-mods/<mod>/workspace/` |
 | `components/` (shared) | `shared/` |

@@ -4,10 +4,8 @@ import type { ServiceConfig } from "./types";
 /**
  * Register a callable service for mod-to-mod communication.
  *
- * **Note:** Service invocation is not yet implemented.
- * This function stores the configuration shape so mods can declare
- * services, but `registry.call()` throws until the service registry
- * is wired.
+ * Mods call this in their `register()` function to expose a service
+ * handler. Other mods invoke it via `registry.call(serviceId, ...args)`.
  */
 export function registerService(config: ServiceConfig): void {
   ModRegistry.getInstance().registerService(config);

@@ -35,7 +35,7 @@ export function register(): void {
 | `registerRoute(config)` | Register a standalone route |
 | `registerSidebarAction(config)` | Register a button/badge on workspace sidebar rows |
 | `registerSlashCommand(config)` | Register a slash command for the ELN editor *(deferred)* |
-| `registerService(config)` | Register a callable service for mod-to-mod communication *(deferred)* |
+| `registerService(config)` | Register a callable service for mod-to-mod communication |
 
 ## Mod Directory Contract
 

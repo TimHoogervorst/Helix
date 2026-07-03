@@ -41,4 +41,10 @@ Thumbs.db
 .playwright-mcp
 backend/test.db
 frontend/test-results/.last-run.json
+
+# prototypes
 docs/protoypes/
+
+# Agents
+.claude
+.mcp.json

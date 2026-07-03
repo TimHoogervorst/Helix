@@ -5,6 +5,23 @@
 
 ---
 
+## The Mod System
+
+> For the full architecture, see [docs/mod-system.md](docs/mod-system.md).
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Mod** | A self-contained unit of functionality — owns its own console, workspace, detail cards, settings, routes, slash commands, and sidebar actions. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods | plugin, extension, module |
+| **Core** | The immutable app shell — Layout, routing, console panels, mod loader, reference resolution, API client. Core provides the frame; mods provide the content | shell, platform, host |
+| **Core Mod** | A mod that ships with the repository under `core-mods/`. Always loaded at boot. Uses the same registration API that external mods will use. Current core mods: LIMS, ELN, Library, Settings, Pins | built-in mod, first-party mod, internal mod |
+| **Mod API** | The registration surface (`register*()` functions in `core/mod-system/`) that every mod calls to declare what it provides. The contract between core and mods | plugin API, extension API |
+| **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, console behavior, settings panels | registry, plugin registry |
+| **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
+| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerConsole()`, `registerWorkspace()`, `registerSettingsSection()`, `registerSlashCommand()`, `registerRoute()`, `registerSidebarAction()`, `registerService()` | register, declare, contribute |
+| **`dependsOn`** | Metadata in each mod's `index.ts` declaring which other mods must load first. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
+| **`accepts`** | Console-level whitelist or blacklist of workspace IDs — the console's final say on which workspaces appear in its Master table | filter, workspace filter |
+| **`consoleIds`** | Workspace-level declaration of which consoles host this workspace. The workspace's intent; the console's `accepts` has the final say | host consoles, target consoles |
+
 ## The Console Pattern (Three-Way-Split)
 
 | Term | Definition | Aliases to avoid |
@@ -25,10 +42,12 @@
 
 ## Concrete Consoles
 
+> Each console is registered by a core mod via `registerConsole()` and auto-appears in the sidebar.
+
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Library** | The console at `/library` — filesystem-like view over the Folder hierarchy, showing Folders and Entries mixed (folders first) | ELN console, file explorer |
-| **LIMS** | The console at `/lims` — database-like flat, filterable, searchable table of Entities | entity console, sample database |
+| **Library** | The console at `/library`, registered by the Library core mod. Filesystem-like view over the Folder hierarchy, showing Folders and Entries mixed (folders first). `accepts: { only: ['eln.entry'] }` — only ELN entries; Folders are navigational | ELN console, file explorer |
+| **LIMS** | The console at `/lims`, registered by the LIMS core mod. Database-like flat, filterable, searchable table of Entities. `accepts: { except: ['eln.entry'] }` — all workspace types except ELN entries | entity console, sample database |
 
 ## Items
 

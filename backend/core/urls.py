@@ -1,7 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import FolderViewSet, PinnedWorkspaceViewSet, csrf_token_view
+from .views import FolderViewSet, csrf_token_view
+from core_mods.pins.views import PinnedWorkspaceViewSet
 
 router = DefaultRouter()
 router.register(r"folders", FolderViewSet, basename="folder")

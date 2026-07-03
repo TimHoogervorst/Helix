@@ -21,27 +21,27 @@ def delete_everything(request):
     counts: dict[str, int] = {}
 
     # 1. Mentions (depends on entries)
-    from workspaces.eln.models import Mention
+    from core_mods.eln.models import Mention
     c, _ = Mention.objects.all().delete()
     counts["mentions"] = c
 
     # 2. ELN entries
-    from workspaces.eln.models import NotebookEntry
+    from core_mods.eln.models import NotebookEntry
     c, _ = NotebookEntry.objects.all().delete()
     counts["eln_entries"] = c
 
     # 3. LIMS actions (depend on entities)
-    from workspaces.lims.models import Action
+    from core_mods.lims.models import Action
     c, _ = Action.objects.all().delete()
     counts["actions"] = c
 
     # 4. LIMS entities (depend on entity types)
-    from workspaces.lims.models import Entity
+    from core_mods.lims.models import Entity
     c, _ = Entity.objects.all().delete()
     counts["entities"] = c
 
     # 5. Entity types (schemas)
-    from workspaces.lims.models import EntityType
+    from core_mods.lims.models import EntityType
     c, _ = EntityType.objects.all().delete()
     counts["entity_types"] = c
 
@@ -52,10 +52,10 @@ def delete_everything(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     # API
-    path("api/eln/", include("workspaces.eln.urls")),
-    path("api/lims/", include("workspaces.lims.urls")),
+    path("api/eln/", include("core_mods.eln.urls")),
+    path("api/lims/", include("core_mods.lims.urls")),
     path("api/core/", include("core.urls")),
-    path("api/library/", include("console.library.urls")),
+    path("api/library/", include("core_mods.library.urls")),
     path("api/references/", include("references.urls")),
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),

@@ -3,7 +3,7 @@ Tests for the references service: sync_mentions, resolve_display_id, PREFIX_MAP.
 """
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC
-from workspaces.eln.models import NotebookEntry, Mention
+from core_mods.eln.models import NotebookEntry, Mention
 
 DOC_WITH_ONE_REFERENCE = {
     "type": "doc",

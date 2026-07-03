@@ -21,12 +21,12 @@ import type {
   PaginatedResponse,
   EntityType,
   ColumnDef,
-} from "../types/lims";
+} from "../core-mods/lims/types";
 import type {
   LibraryEntryItem,
   LibraryFolderItem,
   LibraryContentsResponse,
-} from "../types/library";
+} from "../core-mods/library/types";
 import type { PinnedWorkspace } from "../types/pins";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -254,7 +254,7 @@ interface MockReferenceBadgeConfig {
  *
  * Usage:
  *
- *     vi.mock("../components/ReferenceBadge", () => ({
+ *     vi.mock("../shared/ReferenceBadge", () => ({
  *       default: makeMockReferenceBadge({ compact: true }),
  *     }));
  */

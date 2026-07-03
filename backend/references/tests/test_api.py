@@ -6,7 +6,7 @@ GET  /api/references/search/    — search by display_id prefix
 """
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
-from workspaces.eln.models import NotebookEntry
+from core_mods.eln.models import NotebookEntry
 
 
 class ResolveApiTests(BaseTestCase):
@@ -142,7 +142,7 @@ class EntityReferenceTests(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        from workspaces.lims.models import EntityType, Entity
+        from core_mods.lims.models import EntityType, Entity
 
         self.blood_type = EntityType.objects.create(
             name="Blood Sample", prefix="BLOOD", columns=[]
@@ -213,7 +213,7 @@ class IconInReferencesTests(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        from workspaces.lims.models import EntityType, Entity
+        from core_mods.lims.models import EntityType, Entity
 
         self.blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", icon="🩸", columns=[]
@@ -255,7 +255,7 @@ class IconInReferencesTests(BaseTestCase):
 
     def test_resolve_entity_default_icon(self):
         """Entity with entity type having default icon resolves with '🧪'."""
-        from workspaces.lims.models import EntityType, Entity
+        from core_mods.lims.models import EntityType, Entity
 
         default_type = EntityType.objects.create(
             name="Default", prefix="DEF", columns=[]

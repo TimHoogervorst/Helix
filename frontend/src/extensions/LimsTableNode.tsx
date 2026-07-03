@@ -14,7 +14,7 @@ import type {
   CellValueChangedEvent,
   CellMouseDownEvent,
 } from "ag-grid-community";
-import type { GridColumn, GridRow, EntityType } from "../types/lims";
+import type { GridColumn, GridRow, EntityType } from "../core-mods/lims/types";
 import { get } from "../api/client";
 import { DisplayIdCellRenderer, ReferenceCellRenderer } from "../components/ReferenceBadgeCellRenderer";
 

@@ -9,8 +9,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Model
 
-from workspaces.eln.models import NotebookEntry
-from workspaces.lims.models import EntityType
+from core_mods.eln.models import NotebookEntry
+from core_mods.lims.models import EntityType
 
 
 # ── Cache keys ──────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ MODEL_TYPE_MAP: dict[type[Model], str] = {
 
 def _get_entity_model() -> type[Model]:
     """Lazy-import to avoid circular imports at module level."""
-    from workspaces.lims.models import Entity
+    from core_mods.lims.models import Entity
 
     return Entity
 

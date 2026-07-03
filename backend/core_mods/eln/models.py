@@ -3,11 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from core.abstracts import BrowsableItem
-
-STATUS_CHOICES = [
-    ("in_progress", "In Progress"),
-    ("finished", "Finished"),
-]
+from core.constants import STATUS_CHOICES
 
 TAG_COLOR_CHOICES = [
     ("enzyme", "Enzyme"),

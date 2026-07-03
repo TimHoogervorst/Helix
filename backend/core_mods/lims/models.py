@@ -1,11 +1,7 @@
 from django.db import models
 
 from core.abstracts import BrowsableItem
-
-STATUS_CHOICES = [
-    ("in_progress", "In Progress"),
-    ("finished", "Finished"),
-]
+from core.constants import STATUS_CHOICES
 
 
 class EntityType(models.Model):

@@ -1,7 +1,6 @@
 import { lazy } from "react";
-import { NotebookText, Tag } from "lucide-react";
+import { Tag } from "lucide-react";
 import {
-  registerConsole,
   registerWorkspace,
   registerRoute,
   registerSettingsSection,
@@ -16,22 +15,23 @@ export const meta = {
 
 export function register() {
   // ── Console: ELN entry list at /eln ────────────────────────────────────
-  registerConsole({
-    id: "eln",
-    label: "Entries",
-    icon: NotebookText,
-    route: "/eln",
-    component: lazy(() => import("./console/ElnConsole")),
-    order: 10,
-    defaults: {},
-    accepts: { only: ["eln.entry"] },
-  });
+  // REMOVED from UI — keep the component for potential future use.
+  // registerConsole({
+  //   id: "eln",
+  //   label: "Entries",
+  //   icon: NotebookText,
+  //   route: "/eln",
+  //   component: lazy(() => import("./console/ElnConsole")),
+  //   order: 10,
+  //   defaults: {},
+  //   accepts: { only: ["eln.entry"] },
+  // });
 
   // ── Workspace: ELN entry detail / full-page editor ─────────────────────
   registerWorkspace({
     id: "eln.entry",
     label: "Entry",
-    consoleIds: ["eln", "library"],
+    consoleIds: ["library"],
     route: "/eln/:displayId",
     detailCard: ElnDetailCard,
     workspace: lazy(() => import("./workspace/ElnWorkspace")),

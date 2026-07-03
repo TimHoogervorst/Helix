@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { TipTapDoc, EntryDetail } from "../types/eln";
+import type { TipTapDoc, EntryDetail } from "../core-mods/eln/types";
 import { get } from "../core/api/client";
 
 interface UseContentPreviewResult {

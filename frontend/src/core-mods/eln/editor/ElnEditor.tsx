@@ -16,7 +16,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { X, Circle, Dna, Rat, Leaf, Cog, NotebookText, User, Folder } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
-import { useEntryEditor } from "../hooks/useEntryEditor";
+import { useEntryCrud } from "../hooks/useEntryCrud";
+import { useEntryTags } from "../hooks/useEntryTags";
+import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
+import { useDirtyTracking } from "../hooks/useDirtyTracking";
 import { createElnExtensions } from "./extensions/createElnExtensions";
 
 /** Format an ISO date string as YYYY-MM-DD. */
@@ -32,11 +35,6 @@ export interface ElnEditorHandle {
   enterEditMode: () => void;
   setFolderId: (id: number | null) => void;
   setStatus: (status: string) => void;
-}
-
-interface FolderItem {
-  id: number;
-  name: string;
 }
 
 /** Available tag colors with their design-token CSS classes. */
@@ -152,7 +150,27 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   // Redundant with onUpdate for normal edits but ensures contentRef is never stale.
   contentRef.current = editor?.getJSON() ?? EMPTY_DOC;
 
-  // ── State machine ──
+  // ── State machine (composed from four focused hooks) ──
+  const crud = useEntryCrud({ entryId, isNew, contentRef });
+  const tagsHook = useEntryTags({
+    isNew,
+    entryId,
+    initialTags: crud.entry?.tags ?? [],
+    onEntryUpdate: crud.setEntry,
+  });
+  const folder = useEntryFolder({ initialFolderId });
+  const { isDirty } = useDirtyTracking({
+    title: crud.title,
+    initialTitle: crud.initialTitle,
+    description: crud.description,
+    initialDescription: crud.initialDescription,
+    status: crud.status,
+    initialStatus: crud.initialStatus,
+    contentRef,
+    initialContent: crud.initialContent,
+  });
+
+  // Destructure for convenient access in JSX
   const {
     mode,
     entry,
@@ -161,25 +179,35 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     initialContent,
     description,
     setDescription,
-    folderId,
-    setFolderId,
-    folders,
     status,
     setStatus,
     error,
     deleting,
-    isDirty,
+  } = crud;
+
+  const {
     tags,
     addTag,
     removeTag,
     createAndAttachTag,
     changeTagIcon,
     searchTags,
-    save,
-    cancel,
-    deleteEntry,
-    enterEditMode,
-  } = useEntryEditor({ entryId, isNew, initialFolderId, contentRef });
+  } = tagsHook;
+
+  const { folderId, setFolderId, folders } = folder;
+
+  // Wire cross-hook actions
+  const save = () => crud.save(folderId, tags);
+  const cancel = () => {
+    if (isNew) {
+      crud.cancel();
+      return;
+    }
+    setFolderId(crud.entry?.folder ?? null);
+    tagsHook.resetTagsToBaseline();
+    crud.cancel();
+  };
+  const { deleteEntry, enterEditMode } = crud;
 
   // ── Tag input state ──
   const [tagQuery, setTagQuery] = useState("");

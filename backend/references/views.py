@@ -57,6 +57,8 @@ resolve_view = csrf_exempt(resolve_view)
 
 
 @api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def search_view(request):
     """
     Search for references by display_id prefix.

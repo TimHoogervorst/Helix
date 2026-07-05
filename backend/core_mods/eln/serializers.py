@@ -31,7 +31,7 @@ class MentionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "source_type", "source_type_name", "source_id",
             "target_type", "target_type_name", "target_id",
-            "target_display_id", "target_title", "context",
+            "target_display_id", "target_title",
         ]
         read_only_fields = ["id"]
 

@@ -2,14 +2,15 @@
 Idempotent seed data command.
 
 Creates (if they don't already exist):
-- One superuser: admin / admin
-- Three EntityTypes: DNA, Chemical, General
+- One superuser (from env vars SEED_USERNAME/SEED_PASSWORD, or admin/admin)
+- CoreSetting: allow_self_registration (from ALLOW_SELF_REGISTRATION env var)
 - One root Folder: Default
 """
+import os
+
 from django.core.management.base import BaseCommand
 
-from core.models import Folder, User
-from core_mods.lims.models import EntityType
+from core.models import CoreSetting, Folder, User
 
 
 class Command(BaseCommand):
@@ -17,15 +18,42 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self._seed_superuser()
+        self._seed_settings()
         self._seed_folders()
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
 
     def _seed_superuser(self):
-        if User.objects.filter(username="admin").exists():
-            self.stdout.write("Superuser 'admin' already exists — skipping.")
+        username = os.environ.get("SEED_USERNAME", "admin")
+        password = os.environ.get("SEED_PASSWORD", "admin")
+
+        if User.objects.filter(username=username).exists():
+            self.stdout.write(f"Superuser '{username}' already exists — skipping.")
             return
-        User.objects.create_superuser(username="admin", email="admin@openscience.local", password="admin")
-        self.stdout.write(self.style.SUCCESS("Created superuser: admin / admin"))
+        User.objects.create_superuser(
+            username=username,
+            email=f"{username}@openscience.local",
+            password=password,
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f"Created superuser: {username} / {password}")
+        )
+
+    def _seed_settings(self):
+        allow_reg = os.environ.get("ALLOW_SELF_REGISTRATION", "false").lower() == "true"
+        setting, created = CoreSetting.objects.get_or_create(
+            key="allow_self_registration",
+            defaults={"value": allow_reg},
+        )
+        if created:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Created CoreSetting: allow_self_registration = {allow_reg}"
+                )
+            )
+        else:
+            self.stdout.write(
+                f"CoreSetting 'allow_self_registration' already exists — skipping."
+            )
 
     def _seed_folders(self):
         if Folder.objects.filter(name="Default").exists():
@@ -33,19 +61,3 @@ class Command(BaseCommand):
             return
         Folder.objects.create(name="Default", parent=None)
         self.stdout.write(self.style.SUCCESS("Created root folder: Default"))
-
-    def _seed_entity_types(self):
-        created = 0
-        defaults = [
-            ("DNA", "DNA"),
-            ("Chemical", "CHEM"),
-            ("General", "GEN"),
-        ]
-        for name, prefix in defaults:
-            if not EntityType.objects.filter(name=name).exists():
-                EntityType.objects.create(name=name, prefix=prefix, columns=[])
-                created += 1
-        if created:
-            self.stdout.write(self.style.SUCCESS(f"Created {created} entity types."))
-        else:
-            self.stdout.write("Entity types already exist — skipping.")

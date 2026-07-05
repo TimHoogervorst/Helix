@@ -5,7 +5,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from core_mods.eln.models import NotebookEntry, Mention
+from core_mods.eln.models import NotebookEntry, Mention, ElnAction
 
 TEXT_DOC = {
     "type": "doc",
@@ -21,6 +21,7 @@ TEXT_DOC = {
 class ElnApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
     def test_list_entries_empty(self):
         """GET /api/eln/entries/ returns empty list with 200."""
@@ -37,7 +38,7 @@ class ElnApiTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["title"], "Test Entry")
-        self.assertIsNone(response.data["author_username"])
+        self.assertEqual(response.data["author_username"], self.USERNAME)
         self.assertEqual(response.data["content"], TEXT_DOC)
         self.assertEqual(NotebookEntry.objects.count(), 1)
 
@@ -115,6 +116,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
         # Create a target entry that will be referenced.
         self.target = NotebookEntry.objects.create(
@@ -173,3 +175,77 @@ class MentionSyncOnSaveTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Mention.objects.count(), 0)
+
+
+class EntryActionLoggingTests(BaseTestCase):
+    """Integration: creating/updating entries logs actions via log_action()."""
+
+    def setUp(self):
+        super().setUp()
+        # Authentication is required for log_action to fire.
+        self.client.force_authenticate(user=self.user)
+
+    def test_create_entry_logs_action(self):
+        """POST creates an ElnAction with action_type='created'."""
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = self.client.post(
+            "/api/eln/entries/",
+            {"title": "Logged Create", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ElnAction.objects.count(), 1)
+        action = ElnAction.objects.first()
+        self.assertEqual(action.action_type, "created")
+        self.assertEqual(action.target_type, "eln.entry")
+        self.assertEqual(action.target_id, response.data["id"])
+        self.assertEqual(action.performed_by, self.user)
+
+    def test_update_entry_logs_action(self):
+        """PUT creates an ElnAction with action_type='edited'."""
+        entry = NotebookEntry.objects.create(
+            title="Before Edit", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = self.client.put(
+            f"/api/eln/entries/{entry.display_id}/",
+            {"title": "After Edit", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ElnAction.objects.count(), 1)
+        action = ElnAction.objects.first()
+        self.assertEqual(action.action_type, "edited")
+        self.assertEqual(action.target_type, "eln.entry")
+        self.assertEqual(action.target_id, entry.id)
+        self.assertEqual(action.performed_by, self.user)
+
+    def test_create_entry_unauthenticated_returns_403(self):
+        """When no user is authenticated, POST returns 403."""
+        from rest_framework.test import APIClient
+        anon_client = APIClient()
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = anon_client.post(
+            "/api/eln/entries/",
+            {"title": "Anon Entry", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ElnAction.objects.count(), 0)
+        self.assertEqual(NotebookEntry.objects.count(), 0)
+
+    def test_update_entry_unauthenticated_returns_403(self):
+        """When no user is authenticated, PUT returns 403."""
+        entry = NotebookEntry.objects.create(
+            title="Anon Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        from rest_framework.test import APIClient
+        anon_client = APIClient()
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = anon_client.put(
+            f"/api/eln/entries/{entry.display_id}/",
+            {"title": "Anon Edit", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ElnAction.objects.count(), 0)

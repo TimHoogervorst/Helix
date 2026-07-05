@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from core.abstracts import BrowsableItem
+from core.actions.base import AbstractBaseAction
 from core.constants import STATUS_CHOICES
 
 TAG_COLOR_CHOICES = [
@@ -100,3 +101,16 @@ class Mention(models.Model):
 
     def __str__(self):
         return f"Mention in {self.source_type}.{self.source_id} → {self.target_type}.{self.target_id}"
+
+
+class ElnAction(AbstractBaseAction):
+    """Concrete action table for the ELN mod.
+
+    Actions are logged automatically when entries are created or updated.
+    The ``target_type`` / ``target_id`` pattern (e.g. ``"eln.entry"`` / 7)
+    links back to the entry without a hard FK, keeping the action table
+    generic.
+    """
+
+    class Meta:
+        db_table = "eln_action"

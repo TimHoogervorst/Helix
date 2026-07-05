@@ -53,8 +53,6 @@ class LibraryContentsView(APIView):
     ``type`` discriminator (``"folder"`` or ``"entry"``).
     """
 
-    permission_classes = []
-
     def get(self, request):
         path_str = request.query_params.get("path", "")
 

@@ -2,6 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.actions.logger import log_action
+
 from .models import NotebookEntry, Tag
 from .serializers import (
     NotebookEntrySerializer,
@@ -30,7 +32,6 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         "mentions"
     )
     serializer_class = NotebookEntrySerializer
-    permission_classes = []
     lookup_field = "display_id"
 
     def get_serializer_class(self):
@@ -42,10 +43,24 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         author = self.request.user if self.request.user.is_authenticated else None
         instance = serializer.save(author=author)
         sync_entry_content(instance)
+        if author is not None:
+            log_action(
+                user=author,
+                action_type="created",
+                target_type="eln.entry",
+                target_id=instance.id,
+            )
 
     def perform_update(self, serializer):
         instance = serializer.save()
         sync_entry_content(instance)
+        if self.request.user.is_authenticated:
+            log_action(
+                user=self.request.user,
+                action_type="edited",
+                target_type="eln.entry",
+                target_id=instance.id,
+            )
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)
@@ -104,7 +119,6 @@ class TagViewSet(viewsets.ModelViewSet):
 
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = []
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):

@@ -126,7 +126,7 @@ class ActionSerializer(serializers.ModelSerializer):
             "performed_by",
             "performed_by_username",
             "source_entry",
-            "data",
+            "metadata",
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]

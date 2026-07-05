@@ -21,7 +21,7 @@ interface SlashCommand {
   action: (editor: any, range: { from: number; to: number }) => void;
 }
 
-export function getCommands(): SlashCommand[] {
+function getCommands(): SlashCommand[] {
   return [
     {
       label: "Table",
@@ -93,7 +93,7 @@ function dropdownRenderer() {
 
 // ── Fuse-style fuzzy filter ─────────────────────────────────────────
 
-export function fuzzyMatch(text: string, query: string): boolean {
+function fuzzyMatch(text: string, query: string): boolean {
   const t = text.toLowerCase();
   const q = query.toLowerCase();
   let qi = 0;
@@ -150,4 +150,3 @@ const SlashCommands = Extension.create({
 });
 
 export default SlashCommands;
-export { SLASH_SUGGESTION_KEY };

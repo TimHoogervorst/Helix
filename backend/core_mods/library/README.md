@@ -6,7 +6,7 @@ The Library Console's backend — folder browsing and mixed folder+entry listing
 
 The Library has no models of its own. It operates on:
 - `core.Folder` — hierarchical folder tree
-- `workspaces.eln.NotebookEntry` — ELN entries within folders
+- `core_mods.eln.NotebookEntry` — ELN entries within folders
 
 ## API Endpoints
 
@@ -25,7 +25,7 @@ list of children — folders first, then entries.
 
 ## Dependencies
 
-- **Depends on:** `core` (Folder model, FolderViewSet), `workspaces.eln` (NotebookEntry model)
+- **Depends on:** `core` (Folder model, FolderViewSet), `core_mods.eln` (NotebookEntry model)
 - **Consumed by:** Frontend Library Console (`/api/library/`)
 
 ## Files

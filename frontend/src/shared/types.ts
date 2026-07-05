@@ -36,10 +36,3 @@ export interface GridRow {
   __name?: string;
 }
 
-/** The full table data stored in the limsTable node attribute. */
-export interface GridTableData {
-  schemaId: number | null;
-  title: string;
-  columns: GridColumn[];
-  rows: GridRow[];
-}

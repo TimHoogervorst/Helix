@@ -6,8 +6,6 @@ import type {
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,
-  SlashCommandConfig,
-  ServiceConfig,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -79,26 +77,6 @@ function makeSidebarAction(
     workspaceId: "test.workspace",
     component: DummyComponent,
     position: "inline",
-    ...overrides,
-  };
-}
-
-function makeSlashCommand(
-  overrides?: Partial<SlashCommandConfig>,
-): SlashCommandConfig {
-  return {
-    id: "test.cmd",
-    label: "Test Command",
-    workspaces: [],
-    action: () => {},
-    ...overrides,
-  };
-}
-
-function makeService(overrides?: Partial<ServiceConfig>): ServiceConfig {
-  return {
-    id: "test.service",
-    handler: async () => undefined,
     ...overrides,
   };
 }
@@ -215,45 +193,6 @@ describe("ModRegistry", () => {
     expect(() =>
       registry.registerSidebarAction(makeSidebarAction({ id: "a1" })),
     ).toThrow("Duplicate sidebar action registration");
-  });
-
-  // ── registerSlashCommand (deferred) ──────────────────────────────────
-
-  it("registerSlashCommand stores config and warns", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const config = makeSlashCommand({ id: "sc1" });
-    registry.registerSlashCommand(config);
-    expect(registry.getSlashCommands().get("sc1")).toBe(config);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("registerSlashCommand('sc1')"),
-    );
-    warn.mockRestore();
-  });
-
-  it("registerSlashCommand throws on duplicate ID", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    registry.registerSlashCommand(makeSlashCommand({ id: "sc1" }));
-    expect(() =>
-      registry.registerSlashCommand(makeSlashCommand({ id: "sc1" })),
-    ).toThrow("Duplicate slash command registration");
-    vi.restoreAllMocks();
-  });
-
-  // ── registerService ───────────────────────────────────────────────────
-
-  it("registerService stores a service config", () => {
-    const handler = vi.fn(async () => "result");
-    const config = makeService({ id: "svc1", handler });
-    registry.registerService(config);
-    // Verify via registry.call — it works because registerService stores the handler.
-    return expect(registry.call("svc1", "arg1")).resolves.toBe("result");
-  });
-
-  it("registerService throws on duplicate ID", () => {
-    registry.registerService(makeService({ id: "svc1" }));
-    expect(() => registry.registerService(makeService({ id: "svc1" }))).toThrow(
-      "Duplicate service registration",
-    );
   });
 
   // ── resolveWorkspaceRenderers ───────────────────────────────────────
@@ -419,40 +358,6 @@ describe("ModRegistry", () => {
     );
 
     expect(() => registry.validate()).not.toThrow();
-  });
-
-  // ── call ──────────────────────────────────────────────────────────────
-
-  it("call invokes the registered handler with args and returns its result", async () => {
-    const handler = vi.fn(
-      async (...args: unknown[]) => (args[0] as number) + (args[1] as number),
-    );
-    registry.registerService(makeService({ id: "add", handler }));
-
-    const result = await registry.call("add", 3, 4);
-
-    expect(handler).toHaveBeenCalledWith(3, 4);
-    expect(result).toBe(7);
-  });
-
-  it("call throws a descriptive error when the service is not registered", async () => {
-    await expect(registry.call("nonexistent")).rejects.toThrow(
-      "Service 'nonexistent' is not registered.",
-    );
-  });
-
-  it("call propagates handler-thrown errors to the caller", async () => {
-    const error = new Error("handler exploded");
-    registry.registerService(
-      makeService({
-        id: "explode",
-        handler: async () => {
-          throw error;
-        },
-      }),
-    );
-
-    await expect(registry.call("explode")).rejects.toThrow("handler exploded");
   });
 
   // ── Read-only getters ───────────────────────────────────────────────

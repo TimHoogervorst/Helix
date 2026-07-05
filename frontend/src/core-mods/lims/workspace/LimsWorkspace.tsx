@@ -9,13 +9,13 @@ interface TabConfig {
   label: string;
 }
 
-export const ENTITY_TABS: TabConfig[] = [
+const ENTITY_TABS: TabConfig[] = [
   { id: "activity", label: "Activity" },
   { id: "insights", label: "Insights" },
   { id: "storage", label: "Storage" },
 ];
 
-export function PlaceholderTab({ label }: { label: string }) {
+function PlaceholderTab({ label }: { label: string }) {
   return (
     <div className="console-properties-empty">
       {label} — coming soon.

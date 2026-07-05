@@ -25,27 +25,6 @@ vi.mock("../../../shared/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 
-// Mock ContentPreview (TipTap is heavy)
-vi.mock("../../../shared/ContentPreview", () => ({
-  default: ({ content }: { content: unknown }) => (
-    <div data-testid="content-preview">
-      {content ? "Content rendered" : "No content"}
-    </div>
-  ),
-}));
-
-// Mock useContentPreview
-vi.mock("../../../shared/useContentPreview", () => ({
-  useContentPreview: () => ({
-    content: {
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text: "Hi." }] }],
-    },
-    loading: false,
-    error: null,
-  }),
-}));
-
 // Mock ModRegistry — LibraryConsole resolves the ELN detail card via the registry
 vi.mock("../../../core/mod-system/ModRegistry", () => ({
   ModRegistry: {

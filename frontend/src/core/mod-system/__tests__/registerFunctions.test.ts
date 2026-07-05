@@ -5,8 +5,6 @@ import { registerWorkspace } from "../registerWorkspace";
 import { registerSettingsSection } from "../registerSettingsSection";
 import { registerRoute } from "../registerRoute";
 import { registerSidebarAction } from "../registerSidebarAction";
-import { registerSlashCommand } from "../registerSlashCommand";
-import { registerService } from "../registerService";
 
 /** Reset the singleton between tests. */
 function resetRegistry(): ModRegistry {
@@ -87,28 +85,6 @@ describe("register functions", () => {
       position: "inline" as const,
     };
     registerSidebarAction(config);
-    expect(spy).toHaveBeenCalledWith(config);
-  });
-
-  it("registerSlashCommand delegates to ModRegistry.registerSlashCommand", () => {
-    const spy = vi.spyOn(registry, "registerSlashCommand");
-    const config = {
-      id: "test.cmd",
-      label: "Test Command",
-      workspaces: [],
-      action: () => {},
-    };
-    registerSlashCommand(config);
-    expect(spy).toHaveBeenCalledWith(config);
-  });
-
-  it("registerService delegates to ModRegistry.registerService", () => {
-    const spy = vi.spyOn(registry, "registerService");
-    const config = {
-      id: "test.service",
-      handler: async () => undefined,
-    };
-    registerService(config);
     expect(spy).toHaveBeenCalledWith(config);
   });
 });

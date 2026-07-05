@@ -29,10 +29,7 @@ export interface ConsoleConfig {
     detailCard?: ComponentType<any>;
     workspace?: ComponentType<any>;
   };
-  accepts?: {
-    only?: string[];
-    except?: string[];
-  };
+
 }
 
 // ── Workspace ─────────────────────────────────────────────────────────────

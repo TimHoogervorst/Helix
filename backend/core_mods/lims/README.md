@@ -32,7 +32,7 @@ rows based on the table data.
 ## Dependencies
 
 - **Depends on:** `core` (BrowsableItem, walker)
-- **Consumed by:** `workspaces.eln` (sync pipeline), `references` (target resolution), frontend (`/api/lims/`)
+- **Consumed by:** `core_mods.eln` (sync pipeline), `references` (target resolution), frontend (`/api/lims/`)
 
 ## Files
 

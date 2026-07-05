@@ -5,7 +5,7 @@ import ConsoleMasterPanel, {
 } from "../../../core/console/ConsoleMasterPanel";
 import ReferenceBadge from "../../../shared/ReferenceBadge";
 
-export const LIMS_COLUMNS: MasterColumn[] = [
+const LIMS_COLUMNS: MasterColumn[] = [
   { label: "ID" },
   { label: "Name" },
   { label: "Type" },

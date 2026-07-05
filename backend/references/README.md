@@ -15,7 +15,7 @@ resolution service with a pluggable prefix map.
 
 | Prefix | Target Model | App |
 |--------|-------------|-----|
-| `E` | `NotebookEntry` | `workspaces.eln` |
+| `E` | `NotebookEntry` | `core_mods.eln` |
 | (future) | (extensible) | — |
 
 ## API Endpoints
@@ -33,8 +33,8 @@ resolution service with a pluggable prefix map.
 
 ## Dependencies
 
-- **Depends on:** `core` (walker), `workspaces.eln` (NotebookEntry, Mention — lazy imports), `workspaces.lims` (Entity, EntityType — lazy imports)
-- **Consumed by:** `workspaces.eln` (sync pipeline), frontend `ReferenceBadge` component
+- **Depends on:** `core` (walker), `core_mods.eln` (NotebookEntry, Mention — lazy imports), `core_mods.lims` (Entity, EntityType — lazy imports)
+- **Consumed by:** `core_mods.eln` (sync pipeline), frontend `ReferenceBadge` component
 
 ## Files
 

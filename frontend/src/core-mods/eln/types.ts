@@ -11,20 +11,6 @@ export interface EntryListItem {
   updated_at: string;
 }
 
-/** A notebook entry displayed in the Library console and ELN workspace.
- *  Extends the list item with folder info and a discriminant for console routing. */
-export interface ElnEntry {
-  type: "entry";
-  id: number;
-  display_id: string;
-  title: string;
-  folder: number | null;
-  folder_name: string | null;
-  author_username: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 /** A tag attached to an entry. */
 export interface Tag {
   id: number;
@@ -64,20 +50,6 @@ export interface EntryDetail {
   status_display: string;
   tags: Tag[];
   mentions: Mention[];
-}
-
-/** Payload for creating a new entry. */
-export interface EntryCreatePayload {
-  title: string;
-  content: TipTapDoc;
-  folder?: number;
-}
-
-/** Payload for updating an existing entry. */
-export interface EntryUpdatePayload {
-  title: string;
-  content: TipTapDoc;
-  folder?: number;
 }
 
 import type { GridColumnType } from "../../shared/types";

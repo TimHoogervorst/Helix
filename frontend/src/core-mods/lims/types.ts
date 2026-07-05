@@ -44,18 +44,6 @@ export interface EntityListItem {
   created_at: string;
 }
 
-/** An entity as returned by the batch resolve endpoint. */
-export interface EntityBatchResult {
-  id: number;
-  display_id: string;
-  name: string;
-  entity_type_id: number;
-  entity_type_name: string;
-  properties: Record<string, unknown>;
-  folder_id: number | null;
-  created_at: string;
-}
-
 /** Paginated response wrapper. */
 export interface PaginatedResponse<T> {
   count: number;
@@ -69,4 +57,4 @@ export interface PaginatedResponse<T> {
 // Moved to shared/types.ts — re-exported here so existing consumers
 // don't break.  New code should import from "shared/types".
 
-export type { GridColumn, GridRow, GridTableData } from "../../shared/types";
+export type { GridColumn, GridRow } from "../../shared/types";

@@ -21,7 +21,7 @@ on other OpenScience apps.
 ## Dependencies
 
 - **Depends on:** Django, DRF
-- **Consumed by:** `workspaces.eln`, `workspaces.lims`, `console.library`, `references`
+- **Consumed by:** `core_mods.eln`, `core_mods.lims`, `core_mods.library`, `references`
 
 ## Files
 

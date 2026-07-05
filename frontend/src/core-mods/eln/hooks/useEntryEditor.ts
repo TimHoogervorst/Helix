@@ -7,19 +7,13 @@
  * The hook does NOT own the TipTap editor instance — it reads the latest
  * content from ``contentRef``, which the component updates on every render.
  */
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../../core/api/client";
-import { listTags, createTag, attachTags, detachTag, updateTag } from "../api";
-import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
-import { useReferenceContext } from "../../../core/references/ReferenceProvider";
+import type { TipTapDoc, EntryDetail, Tag } from "../types";
+import { useEntryCrud } from "./useEntryCrud";
+import { useEntryTags } from "./useEntryTags";
+import { useEntryFolder, type Folder } from "./useEntryFolder";
+import { useDirtyTracking } from "./useDirtyTracking";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-interface Folder {
-  id: number;
-  name: string;
-}
 
 export type EditorMode =
   | "loading"
@@ -92,7 +86,7 @@ function extractText(node: unknown): string {
  * Returns the description text and a new document with remaining content.
  * If the first node is not a paragraph, description is empty and doc is unchanged.
  */
-function splitFirstParagraph(
+export function splitFirstParagraph(
   doc: TipTapDoc,
 ): { description: string; body: TipTapDoc } {
   if (!doc || typeof doc !== "object") {
@@ -115,7 +109,7 @@ function splitFirstParagraph(
 /**
  * Prepend a description paragraph to a TipTap document.
  */
-function prependDescription(
+export function prependDescription(
   doc: TipTapDoc,
   description: string,
 ): TipTapDoc {
@@ -221,7 +215,13 @@ export function validateEntityNames(doc: TipTapDoc): boolean {
   return walk(doc);
 }
 
-// ── Hook ─────────────────────────────────────────────────────────────────────
+// ── Hook (composition wrapper) ────────────────────────────────────────────────
+//
+// useEntryEditor now composes four focused hooks:
+//   useEntryCrud + useEntryTags + useEntryFolder + useDirtyTracking
+//
+// This preserves the original interface for backward compatibility.
+// New code should compose the four hooks directly (see ElnEditor).
 
 export function useEntryEditor({
   entryId,
@@ -229,301 +229,70 @@ export function useEntryEditor({
   initialFolderId,
   contentRef,
 }: UseEntryEditorOptions): UseEntryEditorReturn {
-  const navigate = useNavigate();
-  const { resolveIds } = useReferenceContext();
+  // ── Compose the four focused hooks ──
 
-  // ── State ──
-  const [mode, setMode] = useState<EditorMode>(
-    isNew ? "edit-new" : "loading",
-  );
-  const [entry, setEntry] = useState<EntryDetail | null>(null);
-  const [title, setTitle] = useState("");
-  const [initialTitle, setInitialTitle] = useState("");
-  const [initialContent, setInitialContent] = useState<TipTapDoc>(EMPTY_DOC);
-  const [folderId, setFolderId] = useState<number | null>(
-    initialFolderId ?? null,
-  );
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [status, setStatus] = useState("in_progress");
-  const [initialStatus, setInitialStatus] = useState("in_progress");
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [description, setDescriptionState] = useState("");
-  const [initialDescription, setInitialDescription] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const crud = useEntryCrud({ entryId, isNew, contentRef });
+  const tags = useEntryTags({
+    isNew,
+    entryId,
+    initialTags: crud.entry?.tags ?? [],
+    onEntryUpdate: crud.setEntry,
+  });
+  const folder = useEntryFolder({ initialFolderId });
+  const { isDirty } = useDirtyTracking({
+    title: crud.title,
+    initialTitle: crud.initialTitle,
+    description: crud.description,
+    initialDescription: crud.initialDescription,
+    status: crud.status,
+    initialStatus: crud.initialStatus,
+    contentRef,
+    initialContent: crud.initialContent,
+  });
 
-  // ── Derived ──
-  const currentContent = contentRef.current;
-  const isDirty =
-    title !== initialTitle ||
-    description !== initialDescription ||
-    status !== initialStatus ||
-    JSON.stringify(currentContent) !== JSON.stringify(initialContent);
+  // ── Wire cross-hook actions ──
 
-  // ── Fetch entry ──
-  useEffect(() => {
-    if (!entryId) return;
-
-    setMode("loading");
-    const controller = new AbortController();
-
-    get<EntryDetail>(`/eln/entries/${entryId}/`, controller.signal)
-      .then((data) => {
-        if (controller.signal.aborted) return;
-        // Split first paragraph into description; rest stays in the editor
-        const { description: desc, body } = splitFirstParagraph(data.content);
-        setEntry(data);
-        setTitle(data.title);
-        setInitialTitle(data.title);
-        setDescriptionState(desc);
-        setInitialDescription(desc);
-        setInitialContent(body);
-        setFolderId(data.folder);
-        setStatus(data.status || "in_progress");
-        setInitialStatus(data.status || "in_progress");
-        setTags(data.tags || []);
-
-        // Batch-resolve all display IDs found in the loaded content (body only)
-        const refIds = collectDisplayIds(data.content);
-        if (refIds.length > 0) {
-          resolveIds(refIds);
-        }
-
-        setMode("view");
-      })
-      .catch((err) => {
-        if (controller.signal.aborted) return;
-        const message =
-          err instanceof Error ? err.message : "Failed to load entry";
-        setError(message);
-        setMode("error");
-      });
-
-    return () => controller.abort();
-  }, [entryId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Fetch folders ──
-  useEffect(() => {
-    get<Folder[]>("/core/folders/")
-      .then(setFolders)
-      .catch(() => {});
-  }, []);
-
-  // ── Unsaved changes guard ──
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
-
-  // ── Actions ──
-
-  const enterEditMode = useCallback(() => {
-    // Resolve any references in the current content before editing
-    const refIds = collectDisplayIds(currentContent);
-    if (refIds.length > 0) {
-      resolveIds(refIds);
-    }
-    setMode("edit-existing");
-  }, [currentContent, resolveIds]);
-
-  // ── Tag management ──
-
-  const addTag = useCallback(async (tag: Tag) => {
-    setTags((prev) => {
-      if (prev.some((t) => t.id === tag.id)) return prev;
-      return [...prev, tag];
-    });
-
-    // For existing entries, attach immediately on the backend
-    if (!isNew && entryId) {
-      try {
-        const updated = await attachTags(entryId, [tag.id]);
-        setEntry(updated);
-      } catch {
-        // Rollback on failure
-        setTags((prev) => prev.filter((t) => t.id !== tag.id));
-      }
-    }
-  }, [isNew, entryId]);
-
-  const removeTag = useCallback(async (tagId: number) => {
-    const removed = tags.find((t) => t.id === tagId);
-    setTags((prev) => prev.filter((t) => t.id !== tagId));
-
-    // For existing entries, detach immediately on the backend
-    if (!isNew && entryId && removed) {
-      try {
-        const updated = await detachTag(entryId, tagId);
-        setEntry(updated);
-      } catch {
-        // Rollback on failure
-        setTags((prev) => [...prev, removed]);
-      }
-    }
-  }, [isNew, entryId, tags]);
-
-  const searchTags = useCallback(async (query: string): Promise<Tag[]> => {
-    if (!query.trim()) return [];
-    try {
-      return await listTags(query);
-    } catch {
-      return [];
-    }
-  }, []);
-
-  const createAndAttachTag = useCallback(async (name: string, color: string, icon?: string): Promise<Tag | null> => {
-    try {
-      // Check if a tag with this name already exists in the database.
-      // If so, attach the existing tag (preserving its colour & icon)
-      // instead of hitting the unique-constraint error.
-      const existingList = await listTags(name);
-      const exactMatch = existingList.find(
-        (t) => t.name.toLowerCase() === name.toLowerCase(),
-      );
-
-      let tag: Tag;
-      if (exactMatch) {
-        tag = exactMatch;
-      } else {
-        tag = await createTag(name, color, icon);
-      }
-
-      // Attach to existing entry or add locally for new entries
-      if (!isNew && entryId) {
-        await attachTags(entryId, [tag.id]);
-      }
-      setTags((prev) => [...prev, tag]);
-      return tag;
-    } catch {
-      return null;
-    }
-  }, [isNew, entryId]);
-
-  const changeTagIcon = useCallback(async (tagId: number, icon: string) => {
-    try {
-      const updated = await updateTag(tagId, { icon });
-      setTags((prev) => prev.map((t) => (t.id === tagId ? updated : t)));
-    } catch {
-      // Silently ignore — no rollback needed
-    }
-  }, []);
-
-  const setDescription = useCallback((d: string) => {
-    setDescriptionState(d);
-  }, []);
-
-  const cancel = useCallback(() => {
+  // Wrap cancel to also reset folder and tags (owned by sibling hooks).
+  // crud.cancel() resets title/description/status and mode; we add folder + tags.
+  const cancel = () => {
     if (isNew) {
-      navigate("/library");
+      crud.cancel(); // navigates to /library
       return;
     }
-    setTitle(initialTitle);
-    setDescriptionState(initialDescription);
-    setFolderId(entry?.folder ?? null);
-    setStatus(initialStatus);
-    setTags(entry?.tags || []);
-    setMode("view");
-  }, [isNew, initialTitle, initialDescription, initialStatus, entry, navigate]);
+    folder.setFolderId(crud.entry?.folder ?? null);
+    tags.resetTagsToBaseline();
+    crud.cancel();
+  };
 
-  const save = useCallback(async () => {
-    if (!title.trim()) return;
-
-    // Validate that all schema-backed tables have names filled in
-    if (!validateEntityNames(contentRef.current)) {
-      alert("Name not filled in.");
-      return;
-    }
-
-    setMode("saving");
-    setError(null);
-
-    // Prepend description as the first paragraph of the TipTap document
-    const fullContent = prependDescription(contentRef.current, description);
-
-    const payload = {
-      title: title.trim(),
-      content: fullContent,
-      folder: folderId,
-      status,
-      ...(isNew ? { tag_ids: tags.map((t) => t.id) } : {}),
-    };
-
-    try {
-      if (isNew) {
-        const created = await post<EntryDetail>("/eln/entries/", payload);
-        navigate(`/eln/${created.display_id}`);
-      } else {
-        const updated = await put<EntryDetail>(
-          `/eln/entries/${entryId!}/`,
-          payload,
-        );
-        // Replace content with response (entityIds are patched by backend)
-        const responseContent = updated.content || contentRef.current;
-        // Re-split response content to keep description and body in sync
-        const { description: newDesc, body: newBody } = splitFirstParagraph(responseContent);
-        setEntry(updated);
-        setInitialTitle(title.trim());
-        setDescriptionState(newDesc);
-        setInitialDescription(newDesc);
-        setInitialContent(newBody);
-        setInitialStatus(updated.status || "in_progress");
-        // Re-resolve all display IDs from the updated content
-        const refIds = collectDisplayIds(responseContent);
-        if (refIds.length > 0) resolveIds(refIds);
-        setMode("view");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-      setMode(isNew ? "edit-new" : "edit-existing");
-    }
-  }, [title, contentRef, folderId, status, isNew, entryId, navigate, resolveIds]);
-
-  const deleteEntry = useCallback(async () => {
-    if (!entryId || !window.confirm("Delete this entry permanently?")) return;
-
-    setDeleting(true);
-    setError(null);
-    try {
-      await del(`/eln/entries/${entryId}/`);
-      navigate("/library");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
-      setDeleting(false);
-    }
-  }, [entryId, navigate]);
+  // Wrap save to pass folderId and tags to CRUD.
+  const save = () => crud.save(folder.folderId, tags.tags);
 
   return {
-    mode,
-    entry,
-    title,
-    setTitle,
-    initialTitle,
-    initialContent,
-    description,
-    setDescription,
-    folderId,
-    setFolderId,
-    folders,
-    status,
-    setStatus,
-    error,
-    deleting,
+    mode: crud.mode,
+    entry: crud.entry,
+    title: crud.title,
+    setTitle: crud.setTitle,
+    initialTitle: crud.initialTitle,
+    initialContent: crud.initialContent,
+    description: crud.description,
+    setDescription: crud.setDescription,
+    folderId: folder.folderId,
+    setFolderId: folder.setFolderId,
+    folders: folder.folders,
+    status: crud.status,
+    setStatus: crud.setStatus,
+    error: crud.error,
+    deleting: crud.deleting,
     isDirty,
-    tags,
-    addTag,
-    removeTag,
-    createAndAttachTag,
-    changeTagIcon,
-    searchTags,
+    tags: tags.tags,
+    addTag: tags.addTag,
+    removeTag: tags.removeTag,
+    createAndAttachTag: tags.createAndAttachTag,
+    changeTagIcon: tags.changeTagIcon,
+    searchTags: tags.searchTags,
     save,
     cancel,
-    deleteEntry,
-    enterEditMode,
+    deleteEntry: crud.deleteEntry,
+    enterEditMode: crud.enterEditMode,
   };
 }

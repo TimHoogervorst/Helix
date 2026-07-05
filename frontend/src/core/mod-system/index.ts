@@ -5,8 +5,6 @@ export { registerWorkspace } from "./registerWorkspace";
 export { registerSettingsSection } from "./registerSettingsSection";
 export { registerRoute } from "./registerRoute";
 export { registerSidebarAction } from "./registerSidebarAction";
-export { registerSlashCommand } from "./registerSlashCommand";
-export { registerService } from "./registerService";
 export type {
   ModManifest,
   ConsoleConfig,

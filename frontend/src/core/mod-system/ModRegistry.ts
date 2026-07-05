@@ -270,14 +270,4 @@ export class ModRegistry {
   getSidebarActions(): ReadonlyMap<string, SidebarActionConfig> {
     return this.sidebarActions;
   }
-
-  /** Returns a read-only view of all registered slash commands. */
-  getSlashCommands(): ReadonlyMap<string, SlashCommandConfig> {
-    return this.slashCommands;
-  }
-
-  /** Returns a read-only view of all registered services. */
-  getServices(): ReadonlyMap<string, ServiceConfig> {
-    return this.services;
-  }
 }

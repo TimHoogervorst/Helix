@@ -16,7 +16,7 @@ import { createSuggestionDropdown } from "./suggestionDropdown";
 const REFERENCE_SUGGESTION_KEY = new PluginKey("reference-suggestion");
 
 /** Pattern: exact display ID match (e.g. "E1", "S42"). */
-export const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
+const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
 
 export async function fetchItems(query: string): Promise<SearchResult[]> {
   if (!query) return [];
@@ -122,4 +122,3 @@ const ReferenceSuggestion = Extension.create({
 });
 
 export default ReferenceSuggestion;
-export { REFERENCE_SUGGESTION_KEY };

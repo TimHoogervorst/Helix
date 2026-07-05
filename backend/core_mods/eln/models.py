@@ -80,9 +80,6 @@ class NotebookEntry(BrowsableItem):
     def _get_display_id_prefix(self) -> str:
         return "E"
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-
 
 class Mention(models.Model):
     """A parsed reference from one content object to another."""
@@ -97,7 +94,6 @@ class Mention(models.Model):
     target_id = models.PositiveIntegerField()
     target = GenericForeignKey("target_type", "target_id")
 
-    context = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "eln_mention"

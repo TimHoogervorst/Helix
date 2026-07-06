@@ -320,21 +320,23 @@ class EntryActionsEndpointTests(BaseTestCase):
     def test_filter_by_since_returns_recent_actions(self):
         """?since=<now> returns actions created at or after that time."""
         from datetime import timedelta
-        one_hour_ago = (self.a2.created_at - timedelta(hours=1)).isoformat()
+        since = self.a2.created_at - timedelta(hours=1)
+        since_str = since.strftime("%Y-%m-%dT%H:%M:%SZ")
         response = self.client.get(
-            f"/api/eln/entries/{self.entry.display_id}/actions/?since={one_hour_ago}"
+            f"/api/eln/entries/{self.entry.display_id}/actions/?since={since_str}"
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 200, msg=response.content.decode())
         self.assertEqual(response.data["count"], 2)
 
     def test_filter_by_since_excludes_older_actions(self):
         """?since=<future> returns zero actions."""
         from datetime import timedelta
-        far_future = (self.a2.created_at + timedelta(days=365)).isoformat()
+        future = self.a2.created_at + timedelta(days=365)
+        future_str = future.strftime("%Y-%m-%dT%H:%M:%SZ")
         response = self.client.get(
-            f"/api/eln/entries/{self.entry.display_id}/actions/?since={far_future}"
+            f"/api/eln/entries/{self.entry.display_id}/actions/?since={future_str}"
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 200, msg=response.content.decode())
         self.assertEqual(response.data["count"], 0)
 
     def test_filter_by_since_invalid_format(self):

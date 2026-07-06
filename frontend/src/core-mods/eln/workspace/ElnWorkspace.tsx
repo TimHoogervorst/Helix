@@ -19,7 +19,7 @@ import {
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
-import { Avatar, getInitials } from "../../../core/user/Avatar";
+import { Avatar, getInitials } from "../../../shared/Avatar";
 import type { ElnAction } from "../types";
 import { fetchActions } from "../api";
 

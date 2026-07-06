@@ -283,6 +283,21 @@ registerRoute({
 }): void;
 ```
 
+### registerPublicRoute()
+
+Registers a route that renders **outside** the Layout shell (no sidebar, no app chrome). Use this for login, register, and other full-page routes that should not show the standard app layout.
+
+```ts
+registerPublicRoute({
+  id: string;
+  modId: string;
+  path: string;                      // e.g. '/login'
+  component: React.LazyComponent;
+}): void;
+```
+
+Internally calls `registerRoute()` with `public: true`. The Router renders public routes without the `<Layout>` wrapper.
+
 ### registerSidebarAction()
 
 Registers a button or badge on a workspace's sidebar row (e.g., pin/unpin).

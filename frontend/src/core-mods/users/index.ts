@@ -1,5 +1,6 @@
 import { lazy } from "react";
-import { registerRoute, registerPublicRoute } from "../../core/mod-system";
+import { Users } from "lucide-react";
+import { registerRoute, registerPublicRoute, registerSettingsSection } from "../../core/mod-system";
 
 export const meta = {
   id: "users",
@@ -29,5 +30,15 @@ export function register() {
     modId: "users",
     path: "/profile",
     component: lazy(() => import("./pages/ProfilePage")),
+  });
+
+  // ── Settings section ──────────────────────────────────────────────────
+  registerSettingsSection({
+    id: "users.management",
+    modId: "users",
+    label: "Users",
+    icon: Users,
+    component: lazy(() => import("./settings/UserManagement")),
+    order: 5,
   });
 }

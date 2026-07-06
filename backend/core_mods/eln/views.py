@@ -111,14 +111,24 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         read_serializer = NotebookEntrySerializer(entry)
         return Response(read_serializer.data)
 
-    @action(detail=True, methods=["get"], url_path="actions")
-    def list_actions(self, request, display_id=None):
-        """Return actions for an entry, filterable by ?action_type= and ?since=.
+    @action(detail=True, methods=["get", "post"], url_path="actions")
+    def entry_actions(self, request, display_id=None):
+        """GET: list actions for an entry, filterable by ?action_type= and ?since=.
+
+        POST: log a custom action against an entry.
 
         GET /api/eln/entries/{display_id}/actions/
         GET /api/eln/entries/{display_id}/actions/?action_type=edited
         GET /api/eln/entries/{display_id}/actions/?action_type=edited&since=2026-06-30T00:00:00Z
+
+        POST /api/eln/entries/{display_id}/actions/
+        Body: {"action_type": "commented", "metadata": {"text": "..."}}
         """
+        if request.method == "POST":
+            return self._create_action(request, display_id)
+        return self._list_actions(request, display_id)
+
+    def _list_actions(self, request, display_id):
         entry = self.get_object()
         qs = ElnAction.objects.filter(
             target_type="eln.entry",
@@ -149,13 +159,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         serializer = ElnActionSerializer(qs, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"], url_path="actions")
-    def create_action(self, request, display_id=None):
-        """Log a custom action against an entry.
-
-        POST /api/eln/entries/{display_id}/actions/
-        Body: {"action_type": "commented", "metadata": {"text": "..."}}
-        """
+    def _create_action(self, request, display_id):
         entry = self.get_object()
         serializer = ElnActionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

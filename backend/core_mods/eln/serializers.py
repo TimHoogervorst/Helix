@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from core.models import Folder, User
-from core.serializers import UserSerializer
+from core_mods.users.serializers import UserSerializer
 
 from .models import NotebookEntry, Mention, Tag, ElnAction
 

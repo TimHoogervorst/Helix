@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Dna } from "lucide-react";
 import { login } from "../../../core/user/api";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +16,8 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-      navigate("/library", { replace: true });
+      // Hard redirect so CurrentUserProvider re-mounts and fetches the user
+      window.location.href = "/library";
     } catch (err: unknown) {
       if (
         err instanceof Error &&

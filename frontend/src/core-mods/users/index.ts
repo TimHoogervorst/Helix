@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { registerPublicRoute } from "../../core/mod-system";
+import { registerRoute, registerPublicRoute } from "../../core/mod-system";
 
 export const meta = {
   id: "users",
@@ -21,5 +21,13 @@ export function register() {
     modId: "users",
     path: "/register",
     component: lazy(() => import("./pages/RegisterPage")),
+  });
+
+  // ── Layout routes (with sidebar) ───────────────────────────────────────
+  registerRoute({
+    id: "users.profile",
+    modId: "users",
+    path: "/profile",
+    component: lazy(() => import("./pages/ProfilePage")),
   });
 }

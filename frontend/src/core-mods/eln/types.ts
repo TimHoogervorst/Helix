@@ -44,6 +44,7 @@ export interface EntryDetail {
   folder_path: string;
   author: number | null;
   author_username: string | null;
+  author_info: ActionUser | null;
   created_at: string;
   updated_at: string;
   status: string;
@@ -77,3 +78,23 @@ export const EMPTY_DOC: TipTapDoc = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
+
+/** User summary embedded in an action response. */
+export interface ActionUser {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  color: string;
+}
+
+/** An action log entry returned by the actions endpoint. */
+export interface ElnAction {
+  id: number;
+  action_type: string;
+  target_type: string;
+  target_id: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  performed_by: ActionUser;
+}

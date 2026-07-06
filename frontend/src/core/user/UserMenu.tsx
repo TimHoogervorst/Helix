@@ -47,7 +47,7 @@ export function UserMenu() {
     <div className="relative" ref={menuRef}>
       {/* ── Trigger button ──────────────────────────────────────────── */}
       <button
-        className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2.5 hover:bg-muted transition-colors"
+        className="btn-ghost w-full gap-2 border-t border-hairline px-3 py-2.5 hover:bg-muted transition-colors"
         onClick={() => setOpen((prev) => !prev)}
         aria-label="User menu"
       >

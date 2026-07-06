@@ -15,6 +15,11 @@ import React from "react";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
+const mockFetchActions = vi.fn().mockResolvedValue([]);
+vi.mock("../api", () => ({
+  fetchActions: mockFetchActions,
+}));
+
 /** ElnEditor mock that fires onStateChange so the top toolbar can render
  *  the correct action buttons. */
 vi.mock("../editor/ElnEditor", () => ({

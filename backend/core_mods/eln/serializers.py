@@ -66,6 +66,7 @@ class TagSerializer(serializers.ModelSerializer):
 
 class NotebookEntrySerializer(serializers.ModelSerializer):
     author_username = serializers.SerializerMethodField()
+    author_info = UserSerializer(source="author", read_only=True)
     folder_name = serializers.CharField(source="folder.name", read_only=True)
     folder_path = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -84,6 +85,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "folder_path",
             "author",
             "author_username",
+            "author_info",
             "created_at",
             "updated_at",
             "status",

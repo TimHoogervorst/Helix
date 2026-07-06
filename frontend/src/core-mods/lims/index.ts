@@ -1,4 +1,4 @@
-import { Database } from "lucide-react";
+import { Database, Cog } from "lucide-react";
 import {
   registerConsole,
   registerWorkspace,
@@ -56,6 +56,7 @@ export function register() {
     id: "lims.schema-settings",
     modId: "lims",
     label: "Schemas",
+    icon: Cog,
     component: SchemaSettings,
     order: 10,
   });

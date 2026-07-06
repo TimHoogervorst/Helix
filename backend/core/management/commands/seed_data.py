@@ -23,8 +23,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
 
     def _seed_superuser(self):
-        username = os.environ.get("SEED_USERNAME", "admin")
-        password = os.environ.get("SEED_PASSWORD", "admin")
+        username = os.environ.get("SEED_USERNAME") or "admin"
+        password = os.environ.get("SEED_PASSWORD") or "admin"
 
         if User.objects.filter(username=username).exists():
             self.stdout.write(f"Superuser '{username}' already exists — skipping.")

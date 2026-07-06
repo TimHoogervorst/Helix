@@ -6,6 +6,7 @@
  * and is synced back via ``updateAttributes``.
  */
 import { useMemo, useCallback, useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { AgGridReact } from "ag-grid-react";
 import type { AgGridReact as AgGridReactType } from "ag-grid-react";
@@ -153,6 +154,7 @@ function LimsTableNode(props: NodeViewProps) {
   const gridRef = useRef<AgGridReactType>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showGearMenu, setShowGearMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const gearBtnRef = useRef<HTMLButtonElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
 
@@ -444,6 +446,36 @@ function LimsTableNode(props: NodeViewProps) {
     };
   }, [showGearMenu]);
 
+  // ── Position gear menu relative to the gear button ───────────────────
+  // The menu is portaled to document.body to escape ancestor
+  // overflow:hidden clipping.  We compute its fixed position from the
+  // gear button's bounding rect and keep it in sync on scroll/resize.
+  useEffect(() => {
+    if (!showGearMenu) {
+      setMenuPos(null);
+      return;
+    }
+
+    const recalc = () => {
+      const btn = gearBtnRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    };
+
+    recalc();
+    window.addEventListener("scroll", recalc, { capture: true, passive: true });
+    window.addEventListener("resize", recalc, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", recalc, { capture: true });
+      window.removeEventListener("resize", recalc);
+    };
+  }, [showGearMenu]);
+
   // ── Backfill schema name for pre-existing tables that have schemaId but no stored name
   useEffect(() => {
     if (schemaId === null || schemaName !== null) return;
@@ -498,7 +530,7 @@ function LimsTableNode(props: NodeViewProps) {
               </span>
             )}
           </div>
-          <div className="eln-table-title-right" ref={menuContainerRef}>
+          <div className="eln-table-title-right">
             <button
               ref={gearBtnRef}
               type="button"
@@ -509,132 +541,150 @@ function LimsTableNode(props: NodeViewProps) {
             >
               ⚙
             </button>
-            {showGearMenu && !activePanel && (
-              <div className="eln-table-gear-menu">
-                <button
-                  className="eln-table-gear-item"
-                  onClick={() => {
-                    handleAddRow();
-                    setShowGearMenu(false);
-                  }}
-                >
-                  + Add Row
-                </button>
-                <button
-                  className="eln-table-gear-item"
-                  onClick={() => {
-                    handleDeleteSelected();
-                    setShowGearMenu(false);
-                  }}
-                >
-                  − Delete Row
-                </button>
-                <div className="eln-table-gear-divider" />
-                <button
-                  className="eln-table-gear-item"
-                  onClick={handleOpenAddColumn}
-                >
-                  Add Column…
-                </button>
-                <button
-                  className="eln-table-gear-item"
-                  onClick={handleOpenLoadSchema}
-                >
-                  Load Schema…
-                </button>
-              </div>
-            )}
-
-            {/* ── Add Column panel ────────────────────────────────── */}
-            {showGearMenu && activePanel === "addColumn" && (
-              <div className="eln-table-gear-menu eln-table-gear-panel">
-                <div className="eln-table-gear-panel-head">
-                  <button
-                    className="eln-table-gear-back"
-                    onClick={() => setActivePanel(null)}
-                    title="Back"
-                  >
-                    ←
-                  </button>
-                  <span className="eln-table-gear-panel-title">Add Column</span>
-                </div>
-                <div className="eln-table-gear-panel-body">
-                  <input
-                    ref={addColNameRef}
-                    className="eln-table-gear-input"
-                    type="text"
-                    placeholder="Column name"
-                    value={newColumnName}
-                    onChange={(e) => setNewColumnName(e.target.value)}
-                    onKeyDown={handleAddColumnKeyDown}
-                  />
-                  <select
-                    className="eln-table-gear-select"
-                    value={newColumnType}
-                    onChange={(e) =>
-                      setNewColumnType(
-                        e.target.value as GridColumn["type"]
-                      )
-                    }
-                    onKeyDown={handleAddColumnKeyDown}
-                  >
-                    <option value="Text">Aa Text</option>
-                    <option value="Number"># Number</option>
-                    <option value="Date">📅 Date</option>
-                    <option value="Boolean">☑ Boolean</option>
-                  </select>
-                  <button
-                    className="eln-table-gear-confirm"
-                    onClick={handleAddColumn}
-                    disabled={!newColumnName.trim()}
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Load Schema panel ──────────────────────────────── */}
-            {showGearMenu && activePanel === "loadSchema" && (
-              <div className="eln-table-gear-menu eln-table-gear-panel">
-                <div className="eln-table-gear-panel-head">
-                  <button
-                    className="eln-table-gear-back"
-                    onClick={() => setActivePanel(null)}
-                    title="Back"
-                  >
-                    ←
-                  </button>
-                  <span className="eln-table-gear-panel-title">
-                    Load Schema
-                  </span>
-                </div>
-                <div className="eln-table-gear-panel-body">
-                  {schemasLoading ? (
-                    <span className="eln-table-gear-hint">Loading…</span>
-                  ) : schemas.length === 0 ? (
-                    <span className="eln-table-gear-hint">
-                      No schemas available
-                    </span>
-                  ) : (
-                    schemas.map((s) => (
-                      <button
-                        key={s.id}
-                        className="eln-table-gear-item eln-table-schema-option"
-                        onClick={() => handleSelectSchema(s)}
-                      >
-                        <span className="eln-table-schema-name">{s.name}</span>
-                        <span className="eln-table-schema-prefix">
-                          {s.prefix}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* ── Gear menu — portaled to document.body to escape ancestor
+              overflow:hidden clipping on .eln-table-card / .lims-table-wrapper. */}
+        {showGearMenu &&
+          menuPos &&
+          createPortal(
+            <div
+              className={`eln-table-gear-menu${activePanel ? " eln-table-gear-panel" : ""}`}
+              ref={menuContainerRef}
+              style={{
+                position: "fixed",
+                top: menuPos.top,
+                right: menuPos.right,
+              }}
+            >
+              {!activePanel && (
+                <>
+                  <button
+                    className="eln-table-gear-item"
+                    onClick={() => {
+                      handleAddRow();
+                      setShowGearMenu(false);
+                    }}
+                  >
+                    + Add Row
+                  </button>
+                  <button
+                    className="eln-table-gear-item"
+                    onClick={() => {
+                      handleDeleteSelected();
+                      setShowGearMenu(false);
+                    }}
+                  >
+                    − Delete Row
+                  </button>
+                  <div className="eln-table-gear-divider" />
+                  <button
+                    className="eln-table-gear-item"
+                    onClick={handleOpenAddColumn}
+                  >
+                    Add Column…
+                  </button>
+                  <button
+                    className="eln-table-gear-item"
+                    onClick={handleOpenLoadSchema}
+                  >
+                    Load Schema…
+                  </button>
+                </>
+              )}
+
+              {/* ── Add Column panel ──────────────────────────────── */}
+              {activePanel === "addColumn" && (
+                <>
+                  <div className="eln-table-gear-panel-head">
+                    <button
+                      className="eln-table-gear-back"
+                      onClick={() => setActivePanel(null)}
+                      title="Back"
+                    >
+                      ←
+                    </button>
+                    <span className="eln-table-gear-panel-title">Add Column</span>
+                  </div>
+                  <div className="eln-table-gear-panel-body">
+                    <input
+                      ref={addColNameRef}
+                      className="eln-table-gear-input"
+                      type="text"
+                      placeholder="Column name"
+                      value={newColumnName}
+                      onChange={(e) => setNewColumnName(e.target.value)}
+                      onKeyDown={handleAddColumnKeyDown}
+                    />
+                    <select
+                      className="eln-table-gear-select"
+                      value={newColumnType}
+                      onChange={(e) =>
+                        setNewColumnType(
+                          e.target.value as GridColumn["type"]
+                        )
+                      }
+                      onKeyDown={handleAddColumnKeyDown}
+                    >
+                      <option value="Text">Aa Text</option>
+                      <option value="Number"># Number</option>
+                      <option value="Date">📅 Date</option>
+                      <option value="Boolean">☑ Boolean</option>
+                    </select>
+                    <button
+                      className="eln-table-gear-confirm"
+                      onClick={handleAddColumn}
+                      disabled={!newColumnName.trim()}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Load Schema panel ────────────────────────────── */}
+              {activePanel === "loadSchema" && (
+                <>
+                  <div className="eln-table-gear-panel-head">
+                    <button
+                      className="eln-table-gear-back"
+                      onClick={() => setActivePanel(null)}
+                      title="Back"
+                    >
+                      ←
+                    </button>
+                    <span className="eln-table-gear-panel-title">
+                      Load Schema
+                    </span>
+                  </div>
+                  <div className="eln-table-gear-panel-body">
+                    {schemasLoading ? (
+                      <span className="eln-table-gear-hint">Loading…</span>
+                    ) : schemas.length === 0 ? (
+                      <span className="eln-table-gear-hint">
+                        No schemas available
+                      </span>
+                    ) : (
+                      schemas.map((s) => (
+                        <button
+                          key={s.id}
+                          className="eln-table-gear-item eln-table-schema-option"
+                          onClick={() => handleSelectSchema(s)}
+                        >
+                          <span className="eln-table-schema-name">{s.name}</span>
+                          <span className="eln-table-schema-prefix">
+                            {s.prefix}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>,
+            document.body
+          )}
 
         {/* AG Grid */}
         <div

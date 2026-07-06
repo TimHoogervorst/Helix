@@ -985,16 +985,9 @@ h1 {
 /* ── Settings Master–Detail ── */
 
 .settings-page.has-detail {
-  /* Break out of parent .page max-width to use full viewport */
-  position: relative;
-  width: 100vw;
-  max-width: 100vw;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  /* Use full width of the main content area — don't overflow the sidebar */
+  width: 100%;
+  max-width: none;
 }
 
 .settings-master-detail {
@@ -1644,9 +1637,7 @@ input.lims-table-title-input:focus {
 }
 
 .eln-table-gear-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  /* position / top / right are set inline (portaled to document.body) */
   z-index: 500;
   min-width: 180px;
   background: var(--white, #fff);

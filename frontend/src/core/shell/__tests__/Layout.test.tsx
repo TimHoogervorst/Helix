@@ -302,3 +302,181 @@ describe("Sidebar actions", () => {
     expect(screen.getByText("Helix")).toBeInTheDocument();
   });
 });
+
+// ── Settings sidebar mode ──────────────────────────────────────────────────
+
+describe("Layout settings sidebar", () => {
+  function DummySettingsComponent() {
+    return <div data-testid="settings-comp">Settings Content</div>;
+  }
+
+  function AltSettingsComponent() {
+    return <div data-testid="alt-settings-comp">Alt Settings Content</div>;
+  }
+
+  function SidebarAction() {
+    return <div data-testid="ws-action">Workspace Action</div>;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ModRegistry._reset();
+    // Re-register consoles so Layout doesn't error when NOT on settings
+    ModRegistry.getInstance().registerConsole({
+      id: "library",
+      label: "Library",
+      icon: BookOpen,
+      route: "/library",
+      component: () => null,
+      order: 10,
+      defaults: {},
+      accepts: { only: ["eln.entry"] },
+    });
+    ModRegistry.getInstance().registerConsole({
+      id: "lims",
+      label: "Database",
+      icon: Database,
+      route: "/lims",
+      component: () => null,
+      order: 30,
+      defaults: {},
+    });
+    // Register settings sections
+    const registry = ModRegistry.getInstance();
+    registry.registerMod("mod-a");
+    registry.registerSettingsSection({
+      id: "users.management",
+      modId: "mod-a",
+      label: "Users",
+      component: DummySettingsComponent,
+      order: 5,
+    });
+    registry.registerSettingsSection({
+      id: "lims.schema-settings",
+      modId: "mod-a",
+      label: "Schemas",
+      component: AltSettingsComponent,
+      order: 10,
+    });
+    // Register a sidebar action (workspace)
+    registry.registerMod("test-mod");
+    registry.registerSidebarAction({
+      id: "test.action",
+      workspaceId: "*",
+      component: SidebarAction,
+      position: "inline",
+    });
+    mockGet.mockResolvedValue([]);
+  });
+
+  it("shows settings sections in the sidebar when on /settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Users" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Schemas" })).toBeInTheDocument();
+  });
+
+  it("shows a 'Settings' section label when on /settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+  });
+
+  it("shows a 'Back to Home' link that navigates to /library when on /settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    const backLink = screen.getByRole("link", { name: "Back to Home" });
+    expect(backLink).toBeInTheDocument();
+    expect(backLink).toHaveAttribute("href", "/library");
+  });
+
+  it("highlights the active settings section based on search param", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings?section=lims.schema-settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    const schemasLink = screen.getByRole("link", { name: "Schemas" });
+    expect(schemasLink.className).toContain("bg-muted");
+    expect(schemasLink.className).toContain("font-medium");
+  });
+
+  it("the first section is active when no section param is given", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    const usersLink = screen.getByRole("link", { name: "Users" });
+    expect(usersLink.className).toContain("bg-muted");
+    expect(usersLink.className).toContain("font-medium");
+  });
+
+  it("hides Home, Starred, and console links when on /settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Starred" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Database" })).not.toBeInTheDocument();
+  });
+
+  it("hides sidebar actions (workspace) when on /settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("ws-action")).not.toBeInTheDocument();
+  });
+
+  it("still shows brand and user menu on /settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Helix")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument();
+  });
+
+  it("does not show 'Back to Home' when NOT on /settings", () => {
+    renderLayout("/library");
+
+    expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
+  });
+
+  it("shows normal nav (Home, Starred, consoles) when NOT on /settings", () => {
+    renderLayout("/library");
+
+    expect(screen.getByRole("button", { name: "Home" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Starred" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
+  });
+
+  it("shows sidebar actions when NOT on /settings", () => {
+    renderLayout("/library");
+
+    expect(screen.getByTestId("ws-action")).toBeInTheDocument();
+  });
+});

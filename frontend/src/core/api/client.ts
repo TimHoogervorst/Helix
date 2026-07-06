@@ -67,13 +67,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     );
   }
 
-  // 401 — user session expired or not authenticated → silent redirect
-  if (response.status === 401) {
+  // 401 / 403 — user session expired or not authenticated → silent redirect
+  if (response.status === 401 || response.status === 403) {
     // Don't redirect if we're already on the login page
     if (!window.location.pathname.startsWith("/login")) {
       window.location.href = "/login";
     }
-    throw new ApiError(401, { detail: "Authentication required." });
+    throw new ApiError(response.status, { detail: "Authentication required." });
   }
 
   if (!response.ok) {

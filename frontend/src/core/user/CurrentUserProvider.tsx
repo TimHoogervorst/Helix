@@ -41,11 +41,12 @@ export function CurrentUserProvider({ children }: CurrentUserProviderProps) {
       setUser(me);
       setError(null);
     } catch (err: unknown) {
-      // Only redirect on 401 — other errors (network, 500, etc.) show error UI
+      // Redirect on 401/403 — other errors (network, 500, etc.) show error UI
       if (
         err instanceof Error &&
         "status" in err &&
-        (err as { status: number }).status === 401
+        ((err as { status: number }).status === 401 ||
+          (err as { status: number }).status === 403)
       ) {
         setUser(null);
         // Silent redirect — don't redirect if already on login/register

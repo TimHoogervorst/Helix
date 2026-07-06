@@ -47,7 +47,7 @@ describe("users mod — index.ts", () => {
       register();
 
       const publicCalls = mockRegisterPublicRoute.mock.calls;
-      const ids = publicCalls.map((c: [{ id: string }]) => c[0].id);
+      const ids = publicCalls.map((c: { id: string }[]) => c[0].id);
       expect(ids).toContain("users.login");
       expect(ids).toContain("users.register");
     });
@@ -56,7 +56,7 @@ describe("users mod — index.ts", () => {
       register();
 
       const routeCalls = mockRegisterRoute.mock.calls;
-      const ids = routeCalls.map((c: [{ id: string }]) => c[0].id);
+      const ids = routeCalls.map((c: { id: string }[]) => c[0].id);
       expect(ids).toContain("users.profile");
     });
 
@@ -64,7 +64,7 @@ describe("users mod — index.ts", () => {
       register();
 
       const settingsCalls = mockRegisterSettingsSection.mock.calls;
-      const ids = settingsCalls.map((c: [{ id: string }]) => c[0].id);
+      const ids = settingsCalls.map((c: { id: string }[]) => c[0].id);
       expect(ids).toContain("users.management");
     });
 

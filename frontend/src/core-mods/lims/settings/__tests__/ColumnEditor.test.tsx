@@ -116,9 +116,9 @@ describe("ColumnEditor", () => {
         onDiscard={vi.fn()}
       />,
     );
-    // ▲ for the second row (index 1) — the first row's ▲ is disabled
+    // ▲ for the second user row — buttons order: [Name pseudo, user-0, user-1]
     const upButtons = screen.getAllByTitle("Move up");
-    fireEvent.click(upButtons[1]); // second row
+    fireEvent.click(upButtons[2]); // second user row
     expect(onMove).toHaveBeenCalledWith(1, "up");
   });
 
@@ -135,7 +135,7 @@ describe("ColumnEditor", () => {
       />,
     );
     const downButtons = screen.getAllByTitle("Move down");
-    fireEvent.click(downButtons[0]); // first row
+    fireEvent.click(downButtons[1]); // first user row (index 0 is Name pseudo-column)
     expect(onMove).toHaveBeenCalledWith(0, "down");
   });
 
@@ -166,7 +166,7 @@ describe("ColumnEditor", () => {
       />,
     );
     const downButtons = screen.getAllByTitle("Move down");
-    expect(downButtons[1]).toBeDisabled();
+    expect(downButtons[2]).toBeDisabled(); // second user row is last (index 2), index 0 is Name pseudo-column
   });
 
   it("renders empty column list without errors", () => {

@@ -1,14 +1,19 @@
+from datetime import datetime, timezone
+
+from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.actions.logger import log_action
 
-from .models import NotebookEntry, Tag
+from .models import NotebookEntry, Tag, ElnAction
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
     TagSerializer,
+    ElnActionSerializer,
+    ElnActionCreateSerializer,
 )
 from .sync import sync_entry_content
 
@@ -107,6 +112,66 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         entry.tags.remove(tag)
         read_serializer = NotebookEntrySerializer(entry)
         return Response(read_serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="actions")
+    def list_actions(self, request, display_id=None):
+        """Return actions for an entry, filterable by ?action_type= and ?since=.
+
+        GET /api/eln/entries/{display_id}/actions/
+        GET /api/eln/entries/{display_id}/actions/?action_type=edited
+        GET /api/eln/entries/{display_id}/actions/?action_type=edited&since=2026-06-30T00:00:00Z
+        """
+        entry = self.get_object()
+        qs = ElnAction.objects.filter(
+            target_type="eln.entry",
+            target_id=entry.id,
+        ).select_related("performed_by").order_by("-created_at")
+
+        # Filter by action_type (e.g. "edited", "created")
+        action_type = request.query_params.get("action_type")
+        if action_type:
+            qs = qs.filter(action_type=action_type)
+
+        # Filter by since (ISO 8601 datetime)
+        since_str = request.query_params.get("since")
+        if since_str:
+            since = parse_datetime(since_str)
+            if since is None:
+                return Response(
+                    {"error": "Invalid since parameter. Use ISO 8601 format."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            qs = qs.filter(created_at__gte=since)
+
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = ElnActionSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = ElnActionSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="actions")
+    def create_action(self, request, display_id=None):
+        """Log a custom action against an entry.
+
+        POST /api/eln/entries/{display_id}/actions/
+        Body: {"action_type": "commented", "metadata": {"text": "..."}}
+        """
+        entry = self.get_object()
+        serializer = ElnActionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        action = log_action(
+            user=request.user,
+            action_type=serializer.validated_data["action_type"],
+            target_type="eln.entry",
+            target_id=entry.id,
+            metadata=serializer.validated_data.get("metadata") or {},
+        )
+
+        read_serializer = ElnActionSerializer(action)
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
 
 class TagViewSet(viewsets.ModelViewSet):

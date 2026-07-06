@@ -75,7 +75,7 @@ export function UserMenu() {
           {/* Menu items */}
           <div className="py-1">
             <button
-              className="flex w-full items-center gap-2 rounded px-3 py-2 text-[13px] text-foreground hover:bg-muted transition-colors"
+              className="btn-ghost w-full"
               onClick={() => {
                 navigate("/profile");
                 setOpen(false);
@@ -85,7 +85,7 @@ export function UserMenu() {
               Profile
             </button>
             <button
-              className="flex w-full items-center gap-2 rounded px-3 py-2 text-[13px] text-muted-foreground cursor-not-allowed"
+              className="btn-ghost w-full cursor-not-allowed"
               disabled
               title="Coming soon"
               aria-label="Preferences — coming soon"
@@ -94,7 +94,7 @@ export function UserMenu() {
               Preferences
             </button>
             <button
-              className="flex w-full items-center gap-2 rounded px-3 py-2 text-[13px] text-foreground hover:bg-muted transition-colors"
+              className="btn-ghost w-full"
               onClick={() => {
                 navigate("/settings");
                 setOpen(false);
@@ -105,7 +105,7 @@ export function UserMenu() {
             </button>
             <div className="my-1 border-t border-hairline" />
             <button
-              className="flex w-full items-center gap-2 rounded px-3 py-2 text-[13px] text-destructive hover:bg-muted transition-colors"
+              className="btn-ghost w-full !text-destructive"
               onClick={handleLogout}
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden="true" />

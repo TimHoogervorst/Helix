@@ -29,7 +29,11 @@ export interface ConsoleConfig {
     detailCard?: ComponentType<any>;
     workspace?: ComponentType<any>;
   };
-
+  /** Narrows which workspace item types appear in this console. */
+  accepts?: {
+    only?: string[];
+    except?: string[];
+  };
 }
 
 // ── Workspace ─────────────────────────────────────────────────────────────

@@ -14,14 +14,14 @@ const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 
 // ── Available commands ──────────────────────────────────────────────
 
-interface SlashCommand {
+export interface SlashCommand {
   label: string;
   description: string;
   icon: string;
   action: (editor: any, range: { from: number; to: number }) => void;
 }
 
-function getCommands(): SlashCommand[] {
+export function getCommands(): SlashCommand[] {
   return [
     {
       label: "Table",
@@ -93,7 +93,7 @@ function dropdownRenderer() {
 
 // ── Fuse-style fuzzy filter ─────────────────────────────────────────
 
-function fuzzyMatch(text: string, query: string): boolean {
+export function fuzzyMatch(text: string, query: string): boolean {
   const t = text.toLowerCase();
   const q = query.toLowerCase();
   let qi = 0;

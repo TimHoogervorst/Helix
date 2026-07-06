@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Users, UserPlus, Shield } from "lucide-react";
-import { listUsers, createUser, deactivateUser, fetchCoreSetting, updateCoreSetting } from "../api";
+import { Users, UserPlus, Shield, X } from "lucide-react";
+import { listUsers, createUser, deactivateUser, deleteUser, fetchCoreSetting, updateCoreSetting } from "../api";
 import { Avatar, getInitials } from "../../../shared/Avatar";
 import { formatDate } from "../../../shared/format";
 import type { CurrentUser } from "../types";
@@ -131,6 +131,17 @@ export default function UserManagement() {
     }
   };
 
+  const handleDelete = async (user: CurrentUser) => {
+    if (!window.confirm(`Permanently delete user "${user.username}"? This cannot be undone.`)) return;
+
+    try {
+      await deleteUser(user.id);
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete user");
+    }
+  };
+
   // ── Toggle self-registration ────────────────────────────────────────────
 
   const handleToggleRegistration = async () => {
@@ -223,12 +234,21 @@ export default function UserManagement() {
                       <StatusChip active={user.is_active} />
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {user.is_active && (
+                      {user.is_active ? (
                         <button
                           className="btn-ghost text-[12px] text-destructive hover:bg-destructive/10"
                           onClick={() => handleDeactivate(user)}
                         >
                           Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-ghost p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => handleDelete(user)}
+                          title="Delete"
+                          aria-label={`Delete ${user.username}`}
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
                         </button>
                       )}
                     </td>

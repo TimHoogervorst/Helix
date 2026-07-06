@@ -1,4 +1,4 @@
-import { get, post, patch } from "../../core/api/client";
+import { get, post, patch, del } from "../../core/api/client";
 import type { CurrentUser, CoreSetting } from "./types";
 
 // ── User management (admin) ──────────────────────────────────────────────
@@ -16,6 +16,10 @@ export function createUser(
 
 export function deactivateUser(id: number): Promise<CurrentUser> {
   return patch<CurrentUser>(`/core/users/${id}/`, { is_active: false });
+}
+
+export function deleteUser(id: number): Promise<void> {
+  return del<void>(`/core/users/${id}/`);
 }
 
 // ── CoreSetting ──────────────────────────────────────────────────────────

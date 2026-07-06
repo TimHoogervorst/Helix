@@ -7,12 +7,36 @@
  *  - App-level redirects / → /library and /eln → /library work
  *  - Empty registry doesn't crash
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 import Router from "../Router";
 import type { ConsoleConfig, RouteConfig } from "../../mod-system/types";
+
+// Provide a mock user context so Layout (which renders UserMenu) doesn't crash
+vi.mock("../../user/CurrentUserProvider", () => ({
+  CurrentUserProvider: ({ children }: { children: React.ReactNode }) => children,
+  useCurrentUser: () => ({
+    user: {
+      id: 1,
+      username: "mkato",
+      first_name: "Mira",
+      last_name: "Kato",
+      color: "#4A90D9",
+      is_active: true,
+      date_joined: "2025-01-15T00:00:00Z",
+    },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
+vi.mock("../../user/api", () => ({
+  logout: vi.fn().mockResolvedValue({ detail: "ok" }),
+  fetchMe: vi.fn(),
+}));
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

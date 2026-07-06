@@ -4,6 +4,7 @@ import { Dna, Search, House, Star } from "lucide-react";
 import { get } from "../api/client";
 import { ReferenceProvider } from "../references/ReferenceProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
+import { UserMenu } from "../user/UserMenu";
 
 function Layout() {
   const location = useLocation();
@@ -90,18 +91,8 @@ function Layout() {
               return <Comp key={a.id} />;
             })}
 
-          {/* User avatar */}
-          <div className="flex items-center gap-2 border-t border-hairline px-3 py-2.5">
-            <div className="grid h-7 w-7 place-items-center rounded-full bg-enzyme text-enzyme-foreground font-mono text-[11px]">
-              MK
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-[13px] font-medium">Dr. Mira Kato</span>
-              <span className="text-[10px] text-muted-foreground">
-                Molecular Bio · Lab 3B
-              </span>
-            </div>
-          </div>
+          {/* User section — live avatar + UserMenu popover */}
+          <UserMenu />
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col">

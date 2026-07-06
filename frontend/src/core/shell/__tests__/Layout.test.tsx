@@ -3,9 +3,10 @@
  *
  * Verifies:
  *  - Sidebar renders with all required sections (brand, search, nav,
- *    user avatar)
+ *    user menu)
  *  - The old horizontal <nav> topbar no longer exists
  *  - Sidebar actions (registered by mods via registry) render inline
+ *  - UserMenu trigger renders (avatar + username from CurrentUserContext)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -18,6 +19,31 @@ import { ModRegistry } from "../../mod-system/ModRegistry";
 const mockGet = vi.fn();
 vi.mock("../../api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
+}));
+
+// Provide a mock user for UserMenu / useCurrentUser
+vi.mock("../../user/CurrentUserProvider", () => ({
+  CurrentUserProvider: ({ children }: { children: React.ReactNode }) => children,
+  useCurrentUser: () => ({
+    user: {
+      id: 1,
+      username: "mkato",
+      first_name: "Mira",
+      last_name: "Kato",
+      color: "#4A90D9",
+      is_active: true,
+      date_joined: "2025-01-15T00:00:00Z",
+    },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
+// UserMenu uses these — mock them to avoid router/navigation issues
+vi.mock("../../user/api", () => ({
+  logout: vi.fn().mockResolvedValue({ detail: "ok" }),
+  fetchMe: vi.fn(),
 }));
 
 import Layout from "../Layout";
@@ -109,19 +135,35 @@ describe("Layout sidebar", () => {
     expect(dbLink).toHaveAttribute("href", "/lims");
   });
 
-  it("renders the user initials MK", () => {
+  it("renders the UserMenu trigger button", () => {
+    renderLayout();
+    expect(
+      screen.getByRole("button", { name: "User menu" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the current user's initials in the sidebar", () => {
     renderLayout();
     expect(screen.getByText("MK")).toBeInTheDocument();
   });
 
-  it("renders the user name", () => {
+  it("shows the current user's username in the sidebar", () => {
     renderLayout();
-    expect(screen.getByText("Dr. Mira Kato")).toBeInTheDocument();
+    expect(screen.getByText("mkato")).toBeInTheDocument();
   });
 
-  it("renders the user subtitle", () => {
+  it("does not show the old hardcoded user name", () => {
     renderLayout();
-    expect(screen.getByText("Molecular Bio · Lab 3B")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Dr. Mira Kato"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show the old hardcoded user subtitle", () => {
+    renderLayout();
+    expect(
+      screen.queryByText("Molecular Bio · Lab 3B"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not contain the old horizontal nav topbar", () => {

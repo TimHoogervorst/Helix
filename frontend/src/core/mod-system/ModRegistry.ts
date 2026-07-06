@@ -266,6 +266,16 @@ export class ModRegistry {
     return this.routes;
   }
 
+  /** Returns only routes registered with ``public: true`` (outside Layout). */
+  getPublicRoutes(): RouteConfig[] {
+    return [...this.routes.values()].filter((r) => r.public === true);
+  }
+
+  /** Returns only routes that render inside the Layout shell. */
+  getLayoutRoutes(): RouteConfig[] {
+    return [...this.routes.values()].filter((r) => !r.public);
+  }
+
   /** Returns a read-only view of all registered sidebar actions. */
   getSidebarActions(): ReadonlyMap<string, SidebarActionConfig> {
     return this.sidebarActions;

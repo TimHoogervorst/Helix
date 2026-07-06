@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Folder
+from .models import CoreSetting, Folder
 
 
 class FolderSerializer(serializers.ModelSerializer):
@@ -15,3 +15,13 @@ class FolderSerializer(serializers.ModelSerializer):
         # Only include immediate children to avoid deep recursion
         children = Folder.objects.filter(parent=obj)
         return FolderSerializer(children, many=True).data
+
+
+# ── CoreSetting ────────────────────────────────────────────────────────────
+
+
+class CoreSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CoreSetting
+        fields = ["id", "key", "value"]
+        read_only_fields = ["id", "key"]

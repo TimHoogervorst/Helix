@@ -1,8 +1,9 @@
 from rest_framework import serializers
 
-from core.models import Folder
+from core.models import Folder, User
+from core_mods.users.serializers import UserSerializer
 
-from .models import NotebookEntry, Mention, Tag
+from .models import NotebookEntry, Mention, Tag, ElnAction
 
 
 def validate_tiptap_json(value):
@@ -31,7 +32,7 @@ class MentionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "source_type", "source_type_name", "source_id",
             "target_type", "target_type_name", "target_id",
-            "target_display_id", "target_title", "context",
+            "target_display_id", "target_title",
         ]
         read_only_fields = ["id"]
 
@@ -65,6 +66,7 @@ class TagSerializer(serializers.ModelSerializer):
 
 class NotebookEntrySerializer(serializers.ModelSerializer):
     author_username = serializers.SerializerMethodField()
+    author_info = UserSerializer(source="author", read_only=True)
     folder_name = serializers.CharField(source="folder.name", read_only=True)
     folder_path = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -83,6 +85,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "folder_path",
             "author",
             "author_username",
+            "author_info",
             "created_at",
             "updated_at",
             "status",
@@ -130,3 +133,35 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
         if tag_ids is not None:
             instance.tags.set(tag_ids)
         return instance
+
+
+class ElnActionSerializer(serializers.ModelSerializer):
+    """Read-only serializer for an ELN action log entry.
+
+    Includes the user who performed the action so the frontend can render
+    avatars and display names.
+    """
+
+    performed_by = UserSerializer(read_only=True)
+
+    class Meta:
+        model = ElnAction
+        fields = [
+            "id",
+            "action_type",
+            "target_type",
+            "target_id",
+            "metadata",
+            "created_at",
+            "performed_by",
+        ]
+        read_only_fields = fields
+
+
+class ElnActionCreateSerializer(serializers.ModelSerializer):
+    """Write-only serializer for logging a custom action against an entry."""
+
+    class Meta:
+        model = ElnAction
+        fields = ["action_type", "metadata"]
+        # target_type, target_id, and performed_by are set by the view

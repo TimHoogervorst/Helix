@@ -12,6 +12,7 @@ from core_mods.eln.models import NotebookEntry
 class LibraryApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
         # Create folder structure:
         #   root/

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SettingsPage from "../pages/SettingsPage";
 import { ModRegistry } from "../../../core/mod-system/ModRegistry";
@@ -26,9 +26,9 @@ function resetRegistry(): void {
   (ModRegistry as any).instance = null;
 }
 
-function renderSettingsPage() {
+function renderSettingsPage(route = "/settings") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[route]}>
       <SettingsPage />
     </MemoryRouter>,
   );
@@ -52,41 +52,9 @@ describe("SettingsPage", () => {
     expect(screen.getByText("No settings available.")).toBeInTheDocument();
   });
 
-  // ── Section rendering ─────────────────────────────────────────────────
+  // ── Default selection (no search param) ───────────────────────────────
 
-  it("renders registered settings sections sorted by order", () => {
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("mod-a");
-    registry.registerSettingsSection({
-      id: "s2",
-      modId: "mod-a",
-      label: "Section Two",
-      component: SectionB,
-      order: 20,
-    });
-    registry.registerSettingsSection({
-      id: "s1",
-      modId: "mod-a",
-      label: "Section One",
-      component: SectionA,
-      order: 10,
-    });
-
-    renderSettingsPage();
-
-    // Both section nav buttons should be present
-    expect(screen.getByText("Section One")).toBeInTheDocument();
-    expect(screen.getByText("Section Two")).toBeInTheDocument();
-
-    // Verify order: first button should be "Section One" (lower order)
-    const buttons = screen.getAllByRole("button");
-    expect(buttons[0]).toHaveTextContent("Section One");
-    expect(buttons[1]).toHaveTextContent("Section Two");
-  });
-
-  // ── Default selection ─────────────────────────────────────────────────
-
-  it("auto-selects the first section by default", () => {
+  it("renders the first section by default when no section param is given", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("mod-a");
     registry.registerSettingsSection({
@@ -104,17 +72,17 @@ describe("SettingsPage", () => {
       order: 20,
     });
 
-    renderSettingsPage();
+    renderSettingsPage("/settings");
 
-    // The first section's component should be rendered (the right panel)
+    // The first section's component should be rendered
     expect(screen.getByTestId("section-a")).toBeInTheDocument();
     // The second section's component should NOT be rendered
     expect(screen.queryByTestId("section-b")).not.toBeInTheDocument();
   });
 
-  // ── Click to select ───────────────────────────────────────────────────
+  // ── Search param selection ────────────────────────────────────────────
 
-  it("switches to a different section on click", () => {
+  it("renders the section specified by the 'section' search param", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("mod-a");
     registry.registerSettingsSection({
@@ -132,22 +100,16 @@ describe("SettingsPage", () => {
       order: 20,
     });
 
-    renderSettingsPage();
+    renderSettingsPage("/settings?section=s2");
 
-    // Initially section A is shown
-    expect(screen.getByTestId("section-a")).toBeInTheDocument();
-
-    // Click on section B
-    fireEvent.click(screen.getByText("Section Two"));
-
-    // Now section B should show, section A should not
+    // Section B should be shown (explicit param)
     expect(screen.queryByTestId("section-a")).not.toBeInTheDocument();
     expect(screen.getByTestId("section-b")).toBeInTheDocument();
   });
 
-  // ── Sticky selection ──────────────────────────────────────────────────
+  // ── Unknown section param falls back to first ─────────────────────────
 
-  it("keeps the selected section when clicking the active nav button again", () => {
+  it("falls back to the first section when the param specifies an unknown id", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("mod-a");
     registry.registerSettingsSection({
@@ -165,20 +127,16 @@ describe("SettingsPage", () => {
       order: 20,
     });
 
-    renderSettingsPage();
+    renderSettingsPage("/settings?section=nonexistent");
 
-    // Select section B
-    fireEvent.click(screen.getByText("Section Two"));
-    expect(screen.getByTestId("section-b")).toBeInTheDocument();
-
-    // Click section B again — should stay on B
-    fireEvent.click(screen.getByText("Section Two"));
-    expect(screen.getByTestId("section-b")).toBeInTheDocument();
+    // Should fall back to first section
+    expect(screen.getByTestId("section-a")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-b")).not.toBeInTheDocument();
   });
 
   // ── Three sections ────────────────────────────────────────────────────
 
-  it("handles multiple sections correctly", () => {
+  it("handles multiple sections and selects by param", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("mod-a");
     registry.registerSettingsSection({
@@ -203,23 +161,129 @@ describe("SettingsPage", () => {
       order: 30,
     });
 
-    renderSettingsPage();
-
-    // All three nav buttons
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(3);
-
-    // First is auto-selected
+    // Default to first
+    const { unmount: unmount1 } = render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
     expect(screen.getByTestId("section-a")).toBeInTheDocument();
+    unmount1();
 
-    // Click last
-    fireEvent.click(screen.getByText("C"));
+    // Go to middle
+    resetRegistry();
+    const reg = ModRegistry.getInstance();
+    reg.registerMod("mod-a");
+    reg.registerSettingsSection({
+      id: "s1",
+      modId: "mod-a",
+      label: "A",
+      component: SectionA,
+      order: 10,
+    });
+    reg.registerSettingsSection({
+      id: "s2",
+      modId: "mod-a",
+      label: "B",
+      component: SectionB,
+      order: 20,
+    });
+    reg.registerSettingsSection({
+      id: "s3",
+      modId: "mod-a",
+      label: "C",
+      component: SectionC,
+      order: 30,
+    });
+
+    const { unmount: unmount2 } = render(
+      <MemoryRouter initialEntries={["/settings?section=s2"]}>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("section-b")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-a")).not.toBeInTheDocument();
+    unmount2();
+
+    // Go to last
+    resetRegistry();
+    const reg2 = ModRegistry.getInstance();
+    reg2.registerMod("mod-a");
+    reg2.registerSettingsSection({
+      id: "s1",
+      modId: "mod-a",
+      label: "A",
+      component: SectionA,
+      order: 10,
+    });
+    reg2.registerSettingsSection({
+      id: "s2",
+      modId: "mod-a",
+      label: "B",
+      component: SectionB,
+      order: 20,
+    });
+    reg2.registerSettingsSection({
+      id: "s3",
+      modId: "mod-a",
+      label: "C",
+      component: SectionC,
+      order: 30,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/settings?section=s3"]}>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
     expect(screen.getByTestId("section-c")).toBeInTheDocument();
     expect(screen.queryByTestId("section-a")).not.toBeInTheDocument();
+  });
 
-    // Click middle
-    fireEvent.click(screen.getByText("B"));
-    expect(screen.getByTestId("section-b")).toBeInTheDocument();
-    expect(screen.queryByTestId("section-c")).not.toBeInTheDocument();
+  // ── Section ordering ─────────────────────────────────────────────────
+
+  it("renders sections sorted by order regardless of registration order", () => {
+    const registry = ModRegistry.getInstance();
+    registry.registerMod("mod-a");
+    // Register higher order first
+    registry.registerSettingsSection({
+      id: "s2",
+      modId: "mod-a",
+      label: "Section Two",
+      component: SectionB,
+      order: 20,
+    });
+    registry.registerSettingsSection({
+      id: "s1",
+      modId: "mod-a",
+      label: "Section One",
+      component: SectionA,
+      order: 10,
+    });
+
+    renderSettingsPage("/settings");
+
+    // The first section (lower order) should be auto-selected
+    expect(screen.getByTestId("section-a")).toBeInTheDocument();
+  });
+
+  // ── No sidebar nav ────────────────────────────────────────────────────
+
+  it("does not render its own sidebar navigation (nav is now in Layout)", () => {
+    const registry = ModRegistry.getInstance();
+    registry.registerMod("mod-a");
+    registry.registerSettingsSection({
+      id: "s1",
+      modId: "mod-a",
+      label: "Section One",
+      component: SectionA,
+      order: 10,
+    });
+
+    renderSettingsPage("/settings");
+
+    // The settings-nav class should not exist (it was on the old internal nav)
+    expect(document.querySelector(".settings-nav")).not.toBeInTheDocument();
+    expect(document.querySelector(".settings-layout")).not.toBeInTheDocument();
   });
 });

@@ -27,6 +27,9 @@ services:
       DATABASE_URL: postgres://openscience:openscience@db:5432/openscience
       SECRET_KEY: dev-secret-key-change-in-production
       DEBUG: "true"
+      ALLOW_SELF_REGISTRATION: "false"
+      SEED_USERNAME: ""
+      SEED_PASSWORD: ""
     depends_on:
       db:
         condition: service_healthy

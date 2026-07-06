@@ -5,7 +5,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from core_mods.eln.models import NotebookEntry, Mention
+from core_mods.eln.models import NotebookEntry, Mention, ElnAction
 
 TEXT_DOC = {
     "type": "doc",
@@ -21,6 +21,7 @@ TEXT_DOC = {
 class ElnApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
     def test_list_entries_empty(self):
         """GET /api/eln/entries/ returns empty list with 200."""
@@ -37,7 +38,7 @@ class ElnApiTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["title"], "Test Entry")
-        self.assertIsNone(response.data["author_username"])
+        self.assertEqual(response.data["author_username"], self.USERNAME)
         self.assertEqual(response.data["content"], TEXT_DOC)
         self.assertEqual(NotebookEntry.objects.count(), 1)
 
@@ -115,6 +116,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
         # Create a target entry that will be referenced.
         self.target = NotebookEntry.objects.create(
@@ -173,3 +175,212 @@ class MentionSyncOnSaveTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Mention.objects.count(), 0)
+
+
+class EntryActionLoggingTests(BaseTestCase):
+    """Integration: creating/updating entries logs actions via log_action()."""
+
+    def setUp(self):
+        super().setUp()
+        # Authentication is required for log_action to fire.
+        self.client.force_authenticate(user=self.user)
+
+    def test_create_entry_logs_action(self):
+        """POST creates an ElnAction with action_type='created'."""
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = self.client.post(
+            "/api/eln/entries/",
+            {"title": "Logged Create", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ElnAction.objects.count(), 1)
+        action = ElnAction.objects.first()
+        self.assertEqual(action.action_type, "created")
+        self.assertEqual(action.target_type, "eln.entry")
+        self.assertEqual(action.target_id, response.data["id"])
+        self.assertEqual(action.performed_by, self.user)
+
+    def test_update_entry_logs_action(self):
+        """PUT creates an ElnAction with action_type='edited'."""
+        entry = NotebookEntry.objects.create(
+            title="Before Edit", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = self.client.put(
+            f"/api/eln/entries/{entry.display_id}/",
+            {"title": "After Edit", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ElnAction.objects.count(), 1)
+        action = ElnAction.objects.first()
+        self.assertEqual(action.action_type, "edited")
+        self.assertEqual(action.target_type, "eln.entry")
+        self.assertEqual(action.target_id, entry.id)
+        self.assertEqual(action.performed_by, self.user)
+
+    def test_create_entry_unauthenticated_returns_403(self):
+        """When no user is authenticated, POST returns 403."""
+        from rest_framework.test import APIClient
+        anon_client = APIClient()
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = anon_client.post(
+            "/api/eln/entries/",
+            {"title": "Anon Entry", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ElnAction.objects.count(), 0)
+        self.assertEqual(NotebookEntry.objects.count(), 0)
+
+    def test_update_entry_unauthenticated_returns_403(self):
+        """When no user is authenticated, PUT returns 403."""
+        entry = NotebookEntry.objects.create(
+            title="Anon Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        from rest_framework.test import APIClient
+        anon_client = APIClient()
+        self.assertEqual(ElnAction.objects.count(), 0)
+        response = anon_client.put(
+            f"/api/eln/entries/{entry.display_id}/",
+            {"title": "Anon Edit", "content": TEXT_DOC, "folder": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ElnAction.objects.count(), 0)
+
+
+class EntryActionsEndpointTests(BaseTestCase):
+    """Tests for GET /api/eln/entries/{id}/actions/ (list + filter)
+    and POST /api/eln/entries/{id}/actions/ (create custom action)."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.entry = NotebookEntry.objects.create(
+            title="Actions Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        # Create several actions via the logger so they exist before tests
+        from core.actions.logger import log_action
+        self.a1 = log_action(
+            user=self.user, action_type="created",
+            target_type="eln.entry", target_id=self.entry.id,
+        )
+        self.a2 = log_action(
+            user=self.user, action_type="edited",
+            target_type="eln.entry", target_id=self.entry.id,
+        )
+
+    # ── GET: list actions ─────────────────────────────────────────────────
+
+    def test_list_actions_returns_paginated_results(self):
+        """GET returns 200 with results key (paginated)."""
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("results", response.data)
+        self.assertEqual(response.data["count"], 2)
+
+    def test_list_actions_includes_performed_by(self):
+        """Each action embeds performed_by user info."""
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/"
+        )
+        action = response.data["results"][0]
+        self.assertIn("performed_by", action)
+        self.assertEqual(action["performed_by"]["username"], self.USERNAME)
+        self.assertIn("color", action["performed_by"])
+        self.assertIn("first_name", action["performed_by"])
+        self.assertIn("last_name", action["performed_by"])
+
+    # ── GET: filter by action_type ────────────────────────────────────────
+
+    def test_filter_by_action_type(self):
+        """?action_type=edited returns only edited actions."""
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=edited"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["action_type"], "edited")
+
+    def test_filter_by_action_type_created(self):
+        """?action_type=created returns only created actions."""
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=created"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["action_type"], "created")
+
+    # ── GET: filter by since ──────────────────────────────────────────────
+
+    def test_filter_by_since_returns_recent_actions(self):
+        """?since=<now> returns actions created at or after that time."""
+        from datetime import timedelta
+        since = self.a2.created_at - timedelta(hours=1)
+        since_str = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/?since={since_str}"
+        )
+        self.assertEqual(response.status_code, 200, msg=response.content.decode())
+        self.assertEqual(response.data["count"], 2)
+
+    def test_filter_by_since_excludes_older_actions(self):
+        """?since=<future> returns zero actions."""
+        from datetime import timedelta
+        future = self.a2.created_at + timedelta(days=365)
+        future_str = future.strftime("%Y-%m-%dT%H:%M:%SZ")
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/?since={future_str}"
+        )
+        self.assertEqual(response.status_code, 200, msg=response.content.decode())
+        self.assertEqual(response.data["count"], 0)
+
+    def test_filter_by_since_invalid_format(self):
+        """?since=<garbage> returns 400."""
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/?since=not-a-date"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    # ── POST: create custom action ────────────────────────────────────────
+
+    def test_create_action(self):
+        """POST creates a new action and returns 201."""
+        response = self.client.post(
+            f"/api/eln/entries/{self.entry.display_id}/actions/",
+            {"action_type": "commented", "metadata": {"text": "Great work!"}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ElnAction.objects.count(), 3)
+        self.assertEqual(response.data["action_type"], "commented")
+        self.assertEqual(response.data["metadata"], {"text": "Great work!"})
+        self.assertEqual(response.data["performed_by"]["username"], self.USERNAME)
+
+    def test_create_action_unauthenticated_returns_403(self):
+        """POST without auth returns 403."""
+        from rest_framework.test import APIClient
+        anon_client = APIClient()
+        response = anon_client.post(
+            f"/api/eln/entries/{self.entry.display_id}/actions/",
+            {"action_type": "commented"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # ── Actions are entry-specific ────────────────────────────────────────
+
+    def test_actions_are_scoped_to_entry(self):
+        """Different entries have independent action lists."""
+        other = NotebookEntry.objects.create(
+            title="Other Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        response = self.client.get(
+            f"/api/eln/entries/{other.display_id}/actions/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)

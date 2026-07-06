@@ -1,5 +1,5 @@
 import { useNavigate, Link } from "react-router-dom";
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import {
   History,
   MessageSquare,
@@ -19,6 +19,9 @@ import {
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
+import { Avatar, getInitials } from "../../../shared/Avatar";
+import type { ElnAction } from "../types";
+import { fetchActions } from "../api";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -45,23 +48,6 @@ function IconButton({
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
     </button>
-  );
-}
-
-/** Hardcoded user avatar circle — real user data in future PRD. */
-function Avatar({
-  initials,
-  bgClass,
-}: {
-  initials: string;
-  bgClass: string;
-}) {
-  return (
-    <span
-      className={`inline-grid h-6 w-6 shrink-0 place-items-center rounded-full ${bgClass} font-mono text-[9.5px] font-medium ring-2 ring-background`}
-    >
-      {initials}
-    </span>
   );
 }
 
@@ -109,6 +95,65 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     });
   }, [entryDisplayId]);
 
+  // ── Recent editors (for toolbar avatars + last-editor info) ──
+  const [allActions, setAllActions] = useState<ElnAction[]>([]);
+
+  useEffect(() => {
+    if (!entryId) return;
+    let cancelled = false;
+
+    // Default window: 1 week for the avatar row
+    const oneWeekAgo = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    fetchActions(entryId, "edited", oneWeekAgo)
+      .then((actions) => {
+        if (!cancelled) setAllActions(actions);
+      })
+      .catch(() => {
+        // Silently ignore — avatars are best-effort UI
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entryId]);
+
+  // Deduplicate by user, keep most recent per user
+  const recentEditors = useMemo(() => {
+    const seen = new Set<number>();
+    const unique: ElnAction[] = [];
+    for (const a of allActions) {
+      if (!seen.has(a.performed_by.id)) {
+        seen.add(a.performed_by.id);
+        unique.push(a);
+      }
+    }
+    return unique;
+  }, [allActions]);
+
+  // Also fetch all action types for "last editor" (more reliable than
+  // filtering to just "edited" because a new entry may only have "created")
+  const [allRecentActions, setAllRecentActions] = useState<ElnAction[]>([]);
+
+  useEffect(() => {
+    if (!entryId) return;
+    let cancelled = false;
+
+    fetchActions(entryId)
+      .then((actions) => {
+        if (!cancelled) setAllRecentActions(actions);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entryId]);
+
+  const lastEditor = allRecentActions.length > 0 ? allRecentActions[0].performed_by : null;
+
   // ── Reference resolution for linked entities ──
   const { resolutionMap, resolveIds } = useReferenceContext();
 
@@ -129,7 +174,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const pathSegments = folderPath.split("/").filter(Boolean);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* ── Top toolbar ── */}
       <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
         {/* Left: breadcrumbs — real folder path with clickable segments */}
@@ -233,12 +278,24 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
           {/* Separator */}
           <div className="mx-1.5 h-4 w-px bg-hairline" aria-hidden="true" />
 
-          {/* User avatars */}
-          <div className="flex -space-x-1.5">
-            <Avatar initials="MK" bgClass="bg-enzyme text-enzyme-foreground" />
-            <Avatar initials="JS" bgClass="bg-flask text-flask-foreground" />
-            <Avatar initials="AR" bgClass="bg-solvent text-solvent-foreground" />
-          </div>
+          {/* Recent editor avatars — up to 3 distinct editors from last week */}
+          {recentEditors.length > 0 && (
+            <div className="flex -space-x-1.5">
+              {recentEditors.slice(0, 3).map((action) => (
+                <Avatar
+                  key={action.performed_by.id}
+                  initials={getInitials(action.performed_by)}
+                  color={action.performed_by.color}
+                  size="sm"
+                />
+              ))}
+              {recentEditors.length > 3 && (
+                <span className="inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted font-mono text-[9.5px] font-medium text-muted-foreground ring-2 ring-background">
+                  …
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Share button — copies canonical URL to clipboard */}
           <button
@@ -271,9 +328,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       </div>
 
       {/* ── Content + Metadata ── */}
-      <div className="flex min-w-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* Main content area */}
-        <main className="min-w-0 flex-1">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
             <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} />
           </div>
@@ -281,7 +338,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
         {/* Metadata panel — visible at xl and above */}
         <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
-          <div className="sticky top-0 max-h-screen space-y-6 overflow-y-auto px-5 py-6">
+          <div className="h-full space-y-6 overflow-y-auto px-5 py-6">
             {/* ── Metadata ── */}
             <section>
               <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -289,9 +346,37 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
               </h3>
               <dl className="space-y-2.5 text-[13px]">
                 <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Owner</dt>
+                  <dt className="text-muted-foreground">Author</dt>
                   <dd className="text-right">
-                    {entry?.author_username || "—"}
+                    {entry?.author_info ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Avatar
+                          initials={getInitials(entry.author_info)}
+                          color={entry.author_info.color}
+                          size="sm"
+                        />
+                        {entry.author_info.username}
+                      </span>
+                    ) : (
+                      entry?.author_username || "—"
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-muted-foreground">Last editor</dt>
+                  <dd className="text-right">
+                    {lastEditor ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Avatar
+                          initials={getInitials(lastEditor)}
+                          color={lastEditor.color}
+                          size="sm"
+                        />
+                        {lastEditor.username}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">

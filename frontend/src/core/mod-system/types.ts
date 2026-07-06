@@ -29,7 +29,11 @@ export interface ConsoleConfig {
     detailCard?: ComponentType<any>;
     workspace?: ComponentType<any>;
   };
-
+  /** Narrows which workspace item types appear in this console. */
+  accepts?: {
+    only?: string[];
+    except?: string[];
+  };
 }
 
 // ── Workspace ─────────────────────────────────────────────────────────────
@@ -69,6 +73,8 @@ export interface RouteConfig {
   modId: string;
   path: string;
   component: ComponentType<any>;
+  /** When true, the route renders outside the Layout shell (no sidebar). */
+  public?: boolean;
 }
 
 // ── Sidebar Action ────────────────────────────────────────────────────────

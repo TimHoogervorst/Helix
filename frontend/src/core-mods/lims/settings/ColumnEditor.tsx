@@ -54,7 +54,24 @@ function ColumnEditor({
       <div className="column-list">
         {/* ── Implicit Name pseudo-column (gray, non-editable) ── */}
         <div className="column-row column-row--system" data-testid="name-pseudo-column">
-          <div className="drag-handles" />
+          <div className="drag-handles">
+            <button
+              className="drag-btn"
+              disabled
+              title="Move up"
+              aria-label="Move up"
+            >
+              ▲
+            </button>
+            <button
+              className="drag-btn"
+              disabled
+              title="Move down"
+              aria-label="Move down"
+            >
+              ▼
+            </button>
+          </div>
           <input
             type="text"
             value="Name"

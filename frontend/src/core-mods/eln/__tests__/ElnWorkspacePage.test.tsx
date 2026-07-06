@@ -8,12 +8,20 @@
  * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
  * toolbar via state lifted from ElnEditor through onStateChange + ref.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
+
+const { mockFetchActions } = vi.hoisted(() => ({
+  mockFetchActions: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("../api", () => ({
+  fetchActions: mockFetchActions,
+}));
 
 /** ElnEditor mock that fires onStateChange so the top toolbar can render
  *  the correct action buttons. */
@@ -88,6 +96,10 @@ import ElnWorkspacePage from "../workspace/ElnWorkspacePage";
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
 describe("ElnWorkspacePage — 3-column layout", () => {
+  beforeEach(() => {
+    mockFetchActions.mockReset();
+    mockFetchActions.mockResolvedValue([]);
+  });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 
   it("renders breadcrumb with folder icon and path", () => {
@@ -173,11 +185,87 @@ describe("ElnWorkspacePage — 3-column layout", () => {
 
   // ── Top toolbar: user avatars ──────────────────────────────────────────
 
-  it("renders three user avatar circles with initials", () => {
+  it("does not render avatar row when no recent editors exist", async () => {
+    mockFetchActions.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     renderAtRoute("/eln/EXP-0284");
-    expect(screen.getByText("MK")).toBeDefined();
-    expect(screen.getByText("JS")).toBeDefined();
-    expect(screen.getByText("AR")).toBeDefined();
+    // No avatar initials from the shared Avatar component should be visible
+    await vi.waitFor(() => {
+      // No fetchActions error — avatars simply absent
+    });
+    // The old "MK" / "JS" / "AR" initials are gone
+    expect(screen.queryByText("MK")).toBeNull();
+    expect(screen.queryByText("JS")).toBeNull();
+    expect(screen.queryByText("AR")).toBeNull();
+  });
+
+  it("renders real editor avatars when fetchActions returns data", async () => {
+    const mockUser = {
+      id: 1,
+      username: "mirak",
+      first_name: "Mira",
+      last_name: "Keller",
+      color: "#d9b3e6",
+    };
+    mockFetchActions
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          action_type: "edited",
+          target_type: "eln.entry",
+          target_id: 1,
+          metadata: {},
+          created_at: new Date().toISOString(),
+          performed_by: mockUser,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          action_type: "edited",
+          target_type: "eln.entry",
+          target_id: 1,
+          metadata: {},
+          created_at: new Date().toISOString(),
+          performed_by: mockUser,
+        },
+      ]);
+    renderAtRoute("/eln/EXP-0284");
+    // The shared Avatar renders initials via aria-label — may appear in
+    // both the toolbar (recentEditors) and metadata panel (lastEditor)
+    const avatars = await screen.findAllByLabelText("MK");
+    expect(avatars.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders overflow bubble when more than 3 distinct editors", async () => {
+    const makeUser = (id: number) => ({
+      id,
+      username: `user${id}`,
+      first_name: "",
+      last_name: "",
+      color: "#d9b3e6",
+    });
+    const makeAction = (userId: number) => ({
+      id: userId,
+      action_type: "edited" as const,
+      target_type: "eln.entry",
+      target_id: 1,
+      metadata: {},
+      created_at: new Date().toISOString(),
+      performed_by: makeUser(userId),
+    });
+    mockFetchActions
+      .mockResolvedValueOnce([
+        makeAction(1),
+        makeAction(2),
+        makeAction(3),
+        makeAction(4),
+      ])
+      .mockResolvedValueOnce([
+        makeAction(1),
+      ]);
+    renderAtRoute("/eln/EXP-0284");
+    const dots = await screen.findByText("…");
+    expect(dots).toBeDefined();
   });
 
   // ── Top toolbar: Share & Sign & Witness ────────────────────────────────
@@ -226,10 +314,11 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
     });
 
-    it("renders metadata keys: Owner, Project, Started, Status, Folder", () => {
+    it("renders metadata keys: Author, Last editor, Project, Started, Status, Folder", () => {
       renderAtRoute("/eln/EXP-0284");
 
-      expect(screen.getByText("Owner")).toBeDefined();
+      expect(screen.getByText("Author")).toBeDefined();
+      expect(screen.getByText("Last editor")).toBeDefined();
       expect(screen.getByText("Project")).toBeDefined();
       expect(screen.getByText("Started")).toBeDefined();
       expect(screen.getByText("Status")).toBeDefined();
@@ -242,13 +331,13 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       expect(screen.queryByText("Instrument")).toBeNull();
     });
 
-    it("shows fallback '—' for Owner, Project, Started when no entry data", () => {
+    it("shows fallback '—' for Author, Last editor, Project, Started when no entry data", () => {
       renderAtRoute("/eln/EXP-0284");
 
       // With no entry data, each value should show "—"
       // The breadcrumb also shows "—", so there will be multiple
       const dashes = screen.getAllByText("—");
-      expect(dashes.length).toBeGreaterThanOrEqual(3); // breadcrumb + Owner + Project + Started + Folder
+      expect(dashes.length).toBeGreaterThanOrEqual(4); // breadcrumb + Author + Last editor + Project + Started + Folder
     });
 
     it("renders Status chip as 'In progress' with warn styling in view mode", () => {

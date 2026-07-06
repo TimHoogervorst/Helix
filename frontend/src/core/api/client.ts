@@ -16,6 +16,14 @@ class ApiError extends Error {
   }
 }
 
+/** Thrown when the fetch itself fails (network error, DNS, timeout, etc.). */
+class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
 // ── CSRF token helpers (Django expects X-CSRFToken on unsafe methods) ──────
 
 function getCookie(name: string): string | null {
@@ -46,11 +54,27 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...rest,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...rest,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    throw new NetworkError(
+      err instanceof Error ? err.message : "Network request failed",
+    );
+  }
+
+  // 401 / 403 — user session expired or not authenticated → silent redirect
+  if (response.status === 401 || response.status === 403) {
+    // Don't redirect if we're already on the login page
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new ApiError(response.status, { detail: "Authentication required." });
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
@@ -85,4 +109,4 @@ export function del<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { method: "DELETE", signal });
 }
 
-export { ApiError };
+export { ApiError, NetworkError };

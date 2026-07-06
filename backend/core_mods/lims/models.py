@@ -1,6 +1,7 @@
 from django.db import models
 
 from core.abstracts import BrowsableItem
+from core.actions.base import AbstractBaseAction
 from core.constants import STATUS_CHOICES
 
 
@@ -93,8 +94,14 @@ class Entity(BrowsableItem):
         return self.entity_type.prefix
 
 
-class Action(models.Model):
-    """A recorded action performed on an entity."""
+class Action(AbstractBaseAction):
+    """A recorded action performed on an entity.
+
+    Extends :class:`AbstractBaseAction` to add LIMS-specific fields
+    (``entity``, ``source_entry``) while inheriting the shared action
+    columns (``performed_by``, ``action_type``, ``target_type``,
+    ``target_id``, ``metadata``, ``created_at``).
+    """
 
     ACTION_CHOICES = [
         ("created", "Created"),
@@ -106,10 +113,6 @@ class Action(models.Model):
     ]
 
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name="actions")
-    action_type = models.CharField(max_length=50, choices=ACTION_CHOICES)
-    performed_by = models.ForeignKey(
-        "core.User", on_delete=models.CASCADE, related_name="actions"
-    )
     source_entry = models.ForeignKey(
         "eln.NotebookEntry",
         on_delete=models.SET_NULL,
@@ -117,8 +120,6 @@ class Action(models.Model):
         blank=True,
         related_name="actions",
     )
-    data = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "lims_action"

@@ -6,10 +6,13 @@ class LimsConfig(AppConfig):
     name = "core_mods.lims"
 
     def ready(self):
+        from core.actions.registry import register_action_model
         from core.signals import entry_content_sync
         from core_mods.eln.models import NotebookEntry
+        from core_mods.lims.models import Action
         from core_mods.lims.signals import sync_entities_on_content_sync
 
         entry_content_sync.connect(
             sync_entities_on_content_sync, sender=NotebookEntry
         )
+        register_action_model("lims", Action)

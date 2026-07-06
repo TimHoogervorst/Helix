@@ -155,6 +155,10 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/minute",
+        "register": "5/minute",
+    },
 }
 
 

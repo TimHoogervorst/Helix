@@ -6,6 +6,7 @@ from django.contrib.auth import login, logout
 from rest_framework import status, views, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from core.actions.logger import log_action
 from core.models import CoreSetting, User
@@ -23,10 +24,15 @@ from .serializers import (
 
 
 class LoginView(views.APIView):
-    """POST /api/core/login/ — authenticate and create a Django session."""
+    """POST /api/core/login/ — authenticate and create a Django session.
+
+    Rate-limited to 5 requests per minute per IP.
+    """
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data, context={"request": request})
@@ -52,10 +58,14 @@ class RegisterView(views.APIView):
 
     Gated by CoreSetting.allow_self_registration.  Returns 403 when
     self-registration is disabled.
+
+    Rate-limited to 5 requests per minute per IP.
     """
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "register"
 
     def post(self, request):
         # Gate: check CoreSetting

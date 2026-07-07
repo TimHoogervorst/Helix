@@ -6,9 +6,9 @@
  */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import ReferenceBadge from "./ReferenceBadge";
-import { ReferenceProvider } from "../core/references/ReferenceProvider";
-import type { BadgeResolved } from "./ReferenceBadge";
+import ReferenceBadge from "../ReferenceBadge";
+import { ReferenceProvider } from "../../../core/references/ReferenceProvider";
+import type { BadgeResolved } from "../ReferenceBadge";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

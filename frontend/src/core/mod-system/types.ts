@@ -109,7 +109,7 @@ export interface PropertyField {
   label?: string;
 }
 
-/** Props contract between BaseLibraryCard and mod-provided card components. */
+/** Props contract between BaseCard and mod-provided card components. */
 export interface LibraryCardProps {
   /** The data item to render. */
   item: Record<string, unknown>;

@@ -43,7 +43,7 @@ vi.mock("../../../../core/console/ConsoleContext", () => ({
 
 // ── Heavy component mocks ────────────────────────────────────────────────
 
-vi.mock("../../../../shared/ReferenceBadge", () => ({
+vi.mock("../../../../shared/components/ReferenceBadge", () => ({
   default: makeMockReferenceBadge({ clickable: true }),
 }));
 

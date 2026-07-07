@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { ViewState } from "../types/console";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+/** Panel view state for row-click behavior — inlined to avoid console dependency. */
+export type PanelViewState = "list" | "detail" | "expanded";
 
 /** Action returned by handleRowClick to signal what the view layer should do. */
 export interface RowClickAction {
   type: "select" | "deselect" | "none";
 }
 
-/** Configuration for the useConsoleData hook. */
-export interface UseConsoleDataOptions<T> {
+/** Configuration for the usePaginatedData hook. */
+export interface UsePaginatedDataOptions<T> {
   /**
    * Fetch function that returns a paginated response.
    * Called with `undefined` for initial load, with `nextUrl` for pagination.
@@ -31,8 +33,8 @@ export interface UseConsoleDataOptions<T> {
   onSelectResolved?: (item: T) => void;
 }
 
-/** Return value of the useConsoleData hook. */
-export interface UseConsoleDataResult<T> {
+/** Return value of the usePaginatedData hook. */
+export interface UsePaginatedDataResult<T> {
   items: T[];
   loading: boolean;
   error: string | null;
@@ -41,25 +43,22 @@ export interface UseConsoleDataResult<T> {
   selectedItem: T | null;
   selectItem: (item: T) => void;
   clearSelection: () => void;
-  handleRowClick: (item: T, viewState: ViewState) => RowClickAction;
+  handleRowClick: (item: T, viewState: PanelViewState) => RowClickAction;
   handleLoadMore: () => void;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
- * Shared data-fetching and item-selection hook for console pages.
+ * Shared data-fetching and item-selection hook for hub and console pages.
  *
  * Owns the duplicated ~80 lines of paginated fetching, item selection,
  * `?select=` auto-resolve, and row-click toggle logic that was previously
  * copy-pasted across LimsConsole, LibraryConsole, and ElnConsole.
- *
- * Does NOT own view-state transitions — those stay in `useConsoleView`.
- * The console wires them together (trivially — ~3 lines of glue).
  */
-export function useConsoleData<T>(
-  options: UseConsoleDataOptions<T>,
-): UseConsoleDataResult<T> {
+export function usePaginatedData<T>(
+  options: UsePaginatedDataOptions<T>,
+): UsePaginatedDataResult<T> {
   const {
     fetchFn,
     filterKey,
@@ -142,7 +141,7 @@ export function useConsoleData<T>(
   }, []);
 
   const handleRowClick = useCallback(
-    (item: T, viewState: ViewState): RowClickAction => {
+    (item: T, viewState: PanelViewState): RowClickAction => {
       // No row selection in expanded mode
       if (viewState === "expanded") return { type: "none" };
 

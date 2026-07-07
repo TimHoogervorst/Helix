@@ -1,5 +1,5 @@
 import type { EntryListItem } from "../types";
-import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../shared/components/ReferenceBadge";
 
 interface ElnTableProps {
   entries: EntryListItem[];

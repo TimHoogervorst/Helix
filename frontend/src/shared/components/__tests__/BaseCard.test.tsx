@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { BaseLibraryCard } from "../components/BaseLibraryCard";
+import { BaseCard } from "../BaseCard";
 import { makeLibraryEntry } from "../../../test/factories";
 import type { PropertyField, LibraryCardProps } from "../../../core/mod-system/types";
 
@@ -21,13 +21,13 @@ const defaultPropertyFields: PropertyField[] = [
 
 // ── Tests ────────────────────────────────────────────────────────────────
 
-describe("BaseLibraryCard", () => {
+describe("BaseCard", () => {
   // ── View mode CSS classes ────────────────────────────────────────────
 
   it("applies .view-list class when viewMode is list", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -43,7 +43,7 @@ describe("BaseLibraryCard", () => {
   it("applies .view-grid class when viewMode is grid", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="grid"
         isSelected={false}
@@ -59,7 +59,7 @@ describe("BaseLibraryCard", () => {
   it("applies .view-compact class when viewMode is compact", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="compact"
         isSelected={false}
@@ -77,7 +77,7 @@ describe("BaseLibraryCard", () => {
   it("applies .is-selected class when isSelected is true", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={true}
@@ -93,7 +93,7 @@ describe("BaseLibraryCard", () => {
   it("does not apply .is-selected class when isSelected is false", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -111,7 +111,7 @@ describe("BaseLibraryCard", () => {
   it("renders a star button", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -125,7 +125,7 @@ describe("BaseLibraryCard", () => {
   it("star button is non-functional placeholder", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -142,7 +142,7 @@ describe("BaseLibraryCard", () => {
   it("renders the icon component", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -158,7 +158,7 @@ describe("BaseLibraryCard", () => {
   it("renders the display ID", () => {
     const entry = makeLibraryEntry({ display_id: "EXP-0284" });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -172,7 +172,7 @@ describe("BaseLibraryCard", () => {
   it("renders the title", () => {
     const entry = makeLibraryEntry({ title: "gRNA screen v3" });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -195,7 +195,7 @@ describe("BaseLibraryCard", () => {
       },
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -211,7 +211,7 @@ describe("BaseLibraryCard", () => {
   it("hides owner section when author_info is null", () => {
     const entry = makeLibraryEntry({ author_username: null, author_info: null });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -225,7 +225,7 @@ describe("BaseLibraryCard", () => {
   it('renders "In Progress" status chip for in_progress', () => {
     const entry = makeLibraryEntry({ status: "in_progress" });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -241,7 +241,7 @@ describe("BaseLibraryCard", () => {
   it('renders "Finished" status chip for finished', () => {
     const entry = makeLibraryEntry({ status: "finished" });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -261,7 +261,7 @@ describe("BaseLibraryCard", () => {
       description: "First paragraph of content",
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -278,7 +278,7 @@ describe("BaseLibraryCard", () => {
   it('renders "No description" fallback when description is empty', () => {
     const entry = makeLibraryEntry({ description: "" });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -295,7 +295,7 @@ describe("BaseLibraryCard", () => {
       description: "Should not appear",
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -317,7 +317,7 @@ describe("BaseLibraryCard", () => {
       ],
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -335,7 +335,7 @@ describe("BaseLibraryCard", () => {
       tags: [{ name: "CRISPR", color: "flask", icon: "circle" }],
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -352,7 +352,7 @@ describe("BaseLibraryCard", () => {
       updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -369,7 +369,7 @@ describe("BaseLibraryCard", () => {
   it("hides updated time when showUpdatedAt is false", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -388,7 +388,7 @@ describe("BaseLibraryCard", () => {
       property_fields: { samples_count: 5, attachments_count: 3 },
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -407,7 +407,7 @@ describe("BaseLibraryCard", () => {
       property_fields: { samples_count: null, attachments_count: null },
     });
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -427,7 +427,7 @@ describe("BaseLibraryCard", () => {
   it("renders the mod-provided listCard component", () => {
     const entry = makeLibraryEntry();
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}
@@ -454,7 +454,7 @@ describe("BaseLibraryCard", () => {
       );
     }
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="grid"
         isSelected={true}
@@ -473,7 +473,7 @@ describe("BaseLibraryCard", () => {
     const entry = makeLibraryEntry();
     let clicked = false;
     render(
-      <BaseLibraryCard
+      <BaseCard
         item={entry}
         viewMode="list"
         isSelected={false}

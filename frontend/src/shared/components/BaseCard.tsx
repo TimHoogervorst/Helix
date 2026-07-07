@@ -1,15 +1,17 @@
 import type { ComponentType } from "react";
 import { Star } from "lucide-react";
-import type { LibraryEntryItem } from "../types";
+import type { LibraryEntryItem } from "../../core-mods/library/types";
 import type {
   PropertyField,
   LibraryCardProps,
-} from "../../../core/mod-system/types";
-import { Avatar, getInitials } from "../../../shared/Avatar";
+} from "../../core/mod-system/types";
+import { Avatar, getInitials } from "../Avatar";
+import { StatusBadge } from "./StatusBadge";
+import { TagChips } from "./TagChips";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export interface BaseLibraryCardProps {
+export interface BaseCardProps {
   /** The library entry data to render. */
   item: LibraryEntryItem;
   /** Current view mode controlling which fields are visible. */
@@ -33,16 +35,6 @@ export interface BaseLibraryCardProps {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-const STATUS_LABELS: Record<string, string> = {
-  in_progress: "In Progress",
-  finished: "Finished",
-};
-
-const STATUS_CLASSES: Record<string, string> = {
-  in_progress: "status-warn",
-  finished: "status-success",
-};
 
 /**
  * Return a human-readable relative time string.
@@ -79,7 +71,7 @@ function formatPropertyValue(value: unknown): string {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function BaseLibraryCard({
+export function BaseCard({
   item,
   viewMode,
   isSelected,
@@ -90,7 +82,7 @@ export function BaseLibraryCard({
   showTags = false,
   showUpdatedAt = false,
   onClick,
-}: BaseLibraryCardProps) {
+}: BaseCardProps) {
   const classNames = [
     "base-library-card",
     `view-${viewMode}`,
@@ -98,9 +90,6 @@ export function BaseLibraryCard({
   ]
     .filter(Boolean)
     .join(" ");
-
-  const statusLabel = STATUS_LABELS[item.status] ?? item.status;
-  const statusClass = STATUS_CLASSES[item.status] ?? "";
 
   return (
     <div
@@ -141,11 +130,7 @@ export function BaseLibraryCard({
         {/* Mandatory fields */}
         <div className="card-header">
           <span className="card-display-id">{item.display_id}</span>
-          {statusLabel && (
-            <span className={`card-status-chip ${statusClass}`}>
-              {statusLabel}
-            </span>
-          )}
+          <StatusBadge status={item.status} />
           <span className="card-title">{item.title}</span>
         </div>
 
@@ -182,15 +167,7 @@ export function BaseLibraryCard({
         )}
 
         {/* Optional: tag chips */}
-        {showTags && item.tags.length > 0 && (
-          <div className="card-tags">
-            {item.tags.map((tag) => (
-              <span key={tag.name} className={`tag-chip tag-${tag.color}`}>
-                {tag.name}
-              </span>
-            ))}
-          </div>
-        )}
+        {showTags && <TagChips tags={item.tags} />}
 
         {/* Mod-specific content */}
         <ListCard item={item as unknown as Record<string, unknown>} viewMode={viewMode} isSelected={isSelected} />

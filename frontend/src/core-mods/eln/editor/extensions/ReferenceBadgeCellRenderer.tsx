@@ -7,7 +7,7 @@
  *
  * Requires ReferenceProvider to be in the component tree (provided at Layout level).
  */
-import ReferenceBadge from "../../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../../shared/components/ReferenceBadge";
 import type { CustomCellRendererProps } from "ag-grid-react";
 
 /**

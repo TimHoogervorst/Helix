@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { get } from "../../../core/api/client";
 import type { EntityListItem, PaginatedResponse } from "../types";
-import { useConsoleData } from "../../../core/console/useConsoleData";
+import { usePaginatedData } from "../../../shared/hooks/usePaginatedData";
 import { useConsoleView } from "../../../core/console/useConsoleView";
 import ConsolePage from "../../../core/console/ConsolePage";
 import LimsDetailCard from "./LimsDetailCard";
@@ -27,7 +27,7 @@ function LimsConsole() {
 
   // ── Data hook ─────────────────────────────────────────────────────────
 
-  const data = useConsoleData({
+  const data = usePaginatedData({
     fetchFn: fetchEntities,
     filterKey: "type",
     getId: (e) => e.display_id,

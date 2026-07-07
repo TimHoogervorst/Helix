@@ -3,7 +3,7 @@ import type { EntityListItem } from "../types";
 import ConsoleMasterPanel, {
   type MasterColumn,
 } from "../../../core/console/ConsoleMasterPanel";
-import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../shared/components/ReferenceBadge";
 
 const LIMS_COLUMNS: MasterColumn[] = [
   { label: "ID" },

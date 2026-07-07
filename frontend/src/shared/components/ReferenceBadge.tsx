@@ -11,8 +11,8 @@
  *   Broken   — red pill, displayId only (clickable mode only)
  */
 import { useEffect, useRef } from "react";
-import { useReferenceContext } from "../core/references/ReferenceProvider";
-import type { ResolvedRef } from "../core/references/types";
+import { useReferenceContext } from "../../core/references/ReferenceProvider";
+import type { ResolvedRef } from "../../core/references/types";
 
 // ── Public type ──────────────────────────────────────────────────────────
 

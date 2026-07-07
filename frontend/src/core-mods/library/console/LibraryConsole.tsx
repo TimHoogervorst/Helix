@@ -14,12 +14,12 @@ import {
   Archive,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem } from "../types";
-import { useConsoleData } from "../../../core/console/useConsoleData";
+import { usePaginatedData } from "../../../shared/hooks/usePaginatedData";
 import { getLibraryContents } from "../api";
 import Breadcrumbs from "../../../shared/components/Breadcrumbs";
 import type { BreadcrumbSegment } from "../../../shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
-import { BaseLibraryCard } from "../components/BaseLibraryCard";
+import { BaseCard } from "../../../shared/components/BaseCard";
 import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 import type { LibraryItemConfig } from "../../../core/mod-system/types";
 
@@ -45,7 +45,7 @@ function getInitialViewMode(): ViewMode {
 
 /**
  * Map a LibraryFolderItem to a LibraryEntryItem-compatible shape so
- * BaseLibraryCard can render it.  Optional fields are blanked out so only
+ * BaseCard can render it.  Optional fields are blanked out so only
  * the folder name and icon display.
  */
 function folderToEntryShape(folder: {
@@ -56,7 +56,7 @@ function folderToEntryShape(folder: {
   created_at: string;
 }): LibraryEntryItem {
   return {
-    type: "entry", // treat as entry for BaseLibraryCard compatibility
+    type: "entry", // treat as entry for BaseCard compatibility
     id: folder.id,
     display_id: "",
     title: folder.name,
@@ -130,7 +130,7 @@ function LibraryConsole() {
     [currentPath, refreshKey],
   );
 
-  const data = useConsoleData({
+  const data = usePaginatedData({
     fetchFn,
     filterKey: "path",
     getId: (item) => item.id,
@@ -219,7 +219,7 @@ function LibraryConsole() {
     if (item.type === "folder") {
       const adapted = folderToEntryShape(item);
       return (
-        <BaseLibraryCard
+        <BaseCard
           key={`folder-${item.id}`}
           item={adapted}
           viewMode={viewMode}
@@ -238,7 +238,7 @@ function LibraryConsole() {
     const isSelected = data.selectedId === item.id;
 
     return (
-      <BaseLibraryCard
+      <BaseCard
         key={`entry-${item.id}`}
         item={item}
         viewMode={viewMode}

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { EntityListItem } from "../types";
-import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../shared/components/ReferenceBadge";
 
 export interface EntityDetailFieldsProps {
   entity: EntityListItem;

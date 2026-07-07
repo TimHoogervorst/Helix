@@ -1,9 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { useConsoleData, type UseConsoleDataOptions } from "../useConsoleData";
-import { ConsoleProvider } from "../ConsoleContext";
-import { useConsoleView } from "../useConsoleView";
+import { usePaginatedData, type UsePaginatedDataOptions } from "../usePaginatedData";
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -31,22 +29,16 @@ function makePage(items: TestItem[], nextUrl: string | null = null) {
 
 interface WrapperOptions {
   initialRoute?: string;
-  withProvider?: boolean;
 }
 
 function createWrapper(opts: WrapperOptions = {}) {
-  const { initialRoute = "/test", withProvider = false } = opts;
+  const { initialRoute = "/test" } = opts;
   return function TestWrapper({ children }: { children: React.ReactNode }) {
-    const inner = withProvider ? (
-      <ConsoleProvider>{children}</ConsoleProvider>
-    ) : (
-      <>{children}</>
-    );
-    return <MemoryRouter initialEntries={[initialRoute]}>{inner}</MemoryRouter>;
+    return <MemoryRouter initialEntries={[initialRoute]}>{children}</MemoryRouter>;
   };
 }
 
-const defaultOptions: UseConsoleDataOptions<TestItem> = {
+const defaultOptions: UsePaginatedDataOptions<TestItem> = {
   fetchFn: async () => makePage([]),
   getId: (item) => item.id,
   getDisplayId: (item) => item.display_id,
@@ -54,14 +46,14 @@ const defaultOptions: UseConsoleDataOptions<TestItem> = {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("useConsoleData", () => {
+describe("usePaginatedData", () => {
   describe("initial fetch", () => {
     it("fetches items on mount and exposes them", async () => {
       const items = [makeItem({ id: 1, display_id: "A1" })];
       const fetchFn = vi.fn().mockResolvedValue(makePage(items));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -82,7 +74,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockRejectedValue(new Error("Network error"));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -98,7 +90,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockRejectedValue("string error");
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -120,7 +112,7 @@ describe("useConsoleData", () => {
         .mockResolvedValueOnce(makePage(page2, null));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -149,7 +141,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([], null));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -178,7 +170,7 @@ describe("useConsoleData", () => {
 
       const { result, rerender } = renderHook(
         ({ fetchFn }) =>
-          useConsoleData({
+          usePaginatedData({
             ...defaultOptions,
             fetchFn,
             filterKey: "type",
@@ -214,7 +206,7 @@ describe("useConsoleData", () => {
 
       const { result } = renderHook(
         () =>
-          useConsoleData({
+          usePaginatedData({
             ...defaultOptions,
             fetchFn,
             // no filterKey
@@ -237,7 +229,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -258,7 +250,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -287,7 +279,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -310,7 +302,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -340,7 +332,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([item1, item2]));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -369,7 +361,7 @@ describe("useConsoleData", () => {
       const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
 
       const { result } = renderHook(
-        () => useConsoleData({ ...defaultOptions, fetchFn }),
+        () => usePaginatedData({ ...defaultOptions, fetchFn }),
         { wrapper: createWrapper() },
       );
 
@@ -394,7 +386,7 @@ describe("useConsoleData", () => {
 
       const { result } = renderHook(
         () =>
-          useConsoleData({
+          usePaginatedData({
             ...defaultOptions,
             fetchFn,
             onSelectResolved,
@@ -424,7 +416,7 @@ describe("useConsoleData", () => {
 
       renderHook(
         () =>
-          useConsoleData({
+          usePaginatedData({
             ...defaultOptions,
             fetchFn,
             onSelectResolved,
@@ -448,7 +440,7 @@ describe("useConsoleData", () => {
 
       const { result } = renderHook(
         () =>
-          useConsoleData({
+          usePaginatedData({
             ...defaultOptions,
             fetchFn,
             onSelectResolved,
@@ -466,90 +458,6 @@ describe("useConsoleData", () => {
 
       expect(onSelectResolved).not.toHaveBeenCalled();
       expect(result.current.selectedItem).toBeNull();
-    });
-  });
-
-  describe("composition with useConsoleView", () => {
-    it("select action triggers goToDetail transition", async () => {
-      const item = makeItem({ id: 1, display_id: "A1" });
-      const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
-
-      const { result } = renderHook(
-        () => {
-          const data = useConsoleData({
-            ...defaultOptions,
-            fetchFn,
-          });
-          const view = useConsoleView();
-          return { data, view };
-        },
-        { wrapper: createWrapper({ withProvider: true }) },
-      );
-
-      await waitFor(() => {
-        expect(result.current.data.loading).toBe(false);
-      });
-
-      // Simulate row click in list view → should select and we go to detail
-      act(() => {
-        const action = result.current.data.handleRowClick(
-          item,
-          result.current.view.viewState,
-        );
-        if (action.type === "select") {
-          result.current.view.goToDetail();
-        }
-      });
-
-      expect(result.current.view.viewState).toBe("detail");
-      expect(result.current.data.selectedItem).toEqual(item);
-    });
-
-    it("deselect action triggers clearSelection and can be wired to closeAll", async () => {
-      const item = makeItem({ id: 1, display_id: "A1" });
-      const fetchFn = vi.fn().mockResolvedValue(makePage([item]));
-
-      const { result } = renderHook(
-        () => {
-          const data = useConsoleData({
-            ...defaultOptions,
-            fetchFn,
-          });
-          const view = useConsoleView();
-          return { data, view };
-        },
-        { wrapper: createWrapper({ withProvider: true }) },
-      );
-
-      await waitFor(() => {
-        expect(result.current.data.loading).toBe(false);
-      });
-
-      // First select and go to detail
-      act(() => {
-        result.current.data.selectItem(item);
-        result.current.view.goToDetail();
-      });
-
-      expect(result.current.view.viewState).toBe("detail");
-      expect(result.current.data.selectedItem).toEqual(item);
-
-      // Click same item in detail → deselect action, console wires to closeAll
-      act(() => {
-        const action = result.current.data.handleRowClick(
-          item,
-          result.current.view.viewState,
-        );
-        if (action.type === "deselect") {
-          result.current.view.closeAll();
-        }
-      });
-
-      // closeAll from detail sets isDetailExiting, then after 250ms sets viewState to "list"
-      // (Animation timing is tested in useConsoleView.test.tsx; here we just verify
-      // the action type and selection clear happened immediately.)
-      expect(result.current.data.selectedItem).toBeNull();
-      expect(result.current.data.selectedId).toBeNull();
     });
   });
 });

@@ -1,5 +1,5 @@
 import type { EntityType } from "../types";
-import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../shared/components/ReferenceBadge";
 
 export interface TypeMasterPanelProps {
   /** Entity types to display (already filtered per showArchived). */

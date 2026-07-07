@@ -6,7 +6,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 from core.models import Folder
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
-from core_mods.eln.models import NotebookEntry
+from core_mods.eln.models import NotebookEntry, Tag
 
 
 class LibraryApiTests(BaseTestCase):
@@ -156,8 +156,83 @@ class LibraryApiTests(BaseTestCase):
         self.assertIn("folder", e)
         self.assertIn("folder_name", e)
         self.assertIn("author_username", e)
+        self.assertIn("author_info", e)
+        self.assertIn("status", e)
+        self.assertIn("description", e)
+        self.assertIn("tags", e)
+        self.assertIn("editors", e)
+        self.assertIn("samples_count", e)
+        self.assertIn("attachments_count", e)
+        self.assertIn("property_fields", e)
         self.assertIn("created_at", e)
         self.assertIn("updated_at", e)
+
+    def test_entry_status_value(self):
+        """Entry status is one of the valid choices."""
+        response = self.client.get("/api/library/contents/")
+        entries = [r for r in response.data["results"] if r["type"] == "entry"]
+        self.assertGreater(len(entries), 0)
+        e = entries[0]
+        self.assertIn(e["status"], ["in_progress", "finished"])
+
+    def test_entry_placeholders_are_set(self):
+        """Placeholder fields have the correct default values."""
+        response = self.client.get("/api/library/contents/")
+        entries = [r for r in response.data["results"] if r["type"] == "entry"]
+        self.assertGreater(len(entries), 0)
+        e = entries[0]
+        self.assertEqual(e["editors"], [])
+        self.assertIsNone(e["samples_count"])
+        self.assertIsNone(e["attachments_count"])
+        self.assertEqual(e["property_fields"], {})
+
+    def test_entry_tags_serialized(self):
+        """Tags are serialized with name, color, and icon."""
+        tag = Tag.objects.create(name="CRISPR", color="flask", icon="dna")
+        self.root_entry.tags.add(tag)
+
+        response = self.client.get("/api/library/contents/")
+        entries = [r for r in response.data["results"] if r["type"] == "entry"]
+        root = [e for e in entries if e["id"] == self.root_entry.id][0]
+        self.assertEqual(len(root["tags"]), 1)
+        t = root["tags"][0]
+        self.assertEqual(t["name"], "CRISPR")
+        self.assertEqual(t["color"], "flask")
+        self.assertEqual(t["icon"], "dna")
+
+    def test_entry_description_extracts_first_paragraph(self):
+        """Description is extracted from the first paragraph of TipTap content."""
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "First paragraph text."},
+                    ],
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Second paragraph text."},
+                    ],
+                },
+            ],
+        }
+        self.root_entry.content = doc
+        self.root_entry.save()
+
+        response = self.client.get("/api/library/contents/")
+        entries = [r for r in response.data["results"] if r["type"] == "entry"]
+        root = [e for e in entries if e["id"] == self.root_entry.id][0]
+        self.assertEqual(root["description"], "First paragraph text.")
+
+    def test_entry_description_empty_for_empty_doc(self):
+        """Description is an empty string for documents with no text content."""
+        response = self.client.get("/api/library/contents/")
+        entries = [r for r in response.data["results"] if r["type"] == "entry"]
+        root = [e for e in entries if e["id"] == self.root_entry.id][0]
+        self.assertEqual(root["description"], "")
 
     # ── Pagination ───────────────────────────────────────────────────
 

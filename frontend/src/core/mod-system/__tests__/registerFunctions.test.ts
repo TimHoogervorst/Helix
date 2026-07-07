@@ -5,6 +5,7 @@ import { registerWorkspace } from "../registerWorkspace";
 import { registerSettingsSection } from "../registerSettingsSection";
 import { registerRoute } from "../registerRoute";
 import { registerSidebarAction } from "../registerSidebarAction";
+import { registerLibraryItem } from "../registerLibraryItem";
 
 /** Reset the singleton between tests. */
 function resetRegistry(): ModRegistry {
@@ -85,6 +86,17 @@ describe("register functions", () => {
       position: "inline" as const,
     };
     registerSidebarAction(config);
+    expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("registerLibraryItem delegates to ModRegistry.registerLibraryItem", () => {
+    const spy = vi.spyOn(registry, "registerLibraryItem");
+    const config = {
+      id: "eln.entry",
+      icon: DummyComponent,
+      listCard: DummyComponent,
+    };
+    registerLibraryItem(config);
     expect(spy).toHaveBeenCalledWith(config);
   });
 });

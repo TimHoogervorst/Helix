@@ -6,6 +6,7 @@ import type {
   SidebarActionConfig,
   SlashCommandConfig,
   ServiceConfig,
+  LibraryItemConfig,
 } from "./types";
 
 /**
@@ -45,6 +46,7 @@ export class ModRegistry {
   private sidebarActions = new Map<string, SidebarActionConfig>();
   private slashCommands = new Map<string, SlashCommandConfig>();
   private services = new Map<string, ServiceConfig>();
+  private libraryItems = new Map<string, LibraryItemConfig>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -132,6 +134,15 @@ export class ModRegistry {
     this.services.set(config.id, config);
   }
 
+  registerLibraryItem(config: LibraryItemConfig): void {
+    if (this.libraryItems.has(config.id)) {
+      throw new Error(
+        `Duplicate library item registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.libraryItems.set(config.id, config);
+  }
+
   // ── Resolution methods ────────────────────────────────────────────────
 
   /**
@@ -171,6 +182,14 @@ export class ModRegistry {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Resolve the registered LibraryItemConfig for a given item type ID.
+   * Returns undefined if no registration matches.
+   */
+  resolveLibraryItem(itemTypeId: string): LibraryItemConfig | undefined {
+    return this.libraryItems.get(itemTypeId);
   }
 
   // ── Service invocation ────────────────────────────────────────────────
@@ -279,5 +298,10 @@ export class ModRegistry {
   /** Returns a read-only view of all registered sidebar actions. */
   getSidebarActions(): ReadonlyMap<string, SidebarActionConfig> {
     return this.sidebarActions;
+  }
+
+  /** Returns a read-only view of all registered library items. */
+  getLibraryItems(): ReadonlyMap<string, LibraryItemConfig> {
+    return this.libraryItems;
   }
 }

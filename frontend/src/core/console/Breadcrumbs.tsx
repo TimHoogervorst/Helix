@@ -1,4 +1,4 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Folder } from "lucide-react";
 
 interface BreadcrumbsProps {
   path: string;
@@ -18,8 +18,14 @@ function Breadcrumbs({ path, onNavigate, onUp }: BreadcrumbsProps) {
         title="Go up"
         aria-label="Go up"
       >
-        <ArrowUp size={18} />
+        <ArrowUp size={14} />
       </button>
+      {/* Folder icon preceding the path — matches prototype */}
+      <Folder
+        size={13}
+        className="library-breadcrumb-folder-icon"
+        aria-hidden="true"
+      />
       <span
         className={`library-breadcrumb-seg${segments.length === 0 ? " is-current" : ""}`}
         onClick={() => onNavigate("")}

@@ -2305,15 +2305,6 @@ input.library-search-input:focus {
   white-space: nowrap;
 }
 
-.library-no-id {
-  color: var(--gray-400);
-}
-
-.library-folder-name {
-  font-weight: 500;
-  color: var(--gray-800);
-}
-
 .console-load-more {
   text-align: center;
   margin-bottom: 1.5rem;

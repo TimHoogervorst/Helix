@@ -43,6 +43,27 @@ def resolve_path(path_str: str) -> Folder | None:
     return parent
 
 
+def _first_paragraph_text(content: dict) -> str:
+    """Extract the plain text of the first paragraph from a TipTap document.
+
+    Returns an empty string when the document has no paragraph content.
+    """
+    if not isinstance(content, dict):
+        return ""
+    children = content.get("content")
+    if not isinstance(children, list):
+        return ""
+    for node in children:
+        if isinstance(node, dict) and node.get("type") == "paragraph":
+            texts = node.get("content")
+            if not isinstance(texts, list):
+                return ""
+            return "".join(
+                t.get("text", "") for t in texts if isinstance(t, dict)
+            )
+    return ""
+
+
 class LibraryContentsView(APIView):
     """
     GET /api/library/contents/?path=<path>&search=<q>&page=<n>
@@ -66,6 +87,7 @@ class LibraryContentsView(APIView):
             apps.get_model("eln", "NotebookEntry")
             .objects.filter(folder=folder)
             .select_related("author", "folder")
+            .prefetch_related("tags")
             .order_by("-created_at")
         )
 
@@ -101,6 +123,16 @@ class LibraryContentsView(APIView):
                     "folder": e.folder_id,
                     "folder_name": e.folder.name if e.folder else None,
                     "author_username": e.author.username if e.author else None,
+                    "status": e.status,
+                    "description": _first_paragraph_text(e.content),
+                    "tags": [
+                        {"name": t.name, "color": t.color, "icon": t.icon}
+                        for t in e.tags.all()
+                    ],
+                    "editors": [],
+                    "samples_count": None,
+                    "attachments_count": None,
+                    "property_fields": {},
                     "created_at": e.created_at,
                     "updated_at": e.updated_at,
                 }

@@ -107,6 +107,13 @@ const _libraryEntryDefaults: LibraryEntryItem = {
   folder: null,
   folder_name: null,
   author_username: null,
+  status: "in_progress",
+  description: "",
+  tags: [],
+  editors: [],
+  samples_count: null,
+  attachments_count: null,
+  property_fields: {},
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
 };

@@ -6,6 +6,7 @@ export { registerSettingsSection } from "./registerSettingsSection";
 export { registerRoute } from "./registerRoute";
 export { registerPublicRoute } from "./registerPublicRoute";
 export { registerSidebarAction } from "./registerSidebarAction";
+export { registerLibraryItem } from "./registerLibraryItem";
 export type {
   ModManifest,
   ConsoleConfig,
@@ -15,5 +16,8 @@ export type {
   SidebarActionConfig,
   SlashCommandConfig,
   ServiceConfig,
+  LibraryItemConfig,
+  LibraryCardProps,
+  PropertyField,
   SlashContext,
 } from "./types";

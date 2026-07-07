@@ -634,7 +634,7 @@ h1 {
 }
 
 
-/* ── Console Shared: Animations, Tabs, Helpers ── */
+/* ── Shared: Animations, Tabs, Helpers ── */
 
 @keyframes console-slide-in {
   from {
@@ -660,14 +660,14 @@ h1 {
 
 /* ── Tab Bar (inside workspace panel) ── */
 
-.console-tab-bar {
+.lims-tab-bar {
   display: flex;
   gap: 0;
   border-bottom: 2px solid var(--color-hairline);
   margin-bottom: 1rem;
 }
 
-.console-tab {
+.lims-tab {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 500;
@@ -681,25 +681,25 @@ h1 {
   transition: color 0.15s, border-color 0.15s;
 }
 
-.console-tab:hover {
+.lims-tab:hover {
   color: var(--color-foreground);
 }
 
-.console-tab.is-active {
+.lims-tab.is-active {
   color: var(--color-primary);
   border-bottom-color: var(--color-primary);
 }
 
-.console-tab.is-active:hover {
+.lims-tab.is-active:hover {
   color: var(--color-primary);
 }
 
-.console-tab-content {
+.lims-tab-content {
   /* tab content area */
 }
 
 /* Empty properties placeholder */
-.console-properties-empty {
+.lims-properties-empty {
   color: var(--color-muted-foreground);
   text-align: center;
   padding: 2rem 1rem;
@@ -790,7 +790,7 @@ h1 {
     width: 100%;
   }
 
-  .console-workspace-panel {
+  .lims-workspace-panel {
     width: 100%;
   }
 
@@ -2305,7 +2305,7 @@ input.library-search-input:focus {
   white-space: nowrap;
 }
 
-.console-load-more {
+.hub-load-more {
   text-align: center;
   margin-bottom: 1.5rem;
 }
@@ -2367,7 +2367,7 @@ input.library-search-input:focus {
   gap: 4px;
 }
 
-.console-detail-close,
+.type-detail-close,
 .console-detail-expand,
 .console-detail-collapse {
   width: 24px;
@@ -2386,7 +2386,7 @@ input.library-search-input:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.console-detail-close:hover,
+.type-detail-close:hover,
 .console-detail-expand:hover,
 .console-detail-collapse:hover {
   background: var(--gray-100);
@@ -2411,13 +2411,13 @@ input.library-search-input:focus {
 
 /* ── Library More-Detail Panel ── */
 
-.console-workspace-panel {
+.lims-workspace-panel {
   flex: 1 1 0;
   min-width: 0;
   animation: console-slide-in 0.25s ease-out;
 }
 
-.console-workspace-panel.is-exiting {
+.lims-workspace-panel.is-exiting {
   animation: console-slide-out-right 0.25s ease-out forwards;
 }
 
@@ -2545,9 +2545,9 @@ input.library-new-folder-input:focus {
   }
 }
 
-/* ── Library Console (custom card layout) ── */
+/* ── Library Hub (custom card layout) ── */
 
-.library-console {
+.library-hub {
   display: flex;
   flex-direction: row;
   height: 100%;
@@ -3152,13 +3152,13 @@ input.library-new-folder-input:focus {
 
 /* ── Load More ── */
 
-.console-load-more {
+.hub-load-more {
   display: flex;
   justify-content: center;
   padding: 0.75rem 0;
 }
 
-.console-load-more button {
+.hub-load-more button {
   padding: 0.4rem 1.25rem;
   font-size: 0.85rem;
   border: 1px solid var(--gray-300);
@@ -3169,19 +3169,19 @@ input.library-new-folder-input:focus {
   transition: background 0.15s;
 }
 
-.console-load-more button:hover:not(:disabled) {
+.hub-load-more button:hover:not(:disabled) {
   background: var(--gray-50);
 }
 
-.console-load-more button:disabled {
+.hub-load-more button:disabled {
   opacity: 0.6;
   cursor: default;
 }
 
-/* ── Responsive: Library Console ── */
+/* ── Responsive: Library Hub ── */
 
 @media (max-width: 800px) {
-  .library-console {
+  .library-hub {
     flex-direction: column;
   }
 

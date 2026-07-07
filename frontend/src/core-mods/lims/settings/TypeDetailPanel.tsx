@@ -105,7 +105,7 @@ function TypeDetailPanel({
               </button>
             )}
             <button
-              className="console-detail-close"
+              className="type-detail-close"
               onClick={onClose}
             >
               ×

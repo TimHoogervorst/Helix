@@ -6,7 +6,7 @@ import {
   makeLibraryEntry,
   makeLibraryContents,
 } from "../../../test/factories";
-import LibraryConsole from "../console/LibraryConsole";
+import LibraryHub from "../hub/LibraryHub";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ Object.defineProperty(window, "localStorage", {
   writable: true,
 });
 
-// Mock ModRegistry — LibraryConsole resolves library item configs
+// Mock ModRegistry — LibraryHub resolves library item configs
 vi.mock("../../../core/mod-system/ModRegistry", () => ({
   ModRegistry: {
     getInstance: () => ({
@@ -96,14 +96,14 @@ const populatedResponse = makeLibraryContents(
 function renderLibrary(initialRoute = "/library") {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
-      <LibraryConsole />
+      <LibraryHub />
     </MemoryRouter>,
   );
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
 
-describe("LibraryConsole", () => {
+describe("LibraryHub", () => {
   beforeEach(() => {
     mockGetLibraryContents.mockReset();
     mockNavigate.mockReset();

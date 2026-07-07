@@ -105,7 +105,7 @@ describe("TypeDetailPanel", () => {
         columnProps={columnProps}
       />,
     );
-    const closeBtn = container.querySelector(".console-detail-close")!;
+    const closeBtn = container.querySelector(".type-detail-close")!;
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalledOnce();
   });

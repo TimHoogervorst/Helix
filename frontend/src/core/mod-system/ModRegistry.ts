@@ -12,7 +12,7 @@ import type {
  * Central registry for all mod registrations.
  *
  * Populated during boot by mods calling register*() functions.
- * Read by Core to build routes, sidebar nav, console behavior, and settings.
+ * Read by Core to build routes, sidebar nav, hub behavior, and settings.
  *
  * This is a singleton — there is exactly one registry per application.
  * The singleton pattern is chosen over React Context because the registry

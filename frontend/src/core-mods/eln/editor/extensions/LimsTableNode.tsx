@@ -15,7 +15,7 @@ import type {
   CellValueChangedEvent,
   CellMouseDownEvent,
 } from "ag-grid-community";
-import type { GridColumn, GridRow } from "../../../../shared/types";
+import type { GridColumn, GridRow } from "../../../../shared/types/types";
 import type { EntityTypeSummary } from "../../types";
 import { get } from "../../../../core/api/client";
 import { DisplayIdCellRenderer, ReferenceCellRenderer } from "./ReferenceBadgeCellRenderer";

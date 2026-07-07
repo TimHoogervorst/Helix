@@ -16,7 +16,7 @@ const ENTITY_TABS: TabConfig[] = [
 
 function PlaceholderTab({ label }: { label: string }) {
   return (
-    <div className="console-properties-empty">
+    <div className="lims-properties-empty">
       {label} — coming soon.
     </div>
   );
@@ -32,24 +32,24 @@ interface LimsWorkspaceProps {
 function LimsWorkspace({ entity: _entity, isExiting, children }: LimsWorkspaceProps) {
   const [activeTab, setActiveTab] = useState(ENTITY_TABS[0].id);
 
-  const panelClass = `console-workspace-panel${isExiting ? " is-exiting" : ""}`;
+  const panelClass = `lims-workspace-panel${isExiting ? " is-exiting" : ""}`;
 
   return (
     <div className={panelClass}>
       <div className="card">
         {children}
-        <div className="console-tab-bar">
+        <div className="lims-tab-bar">
           {ENTITY_TABS.map((tab) => (
             <button
               key={tab.id}
-              className={`console-tab${activeTab === tab.id ? " is-active" : ""}`}
+              className={`lims-tab${activeTab === tab.id ? " is-active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <div className="console-tab-content">
+        <div className="lims-tab-content">
           {ENTITY_TABS.map((tab) =>
             activeTab === tab.id ? (
               <PlaceholderTab key={tab.id} label={tab.label} />

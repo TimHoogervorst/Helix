@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-/** Panel view state for row-click behavior — inlined to avoid console dependency. */
+/** Panel view state for row-click behavior — kept for backward compatibility. */
 export type PanelViewState = "list" | "detail" | "expanded";
 
 /** Action returned by handleRowClick to signal what the view layer should do. */
@@ -50,11 +50,11 @@ export interface UsePaginatedDataResult<T> {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
- * Shared data-fetching and item-selection hook for hub and console pages.
+ * Shared data-fetching and item-selection hook for hub pages.
  *
  * Owns the duplicated ~80 lines of paginated fetching, item selection,
  * `?select=` auto-resolve, and row-click toggle logic that was previously
- * copy-pasted across LimsConsole, LibraryConsole, and ElnConsole.
+ * copy-pasted across the old console components.
  */
 export function usePaginatedData<T>(
   options: UsePaginatedDataOptions<T>,

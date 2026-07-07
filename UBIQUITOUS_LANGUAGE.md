@@ -11,52 +11,40 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Mod** | A self-contained unit of functionality — owns its own console, workspace, detail cards, settings, routes, slash commands, and sidebar actions. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods | plugin, extension, module |
-| **Core** | The immutable app shell — Layout, routing, console panels, mod loader, reference resolution, API client. Core provides the frame; mods provide the content | shell, platform, host |
-| **Core Mod** | A mod that ships with the repository under `core-mods/`. Always loaded at boot. Uses the same registration API that external mods will use. Current core mods: LIMS, ELN, Library, Settings, Pins | built-in mod, first-party mod, internal mod |
+| **Mod** | A self-contained unit of functionality — owns its own hub, workspace, detail cards, settings, routes, slash commands, and sidebar actions. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods | plugin, extension, module |
+| **Core** | The immutable app shell — Layout, routing, hub pages, mod loader, reference resolution, API client. Core provides the frame; mods provide the content | shell, platform, host |
+| **Core Mod** | A mod that ships with the repository under `core-mods/`. Always loaded at boot. Uses the same registration API that external mods will use. Current core mods: LIMS, ELN, Library, Home, Settings, Pins | built-in mod, first-party mod, internal mod |
 | **Mod API** | The registration surface (`register*()` functions in `core/mod-system/`) that every mod calls to declare what it provides. The contract between core and mods | plugin API, extension API |
-| **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, console behavior, settings panels | registry, plugin registry |
+| **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
 | **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
-| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerConsole()`, `registerWorkspace()`, `registerSettingsSection()`, `registerSlashCommand()`, `registerRoute()`, `registerSidebarAction()`, `registerService()` | register, declare, contribute |
+| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerSettingsSection()`, `registerSlashCommand()`, `registerRoute()`, `registerSidebarAction()`, `registerService()` | register, declare, contribute |
 | **`dependsOn`** | Metadata in each mod's `index.ts` declaring which other mods must load first. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
-| **`accepts`** | Console-level whitelist or blacklist of workspace IDs — the console's final say on which workspaces appear in its Master table | filter, workspace filter |
-| **`consoleIds`** | Workspace-level declaration of which consoles host this workspace. The workspace's intent; the console's `accepts` has the final say | host consoles, target consoles |
 
-## The Console Pattern (Three-Way-Split)
+## The Hub Pattern
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Console** | A concrete instance of the three-panel browsing pattern, backed by a route and a data source: **Library** and **LIMS** | — |
-| **Master Panel** | The left panel containing the item table — the primary list of browsable things | index, item list, table panel |
-| **Detail Panel** | The middle panel showing a summary card for the selected item — key metadata at a glance | summary card, intermediate detail, info panel |
-| **Workspace Panel** | The right panel containing the full work surface for the selected item — a slot filled by the item type | canvas, work surface, full detail, editor panel, "more detail panel" |
-| **View State** | One of three progressive-disclosure stages: **List**, **Detail**, or **Expanded** | — |
+| **Hub** | A free-form browsing page at a route like `/library` or `/home`. Each hub has complete layout freedom — card grids, stat tiles, tree views, etc. Its job is to help users find the right thing. Hubs link outward to Workspaces at dedicated URLs | console (deprecated), overview, dashboard |
+| **Workspace** | A full work surface for a specific item type at a dedicated URL (e.g., `/eln/EXP-0284`, `/lims/BLOOD1`). Implemented as a plain route via `registerRoute()` — no special registration type. Its job is to let users work with that thing | editor, detail page, work surface |
+| **Platform Architecture** | `Sidebar → Hub Page → Workspace (dedicated URL)`. Simple navigation: click a card → go to a dedicated URL. No three-panel layout, no view-state machine | — |
 
-## View States
+## Concrete Hubs
 
-| Term | Definition | Aliases to avoid |
-|------|-----------|-----------------|
-| **List** | Master Panel full-width, Detail and Workspace hidden. Mental model: "I'm looking for something" | full list, browse mode |
-| **Detail** | Master Panel + Detail Panel visible. Mental model: "What is this thing?" | preview, inspect mode |
-| **Expanded** | Master Panel collapsed to thin strip + Detail Panel + Workspace Panel all visible. Mental model: "I want to work with this" | edit mode, full view |
-
-## Concrete Consoles
-
-> Each console is registered by a core mod via `registerConsole()` and auto-appears in the sidebar.
+> Each hub is registered by a core mod via `registerHub()` and auto-appears in the sidebar, sorted by `order`.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Library** | The console at `/library`, registered by the Library core mod. Filesystem-like view over the Folder hierarchy, showing Folders and Entries mixed (folders first). `accepts: { only: ['eln.entry'] }` — only ELN entries; Folders are navigational | ELN console, file explorer |
-| **LIMS** | The console at `/lims`, registered by the LIMS core mod. Database-like flat, filterable, searchable table of Entities. `accepts: { except: ['eln.entry'] }` — all workspace types except ELN entries | entity console, sample database |
+| **Home** | The hub at `/home`, registered by the Home core mod (`order: 0` — first in sidebar). Placeholder page for future quick-jump tiles, recent items, and dashboard content | landing page, dashboard |
+| **Library** | The hub at `/library`, registered by the Library core mod (`order: 10`). Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Each entry type registers its card renderer via `registerLibraryItem()` | Library Hub, ELN browser |
 
 ## Items
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Item** | Any row that appears in a Master Panel table. Minimum contract: display ID, name/title, type discriminator, creation timestamp | row, record, list item |
+| **Item** | Any card or row in a hub browsing page. Minimum contract: display ID, name/title, type discriminator, creation timestamp | row, record, list item |
 | **Entry** | A single page of narrative lab documentation — unstructured rich-text content. Belongs to exactly one Folder | ELN entry, NotebookEntry, ELN page, notebook page |
 | **Entity** | A trackable physical or conceptual lab item with structured, typed properties and a user-assigned Name Column. Belongs to exactly one EntityType | sample (rejected — too narrow), lab item |
-| **Folder** | A hierarchical container that owns Entries, Entities, and child Folders. Containers, not content — no Detail or Workspace | directory, project (rejected — implies temporary) |
+| **Folder** | A hierarchical container that owns Entries, Entities, and child Folders. Containers, not content — no dedicated Workspace | directory, project (rejected — implies temporary) |
 
 ## Core Organisation
 
@@ -90,28 +78,31 @@
 |------|-----------|-----------------|
 | **Display ID** | An auto-generated human-readable identifier in `<PREFIX><N>` format (e.g., `E1`, `DNA42`, `BLOOD3`). Gap-tolerant — deleted IDs are never reclaimed | ID, identifier, ref |
 | **Prefix** | The letter portion of a display ID. Static for ELN (`E` → Entry), dynamic for LIMS (EntityType prefix → Entity). Used for reference routing | ID prefix, type prefix |
-| **ReferenceBadge** | A clickable UI badge showing a display ID (e.g., `E12`, `BLOOD1`). Clicking navigates to the target's canonical console | badge, ref chip, #-badge |
+| **ReferenceBadge** | A clickable UI badge showing a display ID (e.g., `E12`, `BLOOD1`). Clicking navigates to the target's dedicated URL | badge, ref chip, #-badge |
 | **Content Sync Pipeline** | The ordered pipeline that processes an Entry on save: entities synced first (from limsTable nodes), then mentions synced (from reference nodes and Reference columns) | sync pipeline, entry sync |
 | **Tree Walker** | A shared depth-first utility that walks a TipTap JSON tree, calling a handler per node. Pure utility — zero domain knowledge | walker, document walker |
-| **Breadcrumb** | Navigation bar showing the current folder path as clickable segments in the Library console. Current folder is bold; up-button (`↑`) moves to parent | path bar, nav trail |
+| **Breadcrumb** | Navigation bar showing the current folder path as clickable segments in the Library hub. Current folder is bold; up-button (`↑`) moves to parent | path bar, nav trail |
 | **Pinned Workspace** | A workspace (Entry or Entity) that a User has bookmarked for quick access from the sidebar. Persists across sessions via backend storage. The sidebar also shows the **current** workspace with a "Current" badge — if unpinned, it appears as a temporary row at the top with a pin button. Pinned workspaces are ordered newest-first. One User can have many Pinned Workspaces; a User cannot pin the same URL twice | bookmarked workspace, saved workspace, workspace tab |
 
 ## Dedicated URL
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Dedicated URL** | A shareable, bookmarkable URL that resolves to an item's full Workspace as a standalone page (e.g., `/eln/E12`, `/lims/BLOOD1`). Same content as the Workspace in Expanded state | permalink, direct link, standalone URL |
+| **Dedicated URL** | A shareable, bookmarkable URL that resolves to an item's full Workspace as a standalone page (e.g., `/eln/E12`, `/lims/BLOOD1`) | permalink, direct link, standalone URL |
 | **EntityWorkspace** | The standalone page at `/lims/:displayId` showing a single Entity's full detail with tabbed Workspace (Properties, Activity, Insights, Storage) | entity detail page, entity permalink |
-| **ElnEditor** | The TipTap editor component that renders in two modes: **embedded** (inside the Library's Workspace Panel) and **standalone** (at `/eln/:id`) | entry editor, notebook editor |
+| **ElnEditor** | The TipTap editor component at the dedicated URL `/eln/:id` | entry editor, notebook editor |
 
-## Shared Console Components
+## Shared Hub Components
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **ConsoleProvider** | React Context holding the View State at the top level of a console page — lets layout react to state changes | ViewContext (deprecated) |
-| **ConsolePage** | Shared page-level layout component combining Master-Detail-Expanded structure with CSS class computation for both Library and LIMS | — |
-| **ConsoleCollapsedStrip** | Thin vertical strip (~40px) shown when Master Panel is collapsed in Expanded state. Contains a single expand button | collapsed strip, LimsCollapsedStrip (deprecated), LibraryCollapsedStrip (deprecated) |
-| **useConsoleView** | Shared hook implementing the View State machine with entry/exit animations (250ms) and transitional states (`isExiting`, `isDetailExiting`) | — |
+| **BaseCard** | Shared card wrapper component providing view modes (list/grid/compact), selection state, star button, and owner display. Used by hubs to render items consistently | card, list item, library card |
+| **Breadcrumbs** | Navigational path bar rendering `BreadcrumbSegment[]` — callers build segments, component renders. Moved from the old console system into `shared/components/` | path bar, nav trail |
+| **StatusBadge** | Colored pill for entry/entity status (e.g., "In Progress", "Completed"). Extracted from BaseCard into `shared/components/` | status chip, status label |
+| **TagChips** | Tag display component used on cards and in detail views. Extracted from BaseCard into `shared/components/` | tags, labels |
+| **ReferenceBadge** | Clickable UI badge showing a display ID (e.g., `E12`). Clicking navigates to the target's dedicated URL | badge, ref chip, #-badge |
+| **Activity** | Placeholder timeline component showing actions performed on an item (user + action + timestamp). Future: reads from platform-level standardized action log with CFR Part 11 traceability | action log, audit trail, history |
+| **OwnerStack** | Placeholder for stacked user avatars. Currently renders a single avatar; future: overlapping avatar circles for multiple owners | avatar stack, owner list |
 
 ## Entity Type Management (Settings)
 
@@ -138,15 +129,12 @@
 - An **Action** is performed by exactly one **User**
 - An **Entity Type** defines exactly one **Prefix** for display ID generation
 - An **Entity Type** has one **Column Schema** (JSON array of column definitions)
-- A **Console** surfaces one or more **Item** types in its Master Panel
-- A **Master Panel**, **Detail Panel**, and **Workspace Panel** together form the three-panel layout
-- **View State** determines which panels are visible: **List** (Master only), **Detail** (Master + Detail), **Expanded** (Master collapsed + Detail + Workspace)
-- Each **Item** type has a dedicated **Workspace** content: Entry → TipTap editor, Entity → tabbed detail view
+- A **Hub** provides a browsing surface for one or more item types and links to Workspaces at dedicated URLs
+- Each **Item** type has a dedicated **Workspace** at a URL: Entry → TipTap editor at `/eln/:id`, Entity → tabbed detail view at `/lims/:id`
 - A **LimsTable Node** syncs to one or more **Entity** records on save
 
 ```
-Library Console ──▶ Folder tree (Library is the browsing surface for the folder hierarchy)
-LIMS Console ──▶ Entity table (LIMS is the browsing surface for the entity database)
+Library Hub ──▶ Folder tree (Library is the browsing surface for the folder hierarchy)
 
 Folder ──┬── Folder (parent/child, recursive)
          ├── Entry (1:N — entry lives in one folder)
@@ -165,16 +153,14 @@ User ──▶ Action (1:N — performer)
 User ──▶ Entity (1:N — creator)
 User ──▶ PinnedWorkspace (1:N — bookmarked workspaces)
 
-Console (abstract) ──▶ Master Panel ──▶ Item table
-                    ├── Detail Panel ──▶ summary card
-                    └── Workspace Panel ──▶ type-specific work surface (slot)
+Hub ──▶ Workspace (dedicated URL) ──▶ type-specific work surface
 ```
 
 ## Key Distinctions
 
-### Console vs Data Model
+### Hub vs Data Model
 
-A **Console** (Library, LIMS) is a UI/UX construct — the three-panel surface users interact with. The **data models** (Folder, Entry, Entity, EntityType) are backend records. Consoles are presentation layers; data models are persistent storage.
+A **Hub** (Library, Home) is a UI/UX construct — the browsing surface users interact with. The **data models** (Folder, Entry, Entity, EntityType) are backend records. Hubs are presentation layers; data models are persistent storage.
 
 ### Entry vs Rich-Text Document
 
@@ -186,7 +172,7 @@ An **Entry** is the database record (id, title, author, folder, dates). The **Ri
 |-----------|-------|--------|
 | Nature | Unstructured narrative | Structured data |
 | Content | Rich-Text Document (TipTap blocks) | Typed properties (JSON, schema-driven) |
-| Console | Library (within folder hierarchy) | LIMS (flat, filterable) |
+| Hub | Library (within folder hierarchy) | — |
 | Workspace | TipTap editor | Tabbed detail (Activity, Insights, Storage) |
 
 ### Mention vs Action
@@ -195,45 +181,21 @@ A **Mention** is a passive link: "I referenced sample #42." An **Action** is an 
 
 ### Folder vs Library
 
-A **Folder** is a data-model concept — a node in the folder tree. The **Library** is the Console that lets users navigate the folder hierarchy.
-
-### Master vs Detail vs Workspace
-
-| Panel | Shows | Visible in states | Purpose |
-|-------|-------|-------------------|---------|
-| **Master** | Item table | All three | "What's available?" |
-| **Detail** | Summary card | Detail, Expanded | "What is this thing?" |
-| **Workspace** | Full work surface | Expanded only | "I want to work with this" |
-
-The Detail Panel is the **gateway** to the Workspace — you cannot skip from List directly to Expanded.
-
-### List vs Detail vs Expanded
-
-| State | Mental model | Transition |
-|-------|-------------|------------|
-| **List** | "I'm looking for something" | Open the console |
-| **Detail** | "What is this thing?" | Click a row |
-| **Expanded** | "I want to work with this" | Click expand in Detail header |
-
-States advance left-to-right and collapse back. Skipping states is not allowed.
+A **Folder** is a data-model concept — a node in the folder tree. The **Library** is the Hub that lets users navigate the folder hierarchy.
 
 ## Example Dialogue
 
-> **Dev:** "When a user clicks an **Entity** row in the **LIMS** console's **Master Panel**, does it go straight to the **Workspace**?"
+> **Dev:** "When a user clicks an **Entry** card in the **Library** hub, what happens?"
 
-> **Domain expert:** "No — it opens the **Detail Panel** first. The user sees a summary card with the Entity's type, creator, dates, and properties. The **Detail Panel** is the gateway — you always pass through **Detail** state before reaching **Expanded**."
+> **Domain expert:** "They navigate directly to the Entry's **Dedicated URL** — `/eln/EXP-0284` — opening the TipTap editor. No intermediate detail panel, no three-panel layout."
 
-> **Dev:** "So the **Workspace Panel** only slides in when they click expand in the Detail header. And if they click a different row instead?"
+> **Dev:** "And clicking a **Folder** in the Library hub?"
 
-> **Domain expert:** "The **Detail Panel** swaps to show the new **Item**'s summary. If they were already in **Expanded** state, we collapse back to **Detail** first — you never jump directly from one **Workspace** to another. The old Workspace exits, the new Detail card slides in, and the user decides whether to expand again."
-
-> **Dev:** "Got it. And a **Folder** — does it go through the same flow?"
-
-> **Domain expert:** "No. A **Folder** is a container, not content. Clicking a Folder in the **Library**'s **Master Panel** navigates *into* it — the table reloads with the folder's children. Folders have no **Detail Panel**, no **Workspace**, and no **Display ID**."
+> **Domain expert:** "The hub navigates *into* it — the card grid reloads with the folder's children. Folders have no Workspace and no Display ID."
 
 > **Dev:** "What about cross-references? If an **Entry** contains a **Mention** to `#BLOOD1`, and the user clicks the **ReferenceBadge**?"
 
-> **Domain expert:** "That navigates to the **Entity**'s **Dedicated URL** — `/lims/BLOOD1` — full **EntityWorkspace** page. The user leaves the **Library** console. It's a known UX rough edge: we want a tabbed Workspace later that can preview the Entity inline without leaving the Entry editor."
+> **Domain expert:** "That navigates to the **Entity**'s **Dedicated URL** — `/lims/BLOOD1` — the full **EntityWorkspace** page. The user leaves the **Library** hub."
 
 > **Dev:** "And when the user saves an **Entry**, the **Content Sync Pipeline** runs. What order?"
 
@@ -251,21 +213,21 @@ States advance left-to-right and collapse back. Skipping states is not allowed.
 
 | Old Term | Canonical Replacement |
 |----------|---------------------|
-| "three-step fold" / "LIMS three-step fold" | "Three-Panel Console" or "Master/Detail/Workspace" |
-| LimsCollapsedStrip / LibraryCollapsedStrip | ConsoleCollapsedStrip |
-| LimsViewContext / LibraryViewContext | ConsoleProvider |
-| LimsDetailCard / LibraryDetailCard | Uses ConsoleDetailPanel shell |
-| LimsMoreDetailPanel / LibraryMoreDetailPanel | Uses ConsoleWorkspacePanel shell |
-| "more detail panel" | Workspace Panel |
+| "console" / "Console" (UI browsing surface) | Hub |
+| "three-step fold" / "LIMS three-step fold" | Hub + Workspace architecture |
+| "Master Panel" / "Detail Panel" / "Workspace Panel" | Hub page (browsing) + dedicated Workspace URL |
+| registerConsole() | registerHub() |
+| registerWorkspace() | registerRoute() (workspaces are plain routes) |
+| ConsoleConfig | HubConfig |
+| ConsolePage / ConsoleProvider / ConsoleCollapsedStrip | Removed — no replacement |
+| useConsoleView / useConsoleData | usePaginatedData (shared/hooks/) |
+| LIMS Console | Removed — LIMS hub deprecated; entity workspace stays as route |
+| "ELN browser" / "ELN console" | Library Hub |
 | "sample" | Entity |
 | "project" | Folder |
-| "ELN browser" / "ELN console" | Library Console |
-| ViewState in lims.ts | ViewState in types/console.ts (shared) |
 
 ## Flagged Ambiguities
 
-- **"Item"** is used both as the generic term (any row in a Master table) and informally to mean "Entity" in the LIMS context. Prefer the generic meaning; say **Entity** when you mean the LIMS model.
-- **"Detail"** names both a **Panel** (the middle panel showing a summary card) and a **View State** (Master + Detail visible, Workspace hidden). Always qualify: say **Detail Panel** or **Detail state** — never bare "Detail."
-- **"Expanded"** names both a **View State** and the action of expanding. Prefer "enter Expanded state" or "expand to Workspace" over bare "expanded."
+- **"Item"** is used both as the generic term (anything in a hub card grid) and informally to mean "Entity" in the LIMS context. Prefer the generic meaning; say **Entity** when you mean the LIMS model.
 - **"content"** was used to mean both the Rich-Text Document inside an Entry and the children array of any TipTap node. Prefer **"Rich-Text Document"** for the Entry's content and **"child nodes"** or **"children"** for the structural sense.
-- **"console"** in some contexts means the terminal/command-line. In domain contexts it means a concrete Console instance (Library or LIMS) following the Console Pattern. Disambiguate by capitalization and context: **Console** (domain, the three-panel browsing surface), console (terminal), browser (web platform).
+- **"console"** now exclusively means the terminal/command-line. In Helix domain contexts, the canonical term is **Hub** (a browsing page). The old "Console" as a three-panel browsing surface is deprecated.

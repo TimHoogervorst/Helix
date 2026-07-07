@@ -1,6 +1,6 @@
 import { BookOpen } from "lucide-react";
 import { registerHub } from "../../core/mod-system";
-import LibraryConsole from "./console/LibraryConsole";
+import LibraryHub from "./hub/LibraryHub";
 
 export const meta = {
   id: "library",
@@ -15,7 +15,7 @@ export function register() {
     label: "Library",
     icon: BookOpen,
     route: "/library",
-    component: LibraryConsole,
+    component: LibraryHub,
     order: 10,
   });
 }

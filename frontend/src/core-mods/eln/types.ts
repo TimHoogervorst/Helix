@@ -53,7 +53,7 @@ export interface EntryDetail {
   mentions: Mention[];
 }
 
-import type { GridColumnType } from "../../shared/types";
+import type { GridColumnType } from "../../shared/types/types";
 
 /** Summary of an entity type (schema) as returned by the LIMS API.
  *  Only includes the fields the ELN editor actually uses — not the full

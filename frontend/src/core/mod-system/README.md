@@ -44,7 +44,7 @@ export function register(): void {
 | `index.ts` | All `register*()` calls — the single entry point Core loads during boot | Yes |
 | `types.ts` | Mod's TypeScript interfaces | Yes |
 | `api.ts` | Mod's backend API calls | If mod has API endpoints |
-| `console/` | Hub page component (hub browsing surface) | If mod has a hub |
+| `hub/` | Hub page component (hub browsing surface) | If mod has a hub |
 | `workspace/` | Full workspace + standalone page shell | If mod has a workspace |
 | `library/` | Library card renderers for the Library hub | If mod registers library items |
 | `settings/` | Settings panels registered to the Settings shell | If mod has settings |

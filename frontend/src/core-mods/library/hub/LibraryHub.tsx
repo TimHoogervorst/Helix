@@ -90,7 +90,7 @@ function NoopListCard() {
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-function LibraryConsole() {
+function LibraryHub() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPath = searchParams.get("path") || "";
@@ -258,7 +258,7 @@ function LibraryConsole() {
 
   if (data.loading && data.items.length === 0) {
     return (
-      <div className="library-console">
+      <div className="library-hub">
         <p className="empty">Loading…</p>
       </div>
     );
@@ -267,7 +267,7 @@ function LibraryConsole() {
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div className="library-console">
+    <div className="library-hub">
       {/* ── Main column: top bar + filter bar + card list ──────────────── */}
       <div className="library-main-column">
         {/* ── Top Bar ────────────────────────────────────────────────── */}
@@ -395,7 +395,7 @@ function LibraryConsole() {
           {data.items.map(renderCard)}
 
           {data.nextUrl && (
-            <div className="console-load-more">
+            <div className="hub-load-more">
               <button
                 onClick={data.handleLoadMore}
                 disabled={data.loading}
@@ -442,4 +442,4 @@ function LibraryConsole() {
   );
 }
 
-export default LibraryConsole;
+export default LibraryHub;

@@ -54,7 +54,7 @@ export interface PaginatedResponse<T> {
 
 // ── ELN Table v2 (AG Grid) types ──────────────────────────────────────
 //
-// Moved to shared/types.ts — re-exported here so existing consumers
-// don't break.  New code should import from "shared/types".
+// Moved to shared/types/types.ts — re-exported here so existing consumers
+// don't break.  New code should import from "shared/types/types".
 
-export type { GridColumn, GridRow } from "../../shared/types";
+export type { GridColumn, GridRow } from "../../shared/types/types";

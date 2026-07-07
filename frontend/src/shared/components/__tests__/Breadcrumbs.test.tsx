@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import Breadcrumbs from "../Breadcrumbs";
 import type { BreadcrumbSegment } from "../Breadcrumbs";
 
-// Build segments from a path string, matching LibraryConsole's convention.
+// Build segments from a path string, matching LibraryHub's convention.
 function buildSegments(path: string): BreadcrumbSegment[] {
   return path
     .split("/")

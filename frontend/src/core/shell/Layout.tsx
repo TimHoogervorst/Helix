@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
-import { ArrowLeft, Dna, Search, House, Star } from "lucide-react";
+import { ArrowLeft, Dna, Search } from "lucide-react";
 import { get } from "../api/client";
 import { ReferenceProvider } from "../references/ReferenceProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
@@ -93,22 +93,24 @@ function Layout() {
                   })}
                 </>
               ) : (
-                /* ── Normal navigation (Home, Starred, Consoles) ── */
+                /* ── Normal navigation (Hubs + Consoles) ── */
                 <>
-                  <button
-                    className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]"
-                    title="Home — coming soon"
-                    aria-label="Home"
-                  >
-                    <House className="h-3.5 w-3.5" aria-hidden="true" /> Home
-                  </button>
-                  <button
-                    className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]"
-                    title="Starred — coming soon"
-                    aria-label="Starred"
-                  >
-                    <Star className="h-3.5 w-3.5" aria-hidden="true" /> Starred
-                  </button>
+                  {[...ModRegistry.getInstance().getHubs().values()]
+                    .sort((a, b) => a.order - b.order)
+                    .map((h) => {
+                      const Icon = h.icon;
+                      return (
+                        <Link
+                          key={h.id}
+                          to={h.route}
+                          className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith(h.route) ? " bg-muted font-medium text-foreground" : ""}`}
+                          title={h.label}
+                          aria-label={h.label}
+                        >
+                          <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {h.label}
+                        </Link>
+                      );
+                    })}
                   {[...ModRegistry.getInstance().getConsoles().values()]
                     .sort((a, b) => a.order - b.order)
                     .map((c) => {

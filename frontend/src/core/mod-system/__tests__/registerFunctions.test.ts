@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ModRegistry } from "../ModRegistry";
 import { registerConsole } from "../registerConsole";
+import { registerHub } from "../registerHub";
 import { registerWorkspace } from "../registerWorkspace";
 import { registerSettingsSection } from "../registerSettingsSection";
 import { registerRoute } from "../registerRoute";
@@ -37,6 +38,20 @@ describe("register functions", () => {
       defaults: {},
     };
     registerConsole(config);
+    expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("registerHub delegates to ModRegistry.registerHub", () => {
+    const spy = vi.spyOn(registry, "registerHub");
+    const config = {
+      id: "test.hub",
+      label: "Test Hub",
+      icon: DummyComponent,
+      route: "/test-hub",
+      component: DummyComponent,
+      order: 5,
+    };
+    registerHub(config);
     expect(spy).toHaveBeenCalledWith(config);
   });
 

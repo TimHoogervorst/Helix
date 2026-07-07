@@ -36,6 +36,17 @@ export interface ConsoleConfig {
   };
 }
 
+// ── Hub ───────────────────────────────────────────────────────────────────
+
+export interface HubConfig {
+  id: string;
+  label: string;
+  icon: ComponentType<any>;
+  route: string;
+  component: ComponentType<any>;
+  order: number;
+}
+
 // ── Workspace ─────────────────────────────────────────────────────────────
 
 export interface WorkspaceConfig {

@@ -21,6 +21,12 @@ function Router() {
     return <Route key={c.id} path={c.route} element={<Comp />} />;
   });
 
+  // ── Dynamic hub routes (one per registered hub) ───────────────────────
+  const hubRoutes = [...registry.getHubs().values()].map((h) => {
+    const Comp = h.component;
+    return <Route key={h.id} path={h.route} element={<Comp />} />;
+  });
+
   // ── Dynamic layout routes (rendered inside Layout shell) ─────────────
   const layoutRoutes = registry.getLayoutRoutes().map((r) => {
     const Comp = r.component;
@@ -45,6 +51,7 @@ function Router() {
           <Route path="/" element={<Navigate to="/library" replace />} />
           <Route path="/eln" element={<Navigate to="/library" replace />} />
           {consoleRoutes}
+          {hubRoutes}
           {layoutRoutes}
         </Route>
       </Routes>

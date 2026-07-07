@@ -47,7 +47,7 @@ describe("eln mod registration", () => {
     const ws = workspaces.get("eln.entry");
 
     expect(ws).toBeDefined();
-    expect(ws!.consoleIds).toEqual(["library"]);
+    expect(ws!.consoleIds).toEqual(["lims"]);
     expect(ws!.workspace).toBeTruthy();
     expect(ws!.detailCard).toBeDefined();
   });
@@ -88,17 +88,19 @@ describe("eln mod registration", () => {
     expect(tagSection!.component).toBeTruthy();
   });
 
-  it("throws validation error referencing unregistered library console", async () => {
+  it("throws validation error referencing unregistered console (lims)", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
     registry.registerMod(mod.meta.id);
     mod.register();
 
-    // The ELN workspace references console 'library' which isn't registered
+    // The ELN workspace references console 'lims' which isn't registered
     // in this isolated test — this is expected behaviour.
+    // (consoleIds changed from 'library' to 'lims' in Slice 4 — Library
+    // migrated to registerHub.)
     expect(() => registry.validate()).toThrow(
-      /references console 'library' which is not registered/,
+      /references console 'lims' which is not registered/,
     );
   });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { ModRegistry } from "../ModRegistry";
 import type {
   ConsoleConfig,
+  HubConfig,
   WorkspaceConfig,
   SettingsSectionConfig,
   RouteConfig,
@@ -33,6 +34,18 @@ function makeConsole(overrides?: Partial<ConsoleConfig>): ConsoleConfig {
     component: DummyComponent,
     order: 10,
     defaults: {},
+    ...overrides,
+  };
+}
+
+function makeHub(overrides?: Partial<HubConfig>): HubConfig {
+  return {
+    id: "test.hub",
+    label: "Test Hub",
+    icon: DummyComponent,
+    route: "/test-hub",
+    component: DummyComponent,
+    order: 5,
     ...overrides,
   };
 }
@@ -122,6 +135,21 @@ describe("ModRegistry", () => {
     registry.registerConsole(makeConsole({ id: "c1" }));
     expect(() => registry.registerConsole(makeConsole({ id: "c1" }))).toThrow(
       "Duplicate console registration",
+    );
+  });
+
+  // ── registerHub ──────────────────────────────────────────────────────
+
+  it("registerHub stores a hub config", () => {
+    const config = makeHub({ id: "h1" });
+    registry.registerHub(config);
+    expect(registry.getHubs().get("h1")).toBe(config);
+  });
+
+  it("registerHub throws on duplicate ID", () => {
+    registry.registerHub(makeHub({ id: "h1" }));
+    expect(() => registry.registerHub(makeHub({ id: "h1" }))).toThrow(
+      "Duplicate hub registration",
     );
   });
 
@@ -380,6 +408,13 @@ describe("ModRegistry", () => {
     expect(consoles.has("c1")).toBe(true);
     // Verify it's the same map (read-only at the type level)
     expect(consoles.get("c1")?.id).toBe("c1");
+  });
+
+  it("getHubs returns a read-only view", () => {
+    registry.registerHub(makeHub({ id: "h1" }));
+    const hubs = registry.getHubs();
+    expect(hubs.has("h1")).toBe(true);
+    expect(hubs.get("h1")?.id).toBe("h1");
   });
 
   it("getWorkspaces returns a read-only view", () => {

@@ -33,7 +33,7 @@ export function register() {
   registerWorkspace({
     id: "eln.entry",
     label: "Entry",
-    consoleIds: ["library"],
+    consoleIds: ["lims"],
     route: "/eln/:displayId",
     detailCard: ElnDetailCard,
     workspace: lazy(() => import("./workspace/ElnWorkspace")),

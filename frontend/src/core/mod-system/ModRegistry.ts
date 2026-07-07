@@ -1,5 +1,6 @@
 import type {
   ConsoleConfig,
+  HubConfig,
   WorkspaceConfig,
   SettingsSectionConfig,
   RouteConfig,
@@ -40,6 +41,7 @@ export class ModRegistry {
   // ── Internal stores ───────────────────────────────────────────────────
 
   private consoles = new Map<string, ConsoleConfig>();
+  private hubs = new Map<string, HubConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private settingsSections = new Map<string, SettingsSectionConfig>();
   private routes = new Map<string, RouteConfig>();
@@ -68,6 +70,15 @@ export class ModRegistry {
       );
     }
     this.consoles.set(config.id, config);
+  }
+
+  registerHub(config: HubConfig): void {
+    if (this.hubs.has(config.id)) {
+      throw new Error(
+        `Duplicate hub registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.hubs.set(config.id, config);
   }
 
   registerWorkspace(config: WorkspaceConfig): void {
@@ -266,6 +277,11 @@ export class ModRegistry {
   /** Returns a read-only view of all registered consoles. */
   getConsoles(): ReadonlyMap<string, ConsoleConfig> {
     return this.consoles;
+  }
+
+  /** Returns a read-only view of all registered hubs. */
+  getHubs(): ReadonlyMap<string, HubConfig> {
+    return this.hubs;
   }
 
   /** Returns a read-only view of all registered workspaces. */

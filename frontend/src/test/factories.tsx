@@ -107,6 +107,7 @@ const _libraryEntryDefaults: LibraryEntryItem = {
   folder: null,
   folder_name: null,
   author_username: null,
+  author_info: null,
   status: "in_progress",
   description: "",
   tags: [],

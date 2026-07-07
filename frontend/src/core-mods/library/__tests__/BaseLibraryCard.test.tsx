@@ -183,9 +183,16 @@ describe("BaseLibraryCard", () => {
     expect(screen.getByText("gRNA screen v3")).toBeInTheDocument();
   });
 
-  it("renders the owner/author", () => {
+  it("renders the owner avatar and username", () => {
     const entry = makeLibraryEntry({
       author_username: "m.kato",
+      author_info: {
+        id: 1,
+        username: "m.kato",
+        first_name: "Mira",
+        last_name: "Kato",
+        color: "#4A90D9",
+      },
     });
     render(
       <BaseLibraryCard
@@ -197,10 +204,12 @@ describe("BaseLibraryCard", () => {
       />,
     );
     expect(screen.getByText("m.kato")).toBeInTheDocument();
+    // Avatar renders initials
+    expect(screen.getByLabelText("MK")).toBeInTheDocument();
   });
 
-  it("renders fallback owner when author_username is null", () => {
-    const entry = makeLibraryEntry({ author_username: null });
+  it("hides owner section when author_info is null", () => {
+    const entry = makeLibraryEntry({ author_username: null, author_info: null });
     render(
       <BaseLibraryCard
         item={entry}
@@ -210,7 +219,7 @@ describe("BaseLibraryCard", () => {
         listCard={DummyListCard}
       />,
     );
-    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
   });
 
   it('renders "In Progress" status chip for in_progress', () => {

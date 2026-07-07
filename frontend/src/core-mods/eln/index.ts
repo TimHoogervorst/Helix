@@ -1,11 +1,13 @@
 import { lazy } from "react";
-import { Tag } from "lucide-react";
+import { Tag, FlaskConical } from "lucide-react";
 import {
   registerWorkspace,
   registerRoute,
   registerSettingsSection,
+  registerLibraryItem,
 } from "../../core/mod-system";
 import ElnDetailCard from "./console/ElnDetailCard";
+import ElnLibraryCard from "./library/ElnLibraryCard";
 
 export const meta = {
   id: "eln",
@@ -51,6 +53,17 @@ export function register() {
     modId: "eln",
     path: "/eln/:id",
     component: lazy(() => import("./workspace/ElnWorkspacePage")),
+  });
+
+  // ── Library: ELN entry card ──────────────────────────────────────────
+  registerLibraryItem({
+    id: "eln.entry",
+    icon: FlaskConical,
+    listCard: ElnLibraryCard,
+    property_fields: [
+      { key: "samples_count" },
+      { key: "attachments_count" },
+    ],
   });
 
   // ── Settings: Tag management ──────────────────────────────────────────

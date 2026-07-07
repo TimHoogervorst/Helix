@@ -5,6 +5,7 @@ import type {
   PropertyField,
   LibraryCardProps,
 } from "../../../core/mod-system/types";
+import { Avatar, getInitials } from "../../../shared/Avatar";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -196,9 +197,16 @@ export function BaseLibraryCard({
       </div>
 
       {/* ── Owner ─────────────────────────────────────────────────── */}
-      <div className="card-owner">
-        {item.author_username ?? "Unknown"}
-      </div>
+      {item.author_info && (
+        <div className="card-owner">
+          <Avatar
+            initials={getInitials(item.author_info)}
+            color={item.author_info.color}
+            size="sm"
+          />
+          {item.author_info.username}
+        </div>
+      )}
     </div>
   );
 }

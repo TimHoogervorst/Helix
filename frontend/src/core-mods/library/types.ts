@@ -5,6 +5,15 @@ export interface LibraryEntryTag {
   icon: string;
 }
 
+/** Public user info returned by the API for author/editor display. */
+export interface AuthorInfo {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  color: string;
+}
+
 /** A folder row in the Library mixed table. */
 export interface LibraryFolderItem {
   type: "folder";
@@ -23,6 +32,7 @@ export interface LibraryEntryItem {
   folder: number | null;
   folder_name: string | null;
   author_username: string | null;
+  author_info: AuthorInfo | null;
   status: string;
   description: string;
   tags: LibraryEntryTag[];

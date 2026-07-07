@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
 from core.models import Folder
+from core_mods.users.serializers import UserSerializer
 
 
 class MixedListPagination(PageNumberPagination):
@@ -123,6 +124,9 @@ class LibraryContentsView(APIView):
                     "folder": e.folder_id,
                     "folder_name": e.folder.name if e.folder else None,
                     "author_username": e.author.username if e.author else None,
+                    "author_info": (
+                        UserSerializer(e.author).data if e.author else None
+                    ),
                     "status": e.status,
                     "description": _first_paragraph_text(e.content),
                     "tags": [

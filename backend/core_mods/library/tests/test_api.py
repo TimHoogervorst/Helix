@@ -156,6 +156,7 @@ class LibraryApiTests(BaseTestCase):
         self.assertIn("folder", e)
         self.assertIn("folder_name", e)
         self.assertIn("author_username", e)
+        self.assertIn("author_info", e)
         self.assertIn("status", e)
         self.assertIn("description", e)
         self.assertIn("tags", e)

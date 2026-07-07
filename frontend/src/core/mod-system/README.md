@@ -29,11 +29,11 @@ export function register(): void {
 
 | Function | Purpose |
 |---|---|
-| `registerConsole(config)` | Register a browsing surface — adds sidebar nav item + route |
-| `registerWorkspace(config)` | Register an item type for consoles — adds route, optional renderers |
+| `registerHub(config)` | Register a hub browsing surface — adds sidebar nav item + route |
+| `registerLibraryItem(config)` | Register a library item type with card renderers and metadata |
 | `registerSettingsSection(config)` | Register a settings panel in the Settings shell |
 | `registerRoute(config)` | Register a standalone route |
-| `registerSidebarAction(config)` | Register a button/badge on workspace sidebar rows |
+| `registerSidebarAction(config)` | Register a button/badge on sidebar rows |
 | `registerSlashCommand(config)` | Register a slash command for the ELN editor *(deferred)* |
 | `registerService(config)` | Register a callable service for mod-to-mod communication |
 
@@ -44,8 +44,9 @@ export function register(): void {
 | `index.ts` | All `register*()` calls — the single entry point Core loads during boot | Yes |
 | `types.ts` | Mod's TypeScript interfaces | Yes |
 | `api.ts` | Mod's backend API calls | If mod has API endpoints |
-| `console/` | Console contributions (Console page, Table, DetailCard) | If mod has a console |
+| `console/` | Hub page component (hub browsing surface) | If mod has a hub |
 | `workspace/` | Full workspace + standalone page shell | If mod has a workspace |
+| `library/` | Library card renderers for the Library hub | If mod registers library items |
 | `settings/` | Settings panels registered to the Settings shell | If mod has settings |
 | `editor/` | Rich editor + extensions | If mod owns an editor |
 | `components/` | Mod-specific shared components | Optional |
@@ -55,9 +56,9 @@ export function register(): void {
 ## Key Rules
 
 - **No direct imports between mods** — use `registry.call()` for mod-to-mod communication
-- **Workspace IDs are globally unique** — use mod prefix, e.g. `lims.entity`, `eln.entry`
-- **Workspace components fetch their own data** — `WorkspacePage` passes `displayId` as a prop
-- **Console has final say on workspaces** — `accepts` whitelist/blacklist overrides `consoleIds`
+- **Hub IDs are globally unique** — use mod prefix, e.g. `library`, `home`
+- **Workspace components fetch their own data** — `WorkspacePage` passes the route param as a prop
+- **Each hub defines its own item registration** — e.g. Library has `registerLibraryItem()`
 
 ## Boot Sequence
 

@@ -93,7 +93,7 @@ function Layout() {
                   })}
                 </>
               ) : (
-                /* ── Normal navigation (Hubs + Consoles) ── */
+                /* ── Normal navigation (Hubs) ── */
                 <>
                   {[...ModRegistry.getInstance().getHubs().values()]
                     .sort((a, b) => a.order - b.order)
@@ -108,22 +108,6 @@ function Layout() {
                           aria-label={h.label}
                         >
                           <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {h.label}
-                        </Link>
-                      );
-                    })}
-                  {[...ModRegistry.getInstance().getConsoles().values()]
-                    .sort((a, b) => a.order - b.order)
-                    .map((c) => {
-                      const Icon = c.icon;
-                      return (
-                        <Link
-                          key={c.id}
-                          to={c.route}
-                          className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith(c.route) ? " bg-muted font-medium text-foreground" : ""}`}
-                          title={c.label}
-                          aria-label={c.label}
-                        >
-                          <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {c.label}
                         </Link>
                       );
                     })}

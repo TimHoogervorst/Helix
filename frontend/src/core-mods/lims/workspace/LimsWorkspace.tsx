@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { EntityListItem } from "../types";
-import ConsoleWorkspacePanel from "../../../core/console/ConsoleWorkspacePanel";
 
 /** Tab configuration — canonical source for entity workspace tabs. */
 interface TabConfig {
@@ -26,17 +25,17 @@ function PlaceholderTab({ label }: { label: string }) {
 interface LimsWorkspaceProps {
   entity: EntityListItem;
   isExiting: boolean;
-  /** Optional URL pointing back to the master panel (used when rendered as a full page). */
-  backUrl?: string;
   /** Optional slot rendered above the tab bar (e.g. entity header fields). */
   children?: ReactNode;
 }
 
-function LimsWorkspace({ entity: _entity, isExiting, backUrl, children }: LimsWorkspaceProps) {
+function LimsWorkspace({ entity: _entity, isExiting, children }: LimsWorkspaceProps) {
   const [activeTab, setActiveTab] = useState(ENTITY_TABS[0].id);
 
+  const panelClass = `console-workspace-panel${isExiting ? " is-exiting" : ""}`;
+
   return (
-    <ConsoleWorkspacePanel isExiting={isExiting} backUrl={backUrl}>
+    <div className={panelClass}>
       <div className="card">
         {children}
         <div className="console-tab-bar">
@@ -58,7 +57,7 @@ function LimsWorkspace({ entity: _entity, isExiting, backUrl, children }: LimsWo
           )}
         </div>
       </div>
-    </ConsoleWorkspacePanel>
+    </div>
   );
 }
 

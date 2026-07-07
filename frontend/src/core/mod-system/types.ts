@@ -15,27 +15,6 @@ export interface ModManifest {
   dependsOn: string[];
 }
 
-// ── Console ───────────────────────────────────────────────────────────────
-
-export interface ConsoleConfig {
-  id: string;
-  label: string;
-  icon: ComponentType<any>;
-  route: string;
-  component: ComponentType<any>;
-  order: number;
-  defaults: {
-    row?: ComponentType<any>;
-    detailCard?: ComponentType<any>;
-    workspace?: ComponentType<any>;
-  };
-  /** Narrows which workspace item types appear in this console. */
-  accepts?: {
-    only?: string[];
-    except?: string[];
-  };
-}
-
 // ── Hub ───────────────────────────────────────────────────────────────────
 
 export interface HubConfig {
@@ -45,25 +24,6 @@ export interface HubConfig {
   route: string;
   component: ComponentType<any>;
   order: number;
-}
-
-// ── Workspace ─────────────────────────────────────────────────────────────
-
-export interface WorkspaceConfig {
-  /** Globally unique — includes mod prefix, e.g. 'lims.entity', 'eln.entry'. */
-  id: string;
-  /** Which consoles host this workspace. */
-  consoleIds: string[];
-  label: string;
-  icon?: ComponentType<any>;
-  /** Standalone page route — auto-registers as a route. */
-  route: string;
-  /** Custom row renderer (falls back to console default). */
-  row?: ComponentType<any>;
-  /** Custom detail card (falls back to console default). */
-  detailCard?: ComponentType<any>;
-  /** Custom workspace (falls back to console default). */
-  workspace?: ComponentType<any>;
 }
 
 // ── Settings Section ──────────────────────────────────────────────────────

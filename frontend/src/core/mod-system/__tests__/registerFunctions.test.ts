@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ModRegistry } from "../ModRegistry";
-import { registerConsole } from "../registerConsole";
 import { registerHub } from "../registerHub";
-import { registerWorkspace } from "../registerWorkspace";
 import { registerSettingsSection } from "../registerSettingsSection";
 import { registerRoute } from "../registerRoute";
 import { registerSidebarAction } from "../registerSidebarAction";
@@ -26,21 +24,6 @@ describe("register functions", () => {
     registry = resetRegistry();
   });
 
-  it("registerConsole delegates to ModRegistry.registerConsole", () => {
-    const spy = vi.spyOn(registry, "registerConsole");
-    const config = {
-      id: "test.console",
-      label: "Test",
-      icon: DummyComponent,
-      route: "/test",
-      component: DummyComponent,
-      order: 1,
-      defaults: {},
-    };
-    registerConsole(config);
-    expect(spy).toHaveBeenCalledWith(config);
-  });
-
   it("registerHub delegates to ModRegistry.registerHub", () => {
     const spy = vi.spyOn(registry, "registerHub");
     const config = {
@@ -52,18 +35,6 @@ describe("register functions", () => {
       order: 5,
     };
     registerHub(config);
-    expect(spy).toHaveBeenCalledWith(config);
-  });
-
-  it("registerWorkspace delegates to ModRegistry.registerWorkspace", () => {
-    const spy = vi.spyOn(registry, "registerWorkspace");
-    const config = {
-      id: "test.ws",
-      consoleIds: ["c1"],
-      label: "Test WS",
-      route: "/test/:id",
-    };
-    registerWorkspace(config);
     expect(spy).toHaveBeenCalledWith(config);
   });
 
@@ -96,7 +67,7 @@ describe("register functions", () => {
     const spy = vi.spyOn(registry, "registerSidebarAction");
     const config = {
       id: "test.action",
-      workspaceId: "test.ws",
+      workspaceId: "*",
       component: DummyComponent,
       position: "inline" as const,
     };

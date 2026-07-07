@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Database, BookOpen, House } from "lucide-react";
+import { BookOpen, House } from "lucide-react";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
@@ -60,7 +60,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   ModRegistry._reset();
   // Register mock hubs so the dynamic sidebar renders nav links.
-  // Library is now registered via registerHub (Slice 4 migration).
   ModRegistry.getInstance().registerHub({
     id: "home",
     label: "Home",
@@ -76,16 +75,6 @@ beforeEach(() => {
     route: "/library",
     component: () => null,
     order: 10,
-  });
-  // LIMS is still registered as a console (not yet migrated).
-  ModRegistry.getInstance().registerConsole({
-    id: "lims",
-    label: "Database",
-    icon: Database,
-    route: "/lims",
-    component: () => null,
-    order: 30,
-    defaults: {},
   });
   // Default: no pins, no CSRF error
   mockGet.mockResolvedValue([]);
@@ -131,21 +120,15 @@ describe("Layout sidebar", () => {
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
   });
 
-  it("renders Database nav link", () => {
-    renderLayout();
-    expect(screen.getByRole("link", { name: "Database" })).toBeInTheDocument();
-  });
-
   it("Library nav link points to /library", () => {
     renderLayout();
     const libraryLink = screen.getByRole("link", { name: "Library" });
     expect(libraryLink).toHaveAttribute("href", "/library");
   });
 
-  it("Database nav link points to /lims", () => {
+  it("does not show Database nav link (LIMS console removed)", () => {
     renderLayout();
-    const dbLink = screen.getByRole("link", { name: "Database" });
-    expect(dbLink).toHaveAttribute("href", "/lims");
+    expect(screen.queryByRole("link", { name: "Database" })).not.toBeInTheDocument();
   });
 
   it("renders the UserMenu trigger button", () => {
@@ -208,9 +191,6 @@ describe("Layout sidebar", () => {
 
     const libraryLink = screen.getByRole("link", { name: "Library" });
     expect(libraryLink).toHaveAttribute("title", "Library");
-
-    const dbLink = screen.getByRole("link", { name: "Database" });
-    expect(dbLink).toHaveAttribute("title", "Database");
   });
 
   it("renders without crashing (CSRF priming runs)", () => {
@@ -228,7 +208,7 @@ describe("Sidebar actions", () => {
 
   beforeEach(() => {
     ModRegistry._reset();
-    // Re-register consoles and hubs (needed by the "Layout sidebar" tests but we
+    // Re-register hubs (needed by the "Layout sidebar" tests but we
     // also need them here so the full Layout renders without error).
     ModRegistry.getInstance().registerHub({
       id: "home",
@@ -245,15 +225,6 @@ describe("Sidebar actions", () => {
       route: "/library",
       component: () => null,
       order: 10,
-    });
-    ModRegistry.getInstance().registerConsole({
-      id: "lims",
-      label: "Database",
-      icon: Database,
-      route: "/lims",
-      component: () => null,
-      order: 30,
-      defaults: {},
     });
     mockGet.mockResolvedValue([]);
   });
@@ -337,7 +308,7 @@ describe("Layout settings sidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ModRegistry._reset();
-    // Re-register hubs and consoles so Layout doesn't error when NOT on settings
+    // Re-register hubs so Layout doesn't error when NOT on settings
     ModRegistry.getInstance().registerHub({
       id: "home",
       label: "Home",
@@ -353,15 +324,6 @@ describe("Layout settings sidebar", () => {
       route: "/library",
       component: () => null,
       order: 10,
-    });
-    ModRegistry.getInstance().registerConsole({
-      id: "lims",
-      label: "Database",
-      icon: Database,
-      route: "/lims",
-      component: () => null,
-      order: 30,
-      defaults: {},
     });
     // Register settings sections
     const registry = ModRegistry.getInstance();
@@ -448,7 +410,7 @@ describe("Layout settings sidebar", () => {
     expect(usersLink.className).toContain("font-medium");
   });
 
-  it("hides hub and console links when on /settings", () => {
+  it("hides hub links when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <Layout />
@@ -457,7 +419,6 @@ describe("Layout settings sidebar", () => {
 
     expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Database" })).not.toBeInTheDocument();
   });
 
   it("hides sidebar actions (workspace) when on /settings", () => {
@@ -487,12 +448,11 @@ describe("Layout settings sidebar", () => {
     expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
   });
 
-  it("shows normal nav (hubs, consoles) when NOT on /settings", () => {
+  it("shows normal nav (hubs) when NOT on /settings", () => {
     renderLayout("/library");
 
     expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Database" })).toBeInTheDocument();
   });
 
   it("shows sidebar actions when NOT on /settings", () => {

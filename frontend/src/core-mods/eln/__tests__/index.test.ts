@@ -23,33 +23,17 @@ describe("eln mod registration", () => {
     expect(mod.meta.dependsOn).toEqual(["lims"]);
   });
 
-  it("does NOT register a console (ELN console is removed from UI)", async () => {
+  it("does NOT register a console or workspace (both removed)", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
     registry.registerMod(mod.meta.id);
     mod.register();
 
-    const consoles = registry.getConsoles();
-    const elnConsole = consoles.get("eln");
-
-    expect(elnConsole).toBeUndefined();
-  });
-
-  it("registers a workspace with id 'eln.entry'", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    const workspaces = registry.getWorkspaces();
-    const ws = workspaces.get("eln.entry");
-
-    expect(ws).toBeDefined();
-    expect(ws!.consoleIds).toEqual(["lims"]);
-    expect(ws!.workspace).toBeTruthy();
-    expect(ws!.detailCard).toBeDefined();
+    // No consoles or workspaces — only hubs, routes, library items,
+    // and settings sections remain.
+    const hubs = registry.getHubs();
+    expect(hubs.has("eln")).toBe(false);
   });
 
   it("registers routes for /eln/new and /eln/:id", async () => {
@@ -72,6 +56,19 @@ describe("eln mod registration", () => {
     expect(detailRoute!.component).toBeTruthy();
   });
 
+  it("registers a library item for eln.entry", async () => {
+    const mod = await import("../index");
+
+    const registry = ModRegistry.getInstance();
+    registry.registerMod(mod.meta.id);
+    mod.register();
+
+    const items = registry.getLibraryItems();
+    const item = items.get("eln.entry");
+
+    expect(item).toBeDefined();
+  });
+
   it("registers a settings section for tags", async () => {
     const mod = await import("../index");
 
@@ -88,19 +85,14 @@ describe("eln mod registration", () => {
     expect(tagSection!.component).toBeTruthy();
   });
 
-  it("throws validation error referencing unregistered console (lims)", async () => {
+  it("passes validation (no console/workspace cross-references to validate)", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
     registry.registerMod(mod.meta.id);
     mod.register();
 
-    // The ELN workspace references console 'lims' which isn't registered
-    // in this isolated test — this is expected behaviour.
-    // (consoleIds changed from 'library' to 'lims' in Slice 4 — Library
-    // migrated to registerHub.)
-    expect(() => registry.validate()).toThrow(
-      /references console 'lims' which is not registered/,
-    );
+    // No more workspace → console cross-references. Validation should pass.
+    expect(() => registry.validate()).not.toThrow();
   });
 });

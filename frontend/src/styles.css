@@ -2009,9 +2009,9 @@ input.lims-table-title-input:focus {
   flex-wrap: wrap;
 }
 
-/* ── Library Breadcrumbs ── */
+/* ── Breadcrumbs ── */
 
-.library-breadcrumbs {
+.breadcrumbs {
   display: flex;
   align-items: center;
   gap: 0.1rem;
@@ -2028,7 +2028,7 @@ input.lims-table-title-input:focus {
   position: static;
 }
 
-.library-breadcrumb-btn {
+.breadcrumb-btn {
   display: inline;
   padding: 0;
   background: none;
@@ -2040,48 +2040,48 @@ input.lims-table-title-input:focus {
   line-height: 1;
 }
 
-.library-breadcrumb-btn:hover:not(:disabled) {
+.breadcrumb-btn:hover:not(:disabled) {
   color: var(--gray-700);
 }
 
-.library-breadcrumb-btn:disabled {
+.breadcrumb-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
 
-.library-breadcrumb-seg {
+.breadcrumb-seg {
   cursor: pointer;
   color: var(--gray-500);
   white-space: nowrap;
 }
 
-.library-breadcrumb-seg:hover {
+.breadcrumb-seg:hover {
   text-decoration: underline;
   color: var(--gray-700);
 }
 
-.library-breadcrumb-seg.is-current {
+.breadcrumb-seg.is-current {
   font-weight: 600;
   color: var(--gray-700);
   cursor: default;
 }
 
-.library-breadcrumb-seg.is-current:hover {
+.breadcrumb-seg.is-current:hover {
   text-decoration: none;
 }
 
-.library-breadcrumb-folder-icon {
+.breadcrumb-folder-icon {
   color: var(--gray-400);
   flex-shrink: 0;
   margin-right: 0.15rem;
 }
 
-.library-breadcrumb-sep {
+.breadcrumb-sep {
   color: var(--gray-400);
   user-select: none;
 }
 
-.library-breadcrumb-seg-wrap {
+.breadcrumb-seg-wrap {
   display: inline-flex;
   align-items: center;
   gap: 0.1rem;

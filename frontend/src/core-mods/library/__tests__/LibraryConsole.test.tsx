@@ -152,9 +152,9 @@ describe("LibraryConsole", () => {
     mockGetLibraryContents.mockResolvedValue(emptyResponse);
     renderLibrary();
     await waitFor(() => {
-      // The Folder icon is rendered with the library-breadcrumb-folder-icon class
+      // The Folder icon is rendered with the breadcrumb-folder-icon class
       const folderIcons = document.querySelectorAll(
-        ".library-breadcrumb-folder-icon",
+        ".breadcrumb-folder-icon",
       );
       expect(folderIcons.length).toBe(1);
     });

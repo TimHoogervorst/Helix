@@ -1,11 +1,26 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import Breadcrumbs from "../Breadcrumbs";
+import type { BreadcrumbSegment } from "../Breadcrumbs";
+
+/** Build segments from a path string, matching LibraryConsole's convention. */
+function buildSegments(path: string): BreadcrumbSegment[] {
+  return path
+    .split("/")
+    .filter(Boolean)
+    .map((label, i, arr) => ({
+      label,
+      path:
+        i < arr.length - 1
+          ? `/${arr.slice(0, i + 1).join("/")}`
+          : undefined,
+    }));
+}
 
 describe("Breadcrumbs", () => {
-  it("renders root as current when path is empty", () => {
+  it("renders root as current when segments is empty", () => {
     render(
-      <Breadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
+      <Breadcrumbs segments={[]} onNavigate={vi.fn()} onUp={vi.fn()} />,
     );
     const root = screen.getByText(/root/);
     expect(root.className).toContain("is-current");
@@ -14,7 +29,7 @@ describe("Breadcrumbs", () => {
   it("renders root as clickable when in a subfolder", () => {
     render(
       <Breadcrumbs
-        path="/Experiments"
+        segments={buildSegments("/Experiments")}
         onNavigate={vi.fn()}
         onUp={vi.fn()}
       />,
@@ -26,7 +41,7 @@ describe("Breadcrumbs", () => {
   it("renders path segments separated by /", () => {
     render(
       <Breadcrumbs
-        path="/Experiments/Q1"
+        segments={buildSegments("/Experiments/Q1")}
         onNavigate={vi.fn()}
         onUp={vi.fn()}
       />,
@@ -38,16 +53,16 @@ describe("Breadcrumbs", () => {
   it("marks the last segment as current", () => {
     render(
       <Breadcrumbs
-        path="/Experiments/Q1"
+        segments={buildSegments("/Experiments/Q1")}
         onNavigate={vi.fn()}
         onUp={vi.fn()}
       />,
     );
     // "Q1" segment should be current
-    const q1 = screen.getByText(/Q1/);
+    const q1 = screen.getByText("Q1");
     expect(q1.className).toContain("is-current");
     // "Experiments" should not be current
-    const experiments = screen.getByText(/Experiments/);
+    const experiments = screen.getByText("Experiments");
     expect(experiments.className).not.toContain("is-current");
   });
 
@@ -55,7 +70,7 @@ describe("Breadcrumbs", () => {
     const handleNavigate = vi.fn();
     render(
       <Breadcrumbs
-        path="/Experiments"
+        segments={buildSegments("/Experiments")}
         onNavigate={handleNavigate}
         onUp={vi.fn()}
       />,
@@ -68,12 +83,12 @@ describe("Breadcrumbs", () => {
     const handleNavigate = vi.fn();
     render(
       <Breadcrumbs
-        path="/Experiments/Q1/Sub"
+        segments={buildSegments("/Experiments/Q1/Sub")}
         onNavigate={handleNavigate}
         onUp={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByText(/Experiments/));
+    fireEvent.click(screen.getByText("Experiments"));
     expect(handleNavigate).toHaveBeenCalledWith("/Experiments");
   });
 
@@ -81,12 +96,12 @@ describe("Breadcrumbs", () => {
     const handleNavigate = vi.fn();
     render(
       <Breadcrumbs
-        path="/Experiments"
+        segments={buildSegments("/Experiments")}
         onNavigate={handleNavigate}
         onUp={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByText(/Experiments/));
+    fireEvent.click(screen.getByText("Experiments"));
     expect(handleNavigate).not.toHaveBeenCalled();
   });
 
@@ -94,7 +109,7 @@ describe("Breadcrumbs", () => {
     const handleUp = vi.fn();
     render(
       <Breadcrumbs
-        path="/Experiments"
+        segments={buildSegments("/Experiments")}
         onNavigate={vi.fn()}
         onUp={handleUp}
       />,
@@ -107,7 +122,7 @@ describe("Breadcrumbs", () => {
 
   it("disables back button at root", () => {
     render(
-      <Breadcrumbs path="" onNavigate={vi.fn()} onUp={vi.fn()} />,
+      <Breadcrumbs segments={[]} onNavigate={vi.fn()} onUp={vi.fn()} />,
     );
     expect(screen.getByRole("button", { name: "Go up" })).toBeDisabled();
   });
@@ -115,7 +130,7 @@ describe("Breadcrumbs", () => {
   it("enables back button in subfolder", () => {
     render(
       <Breadcrumbs
-        path="/Experiments"
+        segments={buildSegments("/Experiments")}
         onNavigate={vi.fn()}
         onUp={vi.fn()}
       />,

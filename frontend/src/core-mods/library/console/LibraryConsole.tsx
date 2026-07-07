@@ -16,7 +16,8 @@ import {
 import type { LibraryItem, LibraryEntryItem } from "../types";
 import { useConsoleData } from "../../../core/console/useConsoleData";
 import { getLibraryContents } from "../api";
-import Breadcrumbs from "../../../core/console/Breadcrumbs";
+import Breadcrumbs from "../../../shared/components/Breadcrumbs";
+import type { BreadcrumbSegment } from "../../../shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseLibraryCard } from "../components/BaseLibraryCard";
 import { ModRegistry } from "../../../core/mod-system/ModRegistry";
@@ -197,6 +198,21 @@ function LibraryConsole() {
     [data, handleItemClick],
   );
 
+  // ── Breadcrumb segments ──────────────────────────────────────────────
+
+  const breadcrumbSegments: BreadcrumbSegment[] = useMemo(() => {
+    return currentPath
+      .split("/")
+      .filter(Boolean)
+      .map((label, i, arr) => ({
+        label,
+        path:
+          i < arr.length - 1
+            ? `/${arr.slice(0, i + 1).join("/")}`
+            : undefined,
+      }));
+  }, [currentPath]);
+
   // ── Render helpers ────────────────────────────────────────────────────
 
   const renderCard = (item: LibraryItem) => {
@@ -257,7 +273,7 @@ function LibraryConsole() {
         {/* ── Top Bar ────────────────────────────────────────────────── */}
         <div className="library-top-bar">
           <Breadcrumbs
-            path={currentPath}
+            segments={breadcrumbSegments}
             onNavigate={navigateToPath}
             onUp={navigateUp}
           />

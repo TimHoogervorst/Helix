@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import LibraryNewDropdown from "../console/LibraryNewDropdown";
+import LibraryNewDropdown from "../hub/LibraryNewDropdown";
 
 // Mock the API client
 vi.mock("../../../api/client", () => ({

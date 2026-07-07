@@ -2,7 +2,7 @@
  * Tests for Router — the registry-driven route generator.
  *
  * Verifies:
- *  - Console routes are generated from registry.getConsoles()
+ *  - Hub routes are generated from registry.getHubs()
  *  - Standalone routes are generated from registry.getRoutes()
  *  - App-level redirects / → /library and /eln → /library work
  *  - Empty registry doesn't crash
@@ -12,7 +12,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 import Router from "../Router";
-import type { ConsoleConfig, RouteConfig } from "../../mod-system/types";
+import type { HubConfig, RouteConfig } from "../../mod-system/types";
 
 // Provide a mock user context so Layout (which renders UserMenu) doesn't crash
 vi.mock("../../user/CurrentUserProvider", () => ({
@@ -45,11 +45,11 @@ function DummyComponent({ label = "default" }: { label?: string }) {
   return <div data-testid={`component-${label}`}>{label}</div>;
 }
 
-function ConsoleA() {
-  return <DummyComponent label="console-a" />;
+function HubA() {
+  return <DummyComponent label="hub-a" />;
 }
-function ConsoleB() {
-  return <DummyComponent label="console-b" />;
+function HubB() {
+  return <DummyComponent label="hub-b" />;
 }
 function StandaloneX() {
   return <DummyComponent label="standalone-x" />;
@@ -57,7 +57,7 @@ function StandaloneX() {
 function StandaloneY() {
   return <DummyComponent label="standalone-y" />;
 }
-function LibraryConsole() {
+function LibraryHub() {
   return <DummyComponent label="library" />;
 }
 
@@ -65,15 +65,14 @@ function resetRegistry(): void {
   ModRegistry._reset();
 }
 
-function makeConsole(overrides?: Partial<ConsoleConfig>): ConsoleConfig {
+function makeHub(overrides?: Partial<HubConfig>): HubConfig {
   return {
-    id: "test.console",
-    label: "Test Console",
+    id: "test.hub",
+    label: "Test Hub",
     icon: () => null,
-    route: "/test",
+    route: "/test-hub",
     component: () => null,
-    order: 10,
-    defaults: {},
+    order: 5,
     ...overrides,
   };
 }
@@ -104,48 +103,48 @@ describe("Router", () => {
     resetRegistry();
   });
 
-  // ── Console routes ────────────────────────────────────────────────────
+  // ── Hub routes ────────────────────────────────────────────────────────
 
-  it("generates a route for each registered console", () => {
+  it("generates a route for each registered hub", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("test-mod");
-    registry.registerConsole(
-      makeConsole({
-        id: "console-a",
-        route: "/console-a",
-        component: ConsoleA,
+    registry.registerHub(
+      makeHub({
+        id: "home",
+        route: "/home",
+        component: () => <div data-testid="component-home">Home</div>,
       }),
     );
 
-    renderRouter("/console-a");
-    expect(screen.getByTestId("component-console-a")).toBeInTheDocument();
+    renderRouter("/home");
+    expect(screen.getByTestId("component-home")).toBeInTheDocument();
   });
 
-  it("generates routes for multiple consoles", () => {
+  it("generates routes for multiple hubs", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("test-mod");
-    registry.registerConsole(
-      makeConsole({
-        id: "console-a",
-        route: "/console-a",
-        component: ConsoleA,
+    registry.registerHub(
+      makeHub({
+        id: "hub-a",
+        route: "/hub-a",
+        component: HubA,
       }),
     );
-    registry.registerConsole(
-      makeConsole({
-        id: "console-b",
-        route: "/console-b",
-        component: ConsoleB,
+    registry.registerHub(
+      makeHub({
+        id: "hub-b",
+        route: "/hub-b",
+        component: HubB,
       }),
     );
 
-    // Console A renders at its route
-    renderRouter("/console-a");
-    expect(screen.getByTestId("component-console-a")).toBeInTheDocument();
+    // Hub A renders at its route
+    renderRouter("/hub-a");
+    expect(screen.getByTestId("component-hub-a")).toBeInTheDocument();
 
-    // Console B renders at its route
-    renderRouter("/console-b");
-    expect(screen.getByTestId("component-console-b")).toBeInTheDocument();
+    // Hub B renders at its route
+    renderRouter("/hub-b");
+    expect(screen.getByTestId("component-hub-b")).toBeInTheDocument();
   });
 
   // ── Standalone routes ─────────────────────────────────────────────────
@@ -189,14 +188,14 @@ describe("Router", () => {
 
   // ── Mixed routes ──────────────────────────────────────────────────────
 
-  it("generates both console and standalone routes together", () => {
+  it("generates both hub and standalone routes together", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("test-mod");
-    registry.registerConsole(
-      makeConsole({
-        id: "console-a",
-        route: "/console-a",
-        component: ConsoleA,
+    registry.registerHub(
+      makeHub({
+        id: "hub-a",
+        route: "/hub-a",
+        component: HubA,
       }),
     );
     registry.registerRoute(
@@ -207,9 +206,9 @@ describe("Router", () => {
       }),
     );
 
-    // Console route works
-    renderRouter("/console-a");
-    expect(screen.getByTestId("component-console-a")).toBeInTheDocument();
+    // Hub route works
+    renderRouter("/hub-a");
+    expect(screen.getByTestId("component-hub-a")).toBeInTheDocument();
 
     // Standalone route works
     renderRouter("/standalone-x");
@@ -221,38 +220,38 @@ describe("Router", () => {
   it("redirects / to /library", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("test-mod");
-    registry.registerConsole(
-      makeConsole({
+    registry.registerHub(
+      makeHub({
         id: "library",
         route: "/library",
-        component: LibraryConsole,
+        component: LibraryHub,
       }),
     );
 
     renderRouter("/");
-    // After redirect, the library console component should render
+    // After redirect, the library hub component should render
     expect(screen.getByTestId("component-library")).toBeInTheDocument();
   });
 
   it("redirects /eln to /library", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("test-mod");
-    registry.registerConsole(
-      makeConsole({
+    registry.registerHub(
+      makeHub({
         id: "library",
         route: "/library",
-        component: LibraryConsole,
+        component: LibraryHub,
       }),
     );
 
     renderRouter("/eln");
-    // After redirect, the library console component should render
+    // After redirect, the library hub component should render
     expect(screen.getByTestId("component-library")).toBeInTheDocument();
   });
 
   // ── Empty registry ────────────────────────────────────────────────────
 
-  it("does not crash when no consoles or routes are registered", () => {
+  it("does not crash when no hubs or routes are registered", () => {
     // Should not throw — Layout renders (with CSRF side-effect, which we
     // don't mock here, but it just fails silently via .catch(() => {}))
     expect(() => renderRouter("/")).not.toThrow();
@@ -263,11 +262,11 @@ describe("Router", () => {
   it("renders the sidebar Layout with brand text", () => {
     const registry = ModRegistry.getInstance();
     registry.registerMod("test-mod");
-    registry.registerConsole(
-      makeConsole({
+    registry.registerHub(
+      makeHub({
         id: "library",
         route: "/library",
-        component: LibraryConsole,
+        component: LibraryHub,
       }),
     );
 

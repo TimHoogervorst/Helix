@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { EntityListItem } from "../types";
-import ConsoleWorkspacePanel from "../../../core/console/ConsoleWorkspacePanel";
 
 /** Tab configuration — canonical source for entity workspace tabs. */
 interface TabConfig {
@@ -17,7 +16,7 @@ const ENTITY_TABS: TabConfig[] = [
 
 function PlaceholderTab({ label }: { label: string }) {
   return (
-    <div className="console-properties-empty">
+    <div className="lims-properties-empty">
       {label} — coming soon.
     </div>
   );
@@ -26,31 +25,31 @@ function PlaceholderTab({ label }: { label: string }) {
 interface LimsWorkspaceProps {
   entity: EntityListItem;
   isExiting: boolean;
-  /** Optional URL pointing back to the master panel (used when rendered as a full page). */
-  backUrl?: string;
   /** Optional slot rendered above the tab bar (e.g. entity header fields). */
   children?: ReactNode;
 }
 
-function LimsWorkspace({ entity: _entity, isExiting, backUrl, children }: LimsWorkspaceProps) {
+function LimsWorkspace({ entity: _entity, isExiting, children }: LimsWorkspaceProps) {
   const [activeTab, setActiveTab] = useState(ENTITY_TABS[0].id);
 
+  const panelClass = `lims-workspace-panel${isExiting ? " is-exiting" : ""}`;
+
   return (
-    <ConsoleWorkspacePanel isExiting={isExiting} backUrl={backUrl}>
+    <div className={panelClass}>
       <div className="card">
         {children}
-        <div className="console-tab-bar">
+        <div className="lims-tab-bar">
           {ENTITY_TABS.map((tab) => (
             <button
               key={tab.id}
-              className={`console-tab${activeTab === tab.id ? " is-active" : ""}`}
+              className={`lims-tab${activeTab === tab.id ? " is-active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <div className="console-tab-content">
+        <div className="lims-tab-content">
           {ENTITY_TABS.map((tab) =>
             activeTab === tab.id ? (
               <PlaceholderTab key={tab.id} label={tab.label} />
@@ -58,7 +57,7 @@ function LimsWorkspace({ entity: _entity, isExiting, backUrl, children }: LimsWo
           )}
         </div>
       </div>
-    </ConsoleWorkspacePanel>
+    </div>
   );
 }
 

@@ -1,7 +1,6 @@
 export { ModLoader } from "./ModLoader";
 export { ModRegistry } from "./ModRegistry";
-export { registerConsole } from "./registerConsole";
-export { registerWorkspace } from "./registerWorkspace";
+export { registerHub } from "./registerHub";
 export { registerSettingsSection } from "./registerSettingsSection";
 export { registerRoute } from "./registerRoute";
 export { registerPublicRoute } from "./registerPublicRoute";
@@ -9,8 +8,7 @@ export { registerSidebarAction } from "./registerSidebarAction";
 export { registerLibraryItem } from "./registerLibraryItem";
 export type {
   ModManifest,
-  ConsoleConfig,
-  WorkspaceConfig,
+  HubConfig,
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,

@@ -1,6 +1,6 @@
 import { BookOpen } from "lucide-react";
-import { registerConsole } from "../../core/mod-system";
-import LibraryConsole from "./console/LibraryConsole";
+import { registerHub } from "../../core/mod-system";
+import LibraryHub from "./hub/LibraryHub";
 
 export const meta = {
   id: "library",
@@ -9,15 +9,13 @@ export const meta = {
 };
 
 export function register() {
-  // ── Console: Library browsing surface ──────────────────────────────────
-  registerConsole({
+  // ── Hub: Library browsing surface ─────────────────────────────────────
+  registerHub({
     id: "library",
     label: "Library",
     icon: BookOpen,
     route: "/library",
-    component: LibraryConsole,
-    order: 10, // First in sidebar
-    defaults: {},
-    accepts: { only: ["eln.entry"] },
+    component: LibraryHub,
+    order: 10,
   });
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { EntityListItem } from "../types";
-import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../shared/components/ReferenceBadge";
 
 export interface EntityDetailFieldsProps {
   entity: EntityListItem;
@@ -77,7 +77,7 @@ function EntityDetailFields({
         ) : (
           <div className="detail-properties">
             <h3>Properties</h3>
-            <p className="console-properties-empty">No properties defined.</p>
+            <p className="lims-properties-empty">No properties defined.</p>
           </div>
         ))}
     </>

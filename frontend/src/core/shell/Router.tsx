@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./Layout";
-import { ConsoleProvider } from "../console/ConsoleContext";
 import { ModRegistry } from "../mod-system/ModRegistry";
 
 /**
@@ -8,17 +7,17 @@ import { ModRegistry } from "../mod-system/ModRegistry";
  *
  * Reads the mod registry and generates all routes dynamically:
  *   - Public routes (login, register) render *outside* Layout — no sidebar
- *   - Console routes from `registry.getConsoles()`
+ *   - Hub routes from `registry.getHubs()`
  *   - Layout routes from `registry.getLayoutRoutes()`
  *   - App-level redirects: `/` → `/library`, `/eln` → `/library`
  */
 function Router() {
   const registry = ModRegistry.getInstance();
 
-  // ── Dynamic console routes (one per registered console) ──────────────
-  const consoleRoutes = [...registry.getConsoles().values()].map((c) => {
-    const Comp = c.component;
-    return <Route key={c.id} path={c.route} element={<Comp />} />;
+  // ── Dynamic hub routes (one per registered hub) ───────────────────────
+  const hubRoutes = [...registry.getHubs().values()].map((h) => {
+    const Comp = h.component;
+    return <Route key={h.id} path={h.route} element={<Comp />} />;
   });
 
   // ── Dynamic layout routes (rendered inside Layout shell) ─────────────
@@ -34,21 +33,19 @@ function Router() {
   });
 
   return (
-    <ConsoleProvider>
-      <Routes>
-        {/* Public routes — no sidebar, full-page (login, register, etc.) */}
-        {publicRoutes}
+    <Routes>
+      {/* Public routes — no sidebar, full-page (login, register, etc.) */}
+      {publicRoutes}
 
-        {/* Layout-wrapped routes */}
-        <Route element={<Layout />}>
-          {/* App-level redirects */}
-          <Route path="/" element={<Navigate to="/library" replace />} />
-          <Route path="/eln" element={<Navigate to="/library" replace />} />
-          {consoleRoutes}
-          {layoutRoutes}
-        </Route>
-      </Routes>
-    </ConsoleProvider>
+      {/* Layout-wrapped routes */}
+      <Route element={<Layout />}>
+        {/* App-level redirects */}
+        <Route path="/" element={<Navigate to="/library" replace />} />
+        <Route path="/eln" element={<Navigate to="/library" replace />} />
+        {hubRoutes}
+        {layoutRoutes}
+      </Route>
+    </Routes>
   );
 }
 

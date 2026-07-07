@@ -1,6 +1,5 @@
 import type {
-  ConsoleConfig,
-  WorkspaceConfig,
+  HubConfig,
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,
@@ -13,7 +12,7 @@ import type {
  * Central registry for all mod registrations.
  *
  * Populated during boot by mods calling register*() functions.
- * Read by Core to build routes, sidebar nav, console behavior, and settings.
+ * Read by Core to build routes, sidebar nav, hub behavior, and settings.
  *
  * This is a singleton — there is exactly one registry per application.
  * The singleton pattern is chosen over React Context because the registry
@@ -39,8 +38,7 @@ export class ModRegistry {
 
   // ── Internal stores ───────────────────────────────────────────────────
 
-  private consoles = new Map<string, ConsoleConfig>();
-  private workspaces = new Map<string, WorkspaceConfig>();
+  private hubs = new Map<string, HubConfig>();
   private settingsSections = new Map<string, SettingsSectionConfig>();
   private routes = new Map<string, RouteConfig>();
   private sidebarActions = new Map<string, SidebarActionConfig>();
@@ -61,27 +59,13 @@ export class ModRegistry {
     this.modIds.add(id);
   }
 
-  registerConsole(config: ConsoleConfig): void {
-    if (this.consoles.has(config.id)) {
+  registerHub(config: HubConfig): void {
+    if (this.hubs.has(config.id)) {
       throw new Error(
-        `Duplicate console registration: '${config.id}' is already registered.`,
+        `Duplicate hub registration: '${config.id}' is already registered.`,
       );
     }
-    this.consoles.set(config.id, config);
-  }
-
-  registerWorkspace(config: WorkspaceConfig): void {
-    if (this.workspaces.has(config.id)) {
-      throw new Error(
-        `Duplicate workspace registration: '${config.id}' is already registered.`,
-      );
-    }
-    if (config.consoleIds.length === 0) {
-      throw new Error(
-        `Workspace '${config.id}' must declare at least one consoleId.`,
-      );
-    }
-    this.workspaces.set(config.id, config);
+    this.hubs.set(config.id, config);
   }
 
   registerSettingsSection(config: SettingsSectionConfig): void {
@@ -146,45 +130,6 @@ export class ModRegistry {
   // ── Resolution methods ────────────────────────────────────────────────
 
   /**
-   * Resolve the renderers (row, detailCard, workspace) for a workspace in a
-   * specific console. Uses layered defaults: workspace override → console
-   * default → undefined.
-   */
-  resolveWorkspaceRenderers(
-    workspaceId: string,
-    consoleId: string,
-  ): {
-    row?: WorkspaceConfig["row"];
-    detailCard?: WorkspaceConfig["detailCard"];
-    workspace?: WorkspaceConfig["workspace"];
-  } {
-    const ws = this.workspaces.get(workspaceId);
-    const con = this.consoles.get(consoleId);
-
-    return {
-      row: ws?.row ?? con?.defaults?.row,
-      detailCard: ws?.detailCard ?? con?.defaults?.detailCard,
-      workspace: ws?.workspace ?? con?.defaults?.workspace,
-    };
-  }
-
-  /**
-   * Find the workspace whose route matches the given pathname.
-   * Handles path parameters like `:displayId` by converting the route
-   * pattern to a regex.
-   */
-  getWorkspaceForRoute(pathname: string): WorkspaceConfig | undefined {
-    for (const ws of this.workspaces.values()) {
-      const pattern = ws.route.replace(/:[^/]+/g, "[^/]+");
-      const regex = new RegExp(`^${pattern}$`);
-      if (regex.test(pathname)) {
-        return ws;
-      }
-    }
-    return undefined;
-  }
-
-  /**
    * Resolve the registered LibraryItemConfig for a given item type ID.
    * Returns undefined if no registration matches.
    */
@@ -221,17 +166,6 @@ export class ModRegistry {
    * Throws on the first error found.
    */
   validate(): void {
-    // Validate workspace consoleIds resolve to registered consoles
-    for (const ws of this.workspaces.values()) {
-      for (const consoleId of ws.consoleIds) {
-        if (!this.consoles.has(consoleId)) {
-          throw new Error(
-            `Workspace '${ws.id}' references console '${consoleId}' which is not registered.`,
-          );
-        }
-      }
-    }
-
     // Validate route modIds resolve to registered mods
     for (const route of this.routes.values()) {
       if (!this.modIds.has(route.modId)) {
@@ -249,28 +183,13 @@ export class ModRegistry {
         );
       }
     }
-
-    // Validate sidebar action workspaceIds resolve to registered workspaces
-    for (const action of this.sidebarActions.values()) {
-      if (action.workspaceId === "*") continue; // wildcard: always valid
-      if (!this.workspaces.has(action.workspaceId)) {
-        throw new Error(
-          `Sidebar action '${action.id}' references workspace '${action.workspaceId}' which is not registered.`,
-        );
-      }
-    }
   }
 
   // ── Read-only accessors ───────────────────────────────────────────────
 
-  /** Returns a read-only view of all registered consoles. */
-  getConsoles(): ReadonlyMap<string, ConsoleConfig> {
-    return this.consoles;
-  }
-
-  /** Returns a read-only view of all registered workspaces. */
-  getWorkspaces(): ReadonlyMap<string, WorkspaceConfig> {
-    return this.workspaces;
+  /** Returns a read-only view of all registered hubs. */
+  getHubs(): ReadonlyMap<string, HubConfig> {
+    return this.hubs;
   }
 
   /** Returns a read-only view of all registered settings sections, sorted by order. */

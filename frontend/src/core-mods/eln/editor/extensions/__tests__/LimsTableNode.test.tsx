@@ -14,7 +14,7 @@ import {
   columnDefFor,
   emptyValues,
 } from "../LimsTableNode";
-import type { GridColumn, GridRow } from "../../../../../shared/types";
+import type { GridColumn, GridRow } from "../../../../../shared/types/types";
 
 // ── Mock AG Grid ──────────────────────────────────────────────────────────
 

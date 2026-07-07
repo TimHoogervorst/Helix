@@ -5,7 +5,7 @@ import { makeEntityType, makeColumnDef, makeMockReferenceBadge } from "../../../
 import TypeDetailPanel from "../TypeDetailPanel";
 
 // Mock ReferenceBadge
-vi.mock("../../../../shared/ReferenceBadge", () => ({
+vi.mock("../../../../shared/components/ReferenceBadge", () => ({
   default: makeMockReferenceBadge(),
 }));
 
@@ -105,7 +105,7 @@ describe("TypeDetailPanel", () => {
         columnProps={columnProps}
       />,
     );
-    const closeBtn = container.querySelector(".console-detail-close")!;
+    const closeBtn = container.querySelector(".type-detail-close")!;
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalledOnce();
   });

@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Database, BookOpen } from "lucide-react";
+import { BookOpen, House } from "lucide-react";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
@@ -59,26 +59,22 @@ function renderLayout(initialRoute = "/library") {
 beforeEach(() => {
   vi.clearAllMocks();
   ModRegistry._reset();
-  // Register mock consoles so the dynamic sidebar renders nav links.
-  // Library is no longer hardcoded in Layout — it comes from registerConsole().
-  ModRegistry.getInstance().registerConsole({
+  // Register mock hubs so the dynamic sidebar renders nav links.
+  ModRegistry.getInstance().registerHub({
+    id: "home",
+    label: "Home",
+    icon: House,
+    route: "/home",
+    component: () => null,
+    order: 0,
+  });
+  ModRegistry.getInstance().registerHub({
     id: "library",
     label: "Library",
     icon: BookOpen,
     route: "/library",
     component: () => null,
     order: 10,
-    defaults: {},
-    accepts: { only: ["eln.entry"] },
-  });
-  ModRegistry.getInstance().registerConsole({
-    id: "lims",
-    label: "Database",
-    icon: Database,
-    route: "/lims",
-    component: () => null,
-    order: 30,
-    defaults: {},
   });
   // Default: no pins, no CSRF error
   mockGet.mockResolvedValue([]);
@@ -103,24 +99,25 @@ describe("Layout sidebar", () => {
     expect(screen.getByText("⌘K")).toBeInTheDocument();
   });
 
-  it("renders Home nav button", () => {
+  it("renders Home nav link", () => {
     renderLayout();
-    expect(screen.getByRole("button", { name: "Home" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
   });
 
-  it("renders Starred nav button", () => {
+  it("Home nav link points to /home", () => {
     renderLayout();
-    expect(screen.getByRole("button", { name: "Starred" })).toBeInTheDocument();
+    const homeLink = screen.getByRole("link", { name: "Home" });
+    expect(homeLink).toHaveAttribute("href", "/home");
+  });
+
+  it("does not render the old hardcoded Starred button", () => {
+    renderLayout();
+    expect(screen.queryByRole("button", { name: "Starred" })).not.toBeInTheDocument();
   });
 
   it("renders Library nav link", () => {
     renderLayout();
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
-  });
-
-  it("renders Database nav link", () => {
-    renderLayout();
-    expect(screen.getByRole("link", { name: "Database" })).toBeInTheDocument();
   });
 
   it("Library nav link points to /library", () => {
@@ -129,10 +126,9 @@ describe("Layout sidebar", () => {
     expect(libraryLink).toHaveAttribute("href", "/library");
   });
 
-  it("Database nav link points to /lims", () => {
+  it("does not show Database nav link (LIMS console removed)", () => {
     renderLayout();
-    const dbLink = screen.getByRole("link", { name: "Database" });
-    expect(dbLink).toHaveAttribute("href", "/lims");
+    expect(screen.queryByRole("link", { name: "Database" })).not.toBeInTheDocument();
   });
 
   it("renders the UserMenu trigger button", () => {
@@ -188,19 +184,13 @@ describe("Layout sidebar", () => {
     expect(screen.getByLabelText("Search")).toBeInTheDocument();
   });
 
-  it("renders all nav buttons with tooltip titles", () => {
+  it("renders all nav links with tooltip titles", () => {
     renderLayout();
-    const homeBtn = screen.getByRole("button", { name: "Home" });
-    expect(homeBtn).toHaveAttribute("title", "Home — coming soon");
-
-    const starredBtn = screen.getByRole("button", { name: "Starred" });
-    expect(starredBtn).toHaveAttribute("title", "Starred — coming soon");
+    const homeLink = screen.getByRole("link", { name: "Home" });
+    expect(homeLink).toHaveAttribute("title", "Home");
 
     const libraryLink = screen.getByRole("link", { name: "Library" });
     expect(libraryLink).toHaveAttribute("title", "Library");
-
-    const dbLink = screen.getByRole("link", { name: "Database" });
-    expect(dbLink).toHaveAttribute("title", "Database");
   });
 
   it("renders without crashing (CSRF priming runs)", () => {
@@ -218,26 +208,23 @@ describe("Sidebar actions", () => {
 
   beforeEach(() => {
     ModRegistry._reset();
-    // Re-register consoles (needed by the "Layout sidebar" tests but we
+    // Re-register hubs (needed by the "Layout sidebar" tests but we
     // also need them here so the full Layout renders without error).
-    ModRegistry.getInstance().registerConsole({
+    ModRegistry.getInstance().registerHub({
+      id: "home",
+      label: "Home",
+      icon: House,
+      route: "/home",
+      component: () => null,
+      order: 0,
+    });
+    ModRegistry.getInstance().registerHub({
       id: "library",
       label: "Library",
       icon: BookOpen,
       route: "/library",
       component: () => null,
       order: 10,
-      defaults: {},
-      accepts: { only: ["eln.entry"] },
-    });
-    ModRegistry.getInstance().registerConsole({
-      id: "lims",
-      label: "Database",
-      icon: Database,
-      route: "/lims",
-      component: () => null,
-      order: 30,
-      defaults: {},
     });
     mockGet.mockResolvedValue([]);
   });
@@ -321,25 +308,22 @@ describe("Layout settings sidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ModRegistry._reset();
-    // Re-register consoles so Layout doesn't error when NOT on settings
-    ModRegistry.getInstance().registerConsole({
+    // Re-register hubs so Layout doesn't error when NOT on settings
+    ModRegistry.getInstance().registerHub({
+      id: "home",
+      label: "Home",
+      icon: House,
+      route: "/home",
+      component: () => null,
+      order: 0,
+    });
+    ModRegistry.getInstance().registerHub({
       id: "library",
       label: "Library",
       icon: BookOpen,
       route: "/library",
       component: () => null,
       order: 10,
-      defaults: {},
-      accepts: { only: ["eln.entry"] },
-    });
-    ModRegistry.getInstance().registerConsole({
-      id: "lims",
-      label: "Database",
-      icon: Database,
-      route: "/lims",
-      component: () => null,
-      order: 30,
-      defaults: {},
     });
     // Register settings sections
     const registry = ModRegistry.getInstance();
@@ -426,17 +410,15 @@ describe("Layout settings sidebar", () => {
     expect(usersLink.className).toContain("font-medium");
   });
 
-  it("hides Home, Starred, and console links when on /settings", () => {
+  it("hides hub links when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <Layout />
       </MemoryRouter>,
     );
 
-    expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Starred" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Database" })).not.toBeInTheDocument();
   });
 
   it("hides sidebar actions (workspace) when on /settings", () => {
@@ -466,11 +448,10 @@ describe("Layout settings sidebar", () => {
     expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
   });
 
-  it("shows normal nav (Home, Starred, consoles) when NOT on /settings", () => {
+  it("shows normal nav (hubs) when NOT on /settings", () => {
     renderLayout("/library");
 
-    expect(screen.getByRole("button", { name: "Home" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Starred" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
   });
 

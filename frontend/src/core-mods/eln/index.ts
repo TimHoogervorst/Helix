@@ -1,12 +1,10 @@
 import { lazy } from "react";
 import { Tag, FlaskConical } from "lucide-react";
 import {
-  registerWorkspace,
   registerRoute,
   registerSettingsSection,
   registerLibraryItem,
 } from "../../core/mod-system";
-import ElnDetailCard from "./console/ElnDetailCard";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 
 export const meta = {
@@ -16,29 +14,6 @@ export const meta = {
 };
 
 export function register() {
-  // ── Console: ELN entry list at /eln ────────────────────────────────────
-  // REMOVED from UI — keep the component for potential future use.
-  // registerConsole({
-  //   id: "eln",
-  //   label: "Entries",
-  //   icon: NotebookText,
-  //   route: "/eln",
-  //   component: lazy(() => import("./console/ElnConsole")),
-  //   order: 10,
-  //   defaults: {},
-  //   accepts: { only: ["eln.entry"] },
-  // });
-
-  // ── Workspace: ELN entry detail / full-page editor ─────────────────────
-  registerWorkspace({
-    id: "eln.entry",
-    label: "Entry",
-    consoleIds: ["library"],
-    route: "/eln/:displayId",
-    detailCard: ElnDetailCard,
-    workspace: lazy(() => import("./workspace/ElnWorkspace")),
-  });
-
   // ── Standalone route: new entry page ──────────────────────────────────
   registerRoute({
     id: "eln.new-entry",

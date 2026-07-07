@@ -15,44 +15,15 @@ export interface ModManifest {
   dependsOn: string[];
 }
 
-// ── Console ───────────────────────────────────────────────────────────────
+// ── Hub ───────────────────────────────────────────────────────────────────
 
-export interface ConsoleConfig {
+export interface HubConfig {
   id: string;
   label: string;
   icon: ComponentType<any>;
   route: string;
   component: ComponentType<any>;
   order: number;
-  defaults: {
-    row?: ComponentType<any>;
-    detailCard?: ComponentType<any>;
-    workspace?: ComponentType<any>;
-  };
-  /** Narrows which workspace item types appear in this console. */
-  accepts?: {
-    only?: string[];
-    except?: string[];
-  };
-}
-
-// ── Workspace ─────────────────────────────────────────────────────────────
-
-export interface WorkspaceConfig {
-  /** Globally unique — includes mod prefix, e.g. 'lims.entity', 'eln.entry'. */
-  id: string;
-  /** Which consoles host this workspace. */
-  consoleIds: string[];
-  label: string;
-  icon?: ComponentType<any>;
-  /** Standalone page route — auto-registers as a route. */
-  route: string;
-  /** Custom row renderer (falls back to console default). */
-  row?: ComponentType<any>;
-  /** Custom detail card (falls back to console default). */
-  detailCard?: ComponentType<any>;
-  /** Custom workspace (falls back to console default). */
-  workspace?: ComponentType<any>;
 }
 
 // ── Settings Section ──────────────────────────────────────────────────────
@@ -109,7 +80,7 @@ export interface PropertyField {
   label?: string;
 }
 
-/** Props contract between BaseLibraryCard and mod-provided card components. */
+/** Props contract between BaseCard and mod-provided card components. */
 export interface LibraryCardProps {
   /** The data item to render. */
   item: Record<string, unknown>;

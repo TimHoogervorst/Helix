@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { EntityType, ColumnDef } from "../types";
-import ReferenceBadge from "../../../shared/ReferenceBadge";
+import ReferenceBadge from "../../../shared/components/ReferenceBadge";
 import ColumnEditor, { type ColumnEditorProps } from "./ColumnEditor";
 
 const CURATED_EMOJIS = ["🧪", "🩸", "🐁", "🌿", "👤", "🧬", "🔬"];
@@ -105,7 +105,7 @@ function TypeDetailPanel({
               </button>
             )}
             <button
-              className="console-detail-close"
+              className="type-detail-close"
               onClick={onClose}
             >
               ×

@@ -30,7 +30,6 @@ export interface Mention {
   target_id: number;
   target_display_id: string | null;
   target_title: string | null;
-  context: string;
 }
 
 /** A full entry returned by the detail endpoint. */

@@ -3002,30 +3002,7 @@ input.library-new-folder-input:focus {
   flex-wrap: wrap;
 }
 
-.tag-chip {
-  display: inline-block;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.65rem;
-  font-weight: 500;
-  border-radius: 9999px;
-}
-
-.tag-chip.tag-flask {
-  background: var(--color-flask);
-  color: var(--color-flask-foreground);
-}
-
-.tag-chip.tag-solvent {
-  background: var(--color-solvent);
-  color: var(--color-solvent-foreground);
-}
-
-.tag-chip.tag-enzyme {
-  background: var(--color-enzyme);
-  color: var(--color-enzyme-foreground);
-}
-
-/* ── Tag pill — new shared display component ─────────────────────────── */
+/* ── Tag pill — shared display component ─────────────────────────────── */
 
 .tag-pill {
   display: inline-flex;

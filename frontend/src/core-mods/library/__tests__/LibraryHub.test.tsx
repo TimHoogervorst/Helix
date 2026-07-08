@@ -84,7 +84,7 @@ const populatedResponse = makeLibraryContents(
       },
       status: "in_progress",
       description: "First paragraph of content.",
-      tags: [{ name: "CRISPR", color: "flask", icon: "circle" }],
+      tags: [{ id: 1, name: "CRISPR", color: "flask", icon: "circle" }],
       created_at: "2025-01-03T00:00:00Z",
       updated_at: "2025-01-03T00:00:00Z",
     }),

@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
 from core.models import Folder
+from core_mods.tags.serializers import TagSerializer
 from core_mods.users.serializers import UserSerializer
 
 
@@ -129,10 +130,7 @@ class LibraryContentsView(APIView):
                     ),
                     "status": e.status,
                     "description": _first_paragraph_text(e.content),
-                    "tags": [
-                        {"name": t.name, "color": t.color, "icon": t.icon}
-                        for t in e.tags.all()
-                    ],
+                    "tags": TagSerializer(e.tags.all(), many=True).data,
                     "editors": [],
                     "samples_count": None,
                     "attachments_count": None,

@@ -1,9 +1,4 @@
-/** A tag attached to a library entry. */
-export interface LibraryEntryTag {
-  name: string;
-  color: string;
-  icon: string;
-}
+import type { Tag } from "../tags/types";
 
 /** Public user info returned by the API for author/editor display. */
 export interface AuthorInfo {
@@ -35,7 +30,7 @@ export interface LibraryEntryItem {
   author_info: AuthorInfo | null;
   status: string;
   description: string;
-  tags: LibraryEntryTag[];
+  tags: Tag[];
   editors: string[];
   samples_count: number | null;
   attachments_count: number | null;

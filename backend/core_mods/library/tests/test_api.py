@@ -188,7 +188,7 @@ class LibraryApiTests(BaseTestCase):
         self.assertEqual(e["property_fields"], {})
 
     def test_entry_tags_serialized(self):
-        """Tags are serialized with name, color, and icon."""
+        """Tags are serialized with id, name, color, and icon via TagSerializer."""
         tag = Tag.objects.create(name="CRISPR", color="flask", icon="dna")
         self.root_entry.tags.add(tag)
 
@@ -197,6 +197,7 @@ class LibraryApiTests(BaseTestCase):
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(len(root["tags"]), 1)
         t = root["tags"][0]
+        self.assertEqual(t["id"], tag.id)
         self.assertEqual(t["name"], "CRISPR")
         self.assertEqual(t["color"], "flask")
         self.assertEqual(t["icon"], "dna")

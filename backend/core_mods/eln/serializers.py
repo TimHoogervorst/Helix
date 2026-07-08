@@ -59,11 +59,8 @@ class MentionSerializer(serializers.ModelSerializer):
         return None
 
 
-class TagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tag
-        fields = ["id", "name", "color", "icon"]
-        read_only_fields = ["id"]
+# Re-export for backward compatibility — canonical in core_mods.tags.serializers.
+from core_mods.tags.serializers import TagSerializer  # noqa: F401, E402
 
 
 class NotebookEntrySerializer(serializers.ModelSerializer):

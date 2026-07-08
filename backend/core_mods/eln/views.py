@@ -11,7 +11,6 @@ from .models import NotebookEntry, ElnAction
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
-    TagSerializer,
     ElnActionSerializer,
     ElnActionCreateSerializer,
 )
@@ -178,21 +177,3 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class TagViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for tags.
-
-    list: GET /api/eln/tags/?q=... — list/search tags
-    create: POST /api/eln/tags/ — create a new tag (name + color)
-    """
-
-    queryset = Tag.objects.all()
-    serializer_class = TagSerializer
-    http_method_names = ["get", "post", "patch", "head", "options"]
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        query = self.request.query_params.get("q", "").strip()
-        if query:
-            qs = qs.filter(name__icontains=query)
-        return qs

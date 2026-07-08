@@ -197,13 +197,10 @@ describe("useEntryCrud", () => {
 
     act(() => result.current.setTitle("My Entry"));
 
-    const tags = [
-      { id: 1, name: "TagA", color: "enzyme", icon: "circle" },
-      { id: 2, name: "TagB", color: "flask", icon: "dna" },
-    ];
+    const tagIds = [1, 2];
 
     await act(async () => {
-      await result.current.save(5, tags);
+      await result.current.save(5, tagIds);
     });
 
     expect(mockPost).toHaveBeenCalledWith("/eln/entries/", {

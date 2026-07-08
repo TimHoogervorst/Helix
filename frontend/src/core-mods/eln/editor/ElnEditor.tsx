@@ -11,16 +11,18 @@
  * Action buttons (Save/Cancel/Edit/Delete/folder/status) are exposed via ref so
  * the parent (ElnDetail) can render them in the top toolbar as ghost icon buttons.
  */
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { X, Circle, Dna, Rat, Leaf, Cog, NotebookText, User, Folder } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
 import { useEntryCrud } from "../hooks/useEntryCrud";
-import { useEntryTags } from "../hooks/useEntryTags";
 import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
 import { useDirtyTracking } from "../hooks/useDirtyTracking";
 import { createElnExtensions } from "./extensions/createElnExtensions";
+import { useTaggableItems } from "../../../core-mods/tags/hooks";
+import { TagPill } from "../../../core-mods/tags/ui";
+import { TagAutocomplete } from "../../../core-mods/tags/ui";
+import { attachTags, detachTag } from "../api";
 
 /** Format an ISO date string as YYYY-MM-DD. */
 function formatDateShort(iso: string): string {
@@ -35,38 +37,6 @@ export interface ElnEditorHandle {
   enterEditMode: () => void;
   setFolderId: (id: number | null) => void;
   setStatus: (status: string) => void;
-}
-
-/** Available tag colors with their design-token CSS classes. */
-const TAG_COLORS: { key: string; label: string; bgClass: string; textClass: string; borderClass: string; hex: string }[] = [
-  { key: "enzyme",      label: "Enzyme",      bgClass: "bg-enzyme",      textClass: "text-enzyme-foreground",      borderClass: "border-enzyme-foreground/20",      hex: "#d9b3e6" },
-  { key: "flask",       label: "Flask",       bgClass: "bg-flask",       textClass: "text-flask-foreground",       borderClass: "border-flask-foreground/20",       hex: "#b3d9e6" },
-  { key: "solvent",     label: "Solvent",     bgClass: "bg-solvent",     textClass: "text-solvent-foreground",     borderClass: "border-solvent-foreground/20",     hex: "#b3e6c8" },
-  { key: "warn",        label: "Warn",        bgClass: "bg-warn",        textClass: "text-warn-foreground",        borderClass: "border-warn-foreground/20",        hex: "#e6d9b3" },
-  { key: "primary",     label: "Primary",     bgClass: "bg-primary",     textClass: "text-primary-foreground",     borderClass: "border-primary-foreground/20",     hex: "#7fb3d9" },
-  { key: "success",     label: "Success",     bgClass: "bg-success",     textClass: "text-success-foreground",     borderClass: "border-success-foreground/20",     hex: "#b3e6b3" },
-  { key: "destructive", label: "Destructive", bgClass: "bg-destructive", textClass: "text-destructive-foreground", borderClass: "border-destructive-foreground/20", hex: "#e6b3b3" },
-  { key: "muted",       label: "Muted",       bgClass: "bg-muted",       textClass: "text-muted-foreground",       borderClass: "border-muted-foreground/20",       hex: "#d9d9d9" },
-];
-
-function getTagColor(key: string) {
-  return TAG_COLORS.find((c) => c.key === key) || TAG_COLORS[7]; // default: muted
-}
-
-/** Available tag icons with their Lucide component. */
-const TAG_ICONS: { key: string; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "circle",   label: "Circle",  Icon: Circle },
-  { key: "dna",      label: "DNA",     Icon: Dna },
-  { key: "rat",      label: "Rat",     Icon: Rat },
-  { key: "leaf",     label: "Leaf",    Icon: Leaf },
-  { key: "cog",      label: "Machine", Icon: Cog },
-  { key: "notebook", label: "Entry",   Icon: NotebookText },
-  { key: "user",     label: "Person",  Icon: User },
-  { key: "folder",   label: "Folder",  Icon: Folder },
-];
-
-function getTagIcon(key: string) {
-  return TAG_ICONS.find((i) => i.key === key) || TAG_ICONS[0]; // default: circle
 }
 
 /** Snapshot of editor state pushed to parent via onStateChange. */
@@ -152,11 +122,21 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   // ── State machine (composed from four focused hooks) ──
   const crud = useEntryCrud({ entryId, isNew, contentRef });
-  const tagsHook = useEntryTags({
-    isNew,
-    entryId,
+  const taggableItems = useTaggableItems({
     initialTags: crud.entry?.tags ?? [],
-    onEntryUpdate: crud.setEntry,
+    attachFn: !isNew && entryId
+      ? async (tagIds: number[]) => {
+          const updated = await attachTags(entryId, tagIds);
+          crud.setEntry(updated);
+        }
+      : undefined,
+    detachFn: !isNew && entryId
+      ? async (tagId: number) => {
+          const updated = await detachTag(entryId, tagId);
+          crud.setEntry(updated);
+        }
+      : undefined,
+    deferred: isNew,
   });
   const folder = useEntryFolder({ initialFolderId });
   const { isDirty } = useDirtyTracking({
@@ -187,82 +167,28 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   const {
     tags,
+    pendingTagIds,
     addTag,
     removeTag,
-    createAndAttachTag,
-    changeTagIcon,
-    searchTags,
-  } = tagsHook;
+    resetToBaseline,
+  } = taggableItems;
 
   const { folderId, setFolderId, folders } = folder;
 
   // Wire cross-hook actions
-  const save = () => crud.save(folderId, tags);
+  // For new entries, batch pendingTagIds into the create payload.
+  // (initialTags is always empty for new entries, so pendingTagIds === all tag IDs.)
+  const save = () => crud.save(folderId, isNew ? pendingTagIds : []);
   const cancel = () => {
     if (isNew) {
       crud.cancel();
       return;
     }
     setFolderId(crud.entry?.folder ?? null);
-    tagsHook.resetTagsToBaseline();
+    resetToBaseline();
     crud.cancel();
   };
   const { deleteEntry, enterEditMode } = crud;
-
-  // ── Tag input state ──
-  const [tagQuery, setTagQuery] = useState("");
-  const [tagSuggestions, setTagSuggestions] = useState<Tag[]>([]);
-  const [showTagInput, setShowTagInput] = useState(false);
-  const [pendingTagName, setPendingTagName] = useState<string | null>(null);
-  const [pendingTagIcon, setPendingTagIcon] = useState<string>("circle");
-  const [iconPickerForTag, setIconPickerForTag] = useState<number | null>(null);
-  const tagInputRef = useRef<HTMLInputElement>(null);
-
-  const handleTagQueryChange = useCallback((value: string) => {
-    setTagQuery(value);
-    setPendingTagName(null);
-    if (value.trim()) {
-      searchTags(value).then((results) => {
-        // Filter out tags already attached
-        setTagSuggestions(results.filter((r) => !tags.some((t) => t.id === r.id)));
-      });
-    } else {
-      setTagSuggestions([]);
-    }
-  }, [searchTags, tags]);
-
-  const handleSelectTag = useCallback(async (tag: Tag) => {
-    await addTag(tag);
-    setTagQuery("");
-    setTagSuggestions([]);
-    setShowTagInput(false);
-    tagInputRef.current?.focus();
-  }, [addTag]);
-
-  const handleCreateTag = useCallback((name: string) => {
-    setPendingTagName(name);
-    setPendingTagIcon("circle");
-    setTagSuggestions([]);
-  }, []);
-
-  const handlePickColor = useCallback(async (colorKey: string) => {
-    if (!pendingTagName) return;
-    await createAndAttachTag(pendingTagName.trim(), colorKey, pendingTagIcon);
-    setPendingTagName(null);
-    setPendingTagIcon("circle");
-    setTagQuery("");
-    setShowTagInput(false);
-    tagInputRef.current?.focus();
-  }, [pendingTagName, pendingTagIcon, createAndAttachTag]);
-
-  const handlePickIcon = useCallback((iconKey: string) => {
-    setPendingTagIcon(iconKey);
-  }, []);
-
-  const handleChangeIcon = useCallback(async (tagId: number, iconKey: string) => {
-    await changeTagIcon(tagId, iconKey);
-    setIconPickerForTag(null);
-  }, [changeTagIcon]);
 
   // ── Expose actions to parent via ref ──
   // Store latest callbacks in a ref so useImperativeHandle doesn't
@@ -440,210 +366,21 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
       {/* Tags */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
-        {tags.map((tag) => {
-          const c = getTagColor(tag.color);
-          const ico = getTagIcon(tag.icon);
-          const IconComponent = ico.Icon;
-          const isOpen = iconPickerForTag === tag.id;
-          return (
-            <span
-              key={tag.id}
-              className={`inline-flex items-center gap-1 rounded-full border ${c.borderClass} ${c.bgClass} px-2 py-0.5 font-mono text-[0.72rem] ${c.textClass}`}
-            >
-              {isEdit ? (
-                <span className="relative">
-                  <button
-                    type="button"
-                    className="btn-icon inline-flex h-4 w-4 items-center justify-center rounded-full !p-0"
-                    onClick={() => setIconPickerForTag(isOpen ? null : tag.id)}
-                    aria-label={`Change icon for ${tag.name}`}
-                    title={ico.label}
-                  >
-                    <IconComponent className="h-3 w-3" aria-hidden="true" />
-                  </button>
-                  {isOpen && (
-                    <div
-                      className="absolute left-0 top-full z-50 mt-1 flex gap-0.5 rounded-md border border-hairline bg-panel px-2 py-1.5 shadow-lg"
-                      data-testid="icon-picker-popover"
-                    >
-                      {TAG_ICONS.map((ico) => {
-                        const isSelected = tag.icon === ico.key;
-                        const IconC = ico.Icon;
-                        return (
-                          <button
-                            key={ico.key}
-                            type="button"
-                            className={`btn-ghost h-7 w-7 !p-0 !justify-center ${isSelected ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                            title={ico.label}
-                            onClick={() => handleChangeIcon(tag.id, ico.key)}
-                            aria-label={`Set icon to ${ico.label}`}
-                          >
-                            <IconC className="h-4 w-4" />
-                          </button>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        className="btn-icon ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded"
-                        onClick={() => setIconPickerForTag(null)}
-                        aria-label="Close icon picker"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  )}
-                </span>
-              ) : (
-                <IconComponent className="h-3 w-3 shrink-0" aria-hidden="true" />
-              )}
-              {tag.name}
-              {isEdit && (
-                <button
-                  type="button"
-                  className="btn-icon ml-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full !p-0"
-                  onClick={() => removeTag(tag.id)}
-                  aria-label={`Remove tag ${tag.name}`}
-                >
-                  <X className="h-3 w-3" aria-hidden="true" />
-                </button>
-              )}
-            </span>
-          );
-        })}
+        {tags.map((tag) => (
+          <TagPill
+            key={tag.id}
+            tag={tag}
+            onRemove={isEdit ? removeTag : undefined}
+          />
+        ))}
 
-        {/* Tag input (edit mode only) */}
+        {/* Tag autocomplete (edit mode only) */}
         {isEdit && (
-          <div className="relative">
-            {!showTagInput && !pendingTagName ? (
-              <button
-                type="button"
-                className="btn-ghost inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[0.72rem] text-muted-foreground hover:text-foreground"
-                onClick={() => setShowTagInput(true)}
-                data-testid="add-tag-button"
-              >
-                + tag
-              </button>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {pendingTagName ? (
-                  /* ── Color + icon picker for new tag ── */
-                  <div className="relative flex flex-col gap-1.5 rounded-md border border-hairline bg-panel px-2 py-1.5 pr-6" data-testid="color-picker">
-                    <span className="font-mono text-[0.7rem] text-muted-foreground">
-                      New tag: "{pendingTagName}"
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="mr-0.5 font-mono text-[0.6rem] text-muted-foreground">Color</span>
-                      {TAG_COLORS.map((c) => (
-                        <button
-                          key={c.key}
-                          type="button"
-                          className="h-4 w-4 rounded-full border border-border hover:scale-125 transition-transform"
-                          style={{ backgroundColor: c.hex }}
-                          title={c.label}
-                          onClick={() => handlePickColor(c.key)}
-                          aria-label={`Color: ${c.label}`}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="mr-0.5 font-mono text-[0.6rem] text-muted-foreground">Icon</span>
-                      {TAG_ICONS.map((ico) => {
-                        const isSelected = pendingTagIcon === ico.key;
-                        const IconC = ico.Icon;
-                        return (
-                          <button
-                            key={ico.key}
-                            type="button"
-                            className={`btn-ghost h-6 w-6 !p-0 !justify-center ${isSelected ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                            title={ico.label}
-                            onClick={() => handlePickIcon(ico.key)}
-                            aria-label={`Icon: ${ico.label}`}
-                          >
-                            <IconC className="h-3.5 w-3.5" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      className="absolute right-1 top-1 text-muted-foreground hover:text-foreground"
-                      onClick={() => { setPendingTagName(null); setPendingTagIcon("circle"); }}
-                      aria-label="Cancel tag creation"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ) : (
-                  /* ── Autocomplete input ── */
-                  <input
-                    ref={tagInputRef}
-                    type="text"
-                    className="!w-32 !py-0.5 !text-xs"
-                    placeholder="Search tags…"
-                    value={tagQuery}
-                    onChange={(e) => handleTagQueryChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        setShowTagInput(false);
-                        setTagQuery("");
-                        setTagSuggestions([]);
-                      }
-                    }}
-                    onBlur={() => {
-                      // Delay to allow click on suggestion
-                      setTimeout(() => {
-                        if (!pendingTagName) {
-                          setShowTagInput(false);
-                          setTagQuery("");
-                          setTagSuggestions([]);
-                        }
-                      }, 150);
-                    }}
-                    autoFocus
-                    data-testid="tag-search-input"
-                  />
-                )}
-
-                {/* Combined dropdown: existing matching tags (≤ 2) + Create new */}
-                {!pendingTagName && tagQuery.trim() && (
-                  <div className="absolute left-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-hairline bg-panel py-1 shadow-lg" data-testid="tag-suggestions">
-                    {tagSuggestions.slice(0, 2).map((t) => {
-                      const ti = getTagIcon(t.icon);
-                      const TagIcon = ti.Icon;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          className="btn-ghost flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px]"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            handleSelectTag(t);
-                          }}
-                        >
-                          <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                          {t.name}
-                        </button>
-                      );
-                    })}
-                    {!tags.some((t) => t.name.toLowerCase() === tagQuery.trim().toLowerCase()) && (
-                      <button
-                        type="button"
-                        className="btn-ghost flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px]"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleCreateTag(tagQuery.trim());
-                        }}
-                      >
-                        <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                        {tagQuery.trim()}
-                        <span className="text-muted-foreground">— Create new</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <TagAutocomplete
+            attachedTagIds={tags.map((t) => t.id)}
+            onTagSelect={addTag}
+            placeholder="Search tags…"
+          />
         )}
       </div>
 

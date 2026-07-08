@@ -1,8 +1,7 @@
 import { lazy } from "react";
-import { Tag, FlaskConical } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import {
   registerRoute,
-  registerSettingsSection,
   registerLibraryItem,
 } from "../../core/mod-system";
 import ElnLibraryCard from "./library/ElnLibraryCard";
@@ -10,7 +9,7 @@ import ElnLibraryCard from "./library/ElnLibraryCard";
 export const meta = {
   id: "eln",
   displayName: "ELN",
-  dependsOn: ["lims"] as string[],
+  dependsOn: ["lims", "tags"] as string[],
 };
 
 export function register() {
@@ -39,15 +38,5 @@ export function register() {
       { key: "samples_count" },
       { key: "attachments_count" },
     ],
-  });
-
-  // ── Settings: Tag management ──────────────────────────────────────────
-  registerSettingsSection({
-    id: "eln.tags",
-    modId: "eln",
-    label: "Tags",
-    icon: Tag,
-    component: lazy(() => import("./settings/TagSettings")),
-    order: 20,
   });
 }

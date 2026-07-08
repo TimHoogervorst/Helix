@@ -5,7 +5,9 @@ from rest_framework.response import Response
 
 from core.actions.logger import log_action
 
-from .models import NotebookEntry, Tag, ElnAction
+from core_mods.tags.models import Tag
+
+from .models import NotebookEntry, ElnAction
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,

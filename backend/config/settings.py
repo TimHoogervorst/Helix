@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "django_filters",
     # Helix apps
     "core",
+    "core_mods.tags",
     "core_mods.eln",
     "core_mods.lims",
     "core_mods.library",

@@ -26,6 +26,7 @@ import { TagPill } from "../../../core-mods/tags/ui";
 import { TagAutocomplete } from "../../../core-mods/tags/ui";
 import { attachTags, detachTag } from "../api";
 import type { SaveStatus } from "../hooks/useSaveQueue";
+import { splitFirstParagraph } from "../hooks/useEntryEditor";
 
 /** Format an ISO date string as YYYY-MM-DD. */
 function formatDateShort(iso: string): string {
@@ -183,10 +184,10 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       }
       return { description: "", body: doc as TipTapDoc };
     })();
-    // Use saved.content (full document) for initialContent so the
+    // Use body (document minus first paragraph) for initialContent so the
     // dirty-tracking comparison is apples-to-apples with contentRef.current
-    // (which also holds the full document after initial setContent).
-    return { title: saved.title, description: d, content: saved.content, status: saved.status || "in_progress" };
+    // (which also holds only the body after initial setContent).
+    return { title: saved.title, description: d, content: body, status: saved.status || "in_progress" };
   }, [crud.entry]);
 
   const { isDirty } = useDirtyTracking({
@@ -263,13 +264,17 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   // Does NOT sync after save responses — the editor is the source of truth
   // for content during editing. Syncing saved content back would overwrite
   // any user edits made during the save roundtrip and reset the cursor.
+  //
+  // Only the body (document minus the first paragraph, which is the
+  // description) is loaded into the editor. The description is edited
+  // separately in the textarea. prependDescription recombines them on save.
   useEffect(() => {
     if (!editor || !entry || initialContentLoaded.current) return;
-    const entryContent = entry.content;
-    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(entryContent)) {
+    const { body } = splitFirstParagraph(entry.content);
+    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(body)) {
       isProgrammaticChange.current = true;
-      editor.commands.setContent(entryContent);
-      contentRef.current = entryContent as TipTapDoc;
+      editor.commands.setContent(body);
+      contentRef.current = body as TipTapDoc;
       isProgrammaticChange.current = false;
     }
     initialContentLoaded.current = true;

@@ -8,10 +8,8 @@ import {
   CircleCheck,
   Folder,
   ChevronRight,
-  Save,
-  Pencil,
   Trash2,
-  X,
+  Ellipsis,
   FlaskConical,
   Paperclip,
   Check,
@@ -20,9 +18,10 @@ import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
 import { Avatar, getInitials } from "../../../shared/Avatar";
-import type { ElnAction } from "../types";
 import { useActivity } from "../hooks/useActivity";
+import { getRecentEditors } from "../activityHelpers";
 import ActivityFeed from "../components/ActivityFeed";
+import MoreActions from "../components/MoreActions";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -105,25 +104,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   } = useActivity(entryId);
 
   // Deduplicate editors from the last week for the toolbar avatar row
-  const recentEditors = useMemo(() => {
-    const oneWeekAgo = new Date(
-      Date.now() - 7 * 24 * 60 * 60 * 1000,
-    );
-    const seen = new Set<number>();
-    const unique: ElnAction[] = [];
-    for (const a of actions) {
-      if (
-        a.action_type === "edited" &&
-        new Date(a.created_at) >= oneWeekAgo
-      ) {
-        if (!seen.has(a.performed_by.id)) {
-          seen.add(a.performed_by.id);
-          unique.push(a);
-        }
-      }
-    }
-    return unique;
-  }, [actions]);
+  const recentEditors = getRecentEditors(actions);
 
   // Most recent action's performer is the "last editor"
   const lastEditor =
@@ -511,10 +492,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
             {/* ── Activity ── */}
             <ActivityFeed
-              actions={actions}
-              isLoading={activityLoading}
-              error={activityError}
-              onRetry={refetchActivity}
+              data={{
+                actions,
+                isLoading: activityLoading,
+                error: activityError,
+                refetch: refetchActivity,
+              }}
             />
           </div>
         </aside>

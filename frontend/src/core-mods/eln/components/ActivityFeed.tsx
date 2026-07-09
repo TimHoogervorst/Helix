@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { UseActivityResult } from "../hooks/useActivity";
 import type { ElnAction } from "../types";
 import { actionLabel } from "../activityHelpers";
 import { relativeTime } from "../../../shared/format";
@@ -16,18 +17,12 @@ function actorName(action: ElnAction): string {
 }
 
 export interface ActivityFeedProps {
-  /** All actions for the entry, most recent first. */
-  actions: ElnAction[];
-  /** Whether the initial fetch is in flight. */
-  isLoading: boolean;
-  /** Error message if the fetch failed. */
-  error: string | null;
-  /** Called when the user clicks the retry button in the error state. */
-  onRetry: () => void;
+  /** Activity state from useActivity. */
+  data: UseActivityResult;
 }
 
 /** Maximum items shown before the "Show all" toggle appears. */
-const PREVIEW_LIMIT = 10;
+const PREVIEW_ITEM_COUNT = 10;
 
 /**
  * Activity feed sidebar component.
@@ -36,12 +31,8 @@ const PREVIEW_LIMIT = 10;
  * states. Shows a 10-item preview with a "Show all (N)" toggle when there are
  * more than 10 items.
  */
-function ActivityFeed({
-  actions,
-  isLoading,
-  error,
-  onRetry,
-}: ActivityFeedProps) {
+function ActivityFeed({ data }: ActivityFeedProps) {
+  const { actions, isLoading, error, refetch } = data;
   const [showAll, setShowAll] = useState(false);
 
   // ── Loading state ──────────────────────────────────────────────────────
@@ -82,7 +73,7 @@ function ActivityFeed({
           </p>
           <button
             className="mt-1.5 text-[12px] text-primary hover:underline"
-            onClick={onRetry}
+            onClick={refetch}
             data-testid="activity-retry"
           >
             Retry
@@ -110,8 +101,8 @@ function ActivityFeed({
   }
 
   // ── Normal state ───────────────────────────────────────────────────────
-  const visible = showAll ? actions : actions.slice(0, PREVIEW_LIMIT);
-  const hasMore = actions.length > PREVIEW_LIMIT;
+  const visible = showAll ? actions : actions.slice(0, PREVIEW_ITEM_COUNT);
+  const hasMore = actions.length > PREVIEW_ITEM_COUNT;
 
   return (
     <section>

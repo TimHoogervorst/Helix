@@ -137,8 +137,11 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                 return  # true no-op — nothing changed
 
         # ── Save & sync ─────────────────────────────────────────────────
+        # Capture pre-save content for fingerprint comparison.
+        # serializer.instance is the DB object before save() mutates it.
+        old_content = serializer.instance.content
         instance = serializer.save()
-        sync_entry_content(instance)
+        sync_entry_content(instance, old_content=old_content)
 
         # ── Create ContentVersion (content changes only) ────────────────
         version_metadata: dict = {}

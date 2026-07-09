@@ -8,46 +8,7 @@ sequencing, and action-log metadata enrichment.
 from core.tests.base import BaseTestCase
 from core_mods.eln.models import NotebookEntry, ContentVersion, ElnAction
 
-
-TEXT_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Hello world"}],
-        }
-    ],
-}
-
-ALT_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Different content"}],
-        }
-    ],
-}
-
-
-# ── Shared mixin ─────────────────────────────────────────────────────────────
-
-
-class _CreateEntryMixin:
-    """Mixin providing ``_create_entry`` for tests that need an entry via API."""
-
-    def _create_entry(self, **kwargs):
-        response = self.client.post(
-            "/api/eln/entries/",
-            {
-                "title": kwargs.get("title", "Test Entry"),
-                "content": kwargs.get("content", TEXT_DOC),
-                "folder": self.folder.id,
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-        return response.data
+from .factories import TEXT_DOC, ALT_DOC, _CreateEntryMixin
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
@@ -437,7 +398,7 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(actions[1].metadata, {})
 
 
-class CascadeDeleteTests(BaseTestCase):
+class CascadeDeleteTests(_CreateEntryMixin, BaseTestCase):
     """Deleting an entry cascades to its ContentVersions."""
 
     def setUp(self):
@@ -446,13 +407,8 @@ class CascadeDeleteTests(BaseTestCase):
 
     def test_delete_entry_removes_content_versions(self):
         """DELETE on entry removes all ContentVersions via CASCADE."""
-        # Create entry
-        response = self.client.post(
-            "/api/eln/entries/",
-            {"title": "To Delete", "content": TEXT_DOC, "folder": self.folder.id},
-            format="json",
-        )
-        display_id = response.data["display_id"]
+        entry_data = self._create_entry(title="To Delete")
+        display_id = entry_data["display_id"]
 
         # Create several ContentVersions via updates
         docs = [ALT_DOC, TEXT_DOC, ALT_DOC]

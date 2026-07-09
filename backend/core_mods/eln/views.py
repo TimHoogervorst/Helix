@@ -1,16 +1,10 @@
+import django.db.models
+
 from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
-
-
-class LockedException(APIException):
-    """HTTP 423 Locked — raised when another user holds the entry lock."""
-
-    status_code = 423
-    default_detail = "This entry is currently being edited by another user."
-    default_code = "locked"
 
 from core.actions.logger import log_action
 
@@ -24,6 +18,17 @@ from .serializers import (
     ElnActionCreateSerializer,
 )
 from .sync import sync_entry_content
+
+
+DEFAULT_SAVE_MODE = "manual"
+
+
+class LockedException(APIException):
+    """HTTP 423 Locked — raised when another user holds the entry lock."""
+
+    status_code = 423
+    default_detail = "This entry is currently being edited by another user."
+    default_code = "locked"
 
 
 class NotebookEntryViewSet(viewsets.ModelViewSet):
@@ -95,9 +100,9 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
 
         # Determine save_mode from request header.
         valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}
-        save_mode = self.request.headers.get("X-Save-Mode", "manual")
+        save_mode = self.request.headers.get("X-Save-Mode", DEFAULT_SAVE_MODE)
         if save_mode not in valid_modes:
-            save_mode = "manual"
+            save_mode = DEFAULT_SAVE_MODE
 
         # ── Determine whether content actually changed ──────────────────
         content_changed = False
@@ -118,11 +123,13 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                 if field_name == "content":
                     continue
                 new_value = validated_data[field_name]
-                if field_name == "folder":
-                    old_value = instance.folder
-                else:
-                    old_value = getattr(instance, field_name)
-                if old_value != new_value:
+                old_value = getattr(instance, field_name)
+                # FK fields: compare pk to avoid ModelInstance != int.
+                if isinstance(old_value, django.db.models.Model):
+                    if old_value.pk != new_value:
+                        other_fields_changed = True
+                        break
+                elif old_value != new_value:
                     other_fields_changed = True
                     break
 
@@ -271,6 +278,18 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         read_serializer = ElnActionSerializer(action)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
+    # ── Lock helpers ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _lock_response(lock: EntryLock) -> dict:
+        """Return the standard payload dict for an active lock."""
+        return {
+            "locked": True,
+            "held_by": lock.held_by.id,
+            "acquired_at": lock.acquired_at,
+            "last_activity_at": lock.last_activity_at,
+        }
+
     # ── Lock endpoints ──────────────────────────────────────────────────────
 
     @action(detail=True, methods=["post"], url_path="lock")
@@ -297,7 +316,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                 # Same user re-acquiring — refresh last_activity_at.
                 existing.save()  # auto_now=True bumps last_activity_at
                 return Response(
-                    {"locked": True, "held_by": request.user.id},
+                    self._lock_response(existing),
                     status=status.HTTP_200_OK,
                 )
             elif existing.is_stale():
@@ -317,12 +336,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         # Create a new lock.
         lock = EntryLock.objects.create(entry=entry, held_by=request.user)
         return Response(
-            {
-                "locked": True,
-                "held_by": lock.held_by.id,
-                "acquired_at": lock.acquired_at,
-                "last_activity_at": lock.last_activity_at,
-            },
+            self._lock_response(lock),
             status=status.HTTP_201_CREATED,
         )
 
@@ -375,13 +389,6 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         except EntryLock.DoesNotExist:
             return Response({"locked": False})
 
-        return Response(
-            {
-                "locked": True,
-                "held_by": existing.held_by.id,
-                "acquired_at": existing.acquired_at,
-                "last_activity_at": existing.last_activity_at,
-            }
-        )
+        return Response(self._lock_response(existing))
 
 

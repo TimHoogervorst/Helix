@@ -11,46 +11,7 @@ from django.utils import timezone
 from core.tests.base import BaseTestCase
 from core_mods.eln.models import NotebookEntry, EntryLock
 
-
-TEXT_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Hello world"}],
-        }
-    ],
-}
-
-ALT_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Different content"}],
-        }
-    ],
-}
-
-
-# ── Shared mixin ─────────────────────────────────────────────────────────────
-
-
-class _CreateEntryMixin:
-    """Mixin providing ``_create_entry`` for tests that need an entry via API."""
-
-    def _create_entry(self, **kwargs):
-        response = self.client.post(
-            "/api/eln/entries/",
-            {
-                "title": kwargs.get("title", "Test Entry"),
-                "content": kwargs.get("content", TEXT_DOC),
-                "folder": self.folder.id,
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-        return response.data
+from .factories import TEXT_DOC, ALT_DOC, _CreateEntryMixin
 
 
 # ── Lock acquire tests ────────────────────────────────────────────────────────
@@ -80,6 +41,8 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["locked"])
         self.assertEqual(response.data["held_by"], self.user.id)
+        self.assertIsNotNone(response.data["acquired_at"])
+        self.assertIsNotNone(response.data["last_activity_at"])
 
     def test_other_user_blocked_423(self):
         """Different user tries to acquire when lock is active → 423."""

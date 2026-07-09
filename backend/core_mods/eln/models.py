@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
@@ -142,9 +145,6 @@ class ContentVersion(models.Model):
         Uses ``sort_keys=True`` so that key-order differences don't
         produce different hashes for semantically identical documents.
         """
-        import hashlib
-        import json
-
         return hashlib.sha256(
             json.dumps(content, sort_keys=True).encode()
         ).hexdigest()

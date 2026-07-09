@@ -8,7 +8,7 @@
  * Does NOT own: folder selection, tag management, dirty tracking, or debounce
  * timing (useAutoSave).
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, del } from "../../../core/api/client";
 import type { TipTapDoc, EntryDetail } from "../types";
@@ -82,6 +82,9 @@ export function useEntryCrud({
   const [isReady, setIsReady] = useState(false);
   const [isLockedByOther, setIsLockedByOther] = useState(false);
   const [lockHeldBy, setLockHeldBy] = useState<string | null>(null);
+  // Generation counter per entry — used to cancel stale releaseLock calls
+  // that race with a subsequent acquireLock (StrictMode remount, page refresh).
+  const lockGenRef = useRef<Record<string, number>>({});
 
   // ── Save queue (only when we have an entryId) ──
   const effectiveEntryId = entryId ?? entry?.display_id;
@@ -251,8 +254,21 @@ export function useEntryCrud({
   }, [effectiveEntryId]);
 
   // ── Lock lifecycle (acquire on mount, refresh periodically, release on unmount) ──
+  //
+  // The release is *deferred* by 500ms and skipped if a new acquire for the
+  // same entry bumps the generation counter in the meantime.  This prevents
+  // the DELETE from racing with a subsequent POST on:
+  //   1. React StrictMode double-mount (dev) — cleanup DELETE vs remount POST
+  //   2. Page refresh — old page's DELETE vs new page's POST
+  // On a full page unload the timer is destroyed before firing, so the lock
+  // naturally persists for the reload to refresh it.
   useEffect(() => {
     if (!effectiveEntryId) return;
+
+    // Bump the generation so any stale releaseLock scheduled by a previous
+    // cleanup sees a different generation and skips the DELETE.
+    const gen = (lockGenRef.current[effectiveEntryId] || 0) + 1;
+    lockGenRef.current[effectiveEntryId] = gen;
 
     // Acquire on mount (best-effort — if another user holds the lock, the
     // backend returns 423 and we swallow it silently).
@@ -267,7 +283,15 @@ export function useEntryCrud({
 
     return () => {
       clearInterval(interval);
-      releaseLock(effectiveEntryId).catch(() => {});
+      const genAtCleanup = gen;
+      // Defer the release by 500ms.  If a new acquire for the same entry
+      // bumped the generation (StrictMode remount, page refresh reload),
+      // we skip the DELETE to avoid racing with the fresh lock.
+      setTimeout(() => {
+        if (lockGenRef.current[effectiveEntryId] === genAtCleanup) {
+          releaseLock(effectiveEntryId).catch(() => {});
+        }
+      }, 500);
     };
   }, [effectiveEntryId]);
 

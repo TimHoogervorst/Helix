@@ -103,6 +103,7 @@ function makeEntry(overrides?: Record<string, unknown>) {
 
 describe("useEntryCrud", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     mockGet.mockReset();
     mockDel.mockReset();
@@ -461,20 +462,70 @@ describe("useEntryCrud", () => {
     });
   });
 
-  it("releases lock on unmount when entryId is present", async () => {
+  it("defers release on unmount and releases after timeout", async () => {
+    vi.useFakeTimers();
     mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
 
     const { unmount } = renderHook(() =>
       useEntryCrud(makeOptions({ entryId: "E1" })),
     );
 
-    await waitFor(() => {
-      expect(mockAcquireLock).toHaveBeenCalled();
-    });
+    // Flush microtasks and any pending timers so the effect runs.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockAcquireLock).toHaveBeenCalled();
 
     unmount();
 
+    // Should NOT release synchronously — the release is deferred by 500ms.
+    expect(mockReleaseLock).not.toHaveBeenCalled();
+
+    // After 500ms the release fires.
+    await vi.advanceTimersByTimeAsync(500);
     expect(mockReleaseLock).toHaveBeenCalledWith("E1");
+
+    vi.useRealTimers();
+  });
+
+  it("skips deferred release for an entry that was re-acquired within the timeout", async () => {
+    vi.useFakeTimers();
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+
+    const { rerender, unmount } = renderHook(
+      ({ entryId }) => useEntryCrud(makeOptions({ entryId })),
+      { initialProps: { entryId: "E1" } },
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockAcquireLock).toHaveBeenCalledTimes(1);
+    mockAcquireLock.mockClear();
+
+    // Switch to a different entry — cleanup schedules deferred release for "E1".
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E2" }));
+    rerender({ entryId: "E2" });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockAcquireLock).toHaveBeenCalledWith("E2");
+
+    // Switch back to "E1" within the 500ms deferral window — this bumps
+    // E1's generation before the stale release fires.
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockAcquireLock.mockClear();
+    rerender({ entryId: "E1" });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockAcquireLock).toHaveBeenCalledWith("E1");
+
+    // Fast-forward past the first cleanup's 500ms timeout.
+    // The release for E1 should be skipped because a new acquire bumped its generation.
+    mockReleaseLock.mockClear();
+    await vi.advanceTimersByTimeAsync(500);
+
+    // releaseLock should NOT have been called for "E1" because the generation was
+    // bumped by the re-acquire. (It may have been called for "E2" on its cleanup,
+    // but E2's generation wasn't bumped so that's fine.)
+    expect(mockReleaseLock).not.toHaveBeenCalledWith("E1");
+
+    vi.useRealTimers();
   });
 
   it("does not acquire lock when no entryId", () => {

@@ -357,7 +357,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       {/* ── Locked banner ── */}
       {isLockedByOther && (
         <div
-          className="mb-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-4 py-2.5 text-[13px] text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          className="mb-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2.5 text-[13px] text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200"
           data-testid="locked-banner"
         >
           <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />

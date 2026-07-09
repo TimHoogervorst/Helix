@@ -55,6 +55,7 @@ function dropdownRenderer() {
                   title: "",
                   type: "entry",
                   icon: "📄",
+                  workspaceId: "eln",
                 };
           state.command(item);
           props.event.preventDefault();

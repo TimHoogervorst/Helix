@@ -36,9 +36,11 @@ class ResolveApiTests(BaseTestCase):
         self.assertEqual(response.data[e1.display_id]["display_id"], e1.display_id)
         self.assertEqual(response.data[e1.display_id]["title"], "PCR Protocol")
         self.assertEqual(response.data[e1.display_id]["type"], "entry")
+        self.assertEqual(response.data[e1.display_id]["workspaceId"], "eln")
 
         self.assertIn(e2.display_id, response.data)
         self.assertEqual(response.data[e2.display_id]["title"], "Gel Results")
+        self.assertEqual(response.data[e2.display_id]["workspaceId"], "eln")
 
     def test_resolve_invalid_id_returns_null(self):
         """An ID that doesn't match any entry returns null."""
@@ -109,6 +111,7 @@ class SearchApiTests(BaseTestCase):
         self.assertEqual(results[0]["display_id"], self.e1.display_id)
         self.assertEqual(results[0]["title"], "PCR Protocol")
         self.assertEqual(results[0]["type"], "entry")
+        self.assertEqual(results[0]["workspaceId"], "eln")
 
     def test_search_no_matches(self):
         """A query matching nothing returns empty results."""
@@ -142,10 +145,19 @@ class EntityReferenceTests(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        from core_mods.lims.models import EntityType, Entity
+        from django.contrib.contenttypes.models import ContentType
+        from core_mods.lims.models import EntityType, Entity, RegisteredEntityType
 
         self.blood_type = EntityType.objects.create(
             name="Blood Sample", prefix="BLOOD", columns=[]
+        )
+        # Register the entity type so workspace-aware resolution works.
+        entity_ct = ContentType.objects.get_for_model(Entity)
+        RegisteredEntityType.objects.create(
+            prefix="BLOOD",
+            content_type=entity_ct,
+            workspace_id="lims",
+            display_name="Blood Sample",
         )
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
@@ -168,6 +180,7 @@ class EntityReferenceTests(BaseTestCase):
         self.assertEqual(result["display_id"], self.entity.display_id)
         self.assertEqual(result["title"], "Patient Blood #1")
         self.assertEqual(result["type"], "entity")
+        self.assertEqual(result["workspaceId"], "lims")
 
     def test_resolve_mixed_entry_and_entity_ids(self):
         """Both entry (E#) and entity (prefix#) IDs resolve."""
@@ -186,6 +199,8 @@ class EntityReferenceTests(BaseTestCase):
         self.assertIsNotNone(response.data[self.entity.display_id])
         self.assertEqual(response.data[entry.display_id]["type"], "entry")
         self.assertEqual(response.data[self.entity.display_id]["type"], "entity")
+        self.assertEqual(response.data[entry.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")
 
     def test_search_finds_entities_by_prefix(self):
         """GET /api/mentions/search/ includes entities when prefix matches."""
@@ -195,6 +210,7 @@ class EntityReferenceTests(BaseTestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["display_id"], self.entity.display_id)
         self.assertEqual(results[0]["type"], "entity")
+        self.assertEqual(results[0]["workspaceId"], "lims")
 
     def test_search_finds_entities_by_partial_prefix(self):
         """Search by partial prefix (e.g., 'BLO') returns matching entities."""
@@ -203,6 +219,7 @@ class EntityReferenceTests(BaseTestCase):
         results = response.data["results"]
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["display_id"], self.entity.display_id)
+        self.assertEqual(results[0]["workspaceId"], "lims")
 
 
 # ── Icon field in mentions API ───────────────────────────────────────
@@ -213,10 +230,18 @@ class IconInMentionsTests(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        from core_mods.lims.models import EntityType, Entity
+        from django.contrib.contenttypes.models import ContentType
+        from core_mods.lims.models import EntityType, Entity, RegisteredEntityType
 
         self.blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", icon="🩸", columns=[]
+        )
+        entity_ct = ContentType.objects.get_for_model(Entity)
+        RegisteredEntityType.objects.create(
+            prefix="BLOOD",
+            content_type=entity_ct,
+            workspace_id="lims",
+            display_name="Blood",
         )
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
@@ -240,6 +265,7 @@ class IconInMentionsTests(BaseTestCase):
         result = response.data[self.entry.display_id]
         self.assertIsNotNone(result)
         self.assertEqual(result["icon"], "📄")
+        self.assertEqual(result["workspaceId"], "eln")
 
     def test_resolve_entity_includes_icon(self):
         """Resolving an entity returns the entity type's icon."""
@@ -252,13 +278,22 @@ class IconInMentionsTests(BaseTestCase):
         result = response.data[self.entity.display_id]
         self.assertIsNotNone(result)
         self.assertEqual(result["icon"], "🩸")
+        self.assertEqual(result["workspaceId"], "lims")
 
     def test_resolve_entity_default_icon(self):
         """Entity with entity type having default icon resolves with '🧪'."""
-        from core_mods.lims.models import EntityType, Entity
+        from django.contrib.contenttypes.models import ContentType
+        from core_mods.lims.models import EntityType, Entity, RegisteredEntityType
 
         default_type = EntityType.objects.create(
             name="Default", prefix="DEF", columns=[]
+        )
+        entity_ct = ContentType.objects.get_for_model(Entity)
+        RegisteredEntityType.objects.create(
+            prefix="DEF",
+            content_type=entity_ct,
+            workspace_id="lims",
+            display_name="Default",
         )
         entity = Entity.objects.create(
             name="Default Entity",
@@ -276,6 +311,7 @@ class IconInMentionsTests(BaseTestCase):
         result = response.data[entity.display_id]
         self.assertIsNotNone(result)
         self.assertEqual(result["icon"], "🧪")
+        self.assertEqual(result["workspaceId"], "lims")
 
     def test_search_entries_include_icon(self):
         """Search results for entries include the icon field."""
@@ -286,6 +322,7 @@ class IconInMentionsTests(BaseTestCase):
         results = response.data["results"]
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["icon"], "📄")
+        self.assertEqual(results[0]["workspaceId"], "eln")
 
     def test_search_entities_include_icon(self):
         """Search results for entities include the icon field."""
@@ -296,6 +333,7 @@ class IconInMentionsTests(BaseTestCase):
         results = response.data["results"]
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["icon"], "🩸")
+        self.assertEqual(results[0]["workspaceId"], "lims")
 
     def test_mixed_resolve_includes_icons(self):
         """Mixed entry+entity resolve includes correct icons for each."""
@@ -306,4 +344,6 @@ class IconInMentionsTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[self.entry.display_id]["icon"], "📄")
+        self.assertEqual(response.data[self.entry.display_id]["workspaceId"], "eln")
         self.assertEqual(response.data[self.entity.display_id]["icon"], "🩸")
+        self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")

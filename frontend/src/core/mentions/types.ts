@@ -5,6 +5,8 @@ export interface ResolvedMention {
   title: string;
   type: string;
   icon: string;
+  /** The workspace that owns this entity, e.g. "eln" or "lims". */
+  workspaceId: string | null;
 }
 
 /** An item returned by the search autocomplete API. */
@@ -13,4 +15,6 @@ export interface SearchResult {
   title: string;
   type: string;
   icon: string;
+  /** The workspace that owns this entity, e.g. "eln" or "lims". */
+  workspaceId: string | null;
 }

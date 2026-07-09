@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ModRegistry } from "../../../core/mod-system/ModRegistry";
-import type { RegisteredEntityType } from "../../../core/mod-system";
+// RegisteredEntityType type is imported only as a type reference in test assertions
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

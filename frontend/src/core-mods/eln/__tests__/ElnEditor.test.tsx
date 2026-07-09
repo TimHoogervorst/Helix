@@ -353,16 +353,6 @@ describe("ElnEditor integration", () => {
     expect(ref.current?.setStatus).toBeDefined();
   });
 
-  // ── Save status indicator ─────────────────────────────────────────────────
-
-  it("renders save status indicator", async () => {
-    renderEditor({ entryId: "E1" });
-    await waitFor(() => {
-      const status = screen.getByTestId("save-status");
-      expect(status).toBeDefined();
-    });
-  });
-
   // ── New entry mode (?new=true) ────────────────────────────────────────────
 
   it("renders title as contentEditable H1 for ?new=true entries", async () => {

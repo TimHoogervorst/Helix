@@ -12,6 +12,8 @@ import {
   FlaskConical,
   Paperclip,
   Check,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
@@ -176,6 +178,41 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
         {/* Right: actions + avatars + share */}
         <div className="flex items-center gap-1">
+          {/* ── Save status indicator ── */}
+          {showActions && (() => {
+            const isSaving = editorState.saveStatus === "saving" || editorState.queueLength > 0;
+            const isError = editorState.saveStatus === "error";
+
+            let Icon: React.ComponentType<{ className?: string }>;
+            let label: string;
+            let iconClass: string;
+
+            if (isError) {
+              Icon = AlertTriangle;
+              label = "Save failed — click to retry";
+              iconClass = "h-4 w-4 text-destructive";
+            } else if (isSaving) {
+              Icon = Loader2;
+              label = "Saving…";
+              iconClass = "h-4 w-4 animate-spin text-muted-foreground";
+            } else {
+              Icon = Check;
+              label = "Saved";
+              iconClass = "h-4 w-4 text-muted-foreground";
+            }
+
+            return (
+              <button
+                className="btn-icon rounded-md"
+                aria-label={label}
+                title={label}
+                onClick={() => editorRef.current?.save()}
+              >
+                <Icon className={iconClass} aria-hidden="true" />
+              </button>
+            );
+          })()}
+
           {/* ── MoreActions dropdown (Delete) ── */}
           {showActions && (
             <MoreActions

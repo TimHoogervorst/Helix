@@ -7,7 +7,7 @@
  *   - createElnExtensions   — TipTap extension factory
  *
  * Content layout (PRD #4):
- *   Save status → Metadata line → Title → Description → Tags → Divider → ProseMirror
+ *   Metadata line → Title → Description → Tags → Divider → ProseMirror
  *
  * Action buttons (MoreActions with Delete) are exposed via ref so the parent
  * (ElnWorkspace) can render them in the top toolbar.
@@ -30,11 +30,6 @@ import type { SaveStatus } from "../hooks/useSaveQueue";
 /** Format an ISO date string as YYYY-MM-DD. */
 function formatDateShort(iso: string): string {
   return new Date(iso).toISOString().split("T")[0];
-}
-
-/** Format a Date as HH:MM:SS for the save status indicator. */
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 /** Public handle exposed to parent components via ref. */
@@ -101,9 +96,20 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   // ── Content ref (synced on every editor update and on every render) ──
   const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
 
-  // ── contentVersion counter — incremented on every TipTap onUpdate so
-  //     effects (useAutoSave, useDirtyTracking) can react to content changes
+  // ── Gate programmatic content changes so onUpdate does not trigger
+  //     auto-save when content is loaded from the server (initial load).
+  const isProgrammaticChange = useRef(false);
+
+  // ── Track whether initial content has been loaded from the server.
+  //     Prevents re-syncing editor content after save responses, which
+  //     would overwrite user edits made during the save roundtrip.
+  const initialContentLoaded = useRef(false);
+
+  // ── contentVersion counter — incremented on every user-initiated TipTap
+  //     onUpdate so effects (useAutoSave) can react to content changes
   //     without converting the entire document to state on every keystroke.
+  //     Programmatic changes (setContent from server) are gated so they
+  //     don't trigger a spurious auto-save on initial load.
   const [contentVersion, setContentVersion] = useState(0);
 
   // ── Title ref (for contentEditable cursor preservation) ──
@@ -126,7 +132,9 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     },
     onUpdate: ({ editor }) => {
       contentRef.current = editor.getJSON() as TipTapDoc;
-      setContentVersion((v) => v + 1);
+      if (!isProgrammaticChange.current) {
+        setContentVersion((v) => v + 1);
+      }
     },
   });
 
@@ -175,7 +183,10 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       }
       return { description: "", body: doc as TipTapDoc };
     })();
-    return { title: saved.title, description: d, content: body, status: saved.status || "in_progress" };
+    // Use saved.content (full document) for initialContent so the
+    // dirty-tracking comparison is apples-to-apples with contentRef.current
+    // (which also holds the full document after initial setContent).
+    return { title: saved.title, description: d, content: saved.content, status: saved.status || "in_progress" };
   }, [crud.entry]);
 
   const { isDirty } = useDirtyTracking({
@@ -242,15 +253,26 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     setStatus: (s: string) => actionsRef.current.setStatus(s),
   }), []);
 
-  // ── Sync editor content on initial load ──
+  // ── Reset initial-content flag when entryId changes (navigating to a
+  //     different entry).
   useEffect(() => {
-    if (!editor || !entry) return;
+    initialContentLoaded.current = false;
+  }, [entryId]);
+
+  // ── Sync editor content on initial load only ──
+  // Does NOT sync after save responses — the editor is the source of truth
+  // for content during editing. Syncing saved content back would overwrite
+  // any user edits made during the save roundtrip and reset the cursor.
+  useEffect(() => {
+    if (!editor || !entry || initialContentLoaded.current) return;
     const entryContent = entry.content;
-    // Set the editor content to match what the server has
     if (JSON.stringify(editor.getJSON()) !== JSON.stringify(entryContent)) {
+      isProgrammaticChange.current = true;
       editor.commands.setContent(entryContent);
       contentRef.current = entryContent as TipTapDoc;
+      isProgrammaticChange.current = false;
     }
+    initialContentLoaded.current = true;
   }, [editor, entry]);
 
   // Sync contentEditable h1 DOM when title changes externally (initial load,
@@ -308,34 +330,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     );
   }
 
-  // ── Save status indicator ──
-  const statusLabel = (() => {
-    switch (saveStatus) {
-      case "saving":
-        return "Saving…";
-      case "saved":
-        return lastSavedAt ? `Saved at ${formatTime(lastSavedAt)}` : "Saved";
-      case "error":
-        return "Save failed — retrying…";
-      default:
-        return "Saved";
-    }
-  })();
-
   return (
     <div>
-      {/* ── Status bar (save indicator) ── */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span
-            className={`text-xs ${saveStatus === "error" ? "text-destructive" : saveStatus === "saving" ? "text-primary" : "text-muted-foreground"}`}
-            data-testid="save-status"
-          >
-            {statusLabel}
-          </span>
-        </div>
-      </div>
-
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
 

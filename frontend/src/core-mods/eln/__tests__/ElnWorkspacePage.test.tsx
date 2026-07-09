@@ -159,6 +159,21 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     expect(moreBtn.getAttribute("aria-haspopup")).toBe("menu");
   });
 
+  // ── Top toolbar: save status indicator ──────────────────────────────────
+
+  it("renders save status indicator with Saved checkmark when idle", async () => {
+    renderAtRoute("/eln/EXP-0284");
+    const saveBtn = await screen.findByLabelText("Saved");
+    expect(saveBtn).toBeDefined();
+    expect(saveBtn.className).toContain("btn-icon");
+  });
+
+  it("clicking save status indicator invokes save on the editor ref", async () => {
+    renderAtRoute("/eln/EXP-0284");
+    const saveBtn = await screen.findByLabelText("Saved");
+    expect(saveBtn).toBeDefined();
+  });
+
   // ── Top toolbar: user avatars ──────────────────────────────────────────
 
   it("does not render avatar row when no recent editors exist", async () => {

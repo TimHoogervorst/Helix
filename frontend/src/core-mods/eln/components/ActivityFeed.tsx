@@ -134,7 +134,7 @@ function ActivityFeed({ data }: ActivityFeedProps) {
       </ul>
       {hasMore && (
         <button
-          className="mt-2 text-[12px] text-primary hover:underline"
+          className="btn-ghost mt-2 rounded-md px-2 py-1 text-[12px]"
           onClick={() => setShowAll((prev) => !prev)}
           data-testid="activity-show-all"
         >

@@ -127,7 +127,8 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                 old_value = getattr(instance, field_name)
                 # FK fields: compare pk to avoid ModelInstance != int.
                 if isinstance(old_value, django.db.models.Model):
-                    if old_value.pk != new_value:
+                    new_pk = new_value.pk if isinstance(new_value, django.db.models.Model) else new_value
+                    if old_value.pk != new_pk:
                         other_fields_changed = True
                         break
                 elif old_value != new_value:

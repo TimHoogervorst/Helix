@@ -58,10 +58,12 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
         """Stale lock is stolen by new user → 201 Created."""
         self.client.post(self.lock_url)
 
-        # Make the lock stale by backdating it.
+        # Make the lock stale by backdating it (use QuerySet.update()
+        # to bypass auto_now=True on last_activity_at).
         lock = EntryLock.objects.get()
-        lock.last_activity_at = timezone.now() - timezone.timedelta(minutes=10)
-        lock.save()
+        EntryLock.objects.filter(pk=lock.pk).update(
+            last_activity_at=timezone.now() - timezone.timedelta(minutes=10),
+        )
 
         other = self._create_second_user()
         self.client.force_authenticate(user=other)
@@ -74,8 +76,9 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
         self.client.post(self.lock_url)
 
         lock = EntryLock.objects.get()
-        lock.last_activity_at = timezone.now() - timezone.timedelta(minutes=10)
-        lock.save()
+        EntryLock.objects.filter(pk=lock.pk).update(
+            last_activity_at=timezone.now() - timezone.timedelta(minutes=10),
+        )
 
         # Same user re-acquires → 200, lock refreshed.
         response = self.client.post(self.lock_url)
@@ -113,38 +116,39 @@ class LockReleaseTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(EntryLock.objects.exists())
 
-    def test_release_when_no_lock_returns_404(self):
-        """Releasing when no lock exists → 404."""
+    def test_release_when_no_lock_returns_204(self):
+        """Releasing when no lock exists → 204 (idempotent)."""
         response = self.client.delete(self.lock_url)
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 204)
 
-    def test_non_owner_cannot_release_returns_403(self):
-        """Non-holder trying to release → 403 Forbidden."""
+    def test_non_owner_release_returns_204(self):
+        """Non-holder trying to release → 204 (idempotent no-op)."""
         self.client.post(self.lock_url)
 
         other = LockAcquireTests._create_second_user()
         self.client.force_authenticate(user=other)
         response = self.client.delete(self.lock_url)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 204)
 
     def test_release_after_steal(self):
         """After another user steals a stale lock, original holder cannot release."""
         self.client.post(self.lock_url)
 
-        # Make it stale.
+        # Make it stale (use QuerySet.update() to bypass auto_now=True).
         lock = EntryLock.objects.get()
-        lock.last_activity_at = timezone.now() - timezone.timedelta(minutes=10)
-        lock.save()
+        EntryLock.objects.filter(pk=lock.pk).update(
+            last_activity_at=timezone.now() - timezone.timedelta(minutes=10),
+        )
 
         # Other user steals.
         other = LockAcquireTests._create_second_user()
         self.client.force_authenticate(user=other)
         self.client.post(self.lock_url)
 
-        # Original user tries to release → 403.
+        # Original user tries to release → 204 (idempotent).
         self.client.force_authenticate(user=self.user)
         response = self.client.delete(self.lock_url)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 204)
 
 
 # ── Lock status tests ─────────────────────────────────────────────────────────
@@ -224,8 +228,9 @@ class LockEnforcementTests(_CreateEntryMixin, BaseTestCase):
         self.client.post(self.lock_url)
 
         lock = EntryLock.objects.get()
-        lock.last_activity_at = timezone.now() - timezone.timedelta(minutes=10)
-        lock.save()
+        EntryLock.objects.filter(pk=lock.pk).update(
+            last_activity_at=timezone.now() - timezone.timedelta(minutes=10),
+        )
 
         other = LockAcquireTests._create_second_user()
         self.client.force_authenticate(user=other)
@@ -273,16 +278,20 @@ class StaleLockTests(BaseTestCase):
 
     def test_lock_past_timeout_is_stale(self):
         """A lock exceeding ELN_LOCK_TIMEOUT_MINUTES is stale."""
-        self.lock.last_activity_at = timezone.now() - timezone.timedelta(minutes=10)
-        self.lock.save()
+        EntryLock.objects.filter(pk=self.lock.pk).update(
+            last_activity_at=timezone.now() - timezone.timedelta(minutes=10),
+        )
+        self.lock.refresh_from_db()
         self.assertTrue(self.lock.is_stale())
 
     @override_settings(ELN_LOCK_TIMEOUT_MINUTES=2)
     def test_custom_timeout_respected(self):
         """ELN_LOCK_TIMEOUT_MINUTES setting changes the staleness threshold."""
         # 3 minutes ago — stale with default 5? No. Stale with custom 2? Yes.
-        self.lock.last_activity_at = timezone.now() - timezone.timedelta(minutes=3)
-        self.lock.save()
+        EntryLock.objects.filter(pk=self.lock.pk).update(
+            last_activity_at=timezone.now() - timezone.timedelta(minutes=3),
+        )
+        self.lock.refresh_from_db()
 
         # With timeout=2, 3 minutes is stale.
         self.assertTrue(self.lock.is_stale())

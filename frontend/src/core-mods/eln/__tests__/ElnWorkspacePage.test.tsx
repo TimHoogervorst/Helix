@@ -194,11 +194,11 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   // ── Top toolbar: user avatars ──────────────────────────────────────────
 
   it("does not render avatar row when no recent editors exist", async () => {
-    mockFetchActions.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    mockFetchActions.mockResolvedValueOnce([]);
     renderAtRoute("/eln/EXP-0284");
-    // No avatar initials from the shared Avatar component should be visible
+    // No fetchActions error — avatars simply absent
     await vi.waitFor(() => {
-      // No fetchActions error — avatars simply absent
+      expect(mockFetchActions).toHaveBeenCalled();
     });
     // The old "MK" / "JS" / "AR" initials are gone
     expect(screen.queryByText("MK")).toBeNull();
@@ -214,29 +214,17 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       last_name: "Keller",
       color: "#d9b3e6",
     };
-    mockFetchActions
-      .mockResolvedValueOnce([
-        {
-          id: 1,
-          action_type: "edited",
-          target_type: "eln.entry",
-          target_id: 1,
-          metadata: {},
-          created_at: new Date().toISOString(),
-          performed_by: mockUser,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 1,
-          action_type: "edited",
-          target_type: "eln.entry",
-          target_id: 1,
-          metadata: {},
-          created_at: new Date().toISOString(),
-          performed_by: mockUser,
-        },
-      ]);
+    mockFetchActions.mockResolvedValueOnce([
+      {
+        id: 1,
+        action_type: "edited",
+        target_type: "eln.entry",
+        target_id: 1,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        performed_by: mockUser,
+      },
+    ]);
     renderAtRoute("/eln/EXP-0284");
     // The shared Avatar renders initials via aria-label — may appear in
     // both the toolbar (recentEditors) and metadata panel (lastEditor)
@@ -245,6 +233,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   });
 
   it("renders overflow bubble when more than 3 distinct editors", async () => {
+    const now = new Date().toISOString();
     const makeUser = (id: number) => ({
       id,
       username: `user${id}`,
@@ -258,19 +247,15 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       target_type: "eln.entry",
       target_id: 1,
       metadata: {},
-      created_at: new Date().toISOString(),
+      created_at: now,
       performed_by: makeUser(userId),
     });
-    mockFetchActions
-      .mockResolvedValueOnce([
-        makeAction(1),
-        makeAction(2),
-        makeAction(3),
-        makeAction(4),
-      ])
-      .mockResolvedValueOnce([
-        makeAction(1),
-      ]);
+    mockFetchActions.mockResolvedValueOnce([
+      makeAction(1),
+      makeAction(2),
+      makeAction(3),
+      makeAction(4),
+    ]);
     renderAtRoute("/eln/EXP-0284");
     const dots = await screen.findByText("…");
     expect(dots).toBeDefined();
@@ -423,35 +408,94 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       expect(screen.getByText("Activity")).toBeDefined();
     });
 
-    it("renders four activity items with usernames, actions, and timestamps", () => {
+    it("shows empty state when there are no actions", async () => {
+      mockFetchActions.mockResolvedValueOnce([]);
       renderAtRoute("/eln/EXP-0284");
-
-      // Activity 1: Mira K. added bar chart FIG-01 · 14 min ago
-      expect(screen.getAllByText("Mira K.").length).toBe(2);
-      expect(screen.getByText("added bar chart FIG-01")).toBeDefined();
-      expect(screen.getByText("· 14 min ago")).toBeDefined();
-
-      // Activity 2: Jordan S. commented on g4 dropout · 2 h ago
-      expect(screen.getByText("Jordan S.")).toBeDefined();
-      expect(screen.getByText("commented on g4 dropout")).toBeDefined();
-      expect(screen.getByText("· 2 h ago")).toBeDefined();
-
-      // Activity 3: Mira K. linked reagent REG-1042 · 5 h ago
-      expect(screen.getByText("linked reagent REG-1042")).toBeDefined();
-      expect(screen.getByText("· 5 h ago")).toBeDefined();
-
-      // Activity 4: System autosaved v0.4 · just now
-      expect(screen.getByText("System")).toBeDefined();
-      expect(screen.getByText("autosaved v0.4")).toBeDefined();
-      expect(screen.getByText("· just now")).toBeDefined();
+      const empty = await screen.findByTestId("activity-empty");
+      expect(empty.textContent).toBe("No activity yet");
     });
 
-    it("renders four activity items", () => {
+    it("renders activity items from fetched actions", async () => {
+      const now = new Date().toISOString();
+      mockFetchActions.mockResolvedValueOnce([
+        {
+          id: 1,
+          action_type: "created",
+          target_type: "eln.entry",
+          target_id: 1,
+          metadata: {},
+          created_at: now,
+          performed_by: {
+            id: 1,
+            username: "mirak",
+            first_name: "Mira",
+            last_name: "Keller",
+            color: "#d9b3e6",
+          },
+        },
+        {
+          id: 2,
+          action_type: "edited",
+          target_type: "eln.entry",
+          target_id: 1,
+          metadata: {},
+          created_at: now,
+          performed_by: {
+            id: 2,
+            username: "jordan",
+            first_name: "Jordan",
+            last_name: "",
+            color: "#a3c4f3",
+          },
+        },
+      ]);
       renderAtRoute("/eln/EXP-0284");
-      // There should be exactly 4 activity dot indicators
-      const aside = document.querySelector("aside");
-      const dots = aside?.querySelectorAll('[data-testid="activity-dot"]');
-      expect(dots?.length).toBe(4);
+
+      const items = await screen.findAllByTestId("activity-item");
+      expect(items.length).toBe(2);
+
+      // First item should be the most recent (created action)
+      expect(screen.getByText("Mira Keller")).toBeDefined();
+      expect(screen.getByText("Created this entry")).toBeDefined();
+
+      // Second item
+      expect(screen.getByText("Jordan")).toBeDefined();
+      expect(screen.getByText("Edited this entry")).toBeDefined();
+    });
+
+    it("shows Show all toggle when there are more than 10 items", async () => {
+      const now = new Date().toISOString();
+      const actions = Array.from({ length: 12 }, (_, i) => ({
+        id: i + 1,
+        action_type: "edited",
+        target_type: "eln.entry",
+        target_id: 1,
+        metadata: {},
+        created_at: now,
+        performed_by: {
+          id: 1,
+          username: `user${i}`,
+          first_name: "",
+          last_name: "",
+          color: "#d9b3e6",
+        },
+      }));
+      mockFetchActions.mockResolvedValueOnce(actions);
+      renderAtRoute("/eln/EXP-0284");
+
+      const toggle = await screen.findByTestId("activity-show-all");
+      expect(toggle.textContent).toBe("Show all (12)");
+    });
+
+    it("shows error state with retry button when fetch fails", async () => {
+      mockFetchActions.mockRejectedValueOnce(new Error("Network error"));
+      renderAtRoute("/eln/EXP-0284");
+
+      const error = await screen.findByTestId("activity-error");
+      expect(error.textContent).toContain("Could not load activity");
+
+      const retry = screen.getByTestId("activity-retry");
+      expect(retry).toBeDefined();
     });
   });
 });

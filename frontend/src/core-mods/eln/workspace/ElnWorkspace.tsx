@@ -21,7 +21,8 @@ import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
 import { Avatar, getInitials } from "../../../shared/Avatar";
 import type { ElnAction } from "../types";
-import { fetchActions } from "../api";
+import { useActivity } from "../hooks/useActivity";
+import ActivityFeed from "../components/ActivityFeed";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -95,64 +96,38 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     });
   }, [entryDisplayId]);
 
-  // ── Recent editors (for toolbar avatars + last-editor info) ──
-  const [allActions, setAllActions] = useState<ElnAction[]>([]);
+  // ── Activity data (single fetch serves Activity feed + toolbar avatars + last editor) ──
+  const {
+    actions,
+    isLoading: activityLoading,
+    error: activityError,
+    refetch: refetchActivity,
+  } = useActivity(entryId);
 
-  useEffect(() => {
-    if (!entryId) return;
-    let cancelled = false;
-
-    // Default window: 1 week for the avatar row
+  // Deduplicate editors from the last week for the toolbar avatar row
+  const recentEditors = useMemo(() => {
     const oneWeekAgo = new Date(
       Date.now() - 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
-
-    fetchActions(entryId, "edited", oneWeekAgo)
-      .then((actions) => {
-        if (!cancelled) setAllActions(actions);
-      })
-      .catch(() => {
-        // Silently ignore — avatars are best-effort UI
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entryId]);
-
-  // Deduplicate by user, keep most recent per user
-  const recentEditors = useMemo(() => {
+    );
     const seen = new Set<number>();
     const unique: ElnAction[] = [];
-    for (const a of allActions) {
-      if (!seen.has(a.performed_by.id)) {
-        seen.add(a.performed_by.id);
-        unique.push(a);
+    for (const a of actions) {
+      if (
+        a.action_type === "edited" &&
+        new Date(a.created_at) >= oneWeekAgo
+      ) {
+        if (!seen.has(a.performed_by.id)) {
+          seen.add(a.performed_by.id);
+          unique.push(a);
+        }
       }
     }
     return unique;
-  }, [allActions]);
+  }, [actions]);
 
-  // Also fetch all action types for "last editor" (more reliable than
-  // filtering to just "edited" because a new entry may only have "created")
-  const [allRecentActions, setAllRecentActions] = useState<ElnAction[]>([]);
-
-  useEffect(() => {
-    if (!entryId) return;
-    let cancelled = false;
-
-    fetchActions(entryId)
-      .then((actions) => {
-        if (!cancelled) setAllRecentActions(actions);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entryId]);
-
-  const lastEditor = allRecentActions.length > 0 ? allRecentActions[0].performed_by : null;
+  // Most recent action's performer is the "last editor"
+  const lastEditor =
+    actions.length > 0 ? actions[0].performed_by : null;
 
   // ── Reference resolution for linked entities ──
   const { resolutionMap, resolveIds } = useReferenceContext();
@@ -535,77 +510,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             </section>
 
             {/* ── Activity ── */}
-            <section>
-              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Activity
-              </h3>
-              <ul className="space-y-2 text-[12px]">
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Mira K.
-                    </span>{" "}
-                    added bar chart FIG-01
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · 14 min ago
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Jordan S.
-                    </span>{" "}
-                    commented on g4 dropout
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · 2 h ago
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Mira K.
-                    </span>{" "}
-                    linked reagent REG-1042
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · 5 h ago
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      System
-                    </span>{" "}
-                    autosaved v0.4
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · just now
-                  </span>
-                </li>
-              </ul>
-            </section>
+            <ActivityFeed
+              actions={actions}
+              isLoading={activityLoading}
+              error={activityError}
+              onRetry={refetchActivity}
+            />
           </div>
         </aside>
       </div>

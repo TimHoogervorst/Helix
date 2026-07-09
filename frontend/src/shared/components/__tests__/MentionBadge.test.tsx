@@ -1,14 +1,14 @@
 /**
- * Tests for the ReferenceBadge component.
+ * Tests for the MentionBadge component.
  *
  * Covers all prop combinations:
  *   clickable/non-clickable × resolved/loading/broken
  */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import ReferenceBadge from "../ReferenceBadge";
-import { ReferenceProvider } from "../../../core/references/ReferenceProvider";
-import type { BadgeResolved } from "../ReferenceBadge";
+import MentionBadge from "../MentionBadge";
+import { MentionProvider } from "../../../core/mentions/MentionProvider";
+import type { BadgeResolved } from "../MentionBadge";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ const resolvedEntry: BadgeResolved = {
   type: "entry",
   id: 1,
   icon: "📄",
+  workspaceId: "eln",
 };
 
 const resolvedEntity: BadgeResolved = {
@@ -26,15 +27,16 @@ const resolvedEntity: BadgeResolved = {
   type: "entity",
   id: 5,
   icon: "🩸",
+  workspaceId: "lims",
 };
 
 function renderBadge(
-  props: React.ComponentProps<typeof ReferenceBadge>,
+  props: React.ComponentProps<typeof MentionBadge>,
 ) {
   return render(
-    <ReferenceProvider>
-      <ReferenceBadge {...props} />
-    </ReferenceProvider>,
+    <MentionProvider>
+      <MentionBadge {...props} />
+    </MentionProvider>,
   );
 }
 
@@ -108,6 +110,43 @@ describe("clickable (blue)", () => {
     });
     const badge = screen.getByText("BLOOD1").closest(".reference-badge")!;
     expect(badge.tagName).toBe("A");
+    expect(badge).toHaveAttribute("href", "/lims/BLOOD1");
+  });
+
+  it("uses workspaceId over type-based URL branching", () => {
+    const workspaceResolved: BadgeResolved = {
+      displayId: "DNA34",
+      title: "Plasmid #34",
+      type: "entity",
+      id: 42,
+      icon: "🧬",
+      workspaceId: "molBio",
+    };
+    renderBadge({
+      displayId: "DNA34",
+      clickable: true,
+      resolved: workspaceResolved,
+    });
+    const badge = screen.getByText("DNA34").closest(".reference-badge")!;
+    expect(badge.tagName).toBe("A");
+    expect(badge).toHaveAttribute("href", "/molBio/DNA34");
+  });
+
+  it("falls back to type-based /lims/ URL when workspaceId is missing", () => {
+    const noWorkspace: BadgeResolved = {
+      displayId: "BLOOD1",
+      title: "Sample #1",
+      type: "entity",
+      id: 5,
+      icon: "🩸",
+      // no workspaceId
+    };
+    renderBadge({
+      displayId: "BLOOD1",
+      clickable: true,
+      resolved: noWorkspace,
+    });
+    const badge = screen.getByText("BLOOD1").closest(".reference-badge")!;
     expect(badge).toHaveAttribute("href", "/lims/BLOOD1");
   });
 

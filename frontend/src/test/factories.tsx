@@ -200,11 +200,11 @@ export function createTestEditor(
   return editor;
 }
 
-// ── ReferenceBadge mock ──────────────────────────────────────────────────────
+// ── MentionBadge mock ─────────────────────────────────────────────────────────
 
 /**
- * Inline type definitions (instead of importing from ReferenceBadge)
- * so that consumer test files can `vi.mock` ReferenceBadge without
+ * Inline type definitions (instead of importing from MentionBadge)
+ * so that consumer test files can `vi.mock` MentionBadge without
  * creating a circular module dependency during Vitest hoisting.
  */
 
@@ -216,14 +216,14 @@ interface BadgeResolved {
   icon: string;
 }
 
-interface ReferenceBadgeProps {
+interface MentionBadgeProps {
   displayId: string;
   clickable?: boolean;
   resolved?: BadgeResolved | null;
 }
 
-/** Configuration for the ReferenceBadge mock factory. */
-interface MockReferenceBadgeConfig {
+/** Configuration for the MentionBadge mock factory. */
+interface MockMentionBadgeConfig {
   /** Render as clickable (blue pill / anchor). Default false. */
   clickable?: boolean;
   /** Pre-resolved data. undefined = loading, null = broken, data = resolved. */
@@ -235,7 +235,7 @@ interface MockReferenceBadgeConfig {
 }
 
 /**
- * Create a canonical mock for the ReferenceBadge component.
+ * Create a canonical mock for the MentionBadge component.
  *
  * The returned ``vi.fn()`` mock renders structurally realistic DOM — CSS classes,
  * data attributes, child spans, and link wrapping — matching the real
@@ -243,12 +243,12 @@ interface MockReferenceBadgeConfig {
  *
  * Usage:
  *
- *     vi.mock("../shared/components/ReferenceBadge", () => ({
- *       default: makeMockReferenceBadge({ compact: true }),
+ *     vi.mock("../shared/components/MentionBadge", () => ({
+ *       default: makeMockMentionBadge({ compact: true }),
  *     }));
  */
-export function makeMockReferenceBadge(
-  config: MockReferenceBadgeConfig = {},
+export function makeMockMentionBadge(
+  config: MockMentionBadgeConfig = {},
 ) {
   const {
     clickable = false,
@@ -263,7 +263,7 @@ export function makeMockReferenceBadge(
   const isLoading = clickable && resolved === undefined;
   const showTitle = hasResolved && !compact;
 
-  return vi.fn((props: ReferenceBadgeProps) => {
+  return vi.fn((props: MentionBadgeProps) => {
     const { displayId } = props;
 
     // ── Build CSS classes ──────────────────────────────────────────────

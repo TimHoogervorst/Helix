@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     "core_mods.library",
     "core_mods.pins",
     "core_mods.users",
-    "references",
+    "core.mentions",
 ]
 
 MIDDLEWARE = [

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { EntityListItem } from "../types";
-import ReferenceBadge from "../../../shared/components/ReferenceBadge";
+import MentionBadge from "../../../shared/components/MentionBadge";
 
 export interface EntityDetailFieldsProps {
   entity: EntityListItem;
@@ -37,7 +37,7 @@ function EntityDetailFields({
         {entity.source_entry_display_id && (
           <div className="detail-field">
             <span className="detail-label">Source Entry</span>
-            <ReferenceBadge
+            <MentionBadge
               displayId={entity.source_entry_display_id}
               clickable
             />

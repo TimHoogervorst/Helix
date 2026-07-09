@@ -21,7 +21,7 @@ def delete_everything(request):
     counts: dict[str, int] = {}
 
     # 1. Mentions (depends on entries)
-    from core_mods.eln.models import Mention
+    from core.mentions.models import Mention
     c, _ = Mention.objects.all().delete()
     counts["mentions"] = c
 
@@ -57,7 +57,7 @@ urlpatterns = [
     path("api/lims/", include("core_mods.lims.urls")),
     path("api/core/", include("core.urls")),
     path("api/library/", include("core_mods.library.urls")),
-    path("api/references/", include("references.urls")),
+    path("api/mentions/", include("core.mentions.urls")),
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),
     # OpenAPI schema

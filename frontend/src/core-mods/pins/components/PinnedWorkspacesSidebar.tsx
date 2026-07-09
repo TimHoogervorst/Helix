@@ -1,6 +1,20 @@
 import { useNavigate } from "react-router-dom";
-import { Dna, Pin, PinOff, FileText } from "lucide-react";
+import { Pin, PinOff, Box } from "lucide-react";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { extractWorkspaceId } from "../../../core/mod-system/resolveCurrentWorkspace";
+
+/**
+ * Render the icon for a workspace, falling back to a generic Box icon.
+ */
+function WorkspaceIcon({ workspaceId }: { workspaceId: string }) {
+  const config = ModRegistry.getInstance().getWorkspaces().get(workspaceId);
+  if (config?.icon) {
+    const Icon = config.icon;
+    return <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
+  }
+  return <Box className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
+}
 
 function PinnedWorkspacesSidebar() {
   const navigate = useNavigate();
@@ -10,16 +24,6 @@ function PinnedWorkspacesSidebar() {
   const isCurrentPinned = current
     ? pins.some((p) => p.url === current.url)
     : false;
-
-  // ── Icon resolver ──────────────────────────────────────────────────────
-  function workspaceIcon(icon: "lims" | "eln") {
-    switch (icon) {
-      case "lims":
-        return <Dna className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
-      case "eln":
-        return <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
-    }
-  }
 
   function handleRowClick(url: string) {
     navigate(url);
@@ -43,7 +47,7 @@ function PinnedWorkspacesSidebar() {
               aria-label={`Current workspace: ${current.displayId}`}
               onClick={() => handleRowClick(current.url)}
             >
-              {workspaceIcon(current.icon)}
+              <WorkspaceIcon workspaceId={current.icon} />
               <span className="truncate">{current.displayId}</span>
               <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-[18px] text-muted-foreground">
                 Current
@@ -77,9 +81,10 @@ function PinnedWorkspacesSidebar() {
                 aria-label={`Open workspace: ${p.display_id}`}
                 onClick={() => handleRowClick(p.url)}
               >
-                {workspaceIcon(
-                  p.url.startsWith("/lims") ? "lims" : "eln",
-                )}
+                {(() => {
+                  const wsId = extractWorkspaceId(p.url);
+                  return wsId ? <WorkspaceIcon workspaceId={wsId} /> : null;
+                })()}
                 {p.label && p.label !== p.display_id ? (
                   <>
                     <span className="truncate">{p.label}</span>

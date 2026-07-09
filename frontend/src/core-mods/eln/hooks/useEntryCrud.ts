@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, del } from "../../../core/api/client";
 import type { TipTapDoc, EntryDetail } from "../types";
-import { useReferenceContext } from "../../../core/references/ReferenceProvider";
+import { useMentionContext } from "../../../core/mentions/MentionProvider";
 import { attachTags, acquireLock, releaseLock, getLockStatus } from "../api";
 import { useSaveQueue, type SaveStatus } from "./useSaveQueue";
 import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
@@ -69,7 +69,7 @@ export function useEntryCrud({
   contentRef,
 }: UseEntryCrudOptions): UseEntryCrudReturn {
   const navigate = useNavigate();
-  const { resolveIds } = useReferenceContext();
+  const { resolveIds } = useMentionContext();
   const { user } = useCurrentUser();
 
   // ── State ──

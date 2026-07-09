@@ -1,5 +1,5 @@
 import type { EntityType } from "../types";
-import ReferenceBadge from "../../../shared/components/ReferenceBadge";
+import MentionBadge from "../../../shared/components/MentionBadge";
 
 export interface TypeMasterPanelProps {
   /** Entity types to display (already filtered per showArchived). */
@@ -114,7 +114,7 @@ function TypeMasterPanel({
             >
               <div className="schema-info">
                 <span className="schema-name">{et.name}</span>
-                <ReferenceBadge
+                <MentionBadge
                   displayId={`${et.prefix}…`}
                   clickable={false}
                 />

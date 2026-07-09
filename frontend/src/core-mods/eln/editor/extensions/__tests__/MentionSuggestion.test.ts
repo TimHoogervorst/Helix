@@ -1,15 +1,15 @@
 /**
- * Tests for the ReferenceSuggestion TipTap extension.
+ * Tests for the MentionSuggestion TipTap extension.
  *
  * Covers: DISPLAY_ID_PATTERN regex, fetchItems mock, and editor
  * integration (suggestion loads, Space-to-convert logic).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Reference from "../Reference";
-import ReferenceSuggestion, {
+import MentionSuggestion, {
   DISPLAY_ID_PATTERN,
   fetchItems,
-} from "../ReferenceSuggestion";
+} from "../MentionSuggestion";
 import { createTestEditor } from "../../../../../test/factories";
 
 // ── Mock API client ───────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ describe("fetchItems", () => {
     mockGet.mockResolvedValue({ results: [] });
     await fetchItems("blood");
     expect(mockGet).toHaveBeenCalledWith(
-      "/references/search/?q=blood",
+      "/mentions/search/?q=blood",
     );
   });
 
@@ -74,7 +74,7 @@ describe("fetchItems", () => {
     mockGet.mockResolvedValue({ results: [] });
     await fetchItems("sample & test");
     expect(mockGet).toHaveBeenCalledWith(
-      "/references/search/?q=sample%20%26%20test",
+      "/mentions/search/?q=sample%20%26%20test",
     );
   });
 
@@ -106,15 +106,15 @@ describe("fetchItems", () => {
 
 // ── Editor integration ────────────────────────────────────────────────────
 
-describe("ReferenceSuggestion editor integration", () => {
-  it("editor creates successfully with ReferenceSuggestion extension", () => {
-    const editor = createTestEditor([Reference, ReferenceSuggestion]);
+describe("MentionSuggestion editor integration", () => {
+  it("editor creates successfully with MentionSuggestion extension", () => {
+    const editor = createTestEditor([Reference, MentionSuggestion]);
     expect(editor).toBeTruthy();
     editor.destroy();
   });
 
   it("typing # does not crash the editor", () => {
-    const editor = createTestEditor([Reference, ReferenceSuggestion]);
+    const editor = createTestEditor([Reference, MentionSuggestion]);
     expect(() => {
       editor.commands.insertContent("#");
     }).not.toThrow();
@@ -122,7 +122,7 @@ describe("ReferenceSuggestion editor integration", () => {
   });
 
   it("typing #E1 does not crash the editor", () => {
-    const editor = createTestEditor([Reference, ReferenceSuggestion]);
+    const editor = createTestEditor([Reference, MentionSuggestion]);
     expect(() => {
       editor.commands.insertContent("#E1");
     }).not.toThrow();
@@ -130,16 +130,16 @@ describe("ReferenceSuggestion editor integration", () => {
   });
 
   it("can insert content after # trigger", () => {
-    const editor = createTestEditor([Reference, ReferenceSuggestion]);
+    const editor = createTestEditor([Reference, MentionSuggestion]);
     editor.commands.insertContent("#test");
     const text = editor.getText();
     expect(text).toContain("#test");
     editor.destroy();
   });
 
-  it("Reference and ReferenceSuggestion work together", () => {
+  it("Reference and MentionSuggestion work together", () => {
     // Create content with a reference node — both extensions must coexist
-    const editor = createTestEditor([Reference, ReferenceSuggestion]);
+    const editor = createTestEditor([Reference, MentionSuggestion]);
     editor.commands.setContent({
       type: "doc",
       content: [

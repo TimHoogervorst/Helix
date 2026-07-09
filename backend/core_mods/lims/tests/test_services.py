@@ -459,8 +459,8 @@ class SyncEntitiesTests(BaseServiceTestCase):
     def test_sync_reference_cells_create_mentions(self):
         """Reference-type columns inside limsTable v2 trigger mention sync."""
         from core_mods.lims.services import sync_entities
-        from references.services import sync_mentions
-        from core_mods.eln.models import Mention
+        from core.mentions.sync import sync_mentions
+        from core.mentions.models import Mention
 
         # Create a target entry to reference
         target = NotebookEntry.objects.create(

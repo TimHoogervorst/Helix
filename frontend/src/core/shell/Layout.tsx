@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
 import { ArrowLeft, Dna, Search } from "lucide-react";
 import { get } from "../api/client";
-import { ReferenceProvider } from "../references/ReferenceProvider";
+import { MentionProvider } from "../mentions/MentionProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { UserMenu } from "../user/UserMenu";
 
@@ -23,7 +23,7 @@ function Layout() {
     searchParams.get("section") ?? settingsSections[0]?.id ?? null;
 
   return (
-    <ReferenceProvider>
+    <MentionProvider>
       <div className="flex h-screen overflow-hidden">
         <aside className="flex w-64 shrink-0 flex-col border-r border-hairline bg-background">
           {/* Brand */}
@@ -133,7 +133,7 @@ function Layout() {
           <Outlet />
         </main>
       </div>
-    </ReferenceProvider>
+    </MentionProvider>
   );
 }
 

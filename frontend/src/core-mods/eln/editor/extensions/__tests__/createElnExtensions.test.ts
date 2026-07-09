@@ -43,11 +43,11 @@ describe("createElnExtensions", () => {
     expect(ref).toBeDefined();
   });
 
-  it("includes ReferenceSuggestion", () => {
+  it("includes MentionSuggestion", () => {
     const extensions = createElnExtensions();
     const refSuggestion = extensions.find(
       (e: unknown) =>
-        (e as Record<string, unknown>).name === "referenceSuggestion",
+        (e as Record<string, unknown>).name === "mentionSuggestion",
     );
     expect(refSuggestion).toBeDefined();
   });

@@ -6,6 +6,7 @@ import type {
   SlashCommandConfig,
   ServiceConfig,
   LibraryItemConfig,
+  WorkspaceConfig,
 } from "./types";
 
 /**
@@ -45,6 +46,7 @@ export class ModRegistry {
   private slashCommands = new Map<string, SlashCommandConfig>();
   private services = new Map<string, ServiceConfig>();
   private libraryItems = new Map<string, LibraryItemConfig>();
+  private workspaces = new Map<string, WorkspaceConfig>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -125,6 +127,15 @@ export class ModRegistry {
       );
     }
     this.libraryItems.set(config.id, config);
+  }
+
+  registerWorkspace(config: WorkspaceConfig): void {
+    if (this.workspaces.has(config.id)) {
+      throw new Error(
+        `Duplicate workspace registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.workspaces.set(config.id, config);
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
@@ -222,5 +233,10 @@ export class ModRegistry {
   /** Returns a read-only view of all registered library items. */
   getLibraryItems(): ReadonlyMap<string, LibraryItemConfig> {
     return this.libraryItems;
+  }
+
+  /** Returns a read-only view of all registered workspaces. */
+  getWorkspaces(): ReadonlyMap<string, WorkspaceConfig> {
+    return this.workspaces;
   }
 }

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { EntityListItem } from "../../types";
-import { makeEntityListItem, makeMockReferenceBadge } from "../../../../test/factories";
+import { makeEntityListItem, makeMockMentionBadge } from "../../../../test/factories";
 import EntityDetailFields from "../EntityDetailFields";
 
-// Mock ReferenceBadge
-vi.mock("../../../../shared/components/ReferenceBadge", () => ({
-  default: makeMockReferenceBadge(),
+// Mock MentionBadge
+vi.mock("../../../../shared/components/MentionBadge", () => ({
+  default: makeMockMentionBadge(),
 }));
 
 const entity: EntityListItem = makeEntityListItem({
@@ -49,7 +49,7 @@ describe("EntityDetailFields", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("renders Source Entry with ReferenceBadge when present", () => {
+  it("renders Source Entry with MentionBadge when present", () => {
     render(<EntityDetailFields entity={entity} />);
     const badge = screen.getByTestId("ref-badge");
     expect(badge).toBeInTheDocument();

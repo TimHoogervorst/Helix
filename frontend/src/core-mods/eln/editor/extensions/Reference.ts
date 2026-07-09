@@ -9,7 +9,7 @@
 import { Node } from "@tiptap/core";
 import { InputRule } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import ReferenceNode from "./ReferenceNode";
+import MentionNode from "./MentionNode";
 
 const Reference = Node.create({
   name: "reference",
@@ -41,7 +41,7 @@ const Reference = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(ReferenceNode);
+    return ReactNodeViewRenderer(MentionNode);
   },
 
   addInputRules() {

@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_lims_table_doc, make_doc_with_ref
-from core_mods.eln.models import NotebookEntry, Mention
+from core.mentions.models import Mention
+from core_mods.eln.models import NotebookEntry
 from core_mods.eln.sync import sync_entry_content, _collect_lims_table_fingerprint
 from core_mods.lims.models import EntityType, Entity
 

@@ -13,7 +13,7 @@ Entry workspace — NotebookEntry model, reference parsing, sync pipeline, and A
 
 `sync.py` orchestrates the content analysis pipeline when an entry is saved:
 
-1. **Parse references** → `parser.py` extracts `@ref:` mentions from TipTap content
+1. **Walk content** → `core/mentions/node_walker.py` extracts `#`-triggered mentions from TipTap content
 2. **Sync mentions** → creates/updates `Mention` rows with generic FK targets
 3. **Sync entities** → delegates to `core_mods.lims.services.sync_entities()` for limsTable nodes
 
@@ -28,15 +28,14 @@ Entry workspace — NotebookEntry model, reference parsing, sync pipeline, and A
 ## Dependencies
 
 - **Depends on:** `core` (BrowsableItem, walker), `core_mods.lims` (entity sync — soft dependency via import in sync.py)
-- **Consumed by:** `console.library` (ViewSet for Library), `references` (mention resolution), frontend (`/api/eln/`)
+- **Consumed by:** `console.library` (ViewSet for Library), `core.mentions` (mention resolution), frontend (`/api/eln/`)
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `models.py` | NotebookEntry, Mention models |
-| `parser.py` | Parse `@ref:` mentions from TipTap document JSON |
-| `sync.py` | Content sync pipeline (parse → mention → entity) |
+| `models.py` | NotebookEntry, ContentVersion, EntryLock, ElnAction |
+| `sync.py` | Content sync pipeline (walk → mention → entity) |
 | `serializers.py` | DRF serializers |
 | `views.py` | NotebookEntryViewSet |
 | `urls.py` | URL routing |

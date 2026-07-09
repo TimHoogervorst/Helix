@@ -78,7 +78,7 @@ interface ElnEditorProps {
   onStateChange?: (state: ElnEditorState) => void;
 }
 
-/** Editor component — ReferenceProvider is provided by Layout.
+/** Editor component — MentionProvider is provided by Layout.
  *  Action buttons (MoreActions menu) are exposed via ref so the parent can
  *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
@@ -120,6 +120,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   // ── Title ref (for contentEditable cursor preservation) ──
   const titleRef = useRef<HTMLHeadingElement | null>(null);
+  // Guard so auto-focus only fires once on mount, not on every re-render.
+  const hasAutoFocusedRef = useRef(false);
 
   // ── Description textarea ref (for auto-resize) ──
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
@@ -396,8 +398,9 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       <h1
         ref={(el) => {
           titleRef.current = el;
-          // Autofocus new entries (only when not locked)
-          if (el && isNew && !isLockedByOther) {
+          // Autofocus new entries exactly once on mount (not on every re-render).
+          if (el && isNew && !isLockedByOther && !hasAutoFocusedRef.current) {
+            hasAutoFocusedRef.current = true;
             requestAnimationFrame(() => el.focus());
           }
         }}

@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import type { PinnedWorkspace } from "../types";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 
 // ── Mock API module ──────────────────────────────────────────────────────
 
@@ -13,6 +14,18 @@ vi.mock("../api", () => ({
 }));
 
 import { getPins, createPin, deletePin } from "../api";
+
+// ── ModRegistry setup ──────────────────────────────────────────────────────
+
+/** Ensure workspaces are registered for resolveCurrentWorkspace(). */
+function setupWorkspaces(): void {
+  ModRegistry._reset();
+  const registry = ModRegistry.getInstance();
+  registry.registerMod("lims");
+  registry.registerMod("eln");
+  registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+  registry.registerWorkspace({ id: "eln", displayName: "ELN" });
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -44,6 +57,7 @@ function wrapper(initialEntries: string[] = ["/lims/BLOOD1"]) {
 describe("usePinnedWorkspaces", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setupWorkspaces();
   });
 
   // ── Initial load ──────────────────────────────────────────────────────

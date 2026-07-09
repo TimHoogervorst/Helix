@@ -5,7 +5,9 @@ from core_mods.users.serializers import UserSerializer
 
 from core_mods.tags.models import Tag
 
-from .models import NotebookEntry, Mention, ElnAction
+from core.mentions.models import Mention
+
+from .models import NotebookEntry, ElnAction
 
 
 def validate_tiptap_json(value):

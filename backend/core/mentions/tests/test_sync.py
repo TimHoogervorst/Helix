@@ -1,9 +1,10 @@
 """
-Tests for the references service: sync_mentions, resolve_display_id, PREFIX_MAP.
+Tests for the mentions service: sync_mentions, resolve_display_id, PREFIX_MAP.
 """
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC
-from core_mods.eln.models import NotebookEntry, Mention
+from core_mods.eln.models import NotebookEntry
+from core.mentions.models import Mention
 
 DOC_WITH_ONE_REFERENCE = {
     "type": "doc",
@@ -69,7 +70,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_tracer_sync_creates_mention_for_reference_node(self):
         """A doc with one reference node → one Mention row created."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         # Point the reference at the target entry's actual display_id.
         target_id = self.target.display_id
@@ -98,7 +99,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_sync_removes_mentions_when_reference_removed(self):
         """Removing a reference node from the doc deletes the Mention row."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         target_id = self.target.display_id
         doc_with_ref = {
@@ -123,7 +124,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_sync_skips_unresolvable_display_ids(self):
         """A reference to a non-existent entry is silently skipped."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         doc = {
             "type": "doc",
@@ -143,7 +144,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_sync_noop_when_no_references(self):
         """A doc with no reference nodes is a no-op."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         sync_mentions(self.source, EMPTY_DOC)
 
@@ -151,7 +152,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_sync_handles_multiple_references(self):
         """Each reference node creates a separate Mention row."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         target2 = NotebookEntry.objects.create(
             title="Second Target", content=EMPTY_DOC, folder=self.folder, author=self.user
@@ -179,7 +180,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_sync_updates_existing_mention(self):
         """Re-syncing with the same reference doesn't duplicate."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         target_id = self.target.display_id
         doc = {
@@ -203,7 +204,7 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def test_sync_nested_references(self):
         """Reference nodes nested inside blockquotes etc. are found."""
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
 
         target_id = self.target.display_id
         doc = {

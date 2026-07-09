@@ -1,6 +1,8 @@
 from django.contrib import admin
 
-from .models import NotebookEntry, Mention
+from core.mentions.models import Mention
+
+from .models import NotebookEntry
 
 
 @admin.register(NotebookEntry)

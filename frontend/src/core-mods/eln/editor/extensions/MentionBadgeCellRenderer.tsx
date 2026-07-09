@@ -1,13 +1,13 @@
 /**
- * AG Grid cell renderers that wrap ReferenceBadge for table display.
+ * AG Grid cell renderers that wrap MentionBadge for table display.
  *
  * Two use cases:
  *   displayId column  — IF value matches /^[A-Z]\\d+$/ → clickable badge; else plain text
  *   Reference column  — clickable badge with auto-resolve
  *
- * Requires ReferenceProvider to be in the component tree (provided at Layout level).
+ * Requires MentionProvider to be in the component tree (provided at Layout level).
  */
-import ReferenceBadge from "../../../../shared/components/ReferenceBadge";
+import MentionBadge from "../../../../shared/components/MentionBadge";
 import type { CustomCellRendererProps } from "ag-grid-react";
 
 /**
@@ -35,20 +35,20 @@ export function DisplayIdCellRenderer({ value }: CustomCellRendererProps) {
   }
 
   // Real display IDs get clickable badges
-  return <ReferenceBadge displayId={displayId} clickable compact={true} />;
+  return <MentionBadge displayId={displayId} clickable compact={true} />;
 }
 
 /**
  * Cell renderer for Reference-type columns.
  *
- * Renders a clickable blue badge that auto-resolves via ReferenceProvider.
+ * Renders a clickable blue badge that auto-resolves via MentionProvider.
  */
-export function ReferenceCellRenderer({ value }: CustomCellRendererProps) {
+export function MentionCellRenderer({ value }: CustomCellRendererProps) {
   const displayId = String(value ?? "");
 
   if (!displayId) {
     return <span style={{ color: "var(--gray-400)" }}>—</span>;
   }
 
-  return <ReferenceBadge displayId={displayId} clickable />;
+  return <MentionBadge displayId={displayId} clickable />;
 }

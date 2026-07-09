@@ -1,9 +1,9 @@
 """
-Tests for ``references.node_walker.collect_reference_ids``.
+Tests for ``core.mentions.node_walker.collect_reference_ids``.
 """
 from django.test import SimpleTestCase
 
-from references.node_walker import collect_reference_ids
+from core.mentions.node_walker import collect_reference_ids
 
 
 # ── Reusable (immutable) document fixtures ──────────────────────────────

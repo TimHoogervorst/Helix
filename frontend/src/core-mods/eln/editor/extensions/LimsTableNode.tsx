@@ -18,7 +18,7 @@ import type {
 import type { GridColumn, GridRow } from "../../../../shared/types/types";
 import type { EntityTypeSummary } from "../../types";
 import { get } from "../../../../core/api/client";
-import { DisplayIdCellRenderer, ReferenceCellRenderer } from "./ReferenceBadgeCellRenderer";
+import { DisplayIdCellRenderer, MentionCellRenderer } from "./MentionBadgeCellRenderer";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {
@@ -80,7 +80,7 @@ export function columnDefFor(c: GridColumn, _index: number): ColDef<GridRow> {
     case "Reference":
       return {
         ...base,
-        cellRenderer: ReferenceCellRenderer,
+        cellRenderer: MentionCellRenderer,
         valueFormatter: undefined,
         cellEditor: "agTextCellEditor",
         cellStyle: { display: "flex", alignItems: "center", padding: 0 },

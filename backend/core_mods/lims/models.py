@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from core.abstracts import BrowsableItem
@@ -39,6 +40,49 @@ class EntityType(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class RegisteredEntityType(models.Model):
+    """Maps a display-ID prefix to its owning workspace and content type.
+
+    This is the backend mirror of the frontend's ``RegisteredEntityType``
+    interface in ``core/mod-system/types.ts``.  Together with the
+    ``registerEntityType`` service, it makes LIMS the central registry for
+    all mentionable entity types.
+
+    Every entity type that can appear in a mention (``#DNA34``, ``#E1``) must
+    have a row here.  The resolve and search endpoints JOIN through this table
+    to determine ``workspaceId``, which the frontend uses to build navigation
+    URLs by convention: ``/{workspaceId}/{displayId}``.
+
+    Design: ADR-0006.
+    """
+
+    prefix = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="Uppercase letters extracted from display IDs, e.g. 'E', 'DNA'. Must be unique across all entity types.",
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        help_text="The Django model that backs entities with this prefix.",
+    )
+    workspace_id = models.CharField(
+        max_length=100,
+        help_text="The workspace that owns this entity type. Used as the URL namespace: /{workspaceId}/{displayId}.",
+    )
+    display_name = models.CharField(
+        max_length=255,
+        help_text="Human-readable name shown in search results, e.g. 'Entry', 'DNA Sequence'.",
+    )
+
+    class Meta:
+        db_table = "lims_registered_entity_type"
+        ordering = ["prefix"]
+
+    def __str__(self):
+        return f"{self.prefix} → {self.display_name} ({self.workspace_id})"
 
 
 class Entity(BrowsableItem):

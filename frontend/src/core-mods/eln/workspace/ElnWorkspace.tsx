@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
-import { useReferenceContext } from "../../../core/references/ReferenceProvider";
+import { useMentionContext } from "../../../core/mentions/MentionProvider";
 import { Avatar, getInitials } from "../../../shared/Avatar";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
@@ -115,7 +115,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     actions.length > 0 ? actions[0].performed_by : null;
 
   // ── Reference resolution for linked entities ──
-  const { resolutionMap, resolveIds } = useReferenceContext();
+  const { resolutionMap, resolveIds } = useMentionContext();
 
   useEffect(() => {
     const mentions = editorState.entry?.mentions;
@@ -446,15 +446,24 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                     // Use resolved title if available, otherwise fall back to mention target_title
                     const title =
                       resolved?.title || mention.target_title || "Unknown";
+                    // workspace-aware navigation: /:workspaceId/:displayId
+                    const workspaceId = resolved?.workspaceId;
                     const IconComponent = FlaskConical;
                     return (
                       <button
                         key={mention.id}
                         className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background transition-colors"
                         aria-label={`View ${title}`}
-                        onClick={() =>
-                          displayId && navigate(`/lims/${displayId}`)
-                        }
+                        onClick={() => {
+                          if (displayId && workspaceId) {
+                            navigate(`/${workspaceId}/${displayId}`);
+                          } else if (displayId) {
+                            // Transitional fallback: navigate to /lims/ when
+                            // workspaceId is absent (not yet resolved or
+                            // entity type not yet registered).
+                            navigate(`/lims/${displayId}`);
+                          }
+                        }}
                         disabled={!displayId}
                       >
                         <IconComponent

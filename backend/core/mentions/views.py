@@ -1,5 +1,5 @@
 """
-API views for inline reference resolution and search.
+API views for inline mention resolution and search.
 """
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
@@ -11,8 +11,23 @@ from .prefix_resolver import (
     get_icon,
     get_model_type_map,
     get_prefix_map,
+    get_workspace_id,
     resolve_display_id,
 )
+
+
+def _build_result(instance, model_type: str, workspace_id: str | None, *, include_id: bool = False) -> dict:
+    """Build the common result dict shape shared by resolve and search."""
+    result = {
+        "display_id": getattr(instance, "display_id", str(instance.pk)),
+        "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
+        "type": model_type,
+        "icon": get_icon(instance, model_type),
+        "workspaceId": workspace_id,
+    }
+    if include_id:
+        result["id"] = instance.pk
+    return result
 
 
 @api_view(["POST"])
@@ -22,7 +37,7 @@ def resolve_view(request):
     """
     Batch-resolve display IDs to target details.
 
-    POST /api/references/resolve/
+    POST /api/mentions/resolve/
     Body: {"ids": ["E1", "BLOOD1"]}
     Returns: {"E1": {...}, "BLOOD1": {...}, "NONEXIST": null}
 
@@ -35,17 +50,23 @@ def resolve_view(request):
     model_type_map = get_model_type_map()
     result = {}
     for display_id in ids:
+        # Extract the prefix (leading letters) for workspace lookup.
+        prefix = ""
+        for char in display_id:
+            if char.isalpha():
+                prefix += char
+            else:
+                break
+
         resolved = resolve_display_id(display_id)
         if resolved:
             instance, ct = resolved
             model_type = model_type_map.get(type(instance), ct.model)
-            result[display_id] = {
-                "id": instance.pk,
-                "display_id": getattr(instance, "display_id", str(instance.pk)),
-                "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
-                "type": model_type,
-                "icon": get_icon(instance, model_type),
-            }
+            result[display_id] = _build_result(
+                instance, model_type,
+                get_workspace_id(prefix) if prefix else None,
+                include_id=True,
+            )
         else:
             result[display_id] = None
     return Response(result)
@@ -61,9 +82,9 @@ resolve_view = csrf_exempt(resolve_view)
 @permission_classes([AllowAny])
 def search_view(request):
     """
-    Search for references by display_id prefix.
+    Search for mentions by display_id prefix.
 
-    GET /api/references/search/?q=E1
+    GET /api/mentions/search/?q=E1
     Returns: {"results": [{"display_id": "E1", "title": "...", "type": "entry"}, ...]}
     """
     query = request.query_params.get("q", "").strip()
@@ -78,11 +99,6 @@ def search_view(request):
         qs = model.objects.filter(display_id__istartswith=query)
         for instance in qs:
             model_type = model_type_map.get(type(instance), "entry")
-            results.append({
-                "display_id": instance.display_id,
-                "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
-                "type": model_type,
-                "icon": get_icon(instance, model_type),
-            })
+            results.append(_build_result(instance, model_type, get_workspace_id(prefix)))
 
     return Response({"results": results})

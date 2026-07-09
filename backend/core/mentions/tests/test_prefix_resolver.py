@@ -1,15 +1,16 @@
 """
-Tests for ``references.prefix_resolver`` — resolution, icon, and caching.
+Tests for ``core.mentions.prefix_resolver`` — resolution, icon, and caching.
 """
 from django.core.cache import cache
 from django.test import TestCase
 
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC
-from references.prefix_resolver import (
+from core.mentions.prefix_resolver import (
     get_icon,
     get_model_type_map,
     get_prefix_map,
+    get_workspace_id,
     invalidate_prefix_cache,
     resolve_display_id,
     _build_prefix_map,
@@ -246,3 +247,105 @@ class PrefixCacheTests(BaseServiceTestCase):
         from core_mods.lims.models import Entity
         self.assertIn(Entity, mmap)
         self.assertEqual(mmap[Entity], "entity")
+
+
+# ── Workspace-aware resolution tests ─────────────────────────────────────────
+
+class WorkspaceLookupTests(BaseServiceTestCase):
+    """get_workspace_id() — prefix→workspace_id mapping."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_returns_eln_for_e_prefix(self):
+        """The 'E' prefix maps to workspace 'eln' (from migration backfill)."""
+        self.assertEqual(get_workspace_id("E"), "eln")
+
+    def test_returns_none_for_unknown_prefix(self):
+        """An unregistered prefix returns None."""
+        self.assertIsNone(get_workspace_id("ZZZ"))
+
+    def test_case_insensitive_prefix(self):
+        """`e` resolves the same as `E`."""
+        self.assertEqual(get_workspace_id("e"), "eln")
+
+    def test_entity_type_prefix_returns_lims(self):
+        """A dynamic entity type prefix returns workspace 'lims'."""
+        from core_mods.lims.models import EntityType, RegisteredEntityType
+        from django.contrib.contenttypes.models import ContentType
+
+        # Create the EntityType and a RegisteredEntityType (mimicking registration).
+        EntityType.objects.create(name="Blood", prefix="BLOOD", columns=[])
+        entity_ct = ContentType.objects.get(app_label="lims", model="entity")
+        RegisteredEntityType.objects.create(
+            prefix="BLOOD",
+            content_type=entity_ct,
+            workspace_id="lims",
+            display_name="Blood",
+        )
+        # Signal should have invalidated cache; but manually invalidate for safety.
+        invalidate_prefix_cache(sender=RegisteredEntityType)
+
+        self.assertEqual(get_workspace_id("BLOOD"), "lims")
+
+
+class WorkspaceMapCacheTests(BaseServiceTestCase):
+    """get_workspace_id() caching behaviour."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_workspace_map_is_cached(self):
+        """Second call to get_workspace_id() uses cache, not DB."""
+        get_workspace_id("E")  # prime cache
+
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        with CaptureQueriesContext(connection) as ctx:
+            get_workspace_id("E")
+        self.assertEqual(len(ctx), 0, "get_workspace_id() hit DB on second call")
+
+    def test_cache_invalidates_on_registered_entity_type_save(self):
+        """Creating a RegisteredEntityType invalidates the workspace cache."""
+        from core_mods.lims.models import RegisteredEntityType
+        from django.contrib.contenttypes.models import ContentType
+
+        # Prime cache
+        get_workspace_id("E")
+
+        # Create a new registration
+        entity_ct = ContentType.objects.get(app_label="lims", model="entity")
+        RegisteredEntityType.objects.create(
+            prefix="DNA",
+            content_type=entity_ct,
+            workspace_id="lims",
+            display_name="DNA",
+        )
+
+        self.assertEqual(get_workspace_id("DNA"), "lims")
+
+    def test_cache_invalidates_on_registered_entity_type_delete(self):
+        """Deleting a RegisteredEntityType invalidates the workspace cache."""
+        from core_mods.lims.models import RegisteredEntityType
+        from django.contrib.contenttypes.models import ContentType
+
+        entity_ct = ContentType.objects.get(app_label="lims", model="entity")
+        ret = RegisteredEntityType.objects.create(
+            prefix="DNA",
+            content_type=entity_ct,
+            workspace_id="lims",
+            display_name="DNA",
+        )
+        invalidate_prefix_cache(sender=RegisteredEntityType)
+        get_workspace_id("DNA")  # populate cache
+        self.assertEqual(get_workspace_id("DNA"), "lims")
+
+        ret.delete()
+        # The post_delete signal should invalidate the cache.
+
+        self.assertIsNone(get_workspace_id("DNA"))

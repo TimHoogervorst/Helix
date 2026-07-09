@@ -245,4 +245,35 @@ describe("ModRegistry", () => {
     const resolved = registry.resolveLibraryItem("nonexistent");
     expect(resolved).toBeUndefined();
   });
+
+  // ── registerWorkspace ──────────────────────────────────────────────────
+
+  it("registerWorkspace stores a workspace config", () => {
+    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+    expect(registry.getWorkspaces().get("lims")).toEqual({
+      id: "lims",
+      displayName: "LIMS",
+    });
+  });
+
+  it("registerWorkspace throws on duplicate ID", () => {
+    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+    expect(() =>
+      registry.registerWorkspace({ id: "lims", displayName: "LIMS v2" }),
+    ).toThrow("Duplicate workspace registration");
+  });
+
+  it("getWorkspaces returns a read-only view", () => {
+    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+    registry.registerWorkspace({ id: "eln", displayName: "ELN" });
+    const workspaces = registry.getWorkspaces();
+    expect(workspaces.has("lims")).toBe(true);
+    expect(workspaces.has("eln")).toBe(true);
+    expect(workspaces.get("lims")?.displayName).toBe("LIMS");
+  });
+
+  it("getWorkspaces returns empty map when no workspaces registered", () => {
+    const workspaces = registry.getWorkspaces();
+    expect(workspaces.size).toBe(0);
+  });
 });

@@ -108,3 +108,57 @@ export interface ServiceConfig {
   id: string;
   handler: (...args: unknown[]) => Promise<unknown>;
 }
+
+// ── Workspace ──────────────────────────────────────────────────────────────
+
+/**
+ * Configuration for a workspace registered by a mod.
+ *
+ * The workspace `id` doubles as the URL namespace: `/{workspaceId}/{displayId}`.
+ * Must be a valid URL path segment (lowercase alphanumeric by convention).
+ */
+export interface WorkspaceConfig {
+  /** Unique workspace identifier, also used as the URL namespace. */
+  id: string;
+  /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
+  displayName: string;
+  /** Optional icon component. Falls back to a generic default when absent. */
+  icon?: ComponentType<any>;
+}
+
+// ── Entity Type (client-side type for lims.registerEntityType service) ─────
+
+/**
+ * A mentionable entity type registered with LIMS.
+ *
+ * Mods call `registry.call("lims.registerEntityType", config)` at boot to
+ * declare which entity types they own. LIMS validates prefix uniqueness.
+ *
+ * This is the client-side contract — the backend mirrors it with a
+ * `RegisteredEntityType` model in `lims/models.py`.
+ */
+export interface RegisteredEntityType {
+  /** Prefix extracted from display IDs, e.g. "E" → "E1", "DNA" → "DNA34". */
+  prefix: string;
+  /** The entity type identifier, e.g. "eln_entry", "sample". */
+  entityType: string;
+  /** The workspace that owns this entity type. */
+  workspaceId: string;
+  /** Human-readable name shown in search results, e.g. "Entry", "Sample". */
+  displayName: string;
+}
+
+// ── Current Workspace ───────────────────────────────────────────────────────
+
+/**
+ * Resolved metadata for the currently active workspace, derived from the URL.
+ *
+ * Defined in core/ so both pins and mentions modules can share it without
+ * creating an inverted dependency (core importing from a mods package).
+ */
+export interface CurrentWorkspace {
+  displayId: string;
+  url: string;
+  /** Workspace ID — used to look up the workspace config for an icon. */
+  icon: string;
+}

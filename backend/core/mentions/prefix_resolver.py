@@ -15,8 +15,9 @@ from core_mods.lims.models import EntityType
 
 # ── Cache keys ──────────────────────────────────────────────────────────────
 
-PREFIX_CACHE_KEY = "references:prefix_map"
-MODEL_TYPE_CACHE_KEY = "references:model_type_map"
+PREFIX_CACHE_KEY = "mentions:prefix_map"
+MODEL_TYPE_CACHE_KEY = "mentions:model_type_map"
+WORKSPACE_CACHE_KEY = "mentions:workspace_map"
 CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 
 
@@ -81,9 +82,35 @@ def get_model_type_map() -> dict[type[Model], str]:
 
 
 def invalidate_prefix_cache(sender, **kwargs) -> None:
-    """Signal handler — clears prefix and model-type caches."""
+    """Signal handler — clears prefix, model-type, and workspace caches."""
     cache.delete(PREFIX_CACHE_KEY)
     cache.delete(MODEL_TYPE_CACHE_KEY)
+    cache.delete(WORKSPACE_CACHE_KEY)
+
+
+# ── Workspace-aware resolution ────────────────────────────────────────────────
+
+
+def _build_workspace_map() -> dict[str, str]:
+    """Build prefix→workspace_id map from RegisteredEntityType rows."""
+    from core_mods.lims.models import RegisteredEntityType
+
+    return dict(
+        RegisteredEntityType.objects.values_list("prefix", "workspace_id")
+    )
+
+
+def get_workspace_id(prefix: str) -> str | None:
+    """Return the workspace_id for *prefix* (cached), or ``None`` if unknown.
+
+    The workspace map is built from :class:`RegisteredEntityType` rows and
+    cached with the same TTL as the prefix and model-type maps.
+    """
+    wmap = cache.get(WORKSPACE_CACHE_KEY)
+    if wmap is None:
+        wmap = _build_workspace_map()
+        cache.set(WORKSPACE_CACHE_KEY, wmap, CACHE_TIMEOUT)
+    return wmap.get(prefix.upper())
 
 
 # ── Resolution ──────────────────────────────────────────────────────────────

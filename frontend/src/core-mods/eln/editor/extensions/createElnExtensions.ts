@@ -8,7 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import Reference from "./Reference";
-import ReferenceSuggestion from "./ReferenceSuggestion";
+import MentionSuggestion from "./MentionSuggestion";
 import LimsTable from "./LimsTable";
 import SlashCommands from "./SlashCommands";
 export function createElnExtensions() {
@@ -20,7 +20,7 @@ export function createElnExtensions() {
       placeholder: "Start writing…",
     }),
     Reference,
-    ReferenceSuggestion,
+    MentionSuggestion,
     SlashCommands,
     TableKit,
     LimsTable,

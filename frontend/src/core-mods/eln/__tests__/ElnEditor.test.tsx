@@ -1,7 +1,7 @@
 /**
  * Integration tests for ElnEditor — always-editable workspace with auto-save.
  *
- * Mocks the API client, router, ReferenceProvider, useSaveQueue, and
+ * Mocks the API client, router, MentionProvider, useSaveQueue, and
  * TipTap useEditor/EditorContent so tests focus on the component's
  * orchestration: always-editable controls, save status indicator,
  * and wiring between hooks.
@@ -39,8 +39,8 @@ vi.mock("../../../core/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn().mockResolvedValue(undefined);
-vi.mock("../../../core/references/ReferenceProvider", () => ({
-  useReferenceContext: () => ({
+vi.mock("../../../core/mentions/MentionProvider", () => ({
+  useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
   }),

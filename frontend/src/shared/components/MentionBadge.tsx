@@ -11,8 +11,8 @@
  *   Broken   — red pill, displayId only (clickable mode only)
  */
 import { useEffect, useRef } from "react";
-import { useReferenceContext } from "../../core/references/ReferenceProvider";
-import type { ResolvedRef } from "../../core/references/types";
+import { useMentionContext } from "../../core/mentions/MentionProvider";
+import type { ResolvedMention } from "../../core/mentions/types";
 
 // ── Public type ──────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ export interface BadgeResolved {
   icon: string;
 }
 
-export interface ReferenceBadgeProps {
+export interface MentionBadgeProps {
   /** Required — e.g. "E1", "BLOOD5" */
   displayId: string;
   /** default false → gray, true → blue */
@@ -38,8 +38,8 @@ export interface ReferenceBadgeProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-/** Map an API ResolvedRef (snake_case) to a BadgeResolved (camelCase). */
-function toBadgeResolved(r: ResolvedRef): BadgeResolved {
+/** Map an API ResolvedMention (snake_case) to a BadgeResolved (camelCase). */
+function toBadgeResolved(r: ResolvedMention): BadgeResolved {
   return {
     displayId: r.display_id,
     title: r.title,
@@ -59,13 +59,13 @@ function badgeHref(resolved: BadgeResolved): string {
 
 // ── Component ────────────────────────────────────────────────────────────
 
-function ReferenceBadge({
+function MentionBadge({
   displayId,
   clickable = false,
   resolved,
   compact = false,
-}: ReferenceBadgeProps) {
-  const { resolutionMap, resolveIds } = useReferenceContext();
+}: MentionBadgeProps) {
+  const { resolutionMap, resolveIds } = useMentionContext();
 
   // Stable reference to resolveIds so that resolutionMap changes don't
   // re-trigger every badge's effect (prevents O(N²) re-renders).
@@ -143,7 +143,7 @@ function ReferenceBadge({
     );
   }
 
-  // Resolved via context — map snake_case ResolvedRef to camelCase BadgeResolved
+  // Resolved via context — map snake_case ResolvedMention to camelCase BadgeResolved
   const resolvedData = toBadgeResolved(autoResolved);
   return (
     <a
@@ -157,4 +157,4 @@ function ReferenceBadge({
   );
 }
 
-export default ReferenceBadge;
+export default MentionBadge;

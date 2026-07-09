@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { EntityType, ColumnDef } from "../types";
-import ReferenceBadge from "../../../shared/components/ReferenceBadge";
+import MentionBadge from "../../../shared/components/MentionBadge";
 import ColumnEditor, { type ColumnEditorProps } from "./ColumnEditor";
 
 const CURATED_EMOJIS = ["🧪", "🩸", "🐁", "🌿", "👤", "🧬", "🔬"];
@@ -68,7 +68,7 @@ function TypeDetailPanel({
       <div className="card settings-detail-card">
         <div className="detail-header">
           <h2>
-            <ReferenceBadge
+            <MentionBadge
               displayId={`${editingEntity.prefix}…`}
               clickable={false}
             />
@@ -120,7 +120,7 @@ function TypeDetailPanel({
           </div>
           <div className="detail-field">
             <span className="detail-label">Prefix</span>
-            <ReferenceBadge
+            <MentionBadge
               displayId={`${editingEntity.prefix}…`}
               clickable={false}
             />

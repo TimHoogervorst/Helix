@@ -1,11 +1,11 @@
 /**
- * Context + provider for sharing resolved reference data with node views.
+ * Context + provider for sharing resolved mention data with node views.
  *
  * Cache architecture:
- *   resolutionMap: Map<displayId, ResolvedRef | null>
+ *   resolutionMap: Map<displayId, ResolvedMention | null>
  *     - cache miss  → displayId not in map → queued for batch resolve
  *     - pending     → displayId → undefined → badges show loading state
- *     - resolved    → displayId → ResolvedRef → all badges show icon + title
+ *     - resolved    → displayId → ResolvedMention → all badges show icon + title
  *     - broken      → displayId → null → all badges show red broken state
  *
  * Batching:
@@ -14,26 +14,26 @@
  */
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
 import { post } from "../api/client";
-import type { ResolvedRef } from "./types";
+import type { ResolvedMention } from "./types";
 
-type ResolutionMap = Map<string, ResolvedRef | null>;
+type ResolutionMap = Map<string, ResolvedMention | null>;
 
-interface ReferenceContextValue {
+interface MentionContextValue {
   resolutionMap: ResolutionMap;
   /** Resolve a batch of displayIds. Idempotent — already-resolved IDs are skipped. */
   resolveIds: (ids: string[]) => Promise<void>;
 }
 
-const ReferenceContext = createContext<ReferenceContextValue>({
+const MentionContext = createContext<MentionContextValue>({
   resolutionMap: new Map(),
   resolveIds: async () => {},
 });
 
-export function useReferenceContext() {
-  return useContext(ReferenceContext);
+export function useMentionContext() {
+  return useContext(MentionContext);
 }
 
-export function ReferenceProvider({ children }: { children: ReactNode }) {
+export function MentionProvider({ children }: { children: ReactNode }) {
   const [resolutionMap, setResolutionMap] = useState<ResolutionMap>(new Map());
 
   // Ref mirroring the latest resolutionMap so flushBatch can read current state
@@ -48,7 +48,7 @@ export function ReferenceProvider({ children }: { children: ReactNode }) {
   const flushBatch = useCallback(async () => {
     // Deduplicate and skip IDs already resolved by a previous batch.
     // Pending markers (undefined) are still included — only skip IDs that
-    // have a concrete resolved value (ResolvedRef or null for broken).
+    // have a concrete resolved value (ResolvedMention or null for broken).
     const ids = [...new Set(batchQueueRef.current)].filter((id) => {
       if (!resolutionMapRef.current.has(id)) return true; // not in map (shouldn't happen)
       return resolutionMapRef.current.get(id) === undefined; // still pending → include
@@ -59,9 +59,9 @@ export function ReferenceProvider({ children }: { children: ReactNode }) {
     if (ids.length === 0) return;
 
     try {
-      const result = (await post("/references/resolve/", { ids })) as Record<
+      const result = (await post("/mentions/resolve/", { ids })) as Record<
         string,
-        ResolvedRef | null
+        ResolvedMention | null
       >;
 
       setResolutionMap((prev) => {
@@ -100,7 +100,7 @@ export function ReferenceProvider({ children }: { children: ReactNode }) {
         const next = new Map(prev);
         for (const id of unseen) {
           if (!next.has(id)) {
-            next.set(id, undefined as unknown as ResolvedRef | null);
+            next.set(id, undefined as unknown as ResolvedMention | null);
           }
         }
         return next;
@@ -118,8 +118,8 @@ export function ReferenceProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <ReferenceContext.Provider value={{ resolutionMap, resolveIds }}>
+    <MentionContext.Provider value={{ resolutionMap, resolveIds }}>
       {children}
-    </ReferenceContext.Provider>
+    </MentionContext.Provider>
   );
 }

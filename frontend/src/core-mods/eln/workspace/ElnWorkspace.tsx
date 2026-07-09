@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
-import { useReferenceContext } from "../../../core/references/ReferenceProvider";
+import { useMentionContext } from "../../../core/mentions/MentionProvider";
 import { Avatar, getInitials } from "../../../shared/Avatar";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
@@ -115,7 +115,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     actions.length > 0 ? actions[0].performed_by : null;
 
   // ── Reference resolution for linked entities ──
-  const { resolutionMap, resolveIds } = useReferenceContext();
+  const { resolutionMap, resolveIds } = useMentionContext();
 
   useEffect(() => {
     const mentions = editorState.entry?.mentions;

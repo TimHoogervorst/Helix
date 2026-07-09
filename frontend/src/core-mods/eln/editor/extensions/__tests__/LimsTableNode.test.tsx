@@ -43,11 +43,11 @@ vi.mock("../../../../../core/api/client", () => ({
 
 // ── Mock cell renderers ───────────────────────────────────────────────────
 
-vi.mock("../ReferenceBadgeCellRenderer", () => ({
+vi.mock("../MentionBadgeCellRenderer", () => ({
   DisplayIdCellRenderer: (props: any) => (
     <span data-testid="display-id-cell">{props.value}</span>
   ),
-  ReferenceCellRenderer: (props: any) => (
+  MentionCellRenderer: (props: any) => (
     <span data-testid="ref-cell">{props.value}</span>
   ),
 }));
@@ -241,7 +241,7 @@ describe("columnDefFor", () => {
     expect(def.cellRenderer).toBe("agCheckboxCellRenderer");
   });
 
-  it("Reference column uses ReferenceCellRenderer", () => {
+  it("Reference column uses MentionCellRenderer", () => {
     const col = { name: "Source", type: "Reference" as const };
     const def = columnDefFor(col, 0);
     expect(def.cellRenderer).toBeTruthy();

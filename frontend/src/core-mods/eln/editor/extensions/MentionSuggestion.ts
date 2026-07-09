@@ -2,7 +2,7 @@
  * TipTap suggestion extension for ``#`` reference autocomplete.
  *
  * - Triggers on ``#``.
- * - Debounced (200ms) search against GET /api/references/search/?q=
+ * - Debounced (200ms) search against GET /api/mentions/search/?q=
  * - Tab/Enter selects the highlighted result.
  * - Space after ``#[A-Z]\\d+`` auto-converts to a reference node (even without dropdown).
  */
@@ -10,10 +10,10 @@ import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { get } from "../../../../core/api/client";
-import type { SearchResult } from "../../../../core/references/types";
+import type { SearchResult } from "../../../../core/mentions/types";
 import { createSuggestionDropdown } from "./suggestionDropdown";
 
-const REFERENCE_SUGGESTION_KEY = new PluginKey("reference-suggestion");
+const MENTION_SUGGESTION_KEY = new PluginKey("mention-suggestion");
 
 /** Pattern: exact display ID match (e.g. "E1", "S42"). */
 export const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
@@ -22,7 +22,7 @@ export async function fetchItems(query: string): Promise<SearchResult[]> {
   if (!query) return [];
   try {
     const data = await get<{ results: SearchResult[] }>(
-      `/references/search/?q=${encodeURIComponent(query)}`,
+      `/mentions/search/?q=${encodeURIComponent(query)}`,
     );
     return data.results;
   } catch {
@@ -68,15 +68,15 @@ function dropdownRenderer() {
   })();
 }
 
-const ReferenceSuggestion = Extension.create({
-  name: "referenceSuggestion",
+const MentionSuggestion = Extension.create({
+  name: "mentionSuggestion",
 
   addProseMirrorPlugins() {
     return [
       Suggestion({
         editor: this.editor as any,
         char: "#",
-        pluginKey: REFERENCE_SUGGESTION_KEY,
+        pluginKey: MENTION_SUGGESTION_KEY,
 
         items: async ({ query }: { query: string }) => {
           return fetchItems(query);
@@ -121,4 +121,4 @@ const ReferenceSuggestion = Extension.create({
   },
 });
 
-export default ReferenceSuggestion;
+export default MentionSuggestion;

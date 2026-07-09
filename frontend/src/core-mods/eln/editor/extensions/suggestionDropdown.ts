@@ -1,7 +1,7 @@
 /**
  * Shared suggestion-dropdown factory for TipTap extensions.
  *
- * Two TipTap extensions — ReferenceSuggestion and SlashCommands — each
+ * Two TipTap extensions — MentionSuggestion and SlashCommands — each
  * implemented a ~120-line raw-DOM dropdown with identical lifecycle and
  * interaction patterns.  This factory extracts the shared machinery so
  * that each extension only provides item rendering and optional extra

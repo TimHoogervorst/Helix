@@ -78,7 +78,7 @@ interface ElnEditorProps {
   onStateChange?: (state: ElnEditorState) => void;
 }
 
-/** Editor component — ReferenceProvider is provided by Layout.
+/** Editor component — MentionProvider is provided by Layout.
  *  Action buttons (MoreActions menu) are exposed via ref so the parent can
  *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(

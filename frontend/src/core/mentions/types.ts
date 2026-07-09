@@ -1,5 +1,5 @@
 /** Resolved target details returned by the API. */
-export interface ResolvedRef {
+export interface ResolvedMention {
   id: number;
   display_id: string;
   title: string;

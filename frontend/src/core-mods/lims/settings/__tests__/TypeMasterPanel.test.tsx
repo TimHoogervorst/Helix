@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { EntityType } from "../../types";
-import { makeEntityType, makeColumnDef, makeMockReferenceBadge } from "../../../../test/factories";
+import { makeEntityType, makeColumnDef, makeMockMentionBadge } from "../../../../test/factories";
 import TypeMasterPanel from "../TypeMasterPanel";
 
-// Mock ReferenceBadge
-vi.mock("../../../../shared/components/ReferenceBadge", () => ({
-  default: makeMockReferenceBadge(),
+// Mock MentionBadge
+vi.mock("../../../../shared/components/MentionBadge", () => ({
+  default: makeMockMentionBadge(),
 }));
 
 const types = [

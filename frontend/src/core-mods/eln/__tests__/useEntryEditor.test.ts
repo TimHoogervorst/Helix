@@ -36,8 +36,8 @@ vi.mock("../../../core/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn();
-vi.mock("../../../core/references/ReferenceProvider", () => ({
-  useReferenceContext: () => ({
+vi.mock("../../../core/mentions/MentionProvider", () => ({
+  useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
   }),

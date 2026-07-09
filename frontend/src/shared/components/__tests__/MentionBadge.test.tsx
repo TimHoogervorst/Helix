@@ -1,14 +1,14 @@
 /**
- * Tests for the ReferenceBadge component.
+ * Tests for the MentionBadge component.
  *
  * Covers all prop combinations:
  *   clickable/non-clickable × resolved/loading/broken
  */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import ReferenceBadge from "../ReferenceBadge";
-import { ReferenceProvider } from "../../../core/references/ReferenceProvider";
-import type { BadgeResolved } from "../ReferenceBadge";
+import MentionBadge from "../MentionBadge";
+import { MentionProvider } from "../../../core/mentions/MentionProvider";
+import type { BadgeResolved } from "../MentionBadge";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -29,12 +29,12 @@ const resolvedEntity: BadgeResolved = {
 };
 
 function renderBadge(
-  props: React.ComponentProps<typeof ReferenceBadge>,
+  props: React.ComponentProps<typeof MentionBadge>,
 ) {
   return render(
-    <ReferenceProvider>
-      <ReferenceBadge {...props} />
-    </ReferenceProvider>,
+    <MentionProvider>
+      <MentionBadge {...props} />
+    </MentionProvider>,
   );
 }
 

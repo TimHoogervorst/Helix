@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get } from "../../../core/api/client";
 import type { EntityListItem } from "../types";
-import ReferenceBadge from "../../../shared/components/ReferenceBadge";
+import MentionBadge from "../../../shared/components/MentionBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
 import LimsWorkspacePanel from "./LimsWorkspace";
 
@@ -78,7 +78,7 @@ function LimsWorkspacePage() {
       <div className="card flex-1 min-w-0">
         <div className="detail-header">
           <h2>
-            <ReferenceBadge
+            <MentionBadge
               displayId={entity.display_id}
               clickable={false}
               compact={true}

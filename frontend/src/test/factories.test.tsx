@@ -1,5 +1,5 @@
 /**
- * Tests for the makeMockReferenceBadge factory.
+ * Tests for the makeMockMentionBadge factory.
  *
  * Covers all config combinations specified in the factory's contract:
  *   default, resolved, clickable, clickable+resolved, broken,
@@ -7,8 +7,8 @@
  */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { makeMockReferenceBadge } from "./factories";
-import type { BadgeResolved } from "../shared/components/ReferenceBadge";
+import { makeMockMentionBadge } from "./factories";
+import type { BadgeResolved } from "../shared/components/MentionBadge";
 
 // ── Shared test data ────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ const resolvedEntity: BadgeResolved = {
 
 describe("default config {}", () => {
   it("renders a non-clickable span with ref-badge-id child", () => {
-    const MockBadge = makeMockReferenceBadge();
+    const MockBadge = makeMockMentionBadge();
     render(<MockBadge displayId="E1" />);
 
     const badge = screen.getByTestId("ref-badge");
@@ -58,7 +58,7 @@ describe("default config {}", () => {
 
 describe("resolved config", () => {
   it("renders icon, id, and title spans in a non-clickable badge", () => {
-    const MockBadge = makeMockReferenceBadge({ resolved: resolvedEntry });
+    const MockBadge = makeMockMentionBadge({ resolved: resolvedEntry });
     render(<MockBadge displayId="E1" />);
 
     const badge = screen.getByTestId("ref-badge");
@@ -76,7 +76,7 @@ describe("resolved config", () => {
 
 describe("clickable config", () => {
   it("renders a clickable span with data-clickable in loading state", () => {
-    const MockBadge = makeMockReferenceBadge({ clickable: true });
+    const MockBadge = makeMockMentionBadge({ clickable: true });
     render(<MockBadge displayId="E1" />);
 
     const badge = screen.getByTestId("ref-badge");
@@ -96,7 +96,7 @@ describe("clickable config", () => {
 
 describe("clickable + resolved", () => {
   it("renders an anchor with correct href for entry type", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       clickable: true,
       resolved: resolvedEntry,
     });
@@ -116,7 +116,7 @@ describe("clickable + resolved", () => {
   });
 
   it("renders an anchor with entity href for entity type", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       clickable: true,
       resolved: resolvedEntity,
     });
@@ -132,7 +132,7 @@ describe("clickable + resolved", () => {
 
 describe("clickable + broken (resolved: null)", () => {
   it("renders a broken red pill with no icon and no title", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       clickable: true,
       resolved: null,
     });
@@ -156,7 +156,7 @@ describe("clickable + broken (resolved: null)", () => {
 
 describe("compact mode", () => {
   it("omits the title span when compact + resolved", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       compact: true,
       resolved: resolvedEntry,
     });
@@ -173,7 +173,7 @@ describe("compact mode", () => {
   });
 
   it("omits the title span when compact + clickable + resolved (anchor)", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       compact: true,
       clickable: true,
       resolved: resolvedEntry,
@@ -193,7 +193,7 @@ describe("compact mode", () => {
   });
 
   it("is silently ignored in loading state (no title to hide)", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       compact: true,
       clickable: true,
     });
@@ -206,7 +206,7 @@ describe("compact mode", () => {
   });
 
   it("is silently ignored in broken state (no title to hide)", () => {
-    const MockBadge = makeMockReferenceBadge({
+    const MockBadge = makeMockMentionBadge({
       compact: true,
       clickable: true,
       resolved: null,
@@ -225,7 +225,7 @@ describe("compact mode", () => {
 
 describe("testId override", () => {
   it("overrides the default data-testid attribute", () => {
-    const MockBadge = makeMockReferenceBadge({ testId: "custom-badge" });
+    const MockBadge = makeMockMentionBadge({ testId: "custom-badge" });
     render(<MockBadge displayId="E1" />);
 
     // The custom testId is used
@@ -239,7 +239,7 @@ describe("testId override", () => {
 
 describe("mock function calls", () => {
   it("is a vi.fn() that tracks calls", () => {
-    const MockBadge = makeMockReferenceBadge();
+    const MockBadge = makeMockMentionBadge();
     render(<MockBadge displayId="E1" />);
 
     expect(MockBadge).toHaveBeenCalledTimes(1);

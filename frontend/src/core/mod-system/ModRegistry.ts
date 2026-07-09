@@ -7,6 +7,7 @@ import type {
   ServiceConfig,
   LibraryItemConfig,
   WorkspaceConfig,
+  BlockConfig,
 } from "./types";
 
 /**
@@ -47,6 +48,7 @@ export class ModRegistry {
   private services = new Map<string, ServiceConfig>();
   private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
+  private blocks = new Map<string, BlockConfig>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -136,6 +138,15 @@ export class ModRegistry {
       );
     }
     this.workspaces.set(config.id, config);
+  }
+
+  registerBlock(config: BlockConfig): void {
+    if (this.blocks.has(config.id)) {
+      throw new Error(
+        `Duplicate block registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.blocks.set(config.id, config);
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
@@ -238,5 +249,10 @@ export class ModRegistry {
   /** Returns a read-only view of all registered workspaces. */
   getWorkspaces(): ReadonlyMap<string, WorkspaceConfig> {
     return this.workspaces;
+  }
+
+  /** Returns a read-only view of all registered blocks. */
+  getBlocks(): ReadonlyMap<string, BlockConfig> {
+    return this.blocks;
   }
 }

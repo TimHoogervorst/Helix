@@ -7,6 +7,7 @@ export { registerPublicRoute } from "./registerPublicRoute";
 export { registerSidebarAction } from "./registerSidebarAction";
 export { registerLibraryItem } from "./registerLibraryItem";
 export { registerWorkspace } from "./registerWorkspace";
+export { registerBlock } from "./registerBlock";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
 export type {
   ModManifest,
@@ -23,4 +24,6 @@ export type {
   WorkspaceConfig,
   RegisteredEntityType,
   CurrentWorkspace,
+  BlockConfig,
+  TipTapBlockPayload,
 } from "./types";

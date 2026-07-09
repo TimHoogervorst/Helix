@@ -6,6 +6,7 @@ import type {
   RouteConfig,
   SidebarActionConfig,
   LibraryItemConfig,
+  BlockConfig,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -77,6 +78,18 @@ function makeLibraryItem(
     id: "test.item",
     icon: DummyComponent,
     listCard: DummyComponent,
+    ...overrides,
+  };
+}
+
+function makeBlock(overrides?: Partial<BlockConfig>): BlockConfig {
+  return {
+    id: "eln.table",
+    label: "Table",
+    description: "Insert a schema-backed LIMS table",
+    icon: "📊",
+    type: "tiptap-node",
+    payload: { node: DummyComponent },
     ...overrides,
   };
 }
@@ -275,5 +288,32 @@ describe("ModRegistry", () => {
   it("getWorkspaces returns empty map when no workspaces registered", () => {
     const workspaces = registry.getWorkspaces();
     expect(workspaces.size).toBe(0);
+  });
+
+  // ── registerBlock ────────────────────────────────────────────────────────
+
+  it("registerBlock stores a block config", () => {
+    const config = makeBlock({ id: "eln.table" });
+    registry.registerBlock(config);
+    expect(registry.getBlocks().get("eln.table")).toBe(config);
+  });
+
+  it("registerBlock throws on duplicate ID", () => {
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    expect(() =>
+      registry.registerBlock(makeBlock({ id: "eln.table" })),
+    ).toThrow("Duplicate block registration");
+  });
+
+  it("getBlocks returns a read-only view", () => {
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    const blocks = registry.getBlocks();
+    expect(blocks.has("eln.table")).toBe(true);
+    expect(blocks.get("eln.table")?.id).toBe("eln.table");
+  });
+
+  it("getBlocks returns empty map when no blocks registered", () => {
+    const blocks = registry.getBlocks();
+    expect(blocks.size).toBe(0);
   });
 });

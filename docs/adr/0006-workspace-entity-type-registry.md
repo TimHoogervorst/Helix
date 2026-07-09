@@ -51,7 +51,7 @@ When resolving a display ID like `DNA34`:
 3. Return `workspaceId` in the resolve response
 4. Frontend builds URL by convention: `/{workspaceId}/{displayId}` → `/molBio/DNA34`
 
-The URL convention `/{workspaceId}/{displayId}` is the single integration point. Every workspace URL follows this pattern; no per-type route configuration is needed. The workspace `id` in `registerWorkspace()` doubles as the URL namespace.
+The URL convention `/{workspaceId}/{displayId}` is the single integration point. Every workspace URL follows this pattern; no per-type route configuration is needed. The workspace route path (registered via `registerRoute()`) determines the URL namespace.
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -116,7 +116,7 @@ Entity type registration during mod boot is a synchronous operation — it store
 
 - **Zero per-mod wiring for mentions.** A mod registers its entity type with LIMS and its workspace with the mod system. Mentions, pins, and navigation all work automatically.
 - **Single source of truth.** The `RegisteredEntityType` table (backend) and LIMS's in-memory registry (frontend) are the only places that map prefixes to workspaces.
-- **Dead code elimination.** The hardcoded `WORKSPACE_ROUTES` array in `usePinnedWorkspaces.ts` and the `type → URL` branching in `ReferenceBadge.tsx` are replaced by generic, data-driven logic.
+- **Dead code elimination.** The hardcoded `WORKSPACE_ROUTES` array in `usePinnedWorkspaces.ts` and the `type → URL` branching in `MentionBadge.tsx` are replaced by generic, data-driven logic.
 - **Consistent navigation.** Every mentionable entity's URL is `/{workspaceId}/{displayId}` — predictable for users and developers.
 
 ### Constraints

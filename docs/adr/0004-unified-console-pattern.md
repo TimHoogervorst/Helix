@@ -1,7 +1,9 @@
 # ADR-0004: Unified Console Pattern for LIMS and Library
 
 > Date: 2026-06-27
-> Status: Accepted
+> Status: Deprecated (superseded by [EPIC #140](https://github.com/TimHoogervorst/Helix/issues/140) — Console to Hub architecture)
+
+> **Why deprecated:** The Console concept (three-panel Master→Detail→Workspace layout, `registerConsole()`, `registerWorkspace()`, `core/console/`, mutual-agreement `accepts`/`consoleIds` pattern) was removed entirely in favor of **Hubs** — free-form browsing pages that link to Workspaces via plain routes. Each hub manages its own item registrations internally. Workspaces are now plain routes registered via `registerRoute()`. The shared components that survived (`Breadcrumbs`, `usePaginatedData`) moved to `shared/`. See `docs/mod-system.md` for the current Hub-based architecture.
 
 ---
 

@@ -37,8 +37,11 @@ Helix is organised around a handful of core domains, each owned by a mod:
 Narrative lab documentation. An **Entry** is a single page of rich-text content (TipTap JSON), authored by a user, living in a folder. Entries contain `#`-style **Mentions** that link to other entries and entities, and inline **LimsTable** nodes that embed structured entity data directly in the document.
 
 - **Rich-Text Document** — tree of blocks (paragraphs, headings, lists, tables) stored as TipTap/ProseMirror JSON
+- **Blocks** — extensible content blocks (tables, future: images, attachments, protocols) inserted via `/` slash menu; mods contribute blocks through `registerBlock()`
+- **Auto-Save** — always-editable workspace with debounced saves, `ContentVersion` immutable history, and lock-based conflict prevention
 - **Tags** — user-created labels with colours, reusable across entries, managed inline
 - **Entry Status** — In Progress → Finished lifecycle; cascades to entities created in the entry
+- **Entry Locking** — exclusive lock acquired on mount, released on unmount; read-only mode when another user holds the lock
 - **Workspace** — TipTap editor at `/eln/:displayId`
 
 ### LIMS — Laboratory Information Management
@@ -51,13 +54,13 @@ Structured, typed lab data. An **Entity** is a trackable physical or conceptual 
 
 ### Library — Filesystem-like Browsing
 
-The **Folder** hierarchy is the primary organisational structure. The Library console (`/library`) presents a unified, mixed view of folders and entries at each level — folders navigated into, entries opened. Every entry and entity lives in exactly one folder.
+The **Folder** hierarchy is the primary organisational structure. The Library hub (`/library`) presents a unified, mixed card-based view of folders and entries at each level with three view modes (List, Grid, Compact). Mods contribute cards via `registerLibraryItem()`. Every entry and entity lives in exactly one folder.
 
 ### Cross-Cutting Concepts
 
 - **Display IDs** — human-readable `<PREFIX><N>` identifiers (e.g. `E1`, `DNA42`) with gap-tolerant auto-generation and prefix-based routing
-- **References** — cross-cutting resolution layer; `#BLOOD1` in an entry resolves to the entity, clickable via **ReferenceBadge**
-- **Console Pattern** — three-panel progressive-disclosure layout (Master → Detail → Workspace) shared by Library and LIMS
+- **Mentions** — cross-cutting resolution layer; `#BLOOD1` in an entry resolves to the entity, clickable via **MentionBadge**; workspace-aware via the LIMS entity type registry (ADR-0006)
+- **Hub Architecture** — free-form browsing pages (Home, Library, Settings) registered via `registerHub()`; each hub owns its layout, and workspaces are plain routes at `/{workspaceId}/{displayId}`
 
 See [CONTEXT.md](CONTEXT.md) for the full domain glossary and [UBIQUITOUS_LANGUAGE.md](UBIQUITOUS_LANGUAGE.md) for canonical terminology.
 
@@ -83,11 +86,12 @@ Each mod calls imperative registration functions to declare its contributions:
 
 | Function | What it registers |
 |----------|------------------|
-| `registerConsole()` | A three-panel browsing surface with sidebar nav item (e.g. Library at `/library`, LIMS at `/lims`) |
-| `registerWorkspace()` | An item type with detail card + full work surface + standalone route (e.g. `lims.entity`, `eln.entry`) |
+| `registerHub()` | A free-form browsing hub with sidebar nav item (e.g. Library at `/library`, Home at `/home`, Settings at `/settings`) |
+| `registerLibraryItem()` | A card component rendered in the Library hub (e.g. ELN entry cards with List/Grid/Compact views) |
+| `registerBlock()` | A content block (e.g., table, future: image, attachment) in the ELN editor's slash menu |
 | `registerSettingsSection()` | A panel in the Settings shell (e.g. LIMS entity schemas) |
-| `registerBlock()` | A content block (e.g., table, image) in the ELN editor's slash menu |
-| `registerRoute()` | A standalone route not tied to a console (e.g. `/settings`) |
+| `registerRoute()` | A standalone route (e.g. `/settings`, workspace pages like `/eln/:displayId`) |
+| `registerPublicRoute()` | A route outside the Layout shell — no sidebar, no app chrome (e.g. `/login`) |
 | `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) |
 | `registerService()` | A callable service for mod-to-mod communication |
 
@@ -98,21 +102,23 @@ Mods must not import directly from each other — all cross-mod communication go
 ```
 frontend/src/
 ├── core/                         # Immutable app shell
-│   ├── shell/                    # Layout, routing, WorkspacePage
+│   ├── shell/                    # Layout (dynamic hub sidebar), routing, WorkspacePage
 │   ├── mod-system/               # ModLoader, ModRegistry, register*() API
-│   ├── console/                  # Three-panel console shell (Master/Detail/Workspace)
-│   ├── references/               # Cross-cutting reference resolution
+│   ├── mentions/                 # Cross-cutting mention resolution (MentionProvider, MentionBadge)
 │   ├── api/                      # Core API client
-│   └── types/                    # Shared types (ViewState, etc.)
+│   └── types/                    # Shared types
 │
 ├── core-mods/                    # Built-in mods — always loaded
+│   ├── home/                     # Home hub (landing page at /home)
 │   ├── lims/                     # LIMS mod (entities, entity types, actions)
-│   ├── eln/                      # ELN mod (notebook entries, TipTap editor)
-│   ├── library/                  # Library mod (folder browsing)
+│   ├── eln/                      # ELN mod (entries, blocks, TipTap editor, auto-save)
+│   ├── library/                  # Library hub (card-based folder browsing, List/Grid/Compact)
 │   ├── settings/                 # Settings shell (hosts sections from other mods)
 │   └── pins/                     # Pinned workspaces sidebar
 │
-└── shared/                       # Cross-mod shared components
+└── shared/                       # Platform SDK — shared components & hooks
+    ├── components/               # BaseCard, StatusBadge, TagChips, Breadcrumbs, MentionBadge, etc.
+    └── hooks/                    # usePaginatedData, useActivity, useContentPreview
 ```
 
 ### Backend
@@ -121,12 +127,13 @@ frontend/src/
 backend/
 ├── config/                       # Django project settings, root URL conf
 ├── core/                         # Auth, base models (User, BrowsableItem), Folder
+│   └── mentions/                 # Cross-cutting mention resolution (formerly references/)
 ├── core_mods/                    # Built-in mods (mirrors frontend core-mods/)
-│   ├── lims/                     # Entity, EntityType, Action
-│   ├── eln/                      # NotebookEntry, Tag, Mention
+│   ├── lims/                     # Entity, EntityType, Action, RegisteredEntityType
+│   ├── eln/                      # NotebookEntry, Tag, ContentVersion, EntryLock
 │   ├── library/                  # LibraryContentsView (mixed folder+entry listing)
 │   └── pins/                     # PinnedWorkspace
-└── references/                   # Cross-cutting reference resolution
+└── shared/                       # Shared Django utilities
 ```
 
 Each backend mod is a standard Django app registered in `INSTALLED_APPS`. The backend mod system is organisational — Django's built-in app system handles discovery.

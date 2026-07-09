@@ -3,6 +3,7 @@ import { FlaskConical } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
+  registerWorkspace,
 } from "../../core/mod-system";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 
@@ -13,6 +14,9 @@ export const meta = {
 };
 
 export function register() {
+  // ── Workspace: ELN notebook workspace ───────────────────────────────────
+  registerWorkspace({ id: "eln", displayName: "ELN" });
+
   // ── Standalone route: entry detail page (full workspace) ──────────────
   registerRoute({
     id: "eln.entry-page",

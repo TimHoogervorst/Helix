@@ -108,3 +108,40 @@ export interface ServiceConfig {
   id: string;
   handler: (...args: unknown[]) => Promise<unknown>;
 }
+
+// ── Workspace ──────────────────────────────────────────────────────────────
+
+/**
+ * Configuration for a workspace registered by a mod.
+ *
+ * The workspace `id` doubles as the URL namespace: `/{workspaceId}/{displayId}`.
+ * Must be a valid URL path segment (lowercase alphanumeric by convention).
+ */
+export interface WorkspaceConfig {
+  /** Unique workspace identifier, also used as the URL namespace. */
+  id: string;
+  /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
+  displayName: string;
+}
+
+// ── Entity Type (client-side type for lims.registerEntityType service) ─────
+
+/**
+ * A mentionable entity type registered with LIMS.
+ *
+ * Mods call `registry.call("lims.registerEntityType", config)` at boot to
+ * declare which entity types they own. LIMS validates prefix uniqueness.
+ *
+ * This is the client-side contract — the backend mirrors it with a
+ * `RegisteredEntityType` model in `lims/models.py`.
+ */
+export interface RegisteredEntityType {
+  /** Prefix extracted from display IDs, e.g. "E" → "E1", "DNA" → "DNA34". */
+  prefix: string;
+  /** The entity type identifier, e.g. "eln_entry", "sample". */
+  entityType: string;
+  /** The workspace that owns this entity type. */
+  workspaceId: string;
+  /** Human-readable name shown in search results, e.g. "Entry", "Sample". */
+  displayName: string;
+}

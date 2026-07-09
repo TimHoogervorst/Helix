@@ -23,17 +23,16 @@ describe("eln mod registration", () => {
     expect(mod.meta.dependsOn).toEqual(["lims", "tags"]);
   });
 
-  it("does NOT register a console or workspace (both removed)", async () => {
+  it("registers a workspace for ELN", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
     registry.registerMod(mod.meta.id);
     mod.register();
 
-    // No consoles or workspaces — only hubs, routes, library items,
-    // and settings sections remain.
-    const hubs = registry.getHubs();
-    expect(hubs.has("eln")).toBe(false);
+    const workspaces = registry.getWorkspaces();
+    expect(workspaces.has("eln")).toBe(true);
+    expect(workspaces.get("eln")?.displayName).toBe("ELN");
   });
 
   it("registers route for /eln/:id (no longer registers /eln/new)", async () => {

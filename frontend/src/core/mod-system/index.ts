@@ -6,6 +6,7 @@ export { registerRoute } from "./registerRoute";
 export { registerPublicRoute } from "./registerPublicRoute";
 export { registerSidebarAction } from "./registerSidebarAction";
 export { registerLibraryItem } from "./registerLibraryItem";
+export { registerWorkspace } from "./registerWorkspace";
 export type {
   ModManifest,
   HubConfig,
@@ -18,4 +19,6 @@ export type {
   LibraryCardProps,
   PropertyField,
   SlashContext,
+  WorkspaceConfig,
+  RegisteredEntityType,
 } from "./types";

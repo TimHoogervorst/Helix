@@ -7,7 +7,7 @@ import type {
 } from "../../core/mod-system/types";
 import { Avatar, getInitials } from "../Avatar";
 import { StatusBadge } from "./StatusBadge";
-import { TagChips } from "./TagChips";
+import { TagPill } from "../../core-mods/tags/ui/TagPill";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -166,8 +166,14 @@ export function BaseCard({
           </span>
         )}
 
-        {/* Optional: tag chips */}
-        {showTags && <TagChips tags={item.tags} />}
+        {/* Optional: tag pills */}
+        {showTags && (
+          <div className="card-tags">
+            {item.tags.map((tag) => (
+              <TagPill key={tag.id} tag={tag} />
+            ))}
+          </div>
+        )}
 
         {/* Mod-specific content */}
         <ListCard item={item as unknown as Record<string, unknown>} viewMode={viewMode} isSelected={isSelected} />

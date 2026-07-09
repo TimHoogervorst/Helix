@@ -1,10 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import NotebookEntryViewSet
+from .views import TagViewSet
 
 router = DefaultRouter()
-router.register(r"entries", NotebookEntryViewSet, basename="entry")
+router.register(r"", TagViewSet, basename="tags-tag")
 
 urlpatterns = [
     path("", include(router.urls)),

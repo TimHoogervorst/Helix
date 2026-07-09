@@ -20,7 +20,7 @@ describe("eln mod registration", () => {
 
     expect(mod.meta.id).toBe("eln");
     expect(mod.meta.displayName).toBe("ELN");
-    expect(mod.meta.dependsOn).toEqual(["lims"]);
+    expect(mod.meta.dependsOn).toEqual(["lims", "tags"]);
   });
 
   it("does NOT register a console or workspace (both removed)", async () => {
@@ -69,7 +69,7 @@ describe("eln mod registration", () => {
     expect(item).toBeDefined();
   });
 
-  it("registers a settings section for tags", async () => {
+  it("no longer registers a settings section — tags moved to tags mod", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -78,11 +78,7 @@ describe("eln mod registration", () => {
 
     const sections = registry.getSettingsSections();
     const tagSection = sections.find((s) => s.id === "eln.tags");
-
-    expect(tagSection).toBeDefined();
-    expect(tagSection!.modId).toBe("eln");
-    expect(tagSection!.label).toBe("Tags");
-    expect(tagSection!.component).toBeTruthy();
+    expect(tagSection).toBeUndefined();
   });
 
   it("passes validation (no console/workspace cross-references to validate)", async () => {

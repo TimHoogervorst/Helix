@@ -11,13 +11,9 @@ export interface EntryListItem {
   updated_at: string;
 }
 
-/** A tag attached to an entry. */
-export interface Tag {
-  id: number;
-  name: string;
-  color: string;
-  icon: string;
-}
+// Re-export for backward compatibility — canonical in core-mods/tags/types.
+import type { Tag } from "../../core-mods/tags/types";
+export type { Tag };
 
 /** A mention — a parsed reference from an entry body to another entity. */
 export interface Mention {

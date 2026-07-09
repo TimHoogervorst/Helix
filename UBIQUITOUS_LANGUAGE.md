@@ -99,7 +99,7 @@
 | **BaseCard** | Shared card wrapper component providing view modes (list/grid/compact), selection state, star button, and owner display. Used by hubs to render items consistently | card, list item, library card |
 | **Breadcrumbs** | Navigational path bar rendering `BreadcrumbSegment[]` — callers build segments, component renders. Moved from the old console system into `shared/components/` | path bar, nav trail |
 | **StatusBadge** | Colored pill for entry/entity status (e.g., "In Progress", "Completed"). Extracted from BaseCard into `shared/components/` | status chip, status label |
-| **TagChips** | Tag display component used on cards and in detail views. Extracted from BaseCard into `shared/components/` | tags, labels |
+| **TagPill** | Tag display component used on cards and in detail views. Lives in `core-mods/tags/ui/` — the single shared tag display for the entire platform | tags, labels |
 | **ReferenceBadge** | Clickable UI badge showing a display ID (e.g., `E12`). Clicking navigates to the target's dedicated URL | badge, ref chip, #-badge |
 | **Activity** | Placeholder timeline component showing actions performed on an item (user + action + timestamp). Future: reads from platform-level standardized action log with CFR Part 11 traceability | action log, audit trail, history |
 | **OwnerStack** | Placeholder for stacked user avatars. Currently renders a single avatar; future: overlapping avatar circles for multiple owners | avatar stack, owner list |

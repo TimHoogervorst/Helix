@@ -52,6 +52,7 @@ def delete_everything(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     # API
+    path("api/tags/", include("core_mods.tags.urls")),
     path("api/eln/", include("core_mods.eln.urls")),
     path("api/lims/", include("core_mods.lims.urls")),
     path("api/core/", include("core.urls")),

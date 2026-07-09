@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../../../core/api/client";
-import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
+import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
 import {
   splitFirstParagraph,
@@ -32,7 +32,7 @@ export interface UseEntryCrudOptions {
 export interface UseEntryCrudReturn {
   mode: EditorMode;
   entry: EntryDetail | null;
-  /** Exposed so useEntryTags can sync entry after backend tag mutations. */
+  /** Exposed so sibling hooks can sync entry after backend tag mutations. */
   setEntry: React.Dispatch<React.SetStateAction<EntryDetail | null>>;
   title: string;
   setTitle: (t: string) => void;
@@ -46,8 +46,8 @@ export interface UseEntryCrudReturn {
   setStatus: (s: string) => void;
   error: string | null;
   deleting: boolean;
-  /** Save the entry. ``folderId`` and ``tags`` are owned by sibling hooks. */
-  save(folderId: number | null, tags: Tag[]): Promise<void>;
+  /** Save the entry. ``folderId`` and ``tagIds`` are owned by sibling hooks. */
+  save(folderId: number | null, tagIds: number[]): Promise<void>;
   cancel(): void;
   deleteEntry(): Promise<void>;
   enterEditMode(): void;
@@ -140,7 +140,7 @@ export function useEntryCrud({
     setMode("view");
   }, [isNew, initialTitle, initialDescription, initialStatus, navigate]);
 
-  const save = useCallback(async (folderId: number | null, tags: Tag[]) => {
+  const save = useCallback(async (folderId: number | null, tagIds: number[]) => {
     if (!title.trim()) return;
 
     if (!validateEntityNames(contentRef.current)) {
@@ -160,7 +160,7 @@ export function useEntryCrud({
       status,
     };
     if (isNew) {
-      payload.tag_ids = tags.map((t) => t.id);
+      payload.tag_ids = tagIds;
     }
 
     try {

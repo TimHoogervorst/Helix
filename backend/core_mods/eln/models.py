@@ -6,48 +6,8 @@ from core.abstracts import BrowsableItem
 from core.actions.base import AbstractBaseAction
 from core.constants import STATUS_CHOICES
 
-TAG_COLOR_CHOICES = [
-    ("enzyme", "Enzyme"),
-    ("flask", "Flask"),
-    ("solvent", "Solvent"),
-    ("warn", "Warn"),
-    ("primary", "Primary"),
-    ("success", "Success"),
-    ("destructive", "Destructive"),
-    ("muted", "Muted"),
-]
-
-TAG_ICON_CHOICES = [
-    ("circle", "Circle"),
-    ("dna", "DNA"),
-    ("rat", "Rat"),
-    ("leaf", "Leaf"),
-    ("cog", "Machine"),
-    ("notebook", "Entry"),
-    ("user", "Person"),
-    ("folder", "Folder"),
-]
-
-
-class Tag(models.Model):
-    """A reusable label attached to NotebookEntry instances.
-
-    Tags are managed inline on the entry page — no global tag management.
-    Each tag has a unique case-insensitive name, a colour from a preset
-    palette of semantic design tokens, and an icon from a preset set.
-    """
-
-    name = models.CharField(max_length=100, unique=True)
-    color = models.CharField(max_length=50, choices=TAG_COLOR_CHOICES, default="primary")
-    icon = models.CharField(max_length=50, choices=TAG_ICON_CHOICES, default="circle")
-    entries = models.ManyToManyField("NotebookEntry", related_name="tags")
-
-    class Meta:
-        db_table = "eln_tag"
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
+# Re-export for backward compatibility — these are canonical in core_mods.tags.
+from core_mods.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
 
 
 class NotebookEntry(BrowsableItem):
@@ -67,6 +27,13 @@ class NotebookEntry(BrowsableItem):
         default="in_progress",
     )
     updated_at = models.DateTimeField(auto_now=True)
+
+    # M2M to tags.Tag — defined on the consumer side (Tag stays pure).
+    tags = models.ManyToManyField(
+        "tags.Tag",
+        related_name="+",
+        db_table="eln_tag_entries",
+    )
 
     # Reverse relation for mentions where this entry is the source.
     mentions = GenericRelation("eln.Mention", content_type_field="source_type", object_id_field="source_id")

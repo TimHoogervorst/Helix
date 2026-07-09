@@ -5,7 +5,7 @@ import LibraryHub from "./hub/LibraryHub";
 export const meta = {
   id: "library",
   displayName: "Library",
-  dependsOn: ["eln"],
+  dependsOn: ["tags", "eln"],
 };
 
 export function register() {

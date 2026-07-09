@@ -3,7 +3,9 @@ from rest_framework import serializers
 from core.models import Folder, User
 from core_mods.users.serializers import UserSerializer
 
-from .models import NotebookEntry, Mention, Tag, ElnAction
+from core_mods.tags.models import Tag
+
+from .models import NotebookEntry, Mention, ElnAction
 
 
 def validate_tiptap_json(value):
@@ -57,11 +59,8 @@ class MentionSerializer(serializers.ModelSerializer):
         return None
 
 
-class TagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tag
-        fields = ["id", "name", "color", "icon"]
-        read_only_fields = ["id"]
+# Re-export for backward compatibility — canonical in core_mods.tags.serializers.
+from core_mods.tags.serializers import TagSerializer  # noqa: F401, E402
 
 
 class NotebookEntrySerializer(serializers.ModelSerializer):

@@ -3002,27 +3002,57 @@ input.library-new-folder-input:focus {
   flex-wrap: wrap;
 }
 
-.tag-chip {
-  display: inline-block;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.65rem;
+/* ── Tag pill — shared display component ─────────────────────────────── */
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.68rem;
   font-weight: 500;
   border-radius: 9999px;
+  white-space: nowrap;
 }
 
-.tag-chip.tag-flask {
+.tag-pill.tag-enzyme {
+  background: var(--color-enzyme);
+  color: var(--color-enzyme-foreground);
+}
+
+.tag-pill.tag-flask {
   background: var(--color-flask);
   color: var(--color-flask-foreground);
 }
 
-.tag-chip.tag-solvent {
+.tag-pill.tag-solvent {
   background: var(--color-solvent);
   color: var(--color-solvent-foreground);
 }
 
-.tag-chip.tag-enzyme {
-  background: var(--color-enzyme);
-  color: var(--color-enzyme-foreground);
+.tag-pill.tag-warn {
+  background: var(--color-warn);
+  color: var(--color-warn-foreground);
+}
+
+.tag-pill.tag-primary {
+  background: #7fb3d9;
+  color: #1a3a4a;
+}
+
+.tag-pill.tag-success {
+  background: var(--color-success);
+  color: var(--color-success-foreground);
+}
+
+.tag-pill.tag-destructive {
+  background: #e6b3b3;
+  color: #4a1a1a;
+}
+
+.tag-pill.tag-muted {
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
 }
 
 .card-owner {
@@ -3087,9 +3117,8 @@ input.library-new-folder-input:focus {
   font-size: 0.95rem;
 }
 
-/* Hide description, tags, and metadata row in grid view */
+/* Hide description and metadata row in grid view (tags remain visible) */
 .library-card-list.view-grid .card-description,
-.library-card-list.view-grid .card-tags,
 .library-card-list.view-grid .card-metadata {
   display: none;
 }

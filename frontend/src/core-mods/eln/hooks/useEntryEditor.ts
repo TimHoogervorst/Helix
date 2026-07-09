@@ -7,11 +7,14 @@
  * The hook does NOT own the TipTap editor instance — it reads the latest
  * content from ``contentRef``, which the component updates on every render.
  */
+import { useCallback } from "react";
 import type { TipTapDoc, EntryDetail, Tag } from "../types";
 import { useEntryCrud } from "./useEntryCrud";
-import { useEntryTags } from "./useEntryTags";
+import { useTaggableItems } from "../../../core-mods/tags/hooks";
 import { useEntryFolder, type Folder } from "./useEntryFolder";
 import { useDirtyTracking } from "./useDirtyTracking";
+import { attachTags, detachTag } from "../api";
+import { updateTag } from "../../../core-mods/tags/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,11 +52,14 @@ export interface UseEntryEditorReturn {
   deleting: boolean;
   isDirty: boolean;
   tags: Tag[];
+  /** IDs of tags added in deferred mode — batched into the create payload. */
+  pendingTagIds: number[];
   addTag: (tag: Tag) => Promise<void>;
   removeTag: (tagId: number) => Promise<void>;
-  createAndAttachTag: (name: string, color: string, icon?: string) => Promise<Tag | null>;
+  /** Change a tag's icon via the tags API. */
   changeTagIcon: (tagId: number, icon: string) => Promise<void>;
-  searchTags: (query: string) => Promise<Tag[]>;
+  /** Reset tags to initial baseline (on cancel). */
+  resetTagsToBaseline: () => void;
   save(): Promise<void>;
   cancel(): void;
   deleteEntry(): Promise<void>;
@@ -218,7 +224,7 @@ export function validateEntityNames(doc: TipTapDoc): boolean {
 // ── Hook (composition wrapper) ────────────────────────────────────────────────
 //
 // useEntryEditor now composes four focused hooks:
-//   useEntryCrud + useEntryTags + useEntryFolder + useDirtyTracking
+//   useEntryCrud + useTaggableItems + useEntryFolder + useDirtyTracking
 //
 // This preserves the original interface for backward compatibility.
 // New code should compose the four hooks directly (see ElnEditor).
@@ -232,11 +238,21 @@ export function useEntryEditor({
   // ── Compose the four focused hooks ──
 
   const crud = useEntryCrud({ entryId, isNew, contentRef });
-  const tags = useEntryTags({
-    isNew,
-    entryId,
+  const taggableItems = useTaggableItems({
     initialTags: crud.entry?.tags ?? [],
-    onEntryUpdate: crud.setEntry,
+    attachFn: !isNew && entryId
+      ? async (tagIds: number[]) => {
+          const updated = await attachTags(entryId, tagIds);
+          crud.setEntry(updated);
+        }
+      : undefined,
+    detachFn: !isNew && entryId
+      ? async (tagId: number) => {
+          const updated = await detachTag(entryId, tagId);
+          crud.setEntry(updated);
+        }
+      : undefined,
+    deferred: isNew,
   });
   const folder = useEntryFolder({ initialFolderId });
   const { isDirty } = useDirtyTracking({
@@ -250,6 +266,27 @@ export function useEntryEditor({
     initialContent: crud.initialContent,
   });
 
+  // ── Change tag icon (delegates to tags API) ──
+  const changeTagIcon = useCallback(
+    async (tagId: number, icon: string) => {
+      try {
+        const updated = await updateTag(tagId, { icon });
+        // Update the tag in local state so the UI reflects the change.
+        // useTaggableItems doesn't expose setTags, so we update via crud.setEntry
+        // to trigger a re-render with the new icon from the entry data.
+        if (crud.entry) {
+          const newTags = crud.entry.tags.map((t) =>
+            t.id === tagId ? updated : t,
+          );
+          crud.setEntry({ ...crud.entry, tags: newTags });
+        }
+      } catch {
+        // Silently ignore — no rollback needed
+      }
+    },
+    [crud.entry, crud.setEntry],
+  );
+
   // ── Wire cross-hook actions ──
 
   // Wrap cancel to also reset folder and tags (owned by sibling hooks).
@@ -260,12 +297,17 @@ export function useEntryEditor({
       return;
     }
     folder.setFolderId(crud.entry?.folder ?? null);
-    tags.resetTagsToBaseline();
+    taggableItems.resetToBaseline();
     crud.cancel();
   };
 
-  // Wrap save to pass folderId and tags to CRUD.
-  const save = () => crud.save(folder.folderId, tags.tags);
+  // Wrap save to pass folderId and tag IDs to CRUD.
+  // For new entries, batch pendingTagIds into the create payload.
+  const save = () =>
+    crud.save(
+      folder.folderId,
+      isNew ? taggableItems.pendingTagIds : [],
+    );
 
   return {
     mode: crud.mode,
@@ -284,12 +326,12 @@ export function useEntryEditor({
     error: crud.error,
     deleting: crud.deleting,
     isDirty,
-    tags: tags.tags,
-    addTag: tags.addTag,
-    removeTag: tags.removeTag,
-    createAndAttachTag: tags.createAndAttachTag,
-    changeTagIcon: tags.changeTagIcon,
-    searchTags: tags.searchTags,
+    tags: taggableItems.tags,
+    pendingTagIds: taggableItems.pendingTagIds,
+    addTag: taggableItems.addTag,
+    removeTag: taggableItems.removeTag,
+    changeTagIcon,
+    resetTagsToBaseline: taggableItems.resetToBaseline,
     save,
     cancel,
     deleteEntry: crud.deleteEntry,

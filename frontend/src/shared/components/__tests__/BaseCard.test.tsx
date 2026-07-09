@@ -309,11 +309,11 @@ describe("BaseCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders tags as chips", () => {
+  it("renders tags as pills", () => {
     const entry = makeLibraryEntry({
       tags: [
-        { name: "CRISPR", color: "flask", icon: "circle" },
-        { name: "QC", color: "solvent", icon: "diamond" },
+        { id: 1, name: "CRISPR", color: "flask", icon: "circle" },
+        { id: 2, name: "QC", color: "solvent", icon: "circle" },
       ],
     });
     render(
@@ -328,11 +328,14 @@ describe("BaseCard", () => {
     );
     expect(screen.getByText("CRISPR")).toBeInTheDocument();
     expect(screen.getByText("QC")).toBeInTheDocument();
+    // TagPill renders with data-testid="tag-pill"
+    const pills = screen.getAllByTestId("tag-pill");
+    expect(pills).toHaveLength(2);
   });
 
   it("hides tags when showTags is false", () => {
     const entry = makeLibraryEntry({
-      tags: [{ name: "CRISPR", color: "flask", icon: "circle" }],
+      tags: [{ id: 1, name: "CRISPR", color: "flask", icon: "circle" }],
     });
     render(
       <BaseCard

@@ -5,7 +5,7 @@
  * parsing with malformed fallback, HTML round-trip, and parseHTML tag.
  */
 import { describe, it, expect } from "vitest";
-import LimsTable from "../LimsTable";
+import LimsTable from "../../../blocks/LimsTable";
 import { createTestEditor } from "../../../../../test/factories";
 
 describe("LimsTable", () => {

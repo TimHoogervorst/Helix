@@ -9,7 +9,7 @@ import SlashCommands, {
   fuzzyMatch,
   getCommands,
 } from "../SlashCommands";
-import LimsTable from "../LimsTable";
+import LimsTable from "../../../blocks/LimsTable";
 import { createTestEditor } from "../../../../../test/factories";
 
 // ── fuzzyMatch (pure function) ────────────────────────────────────────────

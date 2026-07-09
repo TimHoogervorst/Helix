@@ -9,7 +9,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import Reference from "./Reference";
 import MentionSuggestion from "./MentionSuggestion";
-import LimsTable from "./LimsTable";
+import LimsTable from "../../blocks/LimsTable";
 import SlashCommands from "./SlashCommands";
 export function createElnExtensions() {
   return [

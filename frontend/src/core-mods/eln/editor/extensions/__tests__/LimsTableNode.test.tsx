@@ -13,7 +13,7 @@ import {
   headerWithSymbol,
   columnDefFor,
   emptyValues,
-} from "../LimsTableNode";
+} from "../../../blocks/LimsTableNode";
 import type { GridColumn, GridRow } from "../../../../../shared/types/types";
 
 // ── Mock AG Grid ──────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ vi.mock("../MentionBadgeCellRenderer", () => ({
 
 // ── Import LimsTableNode AFTER mocks ──────────────────────────────────────
 
-import LimsTableNode from "../LimsTableNode";
+import LimsTableNode from "../../../blocks/LimsTableNode";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 

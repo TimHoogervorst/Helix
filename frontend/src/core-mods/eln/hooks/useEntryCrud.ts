@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../../../core/api/client";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
+import { attachTags } from "../api";
 import {
   splitFirstParagraph,
   prependDescription,
@@ -62,8 +63,11 @@ export function useEntryCrud({
   const { resolveIds } = useReferenceContext();
 
   // ── State ──
+  // When isNew && entryId, the entry already exists on the server (created
+  // before navigation via immediate-create flow). We still fetch it, but
+  // start in edit mode so the editor is immediately editable.
   const [mode, setMode] = useState<EditorMode>(
-    isNew ? "edit-new" : "loading",
+    isNew && !entryId ? "edit-new" : "loading",
   );
   const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [title, setTitle] = useState("");
@@ -101,7 +105,9 @@ export function useEntryCrud({
           resolveIds(refIds);
         }
 
-        setMode("view");
+        // New entries (created server-side before navigation) start in
+        // edit mode. Existing entries go to view mode.
+        setMode(isNew ? "edit-existing" : "view");
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -159,23 +165,35 @@ export function useEntryCrud({
       folder: folderId,
       status,
     };
-    if (isNew) {
-      payload.tag_ids = tagIds;
-    }
 
     try {
-      if (isNew) {
+      if (isNew && !entryId) {
+        // Old flow: entry doesn't exist yet — POST to create.
+        // (No longer used after /eln/new route removal, kept for safety.)
+        payload.tag_ids = tagIds;
         const created = await post<EntryDetail>("/eln/entries/", payload);
         navigate(`/eln/${created.display_id}`);
       } else {
+        // Existing entry, or new entry that was created server-side before
+        // navigation (isNew && entryId from the immediate-create flow).
         const updated = await put<EntryDetail>(
           `/eln/entries/${entryId!}/`,
           payload,
         );
+        // For new entries created via immediate-create, flush deferred tags
+        // via the attachTags API (they can't go in the PUT payload).
+        if (isNew && tagIds.length > 0 && entryId) {
+          const withTags = await attachTags(entryId, tagIds);
+          setEntry(withTags);
+        }
         const responseContent = updated.content || contentRef.current;
         const { description: newDesc, body: newBody } =
           splitFirstParagraph(responseContent);
-        setEntry(updated);
+        if (!isNew) {
+          // Only overwrite if we didn't already setEntry via attachTags.
+          // attachTags returns the full entry, so setEntry is already done.
+          setEntry(updated);
+        }
         setInitialTitle(title.trim());
         setDescriptionState(newDesc);
         setInitialDescription(newDesc);
@@ -183,11 +201,12 @@ export function useEntryCrud({
         setInitialStatus(updated.status || "in_progress");
         const refIds = collectDisplayIds(responseContent);
         if (refIds.length > 0) resolveIds(refIds);
-        setMode("view");
+        // New entries stay in edit mode after save.
+        setMode(isNew ? "edit-existing" : "view");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
-      setMode(isNew ? "edit-new" : "edit-existing");
+      setMode(isNew && !entryId ? "edit-new" : "edit-existing");
     }
   }, [title, description, status, isNew, entryId, contentRef, navigate, resolveIds]);
 

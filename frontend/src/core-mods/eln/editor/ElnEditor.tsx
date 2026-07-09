@@ -22,7 +22,7 @@ import { createElnExtensions } from "./extensions/createElnExtensions";
 import { useTaggableItems } from "../../../core-mods/tags/hooks";
 import { TagPill } from "../../../core-mods/tags/ui";
 import { TagAutocomplete } from "../../../core-mods/tags/ui";
-import { attachTags, detachTag } from "../api";
+import { attachTags, detachTag, acquireLock, releaseLock } from "../api";
 
 /** Format an ISO date string as YYYY-MM-DD. */
 function formatDateShort(iso: string): string {
@@ -74,7 +74,9 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   function ElnEditor({ entryId, onStateChange }, ref) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const isNew = entryId === undefined;
+  // A "new" entry is one that was just created server-side and navigated
+  // to with ?new=true. It's immediately editable with deferred tag collection.
+  const isNew = searchParams.get("new") === "true";
 
   // ── Read initial folder from URL params (set when creating from library) ──
   const initialFolderId: number | null = (() => {
@@ -221,9 +223,26 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     }
   }, [mode, editor, initialContent]);
 
-  // ── Notify parent of state changes ──
+  // ── Lock lifecycle (acquire on edit, release on unmount) ──
   const isEdit = mode === "edit-new" || mode === "edit-existing";
   const isSaving = mode === "saving";
+
+  useEffect(() => {
+    if (!entryId || !isEdit) return;
+
+    acquireLock(entryId).catch(() => {
+      // Lock acquisition failure is non-fatal — the backend enforces
+      // the lock on write. A failed acquire here means either another
+      // user holds the lock or a network error. The save will surface
+      // the 423 if it matters.
+    });
+
+    return () => {
+      releaseLock(entryId).catch(() => {
+        // Best-effort release on unmount.
+      });
+    };
+  }, [entryId, isEdit]);
 
   // Sync contentEditable h1 DOM when switching between view/edit modes or when
   // title changes externally (initial load, cancel). During typing, the title

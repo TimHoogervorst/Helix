@@ -1,5 +1,14 @@
 import { get, post, del } from "../../core/api/client";
-import type { EntryDetail, EntryListItem, ElnAction } from "./types";
+import type { EntryDetail, EntryListItem, ElnAction, TipTapDoc } from "./types";
+
+/** Lock status response from the lock endpoints. */
+export interface LockStatus {
+  locked: boolean;
+  held_by?: number;
+  acquired_at?: string;
+  last_activity_at?: string;
+  detail?: string;
+}
 
 /**
  * DRF paginated response wrapper.
@@ -77,4 +86,43 @@ export function createAction(
     action_type: actionType,
     metadata: metadata || {},
   });
+}
+
+/** Payload for creating a new entry. */
+export interface CreateEntryPayload {
+  title: string;
+  content: TipTapDoc;
+  folder?: number | null;
+  status?: string;
+  tag_ids?: number[];
+}
+
+/**
+ * Create a new entry on the server immediately.
+ * Returns the full entry detail including display_id.
+ */
+export function createEntry(payload: CreateEntryPayload): Promise<EntryDetail> {
+  return post<EntryDetail>("/eln/entries/", payload);
+}
+
+// ── Lock API ────────────────────────────────────────────────────────────────
+
+/**
+ * Acquire or refresh the lock on an entry.
+ *
+ * Returns 201 for a new lock, 200 for a refreshed lock.
+ * Throws ApiError with status 423 if another user holds the lock.
+ */
+export function acquireLock(displayId: string): Promise<LockStatus> {
+  return post<LockStatus>(`/eln/entries/${displayId}/lock/`, {});
+}
+
+/** Release the lock on an entry. */
+export function releaseLock(displayId: string): Promise<void> {
+  return del<void>(`/eln/entries/${displayId}/lock/`);
+}
+
+/** Get the current lock status for an entry. */
+export function getLockStatus(displayId: string): Promise<LockStatus> {
+  return get<LockStatus>(`/eln/entries/${displayId}/lock/`);
 }

@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
 import React from "react";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
@@ -21,6 +21,10 @@ const { mockFetchActions } = vi.hoisted(() => ({
 
 vi.mock("../api", () => ({
   fetchActions: mockFetchActions,
+  acquireLock: vi.fn().mockResolvedValue({}),
+  releaseLock: vi.fn().mockResolvedValue(undefined),
+  attachTags: vi.fn(),
+  detachTag: vi.fn(),
 }));
 
 /** ElnEditor mock that fires onStateChange so the top toolbar can render
@@ -31,7 +35,10 @@ vi.mock("../editor/ElnEditor", () => ({
       props: { entryId?: string; onStateChange?: (s: unknown) => void },
       ref: React.Ref<unknown>,
     ) => {
-      const isNew = props.entryId === undefined;
+      // Detect ?new=true from the URL search params to mirror the real component.
+      const [searchParams] = useSearchParams();
+      const isNew =
+        searchParams.get("new") === "true" || props.entryId === undefined;
       React.useEffect(() => {
         // Simulate the editor loading and entering its initial mode.
         // New entries start in edit mode; existing entries start in view mode
@@ -84,7 +91,6 @@ function renderAtRoute(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/eln/:id" element={<ElnWorkspacePage />} />
-        <Route path="/eln/new" element={<ElnWorkspacePage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -111,9 +117,11 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     expect(screen.getByText("EXP-0284")).toBeDefined();
   });
 
-  it("shows 'New' as display ID for new entry route", () => {
-    renderAtRoute("/eln/new");
-    expect(screen.getByText("New")).toBeDefined();
+  it("shows entry display ID for new entry route (?new=true)", () => {
+    renderAtRoute("/eln/E-NEW?new=true");
+    // With ?new=true, the mock treats it as a new entry but the breadcrumb
+    // shows the entry's display_id from the URL param.
+    expect(screen.getByText("E-NEW")).toBeDefined();
   });
 
   it("does NOT render a Draft status badge in the top toolbar", () => {
@@ -161,7 +169,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   });
 
   it("renders Save and Cancel icon buttons for a new entry in edit mode", async () => {
-    renderAtRoute("/eln/new");
+    renderAtRoute("/eln/E-NEW?new=true");
 
     const saveBtn = await screen.findByLabelText("Save");
     expect(saveBtn).toBeDefined();
@@ -298,10 +306,10 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     expect(editor.getAttribute("data-entry-id")).toBe("EXP-0284");
   });
 
-  it("passes undefined entryId for new entry route", () => {
-    renderAtRoute("/eln/new");
+  it("passes entryId from route param for new entry with ?new=true", () => {
+    renderAtRoute("/eln/E-NEW?new=true");
     const editor = screen.getByTestId("eln-editor");
-    expect(editor.getAttribute("data-entry-id")).toBe("new");
+    expect(editor.getAttribute("data-entry-id")).toBe("E-NEW");
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -349,14 +357,14 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     });
 
     it("renders Status as dropdown in edit mode for new entries", async () => {
-      renderAtRoute("/eln/new");
+      renderAtRoute("/eln/E-NEW?new=true");
       const statusSelect = await screen.findByTestId("status-select");
       expect(statusSelect).toBeDefined();
       expect((statusSelect as HTMLSelectElement).value).toBe("in_progress");
     });
 
     it("renders Folder as dropdown in edit mode for new entries", async () => {
-      renderAtRoute("/eln/new");
+      renderAtRoute("/eln/E-NEW?new=true");
       const folderSelect = await screen.findByTestId("folder-select");
       expect(folderSelect).toBeDefined();
     });

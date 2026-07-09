@@ -13,14 +13,6 @@ export const meta = {
 };
 
 export function register() {
-  // ── Standalone route: new entry page ──────────────────────────────────
-  registerRoute({
-    id: "eln.new-entry",
-    modId: "eln",
-    path: "/eln/new",
-    component: lazy(() => import("./workspace/ElnWorkspacePage")),
-  });
-
   // ── Standalone route: entry detail page (full workspace) ──────────────
   registerRoute({
     id: "eln.entry-page",

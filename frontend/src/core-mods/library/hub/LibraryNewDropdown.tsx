@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderPlus, FileText } from "lucide-react";
+import { Plus, FolderPlus, FileText, Loader2 } from "lucide-react";
 import { post } from "../../../core/api/client";
+import { EMPTY_DOC } from "../../eln/types";
+import { createEntry } from "../../eln/api";
 
 interface LibraryNewDropdownProps {
   currentPath: string;
@@ -11,13 +13,14 @@ interface LibraryNewDropdownProps {
 }
 
 function LibraryNewDropdown({
-  currentPath,
+  currentPath: _currentPath,
   currentFolderId,
   onCreated,
 }: LibraryNewDropdownProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [creatingEntry, setCreatingEntry] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,15 +87,21 @@ function LibraryNewDropdown({
     }
   };
 
-  const handleNewEntry = () => {
-    const returnUrl = `/library?path=${encodeURIComponent(currentPath || "/")}`;
-    const params = new URLSearchParams();
-    params.set("returnUrl", returnUrl);
-    if (currentFolderId != null) {
-      params.set("folderId", String(currentFolderId));
+  const handleNewEntry = async () => {
+    setCreatingEntry(true);
+    setError(null);
+    try {
+      const entry = await createEntry({
+        title: "Untitled",
+        content: EMPTY_DOC,
+        folder: currentFolderId,
+      });
+      setOpen(false);
+      navigate(`/eln/${entry.display_id}?new=true`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create entry");
+      setCreatingEntry(false);
     }
-    navigate(`/eln/new?${params.toString()}`);
-    setOpen(false);
   };
 
   return (
@@ -126,9 +135,19 @@ function LibraryNewDropdown({
               <button className="library-new-menu-item" onClick={handleNewFolder}>
                 <FolderPlus size={18} /> New Folder
               </button>
-              <button className="library-new-menu-item" onClick={handleNewEntry}>
-                <FileText size={18} /> New ELN Entry
+              <button
+                className="library-new-menu-item"
+                onClick={handleNewEntry}
+                disabled={creatingEntry}
+              >
+                {creatingEntry ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <FileText size={18} />
+                )}{" "}
+                New ELN Entry
               </button>
+              {error && <div className="library-new-error">{error}</div>}
             </>
           )}
         </div>

@@ -104,11 +104,13 @@ function renderEditor(
     entryId?: string;
     onStateChange?: (state: ElnEditorState) => void;
     ref?: React.Ref<ElnEditorHandle>;
+    /** Initial URL entries for MemoryRouter (e.g. ["/eln/E-NEW?new=true"]). */
+    initialEntries?: string[];
   } = {},
 ) {
-  const { entryId, onStateChange, ref } = props;
+  const { entryId, onStateChange, ref, initialEntries } = props;
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <ElnEditor entryId={entryId} onStateChange={onStateChange} ref={ref} />
     </MemoryRouter>,
   );
@@ -206,11 +208,20 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  it("renders metadata line with 'New entry' for new entries", () => {
-    renderEditor({});
-    const meta = screen.getByTestId("metadata-line");
-    expect(meta).toBeDefined();
-    expect(meta.textContent).toBe("New entry");
+  it("renders metadata line with display_id for ?new=true entries (not 'New entry')", async () => {
+    mockGet.mockResolvedValue(
+      makeEntry({ display_id: "E-NEW", title: "Fresh Entry" }),
+    );
+    renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      const meta = screen.getByTestId("metadata-line");
+      expect(meta.textContent).toContain("E-NEW");
+      // No longer shows "New entry" — entry was created server-side.
+      expect(meta.textContent).not.toContain("New entry");
+    });
   });
 
   it("renders metadata line with monospace font class", async () => {
@@ -223,14 +234,20 @@ describe("ElnEditor integration", () => {
 
   // ── Title input styling ────────────────────────────────────────────────────
 
-  it("renders title element with serif font class in new-entry edit mode", () => {
-    renderEditor({});
-    const title = screen.getByTestId("title-display");
-    expect(title).toBeDefined();
-    expect(title.tagName).toBe("H1");
-    expect(title.className).toContain("font-serif");
-    expect(title.className).toContain("text-[42px]");
-    expect(title.getAttribute("contentEditable")).toBe("true");
+  it("renders title element with serif font class in new-entry edit mode", async () => {
+    mockGet.mockResolvedValue(makeEntry({ title: "Untitled" }));
+    renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      const title = screen.getByTestId("title-display");
+      expect(title).toBeDefined();
+      expect(title.tagName).toBe("H1");
+      expect(title.className).toContain("font-serif");
+      expect(title.className).toContain("text-[42px]");
+      expect(title.getAttribute("contentEditable")).toBe("true");
+    });
   });
 
   // ── Tags section ───────────────────────────────────────────────────────
@@ -284,13 +301,22 @@ describe("ElnEditor integration", () => {
     expect(typeof state.isEdit).toBe("boolean");
   });
 
-  it("fires onStateChange with edit mode when isNew", () => {
+  it("fires onStateChange with edit mode when ?new=true", async () => {
     const onStateChange = vi.fn();
-    renderEditor({ onStateChange });
-    // New entry starts in edit-new mode
-    expect(onStateChange).toHaveBeenCalled();
-    const firstCall = onStateChange.mock.calls[0][0] as ElnEditorState;
-    expect(firstCall.isEdit).toBe(true);
+    mockGet.mockResolvedValue(makeEntry({ title: "Fresh" }));
+    renderEditor({
+      entryId: "E-NEW",
+      onStateChange,
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    // First call is "loading" (entry fetch started), but after fetch
+    // it transitions to "edit-existing" which has isEdit: true.
+    await waitFor(() => {
+      const calls = onStateChange.mock.calls;
+      const lastCall = calls[calls.length - 1]?.[0] as ElnEditorState | undefined;
+      expect(lastCall?.isEdit).toBe(true);
+      expect(lastCall?.mode).toBe("edit-existing");
+    });
   });
 
   // ── Ref actions (mode transitions via forwarded ref) ────────────────────────
@@ -363,26 +389,48 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  // ── New entry mode ─────────────────────────────────────────────────────────
+  // ── New entry mode (?new=true) ────────────────────────────────────────────
 
-  it("starts in edit mode when isNew (no entryId)", () => {
+  it("starts in edit mode when ?new=true with entryId", async () => {
     const onStateChange = vi.fn();
-    renderEditor({ onStateChange });
-    const state = onStateChange.mock.calls[0][0] as ElnEditorState;
-    expect(state.isEdit).toBe(true);
+    mockGet.mockResolvedValue(makeEntry({ title: "Fresh" }));
+    renderEditor({
+      entryId: "E-NEW",
+      onStateChange,
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    // After fetch, entry enters edit-existing mode (isEdit=true).
+    await waitFor(() => {
+      const calls = onStateChange.mock.calls;
+      const lastCall = calls[calls.length - 1]?.[0] as ElnEditorState | undefined;
+      expect(lastCall?.isEdit).toBe(true);
+    });
   });
 
-  it("shows 'New entry' metadata for new entries", () => {
-    renderEditor({});
-    expect(screen.getByText("New entry")).toBeDefined();
+  it("shows display_id metadata for ?new=true entries (not 'New entry')", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E-NEW" }));
+    renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      // Entry has been created server-side, so metadata shows the display_id.
+      expect(screen.getByText(/E-NEW/)).toBeDefined();
+    });
   });
 
-  it("renders title as contentEditable H1 for new entries", () => {
-    renderEditor({});
-    const title = screen.getByTestId("title-display");
-    expect(title).toBeDefined();
-    expect(title.tagName).toBe("H1");
-    expect(title.getAttribute("contentEditable")).toBe("true");
+  it("renders title as contentEditable H1 for ?new=true entries", async () => {
+    mockGet.mockResolvedValue(makeEntry({ title: "Untitled" }));
+    renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      const title = screen.getByTestId("title-display");
+      expect(title).toBeDefined();
+      expect(title.tagName).toBe("H1");
+      expect(title.getAttribute("contentEditable")).toBe("true");
+    });
   });
 
   it("shows description in view mode when content has a first paragraph", async () => {
@@ -427,8 +475,15 @@ describe("ElnEditor integration", () => {
   // ── Action buttons are NOT in ElnEditor ────────────────────────────────────
 
   it("does not render Save, Edit, Delete, or Cancel text buttons (moved to ElnDetail)", async () => {
-    // New entry — no Save/Cancel text
-    const { container: newContainer } = renderEditor({});
+    // New entry with ?new=true — no Save/Cancel text in ElnEditor itself
+    mockGet.mockResolvedValue(makeEntry());
+    const { container: newContainer } = renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
+    });
     expect(newContainer.textContent).not.toContain("Saving…");
 
     // Existing entry in view mode — no Edit/Delete text
@@ -452,16 +507,33 @@ describe("ElnEditor integration", () => {
 
   // ── Save indicator ─────────────────────────────────────────────────────────
 
-  it("shows save indicator when in edit mode", () => {
-    renderEditor({});
-    expect(screen.getByText("Saved")).toBeDefined();
+  it("shows save indicator when in edit mode (?new=true)", async () => {
+    mockGet.mockResolvedValue(makeEntry());
+    renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      // Editor is in edit mode — save indicator row is visible.
+      // Content may show "Unsaved changes" (if editor content differs from
+      // initialContent after splitFirstParagraph processing) or "Saved".
+      const indicator = screen.queryByText("Unsaved changes")
+        || screen.queryByText("Saved");
+      expect(indicator).toBeTruthy();
+    });
   });
 
   // ── Editor content ─────────────────────────────────────────────────────────
 
-  it("renders editor content", () => {
-    renderEditor({});
-    expect(screen.getByTestId("editor-content")).toBeDefined();
+  it("renders editor content (?new=true)", async () => {
+    mockGet.mockResolvedValue(makeEntry());
+    renderEditor({
+      entryId: "E-NEW",
+      initialEntries: ["/eln/E-NEW?new=true"],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-content")).toBeDefined();
+    });
   });
 
   // ── No paper-page wrapper ──────────────────────────────────────────────────

@@ -240,6 +240,36 @@ describe("useEntryCrud", () => {
     expect(result.current.mode).toBe("view");
   });
 
+  it("save for isNew with entryId uses PUT and stays in edit mode", async () => {
+    mockGet.mockResolvedValue(makeEntry({ title: "Immediate", display_id: "E-NEW" }));
+    const updated = makeEntry({ title: "Saved", content: { type: "doc", content: [] } });
+    mockPut.mockResolvedValue(updated);
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E-NEW", isNew: true })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.mode).toBe("edit-existing");
+    });
+
+    act(() => result.current.setTitle("Saved"));
+
+    await act(async () => {
+      await result.current.save(7, []);
+    });
+
+    // Should use PUT (not POST) since entryId exists.
+    expect(mockPut).toHaveBeenCalled();
+    const callArgs = mockPut.mock.calls[0] as [string, Record<string, unknown>];
+    expect(callArgs[0]).toBe("/eln/entries/E-NEW/");
+    expect(callArgs[1].folder).toBe(7);
+    expect(callArgs[1]).not.toHaveProperty("tag_ids");
+
+    // New entries stay in edit mode after save.
+    expect(result.current.mode).toBe("edit-existing");
+  });
+
   it("save does nothing when title is empty", async () => {
     const { result } = renderHook(() =>
       useEntryCrud(makeOptions({ isNew: true })),

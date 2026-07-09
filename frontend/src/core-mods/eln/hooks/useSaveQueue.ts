@@ -23,9 +23,12 @@ import type { EntryDetail } from "../types";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+/** Save mode sent as the X-Save-Mode header. */
+export type SaveMode = "autosave" | "manual";
+
 interface QueuedSave {
   payload: Record<string, unknown>;
-  saveMode?: string;
+  saveMode?: SaveMode;
   resolve: (value: EntryDetail) => void;
   reject: (reason: unknown) => void;
 }
@@ -51,7 +54,7 @@ export interface UseSaveQueueReturn {
    */
   enqueue: (
     payload: Record<string, unknown>,
-    saveMode?: string,
+    saveMode?: SaveMode,
   ) => Promise<EntryDetail>;
 }
 
@@ -117,14 +120,9 @@ export function useSaveQueue({
   const enqueue = useCallback(
     (
       payload: Record<string, unknown>,
-      saveMode?: string,
+      saveMode?: SaveMode,
     ): Promise<EntryDetail> => {
-      let resolveRef: ((value: EntryDetail) => void) | undefined;
-      let rejectRef: ((reason: unknown) => void) | undefined;
-
       const promise = new Promise<EntryDetail>((resolve, reject) => {
-        resolveRef = resolve;
-        rejectRef = reject;
         queueRef.current.push({
           payload,
           saveMode,

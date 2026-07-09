@@ -173,7 +173,10 @@ describe("useSaveQueue", () => {
       promise2 = result.current.enqueue({ title: "Second" });
     });
 
-    expect(mockPut).toHaveBeenCalledTimes(1);
+    // Wait for the setTimeout-deferred drain to start and pick up first item
+    await waitFor(() => {
+      expect(mockPut).toHaveBeenCalledTimes(1);
+    });
     expect(result.current.queueLength).toBe(2);
 
     // Resolve first — second should then start

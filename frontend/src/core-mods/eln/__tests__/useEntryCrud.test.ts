@@ -490,7 +490,7 @@ describe("useEntryCrud", () => {
     vi.useFakeTimers();
     mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
 
-    const { rerender, unmount } = renderHook(
+    const { rerender } = renderHook(
       ({ entryId }) => useEntryCrud(makeOptions({ entryId })),
       { initialProps: { entryId: "E1" } },
     );

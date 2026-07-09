@@ -52,6 +52,16 @@ vi.mock("../api", () => ({
   releaseLock: (...args: unknown[]) => mockReleaseLock(...args),
   attachTags: (...args: unknown[]) => mockAttachTags(...args),
   detachTag: (...args: unknown[]) => mockDetachTag(...args),
+  getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
+}));
+
+vi.mock("../../../core/user/CurrentUserProvider", () => ({
+  useCurrentUser: () => ({
+    user: { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
 }));
 
 const mockEnqueue = vi.fn();

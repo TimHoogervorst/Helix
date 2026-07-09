@@ -9,14 +9,15 @@
  * toolbar via state lifted from ElnEditor through onStateChange + ref.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
-const { mockFetchActions } = vi.hoisted(() => ({
+const { mockFetchActions, mockLockedState } = vi.hoisted(() => ({
   mockFetchActions: vi.fn().mockResolvedValue([]),
+  mockLockedState: { isLockedByOther: false, lockHeldBy: null as string | null },
 }));
 
 vi.mock("../api", () => ({
@@ -55,6 +56,8 @@ vi.mock("../editor/ElnEditor", () => ({
             status: "in_progress",
             tags: [],
             description: "",
+            isLockedByOther: mockLockedState.isLockedByOther,
+            lockHeldBy: mockLockedState.lockHeldBy,
           });
         }, 0);
         return () => clearTimeout(t);
@@ -99,6 +102,8 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   beforeEach(() => {
     mockFetchActions.mockReset();
     mockFetchActions.mockResolvedValue([]);
+    mockLockedState.isLockedByOther = false;
+    mockLockedState.lockHeldBy = null;
   });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 
@@ -463,5 +468,77 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       const retry = screen.getByTestId("activity-retry");
       expect(retry).toBeDefined();
     });
+  });
+
+  // ── Locked state: toolbar and metadata panel ─────────────────────────────
+
+  it("shows lock icon in toolbar when locked by another user", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    const lockLabel = await screen.findByLabelText("Locked by bob — read-only");
+    expect(lockLabel).toBeDefined();
+  });
+
+  it("hides MoreActions dropdown when locked", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    // Wait for the lock icon to appear (confirms locked state is active)
+    await screen.findByLabelText("Locked by bob — read-only");
+
+    // MoreActions trigger should NOT be present
+    expect(screen.queryByLabelText("More actions")).toBeNull();
+  });
+
+  it("hides save-status indicator when locked (replaced by lock icon)", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    await screen.findByLabelText("Locked by bob — read-only");
+
+    // Save status indicator labels should NOT be present
+    expect(screen.queryByLabelText("Saved")).toBeNull();
+    expect(screen.queryByLabelText("Saving…")).toBeNull();
+    expect(screen.queryByLabelText(/Save failed/)).toBeNull();
+  });
+
+  it("disables status select when locked", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    // Wait for the onStateChange to fire and the disabled prop to be applied.
+    await waitFor(() => {
+      const statusSelect = screen.getByTestId("status-select") as HTMLSelectElement;
+      expect(statusSelect.disabled).toBe(true);
+    });
+  });
+
+  it("disables folder select when locked", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    // Wait for the onStateChange to fire and the disabled prop to be applied.
+    await waitFor(() => {
+      const folderSelect = screen.getByTestId("folder-select") as HTMLSelectElement;
+      expect(folderSelect.disabled).toBe(true);
+    });
+  });
+
+  it("MoreActions is present when not locked", async () => {
+    renderAtRoute("/eln/EXP-0284");
+
+    const moreBtn = await screen.findByLabelText("More actions");
+    expect(moreBtn).toBeDefined();
   });
 });

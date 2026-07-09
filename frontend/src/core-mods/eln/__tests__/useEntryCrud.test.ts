@@ -45,10 +45,17 @@ vi.mock("../../../core/references/ReferenceProvider", () => ({
 const mockAcquireLock = vi.fn().mockResolvedValue({});
 const mockReleaseLock = vi.fn().mockResolvedValue(undefined);
 const mockAttachTags = vi.fn();
+const mockGetLockStatus = vi.fn().mockResolvedValue({ locked: false });
 vi.mock("../api", () => ({
   acquireLock: (...args: unknown[]) => mockAcquireLock(...args),
   releaseLock: (...args: unknown[]) => mockReleaseLock(...args),
   attachTags: (...args: unknown[]) => mockAttachTags(...args),
+  getLockStatus: (...args: unknown[]) => mockGetLockStatus(...args),
+}));
+
+const mockUser = { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" };
+vi.mock("../../../core/user/CurrentUserProvider", () => ({
+  useCurrentUser: () => ({ user: mockUser, isChecking: false, error: null, refresh: vi.fn() }),
 }));
 
 const mockEnqueue = vi.fn();
@@ -105,9 +112,11 @@ describe("useEntryCrud", () => {
     mockAcquireLock.mockReset();
     mockReleaseLock.mockReset();
     mockAttachTags.mockReset();
+    mockGetLockStatus.mockReset();
     mockGet.mockResolvedValue(makeEntry());
     mockAcquireLock.mockResolvedValue({});
     mockReleaseLock.mockResolvedValue(undefined);
+    mockGetLockStatus.mockResolvedValue({ locked: false });
   });
 
   // ── Initial state ────────────────────────────────────────────────────────
@@ -209,7 +218,7 @@ describe("useEntryCrud", () => {
 
   // ── autoSave (fire-and-forget) ────────────────────────────────────────────
 
-  it("autoSave enqueues with autosave saveMode and applies saved entry", async () => {
+  it("autoSave enqueues with autosave saveMode and resolves reference IDs from response", async () => {
     const saved = makeEntry({ title: "Auto Saved", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Saved desc" }] }] } });
     mockEnqueue.mockResolvedValue(saved);
     mockGet.mockResolvedValue(makeEntry({ title: "Original" }));
@@ -236,11 +245,15 @@ describe("useEntryCrud", () => {
       "autosave",
     );
 
-    // After the promise resolves, applySavedEntry should update state
+    // After the promise resolves, title stays as-is (auto-save does NOT
+    // overwrite local state — the user may have edited since the save
+    // was triggered).
     await waitFor(() => {
       expect(result.current.title).toBe("Auto Saved");
-      expect(result.current.entry?.title).toBe("Auto Saved");
     });
+
+    // entry state is NOT updated by auto-save — only manual save does that.
+    expect(result.current.entry?.title).toBe("Original");
   });
 
   it("autoSave skips when title is empty", () => {
@@ -470,5 +483,164 @@ describe("useEntryCrud", () => {
     );
 
     expect(mockAcquireLock).not.toHaveBeenCalled();
+  });
+
+  // ── Lock status check ───────────────────────────────────────────────────
+
+  it("checks lock status on mount when entryId is present", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+
+    renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(mockGetLockStatus).toHaveBeenCalledWith("E1");
+    });
+  });
+
+  it("does not check lock status when no entryId", () => {
+    renderHook(() =>
+      useEntryCrud(makeOptions({ isNew: true })),
+    );
+
+    expect(mockGetLockStatus).not.toHaveBeenCalled();
+  });
+
+  it("sets isLockedByOther and lockHeldBy when locked by another user", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLockedByOther).toBe(true);
+    });
+    expect(result.current.lockHeldBy).toBe("bob");
+  });
+
+  it("does not set isLockedByOther when locked by self", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 1, // same as mockUser.id
+    });
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isReady).toBe(true);
+    });
+    expect(result.current.isLockedByOther).toBe(false);
+  });
+
+  it("does not set isLockedByOther when entry is unlocked", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({ locked: false });
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isReady).toBe(true);
+    });
+    expect(result.current.isLockedByOther).toBe(false);
+  });
+
+  it("acquireLock still fires on mount even when locked by other — backend rejects it", async () => {
+    // acquireLock fires synchronously on mount before getLockStatus resolves,
+    // so it always fires. The backend rejects it if another user holds the lock.
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(mockAcquireLock).toHaveBeenCalledWith("E1");
+    });
+  });
+
+  it("autoSave is gated when isLockedByOther is true", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLockedByOther).toBe(true);
+    });
+
+    act(() => {
+      result.current.setTitle("Changed Title");
+      result.current.autoSave(null);
+    });
+
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("save is gated when isLockedByOther is true", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLockedByOther).toBe(true);
+    });
+
+    act(() => {
+      result.current.setTitle("Changed Title");
+    });
+
+    await act(async () => {
+      await result.current.save(null, []);
+    });
+
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("uses lockHeldBy username fallback when held_by_username is missing", async () => {
+    mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      // held_by_username intentionally absent
+    });
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLockedByOther).toBe(true);
+    });
+    expect(result.current.lockHeldBy).toBeNull();
   });
 });

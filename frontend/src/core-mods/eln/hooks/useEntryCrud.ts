@@ -13,8 +13,9 @@ import { useNavigate } from "react-router-dom";
 import { get, del } from "../../../core/api/client";
 import type { TipTapDoc, EntryDetail } from "../types";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
-import { attachTags, acquireLock, releaseLock } from "../api";
+import { attachTags, acquireLock, releaseLock, getLockStatus } from "../api";
 import { useSaveQueue, type SaveStatus } from "./useSaveQueue";
+import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
 import {
   splitFirstParagraph,
   prependDescription,
@@ -43,6 +44,10 @@ export interface UseEntryCrudReturn {
   setStatus: (s: string) => void;
   error: string | null;
   deleting: boolean;
+  /** True when another user holds an active lock — entry is read-only. */
+  isLockedByOther: boolean;
+  /** Username of the lock holder, or null if not locked by another. */
+  lockHeldBy: string | null;
   /** Fire-and-forget auto-save — enqueues with saveMode "autosave". */
   autoSave: (folderId: number | null) => void;
   /** Manual save — enqueues with saveMode "manual", returns the promise. */
@@ -65,6 +70,7 @@ export function useEntryCrud({
 }: UseEntryCrudOptions): UseEntryCrudReturn {
   const navigate = useNavigate();
   const { resolveIds } = useReferenceContext();
+  const { user } = useCurrentUser();
 
   // ── State ──
   const [entry, setEntry] = useState<EntryDetail | null>(null);
@@ -74,6 +80,8 @@ export function useEntryCrud({
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [isLockedByOther, setIsLockedByOther] = useState(false);
+  const [lockHeldBy, setLockHeldBy] = useState<string | null>(null);
 
   // ── Save queue (only when we have an entryId) ──
   const effectiveEntryId = entryId ?? entry?.display_id;
@@ -104,6 +112,7 @@ export function useEntryCrud({
   const autoSave = useCallback(
     (folderId: number | null) => {
       if (!effectiveEntryId || !title.trim()) return;
+      if (isLockedByOther) return;
 
       if (!validateEntityNames(contentRef.current)) {
         // Silently skip auto-save when entity names are incomplete.
@@ -120,16 +129,25 @@ export function useEntryCrud({
       };
 
       enqueue(payload, "autosave").then((saved) => {
-        applySavedEntry(saved);
+        // For auto-saves we do NOT apply the server response to local
+        // state — the user may have edited since the save was triggered,
+        // and overwriting title / content would reset the cursor and
+        // discard post-save edits. Only resolve any new reference
+        // display IDs so reference labels stay up to date.
+        const refIds = collectDisplayIds(saved.content);
+        if (refIds.length > 0) {
+          resolveIds(refIds);
+        }
       });
     },
-    [effectiveEntryId, title, description, status, contentRef, enqueue, applySavedEntry],
+    [effectiveEntryId, title, description, status, contentRef, enqueue, resolveIds, isLockedByOther],
   );
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
     async (folderId: number | null, tagIds: number[]) => {
       if (!effectiveEntryId || !title.trim()) return;
+      if (isLockedByOther) return;
 
       if (!validateEntityNames(contentRef.current)) {
         alert("Name not filled in.");
@@ -155,7 +173,7 @@ export function useEntryCrud({
         applySavedEntry(saved);
       }
     },
-    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry],
+    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry, isLockedByOther],
   );
 
   const setDescription = useCallback((d: string) => {
@@ -214,11 +232,30 @@ export function useEntryCrud({
     return () => controller.abort();
   }, [entryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Lock status check on mount ──
+  useEffect(() => {
+    if (!effectiveEntryId) return;
+
+    getLockStatus(effectiveEntryId)
+      .then((status) => {
+        if (status.locked && user && status.held_by !== user.id) {
+          setIsLockedByOther(true);
+          setLockHeldBy(status.held_by_username ?? null);
+        }
+      })
+      .catch(() => {
+        // Non-fatal — if we can't check, assume unlocked.
+      });
+    // Only re-check on entry change (navigation to a different entry).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveEntryId]);
+
   // ── Lock lifecycle (acquire on mount, refresh periodically, release on unmount) ──
   useEffect(() => {
     if (!effectiveEntryId) return;
 
-    // Acquire on mount (best-effort)
+    // Acquire on mount (best-effort — if another user holds the lock, the
+    // backend returns 423 and we swallow it silently).
     acquireLock(effectiveEntryId).catch(() => {
       // Non-fatal — the backend enforces locks on write.
     });
@@ -246,6 +283,8 @@ export function useEntryCrud({
     setStatus,
     error,
     deleting,
+    isLockedByOther,
+    lockHeldBy,
     autoSave,
     save,
     deleteEntry,

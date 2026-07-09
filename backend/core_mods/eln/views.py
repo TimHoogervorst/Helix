@@ -289,6 +289,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         return {
             "locked": True,
             "held_by": lock.held_by.id,
+            "held_by_username": lock.held_by.username,
             "acquired_at": lock.acquired_at,
             "last_activity_at": lock.last_activity_at,
         }
@@ -331,6 +332,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                     {
                         "locked": True,
                         "held_by": existing.held_by.id,
+                        "held_by_username": existing.held_by.username,
                         "detail": "This entry is currently being edited by another user.",
                     },
                     status=423,

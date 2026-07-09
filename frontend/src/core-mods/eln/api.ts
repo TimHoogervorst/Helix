@@ -5,6 +5,7 @@ import type { EntryDetail, EntryListItem, ElnAction, TipTapDoc } from "./types";
 export interface LockStatus {
   locked: boolean;
   held_by?: number;
+  held_by_username?: string;
   acquired_at?: string;
   last_activity_at?: string;
   detail?: string;

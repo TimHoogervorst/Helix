@@ -14,6 +14,7 @@ import {
   Check,
   Loader2,
   AlertTriangle,
+  Lock,
 } from "lucide-react";
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
@@ -73,6 +74,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     status: "in_progress",
     tags: [],
     description: "",
+    isLockedByOther: false,
+    lockHeldBy: null,
   });
   const handleStateChange = useCallback((state: ElnEditorState) => {
     setEditorState(state);
@@ -130,9 +133,11 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const pathSegments = folderPath.split("/").filter(Boolean);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {/* ── Top toolbar ── */}
-      <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      {/* ── Left column: toolbar + main content ── */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* ── Top toolbar ── */}
+        <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
         {/* Left: breadcrumbs — real folder path with clickable segments */}
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Folder
@@ -180,6 +185,20 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         <div className="flex items-center gap-1">
           {/* ── Save status indicator ── */}
           {showActions && (() => {
+            // When locked by another user, show lock icon with tooltip.
+            if (editorState.isLockedByOther) {
+              const lockLabel = `Locked by ${editorState.lockHeldBy || "another user"} — read-only`;
+              return (
+                <span
+                  className="btn-icon rounded-md"
+                  aria-label={lockLabel}
+                  title={lockLabel}
+                >
+                  <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                </span>
+              );
+            }
+
             const isSaving = editorState.saveStatus === "saving" || editorState.queueLength > 0;
             const isError = editorState.saveStatus === "error";
 
@@ -213,8 +232,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             );
           })()}
 
-          {/* ── MoreActions dropdown (Delete) ── */}
-          {showActions && (
+          {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}
+          {showActions && !editorState.isLockedByOther && (
             <MoreActions
               items={[
                 {
@@ -296,18 +315,18 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         </div>
       </div>
 
-      {/* ── Content + Metadata ── */}
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {/* ── Content ── */}
         {/* Main content area */}
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
             <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} />
           </div>
         </main>
+      </div>
 
-        {/* Metadata panel — visible at xl and above */}
-        <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
-          <div className="h-full space-y-6 overflow-y-auto px-5 py-6">
+      {/* Metadata panel — visible at xl and above, full height from top */}
+      <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
+        <div className="h-full space-y-6 overflow-y-auto px-5 py-6">
             {/* ── Metadata ── */}
             <section>
               <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -377,6 +396,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                       onChange={(e) =>
                         editorRef.current?.setStatus(e.target.value)
                       }
+                      disabled={editorState.isLockedByOther}
                       className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
                       data-testid="status-select"
                     >
@@ -395,6 +415,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                           e.target.value ? Number(e.target.value) : null,
                         )
                       }
+                      disabled={editorState.isLockedByOther}
                       className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
                       data-testid="folder-select"
                     >
@@ -494,7 +515,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             />
           </div>
         </aside>
-      </div>
     </div>
   );
 }

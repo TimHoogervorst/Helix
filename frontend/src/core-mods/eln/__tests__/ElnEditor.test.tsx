@@ -50,11 +50,22 @@ const mockAcquireLock = vi.fn().mockResolvedValue({});
 const mockReleaseLock = vi.fn().mockResolvedValue(undefined);
 const mockAttachTags = vi.fn();
 const mockDetachTag = vi.fn();
+const mockGetLockStatus = vi.fn().mockResolvedValue({ locked: false });
 vi.mock("../api", () => ({
   acquireLock: (...args: unknown[]) => mockAcquireLock(...args),
   releaseLock: (...args: unknown[]) => mockReleaseLock(...args),
   attachTags: (...args: unknown[]) => mockAttachTags(...args),
   detachTag: (...args: unknown[]) => mockDetachTag(...args),
+  getLockStatus: (...args: unknown[]) => mockGetLockStatus(...args),
+}));
+
+vi.mock("../../../core/user/CurrentUserProvider", () => ({
+  useCurrentUser: () => ({
+    user: { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
 }));
 
 vi.mock("../hooks/useSaveQueue", () => ({
@@ -156,6 +167,8 @@ beforeEach(() => {
   mockDel.mockResolvedValue(undefined);
   mockAcquireLock.mockResolvedValue({});
   mockReleaseLock.mockResolvedValue(undefined);
+  mockGetLockStatus.mockReset();
+  mockGetLockStatus.mockResolvedValue({ locked: false });
   Object.assign(stubEditor, makeStubEditor());
 });
 
@@ -419,5 +432,99 @@ describe("ElnEditor integration", () => {
     expect(screen.queryByLabelText("History")).toBeNull();
     expect(screen.queryByLabelText("Comments")).toBeNull();
     expect(screen.queryByLabelText("Star")).toBeNull();
+  });
+
+  // ── Locked state: read-only when another user holds the lock ────────────
+
+  it("shows locked banner when locked by another user", async () => {
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    renderEditor({ entryId: "E1" });
+
+    const banner = await screen.findByTestId("locked-banner");
+    expect(banner).toBeDefined();
+    expect(banner.textContent).toContain("bob");
+    expect(banner.textContent).toContain("read-only mode");
+  });
+
+  it("does NOT show locked banner when entry is not locked", async () => {
+    mockGetLockStatus.mockResolvedValue({ locked: false });
+
+    renderEditor({ entryId: "E1" });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
+    });
+
+    expect(screen.queryByTestId("locked-banner")).toBeNull();
+  });
+
+  it("sets title contentEditable to false when locked", async () => {
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    renderEditor({ entryId: "E1" });
+
+    await screen.findByTestId("locked-banner");
+
+    const title = screen.getByTestId("title-display");
+    expect(title.getAttribute("contentEditable")).toBe("false");
+  });
+
+  it("sets description textarea to readOnly when locked", async () => {
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    renderEditor({ entryId: "E1" });
+
+    await screen.findByTestId("locked-banner");
+
+    const textarea = screen.getByTestId("description-input");
+    expect(textarea.hasAttribute("readonly")).toBe(true);
+  });
+
+  it("does NOT show locked banner when locked by self", async () => {
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 1, // same as current user
+    });
+
+    renderEditor({ entryId: "E1" });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
+    });
+
+    expect(screen.queryByTestId("locked-banner")).toBeNull();
+  });
+
+  it("includes isLockedByOther and lockHeldBy in onStateChange when locked", async () => {
+    mockGetLockStatus.mockResolvedValue({
+      locked: true,
+      held_by: 99,
+      held_by_username: "bob",
+    });
+
+    const onStateChange = vi.fn();
+    renderEditor({ entryId: "E1", onStateChange });
+
+    await screen.findByTestId("locked-banner");
+
+    // Find the last call with isLockedByOther=true
+    const lockedCalls = onStateChange.mock.calls.filter(
+      (call) => (call[0] as ElnEditorState).isLockedByOther,
+    );
+    expect(lockedCalls.length).toBeGreaterThan(0);
+    expect(lockedCalls[0][0].lockHeldBy).toBe("bob");
   });
 });

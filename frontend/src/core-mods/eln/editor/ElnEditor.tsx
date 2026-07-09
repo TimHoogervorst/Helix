@@ -15,6 +15,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
+import { Lock } from "lucide-react";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
 import { useEntryCrud } from "../hooks/useEntryCrud";
 import { useAutoSave } from "../hooks/useAutoSave";
@@ -64,6 +65,10 @@ export interface ElnEditorState {
   tags: Tag[];
   /** Current description text (first paragraph of TipTap content). */
   description: string;
+  /** True when another user holds an active lock — entry is read-only. */
+  isLockedByOther: boolean;
+  /** Username of the lock holder, or null. */
+  lockHeldBy: string | null;
 }
 
 interface ElnEditorProps {
@@ -225,6 +230,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     setStatus,
     error,
     deleting,
+    isLockedByOther,
+    lockHeldBy,
     saveStatus,
     lastSavedAt,
     queueLength,
@@ -242,6 +249,14 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   // Wire cross-hook actions
   const save = () => crud.save(folderId, isNew ? pendingTagIds : []);
   const { deleteEntry } = crud;
+
+  // ── Lock-based read-only ──
+  // When another user holds the lock, the TipTap editor becomes non-editable.
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.setEditable(!isLockedByOther);
+    }
+  }, [editor, isLockedByOther]);
 
   // ── Expose actions to parent via ref ──
   const actionsRef = useRef({ save, deleteEntry, setFolderId, setStatus });
@@ -317,8 +332,10 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       status,
       tags,
       description,
+      isLockedByOther,
+      lockHeldBy,
     });
-  }, [isReady, isDirty, deleting, saveStatus, lastSavedAt, queueLength, entry, folders, folderId, status, tags, description, onStateChange]);
+  }, [isReady, isDirty, deleting, saveStatus, lastSavedAt, queueLength, entry, folders, folderId, status, tags, description, isLockedByOther, lockHeldBy, onStateChange]);
 
   // ── Render: loading / error states ──
 
@@ -337,6 +354,21 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   return (
     <div>
+      {/* ── Locked banner ── */}
+      {isLockedByOther && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+          data-testid="locked-banner"
+        >
+          <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            This entry is currently being edited by{" "}
+            <strong>{lockHeldBy || "another user"}</strong>. You are viewing it
+            in read-only mode.
+          </span>
+        </div>
+      )}
+
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
 
@@ -360,61 +392,67 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
         )}
       </div>
 
-      {/* Title — always contentEditable */}
+      {/* Title — contentEditable when not locked, plain text when locked */}
       <h1
         ref={(el) => {
           titleRef.current = el;
-          // Autofocus new entries
-          if (el && isNew) {
+          // Autofocus new entries (only when not locked)
+          if (el && isNew && !isLockedByOther) {
             requestAnimationFrame(() => el.focus());
           }
         }}
-        contentEditable
+        contentEditable={!isLockedByOther}
         suppressContentEditableWarning
         onInput={(e) => {
-          setTitle(e.currentTarget.textContent || "");
+          if (!isLockedByOther) setTitle(e.currentTarget.textContent || "");
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.preventDefault();
         }}
         onPaste={(e) => {
+          if (isLockedByOther) return;
           e.preventDefault();
           const text = e.clipboardData.getData("text/plain");
           document.execCommand("insertText", false, text);
         }}
         onBlur={() => {
-          if (title.trim() !== title) setTitle(title.trim());
+          if (!isLockedByOther && title.trim() !== title) setTitle(title.trim());
         }}
         className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
         data-testid="title-display"
       />
 
-      {/* Description — always textarea */}
+      {/* Description — textarea, readOnly when locked */}
       <textarea
         ref={descriptionRef}
         className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        onChange={(e) => {
+          if (!isLockedByOther) setDescription(e.target.value);
+        }}
+        readOnly={isLockedByOther}
         placeholder="Add a description…"
         data-testid="description-input"
       />
 
-      {/* Tags — always editable */}
+      {/* Tags — read-only display when locked */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
         {tags.map((tag) => (
           <TagPill
             key={tag.id}
             tag={tag}
-            onRemove={removeTag}
+            onRemove={isLockedByOther ? undefined : removeTag}
           />
         ))}
 
-        <TagAutocomplete
-          attachedTagIds={tags.map((t) => t.id)}
-          onTagSelect={addTag}
-          onTagCreated={addTag}
-          placeholder="Search tags…"
-        />
+        {!isLockedByOther && (
+          <TagAutocomplete
+            attachedTagIds={tags.map((t) => t.id)}
+            onTagSelect={addTag}
+            onTagCreated={addTag}
+            placeholder="Search tags…"
+          />
+        )}
       </div>
 
       {/* Hairline divider */}

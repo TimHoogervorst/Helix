@@ -3036,8 +3036,8 @@ input.library-new-folder-input:focus {
 }
 
 .tag-pill.tag-primary {
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
+  background: #7fb3d9;
+  color: #1a3a4a;
 }
 
 .tag-pill.tag-success {
@@ -3046,8 +3046,8 @@ input.library-new-folder-input:focus {
 }
 
 .tag-pill.tag-destructive {
-  background: var(--color-destructive);
-  color: var(--color-destructive-foreground);
+  background: #e6b3b3;
+  color: #4a1a1a;
 }
 
 .tag-pill.tag-muted {
@@ -3117,9 +3117,8 @@ input.library-new-folder-input:focus {
   font-size: 0.95rem;
 }
 
-/* Hide description, tags, and metadata row in grid view */
+/* Hide description and metadata row in grid view (tags remain visible) */
 .library-card-list.view-grid .card-description,
-.library-card-list.view-grid .card-tags,
 .library-card-list.view-grid .card-metadata {
   display: none;
 }

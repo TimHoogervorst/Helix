@@ -33,7 +33,7 @@ export function TagPill({ tag, onRemove, onIconChange }: TagPillProps) {
       {isInteractive && onIconChange ? (
         <button
           type="button"
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full !p-0 hover:opacity-70"
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full !p-0 !border-0 bg-transparent hover:opacity-70"
           onClick={() => onIconChange(tag.id, tag.icon)}
           aria-label={`Change icon for ${tag.name}`}
           title={iconInfo.label}
@@ -47,7 +47,7 @@ export function TagPill({ tag, onRemove, onIconChange }: TagPillProps) {
       {isInteractive && onRemove && (
         <button
           type="button"
-          className="ml-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full !p-0 hover:opacity-70"
+          className="ml-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full !p-0 !border-0 bg-transparent text-foreground hover:opacity-70"
           onClick={() => onRemove(tag.id)}
           aria-label={`Remove tag ${tag.name}`}
         >

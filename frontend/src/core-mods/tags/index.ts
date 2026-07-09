@@ -4,7 +4,7 @@ import { registerSettingsSection } from "../../core/mod-system";
 
 export const meta = {
   id: "tags",
-  displayName: "Tags",
+  displayName: "Labelling",
   dependsOn: [] as string[],
 };
 
@@ -13,7 +13,7 @@ export function register() {
   registerSettingsSection({
     id: "tags.manage",
     modId: "tags",
-    label: "Tags",
+    label: "Labelling",
     icon: Tag,
     component: lazy(() => import("./settings/TagSettings")),
     order: 20,

@@ -379,6 +379,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
           <TagAutocomplete
             attachedTagIds={tags.map((t) => t.id)}
             onTagSelect={addTag}
+            onTagCreated={addTag}
             placeholder="Search tags…"
           />
         )}

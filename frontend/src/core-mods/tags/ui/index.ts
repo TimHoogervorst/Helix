@@ -7,6 +7,9 @@ export type { TagColorPickerProps } from "./TagColorPicker";
 export { TagIconPicker } from "./TagIconPicker";
 export type { TagIconPickerProps } from "./TagIconPicker";
 
+export { TagIconPopover } from "./TagIconPopover";
+export type { TagIconPopoverProps } from "./TagIconPopover";
+
 export { TagPicker } from "./TagPicker";
 export type { TagPickerProps } from "./TagPicker";
 

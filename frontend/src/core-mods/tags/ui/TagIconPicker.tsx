@@ -1,8 +1,11 @@
 /**
  * TagIconPicker — row of 8 icon buttons using TAG_ICONS from constants.
  *
- * Used inline in TagAutocomplete and in TagSettings for selecting a
- * tag's icon.
+ * Ghosted style: unselected icons have a transparent border (like TagColorPicker),
+ * while the selected icon has a visible border + muted background.
+ *
+ * Used inline in TagAutocomplete, inside TagIconPopover for settings, and
+ * anywhere you need to select a tag's icon.
  */
 import { TAG_ICONS } from "../constants";
 
@@ -20,8 +23,8 @@ export function TagIconPicker({
   onChange,
   size = "sm",
 }: TagIconPickerProps) {
-  const buttonSize = size === "xs" ? "h-6 w-6" : "h-7 w-7";
-  const iconSize = size === "xs" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const buttonSize = size === "xs" ? "h-9 w-9" : "h-10 w-10";
+  const iconSize = size === "xs" ? "h-5 w-5" : "h-6 w-6";
 
   return (
     <div className="flex gap-0.5" data-testid="tag-icon-picker">
@@ -31,10 +34,10 @@ export function TagIconPicker({
           <button
             key={ico.key}
             type="button"
-            className={`${buttonSize} rounded border flex items-center justify-center ${
+            className={`${buttonSize} rounded border flex items-center justify-center transition-colors hover:bg-muted bg-transparent text-foreground ${
               value === ico.key
                 ? "border-foreground bg-muted"
-                : "border-hairline"
+                : "border-transparent"
             }`}
             title={ico.label}
             aria-label={ico.label}

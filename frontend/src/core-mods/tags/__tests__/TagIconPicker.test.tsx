@@ -31,11 +31,11 @@ describe("TagIconPicker", () => {
     expect(dnaBtn.className).toContain("bg-muted");
   });
 
-  it("applies border-hairline to unselected icons", () => {
+  it("applies border-transparent to unselected icons", () => {
     render(<TagIconPicker value="dna" onChange={() => {}} />);
 
     const circleBtn = screen.getByLabelText("Circle");
-    expect(circleBtn.className).toContain("border-hairline");
+    expect(circleBtn.className).toContain("border-transparent");
     expect(circleBtn.className).not.toContain("border-foreground");
   });
 
@@ -51,15 +51,15 @@ describe("TagIconPicker", () => {
     render(<TagIconPicker value="circle" onChange={() => {}} size="xs" />);
 
     const dnaBtn = screen.getByLabelText("DNA");
-    expect(dnaBtn.className).toContain("h-6");
-    expect(dnaBtn.className).toContain("w-6");
+    expect(dnaBtn.className).toContain("h-9");
+    expect(dnaBtn.className).toContain("w-9");
   });
 
   it("renders sm size variant with default buttons", () => {
     render(<TagIconPicker value="circle" onChange={() => {}} size="sm" />);
 
     const dnaBtn = screen.getByLabelText("DNA");
-    expect(dnaBtn.className).toContain("h-7");
-    expect(dnaBtn.className).toContain("w-7");
+    expect(dnaBtn.className).toContain("h-10");
+    expect(dnaBtn.className).toContain("w-10");
   });
 });

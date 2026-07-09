@@ -105,7 +105,7 @@ export function TagAutocomplete({
       <input
         ref={inputRef}
         type="text"
-        className="!w-36 !py-0.5 !text-xs"
+        className="!w-36 !py-0.5 !text-xs !bg-transparent !border-0"
         placeholder={placeholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -138,7 +138,7 @@ export function TagAutocomplete({
               <button
                 key={t.id}
                 type="button"
-                className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] hover:bg-muted"
+                className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] border-transparent bg-transparent text-foreground hover:bg-muted"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   handleSelect(t);
@@ -157,7 +157,7 @@ export function TagAutocomplete({
           {showCreateNew && (
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] border-transparent bg-transparent text-foreground hover:bg-muted"
               onMouseDown={(e) => {
                 e.preventDefault();
                 startCreate(query.trim());

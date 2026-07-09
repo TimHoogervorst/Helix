@@ -1,12 +1,12 @@
 """
-Tests for ``references.prefix_resolver`` — resolution, icon, and caching.
+Tests for ``core.mentions.prefix_resolver`` — resolution, icon, and caching.
 """
 from django.core.cache import cache
 from django.test import TestCase
 
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC
-from references.prefix_resolver import (
+from core.mentions.prefix_resolver import (
     get_icon,
     get_model_type_map,
     get_prefix_map,

@@ -15,8 +15,8 @@ from core_mods.lims.models import EntityType
 
 # ── Cache keys ──────────────────────────────────────────────────────────────
 
-PREFIX_CACHE_KEY = "references:prefix_map"
-MODEL_TYPE_CACHE_KEY = "references:model_type_map"
+PREFIX_CACHE_KEY = "mentions:prefix_map"
+MODEL_TYPE_CACHE_KEY = "mentions:model_type_map"
 CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 
 

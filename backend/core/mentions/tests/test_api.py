@@ -1,8 +1,8 @@
 """
-Tests for the references API endpoints.
+Tests for the mentions API endpoints.
 
-POST /api/references/resolve/   — batch-resolve display IDs
-GET  /api/references/search/    — search by display_id prefix
+POST /api/mentions/resolve/   — batch-resolve display IDs
+GET  /api/mentions/search/    — search by display_id prefix
 """
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
@@ -10,7 +10,7 @@ from core_mods.eln.models import NotebookEntry
 
 
 class ResolveApiTests(BaseTestCase):
-    """POST /api/references/resolve/"""
+    """POST /api/mentions/resolve/"""
 
     def setUp(self):
         super().setUp()
@@ -25,7 +25,7 @@ class ResolveApiTests(BaseTestCase):
         )
 
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [e1.display_id, e2.display_id]},
             format="json",
         )
@@ -43,7 +43,7 @@ class ResolveApiTests(BaseTestCase):
     def test_resolve_invalid_id_returns_null(self):
         """An ID that doesn't match any entry returns null."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": ["E99999"]},
             format="json",
         )
@@ -57,7 +57,7 @@ class ResolveApiTests(BaseTestCase):
         )
 
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [e1.display_id, "E99999"]},
             format="json",
         )
@@ -68,7 +68,7 @@ class ResolveApiTests(BaseTestCase):
     def test_resolve_empty_ids(self):
         """Empty list returns empty object."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": []},
             format="json",
         )
@@ -78,7 +78,7 @@ class ResolveApiTests(BaseTestCase):
     def test_resolve_unknown_prefix(self):
         """IDs with unknown prefixes (like X1) resolve to null."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": ["X1"]},
             format="json",
         )
@@ -87,7 +87,7 @@ class ResolveApiTests(BaseTestCase):
 
 
 class SearchApiTests(BaseTestCase):
-    """GET /api/references/search/?q=..."""
+    """GET /api/mentions/search/?q=..."""
 
     def setUp(self):
         super().setUp()
@@ -101,7 +101,7 @@ class SearchApiTests(BaseTestCase):
 
     def test_search_returns_matching_entries(self):
         """Search by display_id prefix returns matching entries."""
-        response = self.client.get(f"/api/references/search/?q={self.e1.display_id}")
+        response = self.client.get(f"/api/mentions/search/?q={self.e1.display_id}")
 
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
@@ -112,21 +112,21 @@ class SearchApiTests(BaseTestCase):
 
     def test_search_no_matches(self):
         """A query matching nothing returns empty results."""
-        response = self.client.get("/api/references/search/?q=Z999")
+        response = self.client.get("/api/mentions/search/?q=Z999")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
 
     def test_search_empty_query(self):
         """Empty query returns empty results (not an error)."""
-        response = self.client.get("/api/references/search/?q=")
+        response = self.client.get("/api/mentions/search/?q=")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
 
     def test_search_case_insensitive(self):
         """Prefix matching is case-insensitive ('e1' matches 'E1')."""
-        response = self.client.get(f"/api/references/search/?q=e1")
+        response = self.client.get(f"/api/mentions/search/?q=e1")
 
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
@@ -137,7 +137,7 @@ class SearchApiTests(BaseTestCase):
 # ── Slice 1: Dynamic PREFIX_MAP — entity references ──
 
 class EntityReferenceTests(BaseTestCase):
-    """Entity display IDs resolve and search through the references endpoints."""
+    """Entity display IDs resolve and search through the mentions endpoints."""
 
     def setUp(self):
         super().setUp()
@@ -157,7 +157,7 @@ class EntityReferenceTests(BaseTestCase):
     def test_resolve_entity_display_id(self):
         """Entity display IDs are resolved via PREFIX_MAP."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [self.entity.display_id]},
             format="json",
         )
@@ -177,7 +177,7 @@ class EntityReferenceTests(BaseTestCase):
         )
 
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [entry.display_id, self.entity.display_id]},
             format="json",
         )
@@ -188,8 +188,8 @@ class EntityReferenceTests(BaseTestCase):
         self.assertEqual(response.data[self.entity.display_id]["type"], "entity")
 
     def test_search_finds_entities_by_prefix(self):
-        """GET /api/references/search/ includes entities when prefix matches."""
-        response = self.client.get(f"/api/references/search/?q={self.entity.display_id}")
+        """GET /api/mentions/search/ includes entities when prefix matches."""
+        response = self.client.get(f"/api/mentions/search/?q={self.entity.display_id}")
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
         self.assertEqual(len(results), 1)
@@ -198,16 +198,16 @@ class EntityReferenceTests(BaseTestCase):
 
     def test_search_finds_entities_by_partial_prefix(self):
         """Search by partial prefix (e.g., 'BLO') returns matching entities."""
-        response = self.client.get("/api/references/search/?q=BLO")
+        response = self.client.get("/api/mentions/search/?q=BLO")
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["display_id"], self.entity.display_id)
 
 
-# ── Icon field in references API ───────────────────────────────────────
+# ── Icon field in mentions API ───────────────────────────────────────
 
-class IconInReferencesTests(BaseTestCase):
+class IconInMentionsTests(BaseTestCase):
     """Verify that resolve and search endpoints include the icon field."""
 
     def setUp(self):
@@ -232,7 +232,7 @@ class IconInReferencesTests(BaseTestCase):
     def test_resolve_entry_includes_icon(self):
         """Resolving an ELN entry returns icon: '📄'."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [self.entry.display_id]},
             format="json",
         )
@@ -244,7 +244,7 @@ class IconInReferencesTests(BaseTestCase):
     def test_resolve_entity_includes_icon(self):
         """Resolving an entity returns the entity type's icon."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [self.entity.display_id]},
             format="json",
         )
@@ -268,7 +268,7 @@ class IconInReferencesTests(BaseTestCase):
         )
 
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [entity.display_id]},
             format="json",
         )
@@ -280,7 +280,7 @@ class IconInReferencesTests(BaseTestCase):
     def test_search_entries_include_icon(self):
         """Search results for entries include the icon field."""
         response = self.client.get(
-            f"/api/references/search/?q={self.entry.display_id}"
+            f"/api/mentions/search/?q={self.entry.display_id}"
         )
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
@@ -290,7 +290,7 @@ class IconInReferencesTests(BaseTestCase):
     def test_search_entities_include_icon(self):
         """Search results for entities include the icon field."""
         response = self.client.get(
-            f"/api/references/search/?q={self.entity.display_id}"
+            f"/api/mentions/search/?q={self.entity.display_id}"
         )
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
@@ -300,7 +300,7 @@ class IconInReferencesTests(BaseTestCase):
     def test_mixed_resolve_includes_icons(self):
         """Mixed entry+entity resolve includes correct icons for each."""
         response = self.client.post(
-            "/api/references/resolve/",
+            "/api/mentions/resolve/",
             {"ids": [self.entry.display_id, self.entity.display_id]},
             format="json",
         )

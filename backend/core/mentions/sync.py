@@ -8,9 +8,9 @@ Orchestrates ``node_walker.collect_reference_ids`` and
 """
 from django.contrib.contenttypes.models import ContentType
 
-from references.node_walker import collect_reference_ids
-from references.prefix_resolver import resolve_display_id
-from core_mods.eln.models import Mention
+from core.mentions.node_walker import collect_reference_ids
+from core.mentions.prefix_resolver import resolve_display_id
+from core.mentions.models import Mention
 
 
 def sync_mentions(source, tiptap_json: dict) -> None:

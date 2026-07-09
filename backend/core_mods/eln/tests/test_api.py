@@ -5,7 +5,8 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from core_mods.eln.models import NotebookEntry, Mention, ElnAction
+from core.mentions.models import Mention
+from core_mods.eln.models import NotebookEntry, ElnAction
 
 TEXT_DOC = {
     "type": "doc",
@@ -163,7 +164,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
             title="Has Ref", content=doc_with_ref, folder=self.folder, author=self.user
         )
         # Manually sync since the creation through ORM doesn't go through the view.
-        from references.services import sync_mentions
+        from core.mentions.sync import sync_mentions
         sync_mentions(entry, doc_with_ref)
         self.assertEqual(Mention.objects.count(), 1)
 

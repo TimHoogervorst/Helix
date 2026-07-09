@@ -1,5 +1,5 @@
 """
-API views for inline reference resolution and search.
+API views for inline mention resolution and search.
 """
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
@@ -22,7 +22,7 @@ def resolve_view(request):
     """
     Batch-resolve display IDs to target details.
 
-    POST /api/references/resolve/
+    POST /api/mentions/resolve/
     Body: {"ids": ["E1", "BLOOD1"]}
     Returns: {"E1": {...}, "BLOOD1": {...}, "NONEXIST": null}
 
@@ -61,9 +61,9 @@ resolve_view = csrf_exempt(resolve_view)
 @permission_classes([AllowAny])
 def search_view(request):
     """
-    Search for references by display_id prefix.
+    Search for mentions by display_id prefix.
 
-    GET /api/references/search/?q=E1
+    GET /api/mentions/search/?q=E1
     Returns: {"results": [{"display_id": "E1", "title": "...", "type": "entry"}, ...]}
     """
     query = request.query_params.get("q", "").strip()

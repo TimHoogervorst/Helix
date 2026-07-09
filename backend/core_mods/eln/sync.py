@@ -10,8 +10,8 @@ Adding a third sync step (e.g. Protocol widgets) changes this file alone
 """
 from core.signals import entry_content_sync
 from core.walker import walk_tiptap_tree
-from references.node_walker import collect_reference_ids
-from references.services import sync_mentions
+from core.mentions.node_walker import collect_reference_ids
+from core.mentions.sync import sync_mentions
 
 from .models import NotebookEntry
 

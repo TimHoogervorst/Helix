@@ -1,13 +1,22 @@
 from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
 from rest_framework.response import Response
+
+
+class LockedException(APIException):
+    """HTTP 423 Locked — raised when another user holds the entry lock."""
+
+    status_code = 423
+    default_detail = "This entry is currently being edited by another user."
+    default_code = "locked"
 
 from core.actions.logger import log_action
 
 from core_mods.tags.models import Tag
 
-from .models import NotebookEntry, ElnAction
+from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -30,6 +39,9 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
     delete_all: DELETE /api/eln/entries/delete_all/ — delete all entries
     attach_tags: POST /api/eln/entries/{display_id}/tags/ — attach one or more tags
     detach_tag: DELETE /api/eln/entries/{display_id}/tags/{tag_id}/ — detach a tag
+    lock_status: GET /api/eln/entries/{display_id}/lock/ — lock status
+    acquire_lock: POST /api/eln/entries/{display_id}/lock/ — acquire or refresh lock
+    release_lock: DELETE /api/eln/entries/{display_id}/lock/ — release lock
     """
 
     queryset = NotebookEntry.objects.select_related("author", "folder").prefetch_related(
@@ -56,14 +68,97 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
             )
 
     def perform_update(self, serializer):
+        """Save an entry update with content versioning and hash-based no-op.
+
+        Flow:
+        0. Check lock — reject 423 if another user holds a non-stale lock.
+        1. Hash incoming content, compare with latest ContentVersion.
+           If hash matches AND no other fields changed → return early (no-op).
+        2. Save the entry via the serializer.
+        3. Run the sync pipeline.
+        4. Create a ContentVersion only if content actually changed.
+        5. Log an "edited" action with version metadata (if content changed).
+        """
+        instance = serializer.instance
+        validated_data = serializer.validated_data
+        content = validated_data.get("content")
+
+        # ── Lock enforcement ───────────────────────────────────────────────
+        lock: EntryLock | None = None
+        try:
+            lock = instance.lock  # OneToOneField reverse accessor
+        except EntryLock.DoesNotExist:
+            pass
+
+        if lock is not None and not lock.is_stale() and lock.held_by != self.request.user:
+            raise LockedException()
+
+        # Determine save_mode from request header.
+        valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}
+        save_mode = self.request.headers.get("X-Save-Mode", "manual")
+        if save_mode not in valid_modes:
+            save_mode = "manual"
+
+        # ── Determine whether content actually changed ──────────────────
+        content_changed = False
+        if content is not None:
+            incoming_hash = ContentVersion.hash_content(content)
+            latest_version = ContentVersion.latest_for(instance)
+            if latest_version is None:
+                content_changed = True
+            elif latest_version.content_hash != incoming_hash:
+                content_changed = True
+            # else: hash matches → content unchanged
+
+        # ── Hash-based no-op short-circuit ──────────────────────────────
+        if content is not None and not content_changed:
+            # Content unchanged — check whether any other field changed.
+            other_fields_changed = False
+            for field_name in validated_data:
+                if field_name == "content":
+                    continue
+                new_value = validated_data[field_name]
+                if field_name == "folder":
+                    old_value = instance.folder
+                else:
+                    old_value = getattr(instance, field_name)
+                if old_value != new_value:
+                    other_fields_changed = True
+                    break
+
+            if not other_fields_changed:
+                return  # true no-op — nothing changed
+
+        # ── Save & sync ─────────────────────────────────────────────────
         instance = serializer.save()
         sync_entry_content(instance)
+
+        # ── Create ContentVersion (content changes only) ────────────────
+        version_metadata: dict = {}
+        if content_changed:
+            version_number = ContentVersion.next_version_number(instance)
+            cv = ContentVersion.objects.create(
+                entry=instance,
+                content=instance.content,
+                content_hash=ContentVersion.hash_content(instance.content),
+                version_number=version_number,
+                created_by=self.request.user,
+                save_mode=save_mode,
+            )
+            version_metadata = {
+                "version_id": cv.id,
+                "version_number": version_number,
+                "save_mode": save_mode,
+            }
+
+        # ── Log action ──────────────────────────────────────────────────
         if self.request.user.is_authenticated:
             log_action(
                 user=self.request.user,
                 action_type="edited",
                 target_type="eln.entry",
                 target_id=instance.id,
+                metadata=version_metadata,
             )
 
     def create(self, request, *args, **kwargs):
@@ -175,5 +270,118 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
 
         read_serializer = ElnActionSerializer(action)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+    # ── Lock endpoints ──────────────────────────────────────────────────────
+
+    @action(detail=True, methods=["post"], url_path="lock")
+    def acquire_lock(self, request, display_id=None):
+        """Acquire or refresh the lock on this entry.
+
+        POST /api/eln/entries/{display_id}/lock/
+
+        Returns:
+            201 — first-time lock acquired.
+            200 — existing lock refreshed (same user re-acquires).
+            201 — stale lock stolen (deletes old, creates new).
+            423 — another user holds an active lock.
+        """
+        entry = self.get_object()
+
+        try:
+            existing = entry.lock
+        except EntryLock.DoesNotExist:
+            existing = None
+
+        if existing is not None:
+            if existing.held_by == request.user:
+                # Same user re-acquiring — refresh last_activity_at.
+                existing.save()  # auto_now=True bumps last_activity_at
+                return Response(
+                    {"locked": True, "held_by": request.user.id},
+                    status=status.HTTP_200_OK,
+                )
+            elif existing.is_stale():
+                # Stale lock — steal it.
+                existing.delete()
+            else:
+                # Another user holds an active lock.
+                return Response(
+                    {
+                        "locked": True,
+                        "held_by": existing.held_by.id,
+                        "detail": "This entry is currently being edited by another user.",
+                    },
+                    status=423,
+                )
+
+        # Create a new lock.
+        lock = EntryLock.objects.create(entry=entry, held_by=request.user)
+        return Response(
+            {
+                "locked": True,
+                "held_by": lock.held_by.id,
+                "acquired_at": lock.acquired_at,
+                "last_activity_at": lock.last_activity_at,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["delete"], url_path="lock")
+    def release_lock(self, request, display_id=None):
+        """Release the lock on this entry.
+
+        DELETE /api/eln/entries/{display_id}/lock/
+
+        Returns:
+            204 — lock released by owner.
+            404 — no lock exists.
+            403 — not the lock holder.
+        """
+        entry = self.get_object()
+
+        try:
+            existing = entry.lock
+        except EntryLock.DoesNotExist:
+            return Response(
+                {"detail": "No lock exists for this entry."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if existing.held_by != request.user:
+            return Response(
+                {"detail": "You do not hold the lock on this entry."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        existing.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get"], url_path="lock")
+    def lock_status(self, request, display_id=None):
+        """Return the current lock status for this entry.
+
+        GET /api/eln/entries/{display_id}/lock/
+
+        Returns 200 with:
+            locked: bool
+            held_by: int | None  (user id)
+            acquired_at: str | None  (ISO 8601)
+            last_activity_at: str | None  (ISO 8601)
+        """
+        entry = self.get_object()
+
+        try:
+            existing = entry.lock
+        except EntryLock.DoesNotExist:
+            return Response({"locked": False})
+
+        return Response(
+            {
+                "locked": True,
+                "held_by": existing.held_by.id,
+                "acquired_at": existing.acquired_at,
+                "last_activity_at": existing.last_activity_at,
+            }
+        )
 
 

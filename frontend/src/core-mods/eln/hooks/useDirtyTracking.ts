@@ -17,6 +17,10 @@ export interface UseDirtyTrackingOptions {
   initialStatus: string;
   contentRef: React.MutableRefObject<TipTapDoc>;
   initialContent: TipTapDoc;
+  /** When > 0, force isDirty = true regardless of value comparison.
+   *  This ensures beforeunload fires even if all value comparisons match
+   *  but there are still queued saves that haven't reached the server. */
+  queueLength?: number;
 }
 
 export interface UseDirtyTrackingReturn {
@@ -32,10 +36,12 @@ export function useDirtyTracking({
   initialStatus,
   contentRef,
   initialContent,
+  queueLength = 0,
 }: UseDirtyTrackingOptions): UseDirtyTrackingReturn {
   const currentContent = contentRef.current;
 
   const isDirty =
+    queueLength > 0 ||
     title !== initialTitle ||
     description !== initialDescription ||
     status !== initialStatus ||

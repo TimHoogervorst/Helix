@@ -1,5 +1,5 @@
 import { useNavigate, Link } from "react-router-dom";
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import {
   History,
   MessageSquare,
@@ -9,7 +9,6 @@ import {
   Folder,
   ChevronRight,
   Trash2,
-  Ellipsis,
   FlaskConical,
   Paperclip,
   Check,
@@ -60,11 +59,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   // ── Editor state lifted from ElnEditor via callback ──
   const [editorState, setEditorState] = useState<ElnEditorState>({
-    mode: "loading",
-    isEdit: false,
-    isSaving: false,
+    isReady: false,
     isDirty: false,
     deleting: false,
+    saveStatus: "idle",
+    lastSavedAt: null,
+    queueLength: 0,
     entry: null,
     folders: [],
     folderId: null,
@@ -80,8 +80,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const editorRef = useRef<ElnEditorHandle>(null);
   const navigate = useNavigate();
 
-  const showActions =
-    editorState.mode !== "loading" && editorState.mode !== "error";
+  const showActions = editorState.isReady;
 
   // ── Share state ──
   const [shareClicked, setShareClicked] = useState(false);
@@ -125,7 +124,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   // ── Derived metadata for the panel ──
   const entry = editorState.entry;
-  const isEdit = editorState.isEdit;
   const folderPath = entry?.folder_path || "";
   const pathSegments = folderPath.split("/").filter(Boolean);
 
@@ -178,42 +176,20 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
         {/* Right: actions + avatars + share */}
         <div className="flex items-center gap-1">
-          {/* ── Editor action buttons (lifted from ElnEditor) ── */}
-          {showActions &&
-            (editorState.isEdit ? (
-              <>
-                <IconButton
-                  icon={Save}
-                  label="Save"
-                  tooltip="Save entry"
-                  disabled={editorState.isSaving}
-                  onClick={() => editorRef.current?.save()}
-                />
-                <IconButton
-                  icon={X}
-                  label="Cancel"
-                  tooltip="Cancel editing"
-                  disabled={editorState.isSaving}
-                  onClick={() => editorRef.current?.cancel()}
-                />
-              </>
-            ) : (
-              <>
-                <IconButton
-                  icon={Pencil}
-                  label="Edit"
-                  tooltip="Edit entry"
-                  onClick={() => editorRef.current?.enterEditMode()}
-                />
-                <IconButton
-                  icon={Trash2}
-                  label="Delete"
-                  tooltip="Delete entry"
-                  disabled={editorState.deleting}
-                  onClick={() => editorRef.current?.deleteEntry()}
-                />
-              </>
-            ))}
+          {/* ── MoreActions dropdown (Delete) ── */}
+          {showActions && (
+            <MoreActions
+              items={[
+                {
+                  key: "delete",
+                  icon: Trash2,
+                  label: "Delete",
+                  onClick: () => editorRef.current?.deleteEntry(),
+                  destructive: true,
+                },
+              ]}
+            />
+          )}
 
           <IconButton
             icon={History}
@@ -359,59 +335,39 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Status</dt>
                   <dd className="text-right">
-                    {isEdit ? (
-                      <select
-                        value={editorState.status}
-                        onChange={(e) =>
-                          editorRef.current?.setStatus(e.target.value)
-                        }
-                        className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
-                        data-testid="status-select"
-                      >
-                        <option value="in_progress">In Progress</option>
-                        <option value="finished">Finished</option>
-                      </select>
-                    ) : (
-                      <span
-                        className={
-                          "inline-flex items-center gap-1 rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider " +
-                          (editorState.status === "finished"
-                            ? "bg-success text-success-foreground"
-                            : "bg-warn text-warn-foreground")
-                        }
-                        data-testid="status-chip"
-                      >
-                        {editorState.status === "finished"
-                          ? "Finished"
-                          : "In progress"}
-                      </span>
-                    )}
+                    <select
+                      value={editorState.status}
+                      onChange={(e) =>
+                        editorRef.current?.setStatus(e.target.value)
+                      }
+                      className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
+                      data-testid="status-select"
+                    >
+                      <option value="in_progress">In Progress</option>
+                      <option value="finished">Finished</option>
+                    </select>
                   </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Folder</dt>
                   <dd className="text-right">
-                    {isEdit ? (
-                      <select
-                        value={editorState.folderId ?? ""}
-                        onChange={(e) =>
-                          editorRef.current?.setFolderId(
-                            e.target.value ? Number(e.target.value) : null,
-                          )
-                        }
-                        className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
-                        data-testid="folder-select"
-                      >
-                        <option value="">Folder…</option>
-                        {editorState.folders.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      entry?.folder_name || "—"
-                    )}
+                    <select
+                      value={editorState.folderId ?? ""}
+                      onChange={(e) =>
+                        editorRef.current?.setFolderId(
+                          e.target.value ? Number(e.target.value) : null,
+                        )
+                      }
+                      className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
+                      data-testid="folder-select"
+                    >
+                      <option value="">Folder…</option>
+                      {editorState.folders.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
                   </dd>
                 </div>
               </dl>

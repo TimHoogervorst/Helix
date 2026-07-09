@@ -1,27 +1,26 @@
 /**
- * useEntryCrud — state machine hook for ELN entry CRUD operations.
+ * useEntryCrud — CRUD hook for ELN entries (always-editable, no mode machine).
  *
- * Owns: entry fetch, mode transitions (loading → view → edit → saving → error),
- * title/description/status state, and save/cancel/delete actions.
+ * Owns: entry fetch, title/description/status state, save/autoSave/delete,
+ * lock lifecycle (acquire on mount, periodic refresh, release on unmount),
+ * and save-queue integration via useSaveQueue.
  *
- * Does NOT own: folder selection, tag management, or dirty tracking.
- * ``save(folderId, tags)`` accepts folder and tag data from the composing component.
+ * Does NOT own: folder selection, tag management, dirty tracking, or debounce
+ * timing (useAutoSave).
  */
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../../core/api/client";
-import { EMPTY_DOC, type TipTapDoc, type EntryDetail } from "../types";
+import { get, del } from "../../../core/api/client";
+import type { TipTapDoc, EntryDetail } from "../types";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
-import { attachTags } from "../api";
+import { attachTags, acquireLock, releaseLock } from "../api";
+import { useSaveQueue, type SaveStatus } from "./useSaveQueue";
 import {
   splitFirstParagraph,
   prependDescription,
   collectDisplayIds,
   validateEntityNames,
-  type EditorMode,
 } from "./useEntryEditor";
-
-export type { EditorMode } from "./useEntryEditor";
 
 export interface UseEntryCrudOptions {
   entryId?: string;
@@ -31,27 +30,32 @@ export interface UseEntryCrudOptions {
 }
 
 export interface UseEntryCrudReturn {
-  mode: EditorMode;
+  /** True when the entry has loaded and the editor is ready (not loading/error). */
+  isReady: boolean;
   entry: EntryDetail | null;
   /** Exposed so sibling hooks can sync entry after backend tag mutations. */
   setEntry: React.Dispatch<React.SetStateAction<EntryDetail | null>>;
   title: string;
   setTitle: (t: string) => void;
-  initialTitle: string;
-  initialContent: TipTapDoc;
   description: string;
-  initialDescription: string;
   setDescription: (d: string) => void;
   status: string;
-  initialStatus: string;
   setStatus: (s: string) => void;
   error: string | null;
   deleting: boolean;
-  /** Save the entry. ``folderId`` and ``tagIds`` are owned by sibling hooks. */
-  save(folderId: number | null, tagIds: number[]): Promise<void>;
-  cancel(): void;
-  deleteEntry(): Promise<void>;
-  enterEditMode(): void;
+  /** Fire-and-forget auto-save — enqueues with saveMode "autosave". */
+  autoSave: (folderId: number | null) => void;
+  /** Manual save — enqueues with saveMode "manual", returns the promise. */
+  save: (folderId: number | null, tagIds: number[]) => Promise<void>;
+  deleteEntry: () => Promise<void>;
+  /** Apply server response to local state (shared by autoSave and save). */
+  applySavedEntry: (entry: EntryDetail) => void;
+  /** Current save-queue status. */
+  saveStatus: SaveStatus;
+  /** When the most recent successful save completed, or null. */
+  lastSavedAt: Date | null;
+  /** Number of items currently in the save queue. */
+  queueLength: number;
 }
 
 export function useEntryCrud({
@@ -63,186 +67,191 @@ export function useEntryCrud({
   const { resolveIds } = useReferenceContext();
 
   // ── State ──
-  // When isNew && entryId, the entry already exists on the server (created
-  // before navigation via immediate-create flow). We still fetch it, but
-  // start in edit mode so the editor is immediately editable.
-  const [mode, setMode] = useState<EditorMode>(
-    isNew && !entryId ? "edit-new" : "loading",
-  );
   const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [title, setTitle] = useState("");
-  const [initialTitle, setInitialTitle] = useState("");
-  const [initialContent, setInitialContent] = useState<TipTapDoc>(EMPTY_DOC);
   const [description, setDescriptionState] = useState("");
-  const [initialDescription, setInitialDescription] = useState("");
   const [status, setStatus] = useState("in_progress");
-  const [initialStatus, setInitialStatus] = useState("in_progress");
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  // ── Save queue (only when we have an entryId) ──
+  const effectiveEntryId = entryId ?? entry?.display_id;
+  const saveQueue = useSaveQueue(
+    effectiveEntryId ? { entryId: effectiveEntryId } : { entryId: "__pending__" },
+  );
+  // Don't use saveQueue when there's no real entryId — we gate all callers.
+  const { status: saveStatus, lastSavedAt, queueLength, enqueue } = saveQueue;
+
+  // ── Apply saved entry response to local state ──
+  const applySavedEntry = useCallback(
+    (saved: EntryDetail) => {
+      const { description: desc } = splitFirstParagraph(saved.content);
+      setEntry(saved);
+      setTitle(saved.title);
+      setDescriptionState(desc);
+      setStatus(saved.status || "in_progress");
+
+      const refIds = collectDisplayIds(saved.content);
+      if (refIds.length > 0) {
+        resolveIds(refIds);
+      }
+    },
+    [resolveIds],
+  );
+
+  // ── Auto-save (fire-and-forget) ──
+  const autoSave = useCallback(
+    (folderId: number | null) => {
+      if (!effectiveEntryId || !title.trim()) return;
+
+      if (!validateEntityNames(contentRef.current)) {
+        // Silently skip auto-save when entity names are incomplete.
+        return;
+      }
+
+      const fullContent = prependDescription(contentRef.current, description);
+
+      const payload: Record<string, unknown> = {
+        title: title.trim(),
+        content: fullContent,
+        folder: folderId,
+        status,
+      };
+
+      enqueue(payload, "autosave").then((saved) => {
+        applySavedEntry(saved);
+      });
+    },
+    [effectiveEntryId, title, description, status, contentRef, enqueue, applySavedEntry],
+  );
+
+  // ── Manual save (returns promise) ──
+  const save = useCallback(
+    async (folderId: number | null, tagIds: number[]) => {
+      if (!effectiveEntryId || !title.trim()) return;
+
+      if (!validateEntityNames(contentRef.current)) {
+        alert("Name not filled in.");
+        return;
+      }
+
+      const fullContent = prependDescription(contentRef.current, description);
+
+      const payload: Record<string, unknown> = {
+        title: title.trim(),
+        content: fullContent,
+        folder: folderId,
+        status,
+      };
+
+      const saved = await enqueue(payload, "manual");
+
+      // For new entries, flush deferred tags after the first save
+      if (isNew && tagIds.length > 0 && effectiveEntryId) {
+        const withTags = await attachTags(effectiveEntryId, tagIds);
+        applySavedEntry(withTags);
+      } else {
+        applySavedEntry(saved);
+      }
+    },
+    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry],
+  );
+
+  const setDescription = useCallback((d: string) => {
+    setDescriptionState(d);
+  }, []);
+
+  // ── Delete ──
+  const deleteEntry = useCallback(async () => {
+    if (!effectiveEntryId || !window.confirm("Delete this entry permanently?")) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await del(`/eln/entries/${effectiveEntryId}/`);
+      navigate("/library");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+      setDeleting(false);
+    }
+  }, [effectiveEntryId, navigate]);
 
   // ── Fetch entry ──
   useEffect(() => {
-    if (!entryId) return;
+    if (!entryId) {
+      // No entryId — new entry that hasn't been created yet (shouldn't happen
+      // with immediate-create, but handle gracefully).
+      setIsReady(true);
+      return;
+    }
 
-    setMode("loading");
     const controller = new AbortController();
 
     get<EntryDetail>(`/eln/entries/${entryId}/`, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
-        const { description: desc, body } = splitFirstParagraph(data.content);
+        const { description: desc } = splitFirstParagraph(data.content);
         setEntry(data);
         setTitle(data.title);
-        setInitialTitle(data.title);
         setDescriptionState(desc);
-        setInitialDescription(desc);
-        setInitialContent(body);
         setStatus(data.status || "in_progress");
-        setInitialStatus(data.status || "in_progress");
 
         const refIds = collectDisplayIds(data.content);
         if (refIds.length > 0) {
           resolveIds(refIds);
         }
 
-        // New entries (created server-side before navigation) start in
-        // edit mode. Existing entries go to view mode.
-        setMode(isNew ? "edit-existing" : "view");
+        setIsReady(true);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
         const message =
           err instanceof Error ? err.message : "Failed to load entry";
         setError(message);
-        setMode("error");
       });
 
     return () => controller.abort();
   }, [entryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Actions ──
+  // ── Lock lifecycle (acquire on mount, refresh periodically, release on unmount) ──
+  useEffect(() => {
+    if (!effectiveEntryId) return;
 
-  const enterEditMode = useCallback(() => {
-    const currentContent = contentRef.current;
-    const refIds = collectDisplayIds(currentContent);
-    if (refIds.length > 0) {
-      resolveIds(refIds);
-    }
-    setMode("edit-existing");
-  }, [contentRef, resolveIds]);
+    // Acquire on mount (best-effort)
+    acquireLock(effectiveEntryId).catch(() => {
+      // Non-fatal — the backend enforces locks on write.
+    });
 
-  const setDescription = useCallback((d: string) => {
-    setDescriptionState(d);
-  }, []);
+    // Periodic refresh every 2 minutes
+    const interval = setInterval(() => {
+      acquireLock(effectiveEntryId).catch(() => {});
+    }, 2 * 60 * 1000);
 
-  const cancel = useCallback(() => {
-    if (isNew) {
-      navigate("/library");
-      return;
-    }
-    setTitle(initialTitle);
-    setDescriptionState(initialDescription);
-    setStatus(initialStatus);
-    setMode("view");
-  }, [isNew, initialTitle, initialDescription, initialStatus, navigate]);
-
-  const save = useCallback(async (folderId: number | null, tagIds: number[]) => {
-    if (!title.trim()) return;
-
-    if (!validateEntityNames(contentRef.current)) {
-      alert("Name not filled in.");
-      return;
-    }
-
-    setMode("saving");
-    setError(null);
-
-    const fullContent = prependDescription(contentRef.current, description);
-
-    const payload: Record<string, unknown> = {
-      title: title.trim(),
-      content: fullContent,
-      folder: folderId,
-      status,
+    return () => {
+      clearInterval(interval);
+      releaseLock(effectiveEntryId).catch(() => {});
     };
-
-    try {
-      if (isNew && !entryId) {
-        // Old flow: entry doesn't exist yet — POST to create.
-        // (No longer used after /eln/new route removal, kept for safety.)
-        payload.tag_ids = tagIds;
-        const created = await post<EntryDetail>("/eln/entries/", payload);
-        navigate(`/eln/${created.display_id}`);
-      } else {
-        // Existing entry, or new entry that was created server-side before
-        // navigation (isNew && entryId from the immediate-create flow).
-        const updated = await put<EntryDetail>(
-          `/eln/entries/${entryId!}/`,
-          payload,
-        );
-        // For new entries created via immediate-create, flush deferred tags
-        // via the attachTags API (they can't go in the PUT payload).
-        if (isNew && tagIds.length > 0 && entryId) {
-          const withTags = await attachTags(entryId, tagIds);
-          setEntry(withTags);
-        }
-        const responseContent = updated.content || contentRef.current;
-        const { description: newDesc, body: newBody } =
-          splitFirstParagraph(responseContent);
-        if (!isNew) {
-          // Only overwrite if we didn't already setEntry via attachTags.
-          // attachTags returns the full entry, so setEntry is already done.
-          setEntry(updated);
-        }
-        setInitialTitle(title.trim());
-        setDescriptionState(newDesc);
-        setInitialDescription(newDesc);
-        setInitialContent(newBody);
-        setInitialStatus(updated.status || "in_progress");
-        const refIds = collectDisplayIds(responseContent);
-        if (refIds.length > 0) resolveIds(refIds);
-        // New entries stay in edit mode after save.
-        setMode(isNew ? "edit-existing" : "view");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-      setMode(isNew && !entryId ? "edit-new" : "edit-existing");
-    }
-  }, [title, description, status, isNew, entryId, contentRef, navigate, resolveIds]);
-
-  const deleteEntry = useCallback(async () => {
-    if (!entryId || !window.confirm("Delete this entry permanently?")) return;
-
-    setDeleting(true);
-    setError(null);
-    try {
-      await del(`/eln/entries/${entryId}/`);
-      navigate("/library");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
-      setDeleting(false);
-    }
-  }, [entryId, navigate]);
+  }, [effectiveEntryId]);
 
   return {
-    mode,
+    isReady,
     entry,
     setEntry,
     title,
     setTitle,
-    initialTitle,
-    initialContent,
     description,
-    initialDescription,
     setDescription,
     status,
-    initialStatus,
     setStatus,
     error,
     deleting,
+    autoSave,
     save,
-    cancel,
     deleteEntry,
-    enterEditMode,
+    applySavedEntry,
+    saveStatus: effectiveEntryId ? saveStatus : "idle",
+    lastSavedAt,
+    queueLength: effectiveEntryId ? queueLength : 0,
   };
 }

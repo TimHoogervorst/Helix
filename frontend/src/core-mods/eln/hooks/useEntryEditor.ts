@@ -1,14 +1,16 @@
 /**
- * useEntryEditor — state machine hook for the ELN editor.
+ * useEntryEditor — backward-compatibility composition hook for the ELN editor.
  *
- * Manages: mode transitions (loading → view → edit → saving → error),
- * API calls for CRUD, dirty tracking, and beforeunload guard.
+ * This wrapper composes useEntryCrud + useTaggableItems + useEntryFolder +
+ * useDirtyTracking into the original interface. New code should compose the
+ * hooks directly (see ElnEditor).
  *
  * The hook does NOT own the TipTap editor instance — it reads the latest
  * content from ``contentRef``, which the component updates on every render.
  */
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { TipTapDoc, EntryDetail, Tag } from "../types";
+import { EMPTY_DOC } from "../types";
 import { useEntryCrud } from "./useEntryCrud";
 import { useTaggableItems } from "../../../core-mods/tags/hooks";
 import { useEntryFolder, type Folder } from "./useEntryFolder";
@@ -18,6 +20,8 @@ import { updateTag } from "../../../core-mods/tags/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+/** @deprecated The editor no longer uses a mode state machine.
+ *  Kept for backward compatibility in tests and wrapper. */
 export type EditorMode =
   | "loading"
   | "view"
@@ -35,7 +39,10 @@ export interface UseEntryEditorOptions {
 }
 
 export interface UseEntryEditorReturn {
+  /** @deprecated Use isReady instead. */
   mode: EditorMode;
+  /** @deprecated No longer tracked. Always true. */
+  isEdit: boolean;
   entry: EntryDetail | null;
   title: string;
   setTitle: (t: string) => void;
@@ -61,8 +68,10 @@ export interface UseEntryEditorReturn {
   /** Reset tags to initial baseline (on cancel). */
   resetTagsToBaseline: () => void;
   save(): Promise<void>;
+  /** @deprecated No-op in always-editable mode — use save() instead. */
   cancel(): void;
   deleteEntry(): Promise<void>;
+  /** @deprecated No-op in always-editable mode. Editor is always editable. */
   enterEditMode(): void;
 }
 
@@ -235,7 +244,7 @@ export function useEntryEditor({
   initialFolderId,
   contentRef,
 }: UseEntryEditorOptions): UseEntryEditorReturn {
-  // ── Compose the four focused hooks ──
+  // ── Compose hooks ──
 
   const crud = useEntryCrud({ entryId, isNew, contentRef });
   const taggableItems = useTaggableItems({
@@ -255,15 +264,27 @@ export function useEntryEditor({
     deferred: isNew,
   });
   const folder = useEntryFolder({ initialFolderId });
+
+  // Derive baseline values from the last-saved entry (for dirty tracking).
+  const baseline = useMemo(() => {
+    const saved = crud.entry;
+    if (!saved) {
+      return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
+    }
+    const { description: d, body } = splitFirstParagraph(saved.content);
+    return { title: saved.title, description: d, content: body, status: saved.status || "in_progress" };
+  }, [crud.entry]);
+
   const { isDirty } = useDirtyTracking({
     title: crud.title,
-    initialTitle: crud.initialTitle,
+    initialTitle: baseline.title,
     description: crud.description,
-    initialDescription: crud.initialDescription,
+    initialDescription: baseline.description,
     status: crud.status,
-    initialStatus: crud.initialStatus,
+    initialStatus: baseline.status,
     contentRef,
-    initialContent: crud.initialContent,
+    initialContent: baseline.content,
+    queueLength: crud.queueLength,
   });
 
   // ── Change tag icon (delegates to tags API) ──
@@ -271,9 +292,6 @@ export function useEntryEditor({
     async (tagId: number, icon: string) => {
       try {
         const updated = await updateTag(tagId, { icon });
-        // Update the tag in local state so the UI reflects the change.
-        // useTaggableItems doesn't expose setTags, so we update via crud.setEntry
-        // to trigger a re-render with the new icon from the entry data.
         if (crud.entry) {
           const newTags = crud.entry.tags.map((t) =>
             t.id === tagId ? updated : t,
@@ -289,33 +307,38 @@ export function useEntryEditor({
 
   // ── Wire cross-hook actions ──
 
-  // Wrap cancel to also reset folder and tags (owned by sibling hooks).
-  // crud.cancel() resets title/description/status and mode; we add folder + tags.
+  // In always-editable mode, cancel is a no-op (or navigates away for new entries).
   const cancel = () => {
-    if (isNew) {
-      crud.cancel(); // navigates to /library
-      return;
-    }
-    folder.setFolderId(crud.entry?.folder ?? null);
-    taggableItems.resetToBaseline();
-    crud.cancel();
+    // No-op: always-editable mode has no cancel. New entries were already
+    // created server-side, so navigating away is handled by the parent.
   };
 
-  // Wrap save to pass folderId and tag IDs to CRUD.
-  // For new entries, batch pendingTagIds into the create payload.
   const save = () =>
     crud.save(
       folder.folderId,
       isNew ? taggableItems.pendingTagIds : [],
     );
 
+  // enterEditMode is a no-op — editor is always editable.
+  const enterEditMode = () => {};
+
+  // Derive a backward-compat mode from isReady/error.
+  const mode: EditorMode = !crud.isReady && !crud.error
+    ? "loading"
+    : crud.error
+      ? "error"
+      : isNew
+        ? "edit-existing"
+        : "edit-existing"; // Always editable, so always "edit-existing"
+
   return {
-    mode: crud.mode,
+    mode,
+    isEdit: true, // Always editable
     entry: crud.entry,
     title: crud.title,
     setTitle: crud.setTitle,
-    initialTitle: crud.initialTitle,
-    initialContent: crud.initialContent,
+    initialTitle: baseline.title,
+    initialContent: baseline.content,
     description: crud.description,
     setDescription: crud.setDescription,
     folderId: folder.folderId,
@@ -335,6 +358,6 @@ export function useEntryEditor({
     save,
     cancel,
     deleteEntry: crud.deleteEntry,
-    enterEditMode: crud.enterEditMode,
+    enterEditMode,
   };
 }

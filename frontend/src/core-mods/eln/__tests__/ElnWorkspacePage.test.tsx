@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
@@ -35,21 +35,17 @@ vi.mock("../editor/ElnEditor", () => ({
       props: { entryId?: string; onStateChange?: (s: unknown) => void },
       ref: React.Ref<unknown>,
     ) => {
-      // Detect ?new=true from the URL search params to mirror the real component.
-      const [searchParams] = useSearchParams();
-      const isNew =
-        searchParams.get("new") === "true" || props.entryId === undefined;
       React.useEffect(() => {
-        // Simulate the editor loading and entering its initial mode.
-        // New entries start in edit mode; existing entries start in view mode
-        // after a brief "loading" frame.
+        // Simulate the editor loading and entering its initial state.
+        // All entries are always editable; new entries start immediately.
         const t = setTimeout(() => {
           props.onStateChange?.({
-            mode: isNew ? "edit-new" : "view",
-            isEdit: isNew,
-            isSaving: false,
+            isReady: true,
             isDirty: false,
             deleting: false,
+            saveStatus: "idle",
+            lastSavedAt: null,
+            queueLength: 0,
             entry: null,
             folders: [
               { id: 1, name: "CRISPR-Cas9 Optimization" },
@@ -68,9 +64,7 @@ vi.mock("../editor/ElnEditor", () => ({
       // Expose stub actions via the ref
       React.useImperativeHandle(ref, () => ({
         save: vi.fn(),
-        cancel: vi.fn(),
         deleteEntry: vi.fn(),
-        enterEditMode: vi.fn(),
         setFolderId: vi.fn(),
         setStatus: vi.fn(),
       }));
@@ -153,42 +147,16 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     expect(historyBtn.className).toContain("btn-icon");
   });
 
-  // ── Top toolbar: editor action buttons ──────────────────────────────────
+  // ── Top toolbar: MoreActions menu ──────────────────────────────────
 
-  it("renders Edit and Delete icon buttons for an existing entry in view mode", async () => {
+  it("renders MoreActions (…) trigger button", async () => {
     renderAtRoute("/eln/EXP-0284");
 
-    // The mock fires onStateChange with view mode after a tick
-    const editBtn = await screen.findByLabelText("Edit");
-    expect(editBtn).toBeDefined();
-    expect(editBtn.className).toContain("btn-icon");
-
-    const deleteBtn = screen.getByLabelText("Delete");
-    expect(deleteBtn).toBeDefined();
-    expect(deleteBtn.className).toContain("btn-icon");
-  });
-
-  it("renders Save and Cancel icon buttons for a new entry in edit mode", async () => {
-    renderAtRoute("/eln/E-NEW?new=true");
-
-    const saveBtn = await screen.findByLabelText("Save");
-    expect(saveBtn).toBeDefined();
-    expect(saveBtn.className).toContain("btn-icon");
-
-    const cancelBtn = screen.getByLabelText("Cancel");
-    expect(cancelBtn).toBeDefined();
-    expect(cancelBtn.className).toContain("btn-icon");
-  });
-
-  it("does not render editor action buttons while loading", () => {
-    // We render without waiting for onStateChange to fire —
-    // the initial state is "loading" so buttons should be absent.
-    renderAtRoute("/eln/EXP-0284");
-    // Save/Edit/Delete/Cancel should not exist yet
-    expect(screen.queryByLabelText("Save")).toBeNull();
-    expect(screen.queryByLabelText("Edit")).toBeNull();
-    expect(screen.queryByLabelText("Delete")).toBeNull();
-    expect(screen.queryByLabelText("Cancel")).toBeNull();
+    // The mock fires onStateChange with isReady=true after a tick
+    const moreBtn = await screen.findByLabelText("More actions");
+    expect(moreBtn).toBeDefined();
+    expect(moreBtn.className).toContain("btn-icon");
+    expect(moreBtn.getAttribute("aria-haspopup")).toBe("menu");
   });
 
   // ── Top toolbar: user avatars ──────────────────────────────────────────
@@ -333,33 +301,16 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       expect(dashes.length).toBeGreaterThanOrEqual(4); // breadcrumb + Author + Last editor + Project + Started + Folder
     });
 
-    it("renders Status chip as 'In progress' with warn styling in view mode", () => {
+    it("renders Status as dropdown", async () => {
       renderAtRoute("/eln/EXP-0284");
-      const statusChip = screen.getByTestId("status-chip");
-      expect(statusChip.textContent).toBe("In progress");
-      expect(statusChip.className).toContain("bg-warn");
-      expect(statusChip.className).toContain("text-warn-foreground");
-    });
-
-    it("renders Status as dropdown in edit mode for new entries", async () => {
-      renderAtRoute("/eln/E-NEW?new=true");
       const statusSelect = await screen.findByTestId("status-select");
       expect(statusSelect).toBeDefined();
-      expect((statusSelect as HTMLSelectElement).value).toBe("in_progress");
     });
 
-    it("renders Folder as dropdown in edit mode for new entries", async () => {
-      renderAtRoute("/eln/E-NEW?new=true");
+    it("renders Folder as dropdown", async () => {
+      renderAtRoute("/eln/EXP-0284");
       const folderSelect = await screen.findByTestId("folder-select");
       expect(folderSelect).toBeDefined();
-    });
-
-    it("renders Folder name in view mode", () => {
-      renderAtRoute("/eln/EXP-0284");
-      // Folder is in view mode and shows "—" (no entry data)
-      const dashes = screen.getAllByText("—");
-      // At least one dash is from the Folder row
-      expect(dashes.length).toBeGreaterThanOrEqual(1);
     });
   });
 

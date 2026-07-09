@@ -36,7 +36,7 @@ describe("eln mod registration", () => {
     expect(hubs.has("eln")).toBe(false);
   });
 
-  it("registers routes for /eln/new and /eln/:id", async () => {
+  it("registers route for /eln/:id (no longer registers /eln/new)", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -47,9 +47,9 @@ describe("eln mod registration", () => {
     const newEntryRoute = routes.get("eln.new-entry");
     const detailRoute = routes.get("eln.entry-page");
 
-    expect(newEntryRoute).toBeDefined();
-    expect(newEntryRoute!.modId).toBe("eln");
-    expect(newEntryRoute!.component).toBeTruthy();
+    // The /eln/new route has been removed — entries are now created
+    // server-side via immediate POST before navigation.
+    expect(newEntryRoute).toBeUndefined();
 
     expect(detailRoute).toBeDefined();
     expect(detailRoute!.modId).toBe("eln");

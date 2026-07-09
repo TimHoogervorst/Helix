@@ -1,21 +1,24 @@
 /**
- * ElnEditor — rich-text editor for ELN entries.
+ * ElnEditor — rich-text editor for ELN entries (always-editable, auto-save).
  *
  * Composes:
- *   - useEntryEditor    — state machine hook (CRUD, dirty tracking, beforeunload)
- *   - createElnExtensions — TipTap extension factory
+ *   - useEntryCrud         — CRUD, save queue, lock lifecycle
+ *   - useAutoSave           — debounced auto-save with initial-load suppression
+ *   - createElnExtensions   — TipTap extension factory
  *
  * Content layout (PRD #4):
- *   Status bar → Metadata line → Title → Description → Tags → Divider → ProseMirror
+ *   Metadata line → Title → Description → Tags → Divider → ProseMirror
  *
- * Action buttons (Save/Cancel/Edit/Delete/folder/status) are exposed via ref so
- * the parent (ElnDetail) can render them in the top toolbar as ghost icon buttons.
+ * Action buttons (MoreActions with Delete) are exposed via ref so the parent
+ * (ElnWorkspace) can render them in the top toolbar.
  */
-import { useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
+import { Lock } from "lucide-react";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
 import { useEntryCrud } from "../hooks/useEntryCrud";
+import { useAutoSave } from "../hooks/useAutoSave";
 import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
 import { useDirtyTracking } from "../hooks/useDirtyTracking";
 import { createElnExtensions } from "./extensions/createElnExtensions";
@@ -23,6 +26,8 @@ import { useTaggableItems } from "../../../core-mods/tags/hooks";
 import { TagPill } from "../../../core-mods/tags/ui";
 import { TagAutocomplete } from "../../../core-mods/tags/ui";
 import { attachTags, detachTag } from "../api";
+import type { SaveStatus } from "../hooks/useSaveQueue";
+import { splitFirstParagraph } from "../hooks/useEntryEditor";
 
 /** Format an ISO date string as YYYY-MM-DD. */
 function formatDateShort(iso: string): string {
@@ -32,20 +37,22 @@ function formatDateShort(iso: string): string {
 /** Public handle exposed to parent components via ref. */
 export interface ElnEditorHandle {
   save: () => void;
-  cancel: () => void;
   deleteEntry: () => void;
-  enterEditMode: () => void;
   setFolderId: (id: number | null) => void;
   setStatus: (status: string) => void;
 }
 
 /** Snapshot of editor state pushed to parent via onStateChange. */
 export interface ElnEditorState {
-  mode: string;
-  isEdit: boolean;
-  isSaving: boolean;
+  isReady: boolean;
   isDirty: boolean;
   deleting: boolean;
+  /** Current save-queue status. */
+  saveStatus: SaveStatus;
+  /** When the most recent successful save completed, or null. */
+  lastSavedAt: Date | null;
+  /** Number of items currently in the save queue. */
+  queueLength: number;
   /** Full entry data for the metadata panel (null for new entries). */
   entry: EntryDetail | null;
   /** Folders available for the folder picker. */
@@ -58,6 +65,10 @@ export interface ElnEditorState {
   tags: Tag[];
   /** Current description text (first paragraph of TipTap content). */
   description: string;
+  /** True when another user holds an active lock — entry is read-only. */
+  isLockedByOther: boolean;
+  /** Username of the lock holder, or null. */
+  lockHeldBy: string | null;
 }
 
 interface ElnEditorProps {
@@ -68,13 +79,15 @@ interface ElnEditorProps {
 }
 
 /** Editor component — ReferenceProvider is provided by Layout.
- *  Action buttons are exposed via ref so the parent can render them in
- *  the top toolbar. */
+ *  Action buttons (MoreActions menu) are exposed via ref so the parent can
+ *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   function ElnEditor({ entryId, onStateChange }, ref) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const isNew = entryId === undefined;
+  // A "new" entry is one that was just created server-side and navigated
+  // to with ?new=true. It's immediately editable with deferred tag collection.
+  const isNew = searchParams.get("new") === "true";
 
   // ── Read initial folder from URL params (set when creating from library) ──
   const initialFolderId: number | null = (() => {
@@ -89,38 +102,53 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   // ── Content ref (synced on every editor update and on every render) ──
   const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
 
+  // ── Gate programmatic content changes so onUpdate does not trigger
+  //     auto-save when content is loaded from the server (initial load).
+  const isProgrammaticChange = useRef(false);
+
+  // ── Track whether initial content has been loaded from the server.
+  //     Prevents re-syncing editor content after save responses, which
+  //     would overwrite user edits made during the save roundtrip.
+  const initialContentLoaded = useRef(false);
+
+  // ── contentVersion counter — incremented on every user-initiated TipTap
+  //     onUpdate so effects (useAutoSave) can react to content changes
+  //     without converting the entire document to state on every keystroke.
+  //     Programmatic changes (setContent from server) are gated so they
+  //     don't trigger a spurious auto-save on initial load.
+  const [contentVersion, setContentVersion] = useState(0);
+
   // ── Title ref (for contentEditable cursor preservation) ──
   const titleRef = useRef<HTMLHeadingElement | null>(null);
 
   // ── Description textarea ref (for auto-resize) ──
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // ── TipTap Editor ──
+  // ── TipTap Editor — always editable ──
   const editor = useEditor({
     extensions: createElnExtensions(),
     content: isNew
       ? EMPTY_DOC
       : { type: "doc", content: [{ type: "paragraph" }] },
-    editable: isNew,
+    editable: true,
     editorProps: {
       attributes: {
         class: "ProseMirror",
       },
     },
-    // Keep contentRef in sync on every editor update, even when React
-    // suppresses re-renders (useEditorState selector returns null by
-    // default, so ElnEditor does NOT re-render on transactions).
     onUpdate: ({ editor }) => {
       contentRef.current = editor.getJSON() as TipTapDoc;
+      if (!isProgrammaticChange.current) {
+        setContentVersion((v) => v + 1);
+      }
     },
   });
 
   // Sync on every render to cover cases outside PM transactions
-  // (e.g. initial editor creation, setContent in useEffect, mode transitions).
-  // Redundant with onUpdate for normal edits but ensures contentRef is never stale.
+  // (e.g. initial editor creation, setContent in useEffect).
   contentRef.current = editor?.getJSON() ?? EMPTY_DOC;
 
-  // ── State machine (composed from four focused hooks) ──
+  // ── Hooks ──
   const crud = useEntryCrud({ entryId, isNew, contentRef });
   const taggableItems = useTaggableItems({
     initialTags: crud.entry?.tags ?? [],
@@ -139,30 +167,74 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     deferred: isNew,
   });
   const folder = useEntryFolder({ initialFolderId });
+
+  // ── Derive baseline values from the last-saved entry ──
+  const baseline = useMemo(() => {
+    const saved = crud.entry;
+    if (!saved) {
+      return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
+    }
+    const { description: d, body } = (() => {
+      const doc = saved.content;
+      if (!doc || typeof doc !== "object") return { description: "", body: EMPTY_DOC as TipTapDoc };
+      const c = doc as Record<string, unknown>;
+      const children = c.content;
+      if (Array.isArray(children) && children.length > 0) {
+        const first = children[0] as Record<string, unknown>;
+        if (first && first.type === "paragraph") {
+          const textContent = first.content as Array<Record<string, unknown>> | undefined;
+          const desc = textContent ? textContent.map((t) => t.text || "").join("") : "";
+          return { description: desc, body: { ...c, content: children.slice(1) } as TipTapDoc };
+        }
+      }
+      return { description: "", body: doc as TipTapDoc };
+    })();
+    // Use body (document minus first paragraph) for initialContent so the
+    // dirty-tracking comparison is apples-to-apples with contentRef.current
+    // (which also holds only the body after initial setContent).
+    return { title: saved.title, description: d, content: body, status: saved.status || "in_progress" };
+  }, [crud.entry]);
+
   const { isDirty } = useDirtyTracking({
     title: crud.title,
-    initialTitle: crud.initialTitle,
+    initialTitle: baseline.title,
     description: crud.description,
-    initialDescription: crud.initialDescription,
+    initialDescription: baseline.description,
     status: crud.status,
-    initialStatus: crud.initialStatus,
+    initialStatus: baseline.status,
     contentRef,
-    initialContent: crud.initialContent,
+    initialContent: baseline.content,
+    queueLength: crud.queueLength,
+  });
+
+  // ── Auto-save ──
+  useAutoSave({
+    entryId: entryId ?? crud.entry?.display_id,
+    title: crud.title,
+    description: crud.description,
+    status: crud.status,
+    contentVersion,
+    folderId: folder.folderId,
+    autoSave: crud.autoSave,
   });
 
   // Destructure for convenient access in JSX
   const {
-    mode,
+    isReady,
     entry,
     title,
     setTitle,
-    initialContent,
     description,
     setDescription,
     status,
     setStatus,
     error,
     deleting,
+    isLockedByOther,
+    lockHeldBy,
+    saveStatus,
+    lastSavedAt,
+    queueLength,
   } = crud;
 
   const {
@@ -170,64 +242,64 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     pendingTagIds,
     addTag,
     removeTag,
-    resetToBaseline,
   } = taggableItems;
 
   const { folderId, setFolderId, folders } = folder;
 
   // Wire cross-hook actions
-  // For new entries, batch pendingTagIds into the create payload.
-  // (initialTags is always empty for new entries, so pendingTagIds === all tag IDs.)
   const save = () => crud.save(folderId, isNew ? pendingTagIds : []);
-  const cancel = () => {
-    if (isNew) {
-      crud.cancel();
-      return;
+  const { deleteEntry } = crud;
+
+  // ── Lock-based read-only ──
+  // When another user holds the lock, the TipTap editor becomes non-editable.
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.setEditable(!isLockedByOther);
     }
-    setFolderId(crud.entry?.folder ?? null);
-    resetToBaseline();
-    crud.cancel();
-  };
-  const { deleteEntry, enterEditMode } = crud;
+  }, [editor, isLockedByOther]);
 
   // ── Expose actions to parent via ref ──
-  // Store latest callbacks in a ref so useImperativeHandle doesn't
-  // re-attach on every render.
-  const actionsRef = useRef({ save, cancel, deleteEntry, enterEditMode, setFolderId, setStatus });
-  actionsRef.current = { save, cancel, deleteEntry, enterEditMode, setFolderId, setStatus };
+  const actionsRef = useRef({ save, deleteEntry, setFolderId, setStatus });
+  actionsRef.current = { save, deleteEntry, setFolderId, setStatus };
 
   useImperativeHandle(ref, () => ({
     save: () => actionsRef.current.save(),
-    cancel: () => actionsRef.current.cancel(),
     deleteEntry: () => actionsRef.current.deleteEntry(),
-    enterEditMode: () => actionsRef.current.enterEditMode(),
     setFolderId: (id: number | null) => actionsRef.current.setFolderId(id),
     setStatus: (s: string) => actionsRef.current.setStatus(s),
   }), []);
 
-  // ── Sync editor with hook state ──
+  // ── Reset initial-content flag when entryId changes (navigating to a
+  //     different entry).
   useEffect(() => {
-    if (!editor) return;
-    const shouldEdit = mode === "edit-new" || mode === "edit-existing";
-    editor.setEditable(shouldEdit);
+    initialContentLoaded.current = false;
+  }, [entryId]);
 
-    // When entering view mode, reset content to initial if it differs.
-    // This handles both initial load (loading→view) and cancel (edit→view).
-    if (
-      mode === "view" &&
-      JSON.stringify(editor.getJSON()) !== JSON.stringify(initialContent)
-    ) {
-      editor.commands.setContent(initialContent);
+  // ── Sync editor content on initial load only ──
+  // Does NOT sync after save responses — the editor is the source of truth
+  // for content during editing. Syncing saved content back would overwrite
+  // any user edits made during the save roundtrip and reset the cursor.
+  //
+  // Only the body (document minus the first paragraph, which is the
+  // description) is loaded into the editor. The description is edited
+  // separately in the textarea. prependDescription recombines them on save.
+  useEffect(() => {
+    if (!editor || !entry || initialContentLoaded.current) return;
+    const { body } = splitFirstParagraph(entry.content);
+    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(body)) {
+      isProgrammaticChange.current = true;
+      editor.commands.setContent(body);
+      contentRef.current = body as TipTapDoc;
+      isProgrammaticChange.current = false;
     }
-  }, [mode, editor, initialContent]);
+    initialContentLoaded.current = true;
+  }, [editor, entry]);
 
-  // ── Notify parent of state changes ──
-  const isEdit = mode === "edit-new" || mode === "edit-existing";
-  const isSaving = mode === "saving";
-
-  // Sync contentEditable h1 DOM when switching between view/edit modes or when
-  // title changes externally (initial load, cancel). During typing, the title
-  // and DOM are already in sync so the equality check skips the DOM write.
+  // Sync contentEditable h1 DOM when title changes externally (initial load,
+  // auto-save response). During typing, the title and DOM are already in sync
+  // so the equality check skips the DOM write.
+  // isReady is included so the effect fires on initial load even when title
+  // is the empty string (which goes from "" to "" — no state change).
   useLayoutEffect(() => {
     const el = titleRef.current;
     if (!el) return;
@@ -235,30 +307,43 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     if (el.textContent !== desired) {
       el.textContent = desired;
     }
-  }, [isEdit, title]);
+  }, [title, isReady]);
 
   // Auto-resize description textarea to fit its content exactly.
-  // Fires when description changes (typing, loading, cancel, mode switch).
   useLayoutEffect(() => {
     const el = descriptionRef.current;
     if (!el) return;
-    // Reset to auto so scrollHeight reflects the true content height,
-    // then set to that height so there's no extra whitespace.
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [description, isEdit]);
+  }, [description]);
 
+  // ── Push state to parent ──
   useEffect(() => {
-    onStateChange?.({ mode, isEdit, isSaving, isDirty, deleting, entry, folders, folderId, status, tags, description });
-  }, [mode, isEdit, isSaving, isDirty, deleting, entry, folders, folderId, status, tags, description, onStateChange]);
+    onStateChange?.({
+      isReady,
+      isDirty,
+      deleting,
+      saveStatus,
+      lastSavedAt,
+      queueLength,
+      entry,
+      folders,
+      folderId,
+      status,
+      tags,
+      description,
+      isLockedByOther,
+      lockHeldBy,
+    });
+  }, [isReady, isDirty, deleting, saveStatus, lastSavedAt, queueLength, entry, folders, folderId, status, tags, description, isLockedByOther, lockHeldBy, onStateChange]);
 
-  // ── Render ──
+  // ── Render: loading / error states ──
 
-  if (mode === "loading") {
+  if (!isReady && !error) {
     return <p className="text-center text-muted-foreground py-12">Loading…</p>;
   }
 
-  if (mode === "error") {
+  if (error) {
     return (
       <div>
         <div className="error">{error}</div>
@@ -268,20 +353,21 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   }
 
   return (
-    <div className={isSaving ? "pointer-events-none opacity-60" : ""}>
-      {/* ── Status bar (save indicator only; action buttons are rendered
-           by ElnDetail in the top toolbar). ── */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {isEdit && (
-            <span
-              className={`text-xs ${isDirty ? "text-primary" : "text-muted-foreground"}`}
-            >
-              {isDirty ? "Unsaved changes" : "Saved"}
-            </span>
-          )}
+    <div>
+      {/* ── Locked banner ── */}
+      {isLockedByOther && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2.5 text-[13px] text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200"
+          data-testid="locked-banner"
+        >
+          <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            This entry is currently being edited by{" "}
+            <strong>{lockHeldBy || "another user"}</strong>. You are viewing it
+            in read-only mode.
+          </span>
         </div>
-      </div>
+      )}
 
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
@@ -300,82 +386,66 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
             Created {formatDateShort(entry.created_at)}
             {" · "}
             Updated {formatDateShort(entry.updated_at)}
-            {" · "}v0.4{" · "}
-            autosaved 2s ago
           </>
         ) : (
           "New entry"
         )}
       </div>
 
-      {/* Title — contentEditable h1 that stays in place across view/edit modes.
-           A ref + useLayoutEffect prevents React from resetting cursor position
-           during typing while keeping the same DOM element in both modes. */}
+      {/* Title — contentEditable when not locked, plain text when locked */}
       <h1
         ref={(el) => {
           titleRef.current = el;
-          // Autofocus new entries
-          if (el && isEdit && isNew) {
+          // Autofocus new entries (only when not locked)
+          if (el && isNew && !isLockedByOther) {
             requestAnimationFrame(() => el.focus());
           }
         }}
-        contentEditable={isEdit}
+        contentEditable={!isLockedByOther}
         suppressContentEditableWarning
         onInput={(e) => {
-          if (isEdit) setTitle(e.currentTarget.textContent || "");
+          if (!isLockedByOther) setTitle(e.currentTarget.textContent || "");
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.preventDefault();
         }}
         onPaste={(e) => {
+          if (isLockedByOther) return;
           e.preventDefault();
           const text = e.clipboardData.getData("text/plain");
           document.execCommand("insertText", false, text);
         }}
         onBlur={() => {
-          if (title.trim() !== title) setTitle(title.trim());
+          if (!isLockedByOther && title.trim() !== title) setTitle(title.trim());
         }}
         className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
         data-testid="title-display"
-      >
-        {!isEdit ? (title || "Untitled") : null}
-      </h1>
+      />
 
-      {/* Description — first paragraph of TipTap content, inline-editable */}
-      {isEdit ? (
-        <textarea
-          ref={descriptionRef}
-          className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Add a description…"
-          data-testid="description-input"
-        />
-      ) : (
-        <p
-          className="max-w-2xl text-[15px] leading-relaxed text-muted-foreground"
-          data-testid="description"
-        >
-          {description || (
-            <span className="text-muted-foreground/40 italic">
-              No description
-            </span>
-          )}
-        </p>
-      )}
+      {/* Description — textarea, readOnly when locked */}
+      <textarea
+        ref={descriptionRef}
+        className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
+        value={description}
+        onChange={(e) => {
+          if (!isLockedByOther) setDescription(e.target.value);
+        }}
+        readOnly={isLockedByOther}
+        placeholder="Add a description…"
+        data-testid="description-input"
+      />
 
-      {/* Tags */}
+      {/* Tags — read-only display when locked */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
         {tags.map((tag) => (
           <TagPill
             key={tag.id}
             tag={tag}
-            onRemove={isEdit ? removeTag : undefined}
+            onRemove={isLockedByOther ? undefined : removeTag}
           />
         ))}
 
-        {/* Tag autocomplete (edit mode only) */}
-        {isEdit && (
+        {!isLockedByOther && (
           <TagAutocomplete
             attachedTagIds={tags.map((t) => t.id)}
             onTagSelect={addTag}
@@ -388,16 +458,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       {/* Hairline divider */}
       <div className="my-6 h-px bg-hairline" data-testid="content-divider" />
 
-      {/* ── ProseMirror Content ── */}
-      <div
-        className={`min-h-[60vh]${!isEdit ? " cursor-text" : ""}`}
-        onClick={() => {
-          if (!isEdit && mode === "view") {
-            enterEditMode();
-          }
-        }}
-        data-testid="prosemirror-wrapper"
-      >
+      {/* ── ProseMirror Content (always editable, no click-to-edit) ── */}
+      <div className="min-h-[60vh]" data-testid="prosemirror-wrapper">
         {editor && <EditorContent editor={editor} />}
       </div>
     </div>

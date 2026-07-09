@@ -22,13 +22,9 @@ vi.mock("react-router-dom", () => ({
 }));
 
 const mockGet = vi.fn();
-const mockPost = vi.fn();
-const mockPut = vi.fn();
 const mockDel = vi.fn();
 vi.mock("../../../core/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
-  post: (...args: unknown[]) => mockPost(...args),
-  put: (...args: unknown[]) => mockPut(...args),
   del: (...args: unknown[]) => mockDel(...args),
   ApiError: class ApiError extends Error {
     status: number;
@@ -44,6 +40,37 @@ vi.mock("../../../core/references/ReferenceProvider", () => ({
   useReferenceContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
+  }),
+}));
+
+const mockAcquireLock = vi.fn().mockResolvedValue({});
+const mockReleaseLock = vi.fn().mockResolvedValue(undefined);
+const mockAttachTags = vi.fn();
+const mockDetachTag = vi.fn();
+vi.mock("../api", () => ({
+  acquireLock: (...args: unknown[]) => mockAcquireLock(...args),
+  releaseLock: (...args: unknown[]) => mockReleaseLock(...args),
+  attachTags: (...args: unknown[]) => mockAttachTags(...args),
+  detachTag: (...args: unknown[]) => mockDetachTag(...args),
+  getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
+}));
+
+vi.mock("../../../core/user/CurrentUserProvider", () => ({
+  useCurrentUser: () => ({
+    user: { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
+const mockEnqueue = vi.fn();
+vi.mock("../hooks/useSaveQueue", () => ({
+  useSaveQueue: () => ({
+    status: "idle" as const,
+    lastSavedAt: null,
+    queueLength: 0,
+    enqueue: mockEnqueue,
   }),
 }));
 
@@ -82,28 +109,31 @@ function makeEntry(overrides?: Partial<Record<string, unknown>>) {
 describe("useEntryEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Safe resets — avoid touching mock state between tests
     mockGet.mockReset();
-    mockPost.mockReset();
-    mockPut.mockReset();
     mockDel.mockReset();
     mockResolveIds.mockReset();
     mockNavigate.mockReset();
+    mockEnqueue.mockReset();
+    mockAcquireLock.mockReset();
+    mockReleaseLock.mockReset();
+    mockAttachTags.mockReset();
+    mockAcquireLock.mockResolvedValue({});
+    mockReleaseLock.mockResolvedValue(undefined);
     // Default: successful fetch returns a stubbed entry
     mockGet.mockResolvedValue(makeEntry());
-    // Default: folders fetch
-    mockGet.mockResolvedValue([]);
+    // Default: enqueue returns saved entry
+    mockEnqueue.mockResolvedValue(makeEntry());
   });
 
   // ── Initial state ──────────────────────────────────────────────────────────
 
-  it("starts in edit-new mode for a new entry", () => {
+  it("starts in edit-existing mode for a new entry", () => {
     const contentRef = { current: EMPTY_DOC };
     const { result } = renderHook(() =>
       useEntryEditor(makeOptions({ isNew: true, contentRef })),
     );
 
-    expect(result.current.mode).toBe("edit-new");
+    expect(result.current.mode).toBe("edit-existing");
     expect(result.current.entry).toBeNull();
     expect(result.current.title).toBe("");
     expect(result.current.isDirty).toBe(false);
@@ -134,7 +164,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     expect(result.current.entry).toEqual(entry);
@@ -246,7 +276,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     act(() => {
@@ -284,7 +314,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     expect(result.current.isDirty).toBe(false);
@@ -292,13 +322,13 @@ describe("useEntryEditor", () => {
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
-  it("saves a new entry and navigates to it", async () => {
+  it("saves a new entry via save queue", async () => {
     const created = makeEntry({ display_id: "NEW1", id: 10 });
-    mockPost.mockResolvedValue(created);
+    mockEnqueue.mockResolvedValue(created);
     const contentRef = { current: EMPTY_DOC };
 
     const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+      useEntryEditor(makeOptions({ isNew: true, entryId: "E-NEW", contentRef })),
     );
 
     act(() => {
@@ -310,60 +340,61 @@ describe("useEntryEditor", () => {
     });
 
     // Description is prepended as the first paragraph
-    expect(mockPost).toHaveBeenCalledWith("/eln/entries/", {
-      title: "My New Entry",
-      content: {
-        type: "doc",
-        content: [
-          { type: "paragraph", content: [] },
-          { type: "paragraph" },
-        ],
-      },
-      folder: null,
-      status: "in_progress",
-      tag_ids: [],
-    });
-    expect(mockNavigate).toHaveBeenCalledWith("/eln/NEW1");
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "My New Entry",
+        folder: null,
+        status: "in_progress",
+      }),
+      "manual",
+    );
   });
 
   it("does not save when title is empty", async () => {
     const contentRef = { current: EMPTY_DOC };
 
     const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
     );
 
     await act(async () => {
       await result.current.save();
     });
 
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
-  it("stays in edit-new mode on save error", async () => {
-    mockPost.mockRejectedValue(new Error("Conflict"));
+  it("stays in edit-existing mode on save error", async () => {
+    mockEnqueue.mockRejectedValue(new Error("Conflict"));
     const contentRef = { current: EMPTY_DOC };
 
     const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
     );
 
     act(() => {
       result.current.setTitle("Will Fail");
     });
 
+    // Save will reject, but the promise has an internal .catch() for
+    // fire-and-forget support, so we need to catch the rejection here too.
     await act(async () => {
-      await result.current.save();
+      try {
+        await result.current.save();
+      } catch {
+        // Expected — save errors are propagated via the promise chain,
+        // but the fire-and-forget catch prevents unhandled rejections.
+      }
     });
 
-    expect(result.current.mode).toBe("edit-new");
-    expect(result.current.error).toBe("Conflict");
+    // Always editable — mode never changes
+    expect(result.current.mode).toBe("edit-existing");
   });
 
-  it("saves an existing entry and stays in view mode", async () => {
+  it("saves an existing entry and stays in edit-existing mode", async () => {
     mockGet.mockResolvedValue(makeEntry({ title: "Existing" }));
     const updatedResponse = makeEntry({ title: "Updated Title", content: { type: "doc", content: [] } });
-    mockPut.mockResolvedValue(updatedResponse);
+    mockEnqueue.mockResolvedValue(updatedResponse);
     const contentRef = { current: EMPTY_DOC };
 
     const { result } = renderHook(() =>
@@ -373,7 +404,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     act(() => {
@@ -384,40 +415,37 @@ describe("useEntryEditor", () => {
       await result.current.save();
     });
 
-    // Description ("Hello") is prepended to the editor content (EMPTY_DOC)
-    expect(mockPut).toHaveBeenCalledWith("/eln/entries/E1/", {
-      title: "Updated Title",
-      content: {
-        type: "doc",
-        content: [
-          { type: "paragraph", content: [{ type: "text", text: "Hello" }] },
-          { type: "paragraph" },
-        ],
-      },
-      folder: null,
-      status: "in_progress",
-    });
-    expect(result.current.mode).toBe("view");
-    expect(result.current.initialTitle).toBe("Updated Title");
+    // Description should be prepended and enqueued
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Updated Title",
+        folder: null,
+        status: "in_progress",
+      }),
+      "manual",
+    );
+    // Always editable — mode never changes
+    expect(result.current.mode).toBe("edit-existing");
     expect(result.current.entry).toEqual(updatedResponse);
   });
 
   // ── Cancel ─────────────────────────────────────────────────────────────────
 
-  it("navigates to /library on cancel for a new entry", () => {
+  it("cancel is a no-op in always-editable mode", () => {
     const contentRef = { current: EMPTY_DOC };
     const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
     );
 
     act(() => {
       result.current.cancel();
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith("/library");
+    // Cancel is a no-op — always-editable mode has no cancel.
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("resets title and returns to view on cancel after edit", async () => {
+  it("cancel is a no-op for existing entries", async () => {
     const entry = makeEntry({ title: "Original", folder: 5 });
     mockGet.mockResolvedValue(entry);
     const contentRef = { current: entry.content };
@@ -429,7 +457,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     // Simulate editing: change title
@@ -437,14 +465,11 @@ describe("useEntryEditor", () => {
       result.current.setTitle("Edited Title");
     });
 
-    // Cancel
+    // Cancel is a no-op in always-editable mode.
     act(() => {
       result.current.cancel();
     });
 
-    expect(result.current.mode).toBe("view");
-    expect(result.current.title).toBe("Original");
-    expect(result.current.folderId).toBe(5);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
@@ -463,7 +488,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     await act(async () => {
@@ -489,7 +514,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     await act(async () => {
@@ -514,7 +539,7 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
     await act(async () => {
@@ -540,7 +565,7 @@ describe("useEntryEditor", () => {
 
   // ── enterEditMode ──────────────────────────────────────────────────────────
 
-  it("transitions to edit-existing and resolves references", async () => {
+  it("enterEditMode is a no-op in always-editable mode", async () => {
     const entry = makeEntry();
     const contentWithRef: TipTapDoc = {
       type: "doc",
@@ -558,18 +583,15 @@ describe("useEntryEditor", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.mode).toBe("view");
+      expect(result.current.mode).toBe("edit-existing");
     });
 
-    // Clear mock to verify fresh call
-    mockResolveIds.mockClear();
-
+    // enterEditMode is a no-op — editor is always editable.
     act(() => {
       result.current.enterEditMode();
     });
 
     expect(result.current.mode).toBe("edit-existing");
-    expect(mockResolveIds).toHaveBeenCalledWith(["SAMPLE1"]);
   });
 
   // ── beforeunload guard ─────────────────────────────────────────────────────
@@ -897,11 +919,15 @@ describe("save with name validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGet.mockReset();
-    mockPost.mockReset();
-    mockPut.mockReset();
+    mockEnqueue.mockReset();
     mockNavigate.mockReset();
+    mockAcquireLock.mockReset();
+    mockReleaseLock.mockReset();
+    mockAcquireLock.mockResolvedValue({});
+    mockReleaseLock.mockResolvedValue(undefined);
     // Default: folders fetch returns empty array (prevents crash on mount)
     mockGet.mockResolvedValue([]);
+    mockEnqueue.mockResolvedValue(makeEntry());
   });
 
   it("shows alert and does not save when Name cells are empty", async () => {
@@ -923,7 +949,7 @@ describe("save with name validation", () => {
     const contentRef = { current: contentWithEmptyName };
 
     const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
     );
 
     act(() => {
@@ -935,13 +961,13 @@ describe("save with name validation", () => {
     });
 
     expect(alertSpy).toHaveBeenCalledWith("Name not filled in.");
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
 
     alertSpy.mockRestore();
   });
 
   it("saves when all Name cells are filled", async () => {
-    mockPost.mockResolvedValue(makeEntry({ display_id: "NEW1", id: 10 }));
+    mockEnqueue.mockResolvedValue(makeEntry({ display_id: "NEW1", id: 10 }));
     const contentWithNames: TipTapDoc = {
       type: "doc",
       content: [
@@ -959,7 +985,7 @@ describe("save with name validation", () => {
     const contentRef = { current: contentWithNames };
 
     const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, contentRef })),
+      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
     );
 
     act(() => {
@@ -970,10 +996,10 @@ describe("save with name validation", () => {
       await result.current.save();
     });
 
-    expect(mockPost).toHaveBeenCalled();
+    expect(mockEnqueue).toHaveBeenCalled();
     // Verify the content has the description paragraph prepended
-    const callArgs = mockPost.mock.calls[0] as [string, Record<string, unknown>];
-    const payload = callArgs[1];
+    const callArgs = mockEnqueue.mock.calls[0] as [Record<string, unknown>, string];
+    const payload = callArgs[0];
     const content = payload.content as TipTapDoc;
     expect(Array.isArray(content.content)).toBe(true);
     expect((content.content as Array<unknown>).length).toBe(2); // description para + limsTable

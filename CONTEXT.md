@@ -14,6 +14,18 @@
 | **Core** | The immutable app shell: Layout, Router, Console panels, Mod Loader, Mod Registry, Reference resolution, API client. |
 | **Core Mod** | A mod under `core-mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
 | **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, detail/workspace resolution. |
+| **Workspace** | A mod's dedicated work surface for a type of content. Declared via `registerWorkspace({ id, displayName })` — the `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Any mod that registers a workspace is automatically discoverable by the mention system and the pins/bookmarks system. |
+
+### Workspace Registration
+
+Workspaces are a first-class registration in the mod system. A mod calls `registerWorkspace()` during boot, providing:
+
+- **id** — the mod's unique identifier (e.g. `"eln"`, `"lims"`, `"molBio"`). Doubles as the URL namespace.
+- **displayName** — human-readable label (e.g. `"Electronic Lab Notebook"`).
+
+The workspace URL is **derived by convention**, not configured: `/{workspaceId}/{displayId}`. If a mod has `id: "molBio"` and registers an entity type with prefix `DNA`, the URL for `DNA34` is `/molBio/DNA34` — no route configuration needed.
+
+This convention is the single integration point that makes the mention system, pins/bookmarks, and navigation work automatically for any mod that registers a workspace. A mod does not need to provide mention-specific wiring — it only needs to register its workspace and entity types with LIMS.
 
 ---
 
@@ -203,11 +215,19 @@ The structured content *inside* a Notebook Entry. A tree of blocks (paragraphs, 
 
 ### Mention
 
-A parsed reference from one Notebook Entry to another object (another Entry, an Entity, or — later — any referenceable thing). Created when a `#` reference is found in the entry text or when a `reference` node or `limsTable` row references a display ID. The Mention stores the source entry, the target object, and the surrounding context text.
+A parsed reference from one Notebook Entry to another object (another Entry, an Entity, or any registered entity type). Created when a `#` reference is found in the entry text or when a `reference` node or `limsTable` row references a display ID. The Mention stores the source entry, the target object, and the surrounding context text.
 
-**Invariant:** A Mention has exactly one source entry and exactly one target object.
+**Resolution chain:** The Mention system is a **listener** to LIMS — it does not encode entity type or workspace knowledge itself. Resolution follows a single chain:
 
-**Cross-console navigation:** Clicking a ReferenceBadge for a Mention navigates to the target's canonical console — `#BLOOD1` opens the LIMS console, `#E12` opens the Library console. This leaves the user's current context. Pinned Workspaces (see below) mitigate this by providing quick sidebar switching between workspaces.
+1. `displayId` (e.g. `DNA34`) → extract prefix (`DNA`)
+2. Prefix → look up in LIMS's registered entity types → find the owning workspace (`molBio`)
+3. Build URL by convention: `/{workspaceId}/{displayId}` → `/molBio/DNA34`
+
+The server's resolve endpoint (`POST /api/mentions/resolve/`) returns `workspaceId` alongside resolved metadata. The frontend uses the convention to build navigation URLs — no hardcoded type-to-URL branching.
+
+**Invariant:** A Mention has exactly one source entry and exactly one target object. Every mentionable entity type is registered with LIMS, which owns the prefix→workspace mapping.
+
+**Cross-workspace navigation:** Clicking a MentionBadge navigates to the target entity's workspace via `/{workspaceId}/{displayId}`. This works for any registered entity type without per-type wiring — a MolBio DNA sequence resolves and navigates the same way a LIMS sample does.
 
 **Synonyms:** reference, link, `#`-ref
 
@@ -238,6 +258,23 @@ A classification of Entities. Defines what kind of thing an Entity is (e.g., "DN
 Each EntityType has a unique `prefix` (e.g., "DNA", "BLOOD") used to auto-generate display IDs and route references.
 
 **Synonyms:** sample type (rejected — same reason as above), category, schema
+
+### Registered Entity Type
+
+A declaration by a mod that it contributes an entity type to the LIMS registry. The registration provides:
+
+- **prefix** — the letter prefix for display IDs (e.g. `"DNA"`, `"E"`). Unique across all registrations; LIMS validates no collisions.
+- **entityType** — the ContentType name (e.g. `"dna_sequence"`, `"eln_entry"`).
+- **workspaceId** — the workspace that owns entities of this type. Used by Mentions to build navigation URLs.
+- **displayName** — human-readable label (e.g. `"DNA Sequence"`).
+
+LIMS is the **gatekeeper** for all entity type registrations. Mods register via `registry.call("lims.registerEntityType", {...})` at boot. The backend stores registrations in a `RegisteredEntityType` model; the resolve endpoint joins through it to map any `displayId` to its owning workspace.
+
+**Registration flow:** Mod boot → `register()` → `registry.call("lims.registerEntityType", {...})` → LIMS validates prefix uniqueness and stores the registration. Both the frontend (in-memory registry) and backend (`RegisteredEntityType` table) hold the mapping.
+
+**Invariant:** Every prefix is owned by exactly one entity type. The prefix `E` is reserved for ELN Entries (registered as a custom entity type). The backend `RegisteredEntityType.prefix` has a `unique=True` constraint.
+
+**Out of scope (for now):** custom entity behaviors (DNA sequence viewer, GC analysis), per-entity-type action sets, dynamic registration after boot.
 
 ### Action
 
@@ -292,6 +329,8 @@ Entity ──▶ NotebookEntry (N:1 — source_entry, the entry where this entit
 Action ──▶ NotebookEntry (N:1 — action optionally recorded in an entry)
 
 EntityType ──▶ Entity (1:N — type classifies many entities)
+RegisteredEntityType ──▶ EntityType (1:1 — registration links an entity type to a workspace)
+RegisteredEntityType ──▶ Workspace (N:1 — registration declares which workspace owns the entity type)
 
 Tag (standalone — reusable labels with name + color, managed inline on entries)
 
@@ -308,11 +347,12 @@ Console (abstract) ──▶ Master Panel ──▶ Item table
 
 ModLoader ──▶ Mod Registry (populated by register*() calls from mod index.ts files)
               ├── Registered Consoles → sidebar nav + routes
-              ├── Registered Workspaces → detail cards + workspace slots + standalone routes
+              ├── Registered Workspaces → workspace resolution + URL building + mention targets
+              ├── Registered Entity Types → prefix→workspace mapping (held by LIMS)
               ├── Registered Settings Sections → settings shell panels
               ├── Registered Slash Commands → ELN slash menu
               ├── Registered Sidebar Actions → sidebar row buttons
-              └── Registered Services → mod-to-mod communication
+              └── Registered Services → mod-to-mod communication (e.g. lims.registerEntityType)
 ```
 
 ---
@@ -341,6 +381,10 @@ A **Folder** is a data-model concept — a node in the folder tree with a parent
 ### Entry vs Document
 
 An **Entry** is the database record (id, title, author, folder, dates). The **Document** is the rich-text content inside it. They are 1:1 but conceptually distinct — the document format can change independently of the entry model.
+
+### Mention System vs LIMS
+
+The **Mention system** (frontend: `core/mentions/`, backend: `core/mentions/`) is the **consumer** — it resolves references and renders navigation badges. **LIMS** is the **registry** — it owns the entity type→workspace mapping. The mention system asks LIMS "where does this display ID belong?" and uses the answer to build a URL. Neither system hardcodes knowledge of the other's entity types or workspaces. A new mod registers with LIMS, and the mention system picks it up automatically through the standard resolution chain.
 
 ### Mention vs Action
 

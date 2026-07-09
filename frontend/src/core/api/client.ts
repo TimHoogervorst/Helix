@@ -93,12 +93,32 @@ export function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { method: "GET", signal });
 }
 
-export function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  return request<T>(path, { method: "POST", body, signal });
+export function post<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
+  return request<T>(path, {
+    method: "POST",
+    body,
+    signal,
+    headers: extraHeaders,
+  });
 }
 
-export function put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  return request<T>(path, { method: "PUT", body, signal });
+export function put<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
+  return request<T>(path, {
+    method: "PUT",
+    body,
+    signal,
+    headers: extraHeaders,
+  });
 }
 
 export function patch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {

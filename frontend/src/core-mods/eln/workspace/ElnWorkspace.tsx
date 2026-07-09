@@ -1,5 +1,5 @@
 import { useNavigate, Link } from "react-router-dom";
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import {
   History,
   MessageSquare,
@@ -8,20 +8,22 @@ import {
   CircleCheck,
   Folder,
   ChevronRight,
-  Save,
-  Pencil,
   Trash2,
-  X,
   FlaskConical,
   Paperclip,
   Check,
+  Loader2,
+  AlertTriangle,
+  Lock,
 } from "lucide-react";
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 import { useReferenceContext } from "../../../core/references/ReferenceProvider";
 import { Avatar, getInitials } from "../../../shared/Avatar";
-import type { ElnAction } from "../types";
-import { fetchActions } from "../api";
+import { useActivity } from "../hooks/useActivity";
+import { getRecentEditors } from "../activityHelpers";
+import ActivityFeed from "../components/ActivityFeed";
+import MoreActions from "../components/MoreActions";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -60,17 +62,20 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   // ── Editor state lifted from ElnEditor via callback ──
   const [editorState, setEditorState] = useState<ElnEditorState>({
-    mode: "loading",
-    isEdit: false,
-    isSaving: false,
+    isReady: false,
     isDirty: false,
     deleting: false,
+    saveStatus: "idle",
+    lastSavedAt: null,
+    queueLength: 0,
     entry: null,
     folders: [],
     folderId: null,
     status: "in_progress",
     tags: [],
     description: "",
+    isLockedByOther: false,
+    lockHeldBy: null,
   });
   const handleStateChange = useCallback((state: ElnEditorState) => {
     setEditorState(state);
@@ -80,8 +85,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const editorRef = useRef<ElnEditorHandle>(null);
   const navigate = useNavigate();
 
-  const showActions =
-    editorState.mode !== "loading" && editorState.mode !== "error";
+  const showActions = editorState.isReady;
 
   // ── Share state ──
   const [shareClicked, setShareClicked] = useState(false);
@@ -95,64 +99,20 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     });
   }, [entryDisplayId]);
 
-  // ── Recent editors (for toolbar avatars + last-editor info) ──
-  const [allActions, setAllActions] = useState<ElnAction[]>([]);
+  // ── Activity data (single fetch serves Activity feed + toolbar avatars + last editor) ──
+  const {
+    actions,
+    isLoading: activityLoading,
+    error: activityError,
+    refetch: refetchActivity,
+  } = useActivity(entryId);
 
-  useEffect(() => {
-    if (!entryId) return;
-    let cancelled = false;
+  // Deduplicate editors from the last week for the toolbar avatar row
+  const recentEditors = getRecentEditors(actions);
 
-    // Default window: 1 week for the avatar row
-    const oneWeekAgo = new Date(
-      Date.now() - 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
-
-    fetchActions(entryId, "edited", oneWeekAgo)
-      .then((actions) => {
-        if (!cancelled) setAllActions(actions);
-      })
-      .catch(() => {
-        // Silently ignore — avatars are best-effort UI
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entryId]);
-
-  // Deduplicate by user, keep most recent per user
-  const recentEditors = useMemo(() => {
-    const seen = new Set<number>();
-    const unique: ElnAction[] = [];
-    for (const a of allActions) {
-      if (!seen.has(a.performed_by.id)) {
-        seen.add(a.performed_by.id);
-        unique.push(a);
-      }
-    }
-    return unique;
-  }, [allActions]);
-
-  // Also fetch all action types for "last editor" (more reliable than
-  // filtering to just "edited" because a new entry may only have "created")
-  const [allRecentActions, setAllRecentActions] = useState<ElnAction[]>([]);
-
-  useEffect(() => {
-    if (!entryId) return;
-    let cancelled = false;
-
-    fetchActions(entryId)
-      .then((actions) => {
-        if (!cancelled) setAllRecentActions(actions);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entryId]);
-
-  const lastEditor = allRecentActions.length > 0 ? allRecentActions[0].performed_by : null;
+  // Most recent action's performer is the "last editor"
+  const lastEditor =
+    actions.length > 0 ? actions[0].performed_by : null;
 
   // ── Reference resolution for linked entities ──
   const { resolutionMap, resolveIds } = useReferenceContext();
@@ -169,14 +129,15 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   // ── Derived metadata for the panel ──
   const entry = editorState.entry;
-  const isEdit = editorState.isEdit;
   const folderPath = entry?.folder_path || "";
   const pathSegments = folderPath.split("/").filter(Boolean);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {/* ── Top toolbar ── */}
-      <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      {/* ── Left column: toolbar + main content ── */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* ── Top toolbar ── */}
+        <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
         {/* Left: breadcrumbs — real folder path with clickable segments */}
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Folder
@@ -222,42 +183,54 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
         {/* Right: actions + avatars + share */}
         <div className="flex items-center gap-1">
-          {/* ── Editor action buttons (lifted from ElnEditor) ── */}
-          {showActions &&
-            (editorState.isEdit ? (
-              <>
-                <IconButton
-                  icon={Save}
-                  label="Save"
-                  tooltip="Save entry"
-                  disabled={editorState.isSaving}
-                  onClick={() => editorRef.current?.save()}
-                />
-                <IconButton
-                  icon={X}
-                  label="Cancel"
-                  tooltip="Cancel editing"
-                  disabled={editorState.isSaving}
-                  onClick={() => editorRef.current?.cancel()}
-                />
-              </>
-            ) : (
-              <>
-                <IconButton
-                  icon={Pencil}
-                  label="Edit"
-                  tooltip="Edit entry"
-                  onClick={() => editorRef.current?.enterEditMode()}
-                />
-                <IconButton
-                  icon={Trash2}
-                  label="Delete"
-                  tooltip="Delete entry"
-                  disabled={editorState.deleting}
-                  onClick={() => editorRef.current?.deleteEntry()}
-                />
-              </>
-            ))}
+          {/* ── Save status indicator ── */}
+          {showActions && (() => {
+            // When locked by another user, show lock icon with tooltip.
+            if (editorState.isLockedByOther) {
+              const lockLabel = `Locked by ${editorState.lockHeldBy || "another user"} — read-only`;
+              return (
+                <span
+                  className="btn-icon rounded-md"
+                  aria-label={lockLabel}
+                  title={lockLabel}
+                >
+                  <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                </span>
+              );
+            }
+
+            const isSaving = editorState.saveStatus === "saving" || editorState.queueLength > 0;
+            const isError = editorState.saveStatus === "error";
+
+            let Icon: React.ComponentType<{ className?: string }>;
+            let label: string;
+            let iconClass: string;
+
+            if (isError) {
+              Icon = AlertTriangle;
+              label = "Save failed — click to retry";
+              iconClass = "h-4 w-4 text-destructive";
+            } else if (isSaving) {
+              Icon = Loader2;
+              label = "Saving…";
+              iconClass = "h-4 w-4 animate-spin text-muted-foreground";
+            } else {
+              Icon = Check;
+              label = "Saved";
+              iconClass = "h-4 w-4 text-muted-foreground";
+            }
+
+            return (
+              <button
+                className="btn-icon rounded-md"
+                aria-label={label}
+                title={label}
+                onClick={() => editorRef.current?.save()}
+              >
+                <Icon className={iconClass} aria-hidden="true" />
+              </button>
+            );
+          })()}
 
           <IconButton
             icon={History}
@@ -274,6 +247,21 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             label="Star"
             tooltip="Placeholder — bookmark coming soon"
           />
+
+          {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}
+          {showActions && !editorState.isLockedByOther && (
+            <MoreActions
+              items={[
+                {
+                  key: "delete",
+                  icon: Trash2,
+                  label: "Delete",
+                  onClick: () => editorRef.current?.deleteEntry(),
+                  destructive: true,
+                },
+              ]}
+            />
+          )}
 
           {/* Separator */}
           <div className="mx-1.5 h-4 w-px bg-hairline" aria-hidden="true" />
@@ -327,18 +315,18 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         </div>
       </div>
 
-      {/* ── Content + Metadata ── */}
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {/* ── Content ── */}
         {/* Main content area */}
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
             <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} />
           </div>
         </main>
+      </div>
 
-        {/* Metadata panel — visible at xl and above */}
-        <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
-          <div className="h-full space-y-6 overflow-y-auto px-5 py-6">
+      {/* Metadata panel — visible at xl and above, full height from top */}
+      <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
+        <div className="h-full space-y-6 overflow-y-auto px-5 py-6">
             {/* ── Metadata ── */}
             <section>
               <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -403,59 +391,41 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Status</dt>
                   <dd className="text-right">
-                    {isEdit ? (
-                      <select
-                        value={editorState.status}
-                        onChange={(e) =>
-                          editorRef.current?.setStatus(e.target.value)
-                        }
-                        className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
-                        data-testid="status-select"
-                      >
-                        <option value="in_progress">In Progress</option>
-                        <option value="finished">Finished</option>
-                      </select>
-                    ) : (
-                      <span
-                        className={
-                          "inline-flex items-center gap-1 rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider " +
-                          (editorState.status === "finished"
-                            ? "bg-success text-success-foreground"
-                            : "bg-warn text-warn-foreground")
-                        }
-                        data-testid="status-chip"
-                      >
-                        {editorState.status === "finished"
-                          ? "Finished"
-                          : "In progress"}
-                      </span>
-                    )}
+                    <select
+                      value={editorState.status}
+                      onChange={(e) =>
+                        editorRef.current?.setStatus(e.target.value)
+                      }
+                      disabled={editorState.isLockedByOther}
+                      className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
+                      data-testid="status-select"
+                    >
+                      <option value="in_progress">In Progress</option>
+                      <option value="finished">Finished</option>
+                    </select>
                   </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <dt className="text-muted-foreground">Folder</dt>
                   <dd className="text-right">
-                    {isEdit ? (
-                      <select
-                        value={editorState.folderId ?? ""}
-                        onChange={(e) =>
-                          editorRef.current?.setFolderId(
-                            e.target.value ? Number(e.target.value) : null,
-                          )
-                        }
-                        className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
-                        data-testid="folder-select"
-                      >
-                        <option value="">Folder…</option>
-                        {editorState.folders.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      entry?.folder_name || "—"
-                    )}
+                    <select
+                      value={editorState.folderId ?? ""}
+                      onChange={(e) =>
+                        editorRef.current?.setFolderId(
+                          e.target.value ? Number(e.target.value) : null,
+                        )
+                      }
+                      disabled={editorState.isLockedByOther}
+                      className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
+                      data-testid="folder-select"
+                    >
+                      <option value="">Folder…</option>
+                      {editorState.folders.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
                   </dd>
                 </div>
               </dl>
@@ -535,80 +505,16 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             </section>
 
             {/* ── Activity ── */}
-            <section>
-              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Activity
-              </h3>
-              <ul className="space-y-2 text-[12px]">
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Mira K.
-                    </span>{" "}
-                    added bar chart FIG-01
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · 14 min ago
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Jordan S.
-                    </span>{" "}
-                    commented on g4 dropout
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · 2 h ago
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Mira K.
-                    </span>{" "}
-                    linked reagent REG-1042
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · 5 h ago
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
-                    aria-hidden="true"
-                    data-testid="activity-dot"
-                  />
-                  <span className="min-w-0 flex-1 text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      System
-                    </span>{" "}
-                    autosaved v0.4
-                  </span>
-                  <span className="shrink-0 text-muted-foreground/70">
-                    · just now
-                  </span>
-                </li>
-              </ul>
-            </section>
+            <ActivityFeed
+              data={{
+                actions,
+                isLoading: activityLoading,
+                error: activityError,
+                refetch: refetchActivity,
+              }}
+            />
           </div>
         </aside>
-      </div>
     </div>
   );
 }

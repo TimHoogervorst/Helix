@@ -139,6 +139,12 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "core.User"
 
 
+# ── ELN ────────────────────────────────────────────────────────────────────
+
+# Minutes before a held entry lock is considered stale and can be stolen.
+ELN_LOCK_TIMEOUT_MINUTES = 5
+
+
 # Django REST Framework
 
 REST_FRAMEWORK = {

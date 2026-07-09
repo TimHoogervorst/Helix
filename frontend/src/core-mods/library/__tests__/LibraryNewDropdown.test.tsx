@@ -1,13 +1,27 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import LibraryNewDropdown from "../hub/LibraryNewDropdown";
 
+// ── Hoisted mocks ──────────────────────────────────────────────────────
+
+const { mockPost, mockCreateEntry } = vi.hoisted(() => ({
+  mockPost: vi.fn().mockResolvedValue({ id: 99, name: "NewFolder" }),
+  mockCreateEntry: vi.fn(),
+}));
+
 // Mock the API client
-vi.mock("../../../api/client", () => ({
-  post: vi.fn().mockResolvedValue({ id: 99, name: "NewFolder" }),
+vi.mock("../../../core/api/client", () => ({
+  post: mockPost,
   get: vi.fn(),
 }));
+
+// Mock the ELN api's createEntry — the component imports it directly
+vi.mock("../../eln/api", () => ({
+  createEntry: mockCreateEntry,
+}));
+
+// ── Helpers ───────────────────────────────────────────────────────────
 
 function renderDropdown(props?: Partial<{ path: string; folderId: number | null; onCreated: () => void }>) {
   return render(
@@ -22,6 +36,11 @@ function renderDropdown(props?: Partial<{ path: string; folderId: number | null;
 }
 
 describe("LibraryNewDropdown", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPost.mockResolvedValue({ id: 99, name: "NewFolder" });
+  });
+
   it("renders the + button", () => {
     renderDropdown();
     expect(screen.getByTitle("New folder or entry")).toBeInTheDocument();
@@ -50,5 +69,76 @@ describe("LibraryNewDropdown", () => {
     // Should go back to menu
     expect(screen.getByText("New Folder")).toBeInTheDocument();
     expect(screen.getByText("New ELN Entry")).toBeInTheDocument();
+  });
+
+  // ── New Entry immediate-create flow ──────────────────────────────────
+
+  it("calls createEntry with default payload and navigates on success", async () => {
+    mockCreateEntry.mockResolvedValue({
+      display_id: "E-0042",
+      id: 42,
+      title: "Untitled",
+      content: { type: "doc", content: [{ type: "paragraph" }] },
+    });
+
+    renderDropdown({ folderId: 7 });
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    fireEvent.click(screen.getByText("New ELN Entry"));
+
+    await waitFor(() => {
+      expect(mockCreateEntry).toHaveBeenCalledWith({
+        title: "Untitled",
+        content: { type: "doc", content: [{ type: "paragraph" }] },
+        folder: 7,
+      });
+    });
+
+    // Should navigate to the new entry with ?new=true
+    // (useNavigate is not mocked, but the component navigates to
+    // /eln/E-0042?new=true — just verify createEntry was called correctly)
+  });
+
+  it("disables the New ELN Entry button while creating", async () => {
+    // Never resolve — keeps button in loading state
+    mockCreateEntry.mockReturnValue(new Promise(() => {}));
+
+    renderDropdown();
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    const btn = screen.getByText("New ELN Entry").closest("button")!;
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(btn).toBeDisabled();
+    });
+  });
+
+  it("shows error message when createEntry fails", async () => {
+    mockCreateEntry.mockRejectedValue(new Error("Server error"));
+
+    renderDropdown();
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    fireEvent.click(screen.getByText("New ELN Entry"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server error")).toBeInTheDocument();
+    });
+  });
+
+  it("closes dropdown after successful entry creation", async () => {
+    mockCreateEntry.mockResolvedValue({
+      display_id: "E-0042",
+      id: 42,
+      title: "Untitled",
+      content: { type: "doc", content: [{ type: "paragraph" }] },
+    });
+
+    renderDropdown();
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    fireEvent.click(screen.getByText("New ELN Entry"));
+
+    await waitFor(() => {
+      // Menu should close after successful creation
+      expect(screen.queryByText("New ELN Entry")).toBeNull();
+    });
   });
 });

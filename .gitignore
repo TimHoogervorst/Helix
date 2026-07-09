@@ -48,4 +48,4 @@ docs/protoypes/
 # Agents
 .claude
 .mcp.json
-.docs/
+.docs

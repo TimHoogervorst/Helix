@@ -11,47 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { getPins, createPin, deletePin } from "../api";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
-
-// ── Workspace route config ──────────────────────────────────────────────────
-
-interface WorkspaceRouteConfig {
-  /** Regex that matches the route, with a capture group for the displayId. */
-  pattern: RegExp;
-  /** Build a URL from the matched pathname (i.e. the full current pathname). */
-  buildUrl: (pathname: string) => string;
-  icon: CurrentWorkspace["icon"];
-}
-
-const WORKSPACE_ROUTES: WorkspaceRouteConfig[] = [
-  {
-    pattern: /^\/lims\/([^/]+)$/,
-    buildUrl: (pathname) => pathname,
-    icon: "lims",
-  },
-  {
-    pattern: /^\/eln\/([^/]+)$/,
-    buildUrl: (pathname) => pathname,
-    icon: "eln",
-  },
-];
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function resolveCurrentWorkspace(
-  pathname: string,
-): CurrentWorkspace | null {
-  for (const route of WORKSPACE_ROUTES) {
-    const match = pathname.match(route.pattern);
-    if (match) {
-      return {
-        displayId: match[1],
-        url: route.buildUrl(pathname),
-        icon: route.icon,
-      };
-    }
-  }
-  return null;
-}
+import { resolveCurrentWorkspace } from "../../../core/mod-system/resolveCurrentWorkspace";
 
 // ── Hook ────────────────────────────────────────────────────────────────────
 

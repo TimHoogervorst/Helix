@@ -22,6 +22,8 @@ export interface BadgeResolved {
   type: "entry" | "entity";
   id: number;
   icon: string;
+  /** The workspace that owns this entity (e.g. "eln", "lims"). */
+  workspaceId?: string | null;
 }
 
 export interface MentionBadgeProps {
@@ -46,11 +48,18 @@ function toBadgeResolved(r: ResolvedMention): BadgeResolved {
     type: r.type as "entry" | "entity",
     id: r.id,
     icon: r.icon,
+    workspaceId: r.workspaceId,
   };
 }
 
-/** Build the navigation href for a resolved badge. */
+/** Build the navigation href for a resolved badge.
+ *  Uses the `/${workspaceId}/${displayId}` URL convention.
+ *  Falls back to /lims/ or /eln/ when workspaceId is absent (transitional). */
 function badgeHref(resolved: BadgeResolved): string {
+  if (resolved.workspaceId) {
+    return `/${resolved.workspaceId}/${resolved.displayId}`;
+  }
+  // Transitional fallback — remove once all types are workspace-registered.
   if (resolved.type === "entity") {
     return `/lims/${resolved.displayId}`;
   }

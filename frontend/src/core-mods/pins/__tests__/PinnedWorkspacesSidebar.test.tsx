@@ -2,6 +2,18 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+
+// ── ModRegistry setup ────────────────────────────────────────────────────
+
+function setupWorkspaces(): void {
+  ModRegistry._reset();
+  const registry = ModRegistry.getInstance();
+  registry.registerMod("lims");
+  registry.registerMod("eln");
+  registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+  registry.registerWorkspace({ id: "eln", displayName: "ELN" });
+}
 
 // ── Mock the hook ────────────────────────────────────────────────────────
 
@@ -71,6 +83,7 @@ describe("PinnedWorkspacesSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    setupWorkspaces();
   });
 
   // ── Section header ────────────────────────────────────────────────────

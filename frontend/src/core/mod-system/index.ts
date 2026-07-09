@@ -7,6 +7,7 @@ export { registerPublicRoute } from "./registerPublicRoute";
 export { registerSidebarAction } from "./registerSidebarAction";
 export { registerLibraryItem } from "./registerLibraryItem";
 export { registerWorkspace } from "./registerWorkspace";
+export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
 export type {
   ModManifest,
   HubConfig,
@@ -21,4 +22,5 @@ export type {
   SlashContext,
   WorkspaceConfig,
   RegisteredEntityType,
+  CurrentWorkspace,
 } from "./types";

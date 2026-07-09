@@ -41,7 +41,8 @@ function dropdownRenderer() {
 
     renderItem: (item, _i, _isSelected) =>
       `<span class="ref-dropdown-id">${item.display_id}</span>
-       <span class="ref-dropdown-title">${item.title}</span>`,
+       <span class="ref-dropdown-title">${item.title}</span>
+       ${item.workspaceId ? `<span class="ref-dropdown-workspace">${item.workspaceId}</span>` : ""}`,
 
     onExtraKeyDown: (props, state) => {
       if (props.event.key === " ") {
@@ -55,7 +56,7 @@ function dropdownRenderer() {
                   title: "",
                   type: "entry",
                   icon: "📄",
-                  workspaceId: "eln",
+                  workspaceId: null,
                 };
           state.command(item);
           props.event.preventDefault();

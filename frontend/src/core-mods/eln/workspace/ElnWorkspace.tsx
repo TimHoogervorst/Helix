@@ -446,15 +446,24 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                     // Use resolved title if available, otherwise fall back to mention target_title
                     const title =
                       resolved?.title || mention.target_title || "Unknown";
+                    // workspace-aware navigation: /:workspaceId/:displayId
+                    const workspaceId = resolved?.workspaceId;
                     const IconComponent = FlaskConical;
                     return (
                       <button
                         key={mention.id}
                         className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background transition-colors"
                         aria-label={`View ${title}`}
-                        onClick={() =>
-                          displayId && navigate(`/lims/${displayId}`)
-                        }
+                        onClick={() => {
+                          if (displayId && workspaceId) {
+                            navigate(`/${workspaceId}/${displayId}`);
+                          } else if (displayId) {
+                            // Transitional fallback: navigate to /lims/ when
+                            // workspaceId is absent (not yet resolved or
+                            // entity type not yet registered).
+                            navigate(`/lims/${displayId}`);
+                          }
+                        }}
                         disabled={!displayId}
                       >
                         <IconComponent

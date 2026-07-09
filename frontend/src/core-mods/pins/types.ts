@@ -7,9 +7,5 @@ export interface PinnedWorkspace {
   created_at: string;
 }
 
-/** Resolved metadata for the currently active workspace (derived from the URL). */
-export interface CurrentWorkspace {
-  displayId: string;
-  url: string;
-  icon: "lims" | "eln";
-}
+/** Re-exported from core/mod-system/types so both pins and mentions share it. */
+export type { CurrentWorkspace } from "../../core/mod-system/types";

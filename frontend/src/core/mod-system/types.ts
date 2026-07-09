@@ -122,6 +122,8 @@ export interface WorkspaceConfig {
   id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
+  /** Optional icon component. Falls back to a generic default when absent. */
+  icon?: ComponentType<any>;
 }
 
 // ── Entity Type (client-side type for lims.registerEntityType service) ─────
@@ -144,4 +146,19 @@ export interface RegisteredEntityType {
   workspaceId: string;
   /** Human-readable name shown in search results, e.g. "Entry", "Sample". */
   displayName: string;
+}
+
+// ── Current Workspace ───────────────────────────────────────────────────────
+
+/**
+ * Resolved metadata for the currently active workspace, derived from the URL.
+ *
+ * Defined in core/ so both pins and mentions modules can share it without
+ * creating an inverted dependency (core importing from a mods package).
+ */
+export interface CurrentWorkspace {
+  displayId: string;
+  url: string;
+  /** Workspace ID — used to look up the workspace config for an icon. */
+  icon: string;
 }

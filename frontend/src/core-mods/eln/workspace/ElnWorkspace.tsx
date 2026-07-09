@@ -232,21 +232,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             );
           })()}
 
-          {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}
-          {showActions && !editorState.isLockedByOther && (
-            <MoreActions
-              items={[
-                {
-                  key: "delete",
-                  icon: Trash2,
-                  label: "Delete",
-                  onClick: () => editorRef.current?.deleteEntry(),
-                  destructive: true,
-                },
-              ]}
-            />
-          )}
-
           <IconButton
             icon={History}
             label="History"
@@ -262,6 +247,21 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             label="Star"
             tooltip="Placeholder — bookmark coming soon"
           />
+
+          {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}
+          {showActions && !editorState.isLockedByOther && (
+            <MoreActions
+              items={[
+                {
+                  key: "delete",
+                  icon: Trash2,
+                  label: "Delete",
+                  onClick: () => editorRef.current?.deleteEntry(),
+                  destructive: true,
+                },
+              ]}
+            />
+          )}
 
           {/* Separator */}
           <div className="mx-1.5 h-4 w-px bg-hairline" aria-hidden="true" />

@@ -58,20 +58,13 @@ export interface SidebarActionConfig {
   position: "inline" | "hover";
 }
 
-// ── Slash Command (shape only — implementation deferred) ──────────────────
-
-/** Placeholder type for slash command context. Will be refined. */
-export type SlashContext = Record<string, unknown>;
-
-export interface SlashCommandConfig {
-  id: string;
-  label: string;
-  icon?: ComponentType<any>;
-  workspaces: string[];
-  action: (context: SlashContext) => void;
-}
-
 // ── Block ──────────────────────────────────────────────────────────────────
+
+/**
+ * Discriminator value for blocks whose payload is a TipTap Node extension.
+ * Consumers filter on this value to discover editor content blocks.
+ */
+export const BLOCK_TYPE_TIPTAP_NODE = "tiptap-node";
 
 /**
  * Configuration for a content block registered by a mod.

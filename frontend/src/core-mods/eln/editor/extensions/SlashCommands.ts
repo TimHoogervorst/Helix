@@ -2,13 +2,18 @@
  * TipTap slash-command suggestion extension.
  *
  * - Triggers on "/".
- * - Shows available commands: Table (inserts a limsTable node).
+ * - Shows available commands from blocks registered via ``registerBlock()``.
  * - Arrow keys to navigate, Enter/Tab to select, Escape to dismiss.
+ *
+ * Blocks of type ``"tiptap-node"`` are auto-converted to slash commands:
+ * the insert action is derived from the TipTap node name and optional
+ * default attributes.
  */
 import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, type TipTapBlockPayload } from "../../../../core/mod-system";
 
 const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 
@@ -21,46 +26,48 @@ export interface SlashCommand {
   action: (editor: any, range: { from: number; to: number }) => void;
 }
 
+/**
+ * Build the slash command list from registered blocks.
+ *
+ * Only blocks with ``type === "tiptap-node"`` are included.  The insert
+ * action is auto-derived from the node name and optional default attrs,
+ * so mods don't need to write TipTap chain boilerplate.
+ *
+ * Results are sorted alphabetically by label.
+ */
 export function getCommands(): SlashCommand[] {
-  return [
-    {
-      label: "Table",
-      description: "Insert a schema-backed LIMS table",
-      icon: "📊",
+  const blocks = ModRegistry.getInstance().getBlocks();
+  const commands: SlashCommand[] = [];
+
+  for (const block of blocks.values()) {
+    if (block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
+
+    const payload = block.payload as TipTapBlockPayload;
+    const nodeName = payload.node.name;
+
+    commands.push({
+      label: block.label,
+      description: block.description,
+      icon: block.icon,
       action: (editor, range) => {
+        const content: Record<string, unknown> = { type: nodeName };
+        if (payload.defaultAttrs) {
+          content.attrs = payload.defaultAttrs;
+        }
         editor
           .chain()
           .focus()
           .deleteRange(range)
-          .insertContentAt(range.from, [
-            {
-              type: "limsTable",
-              attrs: {
-                schemaId: null,
-                title: "Table",
-                columns: [
-                  { name: "Column 1", type: "Text" },
-                  { name: "Column 2", type: "Text" },
-                ],
-                rows: [
-                  {
-                    entityId: null,
-                    displayId: "#1",
-                    values: { "Column 1": "", "Column 2": "" },
-                  },
-                  {
-                    entityId: null,
-                    displayId: "#2",
-                    values: { "Column 1": "", "Column 2": "" },
-                  },
-                ],
-              },
-            },
-          ])
+          .insertContentAt(range.from, content)
           .run();
       },
-    },
-  ];
+    });
+  }
+
+  // Sort alphabetically by label
+  commands.sort((a, b) => a.label.localeCompare(b.label));
+
+  return commands;
 }
 
 // ── Dropdown renderer (via shared factory) ─────────────────────────────

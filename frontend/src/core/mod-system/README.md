@@ -34,7 +34,7 @@ export function register(): void {
 | `registerSettingsSection(config)` | Register a settings panel in the Settings shell |
 | `registerRoute(config)` | Register a standalone route |
 | `registerSidebarAction(config)` | Register a button/badge on sidebar rows |
-| `registerSlashCommand(config)` | Register a slash command for the ELN editor *(deferred)* |
+| `registerBlock(config)` | Register a content block (e.g., table, image) for the ELN editor |
 | `registerService(config)` | Register a callable service for mod-to-mod communication |
 
 ## Mod Directory Contract
@@ -48,6 +48,7 @@ export function register(): void {
 | `workspace/` | Full workspace + standalone page shell | If mod has a workspace |
 | `library/` | Library card renderers for the Library hub | If mod registers library items |
 | `settings/` | Settings panels registered to the Settings shell | If mod has settings |
+| `blocks/` | Content blocks (TipTap nodes, etc.) registered via `registerBlock()` | If mod provides editor content blocks |
 | `editor/` | Rich editor + extensions | If mod owns an editor |
 | `components/` | Mod-specific shared components | Optional |
 | `hooks/` | Mod-specific hooks | Optional |

@@ -6,6 +6,7 @@ import { registerRoute } from "../registerRoute";
 import { registerSidebarAction } from "../registerSidebarAction";
 import { registerLibraryItem } from "../registerLibraryItem";
 import { registerBlock } from "../registerBlock";
+import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 
 /** Reset the singleton between tests. */
 function resetRegistry(): ModRegistry {
@@ -94,7 +95,7 @@ describe("register functions", () => {
       label: "Table",
       description: "Insert a schema-backed LIMS table",
       icon: "📊",
-      type: "tiptap-node",
+      type: BLOCK_TYPE_TIPTAP_NODE,
       payload: { node: DummyComponent },
     };
     registerBlock(config);

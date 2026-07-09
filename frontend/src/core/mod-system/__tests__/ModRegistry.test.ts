@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ModRegistry } from "../ModRegistry";
+import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 import type {
   HubConfig,
   SettingsSectionConfig,
@@ -88,7 +89,7 @@ function makeBlock(overrides?: Partial<BlockConfig>): BlockConfig {
     label: "Table",
     description: "Insert a schema-backed LIMS table",
     icon: "📊",
-    type: "tiptap-node",
+    type: BLOCK_TYPE_TIPTAP_NODE,
     payload: { node: DummyComponent },
     ...overrides,
   };

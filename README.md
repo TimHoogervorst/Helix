@@ -86,7 +86,7 @@ Each mod calls imperative registration functions to declare its contributions:
 | `registerConsole()` | A three-panel browsing surface with sidebar nav item (e.g. Library at `/library`, LIMS at `/lims`) |
 | `registerWorkspace()` | An item type with detail card + full work surface + standalone route (e.g. `lims.entity`, `eln.entry`) |
 | `registerSettingsSection()` | A panel in the Settings shell (e.g. LIMS entity schemas) |
-| `registerSlashCommand()` | A `/` command in the ELN editor's slash menu |
+| `registerBlock()` | A content block (e.g., table, image) in the ELN editor's slash menu |
 | `registerRoute()` | A standalone route not tied to a console (e.g. `/settings`) |
 | `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) |
 | `registerService()` | A callable service for mod-to-mod communication |

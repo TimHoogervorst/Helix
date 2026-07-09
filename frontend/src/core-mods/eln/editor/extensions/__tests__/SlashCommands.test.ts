@@ -1,16 +1,54 @@
 /**
  * Tests for the SlashCommands TipTap extension.
  *
- * Covers: fuzzyMatch pure function, getCommands factory, and editor
- * integration (extension loads, slash insertion doesn't crash).
+ * Covers: fuzzyMatch pure function, getCommands (from registry), and editor
+ * integration (extension loads, slash insertion doesn't crash, table
+ * insertion via registered block).
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import SlashCommands, {
   fuzzyMatch,
   getCommands,
 } from "../SlashCommands";
 import LimsTable from "../../../blocks/LimsTable";
 import { createTestEditor } from "../../../../../test/factories";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE } from "../../../../../core/mod-system";
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function registerTableBlock(overrides?: Record<string, unknown>) {
+  ModRegistry.getInstance().registerBlock({
+    id: "eln.table",
+    label: "Table",
+    description: "Insert a schema-backed LIMS table",
+    icon: "📊",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: LimsTable,
+      defaultAttrs: {
+        schemaId: null,
+        title: "Table",
+        columns: [
+          { name: "Column 1", type: "Text" },
+          { name: "Column 2", type: "Text" },
+        ],
+        rows: [
+          {
+            entityId: null,
+            displayId: "#1",
+            values: { "Column 1": "", "Column 2": "" },
+          },
+          {
+            entityId: null,
+            displayId: "#2",
+            values: { "Column 1": "", "Column 2": "" },
+          },
+        ],
+        ...overrides,
+      },
+    },
+  });
+}
 
 // ── fuzzyMatch (pure function) ────────────────────────────────────────────
 
@@ -61,10 +99,15 @@ describe("fuzzyMatch", () => {
   });
 });
 
-// ── getCommands ───────────────────────────────────────────────────────────
+// ── getCommands (reads from registry) ─────────────────────────────────────
 
 describe("getCommands", () => {
-  it("returns at least one command", () => {
+  beforeEach(() => {
+    ModRegistry._reset();
+    registerTableBlock();
+  });
+
+  it("returns at least one command when table block is registered", () => {
     const commands = getCommands();
     expect(commands.length).toBeGreaterThan(0);
   });
@@ -73,7 +116,7 @@ describe("getCommands", () => {
     const commands = getCommands();
     const table = commands.find((c) => c.label === "Table");
     expect(table).toBeTruthy();
-    expect(table?.description).toBeTruthy();
+    expect(table?.description).toBe("Insert a schema-backed LIMS table");
     expect(table?.icon).toBe("📊");
     expect(typeof table?.action).toBe("function");
   });
@@ -107,11 +150,60 @@ describe("getCommands", () => {
       expect(typeof cmd.action).toBe("function");
     }
   });
+
+  it("returns empty array when no blocks are registered", () => {
+    ModRegistry._reset();
+    const commands = getCommands();
+    expect(commands).toHaveLength(0);
+  });
+
+  it("excludes blocks with non-tiptap-node type", () => {
+    ModRegistry._reset();
+    ModRegistry.getInstance().registerBlock({
+      id: "test.other",
+      label: "Other",
+      description: "A non-tiptap block",
+      icon: "🔧",
+      type: "molbio-viewer",
+      payload: {},
+    });
+    const commands = getCommands();
+    expect(commands).toHaveLength(0);
+  });
+
+  it("sorts commands alphabetically by label", () => {
+    ModRegistry._reset();
+    ModRegistry.getInstance().registerBlock({
+      id: "test.zebra",
+      label: "Zebra",
+      description: "Z block",
+      icon: "🦓",
+      type: BLOCK_TYPE_TIPTAP_NODE,
+      payload: { node: LimsTable },
+    });
+    ModRegistry.getInstance().registerBlock({
+      id: "test.alpha",
+      label: "Alpha",
+      description: "A block",
+      icon: "🔤",
+      type: BLOCK_TYPE_TIPTAP_NODE,
+      payload: { node: LimsTable },
+    });
+
+    const commands = getCommands();
+    expect(commands[0].label).toBe("Alpha");
+    expect(commands[1].label).toBe("Zebra");
+  });
 });
 
 // ── Editor integration ────────────────────────────────────────────────────
 
 describe("SlashCommands editor integration", () => {
+  beforeEach(() => {
+    ModRegistry._reset();
+    registerTableBlock();
+  });
+
   it("editor creates successfully with SlashCommands extension", () => {
     const editor = createTestEditor([SlashCommands, LimsTable]);
     expect(editor).toBeTruthy();

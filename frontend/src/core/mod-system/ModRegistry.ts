@@ -3,7 +3,6 @@ import type {
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,
-  SlashCommandConfig,
   ServiceConfig,
   LibraryItemConfig,
   WorkspaceConfig,
@@ -44,7 +43,6 @@ export class ModRegistry {
   private settingsSections = new Map<string, SettingsSectionConfig>();
   private routes = new Map<string, RouteConfig>();
   private sidebarActions = new Map<string, SidebarActionConfig>();
-  private slashCommands = new Map<string, SlashCommandConfig>();
   private services = new Map<string, ServiceConfig>();
   private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
@@ -97,20 +95,6 @@ export class ModRegistry {
       );
     }
     this.sidebarActions.set(config.id, config);
-  }
-
-  registerSlashCommand(config: SlashCommandConfig): void {
-    // Shape only — implementation deferred.
-    // Logs a warning so developers know this isn't wired yet.
-    if (this.slashCommands.has(config.id)) {
-      throw new Error(
-        `Duplicate slash command registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.slashCommands.set(config.id, config);
-    console.warn(
-      `[ModRegistry] registerSlashCommand('${config.id}') — slash commands are not yet implemented.`,
-    );
   }
 
   registerService(config: ServiceConfig): void {

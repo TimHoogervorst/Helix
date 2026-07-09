@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE } from "../../../core/mod-system";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function resetRegistry(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ModRegistry as any).instance = null;
+  ModRegistry._reset();
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────
@@ -78,6 +77,34 @@ describe("eln mod registration", () => {
     const sections = registry.getSettingsSections();
     const tagSection = sections.find((s) => s.id === "eln.tags");
     expect(tagSection).toBeUndefined();
+  });
+
+  it("registers the table block with correct metadata", async () => {
+    const mod = await import("../index");
+
+    const registry = ModRegistry.getInstance();
+    registry.registerMod(mod.meta.id);
+    mod.register();
+
+    const blocks = registry.getBlocks();
+    const tableBlock = blocks.get("eln.table");
+
+    expect(tableBlock).toBeDefined();
+    expect(tableBlock!.label).toBe("Table");
+    expect(tableBlock!.description).toBe("Insert a schema-backed LIMS table");
+    expect(tableBlock!.icon).toBe("📊");
+    expect(tableBlock!.type).toBe(BLOCK_TYPE_TIPTAP_NODE);
+    expect(tableBlock!.payload).toBeDefined();
+
+    const payload = tableBlock!.payload as Record<string, unknown>;
+    expect(payload.node).toBeDefined();
+    expect(payload.defaultAttrs).toBeDefined();
+
+    const defaultAttrs = payload.defaultAttrs as Record<string, unknown>;
+    expect(defaultAttrs.title).toBe("Table");
+    expect(defaultAttrs.schemaId).toBeNull();
+    expect((defaultAttrs.columns as unknown[])).toHaveLength(2);
+    expect((defaultAttrs.rows as unknown[])).toHaveLength(2);
   });
 
   it("passes validation (no console/workspace cross-references to validate)", async () => {

@@ -4,9 +4,12 @@ import {
   registerRoute,
   registerLibraryItem,
   registerWorkspace,
+  registerBlock,
   ModRegistry,
+  BLOCK_TYPE_TIPTAP_NODE,
 } from "../../core/mod-system";
 import ElnLibraryCard from "./library/ElnLibraryCard";
+import LimsTable from "./blocks/LimsTable";
 
 export const meta = {
   id: "eln",
@@ -50,5 +53,37 @@ export function register() {
       { key: "samples_count" },
       { key: "attachments_count" },
     ],
+  });
+
+  // ── Block: LIMS table ─────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.table",
+    label: "Table",
+    description: "Insert a schema-backed LIMS table",
+    icon: "📊",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: LimsTable,
+      defaultAttrs: {
+        schemaId: null,
+        title: "Table",
+        columns: [
+          { name: "Column 1", type: "Text" },
+          { name: "Column 2", type: "Text" },
+        ],
+        rows: [
+          {
+            entityId: null,
+            displayId: "#1",
+            values: { "Column 1": "", "Column 2": "" },
+          },
+          {
+            entityId: null,
+            displayId: "#2",
+            values: { "Column 1": "", "Column 2": "" },
+          },
+        ],
+      },
+    },
   });
 }

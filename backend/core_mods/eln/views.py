@@ -1,4 +1,5 @@
 import django.db.models
+from django.db import IntegrityError
 
 from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
@@ -294,13 +295,31 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
             "last_activity_at": lock.last_activity_at,
         }
 
-    # ── Lock endpoints ──────────────────────────────────────────────────────
+    # ── Lock endpoint (GET / POST / DELETE) ──────────────────────────────
+    #
+    # A single @action handles all three HTTP methods because DRF's router
+    # does not merge multiple @action decorators that share the same
+    # url_path — only one would win, and the others would 405.
 
-    @action(detail=True, methods=["post"], url_path="lock")
-    def acquire_lock(self, request, display_id=None):
+    @action(detail=True, methods=["get", "post", "delete"], url_path="lock")
+    def lock(self, request, display_id=None):
+        """GET    — return current lock status.
+        POST   — acquire or refresh the lock.
+        DELETE — release the lock.
+        """
+        if request.method == "GET":
+            return self._lock_status(request, display_id)
+        elif request.method == "POST":
+            return self._acquire_lock(request, display_id)
+        elif request.method == "DELETE":
+            return self._release_lock(request, display_id)
+        # DRF guarantees one of the three; fallback is defensive.
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    # ── Lock sub-actions ─────────────────────────────────────────────────
+
+    def _acquire_lock(self, request, display_id=None):
         """Acquire or refresh the lock on this entry.
-
-        POST /api/eln/entries/{display_id}/lock/
 
         Returns:
             201 — first-time lock acquired.
@@ -338,48 +357,66 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                     status=423,
                 )
 
-        # Create a new lock.
-        lock = EntryLock.objects.create(entry=entry, held_by=request.user)
+        # Create a new lock.  Wrap in a try/except to handle the race where a
+        # concurrent request inserts a lock between our check above and this
+        # insert — e.g. the DELETE cleanup from a closing tab racing with the
+        # POST acquire from the newly opened tab.
+        try:
+            lock = EntryLock.objects.create(entry=entry, held_by=request.user)
+        except IntegrityError:
+            # Re-fetch — the lock definitely exists now.
+            existing = entry.lock
+            if existing.held_by == request.user:
+                existing.save()
+                return Response(
+                    self._lock_response(existing),
+                    status=status.HTTP_200_OK,
+                )
+            elif existing.is_stale():
+                existing.delete()
+                lock = EntryLock.objects.create(
+                    entry=entry, held_by=request.user,
+                )
+            else:
+                return Response(
+                    {
+                        "locked": True,
+                        "held_by": existing.held_by.id,
+                        "held_by_username": existing.held_by.username,
+                        "detail": "This entry is currently being edited by another user.",
+                    },
+                    status=423,
+                )
         return Response(
             self._lock_response(lock),
             status=status.HTTP_201_CREATED,
         )
 
-    @action(detail=True, methods=["delete"], url_path="lock")
-    def release_lock(self, request, display_id=None):
-        """Release the lock on this entry.
+    def _release_lock(self, request, display_id=None):
+        """Release the lock on this entry (idempotent).
 
-        DELETE /api/eln/entries/{display_id}/lock/
+        Always returns 204 so the frontend cleanup function can call this
+        unconditionally without triggering the API client's 403→/login
+        redirect when the user doesn't hold the lock.
 
         Returns:
-            204 — lock released by owner.
-            404 — no lock exists.
-            403 — not the lock holder.
+            204 — lock released, didn't exist, or held by another user.
         """
         entry = self.get_object()
 
         try:
             existing = entry.lock
         except EntryLock.DoesNotExist:
-            return Response(
-                {"detail": "No lock exists for this entry."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
-        if existing.held_by != request.user:
-            return Response(
-                {"detail": "You do not hold the lock on this entry."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # Only delete if we own the lock; otherwise it's a no-op.
+        if existing.held_by == request.user:
+            existing.delete()
 
-        existing.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=["get"], url_path="lock")
-    def lock_status(self, request, display_id=None):
+    def _lock_status(self, request, display_id=None):
         """Return the current lock status for this entry.
-
-        GET /api/eln/entries/{display_id}/lock/
 
         Returns 200 with:
             locked: bool

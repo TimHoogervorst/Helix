@@ -17,7 +17,7 @@
 | **Mod API** | The registration surface (`register*()` functions in `core/mod-system/`) that every mod calls to declare what it provides. The contract between core and mods | plugin API, extension API |
 | **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
 | **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
-| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerSettingsSection()`, `registerSlashCommand()`, `registerRoute()`, `registerSidebarAction()`, `registerService()` | register, declare, contribute |
+| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerSettingsSection()`, `registerBlock()`, `registerRoute()`, `registerSidebarAction()`, `registerWorkspace()`, `registerService()` | register, declare, contribute |
 | **`dependsOn`** | Metadata in each mod's `index.ts` declaring which other mods must load first. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
 
 ## The Hub Pattern

@@ -5,6 +5,8 @@ import { registerSettingsSection } from "../registerSettingsSection";
 import { registerRoute } from "../registerRoute";
 import { registerSidebarAction } from "../registerSidebarAction";
 import { registerLibraryItem } from "../registerLibraryItem";
+import { registerBlock } from "../registerBlock";
+import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 
 /** Reset the singleton between tests. */
 function resetRegistry(): ModRegistry {
@@ -83,6 +85,20 @@ describe("register functions", () => {
       listCard: DummyComponent,
     };
     registerLibraryItem(config);
+    expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("registerBlock delegates to ModRegistry.registerBlock", () => {
+    const spy = vi.spyOn(registry, "registerBlock");
+    const config = {
+      id: "eln.table",
+      label: "Table",
+      description: "Insert a schema-backed LIMS table",
+      icon: "📊",
+      type: BLOCK_TYPE_TIPTAP_NODE,
+      payload: { node: DummyComponent },
+    };
+    registerBlock(config);
     expect(spy).toHaveBeenCalledWith(config);
   });
 });

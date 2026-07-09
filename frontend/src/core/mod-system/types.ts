@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { Node } from "@tiptap/core";
 
 // ── Mod Manifest ──────────────────────────────────────────────────────────
 
@@ -57,17 +58,50 @@ export interface SidebarActionConfig {
   position: "inline" | "hover";
 }
 
-// ── Slash Command (shape only — implementation deferred) ──────────────────
+// ── Block ──────────────────────────────────────────────────────────────────
 
-/** Placeholder type for slash command context. Will be refined. */
-export type SlashContext = Record<string, unknown>;
+/**
+ * Discriminator value for blocks whose payload is a TipTap Node extension.
+ * Consumers filter on this value to discover editor content blocks.
+ */
+export const BLOCK_TYPE_TIPTAP_NODE = "tiptap-node";
 
-export interface SlashCommandConfig {
+/**
+ * Configuration for a content block registered by a mod.
+ *
+ * Blocks are type-discriminated: the `type` field selects the payload shape.
+ * The ELN editor's slash menu is the first consumer — it reads blocks with
+ * `type: "tiptap-node"` and auto-derives insert actions from the payload.
+ *
+ * Future non-TipTap consumers (e.g., a MolBio viewer workspace) can register
+ * and consume their own block types through the same registry.
+ */
+export interface BlockConfig {
+  /** Globally unique identifier, e.g. "eln.table". */
   id: string;
+  /** Human-readable label shown in the slash menu, e.g. "Table". */
   label: string;
-  icon?: ComponentType<any>;
-  workspaces: string[];
-  action: (context: SlashContext) => void;
+  /** Short description, e.g. "Insert a schema-backed LIMS table". */
+  description: string;
+  /** Emoji or icon identifier shown in the slash menu, e.g. "📊". */
+  icon: string;
+  /** Discriminator that selects the payload shape, e.g. "tiptap-node". */
+  type: string;
+  /** Type-specific data. Shape depends on `type`. */
+  payload: unknown;
+}
+
+/**
+ * Payload shape for blocks with `type: "tiptap-node"`.
+ *
+ * The slash command consumer auto-derives the insert action from
+ * `node.name` and `defaultAttrs`.
+ */
+export interface TipTapBlockPayload {
+  /** TipTap Node extension (e.g., LimsTable). */
+  node: Node;
+  /** Optional default attributes for the insert action. */
+  defaultAttrs?: Record<string, unknown>;
 }
 
 // ── Library Item ──────────────────────────────────────────────────────────

@@ -3,10 +3,10 @@ import type {
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,
-  SlashCommandConfig,
   ServiceConfig,
   LibraryItemConfig,
   WorkspaceConfig,
+  BlockConfig,
 } from "./types";
 
 /**
@@ -43,10 +43,10 @@ export class ModRegistry {
   private settingsSections = new Map<string, SettingsSectionConfig>();
   private routes = new Map<string, RouteConfig>();
   private sidebarActions = new Map<string, SidebarActionConfig>();
-  private slashCommands = new Map<string, SlashCommandConfig>();
   private services = new Map<string, ServiceConfig>();
   private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
+  private blocks = new Map<string, BlockConfig>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -97,20 +97,6 @@ export class ModRegistry {
     this.sidebarActions.set(config.id, config);
   }
 
-  registerSlashCommand(config: SlashCommandConfig): void {
-    // Shape only — implementation deferred.
-    // Logs a warning so developers know this isn't wired yet.
-    if (this.slashCommands.has(config.id)) {
-      throw new Error(
-        `Duplicate slash command registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.slashCommands.set(config.id, config);
-    console.warn(
-      `[ModRegistry] registerSlashCommand('${config.id}') — slash commands are not yet implemented.`,
-    );
-  }
-
   registerService(config: ServiceConfig): void {
     if (this.services.has(config.id)) {
       throw new Error(
@@ -136,6 +122,15 @@ export class ModRegistry {
       );
     }
     this.workspaces.set(config.id, config);
+  }
+
+  registerBlock(config: BlockConfig): void {
+    if (this.blocks.has(config.id)) {
+      throw new Error(
+        `Duplicate block registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.blocks.set(config.id, config);
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
@@ -238,5 +233,10 @@ export class ModRegistry {
   /** Returns a read-only view of all registered workspaces. */
   getWorkspaces(): ReadonlyMap<string, WorkspaceConfig> {
     return this.workspaces;
+  }
+
+  /** Returns a read-only view of all registered blocks. */
+  getBlocks(): ReadonlyMap<string, BlockConfig> {
+    return this.blocks;
   }
 }

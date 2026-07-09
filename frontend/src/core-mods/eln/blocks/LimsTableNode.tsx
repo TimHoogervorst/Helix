@@ -15,10 +15,10 @@ import type {
   CellValueChangedEvent,
   CellMouseDownEvent,
 } from "ag-grid-community";
-import type { GridColumn, GridRow } from "../../../../shared/types/types";
-import type { EntityTypeSummary } from "../../types";
-import { get } from "../../../../core/api/client";
-import { DisplayIdCellRenderer, MentionCellRenderer } from "./MentionBadgeCellRenderer";
+import type { GridColumn, GridRow } from "../../../shared/types/types";
+import type { EntityTypeSummary } from "../types";
+import { get } from "../../../core/api/client";
+import { DisplayIdCellRenderer, MentionCellRenderer } from "../editor/extensions/MentionBadgeCellRenderer";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {

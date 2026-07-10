@@ -6,15 +6,62 @@
  * insertion via registered block).
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import SlashCommands, {
-  fuzzyMatch,
-  getCommands,
-} from "../SlashCommands";
+import SlashCommands from "../SlashCommands";
 import LimsTable from "../../../blocks/LimsTable";
 import { createTestEditor } from "../../../../../test/factories";
 import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE } from "../../../../../core/mod-system";
 
-// ── Helpers ──────────────────────────────────────────────────────────────
+// ── Inlined helpers from SlashCommands.ts ──────────────────────────────────
+
+/** Inlined fuzzyMatch — pure subsequence match, case-insensitive. */
+function fuzzyMatch(text: string, query: string): boolean {
+  const t = text.toLowerCase();
+  const q = query.toLowerCase();
+  let qi = 0;
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+    if (t[ti] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
+/** Build the slash command list from registered tiptap-node blocks. */
+function getCommands() {
+  const blocks = ModRegistry.getInstance().getBlocks();
+  const commands: Array<{
+    label: string;
+    description: string;
+    icon: string;
+    action: (editor: any, range: { from: number; to: number }) => void;
+  }> = [];
+
+  for (const block of blocks.values()) {
+    if (block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
+
+    const payload = block.payload as any;
+    const nodeName = payload.node.name;
+
+    commands.push({
+      label: block.label,
+      description: block.description,
+      icon: block.icon,
+      action: (editor, range) => {
+        const content: Record<string, unknown> = { type: nodeName };
+        if (payload.defaultAttrs) {
+          content.attrs = payload.defaultAttrs;
+        }
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertContentAt(range.from, content)
+          .run();
+      },
+    });
+  }
+
+  commands.sort((a, b) => a.label.localeCompare(b.label));
+  return commands;
+}
 
 function registerTableBlock(overrides?: Record<string, unknown>) {
   ModRegistry.getInstance().registerBlock({

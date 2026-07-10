@@ -22,7 +22,7 @@ import { updateTag } from "../../../core-mods/tags/api";
 
 /** @deprecated The editor no longer uses a mode state machine.
  *  Kept for backward compatibility in tests and wrapper. */
-export type EditorMode =
+type EditorMode =
   | "loading"
   | "view"
   | "edit-new"

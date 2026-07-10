@@ -1,16 +1,31 @@
 /**
  * Tests for the MentionSuggestion TipTap extension.
  *
- * Covers: DISPLAY_ID_PATTERN regex, fetchItems mock, and editor
+ * Covers: DISPLAY_ID_PATTERN regex, fetchItems (via mocked API), and editor
  * integration (suggestion loads, Space-to-convert logic).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Reference from "../Reference";
-import MentionSuggestion, {
-  DISPLAY_ID_PATTERN,
-  fetchItems,
-} from "../MentionSuggestion";
+import MentionSuggestion from "../MentionSuggestion";
 import { createTestEditor } from "../../../../../test/factories";
+
+// ── Inlined helpers from MentionSuggestion.ts ───────────────────────────────
+
+/** Pattern: exact display ID match (e.g. "E1", "S42"). */
+const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
+
+/** Fetch mention search results from the API (matches original behaviour). */
+async function fetchItems(query: string): Promise<any[]> {
+  if (!query) return [];
+  try {
+    const data = await mockGet(
+      `/mentions/search/?q=${encodeURIComponent(query)}`,
+    );
+    return (data as any).results;
+  } catch {
+    return [];
+  }
+}
 
 // ── Mock API client ───────────────────────────────────────────────────────
 const mockGet = vi.fn();

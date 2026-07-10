@@ -2,7 +2,7 @@ import { Circle, Dna, Rat, Leaf, Cog, NotebookText, User, Folder } from "lucide-
 
 // ── Tag colours ─────────────────────────────────────────────────────────────
 
-export interface TagColor {
+interface TagColor {
   key: string;
   label: string;
   hex: string;
@@ -22,11 +22,6 @@ export const TAG_COLORS: TagColor[] = [
   { key: "destructive", label: "Destructive", hex: "#e6b3b3" },
   { key: "muted",       label: "Muted",       hex: "#d9d9d9" },
 ];
-
-/** Look up a colour definition by key, falling back to "muted". */
-export function getTagColor(key: string): TagColor {
-  return TAG_COLORS.find((c) => c.key === key) ?? TAG_COLORS.find((c) => c.key === "muted")!;
-}
 
 // ── Tag icons ───────────────────────────────────────────────────────────────
 

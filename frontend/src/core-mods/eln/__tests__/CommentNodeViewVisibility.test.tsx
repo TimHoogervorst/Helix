@@ -134,28 +134,29 @@ describe("CommentNodeView — visibility toggle", () => {
       expect(screen.queryByTestId("comment-card")).toBeNull();
     });
 
-    it("shows author name in ghost state", () => {
+    it("does not show author name in ghost state", () => {
       const thread = [makeCommentEntry({ authorName: "Alice Smith" })];
       const props = makeNodeViewProps({ resolved: false, thread });
       renderCommentNodeView(props, false);
 
-      expect(screen.getByText("Comment by Alice Smith")).toBeDefined();
+      expect(screen.queryByText("Comment by Alice Smith")).toBeNull();
+      expect(screen.queryByText("Alice Smith")).toBeNull();
     });
 
-    it("renders ghost with MessageSquare icon", () => {
+    it("renders ghost as a btn-ghost button", () => {
       const thread = [makeCommentEntry()];
       const props = makeNodeViewProps({ resolved: false, thread });
       renderCommentNodeView(props, false);
 
-      // The ghost div is present
+      // The ghost is a button element with btn-ghost class
       const ghost = screen.getByTestId("comment-ghost");
       expect(ghost).toBeDefined();
-      // It should contain the muted-foreground class
-      expect(ghost.className).toContain("text-muted-foreground");
+      expect(ghost.tagName).toBe("BUTTON");
+      expect(ghost.className).toContain("btn-ghost");
     });
   });
 
-  describe("resolved state is unaffected by toggle", () => {
+  describe("resolved state with visibility toggle", () => {
     it("renders checkmark icon when showComments is true", () => {
       const thread = [makeCommentEntry()];
       const props = makeNodeViewProps({ resolved: true, thread });
@@ -166,14 +167,14 @@ describe("CommentNodeView — visibility toggle", () => {
       expect(screen.queryByTestId("comment-ghost")).toBeNull();
     });
 
-    it("renders checkmark icon when showComments is false", () => {
+    it("renders ghost Check icon when showComments is false", () => {
       const thread = [makeCommentEntry()];
       const props = makeNodeViewProps({ resolved: true, thread });
       renderCommentNodeView(props, false);
 
-      expect(screen.getByTestId("comment-resolved")).toBeDefined();
-      expect(screen.queryByTestId("comment-card")).toBeNull();
-      expect(screen.queryByTestId("comment-ghost")).toBeNull();
+      // When hidden, resolved comments also render as ghost icons
+      expect(screen.getByTestId("comment-ghost")).toBeDefined();
+      expect(screen.queryByTestId("comment-resolved")).toBeNull();
     });
   });
 

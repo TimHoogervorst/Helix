@@ -248,6 +248,33 @@ function CommentNodeView(props: NodeViewProps) {
   const replyCount = thread.length - 1;
   const hasReplies = replyCount > 0;
 
+  // ── Render: ghost icon when comments are hidden ────────────────────
+  // Applies to both unresolved and resolved comments — just the icon
+  // on the right side of the page, no text.
+  if (!showComments) {
+    return (
+      <NodeViewWrapper
+        className="comment-wrapper"
+        contentEditable={false}
+      >
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="btn-ghost rounded-md"
+            aria-label={resolved ? "Resolved comment" : "Comment"}
+            data-testid="comment-ghost"
+          >
+            {resolved ? (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </NodeViewWrapper>
+    );
+  }
+
   // ── Render: resolved state (checkmark icon only) ────────────────────
   if (resolved) {
     return (
@@ -261,24 +288,6 @@ function CommentNodeView(props: NodeViewProps) {
         >
           <Check className="h-4 w-4 text-success" aria-hidden="true" />
           <span>Resolved by {firstComment.authorName}</span>
-        </div>
-      </NodeViewWrapper>
-    );
-  }
-
-  // ── Render: ghost icon when comments are hidden ────────────────────
-  if (!showComments) {
-    return (
-      <NodeViewWrapper
-        className="comment-wrapper"
-        contentEditable={false}
-      >
-        <div
-          className="flex items-center gap-2 rounded-lg border border-hairline/30 bg-surface/20 px-3 py-1.5 text-xs text-muted-foreground/60"
-          data-testid="comment-ghost"
-        >
-          <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Comment by {firstComment.authorName}</span>
         </div>
       </NodeViewWrapper>
     );

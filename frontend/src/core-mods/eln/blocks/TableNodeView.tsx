@@ -224,12 +224,12 @@ function TableNodeView(props: NodeViewProps) {
 
         {/* ── Table ──────────────────────────────────────────────────── */}
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="min-w-full text-[13px]">
             {/* ── Header ─────────────────────────────────────────────── */}
             <thead>
               <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 {columns.map((col) => (
-                  <th key={col.id} className="px-3 py-2 font-medium">
+                  <th key={col.id} className="min-w-[100px] px-3 py-2 font-medium">
                     <InlineEdit
                       value={col.name}
                       onCommit={(newName) =>
@@ -264,7 +264,7 @@ function TableNodeView(props: NodeViewProps) {
                     className="border-b border-hairline last:border-b-0 hover:bg-surface/60 transition-colors"
                   >
                     {columns.map((col) => (
-                      <td key={col.id} className="px-3 py-2 font-mono text-[12px]">
+                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-mono text-[12px]">
                         <InlineEdit
                           value={row.cells[col.id] ?? ""}
                           onCommit={(newValue) =>

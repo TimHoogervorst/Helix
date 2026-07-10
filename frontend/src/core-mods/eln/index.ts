@@ -10,6 +10,7 @@ import {
 } from "../../core/mod-system";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import LimsTable from "./blocks/LimsTable";
+import CommentBlock from "./blocks/CommentBlock";
 
 export const meta = {
   id: "eln",
@@ -55,11 +56,11 @@ export function register() {
     ],
   });
 
-  // ── Block: LIMS table ─────────────────────────────────────────────────
+  // ── Block: Legacy LIMS table ─────────────────────────────────────────
   registerBlock({
-    id: "eln.table",
-    label: "Table",
-    description: "Insert a schema-backed LIMS table",
+    id: "eln.legacyTable",
+    label: "Legacy Table",
+    description: "Insert a legacy schema-backed LIMS table",
     icon: "📊",
     type: BLOCK_TYPE_TIPTAP_NODE,
     payload: {
@@ -86,4 +87,21 @@ export function register() {
       },
     },
   });
+
+  // ── Block: Comment ──────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.comment",
+    label: "Comment",
+    description: "Insert a threaded comment",
+    icon: "💬",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: CommentBlock,
+      defaultAttrs: {
+        resolved: false,
+        thread: [],
+      },
+    },
+  });
+
 }

@@ -12,7 +12,7 @@
  */
 import { useCallback, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -177,6 +177,21 @@ function TableNodeView(props: NodeViewProps) {
     updateAttributes({ columns: updatedColumns, rows: updatedRows });
   }, [columns, rows, updateAttributes]);
 
+  const handleDeleteColumn = useCallback(
+    (colId: string) => {
+      const updatedColumns = columns.filter((c) => c.id !== colId);
+      const updatedRows = rows.map((r) => {
+        const { [colId]: _, ...rest } = r.cells;
+        return { ...r, cells: rest };
+      });
+      updateAttributes({ columns: updatedColumns, rows: updatedRows });
+    },
+    [columns, rows, updateAttributes],
+  );
+
+  // ── Hover state for column delete button ──────────────────────────────
+  const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
+
   // ── Row operations ────────────────────────────────────────────────────
   const handleCellChange = useCallback(
     (rowId: string, colId: string, value: string) => {
@@ -229,15 +244,36 @@ function TableNodeView(props: NodeViewProps) {
             <thead>
               <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 {columns.map((col) => (
-                  <th key={col.id} className="min-w-[100px] px-3 py-2 font-medium">
-                    <InlineEdit
-                      value={col.name}
-                      onCommit={(newName) =>
-                        handleColumnRename(col.id, newName)
-                      }
-                      aria-label={`Column name: ${col.name}`}
-                      data-testid={`column-header-${col.id}`}
-                    />
+                  <th
+                    key={col.id}
+                    className="min-w-[100px] px-3 py-2 font-medium"
+                    onMouseEnter={() => setHoveredColumn(col.id)}
+                    onMouseLeave={() => setHoveredColumn(null)}
+                  >
+                    <div className="flex items-center gap-1">
+                      <InlineEdit
+                        value={col.name}
+                        onCommit={(newName) =>
+                          handleColumnRename(col.id, newName)
+                        }
+                        aria-label={`Column name: ${col.name}`}
+                        data-testid={`column-header-${col.id}`}
+                      />
+                      {hoveredColumn === col.id && (
+                        <button
+                          type="button"
+                          className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDeleteColumn(col.id);
+                          }}
+                          aria-label={`Delete column ${col.name}`}
+                          data-testid={`delete-column-${col.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   </th>
                 ))}
                 {/* Ghost "+" button for adding a column */}

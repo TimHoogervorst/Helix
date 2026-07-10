@@ -11,6 +11,7 @@ import {
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import LimsTable from "./blocks/LimsTable";
 import CommentBlock from "./blocks/CommentBlock";
+import TableBlock from "./blocks/TableBlock";
 
 export const meta = {
   id: "eln",
@@ -83,6 +84,29 @@ export function register() {
             displayId: "#2",
             values: { "Column 1": "", "Column 2": "" },
           },
+        ],
+      },
+    },
+  });
+
+  // ── Block: Generic Table ────────────────────────────────────────────
+  registerBlock({
+    id: "eln.table",
+    label: "Table",
+    description: "Insert a simple editable data table",
+    icon: "📋",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: TableBlock,
+      defaultAttrs: {
+        title: "Table",
+        columns: [
+          { id: "col-1", name: "Column 1" },
+          { id: "col-2", name: "Column 2" },
+        ],
+        rows: [
+          { id: "row-1", cells: { "col-1": "", "col-2": "" } },
+          { id: "row-2", cells: { "col-1": "", "col-2": "" } },
         ],
       },
     },

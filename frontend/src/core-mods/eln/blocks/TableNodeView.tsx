@@ -191,6 +191,7 @@ function TableNodeView(props: NodeViewProps) {
 
   // ── Hover state for column delete button ──────────────────────────────
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   // ── Row operations ────────────────────────────────────────────────────
   const handleCellChange = useCallback(
@@ -213,6 +214,13 @@ function TableNodeView(props: NodeViewProps) {
     }
     updateAttributes({ rows: [...rows, { id, cells }] });
   }, [columns, rows, updateAttributes]);
+
+  const handleDeleteRow = useCallback(
+    (rowId: string) => {
+      updateAttributes({ rows: rows.filter((r) => r.id !== rowId) });
+    },
+    [rows, updateAttributes],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────
   const hasRows = rows.length > 0;
@@ -298,6 +306,8 @@ function TableNodeView(props: NodeViewProps) {
                   <tr
                     key={row.id}
                     className="border-b border-hairline last:border-b-0 hover:bg-surface/60 transition-colors"
+                    onMouseEnter={() => setHoveredRow(row.id)}
+                    onMouseLeave={() => setHoveredRow(null)}
                   >
                     {columns.map((col) => (
                       <td key={col.id} className="min-w-[100px] px-3 py-2 font-mono text-[12px]">
@@ -312,8 +322,23 @@ function TableNodeView(props: NodeViewProps) {
                         />
                       </td>
                     ))}
-                    {/* Placeholder cell for the add-column button column */}
-                    <td className="px-0 py-2" />
+                    {/* Delete row button on hover */}
+                    <td className="w-10 px-0 py-2">
+                      {hoveredRow === row.id && (
+                        <button
+                          type="button"
+                          className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDeleteRow(row.id);
+                          }}
+                          aria-label="Delete row"
+                          data-testid={`delete-row-${row.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (

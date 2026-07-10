@@ -293,21 +293,19 @@ function TableNodeView(props: NodeViewProps) {
             </tbody>
           </table>
         </div>
-
-        {/* ── Ghost "+ New Row" button ────────────────────────────────── */}
-        <div className="border-t border-hairline">
-          <button
-            type="button"
-            className="btn-ghost flex w-full items-center !justify-center gap-1.5 rounded-b-lg py-2 text-xs text-muted-foreground/60"
-            onClick={handleAddRow}
-            aria-label="Add new row"
-            data-testid="add-row-btn"
-          >
-            <Plus className="h-3 w-3" />
-            <span>New Row</span>
-          </button>
-        </div>
       </div>
+
+      {/* ── Ghost "+ New Row" button below the card ──────────────────── */}
+      <button
+        type="button"
+        className="btn-ghost mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+        onClick={handleAddRow}
+        aria-label="Add new row"
+        data-testid="add-row-btn"
+      >
+        <Plus className="h-3 w-3" />
+        <span>New Row</span>
+      </button>
     </NodeViewWrapper>
   );
 }

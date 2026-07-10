@@ -10,6 +10,8 @@ import {
 } from "../../core/mod-system";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import LimsTable from "./blocks/LimsTable";
+import CommentBlock from "./blocks/CommentBlock";
+import TableBlock from "./blocks/TableBlock";
 
 export const meta = {
   id: "eln",
@@ -55,11 +57,11 @@ export function register() {
     ],
   });
 
-  // ── Block: LIMS table ─────────────────────────────────────────────────
+  // ── Block: Legacy LIMS table ─────────────────────────────────────────
   registerBlock({
-    id: "eln.table",
-    label: "Table",
-    description: "Insert a schema-backed LIMS table",
+    id: "eln.legacyTable",
+    label: "Legacy Table",
+    description: "Insert a legacy schema-backed LIMS table",
     icon: "📊",
     type: BLOCK_TYPE_TIPTAP_NODE,
     payload: {
@@ -86,4 +88,44 @@ export function register() {
       },
     },
   });
+
+  // ── Block: Generic Table ────────────────────────────────────────────
+  registerBlock({
+    id: "eln.table",
+    label: "Table",
+    description: "Insert a simple editable data table",
+    icon: "📋",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: TableBlock,
+      defaultAttrs: {
+        title: "Table",
+        columns: [
+          { id: "col-1", name: "Column 1" },
+          { id: "col-2", name: "Column 2" },
+        ],
+        rows: [
+          { id: "row-1", cells: { "col-1": "", "col-2": "" } },
+          { id: "row-2", cells: { "col-1": "", "col-2": "" } },
+        ],
+      },
+    },
+  });
+
+  // ── Block: Comment ──────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.comment",
+    label: "Comment",
+    description: "Insert a threaded comment",
+    icon: "💬",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: CommentBlock,
+      defaultAttrs: {
+        resolved: false,
+        thread: [],
+      },
+    },
+  });
+
 }

@@ -3,6 +3,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import {
   History,
   MessageSquare,
+  MessageSquareOff,
   Star,
   Share2,
   CircleCheck,
@@ -19,6 +20,7 @@ import {
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
 import { useMentionContext } from "../../../core/mentions/MentionProvider";
+import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
 import { Avatar, getInitials } from "../../../shared/Avatar";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
@@ -89,6 +91,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   // ── Share state ──
   const [shareClicked, setShareClicked] = useState(false);
+
+  // ── Comment toggle state ──
+  const [showComments, setShowComments] = useState(true);
   const handleShare = useCallback(() => {
     const url = `${window.location.origin}/eln/${entryDisplayId}`;
     navigator.clipboard.writeText(url).then(() => {
@@ -237,11 +242,24 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             label="History"
             tooltip="Placeholder — version history coming soon"
           />
-          <IconButton
-            icon={MessageSquare}
-            label="Comments"
-            tooltip="Placeholder — comments coming soon"
-          />
+          {/* ── Global comment toggle ── */}
+          <button
+            className={`btn-icon rounded-md ${
+              showComments
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : ""
+            }`}
+            aria-label={showComments ? "Hide comments" : "Show comments"}
+            aria-pressed={showComments}
+            title={showComments ? "Hide comments" : "Show comments"}
+            onClick={() => setShowComments((prev) => !prev)}
+          >
+            {showComments ? (
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <MessageSquareOff className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
           <IconButton
             icon={Star}
             label="Star"
@@ -319,7 +337,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         {/* Main content area */}
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
-            <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} />
+            <CommentVisibilityProvider showComments={showComments}>
+              <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} />
+            </CommentVisibilityProvider>
           </div>
         </main>
       </div>

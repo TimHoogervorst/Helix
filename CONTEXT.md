@@ -213,6 +213,50 @@ The structured content *inside* a Notebook Entry. A tree of blocks (paragraphs, 
 
 **Synonyms:** content, document body, editor content
 
+### Protocol
+
+A reusable procedure definition managed in Settings. Has a **name** and an ordered list of **items** (Steps and Notes). Protocols are created once and can be inserted as blocks into many Notebook Entries.
+
+Protocols are managed through the Settings shell (`/settings?section=eln.protocol-settings`) using a master-detail UI consistent with other settings sections.
+
+**Invariant:** A Protocol's name must be non-empty.
+
+**Synonyms:** procedure, SOP, method
+
+### Protocol Item
+
+A single element in a Protocol's ordered item list. Each item has a `type` (either **step** or **note**) and a `text` string. Items are ordered — the sequence matters.
+
+### Step
+
+A checkable protocol item — an action the user performs during the protocol. Rendered with a toggleable circle/checkmark icon and a description. Steps can be marked complete with a timestamp. Only Steps (not Notes) have completion state.
+
+**Invariant:** A Step belongs to exactly one Protocol.
+
+### Note
+
+A non-checkable protocol item providing extra context, warnings, or explanations within a protocol. Rendered as plain text without a checkbox. Notes cannot be marked complete.
+
+### Protocol Block
+
+An inline instance of a Protocol inside a Notebook Entry's Rich-Text Document. When a user inserts a Protocol Block via `/protocol` and selects a Protocol definition, the definition's name and items are **snapshotted** into the block at insert time. After insertion, the block is immutable — changes to the original Protocol definition do not propagate to existing blocks.
+
+The block is a TipTap void node rendered via React NodeView. It stores:
+- `protocolId` — FK back to the Protocol definition (for provenance)
+- `name` — snapshotted protocol name
+- `items` — snapshotted ordered list of Steps and Notes
+- `stepStates` — per-instance completion tracking: `{ [stepIndex]: { completed: boolean, completedAt?: timestamp } }`
+
+**Why snapshot instead of live reference:** Traceability. The block must record exactly what protocol was used at the time of the experiment. A live reference would silently change historical entries when a protocol definition is updated.
+
+**Synonyms:** embedded protocol, protocol reference
+
+### Step State
+
+The per-instance completion status of a Step inside a Protocol Block. Tracked as a map keyed by step index within the block's attributes. Checking off a step records the timestamp; unchecking clears it. Step States only exist for items with `type: "step"` — Notes have no completion state.
+
+**Synonyms:** step completion, checkbox state
+
 ### Mention
 
 A parsed reference from one Notebook Entry to another object (another Entry, an Entity, or any registered entity type). Created when a `#` reference is found in the entry text or when a `reference` node or `limsTable` row references a display ID. The Mention stores the source entry, the target object, and the surrounding context text.
@@ -322,7 +366,12 @@ Folder ──┬── Folder (parent/child, recursive)
 
 NotebookEntry ──▶ Mention (1:N — entry can mention many things)
 NotebookEntry ──▶ Tag (M:N — entry can have many tags; tags belong to many entries)
+NotebookEntry ──▶ ProtocolBlock (1:N — entry content can contain many protocol blocks)
 Mention ──▶ NotebookEntry | Entity (target of the reference)
+
+Protocol ──▶ Protocol Item (1:N — protocol has ordered items)
+Protocol Item ──▶ Step | Note (discriminated by type field)
+ProtocolBlock ──▶ Protocol (N:1 — block snapshots a protocol at insert time; no live link)
 
 Entity ──▶ Action (1:N — entity has many actions recorded)
 Entity ──▶ NotebookEntry (N:1 — source_entry, the entry where this entity was created)

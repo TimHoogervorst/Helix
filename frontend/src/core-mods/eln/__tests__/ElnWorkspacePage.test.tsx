@@ -128,22 +128,32 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     expect(screen.queryByText("Draft")).toBeNull();
   });
 
-  // ── Top toolbar: ghost icon buttons (History, Comments, Star) ───────────
+  // ── Top toolbar: action buttons (History, Comments, Star) ───────────
 
-  it("renders History, Comments, and Star icon buttons with tooltips", async () => {
+  it("renders History, Comments, and Star buttons with tooltips", async () => {
     renderAtRoute("/eln/EXP-0284");
 
     const historyBtn = screen.getByLabelText("History");
     expect(historyBtn).toBeDefined();
     expect(historyBtn.getAttribute("title")).toContain("version history");
 
-    const commentsBtn = screen.getByLabelText("Comments");
+    // Comments is now a working toggle (default ON → "Hide comments")
+    const commentsBtn = screen.getByLabelText("Hide comments");
     expect(commentsBtn).toBeDefined();
-    expect(commentsBtn.getAttribute("title")).toContain("comments");
 
     const starBtn = screen.getByLabelText("Star");
     expect(starBtn).toBeDefined();
     expect(starBtn.getAttribute("title")).toContain("bookmark");
+  });
+
+  it("comment toggle switches label between Hide/Show on click", () => {
+    renderAtRoute("/eln/EXP-0284");
+
+    const btn = screen.getByLabelText("Hide comments");
+    expect(btn).toBeDefined();
+
+    // The toggle button should have .btn-icon class
+    expect(btn.className).toContain("btn-icon");
   });
 
   it("renders ghost icon buttons with .btn-icon class", () => {

@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { ChevronDown, ChevronRight, Check, MessageSquare } from "lucide-react";
 import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
+import { useCommentVisibility } from "../context/CommentVisibilityContext";
 import { relativeTime } from "../../../shared/format";
 import { getInitials } from "../../../shared/Avatar";
 
@@ -146,6 +147,7 @@ function CommentNodeView(props: NodeViewProps) {
   const thread: CommentEntry[] = (node.attrs.thread as CommentEntry[]) ?? [];
 
   const { user } = useCurrentUser();
+  const { showComments } = useCommentVisibility();
   const hasInitialized = useRef(false);
 
   // Editable body state — mirrors thread[0].text, synced on blur
@@ -259,6 +261,24 @@ function CommentNodeView(props: NodeViewProps) {
         >
           <Check className="h-4 w-4 text-success" aria-hidden="true" />
           <span>Resolved by {firstComment.authorName}</span>
+        </div>
+      </NodeViewWrapper>
+    );
+  }
+
+  // ── Render: ghost icon when comments are hidden ────────────────────
+  if (!showComments) {
+    return (
+      <NodeViewWrapper
+        className="comment-wrapper"
+        contentEditable={false}
+      >
+        <div
+          className="flex items-center gap-2 rounded-lg border border-hairline/30 bg-surface/20 px-3 py-1.5 text-xs text-muted-foreground/60"
+          data-testid="comment-ghost"
+        >
+          <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Comment by {firstComment.authorName}</span>
         </div>
       </NodeViewWrapper>
     );

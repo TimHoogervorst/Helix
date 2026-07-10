@@ -3,6 +3,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import {
   History,
   MessageSquare,
+  MessageSquareOff,
   Star,
   Share2,
   CircleCheck,
@@ -253,7 +254,11 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             title={showComments ? "Hide comments" : "Show comments"}
             onClick={() => setShowComments((prev) => !prev)}
           >
-            <MessageSquare className="h-4 w-4" aria-hidden="true" />
+            {showComments ? (
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <MessageSquareOff className="h-4 w-4" aria-hidden="true" />
+            )}
           </button>
           <IconButton
             icon={Star}

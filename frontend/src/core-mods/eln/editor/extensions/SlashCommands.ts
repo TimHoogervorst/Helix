@@ -19,7 +19,7 @@ const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 
 // ── Available commands ──────────────────────────────────────────────
 
-export interface SlashCommand {
+interface SlashCommand {
   label: string;
   description: string;
   icon: string;
@@ -35,7 +35,7 @@ export interface SlashCommand {
  *
  * Results are sorted alphabetically by label.
  */
-export function getCommands(): SlashCommand[] {
+function getCommands(): SlashCommand[] {
   const blocks = ModRegistry.getInstance().getBlocks();
   const commands: SlashCommand[] = [];
 
@@ -100,7 +100,7 @@ function dropdownRenderer() {
 
 // ── Fuse-style fuzzy filter ─────────────────────────────────────────
 
-export function fuzzyMatch(text: string, query: string): boolean {
+function fuzzyMatch(text: string, query: string): boolean {
   const t = text.toLowerCase();
   const q = query.toLowerCase();
   let qi = 0;

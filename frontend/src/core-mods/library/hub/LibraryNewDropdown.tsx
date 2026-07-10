@@ -4,6 +4,7 @@ import { Plus, FolderPlus, FileText, Loader2 } from "lucide-react";
 import { post } from "../../../core/api/client";
 import { EMPTY_DOC } from "../../eln/types";
 import { createEntry } from "../../eln/api";
+import { useClickOutside } from "../../../shared/hooks/useClickOutside";
 
 interface LibraryNewDropdownProps {
   currentPath: string;
@@ -27,23 +28,12 @@ function LibraryNewDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-        setCreatingFolder(false);
-        setFolderName("");
-        setError(null);
-      }
-    };
-    if (open) {
-      document.addEventListener("mousedown", handleClick);
-    }
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  useClickOutside(dropdownRef, () => {
+    setOpen(false);
+    setCreatingFolder(false);
+    setFolderName("");
+    setError(null);
+  }, open);
 
   // Focus input when creating folder
   useEffect(() => {

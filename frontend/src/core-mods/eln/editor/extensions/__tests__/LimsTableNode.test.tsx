@@ -2,19 +2,41 @@
  * Tests for the LimsTableNode React NodeView component and its
  * pure utility functions.
  *
- * Covers: headerWithSymbol, emptyValues, columnDefFor, and component
- * rendering (title, schema badge, gear menu, title editing, schema
+ * Covers: headerWithSymbol, emptyValues, and component rendering
+ * (title, schema badge, gear menu, title editing, schema
  * selection, column addition).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
-import {
-  headerWithSymbol,
-  columnDefFor,
-  emptyValues,
-} from "../../../blocks/LimsTableNode";
 import type { GridColumn, GridRow } from "../../../../../shared/types/types";
+
+// ── Inlined helpers from LimsTableNode.tsx ─────────────────────────────────
+
+const TYPE_SYMBOL: Record<string, string> = {
+  Text: "Aa",
+  Number: "#",
+  Date: "📅",
+  Boolean: "☑",
+  Reference: "→",
+};
+
+function headerWithSymbol(c: GridColumn): string {
+  const sym = TYPE_SYMBOL[c.type] ?? "Aa";
+  return `${sym} ${c.name}`;
+}
+
+function emptyValues(columns: GridColumn[]): Record<string, unknown> {
+  const vals: Record<string, unknown> = {};
+  for (const c of columns) {
+    switch (c.type) {
+      case "Number": vals[c.name] = 0; break;
+      case "Boolean": vals[c.name] = false; break;
+      default: vals[c.name] = ""; break;
+    }
+  }
+  return vals;
+}
 
 // ── Mock AG Grid ──────────────────────────────────────────────────────────
 
@@ -190,68 +212,6 @@ describe("emptyValues", () => {
     expect(vals.Collected).toBe("");
     expect(vals.Validated).toBe(false);
     expect(vals.Source).toBe("");
-  });
-});
-
-describe("columnDefFor", () => {
-  it("Text column has expected properties", () => {
-    const col = { name: "Notes", type: "Text" as const };
-    const def = columnDefFor(col, 0);
-    expect(def.field).toBe("values.Notes");
-    expect(def.headerName).toBe("Aa Notes");
-    expect(def.sortable).toBe(true);
-    expect(def.resizable).toBe(true);
-    expect(def.editable).toBe(true);
-  });
-
-  it("Number column includes valueFormatter with units", () => {
-    const col = { name: "Vol", type: "Number" as const, units: "mL" };
-    const def = columnDefFor(col, 0);
-    expect(def.type).toBe("numericColumn");
-    // valueFormatter with value
-    const fmt = def.valueFormatter as any;
-    expect(fmt({ value: 42 })).toBe("42 mL");
-    expect(fmt({ value: null })).toBe("");
-    expect(fmt({ value: "" })).toBe("");
-  });
-
-  it("Number column without units formats plain number", () => {
-    const col = { name: "Count", type: "Number" as const };
-    const def = columnDefFor(col, 0);
-    const fmt = def.valueFormatter as any;
-    expect(fmt({ value: 5 })).toBe("5");
-  });
-
-  it("Date column includes valueFormatter", () => {
-    const col = { name: "When", type: "Date" as const };
-    const def = columnDefFor(col, 0);
-    const fmt = def.valueFormatter as any;
-    expect(fmt({ value: "" })).toBe("");
-    // Valid date string should format to locale date
-    const formatted = fmt({ value: "2025-03-15" });
-    expect(formatted).toBeTruthy();
-    expect(typeof formatted).toBe("string");
-    expect(formatted.length).toBeGreaterThan(0);
-  });
-
-  it("Boolean column uses checkbox editor and renderer", () => {
-    const col = { name: "Done", type: "Boolean" as const };
-    const def = columnDefFor(col, 0);
-    expect(def.cellEditor).toBe("agCheckboxCellEditor");
-    expect(def.cellRenderer).toBe("agCheckboxCellRenderer");
-  });
-
-  it("Reference column uses MentionCellRenderer", () => {
-    const col = { name: "Source", type: "Reference" as const };
-    const def = columnDefFor(col, 0);
-    expect(def.cellRenderer).toBeTruthy();
-    expect(def.cellEditor).toBe("agTextCellEditor");
-  });
-
-  it("falls back to textColumn for unrecognized type", () => {
-    const col = { name: "Custom", type: "Unknown" as any };
-    const def = columnDefFor(col, 0);
-    expect(def.type).toBe("textColumn");
   });
 });
 

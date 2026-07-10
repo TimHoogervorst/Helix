@@ -19,6 +19,7 @@ import type { GridColumn, GridRow } from "../../../shared/types/types";
 import type { EntityTypeSummary } from "../types";
 import { get } from "../../../core/api/client";
 import { DisplayIdCellRenderer, MentionCellRenderer } from "../editor/extensions/MentionBadgeCellRenderer";
+import { useClickOutside } from "../../../shared/hooks/useClickOutside";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {
@@ -30,13 +31,13 @@ const TYPE_SYMBOL: Record<string, string> = {
 };
 
 /** Build a header name string: symbol + name (e.g. "Aa Notes", "# Volume"). */
-export function headerWithSymbol(c: GridColumn): string {
+function headerWithSymbol(c: GridColumn): string {
   const sym = TYPE_SYMBOL[c.type] ?? "Aa";
   return `${sym} ${c.name}`; //   = non-breaking thin space
 }
 
 // ── Map our column type → AG Grid colDef overrides ────────────────────
-export function columnDefFor(c: GridColumn, _index: number): ColDef<GridRow> {
+function columnDefFor(c: GridColumn, _index: number): ColDef<GridRow> {
   const base: ColDef<GridRow> = {
     field: `values.${c.name}`,
     headerName: headerWithSymbol(c),
@@ -127,7 +128,7 @@ const NAME_COL: ColDef<GridRow> = {
 };
 
 // ── Default values per type for new rows ───────────────────────────────
-export function emptyValues(columns: GridColumn[]): Record<string, unknown> {
+function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   const vals: Record<string, unknown> = {};
   for (const c of columns) {
     switch (c.type) {
@@ -425,26 +426,11 @@ function LimsTableNode(props: NodeViewProps) {
   );
 
   // ── Close gear menu on outside click ─────────────────────────────────
-  useEffect(() => {
-    if (!showGearMenu) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      // Only close if the click is outside BOTH the gear button AND the menu container
-      const insideGearBtn = gearBtnRef.current?.contains(target);
-      const insideMenu = menuContainerRef.current?.contains(target);
-      if (!insideGearBtn && !insideMenu) {
-        setShowGearMenu(false);
-      }
-    };
-    const timer = setTimeout(
-      () => document.addEventListener("mousedown", handleClick),
-      0
-    );
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handleClick);
-    };
-  }, [showGearMenu]);
+  useClickOutside(
+    [gearBtnRef, menuContainerRef],
+    () => setShowGearMenu(false),
+    showGearMenu,
+  );
 
   // ── Position gear menu relative to the gear button ───────────────────
   // The menu is portaled to document.body to escape ancestor

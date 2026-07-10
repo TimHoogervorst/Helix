@@ -4,10 +4,10 @@ import { useSearchParams } from "react-router-dom";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 /** Panel view state for row-click behavior — kept for backward compatibility. */
-export type PanelViewState = "list" | "detail" | "expanded";
+type PanelViewState = "list" | "detail" | "expanded";
 
 /** Action returned by handleRowClick to signal what the view layer should do. */
-export interface RowClickAction {
+interface RowClickAction {
   type: "select" | "deselect" | "none";
 }
 

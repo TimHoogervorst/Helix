@@ -694,20 +694,12 @@ h1 {
   color: var(--color-primary);
 }
 
-.lims-tab-content {
-  /* tab content area */
-}
-
 /* Empty properties placeholder */
 .lims-properties-empty {
   color: var(--color-muted-foreground);
   text-align: center;
   padding: 2rem 1rem;
   font-size: 0.9rem;
-}
-
-.lims-no-source {
-  color: var(--color-muted-foreground);
 }
 
 .detail-field {
@@ -1341,102 +1333,6 @@ input.lims-table-title-input:focus {
 
 .lims-table-area {
   position: relative;
-}
-
-/* ── Row / Column insert markers ── */
-
-.lims-insert-marker {
-  z-index: 450;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--blue-400);
-  background: var(--white);
-  color: var(--blue-500);
-  font-size: 0.85rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-  opacity: 0;
-  transition: opacity 0.12s, transform 0.12s;
-  transform: scale(0.8);
-  pointer-events: none;
-}
-
-.lims-insert-marker.is-visible {
-  opacity: 1;
-  transform: scale(1);
-  pointer-events: auto;
-}
-
-/* ── Schema Popup ── */
-
-.lims-schema-popup {
-  z-index: 500;
-  width: 320px;
-  max-height: 300px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.lims-schema-popup-header {
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--gray-200);
-}
-
-.lims-schema-popup-header input {
-  width: 100%;
-  border: 1px solid var(--gray-200);
-  border-radius: 4px;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
-}
-
-.lims-schema-popup-list {
-  overflow-y: auto;
-  max-height: 240px;
-  padding: 0.25rem;
-}
-
-.lims-schema-popup-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.4rem 0.75rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: background 0.1s;
-}
-.lims-schema-popup-item:hover {
-  background: var(--blue-50);
-}
-.lims-schema-popup-item.is-empty {
-  color: var(--gray-400);
-  cursor: default;
-  justify-content: center;
-}
-.lims-schema-popup-item.is-empty:hover {
-  background: transparent;
-}
-
-.lims-schema-popup-name {
-  font-weight: 500;
-  color: var(--gray-900);
-}
-
-.lims-schema-popup-desc {
-  font-size: 0.75rem;
-  color: var(--gray-400);
 }
 
 /* ── AG Grid Notion-style theme ──────────────────────────────────────── */
@@ -2419,49 +2315,6 @@ input.library-search-input:focus {
 
 .lims-workspace-panel.is-exiting {
   animation: console-slide-out-right 0.25s ease-out forwards;
-}
-
-/* ── Workspace Back Button (fixed to far left of viewport) ── */
-
-.console-workspace-back {
-  position: fixed;
-  left: 1rem;
-  top: 4.5rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  z-index: 5;
-}
-
-.console-workspace-back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  border: 1px solid var(--gray-300);
-  border-radius: 4px;
-  color: var(--gray-600);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  transition: background 0.15s, color 0.15s;
-}
-
-.console-workspace-back-btn:hover {
-  background: var(--gray-100);
-  color: var(--gray-900);
-}
-
-.console-workspace-back-divider {
-  width: 0;
-  height: 24px;
-  border-left: 1.5px solid var(--gray-300);
-  user-select: none;
 }
 
 /* ── Library New Dropdown ── */

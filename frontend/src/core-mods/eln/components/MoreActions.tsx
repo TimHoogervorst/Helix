@@ -9,6 +9,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Ellipsis } from "lucide-react";
+import { useClickOutside } from "../../../shared/hooks/useClickOutside";
 
 export interface MoreActionsItem {
   key: string;
@@ -86,25 +87,7 @@ function MoreActions({ items }: MoreActionsProps) {
   }, [open]);
 
   // ── Click-outside dismissal ──
-  useEffect(() => {
-    if (!open) return;
-
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(target)
-      ) {
-        close();
-      }
-    };
-
-    // Use mousedown so we catch clicks before other handlers process them.
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open, close]);
+  useClickOutside([menuRef, triggerRef], close, open);
 
   // ── Keyboard: Escape to close, arrow keys to navigate ──
   useEffect(() => {

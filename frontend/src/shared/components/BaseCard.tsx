@@ -12,7 +12,7 @@ import { TagPill } from "../../core-mods/tags/ui/TagPill";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export interface BaseCardProps {
+interface BaseCardProps {
   /** The library entry data to render. */
   item: LibraryEntryItem;
   /** Current view mode controlling which fields are visible. */

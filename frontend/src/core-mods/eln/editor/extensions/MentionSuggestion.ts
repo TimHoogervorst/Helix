@@ -16,9 +16,9 @@ import { createSuggestionDropdown } from "./suggestionDropdown";
 const MENTION_SUGGESTION_KEY = new PluginKey("mention-suggestion");
 
 /** Pattern: exact display ID match (e.g. "E1", "S42"). */
-export const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
+const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
 
-export async function fetchItems(query: string): Promise<SearchResult[]> {
+async function fetchItems(query: string): Promise<SearchResult[]> {
   if (!query) return [];
   try {
     const data = await get<{ results: SearchResult[] }>(

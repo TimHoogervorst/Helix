@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Settings, LogOut, Crown } from "lucide-react";
 import { useCurrentUser } from "./CurrentUserProvider";
 import { Avatar, getInitials } from "./Avatar";
 import { logout } from "./api";
+import { useClickOutside } from "../../shared/hooks/useClickOutside";
 
 /**
  * Popover card triggered by clicking the sidebar avatar.
@@ -18,17 +19,7 @@ export function UserMenu() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener("mousedown", handleClick);
-    }
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  useClickOutside(menuRef, () => setOpen(false), open);
 
   if (!user) return null;
 

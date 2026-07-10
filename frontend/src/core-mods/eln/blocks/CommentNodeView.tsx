@@ -13,7 +13,7 @@
  */
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { ChevronDown, ChevronRight, Check, MessageSquare } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, MessageSquare, Undo2 } from "lucide-react";
 import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
 import { relativeTime } from "../../../shared/format";
@@ -162,6 +162,9 @@ function CommentNodeView(props: NodeViewProps) {
   // Collapse state — only applies when there are replies
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Expand resolved — clicking a resolved banner opens the full thread
+  const [expandedResolved, setExpandedResolved] = useState(false);
+
   // ── Auto-initialise first comment from current user ──────────────────
   // Lazy-init a local entry during render so the comment card is shown
   // immediately, avoiding a flash of "Loading comment…".  Persisted to
@@ -237,9 +240,14 @@ function CommentNodeView(props: NodeViewProps) {
     setIsCollapsed(false);
   }, [replyText, user, effectiveThread, updateAttributes]);
 
-  // ── Resolve ────────────────────────────────────────────────────────────
+  // ── Resolve / Unresolve ────────────────────────────────────────────────
   const handleResolve = useCallback(() => {
     updateAttributes({ resolved: true });
+  }, [updateAttributes]);
+
+  const handleUnresolve = useCallback(() => {
+    updateAttributes({ resolved: false });
+    setExpandedResolved(false);
   }, [updateAttributes]);
 
   // ── Collapse toggle ────────────────────────────────────────────────────
@@ -294,20 +302,25 @@ function CommentNodeView(props: NodeViewProps) {
     );
   }
 
-  // ── Render: resolved state (checkmark icon only) ────────────────────
-  if (resolved) {
+  // ── Render: resolved state (collapsed, click to expand) ──────────
+  if (resolved && !expandedResolved) {
     return (
       <NodeViewWrapper
         className="comment-wrapper"
         contentEditable={false}
       >
-        <div
-          className="flex items-center gap-2 rounded-lg border border-hairline/50 bg-surface/40 px-4 py-2 text-xs text-muted-foreground"
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-lg border border-hairline/50 bg-surface/40 px-4 py-2 text-xs text-muted-foreground hover:bg-surface/60 transition-colors"
+          onClick={() => setExpandedResolved(true)}
           data-testid="comment-resolved"
+          aria-label="Show resolved comment thread"
         >
           <Check className="h-4 w-4 text-success" aria-hidden="true" />
           <span>Resolved by {firstComment.authorName}</span>
-        </div>
+          <span className="flex-1" />
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
       </NodeViewWrapper>
     );
   }
@@ -341,8 +354,8 @@ function CommentNodeView(props: NodeViewProps) {
           {/* Spacer */}
           <span className="flex-1" />
 
-          {/* Collapse toggle (only visible when expanded) */}
-          {hasReplies && !isCollapsed && (
+          {/* Collapse toggle (visible when expanded, hidden when resolved) */}
+          {!resolved && hasReplies && !isCollapsed && (
             <button
               type="button"
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -355,27 +368,44 @@ function CommentNodeView(props: NodeViewProps) {
             </button>
           )}
 
-          {/* Resolve button */}
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-success"
-            onClick={handleResolve}
-            aria-label="Resolve thread"
-            data-testid="resolve-btn"
-          >
-            <Check className="h-3.5 w-3.5" />
-            <span>Resolve</span>
-          </button>
+          {/* Resolve / Unresolve button */}
+          {resolved ? (
+            <button
+              type="button"
+              className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+              onClick={handleUnresolve}
+              aria-label="Unresolve thread"
+              data-testid="unresolve-btn"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span>Unresolve</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-success"
+              onClick={handleResolve}
+              aria-label="Resolve thread"
+              data-testid="resolve-btn"
+            >
+              <Check className="h-3.5 w-3.5" />
+              <span>Resolve</span>
+            </button>
+          )}
         </div>
 
         {/* ── Original comment body ──────────────────────────────────── */}
-        <CommentBody
-          entry={firstComment}
-          isEditing={isEditing}
-          bodyRef={bodyRef}
-          onFocus={handleBodyFocus}
-          onBlur={handleBodyBlur}
-        />
+        {resolved ? (
+          <CommentBody entry={firstComment} isEditing={false} />
+        ) : (
+          <CommentBody
+            entry={firstComment}
+            isEditing={isEditing}
+            bodyRef={bodyRef}
+            onFocus={handleBodyFocus}
+            onBlur={handleBodyBlur}
+          />
+        )}
 
         {/* ── Replies ────────────────────────────────────────────────── */}
         {hasReplies && !isCollapsed && (
@@ -427,8 +457,8 @@ function CommentNodeView(props: NodeViewProps) {
           </div>
         )}
 
-        {/* ── Reply button ───────────────────────────────────────────── */}
-        {!isReplying && (
+        {/* ── Reply button (hidden when resolved) ────────────────────── */}
+        {!resolved && !isReplying && (
           <div className="mt-3 border-t border-hairline pt-3">
             <button
               type="button"

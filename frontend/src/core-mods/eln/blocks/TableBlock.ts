@@ -48,7 +48,7 @@ const TableBlock = Node.create({
           try {
             return JSON.parse(raw);
           } catch {
-            return [];
+            return [{ id: "col-1", name: "Column 1" }, { id: "col-2", name: "Column 2" }];
           }
         },
         renderHTML: (attributes) => ({
@@ -69,7 +69,10 @@ const TableBlock = Node.create({
           try {
             return JSON.parse(raw);
           } catch {
-            return [];
+            return [
+              { id: "row-1", cells: { "col-1": "", "col-2": "" } },
+              { id: "row-2", cells: { "col-1": "", "col-2": "" } },
+            ];
           }
         },
         renderHTML: (attributes) => ({

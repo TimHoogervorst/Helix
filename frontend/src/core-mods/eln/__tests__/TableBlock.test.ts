@@ -274,7 +274,9 @@ describe("TableBlock TipTap node", () => {
       const json = editor.getJSON();
       const node = (json as any).content?.[0];
 
-      expect(node?.attrs?.columns).toEqual([]);
+      // Malformed JSON falls back to defaults, not empty array
+      expect(node?.attrs?.columns).toHaveLength(2);
+      expect(node?.attrs?.columns[0].name).toBe("Column 1");
       destroy();
     });
 
@@ -286,7 +288,8 @@ describe("TableBlock TipTap node", () => {
       const json = editor.getJSON();
       const node = (json as any).content?.[0];
 
-      expect(node?.attrs?.rows).toEqual([]);
+      // Malformed JSON falls back to defaults, not empty array
+      expect(node?.attrs?.rows).toHaveLength(2);
       destroy();
     });
   });

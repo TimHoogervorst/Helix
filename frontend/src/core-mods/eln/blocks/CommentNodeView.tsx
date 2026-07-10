@@ -275,9 +275,18 @@ function CommentNodeView(props: NodeViewProps) {
   const replyCount = effectiveThread.length - 1;
   const hasReplies = replyCount > 0;
 
-  // ── Render: ghost icon when comments are hidden ────────────────────
-  // Applies to both unresolved and resolved comments — just the icon
-  // on the right side of the page, no text.
+  // ── Render: hidden comment toggle ──────────────────────────────────
+  // Resolved comments are fully hidden when comments are toggled off.
+  if (!showComments && resolved) {
+    return (
+      <NodeViewWrapper
+        className="comment-wrapper"
+        contentEditable={false}
+      />
+    );
+  }
+
+  // Ghost icon for active (unresolved) comments when hidden.
   if (!showComments) {
     return (
       <NodeViewWrapper

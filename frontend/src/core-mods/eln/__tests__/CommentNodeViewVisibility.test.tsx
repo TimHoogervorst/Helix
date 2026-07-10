@@ -167,14 +167,15 @@ describe("CommentNodeView — visibility toggle", () => {
       expect(screen.queryByTestId("comment-ghost")).toBeNull();
     });
 
-    it("renders ghost Check icon when showComments is false", () => {
+    it("renders nothing for resolved comments when comments are hidden", () => {
       const thread = [makeCommentEntry()];
       const props = makeNodeViewProps({ resolved: true, thread });
       renderCommentNodeView(props, false);
 
-      // When hidden, resolved comments also render as ghost icons
-      expect(screen.getByTestId("comment-ghost")).toBeDefined();
+      // Resolved comments are fully hidden — no ghost, no resolved banner, no card
+      expect(screen.queryByTestId("comment-ghost")).toBeNull();
       expect(screen.queryByTestId("comment-resolved")).toBeNull();
+      expect(screen.queryByTestId("comment-card")).toBeNull();
     });
   });
 

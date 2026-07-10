@@ -367,7 +367,7 @@ function CommentNodeView(props: NodeViewProps) {
           {!resolved && hasReplies && !isCollapsed && (
             <button
               type="button"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               onClick={handleToggleCollapse}
               aria-label="Collapse replies"
               data-testid="collapse-toggle"
@@ -453,7 +453,7 @@ function CommentNodeView(props: NodeViewProps) {
           <div className="mt-3 border-t border-hairline pt-3">
             <button
               type="button"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               onClick={handleToggleCollapse}
               aria-label={`Show ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
               data-testid="show-replies-btn"
@@ -507,7 +507,7 @@ function CommentNodeView(props: NodeViewProps) {
               </button>
               <button
                 type="button"
-                className="rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="btn-ghost rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
                 onClick={cancelReply}
                 data-testid="cancel-reply-btn"
               >

@@ -1,8 +1,11 @@
 /**
  * React NodeView for the elnComment TipTap node.
  *
- * Renders a comment card: author avatar (initials on colored background),
- * full name, relative timestamp, and an editable comment body.
+ * Renders a threaded comment card: author avatar (initials on colored background),
+ * full name, relative timestamp, and an editable comment body. Supports:
+ * - Reply: inline reply input adds entries to the thread array
+ * - Resolve: sets the resolved flag, collapses to a checkmark icon
+ * - Collapse/expand: hides replies behind a "Show N replies" toggle
  *
  * On first render with an empty thread, auto-initializes the first comment
  * entry from the current user.  Subsequent edits sync back to node attributes
@@ -10,6 +13,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { ChevronDown, ChevronRight, Check, MessageSquare } from "lucide-react";
 import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
 import { relativeTime } from "../../../shared/format";
 import { getInitials } from "../../../shared/Avatar";
@@ -42,12 +46,33 @@ const PLACEHOLDER_TEXT = "Write a comment…";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
+/** Build a CommentEntry from the current user and a text body. */
+function makeCommentEntry(
+  user: { id: number; first_name: string; last_name: string; username: string; color: string },
+  text: string,
+): CommentEntry {
+  return {
+    id: crypto.randomUUID(),
+    authorId: user.id,
+    authorName: [user.first_name, user.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || user.username,
+    authorInitials: getInitials({
+      first_name: user.first_name,
+      last_name: user.last_name,
+      username: user.username,
+    }),
+    authorColor: user.color,
+    text,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 function avatarBackgroundStyle(color: string): React.CSSProperties {
-  // Named color tokens get a CSS variable; raw hex/color values are used directly.
   if (color.startsWith("#") || color.startsWith("rgb")) {
     return { backgroundColor: color, color: "#fff" };
   }
-  // Assume it's a design-token color name — leave styling to CSS class.
   return {};
 }
 
@@ -56,6 +81,60 @@ function avatarClasses(color: string): string {
     return "inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium ring-2 ring-background";
   }
   return `inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium text-white ring-2 ring-background ${AVATAR_BG_CLASS[color] ?? ""}`;
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+/** Renders a single comment entry (original or reply). */
+function CommentBody({
+  entry,
+  isEditing,
+  bodyRef,
+  onFocus,
+  onBlur,
+}: {
+  entry: CommentEntry;
+  isEditing: boolean;
+  bodyRef?: React.RefObject<HTMLDivElement | null>;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}) {
+  const text = entry.text;
+
+  if (bodyRef) {
+    // Editable version (for the original comment)
+    return (
+      <div
+        ref={bodyRef}
+        className={`text-sm leading-relaxed outline-none ${
+          isEditing || text
+            ? "text-foreground"
+            : "text-muted-foreground italic"
+        }`}
+        contentEditable
+        suppressContentEditableWarning
+        onFocus={onFocus}
+        onBlur={onBlur}
+        role="textbox"
+        aria-label="Comment body"
+        data-testid="comment-body"
+      >
+        {text || PLACEHOLDER_TEXT}
+      </div>
+    );
+  }
+
+  // Read-only version (for replies)
+  return (
+    <div
+      className={`text-sm leading-relaxed ${
+        text ? "text-foreground" : "text-muted-foreground italic"
+      }`}
+      data-testid="reply-body"
+    >
+      {text || "No text"}
+    </div>
+  );
 }
 
 // ── NodeView ────────────────────────────────────────────────────────────
@@ -73,6 +152,14 @@ function CommentNodeView(props: NodeViewProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Reply state
+  const [isReplying, setIsReplying] = useState(false);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
+  const [replyText, setReplyText] = useState("");
+
+  // Collapse state — only applies when there are replies
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   // ── Auto-initialise first comment from current user ──────────────────
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -83,22 +170,7 @@ function CommentNodeView(props: NodeViewProps) {
     if (!user) return; // still loading
 
     hasInitialized.current = true;
-    const entry: CommentEntry = {
-      id: crypto.randomUUID(),
-      authorId: user.id,
-      authorName: [user.first_name, user.last_name]
-        .filter(Boolean)
-        .join(" ")
-        .trim() || user.username,
-      authorInitials: getInitials({
-        first_name: user.first_name,
-        last_name: user.last_name,
-        username: user.username,
-      }),
-      authorColor: user.color,
-      text: "",
-      createdAt: new Date().toISOString(),
-    };
+    const entry = makeCommentEntry(user, "");
     updateAttributes({ thread: [entry] });
   }, [thread.length, user, updateAttributes]);
 
@@ -121,6 +193,39 @@ function CommentNodeView(props: NodeViewProps) {
     }
   }, []);
 
+  // ── Reply ──────────────────────────────────────────────────────────────
+  const openReply = useCallback(() => {
+    setIsReplying(true);
+    setReplyText("");
+  }, []);
+
+  const cancelReply = useCallback(() => {
+    setIsReplying(false);
+    setReplyText("");
+  }, []);
+
+  const submitReply = useCallback(() => {
+    const trimmed = replyText.trim();
+    if (!trimmed || !user) return;
+
+    const newReply = makeCommentEntry(user, trimmed);
+    updateAttributes({ thread: [...thread, newReply] });
+    setIsReplying(false);
+    setReplyText("");
+    // Auto-expand to show the new reply
+    setIsCollapsed(false);
+  }, [replyText, user, thread, updateAttributes]);
+
+  // ── Resolve ────────────────────────────────────────────────────────────
+  const handleResolve = useCallback(() => {
+    updateAttributes({ resolved: true });
+  }, [updateAttributes]);
+
+  // ── Collapse toggle ────────────────────────────────────────────────────
+  const handleToggleCollapse = useCallback(() => {
+    setIsCollapsed((prev) => !prev);
+  }, []);
+
   // ── Render: empty state while user loads ─────────────────────────────
   if (thread.length === 0) {
     return (
@@ -138,7 +243,28 @@ function CommentNodeView(props: NodeViewProps) {
   }
 
   const firstComment = thread[0];
+  const replyCount = thread.length - 1;
+  const hasReplies = replyCount > 0;
 
+  // ── Render: resolved state (checkmark icon only) ────────────────────
+  if (resolved) {
+    return (
+      <NodeViewWrapper
+        className="comment-wrapper"
+        contentEditable={false}
+      >
+        <div
+          className="flex items-center gap-2 rounded-lg border border-hairline/50 bg-surface/40 px-4 py-2 text-xs text-muted-foreground"
+          data-testid="comment-resolved"
+        >
+          <Check className="h-4 w-4 text-success" aria-hidden="true" />
+          <span>Resolved by {firstComment.authorName}</span>
+        </div>
+      </NodeViewWrapper>
+    );
+  }
+
+  // ── Render: active comment card ─────────────────────────────────────
   return (
     <NodeViewWrapper
       className="comment-wrapper"
@@ -148,7 +274,7 @@ function CommentNodeView(props: NodeViewProps) {
         className="rounded-lg border border-hairline bg-panel p-4"
         data-testid="comment-card"
       >
-        {/* ── Header: avatar, name, timestamp ────────────────────────── */}
+        {/* ── Header: avatar, name, timestamp, actions ───────────────── */}
         <div className="mb-2 flex items-center gap-2">
           <span
             className={avatarClasses(firstComment.authorColor)}
@@ -163,32 +289,144 @@ function CommentNodeView(props: NodeViewProps) {
           <span className="text-xs text-muted-foreground leading-none">
             {relativeTime(firstComment.createdAt)}
           </span>
+
+          {/* Spacer */}
+          <span className="flex-1" />
+
+          {/* Collapse toggle (only visible when expanded) */}
+          {hasReplies && !isCollapsed && (
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleToggleCollapse}
+              aria-label="Collapse replies"
+              data-testid="collapse-toggle"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              <span>Hide replies</span>
+            </button>
+          )}
+
+          {/* Resolve button */}
+          <button
+            type="button"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-success transition-colors"
+            onClick={handleResolve}
+            aria-label="Resolve thread"
+            data-testid="resolve-btn"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span>Resolve</span>
+          </button>
         </div>
 
-        {/* ── Body: editable comment text ────────────────────────────── */}
-        <div
-          ref={bodyRef}
-          className={`text-sm leading-relaxed outline-none ${
-            isEditing || firstComment.text
-              ? "text-foreground"
-              : "text-muted-foreground italic"
-          }`}
-          contentEditable
-          suppressContentEditableWarning
+        {/* ── Original comment body ──────────────────────────────────── */}
+        <CommentBody
+          entry={firstComment}
+          isEditing={isEditing}
+          bodyRef={bodyRef}
           onFocus={handleBodyFocus}
           onBlur={handleBodyBlur}
-          role="textbox"
-          aria-label="Comment body"
-          data-testid="comment-body"
-        >
-          {firstComment.text || PLACEHOLDER_TEXT}
-        </div>
+        />
 
-        {/* ── Resolved marker ────────────────────────────────────────── */}
-        {resolved && (
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span aria-label="Resolved">✓</span>
-            <span>Resolved</span>
+        {/* ── Replies ────────────────────────────────────────────────── */}
+        {hasReplies && !isCollapsed && (
+          <div className="mt-3 space-y-3" data-testid="replies-container">
+            {thread.slice(1).map((reply) => (
+              <div
+                key={reply.id}
+                className="border-t border-hairline pt-3"
+                data-testid={`reply-${reply.id}`}
+              >
+                {/* Reply header */}
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span
+                    className={avatarClasses(reply.authorColor)}
+                    style={avatarBackgroundStyle(reply.authorColor)}
+                    aria-label={reply.authorInitials}
+                  >
+                    {reply.authorInitials}
+                  </span>
+                  <span className="text-sm font-medium leading-none">
+                    {reply.authorName}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-none">
+                    {relativeTime(reply.createdAt)}
+                  </span>
+                </div>
+                {/* Reply body (read-only) */}
+                <CommentBody entry={reply} isEditing={false} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── "Show N replies" when collapsed ────────────────────────── */}
+        {hasReplies && isCollapsed && (
+          <div className="mt-3 border-t border-hairline pt-3">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleToggleCollapse}
+              aria-label={`Show ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
+              data-testid="show-replies-btn"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+              <span>
+                Show {replyCount} {replyCount === 1 ? "reply" : "replies"}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* ── Reply button ───────────────────────────────────────────── */}
+        {!isReplying && (
+          <div className="mt-3 border-t border-hairline pt-3">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={openReply}
+              aria-label="Reply to comment"
+              data-testid="reply-btn"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>Reply</span>
+            </button>
+          </div>
+        )}
+
+        {/* ── Inline reply input ─────────────────────────────────────── */}
+        {isReplying && (
+          <div className="mt-3 border-t border-hairline pt-3" data-testid="reply-input-container">
+            <textarea
+              ref={replyRef}
+              className="w-full rounded-md border border-hairline bg-surface/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-y min-h-[60px]"
+              placeholder="Write a reply…"
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={2}
+              aria-label="Reply text"
+              data-testid="reply-input"
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                onClick={submitReply}
+                disabled={!replyText.trim()}
+                data-testid="submit-reply-btn"
+              >
+                Reply
+              </button>
+              <button
+                type="button"
+                className="rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={cancelReply}
+                data-testid="cancel-reply-btn"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </div>

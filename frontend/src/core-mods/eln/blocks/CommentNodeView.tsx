@@ -11,7 +11,7 @@
  * entry from the current user.  Subsequent edits sync back to node attributes
  * via ``updateAttributes``.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { ChevronDown, ChevronRight, Check, MessageSquare } from "lucide-react";
 import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
@@ -163,29 +163,48 @@ function CommentNodeView(props: NodeViewProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // ── Auto-initialise first comment from current user ──────────────────
-  useEffect(() => {
+  // Lazy-init a local entry during render so the comment card is shown
+  // immediately, avoiding a flash of "Loading comment…".  Persisted to
+  // the node in the layout effect below.
+  const localEntryRef = useRef<CommentEntry | null>(null);
+  if (thread.length === 0 && user && !localEntryRef.current) {
+    localEntryRef.current = makeCommentEntry(user, "");
+  }
+  // Clear the local entry once the node thread is populated.
+  if (thread.length > 0 && localEntryRef.current) {
+    localEntryRef.current = null;
+  }
+
+  useLayoutEffect(() => {
     if (hasInitialized.current) return;
     if (thread.length > 0) {
       hasInitialized.current = true;
       return;
     }
-    if (!user) return; // still loading
+    if (!user || !localEntryRef.current) return;
 
     hasInitialized.current = true;
-    const entry = makeCommentEntry(user, "");
-    updateAttributes({ thread: [entry] });
+    updateAttributes({ thread: [localEntryRef.current] });
   }, [thread.length, user, updateAttributes]);
+
+  // Effective thread — uses the locally-initialized entry while the node
+  // hasn't been updated yet, otherwise uses the node's stored thread.
+  const effectiveThread: CommentEntry[] =
+    thread.length > 0 ? thread
+    : localEntryRef.current ? [localEntryRef.current]
+    : [];
 
   // ── Sync text back to node on blur ───────────────────────────────────
   const handleBodyBlur = useCallback(() => {
     setIsEditing(false);
     const newText = bodyRef.current?.textContent?.trim() ?? "";
-    if (thread.length === 0) return;
-    const updated = thread.map((entry, i) =>
+    const currentThread = thread.length > 0 ? thread : effectiveThread;
+    if (currentThread.length === 0) return;
+    const updated = currentThread.map((entry, i) =>
       i === 0 ? { ...entry, text: newText } : entry,
     );
     updateAttributes({ thread: updated });
-  }, [thread, updateAttributes]);
+  }, [thread, effectiveThread, updateAttributes]);
 
   const handleBodyFocus = useCallback(() => {
     setIsEditing(true);
@@ -211,12 +230,12 @@ function CommentNodeView(props: NodeViewProps) {
     if (!trimmed || !user) return;
 
     const newReply = makeCommentEntry(user, trimmed);
-    updateAttributes({ thread: [...thread, newReply] });
+    updateAttributes({ thread: [...effectiveThread, newReply] });
     setIsReplying(false);
     setReplyText("");
     // Auto-expand to show the new reply
     setIsCollapsed(false);
-  }, [replyText, user, thread, updateAttributes]);
+  }, [replyText, user, effectiveThread, updateAttributes]);
 
   // ── Resolve ────────────────────────────────────────────────────────────
   const handleResolve = useCallback(() => {
@@ -229,7 +248,7 @@ function CommentNodeView(props: NodeViewProps) {
   }, []);
 
   // ── Render: empty state while user loads ─────────────────────────────
-  if (thread.length === 0) {
+  if (effectiveThread.length === 0) {
     return (
       <NodeViewWrapper
         className="comment-wrapper"
@@ -244,8 +263,8 @@ function CommentNodeView(props: NodeViewProps) {
     );
   }
 
-  const firstComment = thread[0];
-  const replyCount = thread.length - 1;
+  const firstComment = effectiveThread[0];
+  const replyCount = effectiveThread.length - 1;
   const hasReplies = replyCount > 0;
 
   // ── Render: ghost icon when comments are hidden ────────────────────
@@ -361,7 +380,7 @@ function CommentNodeView(props: NodeViewProps) {
         {/* ── Replies ────────────────────────────────────────────────── */}
         {hasReplies && !isCollapsed && (
           <div className="mt-3 space-y-3" data-testid="replies-container">
-            {thread.slice(1).map((reply) => (
+            {effectiveThread.slice(1).map((reply) => (
               <div
                 key={reply.id}
                 className="border-t border-hairline pt-3"

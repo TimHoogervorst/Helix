@@ -330,7 +330,7 @@ function CommentNodeView(props: NodeViewProps) {
           {/* Resolve button */}
           <button
             type="button"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-success transition-colors"
+            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-success"
             onClick={handleResolve}
             aria-label="Resolve thread"
             data-testid="resolve-btn"
@@ -404,7 +404,7 @@ function CommentNodeView(props: NodeViewProps) {
           <div className="mt-3 border-t border-hairline pt-3">
             <button
               type="button"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               onClick={openReply}
               aria-label="Reply to comment"
               data-testid="reply-btn"

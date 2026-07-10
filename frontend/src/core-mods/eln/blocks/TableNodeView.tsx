@@ -244,7 +244,7 @@ function TableNodeView(props: NodeViewProps) {
                 <th className="w-10 px-0 py-2">
                   <button
                     type="button"
-                    className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground/50 transition-colors hover:text-muted-foreground hover:bg-surface/40 border border-dashed border-transparent hover:border-hairline rounded"
+                    className="btn-icon grid place-items-center rounded"
                     onClick={handleAddColumn}
                     aria-label="Add column"
                     data-testid="add-column-btn"
@@ -298,7 +298,7 @@ function TableNodeView(props: NodeViewProps) {
         <div className="border-t border-hairline">
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground/60 transition-all hover:text-muted-foreground hover:bg-surface/40 border border-dashed border-transparent hover:border-hairline rounded-b-lg"
+            className="btn-ghost flex w-full items-center !justify-center gap-1.5 rounded-b-lg py-2 text-xs text-muted-foreground/60"
             onClick={handleAddRow}
             aria-label="Add new row"
             data-testid="add-row-btn"

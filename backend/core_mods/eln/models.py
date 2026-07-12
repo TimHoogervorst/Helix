@@ -139,6 +139,35 @@ class ContentVersion(models.Model):
         return (latest.version_number + 1) if latest else 1
 
 
+class Protocol(models.Model):
+    """A reusable protocol definition — an ordered list of steps and notes.
+
+    Managed in the ELN Settings page.  Protocol blocks inserted into
+    notebook entries snapshot the name and items at insert time so that
+    historical entries are traceable (they record exactly what protocol
+    was used, even if the definition changes later).
+
+    Soft-delete via ``is_active`` preserves referential integrity for
+    protocol blocks that reference a deactivated definition.
+    """
+
+    name = models.CharField(max_length=500)
+    items = models.JSONField(
+        default=list,
+        help_text="Ordered list of {type: 'step'|'note', text: string}",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "eln_protocol"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+
 class EntryLock(models.Model):
     """Prevents simultaneous editing of the same NotebookEntry.
 

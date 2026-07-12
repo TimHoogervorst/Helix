@@ -7,7 +7,7 @@ from core_mods.tags.models import Tag
 
 from core.mentions.models import Mention
 
-from .models import NotebookEntry, ElnAction
+from .models import NotebookEntry, ElnAction, Protocol
 
 
 def validate_tiptap_json(value):
@@ -166,3 +166,41 @@ class ElnActionCreateSerializer(serializers.ModelSerializer):
         model = ElnAction
         fields = ["action_type", "metadata"]
         # target_type, target_id, and performed_by are set by the view
+
+
+class ProtocolSerializer(serializers.ModelSerializer):
+    """Serializer for Protocol definitions (CRUD in Settings)."""
+
+    class Meta:
+        model = Protocol
+        fields = ["id", "name", "items", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_active", "created_at", "updated_at"]
+
+    def validate_name(self, value):
+        """Name is required and must not be blank."""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Protocol name is required.")
+        return value.strip()
+
+    def validate_items(self, value):
+        """Items must be a list of {type: 'step'|'note', text: string}."""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Items must be a list.")
+
+        valid_types = {"step", "note"}
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                raise serializers.ValidationError(
+                    f"Item {i} must be an object with 'type' and 'text'."
+                )
+            item_type = item.get("type")
+            if item_type not in valid_types:
+                raise serializers.ValidationError(
+                    f"Item {i}: type must be 'step' or 'note', got '{item_type}'."
+                )
+            text = item.get("text", "")
+            if not text or not str(text).strip():
+                raise serializers.ValidationError(
+                    f"Item {i}: text is required and must not be blank."
+                )
+        return value

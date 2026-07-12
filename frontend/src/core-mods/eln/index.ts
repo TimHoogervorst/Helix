@@ -1,10 +1,11 @@
 import { lazy } from "react";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, ListChecks } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
   registerWorkspace,
   registerBlock,
+  registerSettingsSection,
   ModRegistry,
   BLOCK_TYPE_TIPTAP_NODE,
 } from "../../core/mod-system";
@@ -12,6 +13,7 @@ import ElnLibraryCard from "./library/ElnLibraryCard";
 import LimsTable from "./blocks/LimsTable";
 import CommentBlock from "./blocks/CommentBlock";
 import TableBlock from "./blocks/TableBlock";
+import ProtocolBlock from "./blocks/ProtocolBlock";
 
 export const meta = {
   id: "eln",
@@ -126,6 +128,35 @@ export function register() {
         thread: [],
       },
     },
+  });
+
+  // ── Block: Protocol ─────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.protocol",
+    label: "Protocol",
+    description: "Insert a reusable protocol",
+    icon: "🧪",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: ProtocolBlock,
+      defaultAttrs: {
+        protocolId: null,
+        name: "Protocol",
+        items: [],
+        stepStates: {},
+        editable: false,
+      },
+    },
+  });
+
+  // ── Settings: Protocol management ────────────────────────────────────
+  registerSettingsSection({
+    id: "eln.protocol-settings",
+    modId: "eln",
+    label: "Protocols",
+    icon: ListChecks,
+    component: lazy(() => import("./settings/ProtocolSettings")),
+    order: 20,
   });
 
 }

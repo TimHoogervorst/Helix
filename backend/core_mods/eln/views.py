@@ -11,12 +11,13 @@ from core.actions.logger import log_action
 
 from core_mods.tags.models import Tag
 
-from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock
+from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock, Protocol
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
     ElnActionSerializer,
     ElnActionCreateSerializer,
+    ProtocolSerializer,
 )
 from .sync import sync_entry_content
 
@@ -435,3 +436,38 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         return Response(self._lock_response(existing))
 
 
+class ProtocolViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for ELN protocol definitions.
+
+    list: GET /api/eln/protocols/ — list active protocols
+    create: POST /api/eln/protocols/ — create a protocol
+    retrieve: GET /api/eln/protocols/{id}/ — retrieve a protocol
+    update: PUT /api/eln/protocols/{id}/ — full update
+    partial_update: PATCH /api/eln/protocols/{id}/ — partial update
+    destroy: DELETE /api/eln/protocols/{id}/ — soft-delete (sets is_active=False)
+    """
+
+    queryset = Protocol.objects.all()
+    serializer_class = ProtocolSerializer
+    permission_classes = []
+
+    def get_queryset(self):
+        """Filter to active protocols by default.
+
+        Pass ?is_active=false to include inactive (soft-deleted) protocols,
+        or ?is_active=all to return everything.
+        """
+        qs = super().get_queryset()
+        is_active_param = self.request.query_params.get("is_active", "true")
+
+        if is_active_param == "all":
+            return qs
+        if is_active_param == "false":
+            return qs.filter(is_active=False)
+        return qs.filter(is_active=True)
+
+    def perform_destroy(self, instance):
+        """Soft-delete: set is_active=False instead of removing the row."""
+        instance.is_active = False
+        instance.save(update_fields=["is_active"])

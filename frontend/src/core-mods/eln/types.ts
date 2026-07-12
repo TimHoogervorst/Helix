@@ -74,6 +74,22 @@ export const EMPTY_DOC: TipTapDoc = {
   content: [{ type: "paragraph" }],
 };
 
+/** A single item within a protocol — either a checkable step or a note. */
+export interface ProtocolItem {
+  type: "step" | "note";
+  text: string;
+}
+
+/** A protocol definition managed in Settings. */
+export interface Protocol {
+  id: number;
+  name: string;
+  items: ProtocolItem[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /** User summary embedded in an action response. */
 export interface ActionUser {
   id: number;

@@ -1,10 +1,11 @@
 import { lazy } from "react";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, ListChecks } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
   registerWorkspace,
   registerBlock,
+  registerSettingsSection,
   ModRegistry,
   BLOCK_TYPE_TIPTAP_NODE,
 } from "../../core/mod-system";
@@ -126,6 +127,16 @@ export function register() {
         thread: [],
       },
     },
+  });
+
+  // ── Settings: Protocol management ────────────────────────────────────
+  registerSettingsSection({
+    id: "eln.protocol-settings",
+    modId: "eln",
+    label: "Protocols",
+    icon: ListChecks,
+    component: lazy(() => import("./settings/ProtocolSettings")),
+    order: 20,
   });
 
 }

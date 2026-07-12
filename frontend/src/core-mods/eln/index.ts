@@ -13,6 +13,7 @@ import ElnLibraryCard from "./library/ElnLibraryCard";
 import LimsTable from "./blocks/LimsTable";
 import CommentBlock from "./blocks/CommentBlock";
 import TableBlock from "./blocks/TableBlock";
+import ProtocolBlock from "./blocks/ProtocolBlock";
 
 export const meta = {
   id: "eln",
@@ -125,6 +126,25 @@ export function register() {
       defaultAttrs: {
         resolved: false,
         thread: [],
+      },
+    },
+  });
+
+  // ── Block: Protocol ─────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.protocol",
+    label: "Protocol",
+    description: "Insert a reusable protocol",
+    icon: "🧪",
+    type: BLOCK_TYPE_TIPTAP_NODE,
+    payload: {
+      node: ProtocolBlock,
+      defaultAttrs: {
+        protocolId: null,
+        name: "Protocol",
+        items: [],
+        stepStates: {},
+        editable: false,
       },
     },
   });

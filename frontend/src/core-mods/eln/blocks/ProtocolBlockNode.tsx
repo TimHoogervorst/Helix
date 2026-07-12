@@ -269,10 +269,10 @@ function ProtocolBlockNode(props: NodeViewProps) {
                 }`}
                 data-testid={`protocol-step-${stepIndex}`}
               >
-                {/* Toggle button */}
+                {/* Toggle button — ghost icon-only */}
                 <button
                   type="button"
-                  className={`mt-0.5 shrink-0 transition-colors ${
+                  className={`btn-icon mt-0.5 shrink-0 transition-colors ${
                     completed
                       ? "text-success hover:text-success/80"
                       : "text-muted-foreground hover:text-foreground"

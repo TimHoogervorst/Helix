@@ -95,14 +95,14 @@ function ProtocolDetailPanel({
             <h3 style={{ margin: 0 }}>Items</h3>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
-                className="ghost-btn"
+                className="btn-ghost"
                 onClick={() => onAddItem("step")}
                 title="Add a checkable step"
               >
                 + Step
               </button>
               <button
-                className="ghost-btn"
+                className="btn-ghost"
                 onClick={() => onAddItem("note")}
                 title="Add a non-checkable note"
               >
@@ -161,7 +161,7 @@ function ProtocolDetailPanel({
                 {/* Reorder + delete controls */}
                 <div style={{ display: "flex", gap: "0.15rem", flexShrink: 0 }}>
                   <button
-                    className="ghost-btn"
+                    className="btn-icon"
                     onClick={() => onMoveItem(i, "up")}
                     disabled={i === 0}
                     title="Move up"
@@ -170,7 +170,7 @@ function ProtocolDetailPanel({
                     ↑
                   </button>
                   <button
-                    className="ghost-btn"
+                    className="btn-icon"
                     onClick={() => onMoveItem(i, "down")}
                     disabled={i === items.length - 1}
                     title="Move down"
@@ -179,7 +179,7 @@ function ProtocolDetailPanel({
                     ↓
                   </button>
                   <button
-                    className="ghost-btn"
+                    className="btn-icon"
                     onClick={() => onRemoveItem(i)}
                     title="Remove item"
                     style={{ padding: "0.15rem 0.3rem", fontSize: "0.8rem", color: "var(--color-danger, #ef4444)" }}
@@ -194,7 +194,7 @@ function ProtocolDetailPanel({
           {/* Discard button */}
           {isDirty && (
             <div style={{ marginTop: "0.75rem" }}>
-              <button className="ghost-btn" onClick={onDiscard}>
+              <button className="btn-ghost" onClick={onDiscard}>
                 Discard changes
               </button>
             </div>

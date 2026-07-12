@@ -370,7 +370,7 @@ describe("ProtocolBlockNode — step toggle", () => {
     });
   });
 
-  it("marks a completed step incomplete on second click", () => {
+  it("marks a completed step incomplete on second click — clears entry", () => {
     const updateAttributes = vi.fn();
     render(
       <ProtocolBlockNode
@@ -390,10 +390,9 @@ describe("ProtocolBlockNode — step toggle", () => {
 
     fireEvent.click(screen.getByTestId("step-toggle-0"));
 
+    // Entry should be removed from stepStates entirely (not { completed: false })
     expect(updateAttributes).toHaveBeenCalledWith({
-      stepStates: {
-        0: { completed: false },
-      },
+      stepStates: {},
     });
   });
 

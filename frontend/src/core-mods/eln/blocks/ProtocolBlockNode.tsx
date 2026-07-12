@@ -138,13 +138,18 @@ function ProtocolBlockNode(props: NodeViewProps) {
       const current = stepStates[index];
       const wasCompleted = current?.completed ?? false;
 
-      const updated: Record<number, StepState> = {
-        ...stepStates,
-        [index]: wasCompleted
-          ? { completed: false }
-          : { completed: true, completedAt: new Date().toISOString() },
-      };
-      updateAttributes({ stepStates: updated });
+      if (wasCompleted) {
+        // Uncheck: clear the entry from stepStates entirely
+        const { [index]: _, ...rest } = stepStates;
+        updateAttributes({ stepStates: rest });
+      } else {
+        // Check: set completed with ISO 8601 timestamp
+        const updated: Record<number, StepState> = {
+          ...stepStates,
+          [index]: { completed: true, completedAt: new Date().toISOString() },
+        };
+        updateAttributes({ stepStates: updated });
+      }
     },
     [stepStates, updateAttributes],
   );

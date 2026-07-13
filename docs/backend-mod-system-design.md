@@ -1,8 +1,10 @@
 # Backend Mod System Design
 
-> Date: 2026-07-12
-> Status: Draft — exploring how to bring the backend mod architecture up to the same standard as the frontend
-> Companion to: [Actions System Design](actions-system-design.md), [Mod System Architecture](mod-system.md)
+> Date: 2026-07-13
+> Status: Spec published — see [Issue #208](https://github.com/TimHoogervorst/Helix/issues/208)
+> Companion to: [Actions System Design](actions-system-design.md), [Mod System Architecture](mod-system.md), [Cross-Cutting Events](cross-cutting-events.md), [Grilling Alignment](grilling-alignment.md)
+>
+> This document captures the proposed architecture for bringing the backend mod system up to the same standard as the frontend.
 
 ---
 
@@ -69,13 +71,10 @@ manifest = ModManifest(
     display_name="Electronic Lab Notebook",
     version="0.1.0",
     depends_on=["lims", "tags"],  # Must load after these
-    provides=[
-        "models.NotebookEntry",
-        "actions.ElnAction",
-        "blocks.table",
-    ],
 )
 ```
+
+The manifest matches the frontend `meta` shape exactly: `id`, `display_name`, `version`, `depends_on`.
 
 The manifest is read during boot. `INSTALLED_APPS` is built from it automatically (or validated against it).
 
@@ -87,10 +86,6 @@ The manifest is read during boot. `INSTALLED_APPS` is built from it automaticall
 
 3. **Availability checking.** If a mod declares `depends_on=["lims"]` but LIMS is not installed, the system fails fast with a clear error.
 
-### What `provides` Declares
-
-A mod's public surface — what other mods are allowed to depend on. Everything not listed is internal and subject to change. This is the backend equivalent of `index.ts` exports.
-
 ### Key Questions to Grill
 
 1. **`mod.py` vs. extending `AppConfig`?** Django already has `AppConfig`. Should the manifest be a new file, or additional attributes on the existing `ElnConfig` class?
@@ -99,7 +94,7 @@ A mod's public surface — what other mods are allowed to depend on. Everything 
 
 3. **What happens when a dependency is missing?** Fail-fast at boot (like the frontend)? Graceful degradation? Admin-displayed warning?
 
-4. **Does `provides` get validated?** If a mod claims to provide `models.NotebookEntry` but the class doesn't exist, is that a boot error?
+4. **Does `provides` get validated?** → `provides` has been removed from the design. The registry is the single source of truth for what a mod provides. What a mod registers is what it provides. See [cross-cutting-events.md](cross-cutting-events.md).
 
 5. **Version compatibility.** If mod A depends on mod B >= 1.2.0, how is that declared and checked? Is it needed yet, or is this YAGNI for now?
 
@@ -182,13 +177,13 @@ Not every cross-mod import needs to be a service. The goal is to replace **behav
 
 1. **What's the boundary?** Which cross-mod imports MUST go through the registry vs. which are fine as direct imports? A clear rule prevents the registry from becoming a bloated abstraction layer.
 
-2. **Service return types.** If `lims.resolve_entity` returns an `Entity` instance, the caller is now coupled to the `Entity` class anyway. Does the service return a simple dict/dataclass instead? Does the platform SDK define shared return types?
+2. **Service return types (RESOLVED).** Services never return ORM objects. They return platform SDK types (from `helix_core` in Phase 4) or plain dicts. Never Django model instances — that's hidden coupling behind a string lookup. See [cross-cutting-events.md](cross-cutting-events.md).
 
 3. **Async services.** Some services might be I/O bound (querying the database). Are all services sync? Async? Both?
 
 4. **Service discovery.** How does a mod author know what services are available? Auto-generated docs from registered services? A `registry.list_services()` introspection method?
 
-5. **Testing.** When testing a mod that calls a service, how do you mock/stub the service? Does the registry support test overrides? (e.g., `registry.override("lims.resolve_entity", mock_handler)` as a context manager)
+5. **Testing.** When testing a mod that calls a service, how do you mock/stub the service? Does the registry support test overrides? (e.g., `registry.override("lims.resolve_entity", mock_handler)` as a context manager). This is deferred to the external mod design (Phase 8), but `override()` should ship with Phase 7.
 
 ---
 
@@ -223,8 +218,8 @@ class BackendModRegistry:
     # ── URL routes ──
     def register_urls(self, mod_id: str, url_patterns: list): ...
 
-    # ── Settings sections ──
-    def register_settings(self, mod_id: str, section: SettingsSection): ...
+    # ── Settings keys ── (not UI sections — see note below)
+    def register_setting(self, mod_id: str, key: str, default: Any, **kwargs): ...
 
     # ── Services ──
     def register_service(self, service_id: str, handler: Callable): ...
@@ -260,9 +255,11 @@ class ElnConfig(AppConfig):
 
 2. **Does the registry replace Django's URL conf?** Or does it feed into it? The registry collects URL patterns; `config/urls.py` reads from the registry instead of listing each mod manually.
 
-3. **Settings registration.** The frontend has `registerSettingsSection()`. The backend has `CoreSetting` key-value pairs. Should backend mods register typed settings with validation, not just freeform JSON?
+3. **Settings registration.** The frontend has `registerSettingsSection()` which registers a React component (UI shell). The backend has `CoreSetting` key-value pairs (data). These are different concerns — the backend method is named `register_setting()` (singular, matching `CoreSetting`) to avoid implying it registers UI. Should backend mods register typed settings with validation, not just freeform JSON?
 
 4. **Backward compatibility.** The existing `register_action_model()` function exists and is called in 2 mods. Does the unified registry deprecate the standalone function, or wrap it?
+
+5. **Action type naming convention.** Per [cross-cutting-events.md](cross-cutting-events.md), action types use the triple-dotted `"{mod}.{target}.{verb}"` convention (e.g., `"eln.entry.created"`). This is the same string used on the frontend event bus, in the action log DB column, and in ActivityFeed subscriptions. The registry doesn't enforce this — it's a convention, not a constraint — but `register_action_model()` consumers should follow it. Existing rows with short verbs (`"created"`, `"edited"`) are a migration concern owned by the actions system design, not the mod system.
 
 ---
 
@@ -398,7 +395,6 @@ manifest = ModManifest(
     display_name="Inventory Management",
     version="1.0.0",
     depends_on=["lims"],
-    provides=["models.InventoryItem", "actions.InventoryAction"],
 )
 ```
 
@@ -441,42 +437,43 @@ An external mod:
 
 ## Rollout Approach
 
-The goal is incremental adoption, not a big-bang rewrite. Here's a suggested sequence:
+The goal is incremental adoption, not a big-bang rewrite. The Platform SDK (`helix_core`) is created in Phase 1 so the manifest, registry, and SDK types are built in their final location from day one — zero migration work later.
 
-### Phase 1: Backend Mod Manifest (smallest step, biggest impact)
+### Phase 1: Platform SDK + Backend Mod Manifest (foundation)
 
-- Add `ModManifest` to `core/mod_system/`
-- Each core mod gets a `mod.py` with `id`, `display_name`, `depends_on`
+- Create `helix_core/` as a Django app (needed for abstract models: `BrowsableItem`, `AbstractBaseAction`)
+- Move existing SDK-shaped code from `core/` into `helix_core/`: `abstracts.py`, `actions/` (base, registry, logger), `pagination.py`, `permissions.py`
+- Add `ModManifest` to `helix_core/mod_system/` — `id`, `display_name`, `version`, `depends_on`
+- Each core mod gets a `mod.py` with its manifest
 - `HELIX_MODS` setting replaces the helix portion of `INSTALLED_APPS`
-- Loader reads manifests, topologically sorts, validates deps
+- Loader reads manifests via auto-discovery (`core_mods/*/mod.py`), topologically sorts, validates deps
+- `INSTALLED_APPS` becomes: Django built-ins + third-party + `helix_core` + `core` + `get_helix_mods()`
 - Existing behavior is unchanged — just now validated
 
-**This alone fixes:** fragile signal ordering, undocumented dependencies, no boot validation.
+**This alone fixes:** fragile signal ordering, undocumented dependencies, no boot validation, SDK/shell boundary blur.
 
 ### Phase 2: Unified Registry (consolidate what's already there)
 
-- Move `register_action_model()` into `BackendModRegistry`
+- Build `BackendModRegistry` inside `helix_core/mod_system/`
+- Move `register_action_model()` into it (deprecate standalone function)
 - Add `register_urls()` so `config/urls.py` reads from the registry
 - Add `register_entity_type()` to replace ad-hoc model row creation
+- Add `register_setting()` to declare owned setting keys
 - Mods update their `AppConfig.ready()` to use the unified registry
 
 ### Phase 3: Service Registry (replace direct cross-mod imports)
 
 - Add `register_service()` / `registry.call()` to `BackendModRegistry`
+- Add `registry.list_services()` for introspection
 - Identify the ~5-10 cross-mod behavioral imports and convert them
 - Document the rule: behavioral = service, data = direct import, shared = SDK
 
-### Phase 4: Platform SDK (prepare for external mods)
+### Phase 4: External Mod Contract
 
-- Extract `helix_core` package from `core/`
-- `BrowsableItem`, `AbstractBaseAction`, `log_action`, `ModManifest`, `registry` move to SDK
-- `core/` becomes a shell app only
-
-### Phase 5: External Mod Support
-
-- `helix.mods.json` discovery
-- `pip install`-able mods
-- External mod documentation and contract
+- `helix.mods.json` for external mod discovery
+- `helix_core` ships as a pip-installable package
+- External mods use the same `mod.py` + `AppConfig` + `registry.register_*()` pattern
+- `registry.override()` for external mod testing
 
 ---
 
@@ -486,7 +483,7 @@ The goal is incremental adoption, not a big-bang rewrite. Here's a suggested seq
 
 2. **Does this fight Django's philosophy?** Django's philosophy is "explicit is better than implicit." `INSTALLED_APPS` is explicit. A manifest that auto-builds `INSTALLED_APPS` adds a layer of magic. Does the team value the validation and structure more than Django's explicitness?
 
-3. **What about the existing frontend `shared/` drift?** The actions system work will move `ActivityFeed` and `useActivity` to `shared/`. That's a good forcing function to align the docs with reality. Should backend SDK extraction happen in the same timeframe?
+3. **What about the existing frontend `shared/` drift?** The actions system work will move `ActivityFeed` and `useActivity` to `shared/`. That's a good forcing function to align the docs with reality. The backend SDK extraction (`helix_core`) happens in Phase 1, before the frontend shared/ consolidation (Phase 6 overall). The two are decoupled — different codebases, different timelines. Naming is already aligned (`helix_core` ↔ `@helix/core`).
 
 4. **Per-mod database schemas.** The user mentioned interest in giving each mod its own PostgreSQL schema. This is a significant architectural decision that affects the platform SDK, cross-mod FK relationships, and migration strategy. It should be its own design doc and grilling session.
 

@@ -320,15 +320,25 @@ LIMS is the **gatekeeper** for all entity type registrations. Mods register via 
 
 **Out of scope (for now):** custom entity behaviors (DNA sequence viewer, GC analysis), per-entity-type action sets, dynamic registration after boot.
 
-### Action
+### Entity Action
 
-A recorded operation performed on an Entity by a User. Has a type (e.g., "Used", "Created", "Measured", "Noted"), the performer, optional data (e.g., `{"volume_ul": 50}`), and an optional source Notebook Entry (the entry where this action was recorded).
+A user-explicit operation recorded on an Entity. Has a type (e.g., "Used", "Created", "Measured", "Noted"), the performer, optional data (e.g., `{"volume_ul": 50}`), and an optional source Notebook Entry (the entry where this action was recorded).
 
-Actions are **user-explicit** — the user records them deliberately. They are not inferred from text.
+Entity Actions are **user-explicit** — the user records them deliberately. They are not inferred from text. Distinct from the cross-mod [Action Log](#action-log) entry below.
 
-**Invariant:** An Action acts on exactly one Entity.
+**Invariant:** An Entity Action acts on exactly one Entity.
 
-**Synonyms:** event, operation, activity
+**Synonyms:** entity event, entity operation, entity activity
+
+### Action Log Entry
+
+A framework-logged record of any mutating operation in the system. Created automatically by the `log_action()` dispatcher — not manually by users. Each entry records: who performed the operation (`performed_by`), what they did (`action_type`), what record they acted on (`target_type`, `target_id`), when (`created_at`), and relevant metadata about what changed (`metadata` JSON).
+
+Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod owns its own action table via `register_action_model()`. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`, `"eln.table.edited"`).
+
+**Invariant:** An action log entry belongs to exactly one mod's action table. Action logging failure must never break the operation being logged.
+
+**Synonyms:** audit record, action log row, logged action
 
 ---
 

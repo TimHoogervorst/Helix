@@ -1,7 +1,10 @@
 # Actions System Design
 
-> Date: 2026-07-12
-> Status: Draft — exploring design direction before grilling
+> Date: 2026-07-13
+> Status: Draft — reconciled with slot system and event bus design
+> Companion to: [Mod System Architecture](mod-system.md), [Slot System & Event Bus](slot-system.md), [Backend Mod System Design](backend-mod-system.md)
+> Reconciliation: See [Cross-Cutting Events](cross-cutting-events.md) for the unified event naming convention, block→action logging path, and implementation order.
+>
 > This document captures the proposed architecture for a CFR Part 11-compliant action logging system built on the existing mod infrastructure. It identifies the design topics that need to be stress-tested in a grilling session before implementation.
 
 ---
@@ -112,14 +115,16 @@ This is analogous to Django's permission classes or DRF's throttling — a cross
 
 ### Two Trigger Surfaces
 
-Actions originate from two places. The design must handle both:
+Actions originate from two places. The design handles both, but through different mechanisms:
 
-| Surface | Trigger | Example |
+| Surface | Trigger | Mechanism |
 |---|---|---|
-| **HTTP endpoints** | Successful mutating request (2xx on POST/PUT/PATCH/DELETE) | "User X created entry E42" |
-| **In-editor blocks** | User interaction with a content block inside the TipTap editor | "User X edited table 'Samples' in entry E42" |
+| **HTTP endpoints** | Successful mutating request (2xx on POST/PUT/PATCH/DELETE) | `ActionLoggingMixin` on the viewset — framework intercepts and calls `log_action()` |
+| **In-editor blocks** | User interaction with a content block inside the TipTap editor | Workspace event bus — editor framework emits lifecycle events; workspace shell's action-logging listener translates to API calls |
 
 Both surfaces write to the same action tables through the same `log_action()` dispatcher. The difference is where the declaration lives and who triggers the call.
+
+**Block actions route through the event bus, not a direct API call.** The editor emits `"{mod}.{block}.{verb}"` on the workspace bus. The workspace shell's action-logging listener receives the event, derives the action type mechanically from the event name, and calls the API. The block author never emits events and never calls the action API directly. See [Slot System & Event Bus](slot-system.md) and [Cross-Cutting Events](cross-cutting-events.md) for the full path.
 
 ---
 
@@ -196,7 +201,7 @@ Or is a declarative class-level config (the strawman above) cleaner?
 
 ## Grilling Topic B: Block-Declared Actions
 
-**The extension mechanism.** Content blocks inside the ELN editor (Tables, Comments, LIMS tables, future blocks) produce actions when the user interacts with them. The block should declare its action types, and the editor should log them automatically.
+**The extension mechanism.** Content blocks inside the ELN editor (Tables, Comments, LIMS tables, future blocks) produce actions when the user interacts with them. The block declares its identity — the framework does the rest.
 
 ### The Problem
 
@@ -206,57 +211,62 @@ The goal: when a user edits a table block, the activity feed shows:
 
 > **Tim** edited table **Samples** · 2 minutes ago
 
-This means the block itself needs a way to say "I am a table named 'Samples'" and the editor needs to log a block-specific action.
+### Reconciled Design (with Slot System)
 
-### Strawman Design
+Block actions route through the **workspace event bus** (see [slot-system.md](slot-system.md)). The editor framework emits lifecycle events automatically. The workspace shell's action-logging listener translates events into API calls. The block author declares identity and optional message overrides — never emits events, never calls the action API.
 
-Extend `BlockConfig` on the frontend to carry an optional action declaration:
+The `BlockConfig` (defined in the slot system, registered via `registerIntoSlot()` as `BlockSlotContent`) carries:
 
 ```typescript
-interface BlockConfig {
-  id: string;           // e.g. "eln.table"
-  label: string;        // e.g. "Table"
-  description: string;
+// From slot-system.md — BlockSlotContent
+interface BlockSlotContent {
+  type: "block";
+  id: string;                          // "eln.table" — drives action_type derivation
+  label: string;                       // "Table"
   icon: string;
-  type: string;         // e.g. "tiptap-node"
-  payload: unknown;
+  listensTo: string[];
+  onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
 
-  // NEW — optional action declaration
-  action?: {
-    /** Action type logged when this block is edited, e.g. "table.edited" */
-    actionType: string;
-    /** Human-readable label for the activity feed, e.g. "edited table" */
-    label: string;
-    /** Function to extract a display name from block attrs, e.g. attrs => attrs.title */
-    getTargetName?: (attrs: Record<string, unknown>) => string;
+  /** Human-readable message overrides. Defaults to "{label} was created/edited/deleted" */
+  messages?: {
+    created?: string;
+    edited?: string;
+    deleted?: string;
   };
+
+  /** Extract a display name from block attributes for the activity feed */
+  getDisplayName?: (attrs: Record<string, unknown>) => string;
+
+  node?: Node;
+  component?: ComponentType<BlockProps>;
 }
 ```
 
-When the editor detects a change inside a block:
-1. It reads the block's `action` declaration from the registry
-2. It extracts a human-readable target name (e.g. the table title) via `getTargetName`
-3. It fires an API call: `POST /api/eln/entries/{id}/actions/` with `action_type: "table.edited"` and `metadata: { blockId, blockLabel, targetName }`
+### Action Type Derivation
+
+Mechanical, zero-ceremony. Derived from block ID + lifecycle event:
+
+| Lifecycle event | Verb | Resulting action_type |
+|-----------------|------|----------------------|
+| Block inserted | `created` | `"{mod}.{block}.created"` — e.g. `"eln.table.created"` |
+| Block changed | `edited` | `"{mod}.{block}.edited"` — e.g. `"eln.table.edited"` |
+| Block removed | `deleted` | `"{mod}.{block}.deleted"` — e.g. `"eln.table.deleted"` |
+
+### Message Derivation
+
+```
+Default:            "{label} was {verb_past}"              → "Table was edited"
+With getDisplayName: "{label} '{name}' was {verb_past}"    → "Table 'Samples' was edited"
+With messages:       uses custom string                     → "spreadsheet was touched"
+```
 
 ### The Backend Side
 
-The block action flows through the existing `_create_action` endpoint (or an equivalent). The backend doesn't need to know about blocks specifically — it just stores whatever `action_type` and `metadata` the frontend sends.
+The block action flows through the workspace shell's action-logging listener, which calls `POST /api/{mod}/entries/{entryId}/actions/`. The backend doesn't need to know about blocks specifically — it just stores whatever `action_type` and `metadata` the frontend sends.
 
-However, the **action type namespace** matters. If a block declares `action_type: "table.edited"`, that string lives in the same column as `"created"` and `"edited"`. Should block-originated actions be namespaced? E.g. `"block.eln.table.edited"` vs endpoint actions like `"eln.entry.created"`?
+### Cross-Mod Block Action Routing
 
-### Key Design Decisions to Grill
-
-1. **Who owns the block action declaration?** The block itself (in `registerBlock()` config)? The mod's `index.ts`? A separate `registerBlockAction()` call?
-
-2. **When does the editor log a block action?** On every change? Debounced? Only on explicit save? Only when the block's content has meaningfully changed (hash-based no-op, like ContentVersion)?
-
-3. **Granularity.** If a user edits 3 cells in a table, is that one action ("edited table Samples") or three ("changed cell X to Y")? The former seems right — but where's the line?
-
-4. **How does the editor discover block action types?** Does it read from `ModRegistry.getBlocks()` and check the `action` field? Or is there a separate lookup?
-
-5. **Block deletion/insertion.** Should inserting a block into the editor and removing a block also be logged?
-
-6. **Cross-mod blocks.** A future LIMS mod might contribute a block. Its actions should write to the LIMS action table, not ELN's. How does the editor know which mod's action table to target? Does the block declaration include a `modId` for action routing?
+A future LIMS mod might contribute a block. Its actions should write to the LIMS action table, not ELN's. The mod is derived mechanically from the block ID's first segment: `"lims.data-table"` → mod = `"lims"` → targets LIMS `Action` table. No special routing — the derivation rule handles it.
 
 ---
 
@@ -336,13 +346,18 @@ action_log_config = {
 
 ### The Vision
 
-The `ActivityFeed` component moves from `core-mods/eln/` to `core/` or `shared/`. It becomes a cross-mod component that:
+The `ActivityFeed` component moves from `core-mods/eln/` to `shared/`. It becomes a cross-mod component that:
 
 1. Accepts a list of actions in a generic shape (`ActionItem` interface)
 2. Renders them with actor name, action label, relative timestamp
 3. Knows nothing about which mod the action came from
+4. Subscribes to the workspace bus via `bus.on()` for optimistic real-time updates
 
-The ELN workspace passes its ELN-specific actions to the generic feed. The LIMS workspace does the same. A future "Global Audit Log" page at `/audit` could show actions from all mods.
+The ELN workspace registers it as a `ComponentSlotContent` into the sidebar slot. The LIMS workspace does the same. A future "Global Audit Log" page at `/audit` could show actions from all mods.
+
+### Where ActivityFeed Lives
+
+`shared/components/Activity.tsx` — alongside `BaseCard`, `StatusBadge`, `Breadcrumbs`, etc. It is platform SDK, not ELN-specific. The mod-system.md already references this location. It registers into workspace sidebar slots as a component, not a block.
 
 ### Generic Action Shape
 
@@ -369,32 +384,32 @@ interface ActionUser {
 
 ### Action Label Resolution
 
-The `actionLabel()` helper currently lives in `eln/activityHelpers.ts` and maps ELN-specific strings like `"created"` → `"created this entry"`. For cross-mod consumption, this needs to become generic:
+The `actionLabel()` helper currently lives in `eln/activityHelpers.ts` and maps ELN-specific strings like `"created"` → `"created this entry"`. For cross-mod consumption, this moves to `shared/` with a simple humanization approach:
 
 ```typescript
-// Option A: Mods register action labels
-registerActionLabel("eln.entry.created", "created this entry");
-registerActionLabel("eln.entry.edited", "edited this entry");
-
-// Option B: Simple fallback — just use the action_type string directly,
-//           with an optional humanization function
+// In shared/ — simple humanization, no registration needed
 function actionLabel(actionType: string): string {
-  // Split on dots, humanize each segment
   // "eln.entry.created" → "created"
-  // "table.edited" → "edited table"
+  // "eln.table.edited" → "edited"
   return humanize(actionType.split(".").pop()!);
 }
 ```
 
-### Key Design Decisions to Grill
+The human-readable message displayed in the ActivityFeed is either:
+- The block's `messages` override (from `BlockSlotContent.messages`)
+- The default template `"{label} was {verb_past}"` enhanced with `getDisplayName`
 
-1. **Where does `ActivityFeed` live?** `core/` (the app shell) or `shared/` (cross-mod components)? The mod-system doc already mentions `shared/components/Activity.tsx` — does it go there?
+No `registerActionLabel()` needed. The triple-dotted action type is self-describing.
 
-2. **Does the frontend need `registerActionLabel()`?** Or is a simple humanization function (Option B) sufficient? The user indicated "frontend just consumes" — so probably Option B.
+### Key Design Decisions (Resolved)
 
-3. **Cross-mod action fetching.** Does the backend need a unified endpoint like `GET /api/actions/?user=42&since=...` that searches across all mod tables? Or is cross-mod audit a future concern?
+1. **Where does `ActivityFeed` live?** → `shared/components/Activity.tsx`. It registers into workspace sidebar slots as `ComponentSlotContent`.
 
-4. **Per-workspace vs. global activity.** The ELN workspace shows actions for a single entry. A LIMS workspace shows actions for a single entity. A global audit page shows everything. Are these the same component with different data sources, or different components?
+2. **Does the frontend need `registerActionLabel()`?** → No. Humanization function + block message overrides suffice.
+
+3. **Cross-mod action fetching.** A unified endpoint `GET /api/actions/?user=42&since=...` across all mod tables is a future concern (global audit log, Phase 8+).
+
+4. **Per-workspace vs. global activity.** The same `ActivityFeed` component with different data sources. Per-workspace: actions scoped to an entry/entity. Global: actions from all mods.
 
 ---
 
@@ -412,14 +427,14 @@ The ELN mod already has working action logging. Two options:
 
 ### Rollout Order
 
-Suggested sequence:
+Actions system rollout (see [cross-cutting-events.md](cross-cutting-events.md) for the full cross-doc implementation order):
 
-1. **Build the framework** — the mixin/decorator, metadata capture, error handling
+1. **Build the framework** — the `ActionLoggingMixin`, metadata capture, error handling (Phase 3 overall)
 2. **Retrofit ELN** — convert `NotebookEntryViewSet` to use the new mechanism (dogfood it)
 3. **Add actions to LIMS** — entity type CRUD, entity CRUD (the second mod proves the pattern generalizes)
 4. **Add actions to remaining mods** — tags, protocols, settings, folders, pins
-5. **Move ActivityFeed to core/shared** — make it cross-mod
-6. **Block-declared actions** — extend `BlockConfig` and wire up the editor
+5. **Block-declared actions** — extends `BlockSlotContent` (Phase 5 overall, depends on slot system + event bus landing first)
+6. **Move ActivityFeed to shared/** — make it cross-mod, register as component slot (Phase 6 overall)
 
 ### Key Design Decisions to Grill
 

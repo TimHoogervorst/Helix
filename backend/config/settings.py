@@ -4,6 +4,8 @@ Django settings for Helix project.
 import os
 from pathlib import Path
 
+from helix_core.mod_system.loader import get_helix_mods
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
@@ -21,8 +23,6 @@ ALLOWED_HOSTS = ["*"]
 # dotted mod paths (e.g. ["core_mods.eln", "core_mods.lims"]).  When None
 # (the default), all core_mods/*/mod.py directories are auto-discovered.
 HELIX_MODS = None
-
-from helix_core.mod_system.loader import get_helix_mods
 
 INSTALLED_APPS = [
     "django.contrib.admin",

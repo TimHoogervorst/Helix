@@ -3,12 +3,13 @@
 .. WARNING:: Keep in sync with ``core/actions/base.py`` during the
    expand-contract transition.  Once the contract phase lands (all mods
    import from ``helix_core``), the original in ``core/`` will be removed.
-"""
 
 Each mod creates its own concrete table that inherits from
-``AbstractBaseAction``.  The six static columns are shared across all
+``AbstractBaseAction``.  The static columns are shared across all
 action tables.
 """
+
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -25,16 +26,35 @@ class AbstractBaseAction(models.Model):
 
     performed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="%(class)s_actions",
     )
-    action_type = models.CharField(max_length=50)
+    action_type = models.CharField(max_length=100)
     target_type = models.CharField(
         max_length=100,
         help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.",
     )
     target_id = models.IntegerField(
         help_text="PK of the target record.",
+    )
+    version = models.ForeignKey(
+        "eln.ContentVersion",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Content version produced by this action. Null for non-versioned targets.",
+    )
+    request_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="Correlation ID tying together action rows from the same HTTP request.",
+    )
+    client_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="Client IP auto-captured from the request.",
     )
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

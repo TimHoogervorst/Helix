@@ -24,11 +24,13 @@
 
 Whenever discussing what goes into a slot, use these exact types. No "block" as a catch-all.
 
-| Type | Use case | Has `onClick`? | Has `onEvent`? | Has `node`? |
-|------|---------|---------------|---------------|------------|
-| `button` | Header actions, toolbar items | Yes | No | No |
-| `block` | Editor content (tables, comments, protocols) | No | Yes (`listensTo`) | Yes |
-| `component` | Sidebar panels, custom UI (ActivityFeed, lock indicator) | No | No (uses `bus.on()`) | No |
+Two registration functions (`registerBlock`, `registerButton`), three usage contexts. `bus` access is renderer-gated: `TipTapRenderer` keeps editor blocks declarative (no `bus`), `PanelRenderer` passes `bus` to sidebar panels for imperative `bus.on()`.
+
+| Type | Registered via | Has `onClick`? | Has `bus` prop? | Has `node`? |
+|------|---------------|---------------|-----------------|------------|
+| `button` | `registerButton()` | Yes | Yes (in `onClick`) | No |
+| `block` (editor) | `registerBlock()` | No | No (`listensTo` only) | Yes (TipTap node) |
+| `block` (panel) | `registerBlock()` | No | Yes (from `PanelRenderer`) | No |
 
 ## Implementation Order (don't reorder without understanding dependencies)
 

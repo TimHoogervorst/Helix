@@ -179,10 +179,12 @@ The platform SDK defines shared types for common patterns. Services that return 
 
 Two patterns for subscribing to bus events. No `registerEventListener()` — not needed.
 
+Two registration functions (`registerBlock`, `registerButton`), three listener contexts. `bus` access is renderer-gated — see [slot-system.md](slot-system.md) § Bus access is renderer-gated.
+
 | Listener type | Mechanism | When to use |
 |--------------|-----------|-------------|
-| **Block** | Declarative: `listensTo` + `onEvent` in `BlockSlotContent` | Block reacting to other blocks or workspace events inside the editor |
-| **Component** | Imperative: `bus.on(event, handler)` in `useEffect` | Any non-block component rendered in a slot (ActivityFeed, lock indicator, export button) |
+| **Editor block** | Declarative: `listensTo` + `onEvent` | Block inside `TipTapRenderer` (tables, comments, protocols). No `bus` prop — renderer routes events. |
+| **Panel block** | Imperative: `bus.on(event, handler)` in `useEffect` | Block inside `PanelRenderer` (ActivityFeed, lock indicator). Receives `bus` from renderer. |
 | **Workspace shell** | Imperative: `bus.on()` during workspace setup | Cross-cutting concerns owned by the workspace (action logging, lock management) |
 
 Blocks get declarative sugar because the editor framework needs to route events to them and manage their lifecycle. Components use standard React patterns.

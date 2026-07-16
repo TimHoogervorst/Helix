@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('mods_users', '0001_initial'),
+        ('core_mods_users', '0001_initial'),
         ('eln', '0017_elnaction_client_ip_elnaction_request_id_and_more'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

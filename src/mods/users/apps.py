@@ -6,7 +6,7 @@ from helix_core.mod_system.registry import registry
 class UsersConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "mods.users"
-    label = "mods_users"
+    label = "core_mods_users"
 
     def ready(self):
         from .models import CoreAction

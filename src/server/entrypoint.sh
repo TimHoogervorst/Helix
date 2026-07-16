@@ -11,7 +11,7 @@ done
 
 echo "PostgreSQL is up — generating and running migrations"
 python manage.py makemigrations --noinput
-python manage.py migrate --noinput
+python manage.py migrate --noinput --fake-initial
 
 echo "Running seed data"
 python manage.py seed_data

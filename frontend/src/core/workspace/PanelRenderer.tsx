@@ -49,6 +49,13 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
+  // Blocks can opt out of the card wrapper via `noCard: true` in overrides.
+  const noCard = binding.overrides?.noCard === true;
+
+  if (noCard) {
+    return <Component context={context} instance={instance} bus={bus} />;
+  }
+
   return (
     <div className="rounded-lg border border-hairline bg-background p-4">
       <Component context={context} instance={instance} bus={bus} />

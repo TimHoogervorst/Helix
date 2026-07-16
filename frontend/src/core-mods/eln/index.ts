@@ -261,7 +261,7 @@ export function register() {
   });
 
   // ── Bind Activity Feed into sidebar slot ──────────────────────────────
-  registerIntoSlot("eln.sidebar", "eln.activity-feed", {}, 0);
+  registerIntoSlot("eln.sidebar", "eln.activity-feed", { noCard: true }, 0);
 
   // ── Settings: Protocol management ────────────────────────────────────
   registerSettingsSection({

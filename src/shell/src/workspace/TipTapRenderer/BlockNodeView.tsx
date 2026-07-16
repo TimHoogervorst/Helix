@@ -71,24 +71,25 @@ export function BlockNodeView(props: BlockNodeViewProps) {
   const prevContentRef = useRef<string | null>(null);
   const currentContent = stringifyContent(node.attrs.content);
 
-  // Keep instance attrs in sync when node.content changes.
-  // Runs before the edited effect (effects execute in declaration order)
-  // so onEvent handlers always read current attrs.
-  useEffect(() => {
-    if (prevContentRef.current === null) {
-      // First render — record baseline, don't sync (already set in ref init)
-      prevContentRef.current = currentContent;
-      return;
-    }
-
-    if (prevContentRef.current !== currentContent) {
-      prevContentRef.current = currentContent;
-      instanceRef.current = {
-        ...instanceRef.current,
-        attrs: binding.deserialize(currentContent),
-      };
-    }
-  }, [currentContent, binding]);
+  // Sync instance attrs from node content DURING render — before the block
+  // component receives instanceRef.current.  This was previously a
+  // useEffect, which runs AFTER render, so the block component always saw
+  // stale attrs from the previous render pass.  Syncing during render
+  // guarantees that instanceRef.current.attrs matches the ProseMirror node
+  // when the block component reads it.
+  //
+  // On the first render prevContentRef is null — instanceRef already holds
+  // the initial deserialized attrs from the useRef initializer, so we skip.
+  if (
+    prevContentRef.current !== null &&
+    prevContentRef.current !== currentContent
+  ) {
+    instanceRef.current = {
+      ...instanceRef.current,
+      attrs: binding.deserialize(currentContent),
+    };
+  }
+  prevContentRef.current = currentContent;
 
   // ── Lifecycle: created ─────────────────────────────────────────────────
 

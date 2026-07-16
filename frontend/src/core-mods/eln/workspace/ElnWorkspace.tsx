@@ -29,6 +29,7 @@ import MoreActions from "../components/MoreActions";
 import { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../core/workspace/SlotRenderer";
 import type { SlotContext } from "../../../core/mod-system/types";
+import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -61,6 +62,16 @@ function IconButton({
 interface ElnWorkspaceProps {
   entryId?: string;
 }
+
+/** Block IDs bound into the eln.editor slot — lifecycle events for these
+ *  are accumulated by useBlockActionLogging and flushed to the batch
+ *  actions endpoint on save. */
+const EDITOR_BLOCK_IDS = [
+  "eln.table-block",
+  "eln.legacyTable-block",
+  "eln.comment-block",
+  "eln.protocol-block",
+];
 
 function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const entryDisplayId = entryId ?? "New";
@@ -98,6 +109,23 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     busRef.current = new WorkspaceBus();
   }
   const bus = busRef.current;
+
+  // ── Block action logging: accumulate lifecycle events, flush on save ──
+  useBlockActionLogging(bus, entryId, EDITOR_BLOCK_IDS);
+
+  // ── Emit "eln.entry.saved" on the bus whenever a save completes ───────
+  const prevLastSavedAtRef = useRef<Date | null>(null);
+  useEffect(() => {
+    const current = editorState.lastSavedAt;
+    // Skip initial null and unchanged values
+    if (current === null) return;
+    if (prevLastSavedAtRef.current?.getTime() === current.getTime()) return;
+    prevLastSavedAtRef.current = current;
+
+    bus.emit("eln.entry.saved", {
+      entryId: editorState.entry?.display_id ?? entryId,
+    });
+  }, [editorState.lastSavedAt, editorState.entry?.display_id, entryId, bus]);
 
   // ── SlotContext — flat metadata bag available to all blocks and buttons ─
   const slotContext: SlotContext = useMemo(
@@ -367,7 +395,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
             <CommentVisibilityProvider showComments={showComments}>
-              <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} />
+              <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} bus={bus} slotContext={slotContext} />
             </CommentVisibilityProvider>
           </div>
         </main>
@@ -562,14 +590,11 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
               </div>
             </section>
 
-            {/* ── Activity ── */}
-            <ActivityFeed
-              data={{
-                actions,
-                isLoading: activityLoading,
-                error: activityError,
-                refetch: refetchActivity,
-              }}
+            {/* ── Activity (slot-rendered, dogfood #233) ── */}
+            <SlotRenderer
+              slotId="eln.sidebar"
+              bus={bus}
+              context={slotContext}
             />
           </div>
         </aside>

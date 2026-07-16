@@ -327,6 +327,16 @@ class EntryActionsEndpointTests(BaseTestCase):
         self.assertIn("first_name", action["performed_by"])
         self.assertIn("last_name", action["performed_by"])
 
+    def test_list_actions_includes_request_id(self):
+        """Each serialized action includes the request_id key."""
+        response = self.client.get(
+            f"/api/eln/entries/{self.entry.display_id}/actions/"
+        )
+        action = response.data["results"][0]
+        self.assertIn("request_id", action)
+        # Actions created without an explicit request_id have null.
+        self.assertIsNone(action["request_id"])
+
     # ── GET: filter by action_type ────────────────────────────────────────
 
     def test_filter_by_action_type(self):

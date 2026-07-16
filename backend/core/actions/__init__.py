@@ -6,13 +6,14 @@ and the declarative ``ActionLoggingMixin`` for DRF viewsets.
 """
 
 from .base import AbstractBaseAction
-from .logger import log_action
+from .logger import bulk_log_actions, log_action
 from .mixins import ActionLoggingMixin, logs_action
 from .registry import get_action_model, register_action_model
 
 __all__ = [
     "AbstractBaseAction",
     "ActionLoggingMixin",
+    "bulk_log_actions",
     "log_action",
     "logs_action",
     "register_action_model",

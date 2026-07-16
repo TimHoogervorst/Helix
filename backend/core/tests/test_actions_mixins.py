@@ -5,15 +5,17 @@ Tests spy on ``log_action()`` — the highest seam — and assert it was
 assertions on action rows.
 """
 
+import uuid
 from unittest.mock import patch
 
 from django.test import override_settings
 from django.urls import include, path
-from rest_framework import serializers, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.routers import SimpleRouter
 
+from core.actions.logger import bulk_log_actions
 from core.actions.mixins import ActionLoggingMixin, logs_action
 from core.models import Folder
 from core.tests.base import BaseTestCase
@@ -23,6 +25,31 @@ from core.tests.base import BaseTestCase
 # Test viewset — defined at module level so the module can serve as
 # ROOT_URLCONF via override_settings(ROOT_URLCONF=__name__).
 # ═══════════════════════════════════════════════════════════════════════
+
+
+class WidgetBatchSerializer(serializers.Serializer):
+    """Serializer for batch action tests — mirrors ElnActionBatchSerializer."""
+
+    actions = serializers.ListField(
+        child=serializers.DictField(child=serializers.JSONField()),
+        min_length=1,
+        allow_empty=False,
+    )
+
+    def validate_actions(self, value):
+        for i, entry in enumerate(value):
+            action_type = entry.get("action_type", "")
+            if not action_type or not str(action_type).strip():
+                raise serializers.ValidationError(
+                    f"actions[{i}]: 'action_type' is required."
+                )
+            # Enforce triple-dotted convention: "{mod}.{target}.{verb_past}"
+            if str(action_type).count(".") < 2:
+                raise serializers.ValidationError(
+                    f"actions[{i}]: 'action_type' must follow the "
+                    f"triple-dotted convention, got '{action_type}'."
+                )
+        return value
 
 
 class WidgetSerializer(serializers.ModelSerializer):
@@ -78,6 +105,35 @@ class WidgetViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def list_custom(self, request):
         """List-route custom action with get_target in config."""
         return Response({"done": True})
+
+    @action(detail=True, methods=["post"], url_path="actions/batch")
+    def actions_batch(self, request, pk=None):
+        """Batch endpoint that mirrors the ELN entry_actions_batch."""
+        instance = self.get_object()
+        serializer = WidgetBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        batch_request_id = uuid.uuid4()
+        client_ip = request.META.get("REMOTE_ADDR", "")
+
+        try:
+            results = bulk_log_actions(
+                user=request.user,
+                actions=serializer.validated_data["actions"],
+                target_type="test.widget",
+                target_id=instance.pk,
+                request_id=batch_request_id,
+                client_ip=client_ip or None,
+            )
+            return Response(
+                {"count": len(results), "request_id": str(batch_request_id)},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception:
+            return Response(
+                {"count": 0, "request_id": str(batch_request_id)},
+                status=status.HTTP_201_CREATED,
+            )
 
 
 router = SimpleRouter()
@@ -389,3 +445,162 @@ class FailOpenTests(BaseTestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, {"pong": True})
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Batch endpoint tests (issue #221)
+# ═══════════════════════════════════════════════════════════════════════
+
+BULK_LOG_ACTIONS_PATH = "core.tests.test_actions_mixins.bulk_log_actions"
+
+
+def _bulk_kwargs(mock):
+    """Return the keyword-args dict from the *first* call to *mock*."""
+    if mock.call_count == 0:
+        return {}
+    return mock.call_args[1]
+
+
+@override_settings(ROOT_URLCONF=__name__)
+class BatchActionEndpointTests(BaseTestCase):
+    """Test the batch action endpoint on a test viewset."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.widget = Folder.objects.create(name="BatchTarget")
+        self._patcher = patch(BULK_LOG_ACTIONS_PATH)
+        self.mock_bulk = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_batch_endpoint_calls_bulk_log_actions(self):
+        """The batch endpoint calls bulk_log_actions with correct args."""
+        payload = {
+            "actions": [
+                {"action_type": "test.widget.table_edited", "metadata": {"name": "T"}},
+                {"action_type": "test.widget.comment_created", "metadata": {}},
+            ]
+        }
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_bulk.assert_called_once()
+        kwargs = _bulk_kwargs(self.mock_bulk)
+        self.assertEqual(kwargs["user"], self.user)
+        self.assertEqual(kwargs["target_type"], "test.widget")
+        self.assertEqual(kwargs["target_id"], self.widget.pk)
+        self.assertEqual(len(kwargs["actions"]), 2)
+
+    def test_batch_endpoint_shared_request_id(self):
+        """All actions in the batch share a single request_id."""
+        payload = {
+            "actions": [
+                {"action_type": "test.widget.table_edited", "metadata": {}},
+                {"action_type": "test.widget.comment_created", "metadata": {}},
+            ]
+        }
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        kwargs = _bulk_kwargs(self.mock_bulk)
+        # Same request_id passed to bulk_log_actions
+        self.assertIsNotNone(kwargs["request_id"])
+        # Response returns the request_id
+        self.assertIn("request_id", response.data)
+        self.assertEqual(len(str(response.data["request_id"])), 36)
+
+    def test_batch_endpoint_captures_client_ip(self):
+        """client_ip is captured from the request."""
+        payload = {
+            "actions": [{"action_type": "test.widget.table_edited", "metadata": {}}]
+        }
+        self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        kwargs = _bulk_kwargs(self.mock_bulk)
+        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+
+    def test_batch_endpoint_returns_count_and_request_id(self):
+        """Response includes count and request_id."""
+        payload = {
+            "actions": [
+                {"action_type": "test.widget.a", "metadata": {}},
+                {"action_type": "test.widget.b", "metadata": {}},
+                {"action_type": "test.widget.c", "metadata": {}},
+            ]
+        }
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("count", response.data)
+        self.assertIn("request_id", response.data)
+
+    def test_batch_endpoint_fail_open(self):
+        """Logging failure does not break the response (fail-open)."""
+        payload = {
+            "actions": [{"action_type": "test.widget.table_edited", "metadata": {}}]
+        }
+        with patch(BULK_LOG_ACTIONS_PATH, side_effect=RuntimeError("DB down")):
+            response = self.client.post(
+                f"/api/widgets/{self.widget.pk}/actions/batch/",
+                payload,
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_batch_endpoint_rejects_empty_actions(self):
+        """Empty actions list is rejected with 400."""
+        payload = {"actions": []}
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_batch_endpoint_rejects_missing_action_type(self):
+        """Action entry without action_type is rejected with 400."""
+        payload = {"actions": [{"metadata": {}}]}
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_batch_endpoint_rejects_non_triple_dotted_action_type(self):
+        """Action entry with non-triple-dotted action_type is rejected."""
+        payload = {"actions": [{"action_type": "not_enough_dots", "metadata": {}}]}
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_batch_endpoint_requires_authentication(self):
+        """Unauthenticated requests are rejected."""
+        self.client.force_authenticate(user=None)
+        payload = {
+            "actions": [{"action_type": "test.widget.table_edited", "metadata": {}}]
+        }
+        response = self.client.post(
+            f"/api/widgets/{self.widget.pk}/actions/batch/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)

@@ -1,3 +1,6 @@
+import logging
+import uuid
+
 import django.db.models
 from django.db import IntegrityError
 
@@ -7,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
-from core.actions.logger import log_action
+from core.actions.logger import bulk_log_actions, log_action
 from core.actions.mixins import ActionLoggingMixin, logs_action
 
 from core_mods.tags.models import Tag
@@ -17,10 +20,13 @@ from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
     ElnActionSerializer,
+    ElnActionBatchSerializer,
     ElnActionCreateSerializer,
     ProtocolSerializer,
 )
 from .sync import sync_entry_content
+
+eln_logger = logging.getLogger(__name__)
 
 
 DEFAULT_SAVE_MODE = "manual"
@@ -302,6 +308,60 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         read_serializer = ElnActionSerializer(action)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="actions/batch")
+    def entry_actions_batch(self, request, display_id=None):
+        """POST /api/eln/entries/{display_id}/actions/batch/
+
+        Accept a batched list of block-level action log entries.
+        Creates all action rows in a single bulk insert per mod table.
+
+        Body:
+            {
+                "actions": [
+                    {"action_type": "eln.table.edited", "metadata": {...}},
+                    {"action_type": "eln.comment.created", "metadata": {...}},
+                ]
+            }
+
+        ``performed_by`` is derived from ``request.user``.
+        ``target_type`` and ``target_id`` are derived from the route.
+        All actions in the batch share a single ``request_id``.
+
+        Returns 201 with ``{count, request_id}``.  Fail-open: logging
+        failure never breaks the response.
+        """
+        entry = self.get_object()
+        serializer = ElnActionBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        batch_request_id = uuid.uuid4()
+        client_ip = request.META.get("REMOTE_ADDR", "")
+
+        try:
+            results = bulk_log_actions(
+                user=request.user,
+                actions=serializer.validated_data["actions"],
+                target_type="eln.entry",
+                target_id=entry.id,
+                request_id=batch_request_id,
+                client_ip=client_ip or None,
+            )
+            return Response(
+                {"count": len(results), "request_id": str(batch_request_id)},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception:
+            eln_logger.exception(
+                "Batch action logging failed for entry %s (display_id=%s)",
+                entry.id,
+                display_id,
+            )
+            # Fail-open: return success even if logging fails.
+            return Response(
+                {"count": 0, "request_id": str(batch_request_id)},
+                status=status.HTTP_201_CREATED,
+            )
 
     # ── Lock helpers ──────────────────────────────────────────────────────
 

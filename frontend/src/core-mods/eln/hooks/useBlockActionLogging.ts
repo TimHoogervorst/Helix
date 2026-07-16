@@ -163,8 +163,9 @@ export function useBlockActionLogging(
       const actions = Array.from(pending.values());
       if (actions.length === 0) return;
 
-      // Clear immediately so new events start a fresh batch for the next
-      // save cycle, regardless of whether the POST succeeds.
+      // Capture keys before clearing so we can emit them after a
+      // successful POST for exact pending-item reconciliation.
+      const flushedKeys = Array.from(pending.keys());
       pending.clear();
 
       try {
@@ -172,6 +173,10 @@ export function useBlockActionLogging(
           `/eln/entries/${id}/actions/batch/`,
           { actions } satisfies BatchActionsRequest,
         );
+        // Notify listeners which keys were flushed so they can reconcile
+        // optimistic pending items by exact blockInstanceId:verb match
+        // (no fragile timestamp window).
+        bus.emit("eln.actions.flushed", { keys: flushedKeys });
       } catch (err) {
         // Fail-open: logging failure never breaks the UI.
         console.warn(

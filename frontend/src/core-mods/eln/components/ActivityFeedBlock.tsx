@@ -82,33 +82,6 @@ function createPendingItem(
   };
 }
 
-// ── Reconciliation ──────────────────────────────────────────────────────────
-
-/**
- * Reconcile pending items against confirmed server items.
- *
- * A pending item is considered reconciled when a confirmed item exists with
- * the same `actionType` and a `createdAt` within ±5 seconds. Reconciled
- * items are removed — the server version takes precedence.
- */
-const RECONCILE_WINDOW_MS = 5000;
-
-function reconcilePending(
-  pending: DisplayActionItem[],
-  confirmed: DisplayActionItem[],
-): DisplayActionItem[] {
-  return pending.filter((p) => {
-    const pendingTime = new Date(p.createdAt).getTime();
-    return !confirmed.some((c) => {
-      const confirmedTime = new Date(c.createdAt).getTime();
-      return (
-        c.actionType === p.actionType &&
-        Math.abs(confirmedTime - pendingTime) < RECONCILE_WINDOW_MS
-      );
-    });
-  });
-}
-
 // ── Block component ─────────────────────────────────────────────────────────
 
 /**
@@ -116,11 +89,16 @@ function reconcilePending(
  *
  * Fetches initial actions from the API, then subscribes to all block
  * lifecycle events on the workspace bus. Each event produces an
- * optimistically-pending item and triggers a refetch. On refetch
- * completion, pending items are reconciled against confirmed server rows.
+ * optimistically-pending item. Suppresses pending-item creation during
+ * programmatic content loads (e.g. initial server payload) via the
+ * `eln.editor.content-loading` bus event.
  *
- * Also subscribes to `{modId}.entry.saved` so the feed refreshes after
- * the batch action-logging flush on save.
+ * Pending items are cleared when `useBlockActionLogging` flushes accumulated
+ * actions to the backend on save. The flushed keys are emitted on the bus as
+ * `eln.actions.flushed` — we match by `blockInstanceId:actionType` for
+ * reliable reconciliation without fragile timestamp windows.
+ *
+ * Refetches confirmed actions from the API on `{modId}.entry.saved`.
  */
 export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
   const entryId = context.entryId;
@@ -136,21 +114,6 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
     [actions],
   );
 
-  // Reconcile pending items whenever confirmed items change (refetch completes)
-  useEffect(() => {
-    if (confirmedItems.length > 0 && pendingItems.length > 0) {
-      setPendingItems((prev) => {
-        const remaining = reconcilePending(prev, confirmedItems);
-        // Only update state if something actually changed
-        if (remaining.length !== prev.length) return remaining;
-        return prev;
-      });
-    }
-    // Only run when confirmed items change — pendingItems is read via
-    // functional setState so it doesn't need to be in the dep array.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmedItems]);
-
   // Merge confirmed + pending, most recent first
   const displayActions = useMemo<DisplayActionItem[]>(() => {
     const all = [...confirmedItems, ...pendingItems];
@@ -161,9 +124,17 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
     return all;
   }, [confirmedItems, pendingItems]);
 
-  // ── Bus subscriptions: pending items on lifecycle events, refetch on save ──
+  // ── Bus subscriptions ──────────────────────────────────────────────────
   const refetchRef = useRef(refetch);
   refetchRef.current = refetch;
+
+  // Suppression via content-loading events (editor → sidebar signal).
+  // Falls back to isLoadingRef because React effect ordering means the
+  // editor's content-loading effect fires before the sidebar's
+  // subscription effect — the event is missed on initial load.
+  const suppressRef = useRef(false);
+  const isLoadingRef = useRef(isLoading);
+  isLoadingRef.current = isLoading;
 
   useEffect(() => {
     if (!bus) return;
@@ -172,6 +143,16 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
     const blocks = registry.getBlocks();
     const unsubs: Array<() => void> = [];
 
+    // ── Suppression gate: skip pending items during programmatic loads ──
+    const loadingUnsub = bus.on(
+      `${workspaceId}.editor.content-loading`,
+      (payload: unknown) => {
+        suppressRef.current = payload as boolean;
+      },
+    );
+    unsubs.push(loadingUnsub);
+
+    // ── Block lifecycle events → optimistic pending items ──────────────
     for (const [blockId, block] of blocks) {
       // Only subscribe for new-shape blocks (they have `component`)
       if (!("component" in block)) continue;
@@ -179,6 +160,12 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
       for (const verb of VERBS) {
         const eventName = `${blockId}.${verb}`;
         const unsub = bus.on(eventName, (payload: unknown) => {
+          // Skip pending items while the initial fetch is in flight
+          // (covers page load where content-loading event is missed due
+          // to React effect ordering) and during programmatic content
+          // loads signalled by the editor.
+          if (isLoadingRef.current || suppressRef.current) return;
+
           const p = payload as BlockLifecyclePayload;
 
           // Derive human-readable message from block registration
@@ -190,7 +177,7 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
             : `${block.label} was ${verb}`;
 
           // Dedup: replace any existing pending item for the same
-          // (actionType, blockInstanceId) so repeated edits don't stack.
+          // (blockInstanceId, actionType) so repeated edits don't stack.
           const dedupKey = `${p.blockInstanceId}:${eventName}`;
           setPendingItems((prev) => {
             const filtered = prev.filter(
@@ -198,7 +185,8 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
                 !(
                   item.state === "pending" &&
                   item.metadata?.blockInstanceId &&
-                  `${item.metadata.blockInstanceId}:${item.actionType}` === dedupKey
+                  `${item.metadata.blockInstanceId}:${item.actionType}` ===
+                    dedupKey
                 ),
             );
             const pending = createPendingItem(
@@ -208,16 +196,49 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
             );
             return [pending, ...filtered];
           });
-
-          // Refetch from server to reconcile
-          refetchRef.current();
+          // No refetch here — actions aren't persisted until save.
+          // The pending item provides optimistic feedback until then.
         });
         unsubs.push(unsub);
       }
     }
 
-    // ── Refetch on entry save so batch-flushed actions appear ──────────
+    // ── Actions flushed: clear matching pending items ──────────────────
+    // useBlockActionLogging emits this after a successful batch POST,
+    // carrying the `${blockInstanceId}:${verb}` keys that were flushed.
+    // We match on `metadata.blockInstanceId + ":" + actionType` —
+    // exact matching, no fragile timestamp window.
+    const flushedUnsub = bus.on(
+      "eln.actions.flushed",
+      (payload: unknown) => {
+        const { keys } = payload as { keys: string[] };
+        const keySet = new Set(keys);
+        setPendingItems((prev) =>
+          prev.filter(
+            (item) =>
+              !(
+                item.state === "pending" &&
+                item.metadata?.blockInstanceId &&
+                keySet.has(
+                  `${item.metadata.blockInstanceId}:${item.actionType}`,
+                )
+              ),
+          ),
+        );
+        // Refetch so the newly flushed actions appear as confirmed rows.
+        refetchRef.current();
+      },
+    );
+    unsubs.push(flushedUnsub);
+
+    // ── Refetch + clear on entry save ─────────────────────────────────
+    // When the entry saves, all accumulated actions are flushed to the
+    // backend. Clear all pending items and refetch to get the confirmed
+    // server rows. This is a safety net: even if content-loading
+    // suppression misses a page-load event, or reconciliation timing is
+    // off, the save event guarantees pending items don't stick forever.
     const saveUnsub = bus.on(`${workspaceId}.entry.saved`, () => {
+      setPendingItems([]);
       refetchRef.current();
     });
     unsubs.push(saveUnsub);

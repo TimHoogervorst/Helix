@@ -17,6 +17,7 @@ from helix_core.mod_system.loader import (
     _get_all_manifests,
     _load_external_mods_from_json,
     _load_manifests_from_paths,
+    _read_json_manifest,
     _sanitize_module_name,
     _topological_sort,
     _validate_manifest_set,
@@ -517,6 +518,438 @@ class TestGetHelixMods:
         )
 
         with pytest.raises(ValueError, match="expected id 'mismatch'"):
+            get_helix_mods(base_dir=tmp_path)
+
+
+# ── helpers for JSON manifest tests ──────────────────────────────────────────
+
+
+def _make_json_manifest_file(
+    mod_dir: Path,
+    mod_id: str,
+    depends_on: list[str | dict[str, str]] | None = None,
+    version: str | None = "0.1.0",
+    core_version: str | None = None,
+    icon: str | None = None,
+    description: str | None = None,
+) -> Path:
+    """Create a ``modManifest.json`` file in a mod directory.
+
+    Args:
+        mod_dir: The mod directory path.
+        mod_id: The mod ID.
+        depends_on: List of dependency entries (strings or dicts).
+        version: Semver version string.
+        core_version: Optional minimum platform version.
+        icon: Optional legacy icon name.
+        description: Optional short description.
+
+    Returns:
+        The path to the created JSON file.
+    """
+    data: dict = {
+        "id": mod_id,
+        "displayName": mod_id.title(),
+    }
+    if version is not None:
+        data["version"] = version
+    if depends_on is not None:
+        data["dependsOn"] = depends_on
+    if core_version is not None:
+        data["coreVersion"] = core_version
+    if icon is not None:
+        data["icon"] = icon
+    if description is not None:
+        data["description"] = description
+
+    json_path = mod_dir / "modManifest.json"
+    json_path.write_text(json.dumps(data))
+    return json_path
+
+
+def _make_mod_dir_with_json(
+    base: Path,
+    mod_id: str,
+    depends_on: list[str | dict[str, str]] | None = None,
+    json_depends_on: list[str | dict[str, str]] | None = None,
+    with_mod_py: bool = True,
+) -> Path:
+    """Create a mod directory with ``modManifest.json`` and optionally ``mod.py``.
+
+    When *with_mod_py* is True, a ``mod.py`` is also created so that the
+    directory passes the ``__init__.py`` check.  The JSON is always created.
+
+    If *json_depends_on* is provided, it is used in the JSON file while
+    *depends_on* goes into ``mod.py``.  This lets tests set up mismatched
+    manifests to verify JSON preference.
+
+    Args:
+        base: The ``core_mods/`` directory path.
+        mod_id: The mod ID (also used as the directory name).
+        depends_on: List of dependency entries for ``mod.py``.
+        json_depends_on: List of dependency entries for ``modManifest.json``.
+            Defaults to *depends_on* when not set.
+        with_mod_py: If True, also create a ``mod.py`` and ``__init__.py``.
+
+    Returns:
+        The created mod directory path.
+    """
+    mod_dir = base / mod_id
+    mod_dir.mkdir(parents=True, exist_ok=True)
+
+    _make_json_manifest_file(
+        mod_dir,
+        mod_id,
+        depends_on=json_depends_on if json_depends_on is not None else depends_on,
+    )
+
+    if with_mod_py:
+        (mod_dir / "__init__.py").write_text("")
+        _make_mod_dir(base, mod_id, depends_on=depends_on)
+
+    return mod_dir
+
+
+# ── _read_json_manifest ─────────────────────────────────────────────────────
+
+
+class TestReadJsonManifest:
+    """Tests for _read_json_manifest."""
+
+    def test_reads_valid_json_manifest(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        _make_json_manifest_file(mod_dir, "my-mod")
+
+        manifest = _read_json_manifest(mod_dir, "my-mod")
+        assert isinstance(manifest, ModManifest)
+        assert manifest.id == "my-mod"
+        assert manifest.display_name == "My-Mod"
+        assert manifest.version == "0.1.0"
+        assert manifest.depends_on == []
+
+    def test_reads_with_string_dependencies(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        _make_json_manifest_file(mod_dir, "my-mod", depends_on=["tags", "users"])
+
+        manifest = _read_json_manifest(mod_dir, "my-mod")
+        assert manifest.depends_on == ["tags", "users"]
+        assert manifest.dependency_ids == ["tags", "users"]
+
+    def test_reads_with_object_dependencies(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        _make_json_manifest_file(
+            mod_dir,
+            "my-mod",
+            depends_on=["tags", {"id": "lims", "version": ">=2.0"}],
+        )
+
+        manifest = _read_json_manifest(mod_dir, "my-mod")
+        assert manifest.depends_on == ["tags", {"id": "lims", "version": ">=2.0"}]
+        assert manifest.dependency_ids == ["tags", "lims"]
+
+    def test_reads_all_optional_fields(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        _make_json_manifest_file(
+            mod_dir,
+            "my-mod",
+            version="2.0.0",
+            core_version=">=1.0",
+            icon="flask-conical",
+            description="A test mod",
+        )
+
+        manifest = _read_json_manifest(mod_dir, "my-mod")
+        assert manifest.version == "2.0.0"
+        assert manifest.core_version == ">=1.0"
+        assert manifest.icon == "flask-conical"
+        assert manifest.description == "A test mod"
+
+    def test_missing_file_raises(self, tmp_path):
+        mod_dir = tmp_path / "no-json"
+        mod_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError, match="modManifest.json not found"):
+            _read_json_manifest(mod_dir, "no-json")
+
+    def test_invalid_json_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text("{ not valid json")
+
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+    def test_missing_id_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text(
+            json.dumps({"displayName": "No Id"})
+        )
+
+        with pytest.raises(ValueError, match="missing required field 'id'"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+    def test_missing_display_name_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text(
+            json.dumps({"id": "my-mod"})
+        )
+
+        with pytest.raises(ValueError, match="missing required field 'displayName'"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+    def test_non_object_json_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text(json.dumps([1, 2, 3]))
+
+        with pytest.raises(ValueError, match="must be a JSON object"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+    def test_id_mismatch_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        _make_json_manifest_file(mod_dir, "wrong-id")
+
+        with pytest.raises(ValueError, match="expected id 'my-mod'"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+    def test_invalid_depends_on_type_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text(json.dumps({
+            "id": "my-mod",
+            "displayName": "My Mod",
+            "dependsOn": "not-a-list",
+        }))
+
+        with pytest.raises(TypeError, match="depends_on must be a list"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+    def test_empty_display_name_raises(self, tmp_path):
+        mod_dir = tmp_path / "my-mod"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text(json.dumps({
+            "id": "my-mod",
+            "displayName": "",
+        }))
+
+        with pytest.raises(ValueError, match="display_name must be a non-empty string"):
+            _read_json_manifest(mod_dir, "my-mod")
+
+
+# ── _auto_discover with modManifest.json ────────────────────────────────────
+
+
+class TestAutoDiscoverWithJsonManifest:
+    """Auto-discovery tests for modManifest.json support."""
+
+    def test_discovers_json_manifest(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        mod_dir = core_mods / "my-mod"
+        mod_dir.mkdir()
+        _make_json_manifest_file(mod_dir, "my-mod")
+
+        result = _auto_discover(tmp_path)
+        assert "my-mod" in result
+        assert result["my-mod"].id == "my-mod"
+
+    def test_prefers_json_when_both_present(self, tmp_path):
+        """When both modManifest.json and mod.py exist, JSON wins."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        # JSON says depends on "tags", mod.py says depends on "users"
+        _make_mod_dir_with_json(
+            core_mods,
+            "my-mod",
+            depends_on=["users"],
+            json_depends_on=["tags"],
+        )
+
+        result = _auto_discover(tmp_path)
+        assert result["my-mod"].depends_on == ["tags"]
+
+    def test_falls_back_to_mod_py_when_no_json(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+
+        result = _auto_discover(tmp_path)
+        assert "tags" in result
+        assert result["tags"].id == "tags"
+
+    def test_skips_directory_with_neither(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        (core_mods / "empty").mkdir()
+
+        result = _auto_discover(tmp_path)
+        assert "empty" not in result
+
+    def test_handles_mixed_json_and_mod_py(self, tmp_path):
+        """Some mods have JSON, some have mod.py."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        # JSON-only mod
+        json_dir = core_mods / "json-mod"
+        json_dir.mkdir()
+        _make_json_manifest_file(json_dir, "json-mod")
+        # mod.py-only mod
+        _make_mod_dir(core_mods, "py-mod")
+
+        result = _auto_discover(tmp_path)
+        assert set(result.keys()) == {"json-mod", "py-mod"}
+
+    def test_json_manifest_with_dependencies_integration(self, tmp_path):
+        """Auto-discover mods with JSON manifests and validate dependencies."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir_with_json(
+            core_mods,
+            "eln",
+            depends_on=["tags", "lims"],
+            json_depends_on=["tags", "lims"],
+            with_mod_py=True,
+        )
+        _make_mod_dir(core_mods, "tags")
+        _make_mod_dir(core_mods, "lims")
+
+        manifests = _auto_discover(tmp_path)
+        assert set(manifests.keys()) == {"eln", "tags", "lims"}
+        # eln should use JSON manifest
+        assert manifests["eln"].depends_on == ["tags", "lims"]
+
+    def test_invalid_json_in_auto_discover_raises(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        mod_dir = core_mods / "bad-json"
+        mod_dir.mkdir()
+        (mod_dir / "modManifest.json").write_text("{ not json")
+
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _auto_discover(tmp_path)
+
+
+# ── _load_manifests_from_paths with modManifest.json ────────────────────────
+
+
+class TestLoadManifestsFromPathsWithJsonManifest:
+    """Tests for _load_manifests_from_paths with modManifest.json support."""
+
+    def test_prefers_json_when_present(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(tmp_path))
+
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        (core_mods / "__init__.py").write_text("")
+        _make_mod_dir_with_json(
+            core_mods,
+            "my-mod",
+            depends_on=["users"],
+            json_depends_on=["tags"],
+        )
+
+        try:
+            result = _load_manifests_from_paths(["core_mods.my-mod"])
+            assert result["my-mod"].depends_on == ["tags"]
+        finally:
+            sys.path.remove(str(tmp_path))
+
+    def test_json_only_mod(self, tmp_path):
+        """A mod directory with only modManifest.json (no mod.py) is loadable."""
+        import sys
+        sys.path.insert(0, str(tmp_path))
+
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        (core_mods / "__init__.py").write_text("")
+        mod_dir = core_mods / "json-only"
+        mod_dir.mkdir()
+        (mod_dir / "__init__.py").write_text("")
+        _make_json_manifest_file(mod_dir, "json-only")
+
+        try:
+            result = _load_manifests_from_paths(["core_mods.json-only"])
+            assert result["json-only"].id == "json-only"
+        finally:
+            sys.path.remove(str(tmp_path))
+
+    def test_directory_with_neither_raises(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(tmp_path))
+
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        (core_mods / "__init__.py").write_text("")
+        empty_dir = core_mods / "empty"
+        empty_dir.mkdir()
+        (empty_dir / "__init__.py").write_text("")
+
+        try:
+            with pytest.raises(ImportError, match="neither"):
+                _load_manifests_from_paths(["core_mods.empty"])
+        finally:
+            sys.path.remove(str(tmp_path))
+
+
+# ── get_helix_mods integration with JSON manifests ──────────────────────────
+
+
+class TestGetHelixModsWithJsonManifests:
+    """Integration tests for get_helix_mods() with modManifest.json."""
+
+    def test_auto_discovery_with_json_manifests(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir_with_json(
+            core_mods,
+            "eln",
+            depends_on=["tags"],
+            json_depends_on=["tags", "lims"],
+        )
+        _make_mod_dir(core_mods, "tags")
+        _make_mod_dir(core_mods, "lims")
+
+        result = get_helix_mods(base_dir=tmp_path)
+        # tags and lims must come before eln
+        assert result.index("core_mods.tags") < result.index("core_mods.eln")
+        assert result.index("core_mods.lims") < result.index("core_mods.eln")
+
+    def test_mixed_json_and_py_manifests(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        # JSON manifest for eln
+        _make_mod_dir_with_json(
+            core_mods,
+            "eln",
+            depends_on=["users"],
+            json_depends_on=["tags"],
+        )
+        _make_mod_dir(core_mods, "tags")
+        _make_mod_dir(core_mods, "users")
+
+        result = get_helix_mods(base_dir=tmp_path)
+        # tags must come before eln (JSON deps win)
+        assert result.index("core_mods.tags") < result.index("core_mods.eln")
+
+    def test_json_manifest_missing_dependency_detected(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir_with_json(
+            core_mods,
+            "eln",
+            depends_on=["nonexistent"],
+            json_depends_on=["nonexistent"],
+        )
+
+        with pytest.raises(ValueError, match="nonexistent"):
             get_helix_mods(base_dir=tmp_path)
 
 

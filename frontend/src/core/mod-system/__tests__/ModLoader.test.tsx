@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { topologicalSort, ModLoader } from "../ModLoader";
+import {
+  topologicalSort,
+  extractModDir,
+  parseJsonManifest,
+  ModLoader,
+} from "../ModLoader";
 import { ModRegistry } from "../ModRegistry";
 import type { ModManifest } from "../types";
 
@@ -199,6 +204,246 @@ describe("topologicalSort", () => {
       expect(mod.meta.coreVersion).toBe(">=2.0");
       expect(mod.meta.icon).toBe("flask-conical");
       expect(mod.meta.description).toBe("A test mod for science");
+    });
+  });
+
+  // ── extractModDir Tests ─────────────────────────────────────────────────
+
+  describe("extractModDir", () => {
+    it("extracts directory name from index.ts path", () => {
+      expect(extractModDir("../../core-mods/eln/index.ts")).toBe("eln");
+    });
+
+    it("extracts directory name from modManifest.json path", () => {
+      expect(
+        extractModDir("../../core-mods/tags/modManifest.json"),
+      ).toBe("tags");
+    });
+
+    it("extracts directory name with hyphens", () => {
+      expect(
+        extractModDir("../../core-mods/my-plugin/index.ts"),
+      ).toBe("my-plugin");
+    });
+
+    it("handles deeply nested paths", () => {
+      expect(
+        extractModDir("/home/user/project/src/core-mods/lims/index.ts"),
+      ).toBe("lims");
+    });
+  });
+
+  // ── parseJsonManifest Tests ─────────────────────────────────────────────
+
+  describe("parseJsonManifest", () => {
+    const testPath = "../../core-mods/test-mod/modManifest.json";
+
+    it("parses a minimal valid JSON manifest", () => {
+      const manifest = parseJsonManifest(
+        { id: "test-mod", displayName: "Test Mod" },
+        testPath,
+      );
+      expect(manifest.id).toBe("test-mod");
+      expect(manifest.displayName).toBe("Test Mod");
+      expect(manifest.version).toBeUndefined();
+      expect(manifest.dependsOn).toEqual([]);
+      expect(manifest.coreVersion).toBeUndefined();
+      expect(manifest.icon).toBeUndefined();
+      expect(manifest.description).toBeUndefined();
+    });
+
+    it("parses a full JSON manifest with all optional fields", () => {
+      const manifest = parseJsonManifest(
+        {
+          id: "full-mod",
+          displayName: "Full Mod",
+          version: "2.0.0",
+          dependsOn: ["tags", "lims"],
+          coreVersion: ">=1.0",
+          icon: "flask-conical",
+          description: "A complete test mod",
+        },
+        testPath,
+      );
+      expect(manifest.id).toBe("full-mod");
+      expect(manifest.displayName).toBe("Full Mod");
+      expect(manifest.version).toBe("2.0.0");
+      expect(manifest.dependsOn).toEqual(["tags", "lims"]);
+      expect(manifest.coreVersion).toBe(">=1.0");
+      expect(manifest.icon).toBe("flask-conical");
+      expect(manifest.description).toBe("A complete test mod");
+    });
+
+    it("parses object-form dependsOn entries", () => {
+      const manifest = parseJsonManifest(
+        {
+          id: "test-mod",
+          displayName: "Test Mod",
+          dependsOn: [
+            "tags",
+            { id: "lims", version: ">=2.0" },
+          ],
+        },
+        testPath,
+      );
+      expect(manifest.dependsOn).toEqual([
+        "tags",
+        { id: "lims", version: ">=2.0" },
+      ]);
+    });
+
+    it("parses object-form dependsOn without version", () => {
+      const manifest = parseJsonManifest(
+        {
+          id: "test-mod",
+          displayName: "Test Mod",
+          dependsOn: [{ id: "lims" }],
+        },
+        testPath,
+      );
+      expect(manifest.dependsOn).toEqual([{ id: "lims" }]);
+    });
+
+    it("defaults dependsOn to empty array when missing", () => {
+      const manifest = parseJsonManifest(
+        { id: "test-mod", displayName: "Test Mod" },
+        testPath,
+      );
+      expect(manifest.dependsOn).toEqual([]);
+    });
+
+    it("skips undefined optional fields", () => {
+      const manifest = parseJsonManifest(
+        {
+          id: "test-mod",
+          displayName: "Test Mod",
+          version: undefined,
+          coreVersion: undefined,
+          icon: undefined,
+          description: undefined,
+        },
+        testPath,
+      );
+      expect(manifest.version).toBeUndefined();
+      expect(manifest.coreVersion).toBeUndefined();
+      expect(manifest.icon).toBeUndefined();
+      expect(manifest.description).toBeUndefined();
+    });
+
+    // ── Error cases ────────────────────────────────────────────────────
+
+    it("throws on missing id field", () => {
+      expect(() =>
+        parseJsonManifest(
+          { displayName: "No Id" } as Record<string, unknown>,
+          testPath,
+        ),
+      ).toThrow("missing required field 'id'");
+    });
+
+    it("throws on empty id string", () => {
+      expect(() =>
+        parseJsonManifest(
+          { id: "", displayName: "Empty Id" },
+          testPath,
+        ),
+      ).toThrow("missing required field 'id'");
+    });
+
+    it("throws on missing displayName field", () => {
+      expect(() =>
+        parseJsonManifest(
+          { id: "test-mod" } as Record<string, unknown>,
+          testPath,
+        ),
+      ).toThrow("missing required field 'displayName'");
+    });
+
+    it("throws on empty displayName string", () => {
+      expect(() =>
+        parseJsonManifest(
+          { id: "test-mod", displayName: "" },
+          testPath,
+        ),
+      ).toThrow("missing required field 'displayName'");
+    });
+
+    it("throws on non-array dependsOn", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            id: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: "not-an-array",
+          },
+          testPath,
+        ),
+      ).toThrow("'dependsOn' must be an array");
+    });
+
+    it("throws on invalid dependsOn entry type (number)", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            id: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: [42],
+          },
+          testPath,
+        ),
+      ).toThrow("must be a string or an {id, version?} object");
+    });
+
+    it("throws on object-form dependsOn entry without id", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            id: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: [{ version: ">=1.0" }],
+          },
+          testPath,
+        ),
+      ).toThrow("object must have a non-empty 'id' string");
+    });
+
+    it("throws on object-form dependsOn entry with empty id", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            id: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: [{ id: "" }],
+          },
+          testPath,
+        ),
+      ).toThrow("object must have a non-empty 'id' string");
+    });
+
+    it("throws on object-form dependsOn entry with non-string version", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            id: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: [{ id: "lims", version: 2 }],
+          },
+          testPath,
+        ),
+      ).toThrow("version must be a string");
+    });
+
+    it("throws on null dependsOn entry", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            id: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: [null],
+          },
+          testPath,
+        ),
+      ).toThrow("must be a string or an {id, version?} object");
     });
   });
 

@@ -20,6 +20,13 @@ const modModules = import.meta.glob<ModModule>(
   { eager: true },
 );
 
+// JSON manifest glob — eagerly imports all core-mods/*/modManifest.json
+// files at build time. When a directory has both index.ts and
+// modManifest.json, the JSON manifest takes precedence for metadata.
+const jsonManifestModules = import.meta.glob<{
+  default: Record<string, unknown>;
+}>("../../core-mods/*/modManifest.json", { eager: true });
+
 // ── Props ───────────────────────────────────────────────────────────────
 
 interface ModLoaderProps {
@@ -41,6 +48,10 @@ interface ModLoaderProps {
  *
  * All errors are terminal (fail-fast) -- they propagate to React's error
  * boundary. No degraded mode.
+ *
+ * Manifest precedence: when a mod directory contains both ``index.ts``
+ * (with inline ``meta``) and ``modManifest.json``, the JSON file wins
+ * for metadata.  The ``register`` function always comes from ``index.ts``.
  */
 export function ModLoader({ children }: ModLoaderProps) {
   // Boot runs exactly once on mount.  useRef gate prevents duplicate
@@ -51,7 +62,7 @@ export function ModLoader({ children }: ModLoaderProps) {
   useEffect(() => {
     if (didBoot.current) return;
     didBoot.current = true;
-    bootModSystem();
+    bootModSystem(modModules, jsonManifestModules);
     setBooted(true);
   }, []);
 
@@ -66,15 +77,29 @@ export function ModLoader({ children }: ModLoaderProps) {
 
 // ── Boot logic (extracted for testability) ──────────────────────────────
 
-function bootModSystem(): void {
+function bootModSystem(
+  modules: Record<string, ModModule>,
+  jsonModules: Record<string, { default: Record<string, unknown> }>,
+): void {
   const registry = ModRegistry.getInstance();
+
+  // Build a lookup of mod directory → parsed JSON manifest.
+  const jsonManifestMap = buildJsonManifestMap(jsonModules);
 
   // Step 1: Collect all discovered mod modules
   const mods: ModModule[] = [];
-  for (const [path, mod] of Object.entries(modModules)) {
-    if (!mod.meta) {
+  for (const [path, mod] of Object.entries(modules)) {
+    const dirName = extractModDir(path);
+
+    // Prefer JSON manifest for metadata when present.
+    const jsonEntry = jsonManifestMap.get(dirName);
+    const meta: ModManifest = jsonEntry
+      ? jsonEntry.manifest
+      : mod.meta;
+
+    if (!meta) {
       throw new Error(
-        `Mod at '${path}' must export 'meta' (ModManifest).`,
+        `Mod at '${path}' must export 'meta' (ModManifest) or have a modManifest.json.`,
       );
     }
     if (!mod.register || typeof mod.register !== "function") {
@@ -82,7 +107,7 @@ function bootModSystem(): void {
         `Mod at '${path}' must export a 'register' function.`,
       );
     }
-    mods.push(mod);
+    mods.push({ meta, register: mod.register });
   }
 
   // No mods yet — nothing to do
@@ -108,6 +133,132 @@ function bootModSystem(): void {
 
   // Step 5: Validate the populated registry
   registry.validate();
+}
+
+// ── JSON manifest helpers ───────────────────────────────────────────────
+
+/**
+ * Extract the mod directory name from a glob path.
+ *
+ * ``"../../core-mods/eln/index.ts"`` → ``"eln"``
+ * ``"../../core-mods/eln/modManifest.json"`` → ``"eln"``
+ *
+ * @internal Exported for direct unit testing.
+ */
+export function extractModDir(path: string): string {
+  const parts = path.split("/");
+  return parts[parts.length - 2];
+}
+
+/**
+ * Build a map of mod directory name → parsed JSON manifest.
+ *
+ * Validates each ``modManifest.json`` entry.  Errors are thrown
+ * immediately (fail-fast) so bad manifests are caught at boot.
+ *
+ * @internal Exported for direct unit testing.
+ */
+function buildJsonManifestMap(
+  jsonModules: Record<string, { default: Record<string, unknown> }>,
+): Map<string, { manifest: ModManifest; path: string }> {
+  const map = new Map<string, { manifest: ModManifest; path: string }>();
+  for (const [path, jsonModule] of Object.entries(jsonModules)) {
+    const dirName = extractModDir(path);
+    const data = jsonModule.default;
+    const manifest = parseJsonManifest(data, path);
+    map.set(dirName, { manifest, path });
+  }
+  return map;
+}
+
+/**
+ * Parse and validate a ``modManifest.json`` payload into a ``ModManifest``.
+ *
+ * The JSON uses camelCase keys matching the frontend schema:
+ *
+ * .. code-block:: json
+ *
+ *    {
+ *      "id": "eln",
+ *      "displayName": "Electronic Lab Notebook",
+ *      "version": "0.1.0",
+ *      "dependsOn": ["lims", "tags"]
+ *    }
+ *
+ * Object-form dependencies are supported:
+ *
+ * .. code-block:: json
+ *
+ *    {
+ *      "dependsOn": [
+ *        "lims",
+ *        {"id": "tags", "version": ">=2.0"}
+ *      ]
+ *    }
+ *
+ * @param data - The parsed JSON object from ``modManifest.json``.
+ * @param path - The glob path, used in error messages.
+ * @returns A validated ``ModManifest``.
+ * @throws If required fields are missing or have the wrong type.
+ *
+ * @internal Exported for direct unit testing.
+ */
+export function parseJsonManifest(
+  data: Record<string, unknown>,
+  path: string,
+): ModManifest {
+  if (typeof data.id !== "string" || !data.id) {
+    throw new Error(
+      `modManifest.json at '${path}' is missing required field 'id'.`,
+    );
+  }
+  if (typeof data.displayName !== "string" || !data.displayName) {
+    throw new Error(
+      `modManifest.json at '${path}' is missing required field 'displayName'.`,
+    );
+  }
+
+  const dependsOn = data.dependsOn ?? [];
+  if (!Array.isArray(dependsOn)) {
+    throw new Error(
+      `modManifest.json at '${path}': 'dependsOn' must be an array.`,
+    );
+  }
+
+  // Validate each dependsOn entry is a string or an {id, version?} object.
+  for (let i = 0; i < dependsOn.length; i++) {
+    const entry = dependsOn[i];
+    if (typeof entry === "string") continue;
+    if (typeof entry === "object" && entry !== null) {
+      const obj = entry as Record<string, unknown>;
+      if (typeof obj.id !== "string" || !obj.id) {
+        throw new Error(
+          `modManifest.json at '${path}': dependsOn[${i}] object must have a non-empty 'id' string.`,
+        );
+      }
+      if (obj.version !== undefined && typeof obj.version !== "string") {
+        throw new Error(
+          `modManifest.json at '${path}': dependsOn[${i}].version must be a string.`,
+        );
+      }
+      continue;
+    }
+    throw new Error(
+      `modManifest.json at '${path}': dependsOn[${i}] must be a string or an {id, version?} object.`,
+    );
+  }
+
+  return {
+    id: data.id,
+    displayName: data.displayName,
+    version: typeof data.version === "string" ? data.version : undefined,
+    dependsOn: dependsOn as (string | { id: string; version?: string })[],
+    coreVersion:
+      typeof data.coreVersion === "string" ? data.coreVersion : undefined,
+    icon: typeof data.icon === "string" ? data.icon : undefined,
+    description:
+      typeof data.description === "string" ? data.description : undefined,
+  };
 }
 
 // ── Topological Sort (Kahn's algorithm) ─────────────────────────────────

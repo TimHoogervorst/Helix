@@ -4,6 +4,7 @@ import PinnedWorkspacesSidebar from "./components/PinnedWorkspacesSidebar";
 export const meta = {
   id: "pins",
   displayName: "Pinned Workspaces",
+  version: "0.1.0",
   dependsOn: [],
 };
 

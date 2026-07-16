@@ -5,6 +5,7 @@ import { registerRoute, registerPublicRoute, registerSettingsSection } from "../
 export const meta = {
   id: "users",
   displayName: "Users",
+  version: "0.1.0",
   dependsOn: [] as string[],
 };
 

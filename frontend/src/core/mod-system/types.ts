@@ -12,6 +12,8 @@ export interface ModManifest {
   id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
+  /** Semver version string. Documentation-only for now; parsed later. */
+  version: string;
   /** Mod IDs that must load before this mod. */
   dependsOn: string[];
 }

@@ -24,6 +24,7 @@ import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
 export const meta = {
   id: "eln",
   displayName: "ELN",
+  version: "0.1.0",
   dependsOn: ["lims", "tags"] as string[],
 };
 
@@ -107,6 +108,7 @@ export function register() {
     component: TableBlockComponent,
     listensTo: [],
     onEvent: {},
+    tags: ["data", "spreadsheet"],
     getDisplayName: (attrs) => (attrs.title as string) || "Table",
     messages: {
       created: "Table '{name}' created",
@@ -138,6 +140,7 @@ export function register() {
     component: LimsTableBlockComponent,
     listensTo: [],
     onEvent: {},
+    tags: ["data", "spreadsheet", "legacy"],
     getDisplayName: (attrs) => ((attrs.schemaName || attrs.title) as string) || "Table",
     messages: {
       created: "Legacy Table '{name}' created",
@@ -178,6 +181,7 @@ export function register() {
     component: CommentBlockComponent,
     listensTo: [],
     onEvent: {},
+    tags: ["discussion", "annotation"],
     getDisplayName: (attrs) => {
       const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
       return thread?.[0]?.authorName || "Comment";
@@ -205,6 +209,7 @@ export function register() {
     component: ProtocolBlockComponent,
     listensTo: [],
     onEvent: {},
+    tags: ["procedure", "workflow"],
     getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
     messages: {
       created: "Protocol '{name}' created",

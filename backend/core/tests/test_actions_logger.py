@@ -17,26 +17,26 @@ class LoggerDispatchTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        import core.actions.registry as reg
-        cls._saved_registry = reg._registry.copy()
+        from helix_core.mod_system.registry import registry as backend_registry
+        cls._saved_action_models = dict(backend_registry._action_models)
 
     @classmethod
     def tearDownClass(cls):
-        import core.actions.registry as reg
-        reg._registry.clear()
-        reg._registry.update(cls._saved_registry)
+        from helix_core.mod_system.registry import registry as backend_registry
+        backend_registry._action_models.clear()
+        backend_registry._action_models.update(cls._saved_action_models)
         super().tearDownClass()
 
     def setUp(self):
-        import core.actions.registry as reg
-        self._saved_registry = reg._registry.copy()
-        reg._registry.clear()
+        from helix_core.mod_system.registry import registry as backend_registry
+        self._saved_method_action_models = dict(backend_registry._action_models)
+        backend_registry._action_models.clear()
 
     def tearDown(self):
         """Restore registry state after each test."""
-        import core.actions.registry as reg
-        reg._registry.clear()
-        reg._registry.update(self._saved_registry)
+        from helix_core.mod_system.registry import registry as backend_registry
+        backend_registry._action_models.clear()
+        backend_registry._action_models.update(self._saved_method_action_models)
 
     def test_log_action_dispatches_to_registered_mod(self):
         """log_action creates a row in the model registered for the target_type prefix."""

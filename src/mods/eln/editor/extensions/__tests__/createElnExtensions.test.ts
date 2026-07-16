@@ -23,10 +23,9 @@ describe("createElnExtensions", () => {
 
   // ── Base extensions (no blocks registered) ─────────────────────────────
 
-  it("returns 10 extensions when no additional blocks are registered (6 base + 4 legacy nodes)", () => {
+  it("returns 6 extensions when no additional blocks are registered (6 base, no legacy nodes)", () => {
     const extensions = createElnExtensions();
-    // 6 base extensions + 4 legacy TipTap node extensions (LimsTable, TableBlock, CommentBlock, ProtocolBlock)
-    expect(extensions).toHaveLength(10);
+    expect(extensions).toHaveLength(6);
   });
 
   it("configures StarterKit with heading levels [1, 2, 3]", () => {
@@ -78,38 +77,3 @@ describe("createElnExtensions", () => {
     );
     expect(tableKit).toBeDefined();
   });
-
-  // ── Legacy node inclusion ──────────────────────────────────────────────
-
-  it("includes LimsTable as a legacy node extension", () => {
-    const extensions = createElnExtensions();
-    const limsTable = extensions.find(
-      (e: unknown) => (e as Record<string, unknown>).name === "limsTable",
-    );
-    expect(limsTable).toBeDefined();
-  });
-
-  it("includes elnTable as a legacy node extension", () => {
-    const extensions = createElnExtensions();
-    const elnTable = extensions.find(
-      (e: unknown) => (e as Record<string, unknown>).name === "elnTable",
-    );
-    expect(elnTable).toBeDefined();
-  });
-
-  it("includes elnComment as a legacy node extension", () => {
-    const extensions = createElnExtensions();
-    const elnComment = extensions.find(
-      (e: unknown) => (e as Record<string, unknown>).name === "elnComment",
-    );
-    expect(elnComment).toBeDefined();
-  });
-
-  it("includes elnProtocol as a legacy node extension", () => {
-    const extensions = createElnExtensions();
-    const elnProtocol = extensions.find(
-      (e: unknown) => (e as Record<string, unknown>).name === "elnProtocol",
-    );
-    expect(elnProtocol).toBeDefined();
-  });
-});

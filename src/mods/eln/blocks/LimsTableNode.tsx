@@ -7,7 +7,7 @@
  */
 import { useMemo, useCallback, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import { AgGridReact } from "ag-grid-react";
 import type { AgGridReact as AgGridReactType } from "ag-grid-react";
 import {
@@ -24,7 +24,6 @@ import type { EntityTypeSummary } from "../types";
 import { get } from "../../../shell/src/api/client";
 import { DisplayIdCellRenderer, MentionCellRenderer } from "../editor/extensions/MentionBadgeCellRenderer";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {
@@ -739,37 +738,6 @@ export function LimsTableContent({
     </div>
   );
 }
-
-// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
-
-function LimsTableNode(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
-
-  // Read attrs from the TipTap node (source of truth)
-  const schemaId = (node.attrs.schemaId as number | null) ?? null;
-  const schemaName = (node.attrs.schemaName as string | null) ?? null;
-  const title = (node.attrs.title as string) || "Table";
-  const columns: GridColumn[] = (node.attrs.columns as GridColumn[]) ?? [];
-  const rows: GridRow[] = (node.attrs.rows as GridRow[]) ?? [];
-
-  return (
-    <NodeViewWrapper className="lims-table-wrapper" contentEditable={false}>
-      <LimsTableContent
-        schemaId={schemaId}
-        schemaName={schemaName}
-        title={title}
-        columns={columns}
-        rows={rows}
-        updateAttrs={updateAttributes}
-      />
-    </NodeViewWrapper>
-  );
-}
-
-export default LimsTableNode;
-
-// ── New BlockComponentProps wrapper (for the slot system) ───────────────
-
 /**
  * Slot-system block component for the LIMS table.
  *

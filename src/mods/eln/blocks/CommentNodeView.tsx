@@ -12,13 +12,12 @@
  * via ``updateAttributes``.
  */
 import { useCallback, useRef, useState } from "react";
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import { Check, ChevronDown, ChevronRight, MessageSquare, Undo2 } from "lucide-react";
 import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
 import { relativeTime } from "../../../shell/src/shared/format";
 import { getInitials } from "../../../shell/src/shared/Avatar";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -497,33 +496,6 @@ export function CommentContent({
     </div>
   );
 }
-
-// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
-
-function CommentNodeView(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
-
-  const resolved = (node.attrs.resolved as boolean) ?? false;
-  const thread: CommentEntry[] = (node.attrs.thread as CommentEntry[]) ?? [];
-
-  return (
-    <NodeViewWrapper
-      className="comment-wrapper"
-      contentEditable={false}
-    >
-      <CommentContent
-        resolved={resolved}
-        thread={thread}
-        updateAttrs={updateAttributes}
-      />
-    </NodeViewWrapper>
-  );
-}
-
-export default CommentNodeView;
-
-// ── New BlockComponentProps wrapper (for the slot system) ───────────────
-
 /**
  * Slot-system block component for the ELN comment.
  *

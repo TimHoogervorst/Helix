@@ -6,10 +6,22 @@
  * insertion via registered block).
  */
 import { describe, it, expect, beforeEach } from "vitest";
+import { Node } from "@tiptap/core";
 import SlashCommands from "../SlashCommands";
-import LimsTable from "../../../blocks/LimsTable";
 import { createTestEditor } from "../../../../../test/factories";
 import { ModRegistry } from "../../../../../core/mod-system";
+
+/** Minimal inline TipTap node for testing — matches the block ID used in registerTableBlock. */
+const TestTableNode = Node.create({
+  name: "test.table-block",
+  group: "block",
+  atom: true,
+  addAttributes() {
+    return {
+      content: { default: "{}" },
+    };
+  },
+});
 
 // ── Inlined helpers from SlashCommands.ts ──────────────────────────────────
 
@@ -94,7 +106,7 @@ function DummyComponent() {
 
 function registerTableBlock(overrides?: Record<string, unknown>) {
   ModRegistry.getInstance().registerBlock(
-    makeBlockRegistration("limsTable", "Table", overrides),
+    makeBlockRegistration("test.table-block", "Table", overrides),
   );
 }
 
@@ -239,14 +251,14 @@ describe("SlashCommands editor integration", () => {
   });
 
   it("editor creates successfully with SlashCommands extension", () => {
-    const editor = createTestEditor([SlashCommands, LimsTable]);
+    const editor = createTestEditor([SlashCommands, TestTableNode]);
     expect(editor).toBeTruthy();
     expect(editor.getJSON()).toBeTruthy();
     editor.destroy();
   });
 
   it("typing / does not crash the editor", () => {
-    const editor = createTestEditor([SlashCommands, LimsTable]);
+    const editor = createTestEditor([SlashCommands, TestTableNode]);
     // insertContent with "/" text — should insert without crashing
     expect(() => {
       editor.commands.insertContent("/");
@@ -255,32 +267,31 @@ describe("SlashCommands editor integration", () => {
   });
 
   it("typing multiple slashes does not crash", () => {
-    const editor = createTestEditor([SlashCommands, LimsTable]);
+    const editor = createTestEditor([SlashCommands, TestTableNode]);
     expect(() => {
       editor.commands.insertContent("some text /Table");
     }).not.toThrow();
     editor.destroy();
   });
 
-  it("Table command action inserts a limsTable node", () => {
-    const editor = createTestEditor([SlashCommands, LimsTable]);
+  it("Table command action inserts a test.table-block node", () => {
+    const editor = createTestEditor([SlashCommands, TestTableNode]);
     const commands = getCommands();
     const tableCmd = commands.find((c) => c.label === "Table")!;
     const from = editor.state.selection.from;
     tableCmd.action(editor, { from, to: from });
     const doc = editor.getJSON();
-    const tableNode = doc.content?.find((n: any) => n.type === "limsTable");
+    const tableNode = doc.content?.find((n: any) => n.type === "test.table-block");
     expect(tableNode).toBeTruthy();
-    // The slash command inserts content via the block's serialized state.
-    // LimsTable uses its own attributes (not the generic 'content' attribute
-    // used by slot-system BlockBindings), so attrs reflect the LimsTable
-    // defaults rather than a serialized content blob.
+    // The slash command inserts content via the block's serialized state
+    // using the generic 'content' attribute used by slot-system BlockBindings.
     expect(tableNode?.attrs).toBeDefined();
+    expect(tableNode?.attrs?.content).toBeDefined();
     editor.destroy();
   });
 
   it("editor remains editable after slash extension loads", () => {
-    const editor = createTestEditor([SlashCommands, LimsTable]);
+    const editor = createTestEditor([SlashCommands, TestTableNode]);
     expect(editor.isEditable).toBe(true);
     editor.commands.insertContent("Hello, world!");
     const text = editor.getText();

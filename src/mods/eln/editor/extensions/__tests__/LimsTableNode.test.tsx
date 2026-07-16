@@ -1,5 +1,5 @@
 /**
- * Tests for the LimsTableNode React NodeView component and its
+ * Tests for the LimsTableBlockComponent React component and its
  * pure utility functions.
  *
  * Covers: headerWithSymbol, emptyValues, and component rendering
@@ -74,9 +74,9 @@ vi.mock("../MentionBadgeCellRenderer", () => ({
   ),
 }));
 
-// ── Import LimsTableNode AFTER mocks ──────────────────────────────────────
+// ── Import LimsTableBlockComponent AFTER mocks ──────────────────────────────
 
-import LimsTableNode from "../../../blocks/LimsTableNode";
+import { LimsTableBlockComponent } from "../../../blocks/LimsTableNode";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -113,30 +113,27 @@ const sampleRows: GridRow[] = [
   },
 ];
 
-function makeNodeViewProps(overrides: Record<string, any> = {}): any {
-  const defaults = {
-    node: {
+function makeBlockComponentProps(opts?: {
+  attrs?: Record<string, any>;
+  updateAttrs?: any;
+}): any {
+  return {
+    context: {} as any,
+    instance: {
+      id: "inst-1",
+      blockId: "eln.legacyTable-block",
+      slotId: "eln.editor",
       attrs: {
         schemaId: 1,
         schemaName: "Samples",
         title: "Test Table",
         columns: sampleColumns,
         rows: sampleRows,
+        ...(opts?.attrs ?? {}),
       },
+      updateAttrs: opts?.updateAttrs ?? vi.fn(),
     },
-    updateAttributes: vi.fn(),
-    selected: false,
-    extension: {},
-    getPos: () => 0,
-    editor: { isEditable: true },
-    deleteNode: vi.fn(),
   };
-  // Deep merge for node.attrs
-  if (overrides.node?.attrs) {
-    defaults.node.attrs = { ...defaults.node.attrs, ...overrides.node.attrs };
-    delete overrides.node;
-  }
-  return { ...defaults, ...overrides };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -219,7 +216,7 @@ describe("emptyValues", () => {
 // Component rendering tests
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("LimsTableNode component", () => {
+describe("LimsTableBlockComponent component", () => {
   beforeEach(() => {
     mockGet.mockReset();
   });
@@ -227,36 +224,36 @@ describe("LimsTableNode component", () => {
   // ── Basic rendering ──────────────────────────────────────────────────
 
   it("renders the table title", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     expect(screen.getByText("Test Table")).toBeInTheDocument();
   });
 
   it("renders the schema badge when schemaId is set", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     expect(screen.getByText("Samples")).toBeInTheDocument();
   });
 
   it("renders the table icon (⊞)", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     expect(screen.getByText("⊞")).toBeInTheDocument();
   });
 
   it("renders the gear button", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     expect(
       screen.getByRole("button", { name: "Table settings" }),
     ).toBeInTheDocument();
   });
 
   it("renders the Add Row button (+)", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     expect(
       screen.getByRole("button", { name: "Add row" }),
     ).toBeInTheDocument();
   });
 
   it("renders the AG Grid", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     expect(screen.getByTestId("ag-grid")).toBeInTheDocument();
   });
 
@@ -264,11 +261,9 @@ describe("LimsTableNode component", () => {
 
   it("shows schema badge with name when schemaId and schemaName are set", () => {
     render(
-      <LimsTableNode
-        {...makeNodeViewProps({
-          node: {
-            attrs: { schemaId: 42, schemaName: "Blood Samples" },
-          },
+      <LimsTableBlockComponent
+        {...makeBlockComponentProps({
+          attrs: { schemaId: 42, schemaName: "Blood Samples" },
         })}
       />,
     );
@@ -280,10 +275,9 @@ describe("LimsTableNode component", () => {
     // schemaName is null — mock the API to return a resolved promise.
     mockGet.mockResolvedValue({ id: 42, name: "Blood Samples" });
     render(
-      <LimsTableNode
-        {...makeNodeViewProps({
-          node: {
-            attrs: { schemaId: 42, schemaName: null },
+      <LimsTableBlockComponent
+        {...makeBlockComponentProps({
+          attrs: { schemaId: 42, schemaName: null },
           },
         })}
       />,
@@ -294,10 +288,9 @@ describe("LimsTableNode component", () => {
 
   it("does not show schema badge when schemaId is null", () => {
     render(
-      <LimsTableNode
-        {...makeNodeViewProps({
-          node: {
-            attrs: { schemaId: null, schemaName: null },
+      <LimsTableBlockComponent
+        {...makeBlockComponentProps({
+          attrs: { schemaId: null, schemaName: null },
           },
         })}
       />,
@@ -309,7 +302,7 @@ describe("LimsTableNode component", () => {
   // ── Gear menu toggle ─────────────────────────────────────────────────
 
   it("shows gear menu on gear button click", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     const gearBtn = screen.getByRole("button", { name: "Table settings" });
     fireEvent.click(gearBtn);
     expect(screen.getByText("+ Add Row")).toBeInTheDocument();
@@ -319,7 +312,7 @@ describe("LimsTableNode component", () => {
   });
 
   it("hides gear menu on second gear button click", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     const gearBtn = screen.getByRole("button", { name: "Table settings" });
     fireEvent.click(gearBtn); // open
     expect(screen.getByText("+ Add Row")).toBeInTheDocument();
@@ -330,8 +323,8 @@ describe("LimsTableNode component", () => {
   it("Add Row from gear menu closes menu and calls updateAttributes", () => {
     const updateAttributes = vi.fn();
     render(
-      <LimsTableNode
-        {...makeNodeViewProps({ updateAttributes })}
+      <LimsTableBlockComponent
+        {...makeBlockComponentProps({ updateAttrs: updateAttributes })}
       />,
     );
     // Open gear menu
@@ -346,14 +339,14 @@ describe("LimsTableNode component", () => {
   // ── Add Column panel ─────────────────────────────────────────────────
 
   it("opens Add Column panel from gear menu", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
     fireEvent.click(screen.getByText("Add Column…"));
     expect(screen.getByPlaceholderText("Column name")).toBeInTheDocument();
   });
 
   it("Add Column back button returns to main menu", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
     fireEvent.click(screen.getByText("Add Column…"));
     fireEvent.click(screen.getByTitle("Back"));
@@ -364,7 +357,7 @@ describe("LimsTableNode component", () => {
   // ── Title editing ────────────────────────────────────────────────────
 
   it("title is editable via contentEditable", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     const title = screen.getByText("Test Table");
     // The title is in a contentEditable span; verify via attribute
     expect(title.getAttribute("contenteditable")).toBe("true");
@@ -373,8 +366,8 @@ describe("LimsTableNode component", () => {
   it("title blur updates attributes", () => {
     const updateAttributes = vi.fn();
     render(
-      <LimsTableNode
-        {...makeNodeViewProps({ updateAttributes })}
+      <LimsTableBlockComponent
+        {...makeBlockComponentProps({ updateAttrs: updateAttributes })}
       />,
     );
     const titleSpan = screen.getByText("Test Table");
@@ -385,7 +378,7 @@ describe("LimsTableNode component", () => {
   });
 
   it("title Enter key blurs the element", () => {
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
     const titleSpan = screen.getByText("Test Table");
     fireEvent.focus(titleSpan);
     fireEvent.keyDown(titleSpan, { key: "Enter" });
@@ -411,7 +404,7 @@ describe("LimsTableNode component", () => {
     ]);
 
     render(
-      <LimsTableNode {...makeNodeViewProps({ updateAttributes })} />,
+      <LimsTableBlockComponent {...makeBlockComponentProps({ updateAttrs: updateAttributes })} />,
     );
 
     // Open gear menu
@@ -460,7 +453,7 @@ describe("LimsTableNode component", () => {
       },
     ]);
 
-    render(<LimsTableNode {...makeNodeViewProps()} />);
+    render(<LimsTableBlockComponent {...makeBlockComponentProps()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Table settings" }));
     fireEvent.click(screen.getByText("Load Schema…"));
@@ -478,7 +471,7 @@ describe("LimsTableNode component", () => {
   it("adding a column calls updateAttributes with new column and updated rows", async () => {
     const updateAttributes = vi.fn();
     render(
-      <LimsTableNode {...makeNodeViewProps({ updateAttributes })} />,
+      <LimsTableBlockComponent {...makeBlockComponentProps({ updateAttrs: updateAttributes })} />,
     );
 
     // Open gear menu → Add Column panel

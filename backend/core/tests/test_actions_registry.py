@@ -1,6 +1,11 @@
-"""Tests for the action model registry."""
+"""Tests for the action model registry.
 
-from django.test import TestCase
+Exercises the backward-compatible delegation functions in
+``core.actions.registry`` which wrap the unified
+``BackendModRegistry`` singleton.
+"""
+
+import pytest
 
 from core.actions.registry import get_action_model, register_action_model
 
@@ -8,43 +13,49 @@ from core.actions.registry import get_action_model, register_action_model
 class FakeActionModel:
     """Minimal stand-in for a concrete action model during tests."""
 
-    objects: object = None  # replaced in test
+    pass
 
 
-class RegistryTests(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        import core.actions.registry as reg
-        cls._saved_registry = reg._registry.copy()
+class TestActionRegistryDelegation:
+    """Tests that core.actions.registry functions delegate correctly."""
 
     @classmethod
-    def tearDownClass(cls):
-        import core.actions.registry as reg
-        reg._registry.clear()
-        reg._registry.update(cls._saved_registry)
-        super().tearDownClass()
+    def setup_class(cls):
+        """Save singleton state before any tests run."""
+        from helix_core.mod_system.registry import registry
 
-    def setUp(self):
-        """Save registry before each test and clear it for isolation."""
-        import core.actions.registry as reg
-        self._saved_registry = reg._registry.copy()
-        reg._registry.clear()
+        cls._saved_action_models = registry._action_models.copy()
 
-    def tearDown(self):
-        """Restore registry state after each test."""
-        import core.actions.registry as reg
-        reg._registry.clear()
-        reg._registry.update(self._saved_registry)
+    @classmethod
+    def teardown_class(cls):
+        """Restore singleton state after all tests."""
+        from helix_core.mod_system.registry import registry
+
+        registry._action_models.clear()
+        registry._action_models.update(cls._saved_action_models)
+
+    def setup_method(self):
+        """Save state before each test and clear for isolation."""
+        from helix_core.mod_system.registry import registry
+
+        self._saved = registry._action_models.copy()
+        registry._action_models.clear()
+
+    def teardown_method(self):
+        """Restore state after each test."""
+        from helix_core.mod_system.registry import registry
+
+        registry._action_models.clear()
+        registry._action_models.update(self._saved)
 
     def test_register_and_retrieve(self):
         """register_action_model stores a model class keyed by mod_id."""
         register_action_model("testmod", FakeActionModel)
-        self.assertEqual(get_action_model("testmod"), FakeActionModel)
+        assert get_action_model("testmod") is FakeActionModel
 
     def test_unregistered_mod_returns_none(self):
         """get_action_model returns None for a mod that was never registered."""
-        self.assertIsNone(get_action_model("nonexistent"))
+        assert get_action_model("nonexistent") is None
 
     def test_registering_twice_replaces_previous(self):
         """A second registration for the same mod_id replaces the first."""
@@ -57,4 +68,4 @@ class RegistryTests(TestCase):
 
         register_action_model("dup", FirstModel)
         register_action_model("dup", SecondModel)
-        self.assertEqual(get_action_model("dup"), SecondModel)
+        assert get_action_model("dup") is SecondModel

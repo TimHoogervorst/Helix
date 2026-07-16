@@ -1,4 +1,7 @@
 from django.apps import AppConfig
+from django.urls import path, include
+
+from helix_core.mod_system.registry import registry
 
 
 class TagsConfig(AppConfig):
@@ -6,7 +9,9 @@ class TagsConfig(AppConfig):
     name = "core_mods.tags"
 
     def ready(self):
-        from helix_core.actions.registry import register_action_model
         from .models import TagsAction
 
-        register_action_model("tags", TagsAction)
+        registry.register_action_model("tags", TagsAction)
+        registry.register_urls(
+            "tags", [path("api/tags/", include("core_mods.tags.urls"))]
+        )

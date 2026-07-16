@@ -7,6 +7,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from helix_core.mod_system.registry import registry
+
 
 @csrf_exempt
 def delete_everything(request):
@@ -51,12 +53,11 @@ def delete_everything(request):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # API
-    path("api/tags/", include("core_mods.tags.urls")),
-    path("api/eln/", include("core_mods.eln.urls")),
-    path("api/lims/", include("core_mods.lims.urls")),
+    # Helix mod URLs — generated from registry in dependency order
+    *registry.build_urlpatterns(),
+    # Core shell (non-mod endpoints: csrf, folders, settings, user auth)
     path("api/core/", include("core.urls")),
-    path("api/library/", include("core_mods.library.urls")),
+    # Mentions (cross-cutting concern)
     path("api/mentions/", include("core.mentions.urls")),
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),

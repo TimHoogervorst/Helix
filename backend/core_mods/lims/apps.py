@@ -1,4 +1,7 @@
 from django.apps import AppConfig
+from django.urls import path, include
+
+from helix_core.mod_system.registry import registry
 
 
 class LimsConfig(AppConfig):
@@ -6,13 +9,18 @@ class LimsConfig(AppConfig):
     name = "core_mods.lims"
 
     def ready(self):
-        from helix_core.actions.registry import register_action_model
         from core.signals import entry_content_sync
         from core_mods.eln.models import NotebookEntry
         from core_mods.lims.models import Action
         from core_mods.lims.signals import sync_entities_on_content_sync
 
-        entry_content_sync.connect(
-            sync_entities_on_content_sync, sender=NotebookEntry
+        registry.register_action_model("lims", Action)
+        registry.register_signal(
+            "lims",
+            entry_content_sync,
+            sync_entities_on_content_sync,
+            sender=NotebookEntry,
         )
-        register_action_model("lims", Action)
+        registry.register_urls(
+            "lims", [path("api/lims/", include("core_mods.lims.urls"))]
+        )

@@ -129,10 +129,12 @@ class BackendModRegistry:
     ) -> None:
         """Register a Django signal connection for *mod_id*.
 
-        Validates that the *sender*'s mod is either *mod_id* itself or a
-        declared dependency of *mod_id*.  The handler is wrapped so that it
-        only executes when *mod_id*'s dependencies are satisfied (all
-        dependent mods' ``AppConfig.ready()`` have run).
+        Validates that the *sender*'s mod is either *mod_id* itself, a
+        declared dependency of *mod_id*, or a dependent of *mod_id*
+        (i.e. the sender's mod declares *mod_id* in its own
+        ``depends_on``).  The handler is wrapped so that it only executes
+        when *mod_id*'s dependencies are satisfied (all dependent mods'
+        ``AppConfig.ready()`` have run).
 
         Parameters:
             mod_id: The mod that owns this signal connection.
@@ -141,27 +143,32 @@ class BackendModRegistry:
             sender: The model class that sends the signal.
 
         Raises:
-            ValueError: If the sender's mod is not *mod_id* and not in
-                *mod_id*'s ``depends_on`` list.
+            ValueError: If the sender's mod is not *mod_id*, not in
+                *mod_id*'s ``depends_on`` list, and *mod_id* is not in the
+                sender mod's ``depends_on`` list.
         """
         from django.apps import apps
 
         # Determine which mod owns the sender model.
         sender_mod_id = self._resolve_mod_id(sender)
 
-        # Validate: sender's mod must be mod_id or a declared dependency.
+        # Validate: sender's mod must be mod_id, a declared dependency of
+        # mod_id, or a dependent of mod_id (observer pattern — the sender
+        # depends on us, so we are allowed to listen to its signals).
         if sender_mod_id is not None and sender_mod_id != mod_id:
             manifest = self._manifests.get(mod_id)
-            if manifest is None:
-                # No manifest available — skip validation (best-effort).
-                pass
-            elif sender_mod_id not in manifest.depends_on:
-                raise ValueError(
-                    f"Mod '{mod_id}' cannot register a signal on "
-                    f"'{sender.__name__}' from mod '{sender_mod_id}' — "
-                    f"'{sender_mod_id}' is not in '{mod_id}' depends_on "
-                    f"({manifest.depends_on})."
-                )
+            sender_manifest = self._manifests.get(sender_mod_id)
+            if manifest is not None and sender_mod_id not in manifest.depends_on:
+                # Check reverse: is mod_id a dependency of the sender?
+                if sender_manifest is not None and mod_id not in sender_manifest.depends_on:
+                    raise ValueError(
+                        f"Mod '{mod_id}' cannot register a signal on "
+                        f"'{sender.__name__}' from mod '{sender_mod_id}' — "
+                        f"'{sender_mod_id}' is neither in '{mod_id}' depends_on "
+                        f"({manifest.depends_on}) nor does '{sender_mod_id}' "
+                        f"depend on '{mod_id}' "
+                        f"({sender_manifest.depends_on})."
+                    )
 
         # Wrap the handler to check dependency readiness at call time.
         original_handler = handler

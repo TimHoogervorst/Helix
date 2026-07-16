@@ -6,11 +6,9 @@ from .views import (
     FolderViewSet,
     csrf_token_view,
 )
-from core_mods.pins.views import PinnedWorkspaceViewSet
 
 router = DefaultRouter()
 router.register(r"folders", FolderViewSet, basename="folder")
-router.register(r"pins", PinnedWorkspaceViewSet, basename="pinnedworkspace")
 router.register(r"settings", CoreSettingViewSet, basename="coresetting")
 
 urlpatterns = [

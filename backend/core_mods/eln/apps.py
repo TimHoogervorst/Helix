@@ -1,4 +1,7 @@
 from django.apps import AppConfig
+from django.urls import path, include
+
+from helix_core.mod_system.registry import registry
 
 
 class ElnConfig(AppConfig):
@@ -8,9 +11,13 @@ class ElnConfig(AppConfig):
     def ready(self):
         from django.db.models.signals import post_save
 
-        from helix_core.actions.registry import register_action_model
         from core_mods.eln.cascade import update_entity_status_from_entry
         from core_mods.eln.models import ElnAction, NotebookEntry
 
-        post_save.connect(update_entity_status_from_entry, sender=NotebookEntry)
-        register_action_model("eln", ElnAction)
+        registry.register_action_model("eln", ElnAction)
+        registry.register_signal(
+            "eln", post_save, update_entity_status_from_entry, sender=NotebookEntry
+        )
+        registry.register_urls(
+            "eln", [path("api/eln/", include("core_mods.eln.urls"))]
+        )

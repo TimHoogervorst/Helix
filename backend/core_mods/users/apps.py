@@ -1,5 +1,7 @@
 from django.apps import AppConfig
 
+from helix_core.mod_system.registry import registry
+
 
 class UsersConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
@@ -7,7 +9,6 @@ class UsersConfig(AppConfig):
     label = "core_mods_users"
 
     def ready(self):
-        from helix_core.actions.registry import register_action_model
         from .models import CoreAction
 
-        register_action_model("core", CoreAction)
+        registry.register_action_model("core", CoreAction)

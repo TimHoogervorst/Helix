@@ -341,6 +341,32 @@ class TestSignalRegistration:
         reg.register_signal("eln", signal, handler, sender=sender)
         assert len(reg.get_signal_registrations()) == 1
 
+    def test_cross_mod_signal_with_reverse_dependency(self):
+        """A mod can register on a dependent's sender (observer pattern).
+
+        If mod A depends on mod B, then mod B should be allowed to listen
+        to mod A's signals — B is A's dependency, so B's ready() runs
+        before A's, and the handler wrapper gates execution on A being
+        ready.
+        """
+        reg = _fresh_registry()
+        manifests = {
+            "eln": _make_manifest("eln", depends_on=["lims"]),
+            "lims": _make_manifest("lims"),
+        }
+        reg.set_mod_order(
+            ["core_mods.lims", "core_mods.eln"], manifests
+        )
+
+        signal = MagicMock()
+        handler = lambda sender, **kwargs: None  # noqa: E731
+        sender = _mock_sender("eln")
+
+        # lims does NOT depend on eln, but eln depends on lims.
+        # lims should be allowed to listen to eln's signals (observer pattern).
+        reg.register_signal("lims", signal, handler, sender=sender)
+        assert len(reg.get_signal_registrations()) == 1
+
     def test_cross_mod_signal_without_dependency_raises(self):
         """Registering on a non-dependency's sender raises ValueError."""
         reg = _fresh_registry()
@@ -356,8 +382,8 @@ class TestSignalRegistration:
         handler = lambda sender, **kwargs: None  # noqa: E731
         sender = _mock_sender("lims")
 
-        # eln does NOT depend on lims — should raise.
-        with pytest.raises(ValueError, match="not in.*depends_on"):
+        # eln does NOT depend on lims, nor does lims depend on eln — should raise.
+        with pytest.raises(ValueError, match="neither in.*depends_on"):
             reg.register_signal("eln", signal, handler, sender=sender)
 
     def test_unknown_sender_module_skips_validation(self):

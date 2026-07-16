@@ -410,7 +410,7 @@ def _validate_manifest_set(manifests: dict[str, ModManifest]) -> None:
         ValueError: If a dependency references a non-existent mod.
     """
     for mod_id, manifest in manifests.items():
-        for dep in manifest.depends_on:
+        for dep in manifest.dependency_ids:
             if dep not in manifests:
                 raise ValueError(
                     f"Mod '{mod_id}' depends on '{dep}', but no mod "
@@ -442,7 +442,7 @@ def _topological_sort(manifests: dict[str, ModManifest]) -> list[str]:
     dependents: dict[str, list[str]] = {mod_id: [] for mod_id in manifests}
 
     for mod_id, manifest in manifests.items():
-        for dep in manifest.depends_on:
+        for dep in manifest.dependency_ids:
             in_degree[mod_id] += 1
             dependents[dep].append(mod_id)
 

@@ -191,16 +191,16 @@ class BackendModRegistry:
         if sender_mod_id is not None and sender_mod_id != mod_id:
             manifest = self._manifests.get(mod_id)
             sender_manifest = self._manifests.get(sender_mod_id)
-            if manifest is not None and sender_mod_id not in manifest.depends_on:
+            if manifest is not None and sender_mod_id not in manifest.dependency_ids:
                 # Check reverse: is mod_id a dependency of the sender?
-                if sender_manifest is not None and mod_id not in sender_manifest.depends_on:
+                if sender_manifest is not None and mod_id not in sender_manifest.dependency_ids:
                     raise ValueError(
                         f"Mod '{mod_id}' cannot register a signal on "
                         f"'{sender.__name__}' from mod '{sender_mod_id}' — "
                         f"'{sender_mod_id}' is neither in '{mod_id}' depends_on "
-                        f"({manifest.depends_on}) nor does '{sender_mod_id}' "
+                        f"({manifest.dependency_ids}) nor does '{sender_mod_id}' "
                         f"depend on '{mod_id}' "
-                        f"({sender_manifest.depends_on})."
+                        f"({sender_manifest.dependency_ids})."
                     )
 
         # Wrap the handler to check dependency readiness at call time.
@@ -209,7 +209,7 @@ class BackendModRegistry:
         def _dependency_gated_handler(sender=None, **kwargs):  # type: ignore[no-untyped-def]
             # Check that all declared dependencies are ready.
             if mod_id in self._manifests:
-                for dep_id in self._manifests[mod_id].depends_on:
+                for dep_id in self._manifests[mod_id].dependency_ids:
                     # Try label first (e.g. "lims"), then dotted name
                     # (e.g. "core_mods.lims") — Django app_configs keys
                     # are app labels, which for core_mods are the last

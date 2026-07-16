@@ -31,7 +31,7 @@ from helix_core.mod_system.manifest import ModManifest
 def _make_mod_dir(
     base: Path,
     mod_id: str,
-    depends_on: list[str] | None = None,
+    depends_on: list[str | dict[str, str]] | None = None,
 ) -> Path:
     """Create a mod directory with a ``mod.py`` manifest file.
 
@@ -45,8 +45,14 @@ def _make_mod_dir(
     """
     manifest = _make_manifest(mod_id, depends_on)
 
-    dep_list = [f'"{d}"' for d in manifest.depends_on]
-    dep_str = f"[{', '.join(dep_list)}]"
+    dep_parts: list[str] = []
+    for d in manifest.depends_on:
+        if isinstance(d, str):
+            dep_parts.append(f'"{d}"')
+        else:
+            version_part = f', "version": "{d["version"]}"' if "version" in d else ""
+            dep_parts.append(f'{{"id": "{d["id"]}"{version_part}}}')
+    dep_str = f"[{', '.join(dep_parts)}]"
 
     mod_dir = base / mod_id
     mod_dir.mkdir(parents=True, exist_ok=True)
@@ -69,13 +75,22 @@ def _make_mod_dir(
 
 def _make_manifest(
     mod_id: str,
-    depends_on: list[str] | None = None,
+    depends_on: list[str | dict[str, str]] | None = None,
+    version: str | None = "0.1.0",
+    core_version: str | None = None,
+    icon: str | None = None,
+    description: str | None = None,
 ) -> ModManifest:
     """Create a ModManifest instance for testing.
 
     Args:
         mod_id: The mod ID.
-        depends_on: List of dependency mod IDs.  Defaults to empty list.
+        depends_on: List of dependency mod IDs (strings or dicts with
+            ``id`` and optional ``version``).  Defaults to empty list.
+        version: Semver version string.  Defaults to ``"0.1.0"``.
+        core_version: Optional minimum platform version.
+        icon: Optional legacy icon name.
+        description: Optional short description.
 
     Returns:
         A new ModManifest instance.
@@ -83,8 +98,11 @@ def _make_manifest(
     return ModManifest(
         id=mod_id,
         display_name=mod_id.title(),
-        version="0.1.0",
+        version=version,
         depends_on=depends_on if depends_on is not None else [],
+        core_version=core_version,
+        icon=icon,
+        description=description,
     )
 
 
@@ -534,7 +552,7 @@ class TestSanitizeModuleName:
 def _make_external_mod_dir(
     base: Path,
     mod_id: str,
-    depends_on: list[str] | None = None,
+    depends_on: list[str | dict[str, str]] | None = None,
     has_apps_py: bool = True,
 ) -> Path:
     """Create an external mod directory with ``mod.py`` and ``__init__.py``.
@@ -550,8 +568,14 @@ def _make_external_mod_dir(
     """
     manifest = _make_manifest(mod_id, depends_on)
 
-    dep_list = [f'"{d}"' for d in manifest.depends_on]
-    dep_str = f"[{', '.join(dep_list)}]"
+    dep_parts: list[str] = []
+    for d in manifest.depends_on:
+        if isinstance(d, str):
+            dep_parts.append(f'"{d}"')
+        else:
+            version_part = f', "version": "{d["version"]}"' if "version" in d else ""
+            dep_parts.append(f'{{"id": "{d["id"]}"{version_part}}}')
+    dep_str = f"[{', '.join(dep_parts)}]"
 
     mod_dir = base / mod_id
     mod_dir.mkdir(parents=True, exist_ok=True)

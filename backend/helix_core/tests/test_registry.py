@@ -31,13 +31,14 @@ def _dummy_view():
 
 def _make_manifest(
     mod_id: str,
-    depends_on: list[str] | None = None,
+    depends_on: list[str | dict[str, str]] | None = None,
+    version: str | None = "0.1.0",
 ) -> ModManifest:
     """Create a ModManifest for testing."""
     return ModManifest(
         id=mod_id,
         display_name=mod_id.title(),
-        version="0.1.0",
+        version=version,
         depends_on=depends_on if depends_on is not None else [],
     )
 

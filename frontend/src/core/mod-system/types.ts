@@ -12,10 +12,20 @@ export interface ModManifest {
   id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
-  /** Semver version string. Documentation-only for now; parsed later. */
-  version: string;
-  /** Mod IDs that must load before this mod. */
-  dependsOn: string[];
+  /** Semver version string. Optional — core mods inherit the platform version when omitted. */
+  version?: string;
+  /**
+   * Mod IDs that must load before this mod.
+   * Each entry can be either a bare mod ID string or an object with an `id`
+   * and optional `version` constraint.
+   */
+  dependsOn: (string | { id: string; version?: string })[];
+  /** Minimum platform version required by this mod. */
+  coreVersion?: string;
+  /** Legacy Lucide icon name. Temporary; kept for compatibility. */
+  icon?: string;
+  /** Short description for settings and mod listing screens. */
+  description?: string;
 }
 
 // ── Hub ───────────────────────────────────────────────────────────────────

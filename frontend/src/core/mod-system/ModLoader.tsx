@@ -113,6 +113,14 @@ function bootModSystem(): void {
 // ── Topological Sort (Kahn's algorithm) ─────────────────────────────────
 
 /**
+ * Extract the dependency mod ID from a dependsOn entry,
+ * which can be a bare string or an object with an `id` field.
+ */
+function depId(entry: string | { id: string; version?: string }): string {
+  return typeof entry === "string" ? entry : entry.id;
+}
+
+/**
  * Sort mods by their `dependsOn` declarations so that dependencies
  * load before their dependents.
  *
@@ -137,7 +145,8 @@ export function topologicalSort(mods: ModModule[]): ModModule[] {
 
   // Populate edges: dep → mod (dep must load before mod)
   for (const mod of mods) {
-    for (const dep of mod.meta.dependsOn) {
+    for (const rawDep of mod.meta.dependsOn) {
+      const dep = depId(rawDep);
       if (!modMap.has(dep)) {
         throw new Error(
           `Mod '${mod.meta.id}' depends on '${dep}', which is not registered.`,

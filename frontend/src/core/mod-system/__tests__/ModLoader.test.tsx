@@ -11,13 +11,22 @@ interface ModModule {
   register: () => void;
 }
 
+type DependsOnEntry = string | { id: string; version?: string };
+
 function makeMod(
   id: string,
-  dependsOn: string[] = [],
+  dependsOn: DependsOnEntry[] = [],
   registerFn: () => void = () => {},
+  overrides: Partial<ModManifest> = {},
 ): ModModule {
   return {
-    meta: { id, displayName: id.toUpperCase(), version: "0.1.0", dependsOn },
+    meta: {
+      id,
+      displayName: id.toUpperCase(),
+      version: "0.1.0",
+      dependsOn,
+      ...overrides,
+    },
     register: registerFn,
   };
 }
@@ -143,9 +152,57 @@ describe("topologicalSort", () => {
       expect(ids.indexOf("shared")).toBeLessThan(ids.indexOf(id));
     }
   });
-});
 
-// ── ModLoader Component Tests ────────────────────────────────────────────
+  it("handles object-form dependsOn entries with optional version", () => {
+      const mods = [
+        makeMod("a", [{ id: "b", version: ">=1.0" }]),
+        makeMod("b", []),
+      ];
+      const result = topologicalSort(mods);
+      // b must come before a
+      expect(result[0].meta.id).toBe("b");
+      expect(result[1].meta.id).toBe("a");
+    });
+
+    it("handles mixed string and object dependsOn entries", () => {
+      const mods = [
+        makeMod("a", ["b", { id: "c", version: ">=2.0" }]),
+        makeMod("b", []),
+        makeMod("c", []),
+      ];
+      const result = topologicalSort(mods);
+      const ids = result.map((m) => m.meta.id);
+      expect(ids.indexOf("b")).toBeLessThan(ids.indexOf("a"));
+      expect(ids.indexOf("c")).toBeLessThan(ids.indexOf("a"));
+    });
+
+    it("throws on missing dependency in object-form dependsOn", () => {
+      const mods = [makeMod("a", [{ id: "nonexistent" }])];
+      expect(() => topologicalSort(mods)).toThrow(
+        "Mod 'a' depends on 'nonexistent', which is not registered",
+      );
+    });
+
+    it("accepts mod manifest without version", () => {
+      const mod = makeMod("a", [], () => {}, { version: undefined });
+      expect(mod.meta.version).toBeUndefined();
+      expect(mod.meta.id).toBe("a");
+    });
+
+    it("accepts mod manifest with optional fields", () => {
+      const mod = makeMod("a", [], () => {}, {
+        version: undefined,
+        coreVersion: ">=2.0",
+        icon: "flask-conical",
+        description: "A test mod for science",
+      });
+      expect(mod.meta.coreVersion).toBe(">=2.0");
+      expect(mod.meta.icon).toBe("flask-conical");
+      expect(mod.meta.description).toBe("A test mod for science");
+    });
+  });
+
+  // ── ModLoader Component Tests ────────────────────────────────────────────
 
 describe("ModLoader", () => {
   beforeEach(() => {

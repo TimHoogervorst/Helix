@@ -33,4 +33,32 @@ export type ActionItemState = "confirmed" | "pending" | "reconciled";
 /** An ActionItem annotated with its optimistic-update display state. */
 export interface DisplayActionItem extends ActionItem {
   state: ActionItemState;
+  /** Correlation ID tying together action rows from the same batch request. */
+  requestId?: string;
 }
+
+/**
+ * A group of consecutive confirmed DisplayActionItems that share a requestId.
+ *
+ * Created by `groupConfirmedActions()` — never produced by the API directly.
+ * Groups with a single child are NOT wrapped; they pass through as flat
+ * DisplayActionItems.
+ */
+export interface GroupedDisplayItem {
+  type: "group";
+  /** Synthetic ID: "group-{requestId}". */
+  id: string;
+  /** Pre-computed summary text (see grouping rules in groupActions.ts). */
+  summary: string;
+  /** The constituent action items, in their original order. */
+  children: DisplayActionItem[];
+  /** Timestamp of the most recent child. */
+  createdAt: string;
+  /** User from the most recent child. */
+  performedBy: ActionUser;
+  /** Groups only contain confirmed items. */
+  state: "confirmed";
+}
+
+/** A single entry in the activity feed — either a flat item or a grouped batch. */
+export type FeedItem = DisplayActionItem | GroupedDisplayItem;

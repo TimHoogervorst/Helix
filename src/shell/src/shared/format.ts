@@ -37,3 +37,22 @@ export function relativeTime(isoString: string): string {
   const months = Math.floor(days / 30);
   return `${months}mo ago`;
 }
+
+/**
+ * Humanize a triple-dotted action type string for display.
+ *
+ * Mechanical, zero-registration: splits on ".", takes the last segment
+ * as the verb, replaces underscores with spaces, and capitalises each word.
+ *
+ * Examples:
+ * - "eln.entry.created"          → "Created"
+ * - "eln.table.edited"           → "Edited"
+ * - "lims.entity.status_changed" → "Status Changed"
+ */
+export function humanizeActionType(actionType: string): string {
+  const parts = actionType.split(".");
+  const verb = parts[parts.length - 1];
+  return verb
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}

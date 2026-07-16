@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "django_filters",
     # Helix apps
+    "helix_core",
     "core",
     "core_mods.tags",
     "core_mods.eln",

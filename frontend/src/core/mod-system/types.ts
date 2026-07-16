@@ -349,3 +349,85 @@ export interface SlotBinding {
   /** Position within the slot. Lower = earlier (leftmost/topmost). */
   order: number;
 }
+
+// ── Slot System — Renderer Types ──────────────────────────────────────────────
+
+/**
+ * Minimal base shape shared by all resolved bindings passed to renderers.
+ *
+ * Extended by {@link BlockBinding} and {@link ButtonBinding}. The renderer
+ * receives an array of these via {@link RendererProps.bindings}.
+ */
+export interface BaseBinding {
+  /** Position within the slot. Lower = earlier (leftmost/topmost). */
+  order: number;
+}
+
+/**
+ * Resolved block binding — what TipTapRenderer, PanelRenderer, and TabRenderer receive.
+ *
+ * Built by merging a {@link SlotBinding} with its slot's {@link SlotDeclaration.defaults}
+ * and the resolved {@link BlockRegistration}. Binding overrides win per-key.
+ */
+export interface BlockBinding extends BaseBinding {
+  type: "block";
+  /** The block's registration ID, e.g. "eln.table". */
+  id: string;
+  /** Human-readable label from the block registration. */
+  label: string;
+  /** Icon component from the block registration. */
+  icon: ComponentType<any>;
+  /** React component that renders the block. */
+  component: ComponentType<BlockComponentProps>;
+  /** Events this block reacts to. */
+  listensTo: string[];
+  /** Map of event name → handler. */
+  onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
+  /** Optional activity feed message overrides. */
+  messages?: { created?: string; edited?: string; deleted?: string };
+  /** Extract a display name from block attributes. */
+  getDisplayName?: (attrs: Record<string, unknown>) => string;
+  /** Tags for block picker filtering. */
+  tags?: string[];
+  /** Merged overrides: slot defaults ← binding overrides (binding wins per-key). */
+  overrides: Record<string, unknown>;
+  /** Serialize block state to a JSON string for persistence. */
+  serialize: (state: Record<string, unknown>) => string;
+  /** Deserialize a JSON string back to block state. */
+  deserialize: (json: string) => Record<string, unknown>;
+  /** Default state used when no stored content exists. */
+  defaultState: Record<string, unknown>;
+}
+
+/**
+ * Resolved button binding — what ButtonGroupRenderer receives.
+ *
+ * Built by merging a {@link SlotBinding} with its resolved {@link ButtonRegistration}.
+ */
+export interface ButtonBinding extends BaseBinding {
+  type: "button";
+  /** The button's registration ID, e.g. "eln.export". */
+  id: string;
+  /** Human-readable label from the button registration. */
+  label: string;
+  /** Optional icon component from the button registration. */
+  icon?: ComponentType<any>;
+  /** Click handler that receives the workspace bus and slot context. */
+  onClick: (args: { bus: WorkspaceBus; context: SlotContext }) => void;
+}
+
+/**
+ * Props contract every renderer receives from SlotRenderer.
+ *
+ * SlotRenderer resolves the slot + bindings, merges defaults with overrides,
+ * builds {@link BlockBinding} or {@link ButtonBinding} arrays, and passes them
+ * to the renderer component via this interface.
+ */
+export interface RendererProps<T extends BaseBinding = BaseBinding> {
+  /** Resolved bindings — blocks or buttons, depending on the slot's `accepts`. */
+  bindings: T[];
+  /** The workspace-scoped event bus. */
+  bus: WorkspaceBus;
+  /** Flat bag of metadata available to all blocks and buttons. */
+  context: SlotContext;
+}

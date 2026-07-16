@@ -553,4 +553,219 @@ describe("ModRegistry", () => {
   it("validate does not crash when there are no bindings to validate", () => {
     expect(() => registry.validate()).not.toThrow();
   });
+
+  // ── resolveSlot ──────────────────────────────────────────────────────
+
+  it("resolveSlot returns null for undeclared slot", () => {
+    const result = registry.resolveSlot("nonexistent.slot");
+    expect(result).toBeNull();
+  });
+
+  it("resolveSlot returns null when slot has no bindings", () => {
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
+    expect(registry.resolveSlot("eln.editor")).toBeNull();
+  });
+
+  it("resolveSlot resolves a block binding with merged defaults", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({
+        id: "eln.editor",
+        accepts: "block",
+        defaults: { nodeType: "block", atom: true },
+      }),
+    );
+    registry.registerBlock(
+      makeBlockRegistration({ id: "eln.table", label: "Table" }),
+    );
+    registry.registerIntoSlot("eln.editor", "eln.table");
+
+    const result = registry.resolveSlot("eln.editor");
+    expect(result).not.toBeNull();
+    expect(result!.bindings).toHaveLength(1);
+
+    const binding = result!.bindings[0];
+    expect(binding.type).toBe("block");
+    expect(binding.id).toBe("eln.table");
+    expect(binding.label).toBe("Table");
+    expect(binding.order).toBe(0);
+    // Slot defaults are present
+    if (binding.type === "block") {
+      expect(binding.overrides).toEqual({
+        nodeType: "block",
+        atom: true,
+      });
+    }
+  });
+
+  it("resolveSlot merges slot defaults with binding overrides (binding wins per-key)", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({
+        id: "eln.editor",
+        accepts: "block",
+        defaults: { nodeType: "block", atom: true, group: "content" },
+      }),
+    );
+    registry.registerBlock(
+      makeBlockRegistration({ id: "eln.mention" }),
+    );
+    // Override nodeType → "inline", keep atom, keep group
+    registry.registerIntoSlot("eln.editor", "eln.mention", {
+      nodeType: "inline",
+      atom: false,
+    });
+
+    const result = registry.resolveSlot("eln.editor");
+    expect(result).not.toBeNull();
+
+    const binding = result!.bindings[0];
+    // Binding overrides win for nodeType and atom; group comes from slot defaults
+    if (binding.type === "block") {
+      expect(binding.overrides).toEqual({
+        nodeType: "inline",
+        atom: false,
+        group: "content",
+      });
+    }
+  });
+
+  it("resolveSlot skips bindings whose block target doesn't exist", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
+    );
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    registry.registerIntoSlot("eln.editor", "nonexistent.block");
+
+    const result = registry.resolveSlot("eln.editor");
+    expect(result).not.toBeNull();
+    expect(result!.bindings).toHaveLength(1);
+    expect(result!.bindings[0].id).toBe("eln.table");
+  });
+
+  it("resolveSlot skips legacy BlockConfig blocks (no component)", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
+    );
+    // Legacy BlockConfig has `type` + `payload`, no `component`
+    registry.registerBlock(makeBlock({ id: "eln.legacy-block" }));
+    registry.registerIntoSlot("eln.editor", "eln.legacy-block");
+
+    const result = registry.resolveSlot("eln.editor");
+    // Legacy blocks don't participate in the slot system
+    expect(result).toBeNull();
+  });
+
+  it("resolveSlot resolves a button binding", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({
+        id: "eln.header.actions",
+        accepts: "button",
+        defaults: { size: "sm" },
+      }),
+    );
+    registry.registerButton(
+      makeButtonRegistration({ id: "eln.export", label: "Export" }),
+    );
+    registry.registerIntoSlot("eln.header.actions", "eln.export", {}, 0);
+
+    const result = registry.resolveSlot("eln.header.actions");
+    expect(result).not.toBeNull();
+    expect(result!.bindings).toHaveLength(1);
+
+    const binding = result!.bindings[0];
+    expect(binding.type).toBe("button");
+    expect(binding.id).toBe("eln.export");
+    expect(binding.label).toBe("Export");
+    expect(binding.order).toBe(0);
+  });
+
+  it("resolveSlot skips bindings whose button target doesn't exist", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({
+        id: "eln.header.actions",
+        accepts: "button",
+      }),
+    );
+    registry.registerButton(
+      makeButtonRegistration({ id: "eln.export" }),
+    );
+    registry.registerIntoSlot("eln.header.actions", "eln.export");
+    registry.registerIntoSlot("eln.header.actions", "nonexistent.button");
+
+    const result = registry.resolveSlot("eln.header.actions");
+    expect(result).not.toBeNull();
+    expect(result!.bindings).toHaveLength(1);
+    expect(result!.bindings[0].id).toBe("eln.export");
+  });
+
+  it("resolveSlot returns bindings sorted by order ascending", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
+    );
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.chart" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.comment" }));
+
+    registry.registerIntoSlot("eln.editor", "eln.chart", {}, 5);
+    registry.registerIntoSlot("eln.editor", "eln.table", {}, 0);
+    registry.registerIntoSlot("eln.editor", "eln.comment", {}, 10);
+
+    const result = registry.resolveSlot("eln.editor");
+    expect(result).not.toBeNull();
+    expect(result!.bindings).toHaveLength(3);
+    expect(result!.bindings[0].id).toBe("eln.table"); // order 0
+    expect(result!.bindings[1].id).toBe("eln.chart");  // order 5
+    expect(result!.bindings[2].id).toBe("eln.comment"); // order 10
+  });
+
+  it("resolveSlot includes the slot's renderer in the result", () => {
+    function TestRenderer() {
+      return null;
+    }
+    registry.declareSlot(
+      makeSlotDeclaration({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TestRenderer,
+      }),
+    );
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+    registry.registerIntoSlot("eln.editor", "eln.table");
+
+    const result = registry.resolveSlot("eln.editor");
+    expect(result).not.toBeNull();
+    expect(result!.renderer).toBe(TestRenderer);
+  });
+
+  it("resolveSlot copies all BlockRegistration fields into BlockBinding", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
+    );
+    registry.registerBlock(
+      makeBlockRegistration({
+        id: "eln.table",
+        label: "Table",
+        listensTo: ["data.export"],
+        onEvent: { "data.export": () => "exported" },
+        messages: { edited: "spreadsheet updated" },
+        getDisplayName: (attrs) => String(attrs.name ?? ""),
+        tags: ["data", "table"],
+      }),
+    );
+    registry.registerIntoSlot("eln.editor", "eln.table");
+
+    const result = registry.resolveSlot("eln.editor");
+    const binding = result!.bindings[0];
+    if (binding.type === "block") {
+      expect(binding.listensTo).toEqual(["data.export"]);
+      expect(binding.onEvent).toBeDefined();
+      expect(binding.onEvent["data.export"]).toBeDefined();
+      expect(binding.messages).toEqual({ edited: "spreadsheet updated" });
+      expect(binding.getDisplayName).toBeDefined();
+      expect(binding.tags).toEqual(["data", "table"]);
+      expect(binding.serialize).toBeDefined();
+      expect(binding.deserialize).toBeDefined();
+      expect(binding.defaultState).toEqual({});
+    }
+  });
 });

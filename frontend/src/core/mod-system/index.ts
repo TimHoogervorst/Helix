@@ -35,4 +35,8 @@ export type {
   BlockComponentProps,
   BlockInstance,
   SlotContext,
+  RendererProps,
+  BaseBinding,
+  BlockBinding,
+  ButtonBinding,
 } from "./types";

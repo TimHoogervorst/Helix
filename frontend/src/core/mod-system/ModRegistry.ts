@@ -11,6 +11,8 @@ import type {
   ButtonRegistration,
   SlotDeclaration,
   SlotBinding,
+  BlockBinding,
+  ButtonBinding,
 } from "./types";
 
 /**
@@ -194,6 +196,83 @@ export class ModRegistry {
    */
   resolveLibraryItem(itemTypeId: string): LibraryItemConfig | undefined {
     return this.libraryItems.get(itemTypeId);
+  }
+
+  /**
+   * Resolve a slot into its renderer-ready bindings.
+   *
+   * Looks up the slot declaration, resolves each binding's target (block or
+   * button) from the registry, and merges slot `defaults` with per-binding
+   * `overrides` (binding overrides win on a per-key basis).
+   *
+   * Returns `null` when the slot is not declared or has no valid bindings.
+   * Bindings whose targets don't exist in the registry are silently skipped.
+   *
+   * The returned array is sorted ascending by `order`.
+   */
+  resolveSlot(
+    slotId: string,
+  ): { renderer: SlotDeclaration["renderer"]; bindings: (BlockBinding | ButtonBinding)[] } | null {
+    const slot = this.slots.get(slotId);
+    if (!slot) return null;
+
+    const rawBindings = this.bindings.get(slotId);
+    if (!rawBindings || rawBindings.length === 0) return null;
+
+    const resolved: (BlockBinding | ButtonBinding)[] = [];
+
+    for (const binding of rawBindings) {
+      if (slot.accepts === "block") {
+        const block = this.blocks.get(binding.targetId);
+        if (!block) continue;
+        // Narrow to BlockRegistration — legacy BlockConfig blocks don't
+        // participate in the slot system (they have no component/serialize).
+        if (!("component" in block)) continue;
+
+        // Merge slot defaults with binding overrides (binding wins per-key)
+        const mergedOverrides: Record<string, unknown> = {
+          ...slot.defaults,
+          ...binding.overrides,
+        };
+
+        resolved.push({
+          type: "block" as const,
+          id: block.id,
+          label: block.label,
+          icon: block.icon,
+          component: block.component,
+          listensTo: block.listensTo,
+          onEvent: block.onEvent,
+          messages: block.messages,
+          getDisplayName: block.getDisplayName,
+          tags: block.tags,
+          overrides: mergedOverrides,
+          serialize: block.serialize,
+          deserialize: block.deserialize,
+          defaultState: block.defaultState,
+          order: binding.order,
+        });
+      } else {
+        const button = this.buttons.get(binding.targetId);
+        if (!button) continue;
+
+        resolved.push({
+          type: "button" as const,
+          id: button.id,
+          label: button.label,
+          icon: button.icon,
+          onClick: button.onClick,
+          order: binding.order,
+        });
+      }
+    }
+
+    if (resolved.length === 0) return null;
+
+    // Sort ascending by order
+    resolved.sort((a, b) => a.order - b.order);
+
+    return { renderer: slot.renderer, bindings: resolved };
   }
 
   // ── Service invocation ────────────────────────────────────────────────

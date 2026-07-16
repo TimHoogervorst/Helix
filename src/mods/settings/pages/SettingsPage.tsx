@@ -1,5 +1,5 @@
 import { useSearchParams } from "react-router-dom";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 function SettingsPage() {
   const [searchParams] = useSearchParams();

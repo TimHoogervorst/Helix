@@ -3,7 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import type { PinnedWorkspace } from "../types";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 // ── Mock API module ──────────────────────────────────────────────────────
 

@@ -37,7 +37,7 @@ vi.mock("../../../core/api/client", () => {
   };
 });
 
-import { NetworkError } from "../../../core/api/client";
+import { NetworkError } from "../../../shell/src/api/client";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

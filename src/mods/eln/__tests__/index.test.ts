@@ -4,7 +4,7 @@ import {
   type SlotDeclaration,
   type ButtonRegistration,
   type SlotBinding,
-} from "../../../core/mod-system";
+} from "../../../shell/src/mod-system";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

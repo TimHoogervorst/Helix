@@ -13,7 +13,7 @@ import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
-import { ModRegistry } from "../../../../core/mod-system";
+import { ModRegistry } from "../../../../shell/src/mod-system";
 
 const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 

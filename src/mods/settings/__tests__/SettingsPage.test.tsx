@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SettingsPage from "../pages/SettingsPage";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

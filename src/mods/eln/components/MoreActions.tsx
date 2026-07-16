@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Ellipsis } from "lucide-react";
-import { useClickOutside } from "../../../shared/hooks/useClickOutside";
+import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 
 export interface MoreActionsItem {
   key: string;

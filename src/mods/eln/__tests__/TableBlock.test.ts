@@ -9,7 +9,7 @@
  * React component tests.
  */
 import { describe, it, expect } from "vitest";
-import { createTestEditor } from "../../../test/factories";
+import { createTestEditor } from "../../../shell/src/test/factories";
 import TableBlock from "../blocks/TableBlock";
 import type { TableColumn, TableRow } from "../blocks/TableNodeView";
 import type { Editor } from "@tiptap/core";

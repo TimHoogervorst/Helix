@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from helix_core.actions.logger import bulk_log_actions, log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
-from core_mods.tags.models import Tag
+from mods.tags.models import Tag
 
 from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock, Protocol
 from .serializers import (

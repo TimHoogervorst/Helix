@@ -1,4 +1,4 @@
-import { get, post, del } from "../../core/api/client";
+import { get, post, del } from "../../shell/src/api/client";
 import type { EntryDetail, EntryListItem, ElnAction, TipTapDoc } from "./types";
 
 /** Lock status response from the lock endpoints. */

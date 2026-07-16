@@ -1,9 +1,9 @@
 from rest_framework import serializers
 
 from core.models import Folder, User
-from core_mods.users.serializers import UserSerializer
+from mods.users.serializers import UserSerializer
 
-from core_mods.tags.models import Tag
+from mods.tags.models import Tag
 
 from core.mentions.models import Mention
 
@@ -61,8 +61,8 @@ class MentionSerializer(serializers.ModelSerializer):
         return None
 
 
-# Re-export for backward compatibility — canonical in core_mods.tags.serializers.
-from core_mods.tags.serializers import TagSerializer  # noqa: F401, E402
+# Re-export for backward compatibility — canonical in mods.tags.serializers.
+from mods.tags.serializers import TagSerializer  # noqa: F401, E402
 
 
 class NotebookEntrySerializer(serializers.ModelSerializer):

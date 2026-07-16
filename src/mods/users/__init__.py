@@ -1,1 +1,1 @@
-default_app_config = "core_mods.users.apps.UsersConfig"
+default_app_config = "mods.users.apps.UsersConfig"

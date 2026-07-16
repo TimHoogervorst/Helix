@@ -1,14 +1,6 @@
 import { lazy } from "react";
 import { Users } from "lucide-react";
-import { registerRoute, registerPublicRoute, registerSettingsSection } from "../../core/mod-system";
-
-export const meta = {
-  id: "users",
-  displayName: "Users",
-  version: "0.1.0",
-  dependsOn: [] as string[],
-};
-
+import { registerRoute, registerPublicRoute, registerSettingsSection } from "../../shell/src/mod-system";
 export function register() {
   // ── Public routes (no sidebar, full-page) ──────────────────────────────
   registerPublicRoute({

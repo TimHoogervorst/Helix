@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { Star } from "lucide-react";
-import type { LibraryEntryItem } from "../../core-mods/library/types";
+import type { LibraryEntryItem } from "../../../../mods/library/types";
 import type {
   PropertyField,
   LibraryCardProps,
@@ -8,7 +8,7 @@ import type {
 import { Avatar, getInitials } from "../Avatar";
 import { relativeTime } from "../format";
 import { StatusBadge } from "./StatusBadge";
-import { TagPill } from "../../core-mods/tags/ui/TagPill";
+import { TagPill } from "../../../../mods/tags/ui/TagPill";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

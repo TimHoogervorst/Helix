@@ -9,8 +9,8 @@
 import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
-import { get } from "../../../../core/api/client";
-import type { SearchResult } from "../../../../core/mentions/types";
+import { get } from "../../../../shell/src/api/client";
+import type { SearchResult } from "../../../../shell/src/mentions/types";
 import { createSuggestionDropdown } from "./suggestionDropdown";
 
 const MENTION_SUGGESTION_KEY = new PluginKey("mention-suggestion");

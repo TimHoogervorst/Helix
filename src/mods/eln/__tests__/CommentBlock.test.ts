@@ -10,7 +10,7 @@
  * React component tests.
  */
 import { describe, it, expect } from "vitest";
-import { createTestEditor } from "../../../test/factories";
+import { createTestEditor } from "../../../shell/src/test/factories";
 import CommentBlock from "../blocks/CommentBlock";
 import type { CommentEntry } from "../blocks/CommentNodeView";
 import type { Editor } from "@tiptap/core";

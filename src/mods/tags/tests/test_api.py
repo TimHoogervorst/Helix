@@ -6,7 +6,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 from unittest.mock import patch
 
 from core.tests.base import BaseTestCase
-from core_mods.tags.models import Tag
+from mods.tags.models import Tag
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 

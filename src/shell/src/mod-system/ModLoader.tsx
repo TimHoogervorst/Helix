@@ -9,23 +9,22 @@ interface ModModule {
   register: () => void;
 }
 
-// ── Glob: auto-discover all core mods ────────────────────────────────────
+// ── Glob: auto-discover all mods ─────────────────────────────────────────
 
-// Vite's static-analysis glob -- eagerly imports all core-mods/index.ts
-// modules at build time. During this issue the glob returns {} because
-// no core-mods/ directories exist yet. When child issues create them,
-// new mods are discovered automatically with zero config changes.
+// Vite's static-analysis glob -- eagerly imports all mods/*/index.ts
+// modules at build time. When child issues create them, new mods are
+// discovered automatically with zero config changes.
 const modModules = import.meta.glob<ModModule>(
-  "../../core-mods/*/index.ts",
+  "../../../mods/*/index.ts",
   { eager: true },
 );
 
-// JSON manifest glob — eagerly imports all core-mods/*/modManifest.json
+// JSON manifest glob — eagerly imports all mods/*/modManifest.json
 // files at build time. When a directory has both index.ts and
 // modManifest.json, the JSON manifest takes precedence for metadata.
 const jsonManifestModules = import.meta.glob<{
   default: Record<string, unknown>;
-}>("../../core-mods/*/modManifest.json", { eager: true });
+}>("../../../mods/*/modManifest.json", { eager: true });
 
 // ── Props ───────────────────────────────────────────────────────────────
 
@@ -39,7 +38,7 @@ interface ModLoaderProps {
  * App entry point component.
  *
  * Boot sequence:
- *   1. Auto-discover all core-mods via glob
+ *   1. Auto-discover all mods via glob
  *   2. Import each, read meta -- validate no duplicate IDs
  *   3. Topological sort by dependsOn -- detect cycles, detect missing deps
  *   4. Call each mod's register() in sorted order (mods call register*())
@@ -140,8 +139,8 @@ function bootModSystem(
 /**
  * Extract the mod directory name from a glob path.
  *
- * ``"../../core-mods/eln/index.ts"`` → ``"eln"``
- * ``"../../core-mods/eln/modManifest.json"`` → ``"eln"``
+ * ``"../../../mods/eln/index.ts"`` → ``"eln"``
+ * ``"../../../mods/eln/modManifest.json"`` → ``"eln"``
  *
  * @internal Exported for direct unit testing.
  */

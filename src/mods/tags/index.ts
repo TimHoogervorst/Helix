@@ -1,14 +1,6 @@
 import { lazy } from "react";
 import { Tag } from "lucide-react";
-import { registerSettingsSection } from "../../core/mod-system";
-
-export const meta = {
-  id: "tags",
-  displayName: "Labelling",
-  version: "0.1.0",
-  dependsOn: [] as string[],
-};
-
+import { registerSettingsSection } from "../../shell/src/mod-system";
 export function register() {
   // ── Settings: Tag management ──────────────────────────────────────────
   registerSettingsSection({

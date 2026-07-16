@@ -1,4 +1,4 @@
-import { get } from "../../core/api/client";
+import { get } from "../../shell/src/api/client";
 import type { LibraryContentsResponse } from "./types";
 
 /**

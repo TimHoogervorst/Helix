@@ -16,7 +16,7 @@
  * - saveMode flows into the X-Save-Mode request header
  */
 import { useState, useRef, useCallback } from "react";
-import { put, NetworkError } from "../../../core/api/client";
+import { put, NetworkError } from "../../../shell/src/api/client";
 import type { EntryDetail } from "../types";
 
 // ── Types ──────────────────────────────────────────────────────────────────

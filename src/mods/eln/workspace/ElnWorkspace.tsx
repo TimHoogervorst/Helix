@@ -19,15 +19,15 @@ import {
 } from "lucide-react";
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
-import { useMentionContext } from "../../../core/mentions/MentionProvider";
+import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
 import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
-import { Avatar, getInitials } from "../../../shared/Avatar";
+import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
 import MoreActions from "../components/MoreActions";
-import { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
-import { SlotRenderer } from "../../../core/workspace/SlotRenderer";
-import type { SlotContext } from "../../../core/mod-system/types";
+import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
+import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
+import type { SlotContext } from "../../../shell/src/mod-system/types";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.

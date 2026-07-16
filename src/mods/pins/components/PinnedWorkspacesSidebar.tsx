@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Pin, PinOff, Box } from "lucide-react";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
-import { extractWorkspaceId } from "../../../core/mod-system/resolveCurrentWorkspace";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 
 /**
  * Render the icon for a workspace, falling back to a generic Box icon.

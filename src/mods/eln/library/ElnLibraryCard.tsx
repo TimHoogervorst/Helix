@@ -1,4 +1,4 @@
-import type { LibraryCardProps } from "../../../core/mod-system/types";
+import type { LibraryCardProps } from "../../../shell/src/mod-system/types";
 
 /**
  * ELN-specific card content rendered below the standard library card fields.

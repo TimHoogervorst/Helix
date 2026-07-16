@@ -13,7 +13,7 @@ from django.db.models import Model
 # Direct imports for data/model relationships — the ORM requires the model
 # class for ``model.objects.get(display_id=...)`` lookups.  Per the
 # cross-mod boundary rule, data/FK imports stay as direct imports.
-from core_mods.eln.models import NotebookEntry
+from mods.eln.models import NotebookEntry
 
 
 # ── Cache keys ──────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ MODEL_TYPE_MAP: dict[type[Model], str] = {
 
 def _get_entity_model() -> type[Model]:
     """Lazy-import to avoid circular imports at module level."""
-    from core_mods.lims.models import Entity
+    from mods.lims.models import Entity
 
     return Entity
 
@@ -56,7 +56,7 @@ def _build_prefix_map() -> dict[str, type[Model]]:
 
     Uses ``registry.call("lims.getEntityPrefixes")`` for the cross-mod
     EntityType prefix query instead of a direct import of
-    ``core_mods.lims.models.EntityType``.
+    ``mods.lims.models.EntityType``.
     """
     from helix_core.mod_system.registry import registry
 
@@ -114,7 +114,7 @@ def _build_workspace_map() -> dict[str, str]:
 
     Uses ``registry.call("lims.getWorkspaceMap")`` for the cross-mod
     query instead of a direct import of
-    ``core_mods.lims.models.RegisteredEntityType``.
+    ``mods.lims.models.RegisteredEntityType``.
     """
     from helix_core.mod_system.registry import registry
 

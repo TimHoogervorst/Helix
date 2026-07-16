@@ -14,11 +14,11 @@
 import { useCallback, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Check, ChevronDown, ChevronRight, MessageSquare, Undo2 } from "lucide-react";
-import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
+import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
-import { relativeTime } from "../../../shared/format";
-import { getInitials } from "../../../shared/Avatar";
-import type { BlockComponentProps } from "../../../core/mod-system/types";
+import { relativeTime } from "../../../shell/src/shared/format";
+import { getInitials } from "../../../shell/src/shared/Avatar";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

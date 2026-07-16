@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { getPins, createPin, deletePin } from "../api";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
-import { resolveCurrentWorkspace } from "../../../core/mod-system/resolveCurrentWorkspace";
+import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 
 // ── Hook ────────────────────────────────────────────────────────────────────
 

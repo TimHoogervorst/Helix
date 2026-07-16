@@ -14,15 +14,15 @@
  * presentation — this block owns data fetching, type mapping, and bus wiring.
  */
 import { useEffect, useRef, useState, useMemo } from "react";
-import type { BlockComponentProps } from "../../../core/mod-system/types";
-import type { BlockLifecyclePayload } from "../../../core/workspace/WorkspaceBus";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import type { BlockLifecyclePayload } from "../../../shell/src/workspace/WorkspaceBus";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { useActivity } from "../hooks/useActivity";
-import { Activity } from "../../../shared/components/Activity";
+import { Activity } from "../../../shell/src/shared/components/Activity";
 import type {
   DisplayActionItem,
   ActionUser,
-} from "../../../shared/types/actions";
+} from "../../../shell/src/shared/types/actions";
 import type { ElnAction } from "../types";
 
 const VERBS = ["created", "edited", "deleted"] as const;

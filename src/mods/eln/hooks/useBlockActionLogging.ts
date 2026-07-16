@@ -25,10 +25,10 @@
  *   discarded (no save → no action rows).
  */
 import { useEffect, useRef } from "react";
-import type { WorkspaceBus, BlockLifecyclePayload } from "../../../core/workspace/WorkspaceBus";
-import type { BlockRegistration } from "../../../core/mod-system/types";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
-import { post } from "../../../core/api/client";
+import type { WorkspaceBus, BlockLifecyclePayload } from "../../../shell/src/workspace/WorkspaceBus";
+import type { BlockRegistration } from "../../../shell/src/mod-system/types";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { post } from "../../../shell/src/api/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

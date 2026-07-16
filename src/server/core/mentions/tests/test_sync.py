@@ -3,7 +3,7 @@ Tests for the mentions service: sync_mentions, resolve_display_id, PREFIX_MAP.
 """
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC
-from core_mods.eln.models import NotebookEntry
+from mods.eln.models import NotebookEntry
 from core.mentions.models import Mention
 
 DOC_WITH_ONE_REFERENCE = {

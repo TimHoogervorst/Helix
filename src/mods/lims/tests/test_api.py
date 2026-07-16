@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.tests.base import BaseTestCase
-from core_mods.lims.models import Action as LimsAction, EntityType, Entity
+from mods.lims.models import Action as LimsAction, EntityType, Entity
 
 
 class LimsApiTests(BaseTestCase):

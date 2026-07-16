@@ -12,11 +12,11 @@ import { useCallback, useMemo } from "react";
 import type { TipTapDoc, EntryDetail, Tag } from "../types";
 import { EMPTY_DOC } from "../types";
 import { useEntryCrud } from "./useEntryCrud";
-import { useTaggableItems } from "../../../core-mods/tags/hooks";
+import { useTaggableItems } from "../../tags/hooks";
 import { useEntryFolder, type Folder } from "./useEntryFolder";
 import { useDirtyTracking } from "./useDirtyTracking";
 import { attachTags, detachTag } from "../api";
-import { updateTag } from "../../../core-mods/tags/api";
+import { updateTag } from "../../tags/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

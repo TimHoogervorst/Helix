@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "dev": "cd src/shell && npm run dev",
+    "build": "cd src/shell && npm run build",
+    "test": "cd src/shell && npm test",
+    "test:e2e": "cd src/shell && npm run test:e2e"
+  },
   "devDependencies": {
     "playwright": "^1.61.1"
   }

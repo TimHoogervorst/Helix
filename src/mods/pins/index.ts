@@ -1,13 +1,5 @@
-import { registerSidebarAction } from "../../core/mod-system";
+import { registerSidebarAction } from "../../shell/src/mod-system";
 import PinnedWorkspacesSidebar from "./components/PinnedWorkspacesSidebar";
-
-export const meta = {
-  id: "pins",
-  displayName: "Pinned Workspaces",
-  version: "0.1.0",
-  dependsOn: [],
-};
-
 export function register() {
   // ── Sidebar action: workspace section (renders for all workspaces) ──────
   registerSidebarAction({

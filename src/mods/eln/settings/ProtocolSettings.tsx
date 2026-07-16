@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put, del } from "../../../core/api/client";
+import { get, post, put, del } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
 import ProtocolMasterPanel from "./ProtocolMasterPanel";
 import ProtocolDetailPanel from "./ProtocolDetailPanel";

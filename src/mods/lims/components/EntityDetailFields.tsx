@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { EntityListItem } from "../types";
-import MentionBadge from "../../../shared/components/MentionBadge";
+import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 
 export interface EntityDetailFieldsProps {
   entity: EntityListItem;
@@ -10,7 +10,7 @@ export interface EntityDetailFieldsProps {
   children?: ReactNode;
 }
 
-import { formatDate } from "../../../shared/format";
+import { formatDate } from "../../../shell/src/shared/format";
 
 function EntityDetailFields({
   entity,

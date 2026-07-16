@@ -6,7 +6,7 @@ GET  /api/mentions/search/    — search by display_id prefix
 """
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
-from core_mods.eln.models import NotebookEntry
+from mods.eln.models import NotebookEntry
 
 
 class ResolveApiTests(BaseTestCase):
@@ -146,7 +146,7 @@ class EntityReferenceTests(BaseTestCase):
         super().setUp()
 
         from django.contrib.contenttypes.models import ContentType
-        from core_mods.lims.models import EntityType, Entity, RegisteredEntityType
+        from mods.lims.models import EntityType, Entity, RegisteredEntityType
 
         self.blood_type = EntityType.objects.create(
             name="Blood Sample", prefix="BLOOD", columns=[]
@@ -231,7 +231,7 @@ class IconInMentionsTests(BaseTestCase):
         super().setUp()
 
         from django.contrib.contenttypes.models import ContentType
-        from core_mods.lims.models import EntityType, Entity, RegisteredEntityType
+        from mods.lims.models import EntityType, Entity, RegisteredEntityType
 
         self.blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", icon="🩸", columns=[]
@@ -283,7 +283,7 @@ class IconInMentionsTests(BaseTestCase):
     def test_resolve_entity_default_icon(self):
         """Entity with entity type having default icon resolves with '🧪'."""
         from django.contrib.contenttypes.models import ContentType
-        from core_mods.lims.models import EntityType, Entity, RegisteredEntityType
+        from mods.lims.models import EntityType, Entity, RegisteredEntityType
 
         default_type = EntityType.objects.create(
             name="Default", prefix="DEF", columns=[]

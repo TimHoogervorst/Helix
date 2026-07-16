@@ -5,7 +5,7 @@ import {
   makeLibraryFolder,
   makeLibraryEntry,
   makeLibraryContents,
-} from "../../../test/factories";
+} from "../../../shell/src/test/factories";
 import LibraryHub from "../hub/LibraryHub";
 
 // ── Mocks ────────────────────────────────────────────────────────────

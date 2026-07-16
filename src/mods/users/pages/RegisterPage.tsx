@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Dna } from "lucide-react";
-import { register } from "../../../core/user/api";
+import { register } from "../../../shell/src/user/api";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");

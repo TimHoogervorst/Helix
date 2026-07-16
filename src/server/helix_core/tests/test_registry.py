@@ -46,7 +46,7 @@ def _make_manifest(
 def _mock_sender(mod_id: str, name: str = "FakeModel") -> MagicMock:
     """Create a MagicMock sender with __module__ pointing to a mod."""
     sender = MagicMock()
-    sender.__module__ = f"core_mods.{mod_id}.models"
+    sender.__module__ = f"mods.{mod_id}.models"
     sender.__name__ = name
     return sender
 
@@ -143,7 +143,7 @@ class TestURLRegistration:
     def test_get_url_patterns_in_dependency_order(self):
         """get_url_patterns returns mods in dependency order."""
         reg = _fresh_registry()
-        reg.set_mod_order(["core_mods.tags", "core_mods.eln"])
+        reg.set_mod_order(["mods.tags", "mods.eln"])
 
         eln_p = path("api/eln/", _dummy_view)
         tags_p = path("api/tags/", _dummy_view)
@@ -157,7 +157,7 @@ class TestURLRegistration:
     def test_get_url_patterns_unknown_mods_last(self):
         """Unknown mods appear alphabetically after known mods."""
         reg = _fresh_registry()
-        reg.set_mod_order(["core_mods.tags"])
+        reg.set_mod_order(["mods.tags"])
 
         tags_p = path("api/tags/", _dummy_view)
         core_p = path("api/core/", _dummy_view)
@@ -331,7 +331,7 @@ class TestSignalRegistration:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.lims", "core_mods.eln"], manifests
+            ["mods.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -356,7 +356,7 @@ class TestSignalRegistration:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.lims", "core_mods.eln"], manifests
+            ["mods.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -376,7 +376,7 @@ class TestSignalRegistration:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.tags", "core_mods.lims", "core_mods.eln"], manifests
+            ["mods.tags", "mods.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -388,10 +388,10 @@ class TestSignalRegistration:
             reg.register_signal("eln", signal, handler, sender=sender)
 
     def test_unknown_sender_module_skips_validation(self):
-        """A sender without a core_mods module skips validation."""
+        """A sender without a mods module skips validation."""
         reg = _fresh_registry()
         manifests = {"eln": _make_manifest("eln")}
-        reg.set_mod_order(["core_mods.eln"], manifests)
+        reg.set_mod_order(["mods.eln"], manifests)
 
         signal = MagicMock()
         handler = lambda sender, **kwargs: None  # noqa: E731
@@ -446,7 +446,7 @@ class TestSignalDependencyGating:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.lims", "core_mods.eln"], manifests
+            ["mods.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -473,7 +473,7 @@ class TestSignalDependencyGating:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.lims", "core_mods.eln"], manifests
+            ["mods.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -498,7 +498,7 @@ class TestSignalDependencyGating:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.lims", "core_mods.eln"], manifests
+            ["mods.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -805,7 +805,7 @@ class TestOverride:
 class TestResolveModId:
     """Tests for _resolve_mod_id static method."""
 
-    def test_core_mods_sender(self):
+    def test_mods_sender(self):
         sender = _mock_sender("eln")
         result = BackendModRegistry._resolve_mod_id(sender)
         assert result == "eln"
@@ -842,7 +842,7 @@ class TestBuildURLPatterns:
     def test_returns_patterns_in_dependency_order(self):
         """Dependencies should appear before dependents."""
         reg = _fresh_registry()
-        reg.set_mod_order(["core_mods.tags", "core_mods.eln"])
+        reg.set_mod_order(["mods.tags", "mods.eln"])
 
         tags_pattern = path("api/tags/", _dummy_view, name="tags")
         eln_pattern = path("api/eln/", _dummy_view, name="eln")
@@ -856,7 +856,7 @@ class TestBuildURLPatterns:
     def test_unknown_mods_appended_alphabetically(self):
         """Mods not in the mod order go last, sorted alphabetically."""
         reg = _fresh_registry()
-        reg.set_mod_order(["core_mods.tags"])
+        reg.set_mod_order(["mods.tags"])
 
         tags_pattern = path("api/tags/", _dummy_view)
         core_pattern = path("api/core/", _dummy_view)
@@ -873,13 +873,13 @@ class TestBuildURLPatterns:
         """Match the dependency table from the mod-system spec."""
         reg = _fresh_registry()
         reg.set_mod_order([
-            "core_mods.tags",
-            "core_mods.users",
-            "core_mods.lims",
-            "core_mods.eln",
-            "core_mods.library",
-            "core_mods.pins",
-            "core_mods.core",
+            "mods.tags",
+            "mods.users",
+            "mods.lims",
+            "mods.eln",
+            "mods.library",
+            "mods.pins",
+            "mods.core",
         ])
 
         eln_p = path("api/eln/", _dummy_view)
@@ -901,7 +901,7 @@ class TestBuildURLPatterns:
     def test_mod_with_multiple_patterns(self):
         """All patterns from a single mod are included together."""
         reg = _fresh_registry()
-        reg.set_mod_order(["core_mods.a", "core_mods.b"])
+        reg.set_mod_order(["mods.a", "mods.b"])
 
         a1 = path("api/a/one/", _dummy_view)
         a2 = path("api/a/two/", _dummy_view)
@@ -916,9 +916,9 @@ class TestBuildURLPatterns:
     def test_include_pattern(self):
         """build_urlpatterns works with include() entries."""
         reg = _fresh_registry()
-        reg.set_mod_order(["core_mods.eln"])
+        reg.set_mod_order(["mods.eln"])
 
-        inc_pattern = include("core_mods.eln.urls")
+        inc_pattern = include("mods.eln.urls")
         reg.register_urls("eln", [inc_pattern])
 
         result = reg.build_urlpatterns()
@@ -934,9 +934,9 @@ class TestSetModOrder:
     def test_extracts_mod_ids_from_dotted_paths(self):
         reg = _fresh_registry()
         reg.set_mod_order([
-            "core_mods.tags",
-            "core_mods.lims",
-            "core_mods.eln",
+            "mods.tags",
+            "mods.lims",
+            "mods.eln",
         ])
         tags_p = path("api/tags/", _dummy_view)
         eln_p = path("api/eln/", _dummy_view)
@@ -962,15 +962,15 @@ class TestSetModOrder:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["core_mods.lims", "core_mods.eln"], manifests
+            ["mods.lims", "mods.eln"], manifests
         )
         assert reg._manifests == manifests
 
     def test_manifests_none_does_not_clear_existing(self):
         reg = _fresh_registry()
         manifests = {"eln": _make_manifest("eln")}
-        reg.set_mod_order(["core_mods.eln"], manifests)
-        reg.set_mod_order(["core_mods.eln"], None)
+        reg.set_mod_order(["mods.eln"], manifests)
+        reg.set_mod_order(["mods.eln"], None)
         # Existing manifests should be preserved.
         assert reg._manifests == manifests
 

@@ -19,15 +19,15 @@ import { TableKit } from "@tiptap/extension-table";
 import Reference from "./Reference";
 import MentionSuggestion from "./MentionSuggestion";
 import SlashCommands from "./SlashCommands";
-import { ModRegistry } from "../../../../core/mod-system";
-import type { SlotContext } from "../../../../core/mod-system/types";
-import type { WorkspaceBus } from "../../../../core/workspace/WorkspaceBus";
-import { createBlockNode } from "../../../../core/workspace/TipTapRenderer/createBlockNode";
-import type { BlockBinding } from "../../../../core/mod-system/types";
-import LimsTable from "../../../../core-mods/eln/blocks/LimsTable";
-import TableBlock from "../../../../core-mods/eln/blocks/TableBlock";
-import CommentBlock from "../../../../core-mods/eln/blocks/CommentBlock";
-import ProtocolBlock from "../../../../core-mods/eln/blocks/ProtocolBlock";
+import { ModRegistry } from "../../../../shell/src/mod-system";
+import type { SlotContext } from "../../../../shell/src/mod-system/types";
+import type { WorkspaceBus } from "../../../../shell/src/workspace/WorkspaceBus";
+import { createBlockNode } from "../../../../shell/src/workspace/TipTapRenderer/createBlockNode";
+import type { BlockBinding } from "../../../../shell/src/mod-system/types";
+import LimsTable from "../../../eln/blocks/LimsTable";
+import TableBlock from "../../../eln/blocks/TableBlock";
+import CommentBlock from "../../../eln/blocks/CommentBlock";
+import ProtocolBlock from "../../../eln/blocks/ProtocolBlock";
 
 /** Legacy TipTap node extensions for backward compat with existing DB content. */
 const LEGACY_NODES = [LimsTable, TableBlock, CommentBlock, ProtocolBlock];

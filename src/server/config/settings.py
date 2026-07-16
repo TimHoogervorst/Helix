@@ -20,8 +20,8 @@ ALLOWED_HOSTS = ["*"]
 # ── Helix Mod System ─────────────────────────────────────────────────────────
 
 # Override auto-discovery by setting HELIX_MODS to an explicit list of
-# dotted mod paths (e.g. ["core_mods.eln", "core_mods.lims"]).  When None
-# (the default), all core_mods/*/mod.py directories are auto-discovered.
+# dotted mod paths (e.g. ["mods.eln", "mods.lims"]).  When None
+# (the default), all mods/*/mod.py directories are auto-discovered.
 HELIX_MODS = None
 
 INSTALLED_APPS = [
@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     # Helix platform
     "helix_core",
     "core",
-    # Helix mods — auto-discovered from core_mods/*/mod.py (or overridden
+    # Helix mods — auto-discovered from mods/*/mod.py (or overridden
     # via HELIX_MODS above).  Returned in dependency order.
     *get_helix_mods(base_dir=BASE_DIR, helix_mods_override=HELIX_MODS),
     "core.mentions",

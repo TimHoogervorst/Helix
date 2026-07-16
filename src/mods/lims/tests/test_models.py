@@ -7,8 +7,8 @@ from django.test import TestCase
 from django.db.utils import IntegrityError
 
 from core.tests.base import BaseServiceTestCase
-from core_mods.eln.models import NotebookEntry
-from core_mods.lims.models import EntityType, Entity
+from mods.eln.models import NotebookEntry
+from mods.lims.models import EntityType, Entity
 
 
 class EntityDisplayIdTests(BaseServiceTestCase):

@@ -4,20 +4,12 @@ import {
   registerSettingsSection,
   registerWorkspace,
   ModRegistry,
-} from "../../core/mod-system";
-import type { RegisteredEntityType } from "../../core/mod-system";
-import { get } from "../../core/api/client";
+} from "../../shell/src/mod-system";
+import type { RegisteredEntityType } from "../../shell/src/mod-system";
+import { get } from "../../shell/src/api/client";
 import type { EntityType } from "./types";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
-
-export const meta = {
-  id: "lims",
-  displayName: "LIMS",
-  version: "0.1.0",
-  dependsOn: [],
-};
-
 export function register() {
   // ── Workspace: LIMS entity workspace ───────────────────────────────────
   registerWorkspace({ id: "lims", displayName: "LIMS" });

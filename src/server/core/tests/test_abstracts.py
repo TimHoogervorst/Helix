@@ -3,8 +3,8 @@
 from django.test import TestCase
 
 from helix_core.abstracts import BrowsableItem
-from core_mods.eln.models import NotebookEntry
-from core_mods.lims.models import Entity, EntityType
+from mods.eln.models import NotebookEntry
+from mods.lims.models import Entity, EntityType
 
 
 class BrowsableItemDisplayIdTests(TestCase):

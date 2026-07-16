@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 // ── ModRegistry setup ────────────────────────────────────────────────────
 

@@ -28,22 +28,22 @@ def delete_everything(request):
     counts["mentions"] = c
 
     # 2. ELN entries
-    from core_mods.eln.models import NotebookEntry
+    from mods.eln.models import NotebookEntry
     c, _ = NotebookEntry.objects.all().delete()
     counts["eln_entries"] = c
 
     # 3. LIMS actions (depend on entities)
-    from core_mods.lims.models import Action
+    from mods.lims.models import Action
     c, _ = Action.objects.all().delete()
     counts["actions"] = c
 
     # 4. LIMS entities (depend on entity types)
-    from core_mods.lims.models import Entity
+    from mods.lims.models import Entity
     c, _ = Entity.objects.all().delete()
     counts["entities"] = c
 
     # 5. Entity types (schemas)
-    from core_mods.lims.models import EntityType
+    from mods.lims.models import EntityType
     c, _ = EntityType.objects.all().delete()
     counts["entity_types"] = c
 

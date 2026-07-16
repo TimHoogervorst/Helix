@@ -5,8 +5,8 @@ The signal (in ``eln/cascade.py``) fires on ``post_save`` for
 NotebookEntry and updates the status of all linked Entities to match.
 """
 from core.tests.base import BaseServiceTestCase
-from core_mods.eln.models import NotebookEntry
-from core_mods.lims.models import EntityType, Entity
+from mods.eln.models import NotebookEntry
+from mods.lims.models import EntityType, Entity
 
 
 class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):

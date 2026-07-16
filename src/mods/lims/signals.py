@@ -14,6 +14,6 @@ def sync_entities_on_content_sync(sender, entry, content, **kwargs):
     with entity IDs patched into limsTable rows.
     """
     # Lazy import to avoid triggering model registry at import time.
-    from core_mods.lims.services import sync_entities
+    from mods.lims.services import sync_entities
 
     return sync_entities(entry, content)

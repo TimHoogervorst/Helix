@@ -6,8 +6,8 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
 from core.models import Folder
-from core_mods.tags.serializers import TagSerializer
-from core_mods.users.serializers import UserSerializer
+from mods.tags.serializers import TagSerializer
+from mods.users.serializers import UserSerializer
 
 
 class MixedListPagination(PageNumberPagination):

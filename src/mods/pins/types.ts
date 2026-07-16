@@ -8,4 +8,4 @@ export interface PinnedWorkspace {
 }
 
 /** Re-exported from core/mod-system/types so both pins and mentions share it. */
-export type { CurrentWorkspace } from "../../core/mod-system/types";
+export type { CurrentWorkspace } from "../../shell/src/mod-system/types";

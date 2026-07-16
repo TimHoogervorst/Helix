@@ -16,7 +16,7 @@ from core.mentions.prefix_resolver import (
     _build_prefix_map,
     _build_model_type_map,
 )
-from core_mods.eln.models import NotebookEntry
+from mods.eln.models import NotebookEntry
 
 
 # ── Resolution tests ────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_resolves_entity_by_dynamic_prefix(self):
         """``BLOOD1`` resolves to an Entity after creating the EntityType."""
-        from core_mods.lims.models import Entity, EntityType
+        from mods.lims.models import Entity, EntityType
 
         blood_type = EntityType.objects.create(
             name="Blood Sample", prefix="BLOOD", columns=[]
@@ -81,7 +81,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_prefix_extraction_mixed_case(self):
         """``Blood1`` → prefix extracted as ``BLOOD``."""
-        from core_mods.lims.models import Entity, EntityType
+        from mods.lims.models import Entity, EntityType
 
         blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", columns=[]
@@ -119,7 +119,7 @@ class GetIconTests(BaseServiceTestCase):
 
     def test_entity_icon_from_entity_type(self):
         """Entities use the icon configured on their EntityType."""
-        from core_mods.lims.models import Entity, EntityType
+        from mods.lims.models import Entity, EntityType
 
         blood_type = EntityType.objects.create(
             name="Blood", prefix="BLOOD", icon="🩸", columns=[]
@@ -132,7 +132,7 @@ class GetIconTests(BaseServiceTestCase):
 
     def test_entity_default_icon(self):
         """Entities without a configured icon get ``🧪``."""
-        from core_mods.lims.models import Entity, EntityType
+        from mods.lims.models import Entity, EntityType
 
         plain_type = EntityType.objects.create(
             name="Plain", prefix="PLAIN", columns=[]
@@ -161,7 +161,7 @@ class PrefixMapTests(BaseServiceTestCase):
 
     def test_includes_dynamic_entity_prefixes(self):
         """EntityType-created prefixes appear in the map."""
-        from core_mods.lims.models import EntityType
+        from mods.lims.models import EntityType
 
         EntityType.objects.create(
             name="Blood", prefix="BLOOD", columns=[]
@@ -173,7 +173,7 @@ class PrefixMapTests(BaseServiceTestCase):
 
     def test_build_prefix_map_is_uncached(self):
         """``_build_prefix_map()`` always hits the database."""
-        from core_mods.lims.models import EntityType
+        from mods.lims.models import EntityType
 
         pmap1 = _build_prefix_map()
         EntityType.objects.create(name="New", prefix="NEW", columns=[])
@@ -204,7 +204,7 @@ class PrefixCacheTests(BaseServiceTestCase):
 
     def test_cache_invalidates_on_entity_type_save(self):
         """Creating an EntityType invalidates the cache."""
-        from core_mods.lims.models import EntityType
+        from mods.lims.models import EntityType
 
         # Create initial map (populates cache)
         get_prefix_map()
@@ -218,7 +218,7 @@ class PrefixCacheTests(BaseServiceTestCase):
 
     def test_cache_invalidates_on_entity_type_delete(self):
         """Deleting an EntityType invalidates the cache."""
-        from core_mods.lims.models import EntityType
+        from mods.lims.models import EntityType
 
         et = EntityType.objects.create(name="Blood", prefix="BLOOD", columns=[])
         invalidate_prefix_cache(sender=EntityType)
@@ -244,7 +244,7 @@ class PrefixCacheTests(BaseServiceTestCase):
         self.assertIn(NotebookEntry, mmap)
         self.assertEqual(mmap[NotebookEntry], "entry")
 
-        from core_mods.lims.models import Entity
+        from mods.lims.models import Entity
         self.assertIn(Entity, mmap)
         self.assertEqual(mmap[Entity], "entity")
 
@@ -273,7 +273,7 @@ class WorkspaceLookupTests(BaseServiceTestCase):
 
     def test_entity_type_prefix_returns_lims(self):
         """A dynamic entity type prefix returns workspace 'lims'."""
-        from core_mods.lims.models import EntityType, RegisteredEntityType
+        from mods.lims.models import EntityType, RegisteredEntityType
         from django.contrib.contenttypes.models import ContentType
 
         # Create the EntityType and a RegisteredEntityType (mimicking registration).
@@ -312,7 +312,7 @@ class WorkspaceMapCacheTests(BaseServiceTestCase):
 
     def test_cache_invalidates_on_registered_entity_type_save(self):
         """Creating a RegisteredEntityType invalidates the workspace cache."""
-        from core_mods.lims.models import RegisteredEntityType
+        from mods.lims.models import RegisteredEntityType
         from django.contrib.contenttypes.models import ContentType
 
         # Prime cache
@@ -331,7 +331,7 @@ class WorkspaceMapCacheTests(BaseServiceTestCase):
 
     def test_cache_invalidates_on_registered_entity_type_delete(self):
         """Deleting a RegisteredEntityType invalidates the workspace cache."""
-        from core_mods.lims.models import RegisteredEntityType
+        from mods.lims.models import RegisteredEntityType
         from django.contrib.contenttypes.models import ContentType
 
         entity_ct = ContentType.objects.get(app_label="lims", model="entity")

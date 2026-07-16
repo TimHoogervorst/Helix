@@ -10,9 +10,9 @@ from unittest.mock import patch
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_lims_table_doc, make_doc_with_ref
 from core.mentions.models import Mention
-from core_mods.eln.models import NotebookEntry
-from core_mods.eln.sync import sync_entry_content, _collect_lims_table_fingerprint
-from core_mods.lims.models import EntityType, Entity
+from mods.eln.models import NotebookEntry
+from mods.eln.sync import sync_entry_content, _collect_lims_table_fingerprint
+from mods.lims.models import EntityType, Entity
 
 
 class SyncEntryContentTests(BaseServiceTestCase):
@@ -267,7 +267,7 @@ class SyncEntryContentTests(BaseServiceTestCase):
         """Receivers run before mentions, so entities sync before mention resolution."""
 
         with patch(
-            "core_mods.eln.sync.sync_mentions",
+            "mods.eln.sync.sync_mentions",
         ) as mock_mentions:
             doc = make_lims_table_doc(
                 self.blood_type.id,
@@ -530,9 +530,9 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send"
+            "mods.eln.sync.entry_content_sync.send"
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             result = sync_entry_content(self.entry, old_content=old_doc)
 
@@ -583,10 +583,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry, old_content=old_doc)
 
@@ -611,10 +611,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry, old_content=old_doc)
 
@@ -639,10 +639,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry, old_content=old_doc)
 
@@ -661,10 +661,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry, old_content=old_doc)
 
@@ -681,10 +681,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry, old_content=old_doc)
 
@@ -700,10 +700,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry)  # no old_content
 
@@ -722,7 +722,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal:
             sync_entry_content(self.entry, old_content=None)
@@ -739,9 +739,9 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send"
+            "mods.eln.sync.entry_content_sync.send"
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             result = sync_entry_content(self.entry, old_content=doc)
 
@@ -796,10 +796,10 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.entry.save()
 
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send",
+            "mods.eln.sync.entry_content_sync.send",
             wraps=lambda **kwargs: [(None, None)],
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             sync_entry_content(self.entry, old_content=old_doc)
 
@@ -843,9 +843,9 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
             "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Second"}]}],
         }
         with patch(
-            "core_mods.eln.sync.entry_content_sync.send"
+            "mods.eln.sync.entry_content_sync.send"
         ) as mock_signal, patch(
-            "core_mods.eln.sync.sync_mentions"
+            "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             resp = client.put(
                 f"/api/eln/entries/{display_id}/",

@@ -6,7 +6,7 @@ Exercises full CRUD, validation, soft-delete, and is_active filtering.
 from unittest.mock import patch
 
 from core.tests.base import BaseTestCase
-from core_mods.eln.models import Protocol
+from mods.eln.models import Protocol
 
 
 VALID_ITEMS = [

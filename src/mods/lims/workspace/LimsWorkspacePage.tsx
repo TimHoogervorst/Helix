@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get } from "../../../core/api/client";
+import { get } from "../../../shell/src/api/client";
 import type { EntityListItem } from "../types";
-import MentionBadge from "../../../shared/components/MentionBadge";
+import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
 import LimsWorkspacePanel from "./LimsWorkspace";
 

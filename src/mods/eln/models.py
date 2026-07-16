@@ -9,8 +9,8 @@ from helix_core.abstracts import BrowsableItem
 from helix_core.actions.base import AbstractBaseAction
 from core.constants import STATUS_CHOICES
 
-# Re-export for backward compatibility — these are canonical in core_mods.tags.
-from core_mods.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
+# Re-export for backward compatibility — these are canonical in mods.tags.
+from mods.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
 
 
 class NotebookEntry(BrowsableItem):

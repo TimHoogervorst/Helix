@@ -10,24 +10,16 @@ import {
   registerButton,
   registerIntoSlot,
   ModRegistry,
-} from "../../core/mod-system";
-import { ButtonGroupRenderer } from "../../core/workspace/ButtonGroupRenderer";
-import { PanelRenderer } from "../../core/workspace/PanelRenderer";
-import { TipTapRenderer } from "../../core/workspace/TipTapRenderer";
+} from "../../shell/src/mod-system";
+import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
+import { PanelRenderer } from "../../shell/src/workspace/PanelRenderer";
+import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import { TableBlockComponent } from "./blocks/TableNodeView";
 import { LimsTableBlockComponent } from "./blocks/LimsTableNode";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
 import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
-
-export const meta = {
-  id: "eln",
-  displayName: "ELN",
-  version: "0.1.0",
-  dependsOn: ["lims", "tags"] as string[],
-};
-
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
   registerWorkspace({ id: "eln", displayName: "ELN" });
@@ -88,8 +80,6 @@ export function register() {
       { key: "attachments_count" },
     ],
   });
-
-
   // ── Slot: ELN Editor (dogfood #231) ────────────────────────────────────
   declareSlot({
     id: "eln.editor",

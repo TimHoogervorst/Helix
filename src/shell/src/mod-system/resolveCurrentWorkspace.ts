@@ -4,7 +4,7 @@
  * Uses ModRegistry.getWorkspaces() to match the pathname against registered
  * workspace URL namespaces. The convention is `/{workspaceId}/{displayId}`.
  *
- * Lifted from core-mods/pins/ so both pins and mentions can share it.
+ * Lifted from mods/pins/ so both pins and mentions can share it.
  */
 import { ModRegistry } from "./ModRegistry";
 import type { CurrentWorkspace } from "./types";

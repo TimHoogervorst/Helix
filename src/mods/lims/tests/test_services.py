@@ -6,8 +6,8 @@ from rest_framework import serializers
 
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_lims_table_doc
-from core_mods.eln.models import NotebookEntry
-from core_mods.lims.models import EntityType, Entity
+from mods.eln.models import NotebookEntry
+from mods.lims.models import EntityType, Entity
 
 
 class SyncEntitiesTests(BaseServiceTestCase):
@@ -28,7 +28,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_tracer_sync_creates_entity_from_lims_table(self):
         """A limsTable with one row → one Entity created, displayId patched in attrs.rows."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -53,7 +53,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_creates_multiple_entities(self):
         """Each row in the limsTable gets its own Entity."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -72,7 +72,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_updates_existing_entity_properties(self):
         """Re-saving with changed cell values updates entity properties."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         # First save creates the entity
         doc = make_lims_table_doc(
@@ -109,7 +109,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
         """Full frontend→backend→frontend→backend round-trip without manual
         entityId injection: patched content from the first sync is re-submitted
         (simulating the editor round-trip), and must update — not duplicate."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         # ── First save (simulates POST from frontend with entityId: null) ──
         doc1 = make_lims_table_doc(
@@ -159,7 +159,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
     def test_roundtrip_add_and_remove_row_preserves_existing(self):
         """Adding a new row and removing an old row in one save must create
         one entity, delete one entity, and preserve the remaining one."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         # ── First save: 2 rows ──
         doc1 = make_lims_table_doc(
@@ -215,7 +215,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
     def test_multiple_tables_same_schema_do_not_cross_delete(self):
         """Two limsTable nodes sharing the same schema must not delete each
         other's entities — the original bug that caused entity duplication."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         # Build a doc with TWO limsTable nodes, both using the same schema
         doc = {
@@ -295,7 +295,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
     def test_multiple_tables_same_schema_row_changes(self):
         """Two tables same schema: add a row to one, remove from the other,
         modify a value in the third — everything survives correctly."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = {
             "type": "doc",
@@ -383,7 +383,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
         Uses the patched content from the first sync for the second sync,
         matching the real frontend round-trip."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         # Create two entities
         doc = make_lims_table_doc(
@@ -419,7 +419,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_skips_plain_tables(self):
         """Tables without schemaId are ignored (plain tables)."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = {
             "type": "doc",
@@ -447,7 +447,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_empty_table_noop(self):
         """A limsTable with no rows is a no-op."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id, rows_data=[], entity_type=self.blood_type,
@@ -458,7 +458,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_reference_cells_create_mentions(self):
         """Reference-type columns inside limsTable v2 trigger mention sync."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
         from core.mentions.sync import sync_mentions
         from core.mentions.models import Mention
 
@@ -494,7 +494,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_raises_validation_error_on_empty_name(self):
         """sync_entities raises ValidationError when a row has an empty __name."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -509,7 +509,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_raises_validation_error_on_whitespace_name(self):
         """sync_entities raises ValidationError when __name is only whitespace."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -524,7 +524,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_raises_validation_error_on_missing_name(self):
         """sync_entities raises ValidationError when __name key is missing."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -540,7 +540,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_uses_name_from_row_data_on_create(self):
         """sync_entities uses __name as Entity.name on create."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         doc = make_lims_table_doc(
             self.blood_type.id,
@@ -556,7 +556,7 @@ class SyncEntitiesTests(BaseServiceTestCase):
 
     def test_sync_updates_entity_name_on_re_save(self):
         """sync_entities updates Entity.name from __name on subsequent saves."""
-        from core_mods.lims.services import sync_entities
+        from mods.lims.services import sync_entities
 
         # First save
         doc = make_lims_table_doc(
@@ -603,7 +603,7 @@ class EntityTypeIconTests(TestCase):
 
     def test_icon_in_serializer(self):
         """EntityTypeSerializer includes the icon field."""
-        from core_mods.lims.serializers import EntityTypeSerializer
+        from mods.lims.serializers import EntityTypeSerializer
 
         et = EntityType.objects.create(
             name="DNA", prefix="DNA", icon="🧬", columns=[]

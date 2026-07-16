@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { EntityType, ColumnDef } from "../types";
-import MentionBadge from "../../../shared/components/MentionBadge";
+import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import ColumnEditor, { type ColumnEditorProps } from "./ColumnEditor";
 
 const CURATED_EMOJIS = ["🧪", "🩸", "🐁", "🌿", "👤", "🧬", "🔬"];

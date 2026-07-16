@@ -211,24 +211,24 @@ describe("topologicalSort", () => {
 
   describe("extractModDir", () => {
     it("extracts directory name from index.ts path", () => {
-      expect(extractModDir("../../core-mods/eln/index.ts")).toBe("eln");
+      expect(extractModDir("../../../mods/eln/index.ts")).toBe("eln");
     });
 
     it("extracts directory name from modManifest.json path", () => {
       expect(
-        extractModDir("../../core-mods/tags/modManifest.json"),
+        extractModDir("../../../mods/tags/modManifest.json"),
       ).toBe("tags");
     });
 
     it("extracts directory name with hyphens", () => {
       expect(
-        extractModDir("../../core-mods/my-plugin/index.ts"),
+        extractModDir("../../../mods/my-plugin/index.ts"),
       ).toBe("my-plugin");
     });
 
     it("handles deeply nested paths", () => {
       expect(
-        extractModDir("/home/user/project/src/core-mods/lims/index.ts"),
+        extractModDir("/home/user/project/src/mods/lims/index.ts"),
       ).toBe("lims");
     });
   });
@@ -236,7 +236,7 @@ describe("topologicalSort", () => {
   // ── parseJsonManifest Tests ─────────────────────────────────────────────
 
   describe("parseJsonManifest", () => {
-    const testPath = "../../core-mods/test-mod/modManifest.json";
+    const testPath = "../../../mods/test-mod/modManifest.json";
 
     it("parses a minimal valid JSON manifest", () => {
       const manifest = parseJsonManifest(

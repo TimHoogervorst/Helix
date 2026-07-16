@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import * as elnMod from "../index";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────

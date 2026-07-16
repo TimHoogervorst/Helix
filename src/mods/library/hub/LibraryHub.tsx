@@ -14,14 +14,14 @@ import {
   Archive,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem } from "../types";
-import { usePaginatedData } from "../../../shared/hooks/usePaginatedData";
+import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
 import { getLibraryContents } from "../api";
-import Breadcrumbs from "../../../shared/components/Breadcrumbs";
-import type { BreadcrumbSegment } from "../../../shared/components/Breadcrumbs";
+import Breadcrumbs from "../../../shell/src/shared/components/Breadcrumbs";
+import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
-import { BaseCard } from "../../../shared/components/BaseCard";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
-import type { LibraryItemConfig } from "../../../core/mod-system/types";
+import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import type { LibraryItemConfig } from "../../../shell/src/mod-system/types";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 

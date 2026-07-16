@@ -10,7 +10,7 @@ Usage::
 
     # In AppConfig.ready():
     registry.register_action_model("eln", ElnAction)
-    registry.register_urls("eln", [path("api/eln/", include("core_mods.eln.urls"))])
+    registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
     registry.register_entity_type({"prefix": "BLOOD", "name": "Blood Sample", "mod_id": "lims"})
     registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
     registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
@@ -70,7 +70,7 @@ class BackendModRegistry:
         """Set the topological mod order from the loader's sorted output.
 
         Each entry in *dotted_paths* is a string like
-        ``"core_mods.tags"`` (for core mods) or ``"my_plugin"`` (for
+        ``"mods.tags"`` (for core mods) or ``"my_plugin"`` (for
         external mods).  For core mods the final dot-separated segment
         is extracted as the mod ID.  For external mods the manifest
         keys are used directly to recover the original mod ID (which
@@ -86,17 +86,17 @@ class BackendModRegistry:
         if manifests is not None:
             self._manifests = dict(manifests)
             # Build a reverse mapping: dotted path → manifest ID.
-            # For core mods: "core_mods.tags" section → "tags"
+            # For core mods: "mods.tags" section → "tags"
             # For external mods: "my_plugin" → "my-plugin"
             path_to_id: dict[str, str] = {}
             for mod_id in manifests:
-                core_path = f"core_mods.{mod_id}"
+                core_path = f"mods.{mod_id}"
                 path_to_id[core_path] = mod_id
             # External mods: dotted path is the sanitized mod_id.
             from helix_core.mod_system.loader import _sanitize_module_name
 
             for mod_id in manifests:
-                if f"core_mods.{mod_id}" not in dotted_paths:
+                if f"mods.{mod_id}" not in dotted_paths:
                     path_to_id[_sanitize_module_name(mod_id)] = mod_id
 
             self._mod_order = [
@@ -211,13 +211,13 @@ class BackendModRegistry:
             if mod_id in self._manifests:
                 for dep_id in self._manifests[mod_id].dependency_ids:
                     # Try label first (e.g. "lims"), then dotted name
-                    # (e.g. "core_mods.lims") — Django app_configs keys
-                    # are app labels, which for core_mods are the last
+                    # (e.g. "mods.lims") — Django app_configs keys
+                    # are app labels, which for mods are the last
                     # component of the dotted name.
                     dep_config = apps.app_configs.get(dep_id)
                     if dep_config is None:
                         # Fall back: search by full dotted name
-                        dep_dotted = f"core_mods.{dep_id}"
+                        dep_dotted = f"mods.{dep_id}"
                         for config in apps.app_configs.values():
                             if config.name == dep_dotted:
                                 dep_config = config
@@ -244,15 +244,15 @@ class BackendModRegistry:
         """Resolve a sender model class to its mod ID.
 
         Inspects ``sender.__module__``.  Returns the mod ID (e.g. ``"eln"``
-        for a sender in ``core_mods.eln.models``) or ``None`` if the sender
+        for a sender in ``mods.eln.models``) or ``None`` if the sender
         is not part of a known mod package.
         """
         module_name = getattr(sender, "__module__", "")
         if not module_name:
             return None
 
-        # core_mods.<mod_id>.<rest> → extract mod_id
-        if module_name.startswith("core_mods."):
+        # mods.<mod_id>.<rest> → extract mod_id
+        if module_name.startswith("mods."):
             parts = module_name.split(".")
             if len(parts) >= 2:
                 return parts[1]

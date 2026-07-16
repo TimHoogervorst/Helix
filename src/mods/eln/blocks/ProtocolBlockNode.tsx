@@ -14,10 +14,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Circle, CheckCircle, Plus, Loader } from "lucide-react";
-import { get } from "../../../core/api/client";
+import { get } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
-import { useClickOutside } from "../../../shared/hooks/useClickOutside";
-import type { BlockComponentProps } from "../../../core/mod-system/types";
+import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

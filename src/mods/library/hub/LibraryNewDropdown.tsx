@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, FolderPlus, FileText, Loader2 } from "lucide-react";
-import { post } from "../../../core/api/client";
+import { post } from "../../../shell/src/api/client";
 import { EMPTY_DOC } from "../../eln/types";
 import { createEntry } from "../../eln/api";
-import { useClickOutside } from "../../../shared/hooks/useClickOutside";
+import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 
 interface LibraryNewDropdownProps {
   currentPath: string;

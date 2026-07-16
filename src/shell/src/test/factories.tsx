@@ -21,12 +21,12 @@ import type {
   PaginatedResponse,
   EntityType,
   ColumnDef,
-} from "../core-mods/lims/types";
+} from "../../../mods/lims/types";
 import type {
   LibraryEntryItem,
   LibraryFolderItem,
   LibraryContentsResponse,
-} from "../core-mods/library/types";
+} from "../../../mods/library/types";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 

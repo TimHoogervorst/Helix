@@ -1,4 +1,4 @@
-import { get, post, del } from "../../core/api/client";
+import { get, post, del } from "../../shell/src/api/client";
 import type { PinnedWorkspace } from "./types";
 
 /** Fetch all pinned workspaces for the current user. */

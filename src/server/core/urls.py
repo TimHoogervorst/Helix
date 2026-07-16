@@ -13,7 +13,7 @@ router.register(r"settings", CoreSettingViewSet, basename="coresetting")
 
 urlpatterns = [
     path("csrf/", csrf_token_view, name="csrf-token"),
-    # Auth + user management (core_mods.users)
-    path("", include("core_mods.users.urls")),
+    # Auth + user management (mods.users)
+    path("", include("mods.users.urls")),
     path("", include(router.urls)),
 ]

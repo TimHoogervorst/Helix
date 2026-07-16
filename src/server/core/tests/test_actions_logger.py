@@ -42,7 +42,7 @@ class LoggerDispatchTests(TestCase):
 
     def test_log_action_dispatches_to_registered_mod(self):
         """log_action creates a row in the model registered for the target_type prefix."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -67,7 +67,7 @@ class LoggerDispatchTests(TestCase):
 
     def test_log_action_metadata_defaults_to_empty_dict(self):
         """metadata is optional and defaults to {}."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -92,7 +92,7 @@ class LoggerDispatchTests(TestCase):
 
     def test_log_action_derives_mod_from_first_segment(self):
         """log_action extracts the mod id from the part before the first dot."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -143,7 +143,7 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_creates_rows(self):
         """bulk_log_actions creates the expected number of action rows."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -172,7 +172,7 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_shared_request_id(self):
         """All actions in a batch share the same request_id."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -197,7 +197,7 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_client_ip(self):
         """client_ip is set on all rows when provided."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -216,7 +216,7 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_metadata_defaults_to_empty_dict(self):
         """Actions without metadata get an empty dict."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -234,7 +234,7 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_empty_list(self):
         """An empty action list creates no rows and returns empty list."""
-        from core_mods.eln.models import ElnAction
+        from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
 
@@ -263,8 +263,8 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_cross_mod_routing(self):
         """Actions from different mods route to different concrete tables."""
-        from core_mods.eln.models import ElnAction
-        from core_mods.tags.models import TagsAction
+        from mods.eln.models import ElnAction
+        from mods.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
         register_action_model("tags", TagsAction)

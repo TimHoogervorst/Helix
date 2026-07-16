@@ -9,7 +9,7 @@ from django.test import override_settings
 from django.utils import timezone
 
 from core.tests.base import BaseTestCase
-from core_mods.eln.models import NotebookEntry, EntryLock
+from mods.eln.models import NotebookEntry, EntryLock
 
 from .factories import TEXT_DOC, ALT_DOC, _CreateEntryMixin
 

@@ -15,9 +15,9 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { createTestBus } from "../../../core/workspace/WorkspaceBus";
-import type { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
-import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import { createTestBus } from "../../../shell/src/workspace/WorkspaceBus";
+import type { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────

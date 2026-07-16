@@ -1,14 +1,6 @@
 import { BookOpen } from "lucide-react";
-import { registerHub } from "../../core/mod-system";
+import { registerHub } from "../../shell/src/mod-system";
 import LibraryHub from "./hub/LibraryHub";
-
-export const meta = {
-  id: "library",
-  displayName: "Library",
-  version: "0.1.0",
-  dependsOn: ["tags", "eln"],
-};
-
 export function register() {
   // ── Hub: Library browsing surface ─────────────────────────────────────
   registerHub({

@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.SeparateDatabaseAndState(
             state_operations=[
-                # Remove Tag from ELN's state — the model lives in core_mods.tags now.
+                # Remove Tag from ELN's state — the model lives in mods.tags now.
                 migrations.DeleteModel(name="Tag"),
                 # Add the M2M on the consumer side (NotebookEntry), reusing the
                 # existing through table so existing tag assignments are preserved.

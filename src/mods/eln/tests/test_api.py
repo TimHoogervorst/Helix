@@ -8,7 +8,7 @@ from unittest.mock import patch
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from core.mentions.models import Mention
-from core_mods.eln.models import NotebookEntry, ElnAction
+from mods.eln.models import NotebookEntry, ElnAction
 
 TEXT_DOC = {
     "type": "doc",
@@ -427,7 +427,7 @@ class EntryTagActionsLoggingTests(BaseTestCase):
         self.entry = NotebookEntry.objects.create(
             title="Tag Test Entry", content=TEXT_DOC, folder=self.folder, author=self.user
         )
-        from core_mods.tags.models import Tag
+        from mods.tags.models import Tag
         self.tag1 = Tag.objects.create(name="Important", color="enzyme", icon="dna")
         self.tag2 = Tag.objects.create(name="Urgent", color="warn", icon="circle")
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)

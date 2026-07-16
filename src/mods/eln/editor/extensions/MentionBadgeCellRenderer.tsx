@@ -7,7 +7,7 @@
  *
  * Requires MentionProvider to be in the component tree (provided at Layout level).
  */
-import MentionBadge from "../../../../shared/components/MentionBadge";
+import MentionBadge from "../../../../shell/src/shared/components/MentionBadge";
 import type { CustomCellRendererProps } from "ag-grid-react";
 
 /**

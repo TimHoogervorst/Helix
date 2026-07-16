@@ -6,8 +6,8 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 from core.models import Folder
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
-from core_mods.eln.models import NotebookEntry
-from core_mods.tags.models import Tag
+from mods.eln.models import NotebookEntry
+from mods.tags.models import Tag
 
 
 class LibraryApiTests(BaseTestCase):

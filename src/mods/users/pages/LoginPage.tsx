@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Dna } from "lucide-react";
-import { login } from "../../../core/user/api";
+import { login } from "../../../shell/src/user/api";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");

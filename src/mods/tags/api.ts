@@ -1,4 +1,4 @@
-import { get, post, patch, del } from "../../core/api/client";
+import { get, post, patch, del } from "../../shell/src/api/client";
 import type { Tag } from "./types";
 
 /**

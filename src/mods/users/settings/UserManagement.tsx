@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { Users, UserPlus, Shield, X } from "lucide-react";
 import { listUsers, createUser, deactivateUser, deleteUser, fetchCoreSetting, updateCoreSetting } from "../api";
-import { Avatar, getInitials } from "../../../shared/Avatar";
-import { formatDate } from "../../../shared/format";
+import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
+import { formatDate } from "../../../shell/src/shared/format";
 import type { CurrentUser } from "../types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────

@@ -36,17 +36,17 @@ def get_helix_mods(
     """Discover, validate, and topologically sort mod manifests.
 
     Returns dotted-path strings suitable for ``INSTALLED_APPS``
-    (e.g. ``["core_mods.tags", "core_mods.eln"]``).
+    (e.g. ``["mods.tags", "mods.eln"]``).
 
     If *helix_mods_override* is provided, only those dotted paths are loaded
     and auto-discovery is skipped.  When it is ``None`` (the default),
-    all ``core_mods/*/mod.py`` files under *base_dir* are auto-discovered.
+    all ``mods/*/mod.py`` files under *base_dir* are auto-discovered.
 
     Parameters:
-        base_dir: The project root directory that contains ``core_mods/``.
-            Pass ``settings.BASE_DIR``.  Required for auto-discovery.
+        base_dir: The project root directory (e.g. ``settings.BASE_DIR``).
+            Auto-discovery looks in ``base_dir.parent / "mods"``.
         helix_mods_override: Explicit list of dotted mod paths (e.g.
-            ``["core_mods.eln", "core_mods.lims"]``).  When set, only
+            ``["mods.eln", "mods.lims"]``).  When set, only
             these mods are loaded — auto-discovery is bypassed.
 
     Returns:
@@ -91,7 +91,7 @@ def _get_all_manifests(
 
     # Build dotted-path mapping for core mods.
     id_to_path: dict[str, str] = {
-        mod_id: f"core_mods.{mod_id}" for mod_id in manifests
+        mod_id: f"mods.{mod_id}" for mod_id in manifests
     }
 
     # ── external mods (helix.mods.json) ──────────────────────────────────
@@ -103,7 +103,7 @@ def _get_all_manifests(
             raise ValueError(
                 f"Duplicate mod ID '{ext_id}': declared in "
                 f"helix.mods.json but a mod with that id already "
-                f"exists in core_mods/."
+                f"exists in mods/."
             )
         manifests[ext_id] = ext_manifest
         id_to_path[ext_id] = ext_path
@@ -145,14 +145,15 @@ def _load_manifest_from_dir(mod_dir: Path, mod_id: str) -> ModManifest | None:
 def _auto_discover(
     base_dir: str | Path | None,
 ) -> dict[str, ModManifest]:
-    """Find all ``core_mods/*/mod.py`` files and load their manifests.
+    """Find all ``mods/*/mod.py`` files and load their manifests.
 
     Args:
-        base_dir: The project root directory containing ``core_mods/``.
+        base_dir: The project root directory (e.g. ``settings.BASE_DIR``).
+            Auto-discovery looks in ``base_dir.parent / "mods"``.
 
     Returns:
         Dict mapping mod IDs to their manifests.  Returns an empty dict
-        if the ``core_mods/`` directory does not exist.
+        if the ``mods/`` directory does not exist.
 
     Raises:
         ImportError: If a ``mod.py`` cannot be imported.
@@ -166,14 +167,14 @@ def _auto_discover(
             "Pass settings.BASE_DIR."
         )
 
-    core_mods_dir = Path(base_dir) / "core_mods"
+    mod_dir = Path(base_dir).parent / "mods"
 
     manifests: dict[str, ModManifest] = {}
 
-    if not core_mods_dir.is_dir():
+    if not mod_dir.is_dir():
         return manifests
 
-    for entry in sorted(core_mods_dir.iterdir()):
+    for entry in sorted(mod_dir.iterdir()):
         if not entry.is_dir():
             continue
         if entry.name.startswith("_"):
@@ -198,7 +199,7 @@ def _load_manifests_from_paths(
     cache does not interfere — important for testing with temp directories.
 
     Args:
-        paths: Dotted module paths (e.g. ``["core_mods.eln"]``).
+        paths: Dotted module paths (e.g. ``["mods.eln"]``).
 
     Returns:
         Dict mapping mod IDs to their manifests.
@@ -477,7 +478,7 @@ def _import_manifest(mod_py_path: Path, mod_id: str) -> ModManifest:
     """Import a ``mod.py`` file from disk and return its ``manifest``.
 
     Uses ``importlib.util`` to load the module without polluting
-    ``sys.modules`` with the canonical ``core_mods.<id>.mod`` name.
+    ``sys.modules`` with the canonical ``mods.<id>.mod`` name.
     Instead it uses a unique, test-safe module name.
 
     Args:
@@ -493,8 +494,8 @@ def _import_manifest(mod_py_path: Path, mod_id: str) -> ModManifest:
         ValueError: If the manifest's ``id`` does not match *mod_id*.
     """
     # Use a namespaced module name so tests can create mods in temp dirs
-    # without colliding with real core_mods.
-    module_name = f"_helix_loader.core_mods.{mod_id}.mod"
+    # without colliding with real mods.
+    module_name = f"_helix_loader.mods.{mod_id}.mod"
     spec = importlib.util.spec_from_file_location(module_name, str(mod_py_path))
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load spec for {mod_py_path}")

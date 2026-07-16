@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
-import { Avatar, getInitials } from "../../../core/user/Avatar";
-import { updateMe, changePassword } from "../../../core/user/api";
-import { ApiError } from "../../../core/api/client";
+import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
+import { Avatar, getInitials } from "../../../shell/src/user/Avatar";
+import { updateMe, changePassword } from "../../../shell/src/user/api";
+import { ApiError } from "../../../shell/src/api/client";
 
 /** Extract the first error message from a DRF field-error array or object. */
 function fieldError(

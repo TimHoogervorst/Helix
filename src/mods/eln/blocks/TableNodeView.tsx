@@ -13,7 +13,7 @@
 import { useCallback, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Plus, Trash2 } from "lucide-react";
-import type { BlockComponentProps } from "../../../core/mod-system/types";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

@@ -1,13 +1,5 @@
-import { registerRoute } from "../../core/mod-system";
+import { registerRoute } from "../../shell/src/mod-system";
 import SettingsPage from "./pages/SettingsPage";
-
-export const meta = {
-  id: "settings",
-  displayName: "Settings",
-  version: "0.1.0",
-  dependsOn: [],
-};
-
 export function register() {
   // ── Route: /settings shell with sidebar-nav layout ─────────────────────
   registerRoute({

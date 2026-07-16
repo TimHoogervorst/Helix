@@ -7,7 +7,7 @@
  * Used in TagSettings for a compact icon selector instead of the inline row.
  */
 import { useState, useRef } from "react";
-import { useClickOutside } from "../../../shared/hooks/useClickOutside";
+import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import { getTagIcon } from "../constants";
 import { TagIconPicker } from "./TagIconPicker";
 

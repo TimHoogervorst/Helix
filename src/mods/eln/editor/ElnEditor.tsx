@@ -12,7 +12,7 @@
  * Action buttons (MoreActions with Delete) are exposed via ref so the parent
  * (ElnWorkspace) can render them in the top toolbar.
  */
-import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
 import type { MutableRefObject } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";

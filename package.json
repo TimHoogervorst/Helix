@@ -1,9 +1,15 @@
 {
+  "name": "openscience",
+  "private": true,
+  "workspaces": [
+    "src/shell",
+    "src/mods/*"
+  ],
   "scripts": {
-    "dev": "cd src/shell && npm run dev",
-    "build": "cd src/shell && npm run build",
-    "test": "cd src/shell && npm test",
-    "test:e2e": "cd src/shell && npm run test:e2e"
+    "dev": "npm run dev -w src/shell",
+    "build": "npm run build -w src/shell",
+    "test": "npm test -w src/shell",
+    "test:e2e": "npm run test:e2e -w src/shell"
   },
   "devDependencies": {
     "playwright": "^1.61.1"

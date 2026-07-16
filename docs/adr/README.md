@@ -16,6 +16,7 @@ and onboarding reference for contributors.
 | [0004](0004-unified-console-pattern.md) | Unified Console Pattern for LIMS and Library | 2026-06-27 | ~~Accepted~~ Deprecated (Console→Hub, #140) |
 | [0005](0005-entry-status-cascade.md) | Entry Status Cascades to Source Entities | 2026-07-02 | Accepted |
 | [0006](0006-workspace-entity-type-registry.md) | Workspace-Based Mention Resolution via LIMS Entity Type Registry | 2026-07-09 | Accepted |
+| [0007](0007-monorepo-restructure.md) | Monorepo Restructure — co-located mods, single manifest | 2026-07-16 | Accepted |
 
 ## Creating a New ADR
 

@@ -6,28 +6,46 @@
 
 ## The Mod System
 
-> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Pins — is a mod. Core is the thin shell that loads mods and provides the frame they render into. Both internal (core mods) and future external mods use the same `register*()` API.
+> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Pins — is a mod. The Shell is the thin frame that loads mods and provides the services they render into. Both internal (core mods) and future external mods use the same `register*()` API. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend and backend code.
 
 | Term | Definition |
 |------|-----------|
-| **Mod** | A self-contained unit of functionality registered into Core. Owns consoles, workspaces, detail cards, settings, routes, and commands. |
-| **Core** | The immutable app shell: Layout, Router, Console panels, Mod Loader, Mod Registry, Reference resolution, API client. |
+| **Mod** | A self-contained unit of functionality registered into the Shell. Owns hubs, workspaces, blocks, buttons, settings, routes, and library items. Lives under `src/mods/<id>/` — frontend and backend code together. |
+| **Shell** | The immutable app frame at `src/shell/` (frontend) and `src/server/` (backend): Layout, Router, Mod Loader, Mod Registry, mention resolution, API client, slot resolution. The shell provides the frame; mods provide the content. |
 | **Core Mod** | A built-in mod under `src/mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
-| **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, detail/workspace resolution. |
+| **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, hub content, slot resolution, and workspace identity. |
 | **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
 | **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
-| **Workspace** | A mod's dedicated work surface for a type of content. Declared via `registerWorkspace({ id, displayName })` — the `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Any mod that registers a workspace is automatically discoverable by the mention system and the pins/bookmarks system. |
+| **Workspace** | A mod's dedicated work surface for a type of content. Declared via `registerWorkspace({ id, displayName })` — the `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Any mod that registers a workspace is automatically discoverable by the mention system and the pins/bookmarks system. Workspace pages are registered separately via `registerRoute()`. |
 
 ### Workspace Registration
 
 Workspaces are a first-class registration in the mod system. A mod calls `registerWorkspace()` during boot, providing:
 
-- **id** — the mod's unique identifier (e.g. `"eln"`, `"lims"`, `"molBio"`). Doubles as the URL namespace.
+- **id** — the mod's unique identifier (e.g. `"eln"`, `"lims"`). Doubles as the URL namespace.
 - **displayName** — human-readable label (e.g. `"Electronic Lab Notebook"`).
 
-The workspace URL is **derived by convention**, not configured: `/{workspaceId}/{displayId}`. If a mod has `id: "molBio"` and registers an entity type with prefix `DNA`, the URL for `DNA34` is `/molBio/DNA34` — no route configuration needed.
+The workspace URL is **derived by convention**, not configured: `/{workspaceId}/{displayId}`. This convention is the single integration point that makes the mention system, pins/bookmarks, and navigation work automatically for any mod that registers a workspace. A mod does not need to provide mention-specific wiring — it only needs to register its workspace and entity types with LIMS.
 
-This convention is the single integration point that makes the mention system, pins/bookmarks, and navigation work automatically for any mod that registers a workspace. A mod does not need to provide mention-specific wiring — it only needs to register its workspace and entity types with LIMS.
+### Slot System
+
+Workspaces declare named **slots** — placeholders that own how embedded UI is rendered. Mods register **blocks** (renderer-agnostic content units) and **buttons** (fire-only actions), then bind them into slots. The same block can render in a TipTap editor, a sidebar panel, or a tab without the block author writing any rendering-mode-specific code. See [docs/slot-system.md](docs/slot-system.md) for the full design.
+
+| Term | Definition |
+|------|-----------|
+| **Slot** | A named placeholder in a workspace declared via `declareSlot({ id, accepts, renderer })`. The `renderer` owns presentation; the slot's `accepts` field (`"block"` or `"button"`) filters what can bind into it. |
+| **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), serialization, and optional action log `messages`. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. |
+| **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Use for toolbar buttons (export, lock, delete). |
+| **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
+| **Event Bus** | A workspace-scoped pub/sub bus. Buttons emit events via `bus.emit()`; blocks listen via declarative `listensTo` + `onEvent` handlers. Lifecycle events (created/edited/deleted) are renderer-emitted — block authors never call `bus.emit()`. |
+
+### Backend Mod System
+
+The backend mirrors the frontend mod system. Mods are discovered from `modManifest.json`, loaded in topological order by `ModLoader` in `helix_core`, and register contributions through `BackendModRegistry`. Each mod provides a `mod.py` with a `register()` function. Cross-mod communication goes through `registry.call()` — no direct imports. See [docs/backend-mod-system.md](docs/backend-mod-system.md) for the full design.
+
+### Action Logging
+
+All mutating operations are automatically logged for CFR Part 11 audit compliance. HTTP endpoints use `ActionLoggingMixin` (DRF viewset mixin) or `@logs_action` (decorator). Block actions are routed through the workspace event bus and batched on save. The `ActivityFeed` is a cross-mod block that renders actions from any mod. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`). See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
 
 ---
 
@@ -51,109 +69,57 @@ A named collection of Users. Groups are the unit of permission assignment — pe
 
 ---
 
-## The Console Pattern
+## Hub Architecture
 
-The platform uses a single, canonical UI pattern for browsing, inspecting, and working with content. Two concrete consoles implement this pattern: the **Library** (filesystem-like browsing of Folders and Entries) and **LIMS** (database-like browsing of Entities). Future consoles (e.g., a Protocol console, a Plate console) follow the same pattern.
+The platform uses a **Hub → Workspace** navigation model. Hubs are free-form browsing pages; Workspaces are dedicated work surfaces at their own URLs. There is no shared three-panel layout — each hub owns its layout completely.
 
-### Three-Panel Console
+| Term | Definition |
+|------|-----------|
+| **Hub** | A free-form browsing page at a route like `/library` or `/home`. Each hub has complete layout freedom — card grids, stat tiles, tree views. Its job is to help users find the right thing. Hubs link outward to Workspaces at dedicated URLs. |
+| **Hub Registration** | Hubs are registered via `registerHub({ id, label, icon, route, component, order })`. Automatically adds a sidebar nav item. |
+| **Library Hub** | The hub at `/library`, registered by the Library mod. Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
+| **Home Hub** | The hub at `/home`, registered by the Home mod (`order: 0` — first in sidebar). Landing page. |
+| **Settings Hub** | The hub at `/settings`, registered by the Settings mod. Renders settings sections from all mods, sorted by `order`. |
 
-A progressive-disclosure layout with three panels that reveal more information as the user drills deeper into an item. Not all panels are visible at all times — the current **View State** determines which panels are shown.
+### Navigation Flow
 
-### View State
-
-The three stages of progressive disclosure in a console. Every console begins in **List** state and advances to **Detail** and **Expanded** as the user selects and drills into items.
-
-| State | Master Panel | Detail Panel | Workspace Panel | User Action |
-|-------|-------------|-------------|-----------------|-------------|
-| **List** | Full-width table | Hidden | Hidden | First thing the user sees when opening a console |
-| **Detail** | Visible (shared width) | Slides in from right | Hidden | User clicks a row — sees summary info without leaving the list |
-| **Expanded** | Collapsed to thin strip | Visible | Slides in from right | User expands to work with the item — edit, review history, relate |
-
-**Invariant:** View State advances left-to-right (List → Detail → Expanded) and can collapse back (Expanded → Detail → List). Skipping states is not allowed — you cannot jump from List directly to Expanded.
-
-### Master Panel
-
-The left panel. Contains the **item table** — the primary list of browsable things (Entities, Entries, Folders). In List and Detail states, it's a full or shared-width table. In Expanded state, it collapses to a thin vertical strip with a single expand button.
-
-**Synonyms:** index, item list, table panel
-
-### Detail Panel
-
-The middle panel. Shows a **summary card** for the selected item — key metadata at a glance (type, creator, dates, properties). The user sees this before committing to the full Workspace. Visible in Detail and Expanded states.
-
-**Synonyms:** summary card, intermediate detail, info panel
-
-### Workspace Panel
-
-The right panel. Launches when the user enters **Expanded** state. Contains the **full work surface** for the selected item. What renders inside the Workspace depends on the item type, resolved through the Mod Registry:
-
-- **ELN Entry** (`eln.entry`) → TipTap editor (rich-text editing surface)
-- **LIMS Entity** (`lims.entity`) → Tabbed detail view (Activity, Insights, Storage)
-- **Mod-provided type** → Mod's custom work surface (e.g., DNA sequence editor from a MolBio mod)
-
-The Workspace is a **slot** — the console provides the container, the workspace type provides the content. Workspace types registered via `registerWorkspace()` can override the console's default workspace component; if they don't, the console's default workspace is used.
-
-Every Workspace has a **dedicated URL** that resolves to the item's full work surface (e.g., `/eln/E12` for an Entry editor, `/lims/BLOOD1` for an Entity's full detail). These URLs are auto-registered from `registerWorkspace({ route })` and handled by the generic `<WorkspacePage>` component. The workspace component **fetches its own data** — WorkspacePage passes `displayId` as a prop and provides a loader (Suspense fallback) and error boundary.
-
-**Synonyms:** canvas, work surface, full detail, editor panel
-
-### Item
-
-Any row that appears in a Master panel table. An Item is the generic "thing you can click on" in a console. Concrete item types include:
-
-- **Entity** — structured lab data (appears only in LIMS console)
-- **Entry** — narrative notebook content (appears only in Library console)
-- **Folder** — navigable container (Library console only — clicking navigates *into* the folder rather than opening a Detail panel; no display ID or metadata)
-- **Mod-provided types** — registered via `registerWorkspace()`, can appear in any console that accepts them
-
-The Item type determines which console(s) surface it, what the Detail card shows, and what renders in the Workspace. An Item type belongs to exactly one console — Entities do not appear in the Library Master table, and Entries do not appear in the LIMS Master table. Cross-references (ReferenceBadges) can point across consoles, but the Master/Detail/Workspace flow stays within a single console.
-
-**Invariant:** Every *inspectable* Item (Entity, Entry, plugin types) has a display ID, a name/title, a type discriminator, and a creation timestamp. These are the minimum columns every Master table renders. Folders are the exception — they are Items with navigate behavior but no Detail/Workspace support.
-
-**Synonyms:** row, record, list item
-
-### Console
-
-A concrete instance of the Three-Panel Console pattern, backed by a route and a data source. Each console is registered by a mod via `registerConsole()` and auto-appears in the sidebar navigation. The platform currently has two consoles:
-
-- **Library** at `/library` — registered by the Library core mod. Filesystem-like browsing over the Folder hierarchy. `accepts: { only: ['eln.entry'] }`.
-- **LIMS** at `/lims` — registered by the LIMS core mod. Database-like browsing over Entities. `accepts: { except: ['eln.entry'] }`.
-
-Each console provides **default renderers** (row, detail card, workspace) that individual workspace types (registered via `registerWorkspace()`) can override. The console declares which workspace types it accepts via `accepts` (whitelist or blacklist); the workspace declares which consoles it belongs to via `consoleIds`. Both must agree for a workspace to appear in a console.
-
-Consoles are a **presentation layer** — not data models. The console shell components (ConsolePage, ConsoleMasterPanel, ConsoleDetailPanel, ConsoleWorkspacePanel) live in `core/console/` and are view-state agnostic. Console instances live in their mod's `console/` directory.
+```
+Sidebar (dynamic: registry.getHubs())
+  → Click hub → navigate to /{hubId}
+    → Hub page renders (free-form, owns its layout)
+      → Click item → navigate to /{workspaceId}/{displayId}
+        → Workspace page renders (full-page, fetches own data)
+```
 
 ---
 
-## Library Console
+## Library Hub
 
 ### Library
 
-The **console** at `/library` that presents a unified, filesystem-like view over the Folder hierarchy. At any folder level, both child Folders and Entries appear together in a single Master table, sorted with folders first. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of the Folder tree.
+The **hub** at `/library` that presents a unified, filesystem-like view over the Folder hierarchy. At any folder level, both child Folders and Entries appear together in a single card grid, sorted with folders first. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of the Folder tree.
 
-The Library's Master table renders two Item types: **Folders** (navigated into) and **Entries** (selected for Detail/Workspace). When new content types are added (PDFs, spreadsheets, protocols), they appear in the same mixed table with their own type icon and label.
+The Library renders two Item types: **Folders** (navigated into) and **Entries** (selected for navigation to workspace). When new content types are added, they appear in the same mixed grid with their own type icon and label.
 
 **Invariant:** Every Item surfaced in the Library belongs to exactly one Folder (or lives at root).
 
-**Synonyms:** file explorer, ELN console (previous name — now means the entry editor specifically)
+**Synonyms:** file explorer, library browser
 
 ### Breadcrumb
 
-The navigation bar at the top of the Library console showing the current folder path as clickable segments. Each segment is a link to that folder level. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
+The navigation bar at the top of the Library hub showing the current folder path as clickable segments. Each segment is a link to that folder level. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
 
-**Invariant:** The breadcrumb always reflects the current `?path=` URL parameter. Clicking a breadcrumb segment updates the path and reloads the Master table.
+**Invariant:** The breadcrumb always reflects the current `?path=` URL parameter. Clicking a breadcrumb segment updates the path and reloads the card grid.
 
 ---
 
-## LIMS Console
+## LIMS Domain
 
 ### LIMS
 
-The **console** at `/lims` that presents a database-like view over Entities. Unlike the Library (which mixes Folders and Entries in a hierarchical view), the LIMS console shows a flat, filterable, searchable table of Entities. There is no folder navigation — the Master table is the primary interaction surface.
+The LIMS domain comprises Entity Types, Entities, and Actions. There is no LIMS hub — entities are accessed directly via their workspace URLs (`/lims/:displayId`). The entity workspace provides a tabbed detail view (Activity, Insights, Storage). Entity types are managed through the Settings hub.
 
-The LIMS Master table renders one Item type: **Entities**. Rows are filterable by Entity Type (via a dropdown) and searchable by display ID or name.
-
-**Synonyms:** entity console, sample database
+**Synonyms:** entity management, sample database
 
 ---
 
@@ -369,8 +335,7 @@ Clicking a Pinned Workspace navigates directly to its dedicated URL. The sidebar
 ## Relationship Summary
 
 ```
-Library Console ──▶ Folder tree (the Library is the browsing surface for the folder hierarchy)
-LIMS Console ──▶ Entity table (the LIMS is the browsing surface for the entity database)
+Library Hub ──▶ Folder tree (the Library is the browsing surface for the folder hierarchy)
 
 Folder ──┬── Folder (parent/child, recursive)
          ├── NotebookEntry (1:N — entry lives in one folder)
@@ -393,6 +358,10 @@ EntityType ──▶ Entity (1:N — type classifies many entities)
 RegisteredEntityType ──▶ EntityType (1:1 — registration links an entity type to a workspace)
 RegisteredEntityType ──▶ Workspace (N:1 — registration declares which workspace owns the entity type)
 
+Slot ──▶ BlockBinding | ButtonBinding (1:N — slot resolves to ordered bindings)
+Block ──▶ SlotBinding (M:N — block can be bound into many slots)
+Button ──▶ SlotBinding (M:N — button can be bound into many slots)
+
 Tag (standalone — reusable labels with name + color, managed inline on entries)
 
 User ──▶ NotebookEntry (1:N — author of entries)
@@ -402,27 +371,35 @@ User ──▶ PinnedWorkspace (1:N — user bookmarks workspaces)
 
 NotebookEntry.status ──cascades to──▶ Entity.status (only via source_entry FK)
 
-Console (abstract) ──▶ Master Panel ──▶ Item table
-                    ├── Detail Panel ──▶ summary card
-                    └── Workspace Panel ──▶ type-specific work surface (slot)
-
-ModLoader ──▶ Mod Registry (populated by register*() calls from mod index.ts files)
-              ├── Registered Consoles → sidebar nav + routes
-              ├── Registered Workspaces → workspace resolution + URL building + mention targets
+ModLoader ──▶ ModRegistry (populated by register*() calls from mod index.ts / mod.py)
+              ├── Registered Hubs → sidebar nav + routes
+              ├── Registered Workspaces → workspace identity + URL namespaces
               ├── Registered Entity Types → prefix→workspace mapping (held by LIMS)
               ├── Registered Settings Sections → settings shell panels
-              ├── Registered Slash Commands → ELN slash menu
+              ├── Registered Blocks → renderer-agnostic content units
+              ├── Registered Buttons → toolbar actions
+              ├── Declared Slots → named workspace placeholders
+              ├── Slot Bindings → block/button→slot connections
               ├── Registered Sidebar Actions → sidebar row buttons
-              └── Registered Services → mod-to-mod communication (e.g. lims.registerEntityType)
+              ├── Registered Library Items → hub card components
+              └── Registered Services → mod-to-mod communication
 ```
 
 ---
 
 ## Key Distinctions
 
-### Console vs Data Model
+### Hub vs Data Model
 
-A **Console** (Library, LIMS) is a UI/UX construct — the three-panel surface users interact with. The **data models** (Folder, NotebookEntry, Entity, EntityType) are the backend records. Consoles are presentation layers; data models are persistent storage. The same Entity can appear in the LIMS console (as a Master row) and in the Library console (as a referenced badge in an Entry's content).
+A **Hub** (Library, Home) is a UI/UX construct — the browsing surface users interact with. The **data models** (Folder, NotebookEntry, Entity, EntityType) are backend records. Hubs are presentation layers; data models are persistent storage.
+
+### Block vs Button
+
+A **Block** is a content unit that can listen to events and render UI. A **Button** is a fire-only action — it emits events but never listens. If a UI element needs to both listen and fire, use a block.
+
+### Slot vs Route
+
+A **Slot** is a named placeholder inside a workspace for embedded UI extension. A **Route** is a top-level URL pattern. Slots handle intra-workspace composition; routes handle cross-page navigation.
 
 ### Library vs Folder
 
@@ -445,29 +422,11 @@ An **Entry** is the database record (id, title, author, folder, dates). The **Do
 
 ### Mention System vs LIMS
 
-The **Mention system** (frontend: `core/mentions/`, backend: `core/mentions/`) is the **consumer** — it resolves references and renders navigation badges. **LIMS** is the **registry** — it owns the entity type→workspace mapping. The mention system asks LIMS "where does this display ID belong?" and uses the answer to build a URL. Neither system hardcodes knowledge of the other's entity types or workspaces. A new mod registers with LIMS, and the mention system picks it up automatically through the standard resolution chain.
+The **Mention system** (frontend: `src/shell/src/core/mentions/`, backend: `src/server/core/mentions/`) is the **consumer** — it resolves references and renders navigation badges. **LIMS** is the **registry** — it owns the entity type→workspace mapping. The mention system asks LIMS "where does this display ID belong?" and uses the answer to build a URL. Neither system hardcodes knowledge of the other's entity types or workspaces. A new mod registers with LIMS, and the mention system picks it up automatically through the standard resolution chain.
 
 ### Mention vs Action
 
-A **Mention** is a passive link: "I referenced sample #42." An **Action** is an active record: "I used 50µL of sample #42." Mentions are parsed from text; Actions are user-recorded.
-
-### Master vs Detail vs Workspace
-
-| Panel | Shows | Visible in states | Purpose |
-|-------|-------|-------------------|---------|
-| **Master** | Item table | All three | "What's available?" — browse, search, filter |
-| **Detail** | Summary card | Detail, Expanded | "What is this?" — inspect metadata before committing |
-| **Workspace** | Full work surface | Expanded only | "Let me work with this" — edit, review, relate |
-
-The Detail panel is the **gateway** to the Workspace. Users see the summary, decide whether to engage, then expand to the Workspace. This prevents the cognitive cost of loading a full editor or detail view for every clicked row.
-
-### List vs Detail vs Expanded
-
-| State | Mental model | User action to enter |
-|-------|-------------|---------------------|
-| **List** | "I'm looking for something" | Open the console |
-| **Detail** | "What is this thing?" | Click a row |
-| **Expanded** | "I want to work with this" | Click expand button in Detail header |
+A **Mention** is a passive link: "I referenced sample #42." An **Action** is an active record: "I used 50µL of sample #42." Mentions are parsed from text; Actions are user-recorded. Actions are logged via the declarative action logging system for audit compliance. See [docs/actions-system-design.md](docs/actions-system-design.md).
 
 ---
 

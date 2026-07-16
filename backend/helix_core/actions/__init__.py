@@ -1,9 +1,5 @@
 """Action logging infrastructure.
 
-.. WARNING:: Keep in sync with ``core/actions/__init__.py`` during the
-   expand-contract transition.  Once the contract phase lands (all mods
-   import from ``helix_core``), the original in ``core/`` will be removed.
-
 Provides the abstract base model, a mod-specific registry, a
 synchronous ``log_action()`` dispatcher that every mod plugs into,
 and the declarative ``ActionLoggingMixin`` for DRF viewsets.

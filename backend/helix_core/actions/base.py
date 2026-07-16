@@ -1,9 +1,5 @@
 """Abstract base model for action logging.
 
-.. WARNING:: Keep in sync with ``core/actions/base.py`` during the
-   expand-contract transition.  Once the contract phase lands (all mods
-   import from ``helix_core``), the original in ``core/`` will be removed.
-
 Each mod creates its own concrete table that inherits from
 ``AbstractBaseAction``.  The static columns are shared across all
 action tables.

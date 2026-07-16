@@ -1,9 +1,5 @@
 """Synchronous action logger.
 
-.. WARNING:: Keep in sync with ``core/actions/logger.py`` during the
-   expand-contract transition.  Once the contract phase lands (all mods
-   import from ``helix_core``), the original in ``core/`` will be removed.
-
 ``log_action()`` derives the mod from ``target_type`` (the part before
 the first dot) and dispatches to the correct concrete action table via
 the registry.

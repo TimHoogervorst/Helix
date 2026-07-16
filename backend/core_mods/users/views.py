@@ -8,7 +8,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
-from core.actions.logger import log_action
+from helix_core.actions.logger import log_action
 from core.models import CoreSetting, User
 
 from .serializers import (

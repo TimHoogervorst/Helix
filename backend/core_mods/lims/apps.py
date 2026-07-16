@@ -6,7 +6,7 @@ class LimsConfig(AppConfig):
     name = "core_mods.lims"
 
     def ready(self):
-        from core.actions.registry import register_action_model
+        from helix_core.actions.registry import register_action_model
         from core.signals import entry_content_sync
         from core_mods.eln.models import NotebookEntry
         from core_mods.lims.models import Action

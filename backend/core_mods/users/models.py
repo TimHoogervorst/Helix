@@ -5,7 +5,7 @@
 ``AbstractBaseAction``.
 """
 
-from core.actions.base import AbstractBaseAction
+from helix_core.actions.base import AbstractBaseAction
 
 
 class CoreAction(AbstractBaseAction):

@@ -180,7 +180,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
         self.assertEqual(Mention.objects.count(), 0)
 
 
-MIXIN_LOG_ACTION_PATH = "core.actions.mixins.log_action"
+MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
 
 def _log_kwargs(mock):
@@ -294,7 +294,7 @@ class EntryActionsEndpointTests(BaseTestCase):
             title="Actions Entry", content=TEXT_DOC, folder=self.folder, author=self.user
         )
         # Create several actions via the logger so they exist before tests
-        from core.actions.logger import log_action
+        from helix_core.actions.logger import log_action
         self.a1 = log_action(
             user=self.user, action_type="eln.entry.created",
             target_type="eln.entry", target_id=self.entry.id,

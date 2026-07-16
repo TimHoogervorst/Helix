@@ -2,7 +2,7 @@ from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
-from core.actions.mixins import ActionLoggingMixin
+from helix_core.actions.mixins import ActionLoggingMixin
 
 from .models import PinnedWorkspace
 from .serializers import PinnedWorkspaceSerializer

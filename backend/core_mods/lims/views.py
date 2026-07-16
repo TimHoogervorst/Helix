@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.actions.mixins import ActionLoggingMixin
+from helix_core.actions.mixins import ActionLoggingMixin
 
 from .models import EntityType, Entity, Action
 from .serializers import (

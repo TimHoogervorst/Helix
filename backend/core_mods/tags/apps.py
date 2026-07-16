@@ -6,7 +6,7 @@ class TagsConfig(AppConfig):
     name = "core_mods.tags"
 
     def ready(self):
-        from core.actions.registry import register_action_model
+        from helix_core.actions.registry import register_action_model
         from .models import TagsAction
 
         register_action_model("tags", TagsAction)

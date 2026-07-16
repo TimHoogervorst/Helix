@@ -687,11 +687,11 @@ class TestSingleton:
 # ── backward-compatible delegation ──────────────────────────────────────────
 
 
-class TestBackwardCompatibleDelegation:
-    """Tests that core.actions.registry delegates to BackendModRegistry."""
+class TestActionRegistryDelegation:
+    """Tests that helix_core.actions.registry delegates to BackendModRegistry."""
 
     def test_register_action_model_delegates(self):
-        from core.actions.registry import (
+        from helix_core.actions.registry import (
             get_action_model,
             register_action_model,
         )
@@ -704,6 +704,6 @@ class TestBackwardCompatibleDelegation:
         assert result is FakeModel
 
     def test_get_action_model_delegates_for_unknown(self):
-        from core.actions.registry import get_action_model
+        from helix_core.actions.registry import get_action_model
 
         assert get_action_model("completely_unknown_mod_xyz") is None

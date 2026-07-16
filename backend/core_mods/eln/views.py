@@ -10,8 +10,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
-from core.actions.logger import bulk_log_actions, log_action
-from core.actions.mixins import ActionLoggingMixin, logs_action
+from helix_core.actions.logger import bulk_log_actions, log_action
+from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
 from core_mods.tags.models import Tag
 

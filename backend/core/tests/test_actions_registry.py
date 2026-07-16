@@ -7,7 +7,7 @@ Exercises the backward-compatible delegation functions in
 
 import pytest
 
-from core.actions.registry import get_action_model, register_action_model
+from helix_core.actions.registry import get_action_model, register_action_model
 
 
 class FakeActionModel:

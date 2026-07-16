@@ -1,16 +1,11 @@
 """Abstract base classes shared across apps.
 
-.. WARNING:: Keep in sync with ``core/abstracts.py`` during the expand-contract
-   transition.  Once the contract phase lands (all mods import from
-   ``helix_core``), the original in ``core/`` will be removed.
-"""
-
 BrowsableItem provides the auto-generated display_id and created_at
 fields used by any model that appears in the console Master Panel
 (NotebookEntry, Entity, etc.).
 
-This is a copy of the original in ``core/abstracts.py`` placed here so
-mods can import from ``helix_core`` without depending on ``core``.
+This is the canonical location — mods import from ``helix_core``.
+``core/abstracts.py`` is a thin re-export for backward compatibility.
 """
 
 from django.db import models

@@ -15,8 +15,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.routers import SimpleRouter
 
-from core.actions.logger import bulk_log_actions
-from core.actions.mixins import ActionLoggingMixin, logs_action
+from helix_core.actions.logger import bulk_log_actions
+from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from core.models import Folder
 from core.tests.base import BaseTestCase
 
@@ -148,7 +148,7 @@ urlpatterns = [
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════
 
-MIXIN_LOG_ACTION_PATH = "core.actions.mixins.log_action"
+MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
 
 def _log_kwargs(mock):

@@ -11,7 +11,7 @@ attach/detach operations.
 
 from django.db import models
 
-from core.actions.base import AbstractBaseAction
+from helix_core.actions.base import AbstractBaseAction
 
 TAG_COLOR_CHOICES = [
     ("enzyme", "Enzyme"),

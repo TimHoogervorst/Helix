@@ -7,7 +7,7 @@ class UsersConfig(AppConfig):
     label = "core_mods_users"
 
     def ready(self):
-        from core.actions.registry import register_action_model
+        from helix_core.actions.registry import register_action_model
         from .models import CoreAction
 
         register_action_model("core", CoreAction)

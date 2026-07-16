@@ -8,7 +8,7 @@ from unittest.mock import patch
 from core.models import CoreSetting, Folder
 from core.tests.base import BaseTestCase
 
-MIXIN_LOG_ACTION_PATH = "core.actions.mixins.log_action"
+MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
 
 def _log_kwargs(mock):

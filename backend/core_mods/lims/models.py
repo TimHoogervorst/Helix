@@ -1,8 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from core.abstracts import BrowsableItem
-from core.actions.base import AbstractBaseAction
+from helix_core.abstracts import BrowsableItem
+from helix_core.actions.base import AbstractBaseAction
 from core.constants import STATUS_CHOICES
 
 

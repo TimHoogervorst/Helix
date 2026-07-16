@@ -4,8 +4,8 @@ import uuid
 
 from django.test import TestCase
 
-from core.actions.logger import log_action, bulk_log_actions
-from core.actions.registry import register_action_model
+from helix_core.actions.logger import log_action, bulk_log_actions
+from helix_core.actions.registry import register_action_model
 from core.models import User
 
 

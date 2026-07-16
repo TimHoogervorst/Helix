@@ -1,9 +1,5 @@
 """Declarative action logging mixin for DRF viewsets.
 
-.. WARNING:: Keep in sync with ``core/actions/mixins.py`` during the
-   expand-contract transition.  Once the contract phase lands (all mods
-   import from ``helix_core``), the original in ``core/`` will be removed.
-
 ``ActionLoggingMixin`` lets mod authors declare what actions their
 endpoints perform via a class-level ``action_log_config`` dict.  The
 framework intercepts successful mutating responses and writes action

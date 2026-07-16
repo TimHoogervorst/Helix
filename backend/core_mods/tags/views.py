@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 
-from core.actions.mixins import ActionLoggingMixin
+from helix_core.actions.mixins import ActionLoggingMixin
 
 from .models import Tag
 from .serializers import TagSerializer

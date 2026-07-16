@@ -24,7 +24,6 @@ import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
 import { Avatar, getInitials } from "../../../shared/Avatar";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
-import ActivityFeed from "../components/ActivityFeed";
 import MoreActions from "../components/MoreActions";
 import { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../core/workspace/SlotRenderer";
@@ -155,12 +154,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, [entryDisplayId]);
 
   // ── Activity data (single fetch serves Activity feed + toolbar avatars + last editor) ──
-  const {
-    actions,
-    isLoading: activityLoading,
-    error: activityError,
-    refetch: refetchActivity,
-  } = useActivity(entryId);
+  const { actions } = useActivity(entryId);
 
   // Deduplicate editors from the last week for the toolbar avatar row
   const recentEditors = getRecentEditors(actions);

@@ -18,6 +18,7 @@ import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
 import { relativeTime } from "../../../shared/format";
 import { getInitials } from "../../../shared/Avatar";
+import type { BlockComponentProps } from "../../../core/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -29,6 +30,12 @@ export interface CommentEntry {
   authorColor: string;
   text: string;
   createdAt: string; // ISO 8601
+}
+
+interface CommentContentProps {
+  resolved: boolean;
+  thread: CommentEntry[];
+  updateAttrs: (attrs: Record<string, unknown>) => void;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────
@@ -138,14 +145,21 @@ function CommentBody({
   );
 }
 
-// ── NodeView ────────────────────────────────────────────────────────────
+// ── Inner Content Component (shared by old + new wrappers) ──────────────
 
-function CommentNodeView(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
-
-  const resolved = (node.attrs.resolved as boolean) ?? false;
-  const thread: CommentEntry[] = (node.attrs.thread as CommentEntry[]) ?? [];
-
+/**
+ * Pure rendering logic for the comment block.
+ *
+ * Decoupled from TipTap's NodeViewWrapper so it can be reused by both
+ * the legacy `CommentNodeView` (NodeViewProps → NodeViewWrapper) and
+ * the new `CommentBlockComponent` (BlockComponentProps, no wrapper —
+ * BlockNodeView provides it).
+ */
+export function CommentContent({
+  resolved,
+  thread,
+  updateAttrs,
+}: CommentContentProps) {
   const { user } = useCurrentUser();
   const { showComments } = useCommentVisibility();
   const hasInitialized = useRef(false);
@@ -187,8 +201,8 @@ function CommentNodeView(props: NodeViewProps) {
     if (!user || !localEntryRef.current) return;
 
     hasInitialized.current = true;
-    updateAttributes({ thread: [localEntryRef.current] });
-  }, [thread.length, user, updateAttributes]);
+    updateAttrs({ thread: [localEntryRef.current] });
+  }, [thread.length, user, updateAttrs]);
 
   // Effective thread — uses the locally-initialized entry while the node
   // hasn't been updated yet, otherwise uses the node's stored thread.
@@ -206,8 +220,8 @@ function CommentNodeView(props: NodeViewProps) {
     const updated = currentThread.map((entry, i) =>
       i === 0 ? { ...entry, text: newText } : entry,
     );
-    updateAttributes({ thread: updated });
-  }, [thread, effectiveThread, updateAttributes]);
+    updateAttrs({ thread: updated });
+  }, [thread, effectiveThread, updateAttrs]);
 
   const handleBodyFocus = useCallback(() => {
     setIsEditing(true);
@@ -233,22 +247,22 @@ function CommentNodeView(props: NodeViewProps) {
     if (!trimmed || !user) return;
 
     const newReply = makeCommentEntry(user, trimmed);
-    updateAttributes({ thread: [...effectiveThread, newReply] });
+    updateAttrs({ thread: [...effectiveThread, newReply] });
     setIsReplying(false);
     setReplyText("");
     // Auto-expand to show the new reply
     setIsCollapsed(false);
-  }, [replyText, user, effectiveThread, updateAttributes]);
+  }, [replyText, user, effectiveThread, updateAttrs]);
 
   // ── Resolve / Unresolve ────────────────────────────────────────────────
   const handleResolve = useCallback(() => {
-    updateAttributes({ resolved: true });
-  }, [updateAttributes]);
+    updateAttrs({ resolved: true });
+  }, [updateAttrs]);
 
   const handleUnresolve = useCallback(() => {
-    updateAttributes({ resolved: false });
+    updateAttrs({ resolved: false });
     setExpandedResolved(false);
-  }, [updateAttributes]);
+  }, [updateAttrs]);
 
   // ── Collapse toggle ────────────────────────────────────────────────────
   const handleToggleCollapse = useCallback(() => {
@@ -258,16 +272,11 @@ function CommentNodeView(props: NodeViewProps) {
   // ── Render: empty state while user loads ─────────────────────────────
   if (effectiveThread.length === 0) {
     return (
-      <NodeViewWrapper
-        className="comment-wrapper"
-        contentEditable={false}
-      >
-        <div className="rounded-lg border border-hairline bg-panel p-4">
-          <span className="text-muted-foreground text-sm italic">
-            Loading comment…
-          </span>
-        </div>
-      </NodeViewWrapper>
+      <div className="rounded-lg border border-hairline bg-panel p-4">
+        <span className="text-muted-foreground text-sm italic">
+          Loading comment…
+        </span>
+      </div>
     );
   }
 
@@ -278,247 +287,271 @@ function CommentNodeView(props: NodeViewProps) {
   // ── Render: hidden comment toggle ──────────────────────────────────
   // Resolved comments are fully hidden when comments are toggled off.
   if (!showComments && resolved) {
-    return (
-      <NodeViewWrapper
-        className="comment-wrapper"
-        contentEditable={false}
-      />
-    );
+    return null;
   }
 
   // Ghost icon for active (unresolved) comments when hidden.
   if (!showComments) {
     return (
-      <NodeViewWrapper
-        className="comment-wrapper"
-        contentEditable={false}
-      >
-        <div className="flex justify-end">
-          <button
-            type="button"
-            className="btn-ghost rounded-md"
-            aria-label={resolved ? "Resolved comment" : "Comment"}
-            data-testid="comment-ghost"
-          >
-            {resolved ? (
-              <Check className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <MessageSquare className="h-4 w-4" aria-hidden="true" />
-            )}
-          </button>
-        </div>
-      </NodeViewWrapper>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="btn-ghost rounded-md"
+          aria-label={resolved ? "Resolved comment" : "Comment"}
+          data-testid="comment-ghost"
+        >
+          {resolved ? (
+            <Check className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <MessageSquare className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
+      </div>
     );
   }
 
   // ── Render: resolved state (collapsed, click to expand) ──────────
   if (resolved && !expandedResolved) {
     return (
-      <NodeViewWrapper
-        className="comment-wrapper"
-        contentEditable={false}
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 rounded-lg border border-hairline/50 bg-surface/40 px-4 py-2 text-xs text-muted-foreground hover:bg-surface/60 transition-colors"
+        onClick={() => setExpandedResolved(true)}
+        data-testid="comment-resolved"
+        aria-label="Show resolved comment thread"
       >
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 rounded-lg border border-hairline/50 bg-surface/40 px-4 py-2 text-xs text-muted-foreground hover:bg-surface/60 transition-colors"
-          onClick={() => setExpandedResolved(true)}
-          data-testid="comment-resolved"
-          aria-label="Show resolved comment thread"
-        >
-          <Check className="h-4 w-4 text-success" aria-hidden="true" />
-          <span>Resolved by {firstComment.authorName}</span>
-          <span className="flex-1" />
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      </NodeViewWrapper>
+        <Check className="h-4 w-4 text-success" aria-hidden="true" />
+        <span>Resolved by {firstComment.authorName}</span>
+        <span className="flex-1" />
+        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
     );
   }
 
   // ── Render: active comment card ─────────────────────────────────────
   return (
+    <div
+      className="rounded-lg border border-hairline bg-panel p-4"
+      data-testid="comment-card"
+    >
+      {/* ── Header: avatar, name, timestamp, actions ───────────────── */}
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          className={avatarClasses(firstComment.authorColor)}
+          style={avatarBackgroundStyle(firstComment.authorColor)}
+          aria-label={firstComment.authorInitials}
+        >
+          {firstComment.authorInitials}
+        </span>
+        <span className="text-sm font-medium leading-none">
+          {firstComment.authorName}
+        </span>
+        <span className="text-xs text-muted-foreground leading-none">
+          {relativeTime(firstComment.createdAt)}
+        </span>
+
+        {/* Spacer */}
+        <span className="flex-1" />
+
+        {/* Collapse toggle (visible when expanded, hidden when resolved) */}
+        {!resolved && hasReplies && !isCollapsed && (
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={handleToggleCollapse}
+            aria-label="Collapse replies"
+            data-testid="collapse-toggle"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+            <span>Hide replies</span>
+          </button>
+        )}
+
+        {/* Resolve / Unresolve button */}
+        {resolved ? (
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={handleUnresolve}
+            aria-label="Unresolve thread"
+            data-testid="unresolve-btn"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+            <span>Unresolve</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-success"
+            onClick={handleResolve}
+            aria-label="Resolve thread"
+            data-testid="resolve-btn"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span>Resolve</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── Original comment body ──────────────────────────────────── */}
+      {resolved ? (
+        <CommentBody entry={firstComment} isEditing={false} />
+      ) : (
+        <CommentBody
+          entry={firstComment}
+          isEditing={isEditing}
+          bodyRef={bodyRef}
+          onFocus={handleBodyFocus}
+          onBlur={handleBodyBlur}
+        />
+      )}
+
+      {/* ── Replies ────────────────────────────────────────────────── */}
+      {hasReplies && !isCollapsed && (
+        <div className="mt-3 space-y-3" data-testid="replies-container">
+          {effectiveThread.slice(1).map((reply) => (
+            <div
+              key={reply.id}
+              className="border-t border-hairline pt-3"
+              data-testid={`reply-${reply.id}`}
+            >
+              {/* Reply header */}
+              <div className="mb-1.5 flex items-center gap-2">
+                <span
+                  className={avatarClasses(reply.authorColor)}
+                  style={avatarBackgroundStyle(reply.authorColor)}
+                  aria-label={reply.authorInitials}
+                >
+                  {reply.authorInitials}
+                </span>
+                <span className="text-sm font-medium leading-none">
+                  {reply.authorName}
+                </span>
+                <span className="text-xs text-muted-foreground leading-none">
+                  {relativeTime(reply.createdAt)}
+                </span>
+              </div>
+              {/* Reply body (read-only) */}
+              <CommentBody entry={reply} isEditing={false} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── "Show N replies" when collapsed ────────────────────────── */}
+      {hasReplies && isCollapsed && (
+        <div className="mt-3 border-t border-hairline pt-3">
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={handleToggleCollapse}
+            aria-label={`Show ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
+            data-testid="show-replies-btn"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+            <span>
+              Show {replyCount} {replyCount === 1 ? "reply" : "replies"}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Reply button (hidden when resolved) ────────────────────── */}
+      {!resolved && !isReplying && (
+        <div className="mt-3 border-t border-hairline pt-3">
+          <button
+            type="button"
+            className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={openReply}
+            aria-label="Reply to comment"
+            data-testid="reply-btn"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>Reply</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Inline reply input ─────────────────────────────────────── */}
+      {isReplying && (
+        <div className="mt-3 border-t border-hairline pt-3" data-testid="reply-input-container">
+          <textarea
+            ref={replyRef}
+            className="w-full rounded-md border border-hairline bg-surface/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-y min-h-[60px]"
+            placeholder="Write a reply…"
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            rows={2}
+            aria-label="Reply text"
+            data-testid="reply-input"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              onClick={submitReply}
+              disabled={!replyText.trim()}
+              data-testid="submit-reply-btn"
+            >
+              Reply
+            </button>
+            <button
+              type="button"
+              className="btn-ghost rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+              onClick={cancelReply}
+              data-testid="cancel-reply-btn"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
+
+function CommentNodeView(props: NodeViewProps) {
+  const { node, updateAttributes } = props;
+
+  const resolved = (node.attrs.resolved as boolean) ?? false;
+  const thread: CommentEntry[] = (node.attrs.thread as CommentEntry[]) ?? [];
+
+  return (
     <NodeViewWrapper
       className="comment-wrapper"
       contentEditable={false}
     >
-      <div
-        className="rounded-lg border border-hairline bg-panel p-4"
-        data-testid="comment-card"
-      >
-        {/* ── Header: avatar, name, timestamp, actions ───────────────── */}
-        <div className="mb-2 flex items-center gap-2">
-          <span
-            className={avatarClasses(firstComment.authorColor)}
-            style={avatarBackgroundStyle(firstComment.authorColor)}
-            aria-label={firstComment.authorInitials}
-          >
-            {firstComment.authorInitials}
-          </span>
-          <span className="text-sm font-medium leading-none">
-            {firstComment.authorName}
-          </span>
-          <span className="text-xs text-muted-foreground leading-none">
-            {relativeTime(firstComment.createdAt)}
-          </span>
-
-          {/* Spacer */}
-          <span className="flex-1" />
-
-          {/* Collapse toggle (visible when expanded, hidden when resolved) */}
-          {!resolved && hasReplies && !isCollapsed && (
-            <button
-              type="button"
-              className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              onClick={handleToggleCollapse}
-              aria-label="Collapse replies"
-              data-testid="collapse-toggle"
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-              <span>Hide replies</span>
-            </button>
-          )}
-
-          {/* Resolve / Unresolve button */}
-          {resolved ? (
-            <button
-              type="button"
-              className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              onClick={handleUnresolve}
-              aria-label="Unresolve thread"
-              data-testid="unresolve-btn"
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              <span>Unresolve</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-success"
-              onClick={handleResolve}
-              aria-label="Resolve thread"
-              data-testid="resolve-btn"
-            >
-              <Check className="h-3.5 w-3.5" />
-              <span>Resolve</span>
-            </button>
-          )}
-        </div>
-
-        {/* ── Original comment body ──────────────────────────────────── */}
-        {resolved ? (
-          <CommentBody entry={firstComment} isEditing={false} />
-        ) : (
-          <CommentBody
-            entry={firstComment}
-            isEditing={isEditing}
-            bodyRef={bodyRef}
-            onFocus={handleBodyFocus}
-            onBlur={handleBodyBlur}
-          />
-        )}
-
-        {/* ── Replies ────────────────────────────────────────────────── */}
-        {hasReplies && !isCollapsed && (
-          <div className="mt-3 space-y-3" data-testid="replies-container">
-            {effectiveThread.slice(1).map((reply) => (
-              <div
-                key={reply.id}
-                className="border-t border-hairline pt-3"
-                data-testid={`reply-${reply.id}`}
-              >
-                {/* Reply header */}
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span
-                    className={avatarClasses(reply.authorColor)}
-                    style={avatarBackgroundStyle(reply.authorColor)}
-                    aria-label={reply.authorInitials}
-                  >
-                    {reply.authorInitials}
-                  </span>
-                  <span className="text-sm font-medium leading-none">
-                    {reply.authorName}
-                  </span>
-                  <span className="text-xs text-muted-foreground leading-none">
-                    {relativeTime(reply.createdAt)}
-                  </span>
-                </div>
-                {/* Reply body (read-only) */}
-                <CommentBody entry={reply} isEditing={false} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── "Show N replies" when collapsed ────────────────────────── */}
-        {hasReplies && isCollapsed && (
-          <div className="mt-3 border-t border-hairline pt-3">
-            <button
-              type="button"
-              className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              onClick={handleToggleCollapse}
-              aria-label={`Show ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
-              data-testid="show-replies-btn"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-              <span>
-                Show {replyCount} {replyCount === 1 ? "reply" : "replies"}
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* ── Reply button (hidden when resolved) ────────────────────── */}
-        {!resolved && !isReplying && (
-          <div className="mt-3 border-t border-hairline pt-3">
-            <button
-              type="button"
-              className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              onClick={openReply}
-              aria-label="Reply to comment"
-              data-testid="reply-btn"
-            >
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span>Reply</span>
-            </button>
-          </div>
-        )}
-
-        {/* ── Inline reply input ─────────────────────────────────────── */}
-        {isReplying && (
-          <div className="mt-3 border-t border-hairline pt-3" data-testid="reply-input-container">
-            <textarea
-              ref={replyRef}
-              className="w-full rounded-md border border-hairline bg-surface/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-y min-h-[60px]"
-              placeholder="Write a reply…"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              rows={2}
-              aria-label="Reply text"
-              data-testid="reply-input"
-            />
-            <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                onClick={submitReply}
-                disabled={!replyText.trim()}
-                data-testid="submit-reply-btn"
-              >
-                Reply
-              </button>
-              <button
-                type="button"
-                className="btn-ghost rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
-                onClick={cancelReply}
-                data-testid="cancel-reply-btn"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <CommentContent
+        resolved={resolved}
+        thread={thread}
+        updateAttrs={updateAttributes}
+      />
     </NodeViewWrapper>
   );
 }
 
 export default CommentNodeView;
+
+// ── New BlockComponentProps wrapper (for the slot system) ───────────────
+
+/**
+ * Slot-system block component for the ELN comment.
+ *
+ * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
+ * provides one). Renders the same inner content as the legacy NodeView.
+ */
+export function CommentBlockComponent({ instance }: BlockComponentProps) {
+  const attrs = instance.attrs as Record<string, unknown>;
+  const resolved = (attrs.resolved as boolean) ?? false;
+  const thread: CommentEntry[] = (attrs.thread as CommentEntry[]) ?? [];
+
+  return (
+    <CommentContent
+      resolved={resolved}
+      thread={thread}
+      updateAttrs={instance.updateAttrs}
+    />
+  );
+}

@@ -17,6 +17,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { createTestBus } from "../../../core/workspace/WorkspaceBus";
 import type { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -88,6 +89,45 @@ describe("useBlockActionLogging", () => {
     mockPost.mockClear();
     // Default: resolve successfully
     mockPost.mockResolvedValue({ count: 1, request_id: "test-req-id" });
+
+    // Register stub blocks so message derivation works
+    ModRegistry._reset();
+    const registry = ModRegistry.getInstance();
+    const stubComponent = () => null;
+    registry.registerBlock({
+      id: "eln.table-block",
+      label: "Table",
+      icon: stubComponent,
+      component: stubComponent,
+      listensTo: [],
+      onEvent: {},
+      messages: {
+        created: "Table created",
+        edited: "Table edited",
+        deleted: "Table deleted",
+      },
+      getDisplayName: () => "Table",
+      serialize: () => "{}",
+      deserialize: () => ({}),
+      defaultState: {},
+    });
+    registry.registerBlock({
+      id: "eln.comment-block",
+      label: "Comment",
+      icon: stubComponent,
+      component: stubComponent,
+      listensTo: [],
+      onEvent: {},
+      messages: {
+        created: "Comment created",
+        edited: "Comment edited",
+        deleted: "Comment deleted",
+      },
+      getDisplayName: () => "Comment",
+      serialize: () => "{}",
+      deserialize: () => ({}),
+      defaultState: {},
+    });
   });
 
   afterEach(() => {
@@ -114,11 +154,11 @@ describe("useBlockActionLogging", () => {
     expect(body.actions).toHaveLength(2);
     expect(body.actions).toContainEqual({
       action_type: "eln.table-block.created",
-      metadata: {},
+      metadata: { message: "Table created" },
     });
     expect(body.actions).toContainEqual({
       action_type: "eln.comment-block.created",
-      metadata: {},
+      metadata: { message: "Comment created" },
     });
   });
 
@@ -141,7 +181,7 @@ describe("useBlockActionLogging", () => {
     expect(body.actions).toHaveLength(1);
     expect(body.actions[0]).toEqual({
       action_type: "eln.table-block.edited",
-      metadata: {},
+      metadata: { message: "Table edited" },
     });
   });
 
@@ -163,11 +203,11 @@ describe("useBlockActionLogging", () => {
     expect(body.actions).toHaveLength(2);
     expect(body.actions).toContainEqual({
       action_type: "eln.table-block.created",
-      metadata: {},
+      metadata: { message: "Table created" },
     });
     expect(body.actions).toContainEqual({
       action_type: "eln.table-block.edited",
-      metadata: {},
+      metadata: { message: "Table edited" },
     });
   });
 
@@ -249,7 +289,7 @@ describe("useBlockActionLogging", () => {
     expect(body.actions).toHaveLength(1);
     expect(body.actions[0]).toEqual({
       action_type: "eln.comment-block.created",
-      metadata: {},
+      metadata: { message: "Comment created" },
     });
   });
 

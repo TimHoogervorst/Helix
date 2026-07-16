@@ -51,7 +51,7 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
 
   return (
     <div className="rounded-lg border border-hairline bg-background p-4">
-      <Component context={context} instance={instance} />
+      <Component context={context} instance={instance} bus={bus} />
     </div>
   );
 }

@@ -22,6 +22,8 @@ import { useAutoSave } from "../hooks/useAutoSave";
 import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
 import { useDirtyTracking } from "../hooks/useDirtyTracking";
 import { createElnExtensions } from "./extensions/createElnExtensions";
+import type { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
+import type { SlotContext } from "../../../core/mod-system/types";
 import { useTaggableItems } from "../../../core-mods/tags/hooks";
 import { TagPill } from "../../../core-mods/tags/ui";
 import { TagAutocomplete } from "../../../core-mods/tags/ui";
@@ -76,13 +78,17 @@ interface ElnEditorProps {
   /** Called whenever editor mode/state changes so the parent can render
    *  the correct action buttons (Save/Cancel vs Edit/Delete). */
   onStateChange?: (state: ElnEditorState) => void;
+  /** Workspace-scoped event bus for lifecycle events and event routing. */
+  bus?: WorkspaceBus;
+  /** Flat metadata bag available to block components. */
+  slotContext?: SlotContext;
 }
 
 /** Editor component — MentionProvider is provided by Layout.
  *  Action buttons (MoreActions menu) are exposed via ref so the parent can
  *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
-  function ElnEditor({ entryId, onStateChange }, ref) {
+  function ElnEditor({ entryId, onStateChange, bus, slotContext }, ref) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // A "new" entry is one that was just created server-side and navigated
@@ -128,7 +134,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   // ── TipTap Editor — always editable ──
   const editor = useEditor({
-    extensions: createElnExtensions(),
+    extensions: createElnExtensions(bus, "eln.editor", slotContext),
     content: isNew
       ? EMPTY_DOC
       : { type: "doc", content: [{ type: "paragraph" }] },

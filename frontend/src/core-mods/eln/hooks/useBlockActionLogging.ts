@@ -3,13 +3,16 @@
  * batched block-declared actions to the backend on entry save.
  *
  * Owns: subscription to block lifecycle events, in-memory accumulation map,
- * dedup by (blockInstanceId, verb), and the flush-to-API on save.
+ * dedup by (blockInstanceId, verb), human-readable message derivation from
+ * block registrations, and the flush-to-API on save.
  * Does NOT own: save detection (the caller emits "eln.entry.saved" on the bus),
  * block registration, or the action message format.
  *
  * Key behaviours:
  * - Subscribes to `{blockId}.created`, `{blockId}.edited`, `{blockId}.deleted`
  *   for each ID in `blockIds`.
+ * - Derives human-readable messages from each block's `messages` config and
+ *   `getDisplayName`, falling back to `"{label} was {verb}"`.
  * - Accumulates events in a Map keyed by `${blockInstanceId}:${verb}`.
  *   Same key overwrites — only the latest state per block per verb survives
  *   (dedup within a save cycle).
@@ -23,19 +26,22 @@
  */
 import { useEffect, useRef } from "react";
 import type { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
+import type { BlockRegistration } from "../../../core/mod-system/types";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 import { post } from "../../../core/api/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 /** Verbs that BlockNodeView emits as lifecycle event suffixes. */
 const VERBS = ["created", "edited", "deleted"] as const;
+type Verb = (typeof VERBS)[number];
 
 /** Payload shape emitted by BlockNodeView for lifecycle events. */
 interface BlockLifecyclePayload {
   blockId: string;
   slotId: string;
   blockInstanceId: string;
-  /** Present on created events. */
+  /** Present on created and edited events. */
   attrs?: Record<string, unknown>;
   /** Present on edited events. */
   changedAttrs?: Record<string, unknown>;
@@ -44,7 +50,7 @@ interface BlockLifecyclePayload {
 /** Accumulated action row, ready for batch flush. */
 interface AccumulatedAction {
   action_type: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 /** Shape of the batch endpoint request body. */
@@ -58,11 +64,35 @@ interface BatchActionsResponse {
   request_id: string;
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Derive a human-readable action message from a block's registration.
+ *
+ * Uses the block's `messages` config as a template (e.g. "Table '{name}' edited"),
+ * substituting `{name}` with the result of `getDisplayName`. Falls back to
+ * `"{label} was {verb}"` when no message template is configured.
+ */
+function deriveMessage(
+  block: BlockRegistration,
+  verb: Verb,
+  attrs: Record<string, unknown> | undefined,
+): string {
+  const template = block.messages?.[verb];
+  if (template) {
+    const displayName = block.getDisplayName?.(attrs ?? {}) ?? block.label;
+    return template.replace(/\{name\}/g, displayName);
+  }
+  // Default template
+  return `${block.label} was ${verb}`;
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 /**
- * Subscribe to block lifecycle events on the workspace bus, accumulate them,
- * and flush as a batched API call when the entry saves.
+ * Subscribe to block lifecycle events on the workspace bus, accumulate them
+ * with human-readable messages, and flush as a batched API call when the
+ * entry saves.
  *
  * @param bus       Workspace-scoped event bus.
  * @param entryId   Current entry display ID (e.g. "E-001"). Flush is skipped
@@ -95,9 +125,23 @@ export function useBlockActionLogging(
         const unsub = bus.on(event, (payload: unknown) => {
           const p = payload as BlockLifecyclePayload;
           const key = `${p.blockInstanceId}:${verb}`;
+
+          // Derive human-readable message from block registration
+          const registry = ModRegistry.getInstance();
+          const block = registry.getBlocks().get(blockId);
+          let message = "";
+          if (block && "component" in block) {
+            const attrs = verb === "edited" ? p.changedAttrs : p.attrs;
+            message = deriveMessage(block, verb, attrs);
+          } else {
+            // Legacy block — use default template with block label
+            const label = block?.label ?? blockId;
+            message = `${label} was ${verb}`;
+          }
+
           pending.set(key, {
             action_type: event,
-            metadata: {},
+            metadata: { message },
           });
         });
         unsubs.push(unsub);

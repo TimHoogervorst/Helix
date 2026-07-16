@@ -172,6 +172,7 @@ export function BlockNodeView(props: BlockNodeViewProps) {
     <NodeViewWrapper
       className="block-node-view-wrapper"
       data-block-type={binding.id}
+      contentEditable={false}
     >
       <BlockComponent context={context} instance={instanceRef.current} />
     </NodeViewWrapper>

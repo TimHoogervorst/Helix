@@ -243,13 +243,16 @@ export interface BlockInstance {
 /**
  * Props contract every block component receives from its renderer.
  *
- * No `bus` — blocks respond to events via `onEvent` handlers, they never
- * initiate bus calls. Buttons (which fire events) receive `bus` in their
- * `onClick`; blocks (which respond) use `onEvent`.
+ * `bus` is optional — only provided by renderers that support imperative
+ * subscriptions (PanelRenderer). TipTapRenderer does NOT pass `bus` —
+ * editor blocks use declarative `onEvent` handlers. TabRenderer also
+ * omits `bus`. Buttons receive `bus` in their `onClick` handler.
  */
 export interface BlockComponentProps {
   context: SlotContext;
   instance: BlockInstance;
+  /** Workspace event bus. Only present when rendered by PanelRenderer. */
+  bus?: WorkspaceBus;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

@@ -1,6 +1,6 @@
 /**
  * Integration tests for the Activity component — rendering, grouping, expand/collapse,
- * indented children, pending items, and "Show all" toggle.
+ * group children, pending items, and "Show all" toggle.
  */
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -226,7 +226,7 @@ describe("Activity", () => {
 
   // ── Grouped items — expand / collapse toggle ────────────────────────────
 
-  it("expands group on click and shows indented children with full action messages", async () => {
+  it("expands group on click and shows children with full action messages", async () => {
     const children = [
       makeItem({
         id: 1,
@@ -279,9 +279,9 @@ describe("Activity", () => {
     ).not.toBeInTheDocument();
   });
 
-  // ── Indented children ───────────────────────────────────────────────────
+  // ── Group children layout ───────────────────────────────────────────────
 
-  it("renders group children with indented layout (left margin and border)", async () => {
+  it("renders group children flush with other activity items (no indent)", async () => {
     const group = makeGroup();
     render(<Activity actions={[group]} />);
 
@@ -289,11 +289,11 @@ describe("Activity", () => {
     fireEvent.click(screen.getByTestId("activity-group-toggle"));
 
     const childRows = screen.getAllByTestId("activity-group-child");
-    // Each child should have indentation classes
+    // Children should be flush — no indent, border, or extra margin
     for (const row of childRows) {
-      expect(row.className).toContain("ml-4");
-      expect(row.className).toContain("border-l");
-      expect(row.className).toContain("pl-3");
+      expect(row.className).not.toContain("ml-4");
+      expect(row.className).not.toContain("border-l");
+      expect(row.className).not.toContain("pl-3");
     }
   });
 

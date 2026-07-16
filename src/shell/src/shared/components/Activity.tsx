@@ -184,7 +184,7 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
     <li data-testid="activity-item" data-state={group.state}>
       <button
         type="button"
-        className="flex w-full items-start gap-2 text-left"
+        className="btn-ghost flex w-full items-start gap-2 p-0 text-left"
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
         data-testid="activity-group-toggle"
@@ -212,7 +212,7 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
       {expanded && (
         <ul className="mt-1 space-y-1">
           {group.children.map((child) => (
-            <ActivityItem key={child.id} action={child} indented />
+            <ActivityItem key={child.id} action={child} isGroupChild />
           ))}
         </ul>
       )}
@@ -224,16 +224,15 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
 
 interface ActivityItemProps {
   action: DisplayActionItem;
-  /** When true, renders with left margin and border for nested group display. */
-  indented?: boolean;
+  /** When true, the item is rendered inside an expanded group. */
+  isGroupChild?: boolean;
 }
 
-function ActivityItem({ action, indented = false }: ActivityItemProps) {
+function ActivityItem({ action, isGroupChild = false }: ActivityItemProps) {
   const isPending = action.state === "pending";
   const containerClass = [
     "flex items-start gap-2",
     isPending && "opacity-60 animate-pulse",
-    indented && "ml-4 border-l border-hairline pl-3",
   ]
     .filter(Boolean)
     .join(" ");
@@ -245,7 +244,7 @@ function ActivityItem({ action, indented = false }: ActivityItemProps) {
   return (
     <li
       className={containerClass}
-      data-testid={indented ? "activity-group-child" : "activity-item"}
+      data-testid={isGroupChild ? "activity-group-child" : "activity-item"}
       data-state={action.state}
     >
       <span className={dotClass} aria-hidden="true" />

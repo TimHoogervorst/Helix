@@ -15,6 +15,7 @@
  */
 import { useEffect, useRef, useState, useMemo } from "react";
 import type { BlockComponentProps } from "../../../core/mod-system/types";
+import type { BlockLifecyclePayload } from "../../../core/workspace/WorkspaceBus";
 import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 import { useActivity } from "../hooks/useActivity";
 import { Activity } from "../../../shared/components/Activity";
@@ -51,15 +52,6 @@ function mapElnAction(a: ElnAction): DisplayActionItem {
     createdAt: a.created_at,
     state: "confirmed",
   };
-}
-
-/** Payload shape emitted by BlockNodeView for lifecycle events. */
-interface BlockLifecyclePayload {
-  blockId: string;
-  slotId: string;
-  blockInstanceId: string;
-  attrs?: Record<string, unknown>;
-  changedAttrs?: Record<string, unknown>;
 }
 
 /** Monotonic counter for unique negative pending item IDs. */

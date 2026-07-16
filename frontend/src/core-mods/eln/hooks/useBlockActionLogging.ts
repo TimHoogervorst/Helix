@@ -25,7 +25,7 @@
  *   discarded (no save → no action rows).
  */
 import { useEffect, useRef } from "react";
-import type { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
+import type { WorkspaceBus, BlockLifecyclePayload } from "../../../core/workspace/WorkspaceBus";
 import type { BlockRegistration } from "../../../core/mod-system/types";
 import { ModRegistry } from "../../../core/mod-system/ModRegistry";
 import { post } from "../../../core/api/client";
@@ -35,17 +35,6 @@ import { post } from "../../../core/api/client";
 /** Verbs that BlockNodeView emits as lifecycle event suffixes. */
 const VERBS = ["created", "edited", "deleted"] as const;
 type Verb = (typeof VERBS)[number];
-
-/** Payload shape emitted by BlockNodeView for lifecycle events. */
-interface BlockLifecyclePayload {
-  blockId: string;
-  slotId: string;
-  blockInstanceId: string;
-  /** Present on created and edited events. */
-  attrs?: Record<string, unknown>;
-  /** Present on edited events. */
-  changedAttrs?: Record<string, unknown>;
-}
 
 /** Accumulated action row, ready for batch flush. */
 interface AccumulatedAction {

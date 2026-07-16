@@ -14,6 +14,11 @@ Usage::
     registry.register_entity_type({"prefix": "BLOOD", "name": "Blood Sample", "mod_id": "lims"})
     registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
     registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
+    registry.register_service("lims.cascadeEntryStatus", cascade_handler)
+
+    # Cross-mod behavioral call:
+    result = registry.call("lims.cascadeEntryStatus", source_entry_id=42, status="published")
+    services = registry.list_services()
 
     # In config/urls.py:
     urlpatterns += registry.build_urlpatterns()
@@ -44,6 +49,7 @@ class BackendModRegistry:
         self._entity_types: dict[str, dict[str, Any]] = {}
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
+        self._services: dict[str, Callable[..., Any]] = {}
 
         # Optional: topological mod order for build_urlpatterns().
         # Set via set_mod_order() after loader runs.
@@ -214,6 +220,48 @@ class BackendModRegistry:
                 return parts[1]
 
         return None
+
+    # ── service registry ──────────────────────────────────────────────────
+
+    def register_service(self, service_id: str, handler: Callable[..., Any]) -> None:
+        """Register a callable service handler for *service_id*.
+
+        Services are the mechanism for cross-mod behavioral calls.  A mod
+        registers a handler for a service ID (convention: ``"{mod}.{verbNoun}"``,
+        e.g. ``"lims.cascadeEntryStatus"``) and other mods call it
+        via :meth:`call`.
+
+        Duplicate registrations for the same *service_id* silently overwrite
+        (last write wins).
+        """
+        self._services[service_id] = handler
+
+    def call(self, service_id: str, *args: Any, **kwargs: Any) -> Any:
+        """Invoke a registered service and return its result.
+
+        Parameters:
+            service_id: The service to invoke (e.g. ``"lims.cascadeEntryStatus"``).
+            *args: Positional arguments forwarded to the handler.
+            **kwargs: Keyword arguments forwarded to the handler.
+
+        Returns:
+            Whatever the handler returns.  Services must not return ORM objects
+            — return platform SDK types or plain dicts instead.
+
+        Raises:
+            ValueError: If *service_id* is not registered.
+        """
+        if service_id not in self._services:
+            available = sorted(self._services.keys())
+            raise ValueError(
+                f"Service '{service_id}' is not registered. "
+                f"Available services: {available}"
+            )
+        return self._services[service_id](*args, **kwargs)
+
+    def list_services(self) -> dict[str, Callable[..., Any]]:
+        """Return all registered services as ``{service_id: handler}``."""
+        return dict(self._services)
 
     # ── query methods ────────────────────────────────────────────────────
 

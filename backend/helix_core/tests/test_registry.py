@@ -516,6 +516,153 @@ class TestSignalDependencyGating:
             assert result is None
 
 
+# ── register_service / call / list_services ────────────────────────────────
+
+
+class TestServiceRegistration:
+    """Tests for register_service, call, and list_services."""
+
+    # ── register_service ─────────────────────────────────────────────────
+
+    def test_register_and_retrieve(self):
+        """Registered service appears in list_services."""
+        reg = _fresh_registry()
+
+        def my_handler():
+            return 42
+
+        reg.register_service("test.echo", my_handler)
+        services = reg.list_services()
+        assert "test.echo" in services
+        assert services["test.echo"] is my_handler
+
+    def test_register_multiple_services(self):
+        """Multiple services are all listed."""
+        reg = _fresh_registry()
+
+        def h1():
+            return 1
+
+        def h2():
+            return 2
+
+        reg.register_service("a.one", h1)
+        reg.register_service("b.two", h2)
+        services = reg.list_services()
+        assert set(services.keys()) == {"a.one", "b.two"}
+
+    def test_duplicate_registration_overwrites(self):
+        """Last write wins for duplicate service IDs."""
+        reg = _fresh_registry()
+
+        def first():
+            return "first"
+
+        def second():
+            return "second"
+
+        reg.register_service("dup.svc", first)
+        reg.register_service("dup.svc", second)
+        services = reg.list_services()
+        assert services["dup.svc"] is second
+
+    def test_service_handler_can_be_lambda(self):
+        """Lambda handlers work — any callable is accepted."""
+        reg = _fresh_registry()
+        reg.register_service("test.lambda", lambda x: x * 2)
+        assert "test.lambda" in reg.list_services()
+
+    # ── call ──────────────────────────────────────────────────────────
+
+    def test_call_dispatches_to_handler(self):
+        """call() invokes the registered handler with forwarded args."""
+        reg = _fresh_registry()
+        handler = MagicMock(return_value="ok")
+        reg.register_service("test.doThing", handler)
+
+        result = reg.call("test.doThing", "arg1", key="val")
+
+        handler.assert_called_once_with("arg1", key="val")
+        assert result == "ok"
+
+    def test_call_returns_handler_result(self):
+        """call() propagates the return value from the handler."""
+        reg = _fresh_registry()
+
+        def add(a, b):
+            return a + b
+
+        reg.register_service("math.add", add)
+        assert reg.call("math.add", 3, 4) == 7
+
+    def test_call_unregistered_service_raises(self):
+        """Calling an unregistered service raises ValueError."""
+        reg = _fresh_registry()
+        with pytest.raises(ValueError, match="not registered"):
+            reg.call("nonexistent.service")
+
+    def test_call_unregistered_service_message_lists_available(self):
+        """Error message includes available services for debugging."""
+        reg = _fresh_registry()
+        reg.register_service("math.add", lambda a, b: a + b)
+        with pytest.raises(ValueError, match="Available services"):
+            reg.call("math.subtract")
+
+    def test_call_empty_registry_message(self):
+        """Error message works even when no services are registered."""
+        reg = _fresh_registry()
+        with pytest.raises(ValueError, match="not registered"):
+            reg.call("anything")
+
+    def test_call_with_only_kwargs(self):
+        """call() works with keyword-only arguments."""
+        reg = _fresh_registry()
+
+        def greet(*, name, greeting="Hello"):
+            return f"{greeting}, {name}"
+
+        reg.register_service("test.greet", greet)
+        assert reg.call("test.greet", name="World") == "Hello, World"
+
+    def test_call_with_side_effects(self):
+        """Service handlers can perform side effects."""
+        reg = _fresh_registry()
+        side_effects = []
+
+        def do_side_effect(x):
+            side_effects.append(x)
+            return len(side_effects)
+
+        reg.register_service("test.sideEffect", do_side_effect)
+        assert reg.call("test.sideEffect", "a") == 1
+        assert reg.call("test.sideEffect", "b") == 2
+        assert side_effects == ["a", "b"]
+
+    # ── list_services ───────────────────────────────────────────────────
+
+    def test_list_services_empty(self):
+        """list_services returns empty dict when nothing registered."""
+        reg = _fresh_registry()
+        assert reg.list_services() == {}
+
+    def test_list_services_returns_copy(self):
+        """Mutation of the returned dict does not affect the registry."""
+        reg = _fresh_registry()
+        reg.register_service("test.one", lambda: 1)
+        result = reg.list_services()
+        result["test.two"] = lambda: 2
+        assert "test.two" not in reg.list_services()
+
+    def test_list_services_after_overwrite(self):
+        """list_services reflects the latest handler after overwrite."""
+        reg = _fresh_registry()
+        reg.register_service("test.svc", lambda: "old")
+        reg.register_service("test.svc", lambda: "new")
+        services = reg.list_services()
+        assert len(services) == 1
+        assert services["test.svc"]() == "new"
+
+
 # ── _resolve_mod_id ─────────────────────────────────────────────────────────
 
 

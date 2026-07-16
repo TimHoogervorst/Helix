@@ -3,6 +3,8 @@ Tests for the Protocol API endpoints.
 
 Exercises full CRUD, validation, soft-delete, and is_active filtering.
 """
+from unittest.mock import patch
+
 from core.tests.base import BaseTestCase
 from core_mods.eln.models import Protocol
 
@@ -12,6 +14,15 @@ VALID_ITEMS = [
     {"type": "note", "text": "Use fresh reagents."},
     {"type": "step", "text": "Incubate at 37°C for 30 min."},
 ]
+
+MIXIN_LOG_ACTION_PATH = "core.actions.mixins.log_action"
+
+
+def _log_kwargs(mock):
+    """Return the keyword-args dict from the *first* call to *mock*."""
+    if mock.call_count == 0:
+        return {}
+    return mock.call_args[1]
 
 
 class ProtocolApiTests(BaseTestCase):
@@ -289,3 +300,80 @@ class ProtocolApiTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["is_active"])
+
+
+class ProtocolActionLoggingTests(BaseTestCase):
+    """Test that Protocol CRUD operations log actions via ActionLoggingMixin."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_create_protocol_logs_action(self):
+        response = self.client.post(
+            "/api/eln/protocols/",
+            {"name": "Logged Protocol", "items": VALID_ITEMS},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.protocol.created")
+        self.assertEqual(kwargs["target_type"], "eln.protocol")
+        self.assertEqual(kwargs["target_id"], response.data["id"])
+        self.assertEqual(kwargs["user"], self.user)
+
+    def test_update_protocol_logs_action(self):
+        protocol = Protocol.objects.create(name="Old", items=VALID_ITEMS)
+        response = self.client.put(
+            f"/api/eln/protocols/{protocol.id}/",
+            {"name": "New", "items": VALID_ITEMS},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.protocol.edited")
+        self.assertEqual(kwargs["target_type"], "eln.protocol")
+        self.assertEqual(kwargs["target_id"], protocol.id)
+
+    def test_partial_update_protocol_logs_action(self):
+        protocol = Protocol.objects.create(name="PatchMe", items=VALID_ITEMS)
+        response = self.client.patch(
+            f"/api/eln/protocols/{protocol.id}/",
+            {"name": "Renamed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.protocol.edited")
+
+    def test_soft_delete_protocol_logs_action(self):
+        protocol = Protocol.objects.create(name="Temporary", items=VALID_ITEMS)
+        response = self.client.delete(f"/api/eln/protocols/{protocol.id}/")
+        self.assertEqual(response.status_code, 204)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.protocol.deleted")
+        self.assertEqual(kwargs["target_type"], "eln.protocol")
+        self.assertEqual(kwargs["target_id"], protocol.id)
+
+    def test_create_protocol_captures_client_ip(self):
+        self.client.post(
+            "/api/eln/protocols/",
+            {"name": "IP Test", "items": VALID_ITEMS},
+            format="json",
+        )
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+
+    def test_get_does_not_log(self):
+        Protocol.objects.create(name="ReadOnly", items=VALID_ITEMS)
+        self.client.get("/api/eln/protocols/")
+        self.mock_log.assert_not_called()

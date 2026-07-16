@@ -416,3 +416,56 @@ class EntryActionsEndpointTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 0)
+
+
+class EntryTagActionsLoggingTests(BaseTestCase):
+    """Test that tag attach/detach on entries logs actions via @logs_action."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.entry = NotebookEntry.objects.create(
+            title="Tag Test Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        from core_mods.tags.models import Tag
+        self.tag1 = Tag.objects.create(name="Important", color="enzyme", icon="dna")
+        self.tag2 = Tag.objects.create(name="Urgent", color="warn", icon="circle")
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_attach_tags_logs_action(self):
+        response = self.client.post(
+            f"/api/eln/entries/{self.entry.display_id}/tags/",
+            {"tag_ids": [self.tag1.id, self.tag2.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.tags_attached")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], self.entry.id)
+        self.assertEqual(kwargs["metadata"], {"tag_ids": [self.tag1.id, self.tag2.id]})
+
+    def test_detach_tag_logs_action(self):
+        self.entry.tags.add(self.tag1)
+        response = self.client.delete(
+            f"/api/eln/entries/{self.entry.display_id}/tags/{self.tag1.id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.tag_detached")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], self.entry.id)
+        self.assertEqual(kwargs["metadata"], {"tag_id": self.tag1.id})
+
+    def test_detach_nonexistent_tag_does_not_log(self):
+        response = self.client.delete(
+            f"/api/eln/entries/{self.entry.display_id}/tags/99999/"
+        )
+        self.assertEqual(response.status_code, 404)
+        self.mock_log.assert_not_called()

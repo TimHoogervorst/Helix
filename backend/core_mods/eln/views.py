@@ -8,7 +8,7 @@ from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
 from core.actions.logger import log_action
-from core.actions.mixins import ActionLoggingMixin
+from core.actions.mixins import ActionLoggingMixin, logs_action
 
 from core_mods.tags.models import Tag
 
@@ -199,6 +199,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         count, _ = NotebookEntry.objects.all().delete()
         return Response({"deleted": count})
 
+    @logs_action(
+        "eln.entry.tags_attached",
+        get_metadata=lambda inst, data, req: {"tag_ids": req.data.get("tag_ids", [])},
+    )
     @action(detail=True, methods=["post"], url_path="tags")
     def attach_tags(self, request, display_id=None):
         """Attach one or more tags to the entry.
@@ -217,6 +221,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         read_serializer = NotebookEntrySerializer(entry)
         return Response(read_serializer.data)
 
+    @logs_action(
+        "eln.entry.tag_detached",
+        get_metadata=lambda inst, data, req: {"tag_id": int(req.resolver_match.kwargs["tag_id"])},
+    )
     @action(detail=True, methods=["delete"], url_path="tags/(?P<tag_id>[^/.]+)")
     def detach_tag(self, request, display_id=None, tag_id=None):
         """Detach a tag from the entry."""
@@ -447,7 +455,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return Response(self._lock_response(existing))
 
 
-class ProtocolViewSet(viewsets.ModelViewSet):
+class ProtocolViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for ELN protocol definitions.
 
@@ -462,6 +470,13 @@ class ProtocolViewSet(viewsets.ModelViewSet):
     queryset = Protocol.objects.all()
     serializer_class = ProtocolSerializer
     permission_classes = []
+
+    action_log_config = {
+        "create": {"action_type": "eln.protocol.created"},
+        "update": {"action_type": "eln.protocol.edited"},
+        "partial_update": {"action_type": "eln.protocol.edited"},
+        "destroy": {"action_type": "eln.protocol.deleted"},
+    }
 
     def get_queryset(self):
         """Filter to active protocols by default.
@@ -480,5 +495,7 @@ class ProtocolViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """Soft-delete: set is_active=False instead of removing the row."""
+        instance._pre_delete_pk = instance.pk
         instance.is_active = False
         instance.save(update_fields=["is_active"])
+        self._maybe_log("destroy", instance=instance)

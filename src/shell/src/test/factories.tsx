@@ -12,7 +12,7 @@
  *
  * Do **not** copy-paste these definitions into new test files.
  *
- * Mirrors the backend pattern: ``backend/core/tests/factories.py``.
+ * Mirrors the backend pattern: ``src/server/core/tests/factories.py``.
  */
 
 import { vi } from "vitest";

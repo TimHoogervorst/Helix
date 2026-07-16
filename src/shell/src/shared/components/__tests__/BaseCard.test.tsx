@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BaseCard } from "../BaseCard";
 import { makeLibraryEntry } from "../../../test/factories";
-import type { PropertyField, LibraryCardProps } from "../../../core/mod-system/types";
+import type { PropertyField, LibraryCardProps } from "../../../mod-system/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

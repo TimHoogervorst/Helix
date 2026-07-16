@@ -1,13 +1,12 @@
 # Mod System
 
-> This document was migrated from `workspaces/core/README.md` and supersedes it.
 > See [docs/mod-system.md](../../../docs/mod-system.md) for the full architecture specification.
 
 ## What is a Mod?
 
 A **mod** is a self-contained unit of functionality that declares what it provides via `register*()` functions in its `index.ts`. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods.
 
-Every mod lives under `core-mods/<mod-name>/` and follows a standard directory contract.
+Every mod lives under `src/mods/<mod-name>/` and follows a standard directory contract.
 
 ## Mod Metadata Contract
 
@@ -65,8 +64,8 @@ export function register(): void {
 
 ```
 main.tsx → BrowserRouter → App.tsx → <ModLoader>
-  1. Glob all core-mods/*/index.ts via import.meta.glob
-  2. Import each, read meta — validate no duplicate IDs
+  1. Auto-discover all mods from ``src/mods/*/index.ts`` via import.meta.glob
+  2. Import each, read metadata from ``modManifest.json`` (preferred) or ``meta`` export — validate no duplicate IDs
   3. Topological sort by dependsOn — detect cycles, detect missing deps
   4. Call each mod's register() in sorted order → populates ModRegistry
   5. Validate registry — all cross-references resolve

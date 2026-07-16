@@ -4,7 +4,7 @@ import { User, Settings, LogOut, Crown } from "lucide-react";
 import { useCurrentUser } from "./CurrentUserProvider";
 import { Avatar, getInitials } from "./Avatar";
 import { logout } from "./api";
-import { useClickOutside } from "../../shared/hooks/useClickOutside";
+import { useClickOutside } from "../shared/hooks/useClickOutside";
 
 /**
  * Popover card triggered by clicking the sidebar avatar.

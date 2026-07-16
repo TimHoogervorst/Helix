@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import MentionBadge from "../MentionBadge";
-import { MentionProvider } from "../../../core/mentions/MentionProvider";
+import { MentionProvider } from "../../../mentions/MentionProvider";
 import type { BadgeResolved } from "../MentionBadge";
 
 // ── Helpers ──────────────────────────────────────────────────────────

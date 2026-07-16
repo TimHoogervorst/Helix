@@ -11,8 +11,8 @@
  *   Broken   — red pill, displayId only (clickable mode only)
  */
 import { useEffect, useRef } from "react";
-import { useMentionContext } from "../../core/mentions/MentionProvider";
-import type { ResolvedMention } from "../../core/mentions/types";
+import { useMentionContext } from "../../mentions/MentionProvider";
+import type { ResolvedMention } from "../../mentions/types";
 
 // ── Public type ──────────────────────────────────────────────────────────
 

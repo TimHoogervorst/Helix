@@ -57,4 +57,4 @@ export interface PaginatedResponse<T> {
 // Moved to shared/types/types.ts — re-exported here so existing consumers
 // don't break.  New code should import from "shared/types/types".
 
-export type { GridColumn, GridRow } from "../../shared/types/types";
+export type { GridColumn, GridRow } from "../../shell/src/shared/types/types";

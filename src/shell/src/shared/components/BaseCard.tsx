@@ -4,7 +4,7 @@ import type { LibraryEntryItem } from "../../../../mods/library/types";
 import type {
   PropertyField,
   LibraryCardProps,
-} from "../../core/mod-system/types";
+} from "../../mod-system/types";
 import { Avatar, getInitials } from "../Avatar";
 import { relativeTime } from "../format";
 import { StatusBadge } from "./StatusBadge";

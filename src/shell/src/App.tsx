@@ -1,6 +1,6 @@
-import { ModLoader } from "./core/mod-system";
-import Router from "./core/shell/Router";
-import { CurrentUserProvider } from "./core/user/CurrentUserProvider";
+import { ModLoader } from "./mod-system";
+import Router from "./shell/Router";
+import { CurrentUserProvider } from "./user/CurrentUserProvider";
 
 function App() {
   return (

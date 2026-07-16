@@ -1,0 +1,6 @@
+{
+  "id": "library",
+  "displayName": "Library",
+  "version": "0.1.0",
+  "dependsOn": ["tags", "eln"]
+}

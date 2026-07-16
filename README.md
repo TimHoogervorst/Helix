@@ -78,71 +78,78 @@ For lightweight local runs without Docker, the backend tests work against SQLite
 
 ## Architecture
 
-The platform is built on a **Mod System**. Everything — LIMS, ELN, Library, Settings, Pins — is a **Core Mod**: a self-contained directory under `core-mods/` that declares what it provides by calling `register*()` functions in its `index.ts`. **Core** is the thin immutable shell that loads mods, resolves their dependency graph (topological sort), and provides the frame they render into.
+The platform is built on a **Mod System**. Everything — LIMS, ELN, Library, Settings, Pins — is a **Core Mod**: a self-contained directory under `src/mods/<id>/` containing both frontend (TypeScript) and backend (Python) code. Each mod declares what it provides by calling `register*()` functions in its `index.ts` (frontend) and `mod.py` (backend). The **Shell** (`src/shell/` and `src/server/`) is the thin immutable frame that loads mods, resolves their dependency graph (topological sort), reads their `modManifest.json` for identity, and provides the services they render into.
 
 ### The Mod API
 
 Each mod calls imperative registration functions to declare its contributions:
 
-| Function | What it registers |
-|----------|------------------|
-| `registerHub()` | A free-form browsing hub with sidebar nav item (e.g. Library at `/library`, Home at `/home`, Settings at `/settings`) |
-| `registerLibraryItem()` | A card component rendered in the Library hub (e.g. ELN entry cards with List/Grid/Compact views) |
-| `registerBlock()` | A content block (e.g., table, future: image, attachment) in the ELN editor's slash menu |
-| `registerSettingsSection()` | A panel in the Settings shell (e.g. LIMS entity schemas) |
-| `registerRoute()` | A standalone route (e.g. `/settings`, workspace pages like `/eln/:displayId`) |
-| `registerPublicRoute()` | A route outside the Layout shell — no sidebar, no app chrome (e.g. `/login`) |
-| `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) |
-| `registerService()` | A callable service for mod-to-mod communication |
+| Function | What it registers | Layer |
+|----------|------------------|-------|
+| `registerHub()` | A free-form browsing hub with sidebar nav item (e.g. Library at `/library`, Home at `/home`) | App |
+| `registerLibraryItem()` | A card component rendered in the Library hub (e.g. ELN entry cards with List/Grid/Compact views) | App |
+| `registerBlock()` | A reusable, renderer-agnostic content block (e.g. LimsTable, ActivityFeed) that can render in a TipTap editor, a sidebar panel, or a tab | Slot |
+| `registerButton()` | A fire-only button rendered in toolbar slots (e.g. Export, Lock) | Slot |
+| `declareSlot()` | A named placeholder in a workspace that owns how bound content is rendered | Slot |
+| `registerIntoSlot()` | Binds a block or button into a declared slot, with optional per-binding overrides | Slot |
+| `registerSettingsSection()` | A panel in the Settings shell (e.g. LIMS entity schemas) | App |
+| `registerRoute()` | A standalone route (e.g. `/settings`, workspace pages like `/eln/:displayId`) | App |
+| `registerPublicRoute()` | A route outside the Layout shell — no sidebar, no app chrome (e.g. `/login`) | App |
+| `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) | App |
+| `registerWorkspace()` | A workspace identity — its `id` doubles as the URL namespace for mention resolution | App |
 
-Mods must not import directly from each other — all cross-mod communication goes through the registry. Shared components live in `shared/`. See [docs/mod-system.md](docs/mod-system.md) for the full architecture.
+Mods must not import directly from each other — all cross-mod communication goes through the registry. Shared frontend components live in `src/shell/src/shared/`. The backend has an equivalent `BackendModRegistry` in `helix_core` with `register_*()` methods and a service registry. See [docs/mod-system.md](docs/mod-system.md) for the full architecture.
 
-### Frontend
+### Slot System
+
+Workspaces declare named **slots** (placeholders that own rendering), and mods register **blocks** (renderer-agnostic content units) and **buttons** (fire-only actions) that bind into those slots. The same block can render in a TipTap editor, a sidebar panel, or a tab — the slot's renderer owns presentation, and the block author writes one component. A **workspace-scoped event bus** provides decoupled communication: buttons emit events, blocks listen via declarative handlers, and lifecycle events are renderer-emitted. See [docs/slot-system.md](docs/slot-system.md).
+
+### Directory Structure
 
 ```
-frontend/src/
-├── core/                         # Immutable app shell
-│   ├── shell/                    # Layout (dynamic hub sidebar), routing, WorkspacePage
-│   ├── mod-system/               # ModLoader, ModRegistry, register*() API
-│   ├── mentions/                 # Cross-cutting mention resolution (MentionProvider, MentionBadge)
-│   ├── api/                      # Core API client
-│   └── types/                    # Shared types
+src/
+├── mods/                           # Co-located mods — each owns full stack (frontend + backend)
+│   ├── eln/                        # Electronic Lab Notebook (entries, blocks, TipTap editor)
+│   ├── lims/                       # LIMS (entities, entity types, actions)
+│   ├── library/                    # Library hub (card-based folder browsing)
+│   ├── home/                       # Home landing page
+│   ├── settings/                   # Settings shell
+│   ├── pins/                       # Pinned workspaces sidebar
+│   ├── tags/                       # Tagging system
+│   └── users/                      # User management
 │
-├── core-mods/                    # Built-in mods — always loaded
-│   ├── home/                     # Home hub (landing page at /home)
-│   ├── lims/                     # LIMS mod (entities, entity types, actions)
-│   ├── eln/                      # ELN mod (entries, blocks, TipTap editor, auto-save)
-│   ├── library/                  # Library hub (card-based folder browsing, List/Grid/Compact)
-│   ├── settings/                 # Settings shell (hosts sections from other mods)
-│   └── pins/                     # Pinned workspaces sidebar
+├── shell/                          # Frontend — immutable app shell (Vite/React)
+│   └── src/
+│       ├── core/
+│       │   ├── shell/              # Layout, AppShell, Router
+│       │   ├── mod-system/         # ModLoader, ModRegistry, register*() API
+│       │   ├── workspace/          # WorkspaceBus, SlotRenderer
+│       │   ├── mentions/           # Cross-cutting mention resolution
+│       │   └── api/                # Core API client
+│       └── shared/                 # Platform SDK — BaseCard, StatusBadge, hooks
 │
-└── shared/                       # Platform SDK — shared components & hooks
-    ├── components/               # BaseCard, StatusBadge, TagChips, Breadcrumbs, MentionBadge, etc.
-    └── hooks/                    # usePaginatedData, useActivity, useContentPreview
+└── server/                         # Backend — Django project
+    ├── config/                     # settings.py, root urls.py
+    ├── core/                       # Auth, User, Folder, BrowsableItem, mentions
+    └── helix_core/                 # Platform SDK — ModLoader, BackendModRegistry, actions
 ```
 
-### Backend
+### Backend Mod System
 
-```
-backend/
-├── config/                       # Django project settings, root URL conf
-├── core/                         # Auth, base models (User, BrowsableItem), Folder
-│   └── mentions/                 # Cross-cutting mention resolution (formerly references/)
-├── core_mods/                    # Built-in mods (mirrors frontend core-mods/)
-│   ├── lims/                     # Entity, EntityType, Action, RegisteredEntityType
-│   ├── eln/                      # NotebookEntry, Tag, ContentVersion, EntryLock
-│   ├── library/                  # LibraryContentsView (mixed folder+entry listing)
-│   └── pins/                     # PinnedWorkspace
-└── shared/                       # Shared Django utilities
-```
+The backend mirrors the frontend mod system. Mods are discovered from `modManifest.json`, loaded in topological order by `ModLoader` in `helix_core`, and register contributions through `BackendModRegistry` (`register_entity_type()`, `register_urls()`, `register_service()`, etc.). Each mod provides a `mod.py` with a `register()` function. `INSTALLED_APPS` is populated programmatically — no manual maintenance. Cross-mod communication goes through `registry.call()`. External mods will use the same API via a pip-installable `helix_core` package. See [docs/backend-mod-system.md](docs/backend-mod-system.md).
 
-Each backend mod is a standard Django app registered in `INSTALLED_APPS`. The backend mod system is organisational — Django's built-in app system handles discovery.
+### Action Logging
+
+All mutating operations are automatically logged for CFR Part 11 audit compliance. HTTP endpoints use `ActionLoggingMixin` (a DRF viewset mixin) or `@logs_action` (a decorator for service-layer functions). Block actions are routed through the workspace event bus and batched on save. The `ActivityFeed` is a cross-mod block that renders actions from any mod. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md).
 
 **Stack:** Python 3.12 · Django 5.1 · DRF 3.15 · PostgreSQL 16 (pgvector) · Node 22 · React 19 · Vite 6 · TypeScript 5.7 · TipTap 2.x
 
 ## Further Reading
 
 - [docs/mod-system.md](docs/mod-system.md) — full mod system architecture, registration API reference, boot sequence
+- [docs/slot-system.md](docs/slot-system.md) — slot system design, renderers, event bus, block serialization
+- [docs/backend-mod-system.md](docs/backend-mod-system.md) — backend mod system, helix_core SDK, BackendModRegistry
+- [docs/actions-system-design.md](docs/actions-system-design.md) — declarative action logging, AbstractBaseAction, CFR Part 11
 - [CONTEXT.md](CONTEXT.md) — domain glossary with definitions, relationships, and key distinctions
 - [UBIQUITOUS_LANGUAGE.md](UBIQUITOUS_LANGUAGE.md) — canonical terminology, deprecated term mappings, example dialogue
 - [docs/adr/](docs/adr/) — architecture decision records

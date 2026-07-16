@@ -1,0 +1,240 @@
+from rest_framework import serializers
+
+from core.models import Folder, User
+from mods.users.serializers import UserSerializer
+
+from mods.tags.models import Tag
+
+from core.mentions.models import Mention
+
+from .models import NotebookEntry, ElnAction, Protocol
+
+
+def validate_tiptap_json(value):
+    """Validate that content conforms to a TipTap/ProseMirror document shape."""
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Content must be a JSON object.")
+    if value.get("type") != "doc":
+        raise serializers.ValidationError(
+            "Content must be a TipTap document with type='doc'."
+        )
+    if "content" not in value:
+        raise serializers.ValidationError(
+            "Content must have a 'content' array."
+        )
+    return value
+
+
+class MentionSerializer(serializers.ModelSerializer):
+    source_type_name = serializers.CharField(source="source_type.model", read_only=True)
+    target_type_name = serializers.CharField(source="target_type.model", read_only=True)
+    target_display_id = serializers.SerializerMethodField()
+    target_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Mention
+        fields = [
+            "id", "source_type", "source_type_name", "source_id",
+            "target_type", "target_type_name", "target_id",
+            "target_display_id", "target_title",
+        ]
+        read_only_fields = ["id"]
+
+    def get_target_display_id(self, obj):
+        """Return the display_id of the target object if available."""
+        try:
+            target = obj.target
+            if target and hasattr(target, "display_id"):
+                return target.display_id
+        except Exception:
+            pass
+        return None
+
+    def get_target_title(self, obj):
+        """Return the title (or name) of the target object if available."""
+        try:
+            target = obj.target
+            if target:
+                return getattr(target, "title", getattr(target, "name", str(target)))
+        except Exception:
+            pass
+        return None
+
+
+# Re-export for backward compatibility — canonical in mods.tags.serializers.
+from mods.tags.serializers import TagSerializer  # noqa: F401, E402
+
+
+class NotebookEntrySerializer(serializers.ModelSerializer):
+    author_username = serializers.SerializerMethodField()
+    author_info = UserSerializer(source="author", read_only=True)
+    folder_name = serializers.CharField(source="folder.name", read_only=True)
+    folder_path = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    mentions = MentionSerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = NotebookEntry
+        fields = [
+            "id",
+            "display_id",
+            "title",
+            "content",
+            "folder",
+            "folder_name",
+            "folder_path",
+            "author",
+            "author_username",
+            "author_info",
+            "created_at",
+            "updated_at",
+            "status",
+            "status_display",
+            "mentions",
+            "tags",
+        ]
+        read_only_fields = ["id", "display_id", "author", "created_at", "updated_at"]
+
+    def get_author_username(self, obj):
+        return obj.author.username if obj.author else None
+
+    def get_folder_path(self, obj):
+        if obj.folder:
+            return obj.folder.path
+        return ""
+
+
+class NotebookEntryCreateSerializer(serializers.ModelSerializer):
+    """Write-only serializer. Folder defaults to 'Default' if omitted."""
+
+    folder = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.all(), required=False, allow_null=True
+    )
+    content = serializers.JSONField(validators=[validate_tiptap_json])
+    status = serializers.ChoiceField(choices=["in_progress", "finished"], required=False)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False, write_only=True
+    )
+
+    class Meta:
+        model = NotebookEntry
+        fields = ["title", "content", "folder", "status", "tag_ids"]
+
+    def create(self, validated_data):
+        tag_ids = validated_data.pop("tag_ids", [])
+        entry = super().create(validated_data)
+        if tag_ids:
+            entry.tags.set(tag_ids)
+        return entry
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop("tag_ids", None)
+        instance = super().update(instance, validated_data)
+        if tag_ids is not None:
+            instance.tags.set(tag_ids)
+        return instance
+
+
+class ElnActionSerializer(serializers.ModelSerializer):
+    """Read-only serializer for an ELN action log entry.
+
+    Includes the user who performed the action so the frontend can render
+    avatars and display names.
+    """
+
+    performed_by = UserSerializer(read_only=True)
+
+    class Meta:
+        model = ElnAction
+        fields = [
+            "id",
+            "action_type",
+            "target_type",
+            "target_id",
+            "metadata",
+            "created_at",
+            "performed_by",
+        ]
+        read_only_fields = fields
+
+
+class ElnActionCreateSerializer(serializers.ModelSerializer):
+    """Write-only serializer for logging a custom action against an entry."""
+
+    class Meta:
+        model = ElnAction
+        fields = ["action_type", "metadata"]
+        # target_type, target_id, and performed_by are set by the view
+
+
+class ElnActionBatchSerializer(serializers.Serializer):
+    """Serializer for batched block-level action log entries.
+
+    Accepts a list of ``{action_type, metadata}`` entries.  The view
+    derives ``performed_by``, ``target_type``, ``target_id``, and
+    ``request_id`` from the request context.
+    """
+
+    actions = serializers.ListField(
+        child=serializers.DictField(child=serializers.JSONField()),
+        min_length=1,
+        allow_empty=False,
+    )
+
+    def validate_actions(self, value):
+        """Validate that each action entry has a valid triple-dotted action_type."""
+        for i, entry in enumerate(value):
+            action_type = entry.get("action_type", "")
+            if not action_type or not str(action_type).strip():
+                raise serializers.ValidationError(
+                    f"actions[{i}]: 'action_type' is required and must "
+                    f"not be blank."
+                )
+            # Enforce triple-dotted convention: "{mod}.{target}.{verb_past}"
+            if str(action_type).count(".") < 2:
+                raise serializers.ValidationError(
+                    f"actions[{i}]: 'action_type' must follow the "
+                    f"triple-dotted convention "
+                    f"('{{mod}}.{{target}}.{{verb_past}}'), "
+                    f"got '{action_type}'."
+                )
+        return value
+
+
+class ProtocolSerializer(serializers.ModelSerializer):
+    """Serializer for Protocol definitions (CRUD in Settings)."""
+
+    class Meta:
+        model = Protocol
+        fields = ["id", "name", "items", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_active", "created_at", "updated_at"]
+
+    def validate_name(self, value):
+        """Name is required and must not be blank."""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Protocol name is required.")
+        return value.strip()
+
+    def validate_items(self, value):
+        """Items must be a list of {type: 'step'|'note', text: string}."""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Items must be a list.")
+
+        valid_types = {"step", "note"}
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                raise serializers.ValidationError(
+                    f"Item {i} must be an object with 'type' and 'text'."
+                )
+            item_type = item.get("type")
+            if item_type not in valid_types:
+                raise serializers.ValidationError(
+                    f"Item {i}: type must be 'step' or 'note', got '{item_type}'."
+                )
+            text = item.get("text", "")
+            if not text or not str(text).strip():
+                raise serializers.ValidationError(
+                    f"Item {i}: text is required and must not be blank."
+                )
+        return value

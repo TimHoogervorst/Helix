@@ -22,7 +22,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./src/server:/app
+      - ./src/mods:/mods
     environment:
       DATABASE_URL: postgres://openscience:openscience@db:5432/openscience
       SECRET_KEY: dev-secret-key-change-in-production
@@ -41,8 +42,9 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - ./src/shell:/repo/src/shell
+      - ./src/mods:/repo/src/mods
+      - /repo/src/shell/node_modules
     environment:
       VITE_API_URL: http://backend:8000
     depends_on:

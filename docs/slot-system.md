@@ -1,28 +1,33 @@
 # Slot System & Workspace Event Bus
 
-> Date: 2026-07-14
-> Status: Spec — redesigned with renderer-based architecture (grilling session 2026-07-14)
-> Companion to: [Mod System Architecture](mod-system.md), [Actions System Design](actions-system-design.md), [Cross-Cutting Events](cross-cutting-events.md)
+> Date: 2026-07-16
+> Status: Accepted
+> Companion to: [Mod System Architecture](mod-system.md)
 >
-> Implementation order: **4** (after Backend Mod Manifest, after Unified Backend Registry, after Declarative Action Mixins, before Block-Declared Actions)
+> This document captures the design for the renderer-based slot system and workspace-scoped event bus. The slot system extends the mod API with three new registration functions (`declareSlot()`, `registerButton()`, `registerIntoSlot()`) and rewrites `registerBlock()` to be renderer-agnostic.
 
 ---
 
 ## Table of Contents
 
-1. [Core Concepts](#core-concepts)
-2. [Architecture Overview](#architecture-overview)
-3. [Registration API](#registration-api)
-4. [Slot Declarations & Renderers](#slot-declarations--renderers)
-5. [Slot Bindings](#slot-bindings)
-6. [The Renderer Contract](#the-renderer-contract)
-7. [Workspace Event Bus](#workspace-event-bus)
-8. [Block Lifecycle & Action Logging](#block-lifecycle--action-logging)
-9. [SlotRenderer Component](#slotrenderer-component)
-10. [Registry Shapes](#registry-shapes)
-11. [Validation](#validation)
-12. [Rollout Sketch](#rollout-sketch)
-13. [Key Design Decisions](#key-design-decisions)
+1. [Problem Statement](#problem-statement)
+2. [Core Concepts](#core-concepts)
+3. [Slot Lifecycle](#slot-lifecycle)
+4. [Registration API](#registration-api)
+5. [Renderers](#renderers)
+6. [Workspace Event Bus](#workspace-event-bus)
+7. [Block Serialization](#block-serialization)
+8. [Defaults & Overrides](#defaults--overrides)
+9. [Block-Level Action Logging](#block-level-action-logging)
+10. [Validation](#validation)
+
+---
+
+## Problem Statement
+
+The ELN workspace had no extension points for embedded UI. Mods couldn't contribute buttons, sidebar panels, or editor content blocks without the workspace hardcoding knowledge of every mod. Activity feeds, export buttons, and lock indicators were all tightly coupled to their owning mod. There was no event bus for decoupled communication between UI elements within a workspace.
+
+The old `registerBlock()` was tied to TipTap — a `tiptap-node` type discriminator with `TipTapBlockPayload` that only the ELN editor could consume. Blocks couldn't render in sidebars, tabs, or any other context.
 
 ---
 
@@ -30,558 +35,294 @@
 
 | Term | Definition |
 |------|-----------|
-| **Block** | A reusable content type registered via `registerBlock()`. Has an `id`, `label`, `icon`, a `component` (React component), optional `listensTo`/`onEvent` for event bus reactions, `serialize`/`deserialize` for state persistence, and optional `messages` overrides for action logging. A block is a **type** — registered once, usable in many slots. |
-| **Button** | A simple fire-only trigger registered via `registerButton()`. Has `id`, `label`, `icon`, and `onClick({ bus, context })`. No component — renders via the slot's renderer. Fire-only: buttons emit events but never listen. |
-| **Slot** | A named placeholder declared by a workspace via `declareSlot()`. Has an `id`, `accepts` (block or button), a `renderer` component, a `layout` direction (horizontal/vertical), and optional `defaults` for bindings. The slot owns how things are rendered; the block/button owns what is rendered. |
-| **Slot Renderer** | The component the slot delegates to for rendering. Owns layout, lifecycle, and event routing for everything registered into that slot. Four built-in renderers: `TipTapRenderer`, `ButtonGroupRenderer`, `PanelRenderer`, `TabRenderer`. |
-| **Slot Binding** | Created by `registerIntoSlot(slotId, targetId, overrides?)`. Connects a block or button to a slot. Per-binding `overrides` merge with slot `defaults`; binding overrides win. |
-| **SlotRenderer** | Thin resolution component. Looks up the slot → gets renderer + defaults → looks up bindings → resolves each target from the registry → merges defaults with overrides → delegates to renderer. |
-| **BlockComponentProps** | `{ context: SlotContext; instance: BlockInstance }`. No `bus` — blocks respond to events via `onEvent`, they don't initiate. |
-| **BlockInstance** | A handle to a specific occurrence of a block in a slot: `{ id, blockId, slotId, attrs, updateAttrs }`. `attrs` is the deserialized block state; `updateAttrs(newState)` replaces entirely, triggers serialize + persist. |
-| **SlotContext** | Flat bag of available metadata: `{ workspaceId, user, viewMode, entryId?, entityId?, displayId? }`. Blocks check for what they need. |
-| **WorkspaceBus** | Scoped event bus per workspace instance. Cross-slot: buttons in one slot can fire events blocks in another slot listen to. Three methods: `emit()`, `collect()`, `request()`. |
-| **Validation** | At boot: slot must be declared before bindings target it; binding target must match slot's `accepts`. Failures log a console warning and skip the bad binding — no crash. |
+| **Slot** | A named placeholder in a workspace that owns how things are rendered. Declared via `declareSlot()`. The slot's `renderer` field IS the type — there is no fixed enum of slot types. |
+| **Block** | A reusable, renderer-agnostic content unit registered via `registerBlock()`. Can render in a TipTap editor, a sidebar panel, or a tab without the block author writing any rendering-mode-specific code. Blocks can listen to events on the workspace bus via declarative `listensTo` + `onEvent` handlers. |
+| **Button** | A simple fire-only action registered via `registerButton()`. Buttons emit events via the workspace bus but never listen. If a UI element needs to both listen and fire, use a block. |
+| **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
+| **Renderer** | The component that owns presentation within a slot. Receives resolved bindings via `RendererProps`. Different renderers present the same block differently: TipTapRenderer embeds it as a node, PanelRenderer renders it as a panel, TabRenderer renders it as a tab. |
+| **Workspace Event Bus** | A scoped pub/sub bus tied to a workspace instance. Buttons emit events; blocks listen via declaration. Lifecycle events are renderer-emitted — block authors never call `bus.emit()`. |
+| **Slot Context** | A flat bag of metadata (`workspaceId`, `user`, `viewMode`, `entryId`, `entityId`, `displayId`) available to every block and button in a workspace. |
 
 ---
 
-## Architecture Overview
-
-**Workspaces declare named slots. Mods register reusable blocks and buttons. Bindings connect blocks/buttons to slots. The slot's renderer owns all rendering, layout, lifecycle, and event routing.**
+## Slot Lifecycle
 
 ```
-WORKSPACE (host)                      MOD (contributor)
-──────────────                        ─────────────────
+1. Workspace declares slots via declareSlot()
+   → "eln.editor" (accepts: "block", renderer: TipTapRenderer)
+   → "eln.toolbar" (accepts: "button", renderer: ButtonGroupRenderer)
+   → "eln.sidebar" (accepts: "block", renderer: PanelRenderer)
 
-declareSlot({                         registerBlock({
-  id: "eln.header.actions",             id: "eln.export",
-  accepts: "button",                   label: "Export Table",
-  renderer: ButtonGroupRenderer,       icon: ExportIcon,
-  layout: "horizontal",                component: ExportTableBlock,
-  defaults: {},                        listensTo: [],
-  order: 0,                            onEvent: {},
-})                                    })
+2. Mods register blocks and buttons
+   → registerBlock({ id: "eln.table", component: LimsTableBlock, ... })
+   → registerButton({ id: "eln.export", onClick: ..., ... })
 
-                                     registerButton({
-declareSlot({                           id: "eln.export",
-  id: "eln.editor",                    label: "Export",
-  accepts: "block",                    icon: Download,
-  renderer: TipTapRenderer,            onClick: ({ bus }) => bus.collect("data.export"),
-  layout: "vertical",                 })
-  defaults: { nodeType: "block", atom: true },
-  order: 1,                           registerIntoSlot("eln.header.actions", "eln.export")
-})                                    registerIntoSlot("eln.editor", "eln.table")
+3. Mods bind into slots
+   → registerIntoSlot("eln.editor", "eln.table", { order: 0 })
+   → registerIntoSlot("eln.toolbar", "eln.export", { order: 5 })
+
+4. At render time, SlotRenderer resolves each slot:
+   a. Look up slot declaration → get renderer + defaults
+   b. Look up bindings for slot → resolve targets (blocks or buttons)
+   c. Merge slot.defaults ← binding.overrides (binding wins per-key)
+   d. Pass { renderer, bindings, bus, context } to the renderer component
 ```
-
-The block (`eln.table`) is a type. The slot (`eln.editor`) owns the rendering strategy (TipTap). The binding connects them with optional overrides. The same block can be bound to multiple slots — it renders as a TipTap node in the editor and as a card in the sidebar, without the block author writing any rendering-mode-specific code.
 
 ---
 
 ## Registration API
 
+### declareSlot()
+
+Declares a named placeholder in a workspace. The slot's `renderer` determines how bound content is presented.
+
+```ts
+declareSlot({
+  id: string;                        // "{workspaceId}.{region}.{name}", e.g. "eln.editor"
+  accepts: "block" | "button";      // What can be bound into this slot
+  renderer: ComponentType<any>;      // The rendering strategy component
+  layout: "horizontal" | "vertical"; // How contents are arranged
+  order: number;                     // Slot position within the workspace
+  defaults: Record<string, unknown>; // Default overrides applied to all bindings
+}): void;
+```
+
+**Naming convention:** `{workspaceId}.{region}.{name}` — e.g. `eln.editor`, `eln.toolbar`, `eln.sidebar`, `lims.activity`.
+
 ### registerBlock()
 
-Register a reusable block type. A block is a type — registered once, bindable into many slots.
+Registers a reusable, renderer-agnostic content block. The same block can be bound into a TipTap editor slot, a sidebar panel slot, or a tab slot.
 
-```typescript
+```ts
 registerBlock({
-  id: string;                          // "eln.table" — unique, drives action_type derivation
-  label: string;                       // "Table" — shown in slash menu, tabs, etc.
-  icon: ComponentType;                 // Lucide icon
-  component: ComponentType<BlockComponentProps>;  // React component
-  listensTo: string[];                 // events this block reacts to (default: [])
+  id: string;                                          // Globally unique, e.g. "eln.table"
+  label: string;                                       // Human-readable, e.g. "Table"
+  icon: ComponentType<any>;                             // Lucide icon
+  component: ComponentType<BlockComponentProps>;        // React component
+  listensTo: string[];                                  // Events this block reacts to (default: [])
   onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  messages?: {                         // activity feed message overrides
+  messages?: {                                          // Activity feed message overrides
     created?: string;
     edited?: string;
     deleted?: string;
   };
   getDisplayName?: (attrs: Record<string, unknown>) => string;
-  tags?: string[];                     // for block picker filtering
-  serialize: (state: Record<string, unknown>) => string;      // state → JSON
-  deserialize: (json: string) => Record<string, unknown>;     // JSON → state
-  defaultState: Record<string, unknown>;                      // used when no stored content
-})
+  tags?: string[];                                      // For block picker / slash menu filtering
+  serialize: (state: Record<string, unknown>) => string;
+  deserialize: (json: string) => Record<string, unknown>;
+  defaultState: Record<string, unknown>;                // Default state when no stored content exists
+}): void;
 ```
+
+**BlockComponentProps** — the contract every block component receives:
+
+```ts
+interface BlockComponentProps {
+  context: SlotContext;        // workspaceId, user, viewMode, entryId, entityId, displayId
+  instance: BlockInstance;     // id, blockId, slotId, attrs, updateAttrs()
+  bus?: WorkspaceBus;          // Only present when rendered by PanelRenderer (not TipTap or Tab)
+}
+```
+
+**Contrast with old API:** The old `registerBlock()` accepted a `type: "tiptap-node"` discriminator with `TipTapBlockPayload` (`node`, `defaultAttrs`). Blocks were TipTap-only. The new API is renderer-agnostic — the block provides a React component and the slot's renderer owns presentation.
 
 ### registerButton()
 
-Register a simple fire-only trigger rendered by button-group and toolbar slots.
+Registers a simple fire-only button rendered in toolbar slots.
 
-```typescript
+```ts
 registerButton({
-  id: string;                          // "eln.export"
-  label: string;                       // "Export"
-  icon?: ComponentType;                // Lucide icon
+  id: string;                                          // Globally unique, e.g. "eln.export"
+  label: string;                                       // Human-readable, e.g. "Export"
+  icon?: ComponentType<any>;                            // Optional Lucide icon
   onClick: (args: { bus: WorkspaceBus; context: SlotContext }) => void;
-})
+}): void;
 ```
 
-Buttons are fire-only — they emit events via `bus.collect()`/`bus.emit()`/`bus.request()` but never listen. If a UI element needs to both listen and fire, use a block.
-
-### declareSlot()
-
-Declare a named placeholder in a workspace. The slot's renderer owns how things are rendered.
-
-```typescript
-declareSlot({
-  id: string;                          // "eln.editor" — {workspaceId}.{region}.{name}
-  accepts: "block" | "button";         // what can be bound into this slot
-  renderer: ComponentType<RendererProps>;  // the rendering strategy
-  layout: "horizontal" | "vertical";   // how contents are arranged
-  order: number;                       // slot position within workspace
-  defaults: Record<string, unknown>;   // default overrides for bindings (default: {})
-})
-```
-
-**Renderer catalog (built-in):**
-
-| Renderer | `accepts` | Layout | Use case |
-|----------|-----------|--------|----------|
-| `TipTapRenderer` | `block` | `vertical` | Editor content — wraps blocks as TipTap nodes, emits lifecycle events |
-| `ButtonGroupRenderer` | `button` | `horizontal` | Header toolbars — renders buttons with their `onClick` handlers |
-| `PanelRenderer` | `block` | `vertical` | Sidebar panels — renders blocks as stacked panels |
-| `TabRenderer` | `block` | `vertical` | Tabbed interfaces — uses block's `label` as tab name |
-
-New renderers can be built without changing the slot system. The renderer catalog is the slot type taxonomy — no separate `type` field needed.
+Buttons emit events via `bus.collect()` / `bus.emit()` / `bus.request()` but never listen. They receive the bus in their `onClick` handler, not as a prop.
 
 ### registerIntoSlot()
 
-Bind a block or button into a slot, with optional per-binding overrides.
+Binds a block or button into a declared slot, with optional per-binding overrides.
 
-```typescript
+```ts
 registerIntoSlot(
-  slotId: string,                      // "eln.editor"
-  targetId: string,                    // "eln.table" (block or button ID)
-  overrides?: Record<string, unknown>  // merged with slot defaults; overrides win
+  slotId: string,                    // The slot to bind into, e.g. "eln.editor"
+  targetId: string,                  // The block or button ID, e.g. "eln.table"
+  overrides: Record<string, unknown>, // Per-binding overrides (merged with slot defaults)
+  order: number,                     // Position within the slot (lower = earlier)
 ): void;
-
-// Order is a per-binding override, not a slot default:
-registerIntoSlot("eln.header.actions", "eln.export", { order: 0 });
-registerIntoSlot("eln.header.actions", "eln.lock", { order: 1 });
 ```
 
----
-
-## Slot Declarations & Renderers
-
-### How slots work
-
-1. Workspace declares a slot with a renderer + defaults
-2. Mods register blocks/buttons
-3. Mods bind blocks/buttons into slots via `registerIntoSlot()`
-4. `SlotRenderer` resolves the slot → looks up bindings → resolves targets → merges defaults with overrides → passes to renderer
-5. Renderer renders everything, owns layout/lifecycle/event routing
-
-### Layout direction
-
-- `"horizontal"`: items arranged left-to-right, low `order` = leftmost. Used by `ButtonGroupRenderer` for toolbars.
-- `"vertical"`: items stacked top-to-bottom, low `order` = topmost. Used by `TipTapRenderer` for editor content, `PanelRenderer` for sidebars.
-
-### Slot ID convention
-
-`"{workspaceId}.{region}.{name}"` — e.g., `"eln.header.actions"`, `"eln.editor"`, `"eln.sidebar"`. The ID displays the slot's origin and can be referenced anywhere, but the ID is the single source of truth for binding.
+Overrides are merged with slot defaults; binding overrides win on a per-key basis.
 
 ---
 
-## Slot Bindings
+## Renderers
 
-### Defaults + Overrides merge
+Renderers are the components that own presentation within a slot. The slot's `renderer` field IS the type — no fixed enum. Each renderer receives `RendererProps`:
 
-Slot defaults provide lazy registration — bindings that don't specify overrides get the slot's defaults. Per-binding overrides replace slot defaults on a per-key basis.
-
-```typescript
-// Slot declaration
-declareSlot({
-  id: "eln.editor",
-  accepts: "block",
-  renderer: TipTapRenderer,
-  defaults: { nodeType: "block", atom: true },
-})
-
-// Uses slot defaults: { nodeType: "block", atom: true }
-registerIntoSlot("eln.editor", "eln.table")
-
-// Overrides one key: { nodeType: "inline", atom: false }
-registerIntoSlot("eln.editor", "eln.mention", { nodeType: "inline", atom: false })
-```
-
-The resolved binding is what the renderer receives. The renderer never sees raw slot defaults or raw binding overrides — it gets the merged result.
-
-### Order
-
-`order` is a per-binding override, not a slot default. The same block might want different positions in different slots. Buttons: `order: 0` = leftmost in horizontal toolbars. Blocks: `order: 0` = topmost in vertical stacks.
-
----
-
-## The Renderer Contract
-
-Every renderer receives the same contract:
-
-```typescript
+```ts
 interface RendererProps<T extends BaseBinding = BaseBinding> {
-  bindings: T[];
+  slotId: string;
+  bindings: T[];           // Resolved BlockBinding[] or ButtonBinding[]
   bus: WorkspaceBus;
   context: SlotContext;
 }
-
-interface BaseBinding {
-  order: number;
-}
-
-// Button binding — what ButtonGroupRenderer receives
-interface ButtonBinding extends BaseBinding {
-  type: "button";
-  id: string;
-  label: string;
-  icon?: ComponentType;
-  onClick: (args: { bus: WorkspaceBus; context: SlotContext }) => void;
-}
-
-// Block binding — what TipTapRenderer, PanelRenderer, TabRenderer receive
-interface BlockBinding extends BaseBinding {
-  type: "block";
-  id: string;
-  label: string;
-  icon: ComponentType;
-  component: ComponentType<BlockComponentProps>;
-  listensTo: string[];
-  onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  messages?: { created?: string; edited?: string; deleted?: string };
-  getDisplayName?: (attrs: Record<string, unknown>) => string;
-  tags?: string[];
-  overrides: Record<string, unknown>;  // merged from slot defaults + binding overrides
-}
 ```
 
-### BlockComponentProps
+### Built-in Renderers
 
-The props every block component receives from the renderer:
+| Renderer | Accepts | Behavior |
+|----------|---------|----------|
+| **TipTapRenderer** | `"block"` | Embeds blocks as TipTap NodeViews within the editor document. Does NOT pass `bus` to blocks — editor blocks use declarative `onEvent` handlers. |
+| **PanelRenderer** | `"block"` | Renders blocks as panels in a sidebar or detail area. PASSES `bus` to blocks — panels can use imperative subscriptions. |
+| **TabRenderer** | `"block"` | Renders blocks as tabs. Does NOT pass `bus` — tabs use declarative handlers. |
+| **ButtonGroupRenderer** | `"button"` | Renders buttons as a horizontal button group. Passes `bus` in the `onClick` handler. |
 
-```typescript
-interface BlockComponentProps {
-  context: SlotContext;
-  instance: BlockInstance;
-}
-```
+### How a Block Renders in Different Contexts
 
-No `bus` — blocks respond to events via `onEvent` handlers, they never initiate bus calls. Buttons (which fire events) receive `bus` in their `onClick`; blocks (which respond) use `onEvent`.
+The same `"eln.table"` block:
+- In a **TipTapRenderer** slot → embedded as an AG Grid NodeView in the editor
+- In a **PanelRenderer** slot → rendered as a standalone panel with its own scroll
+- In a **TabRenderer** slot → rendered as a tab with its own layout
 
-### BlockInstance
-
-A handle to a specific occurrence of a block, created by the renderer:
-
-```typescript
-interface BlockInstance {
-  id: string;            // unique instance ID
-  blockId: string;       // "eln.table" — which block type
-  slotId: string;        // "eln.editor" — which slot this instance lives in
-  attrs: Record<string, unknown>;    // deserialized block state
-  updateAttrs: (attrs: Record<string, unknown>) => void;  // full replacement, triggers serialize
-}
-```
-
-`attrs` is the deserialized state — the block component works with native JS objects, not JSON strings. `serialize`/`deserialize` (from `registerBlock()`) are the bridge. `updateAttrs` replaces state entirely (no merging — that's the block's responsibility), triggers serialization + persist, and (in editor slots) emits a lifecycle event.
-
-### SlotContext
-
-Flat bag of what's available. Blocks check for what they need:
-
-```typescript
-interface SlotContext {
-  workspaceId: string;
-  user: UserInfo;
-  viewMode: ViewMode;
-  entryId?: string;
-  entityId?: string;
-  displayId?: string;
-}
-```
-
-### Renderer-specific behavior: TipTapRenderer
-
-The `TipTapRenderer` is the most complex renderer. It:
-
-1. Iterates resolved block bindings, generates a `NodeSpec` for each from `binding.id` + `binding.component` + `binding.overrides` (nodeType → group, atom setting)
-2. Builds the ProseMirror schema at editor mount time (deferred until all blocks are registered)
-3. Creates NodeViews that mount the block's React component, passing BlockComponentProps
-4. Uses `serialize`/`deserialize` from the block registration to store block state as a single opaque `content` attribute
-5. On block insert → deserializes `defaultState` if no stored content
-6. On block mount → emits `"{mod}.{block}.created"` on bus
-7. On block content change → emits `"{mod}.{block}.edited"` on bus
-8. On block removal → emits `"{mod}.{block}.deleted"` on bus
-9. Routes events to blocks: subscribes to `bus.on()` for each binding's `listensTo` events, calls the matching `onEvent` handler with `(instance, payload)`, captures return values for `collect()`/`request()`
-10. Handles async `onEvent` handlers — awaits before passing return value to bus
-
-Block authors never call `bus.emit()` — the renderer is the framework.
-
-### Renderer-specific behavior: ButtonGroupRenderer
-
-Renders buttons horizontally sorted by `order`. Each button's DOM element fires its `onClick` handler. The button author writes bus interaction code inside `onClick` — the renderer just wires the click handler. Buttons are fire-only; no lifecycle events, no `listensTo`.
-
-### Renderer-specific behavior: PanelRenderer
-
-Renders blocks vertically as stacked panels. No lifecycle events — a block in a sidebar isn't "created" or "deleted," it's just rendered or not. Event routing works the same: subscribes to `bus.on()` for each binding's `listensTo`, routes to `onEvent` handlers.
-
-### Renderer-specific behavior: TabRenderer
-
-Renders blocks as tabs in a tabbed interface. Uses each block's `label` as tab name and `icon` as tab icon. Vertical layout — tabs stacked. Same event routing as PanelRenderer.
+The block author writes ONE `component` — the renderer handles the rest.
 
 ---
 
 ## Workspace Event Bus
 
-**Every piece of communication is a message on the workspace bus. Three methods. One pattern.**
+A scoped pub/sub bus tied to a workspace instance. Provides decoupled communication between UI elements.
 
-```typescript
+### Bus Methods
+
+```ts
 interface WorkspaceBus {
-  /** Subscribe to an event. Returns an unsubscribe function. Handler return values
-   *  are captured by collect()/request() — emit() ignores them. */
-  on(event: string, handler: (payload: unknown) => unknown | void): () => void;
+  /** Queue an event for batch emission on save. Used for block lifecycle events. */
+  collect(event: string, payload: unknown): void;
 
-  /** Fire and forget. Delivers to all listeners. */
-  emit(event: string, payload?: unknown): void;
+  /** Emit an event immediately. Used for non-lifecycle UI events. */
+  emit(event: string, payload: unknown): void;
 
-  /** Fire and collect. Waits for all listeners to respond. Returns array of results. */
-  collect<T = unknown>(event: string, payload?: unknown): Promise<T[]>;
+  /** Emit an event and wait for async handlers to complete. */
+  request(event: string, payload: unknown): Promise<unknown[]>;
 
-  /** Fire and return first result. Short-circuits after one listener responds. */
-  request<T = unknown>(event: string, payload?: unknown): Promise<T | null>;
+  /** Subscribe to an event. Returns an unsubscribe function. */
+  on(event: string, handler: (payload: unknown) => void): () => void;
 }
 ```
 
-| Method | Use case |
-|---|---|
-| `on()` | Subscribe imperatively (components, workspace shell) |
-| `emit()` | "Block was updated" — no response needed |
-| `collect()` | "Export your data" — gather from all blocks, merge |
-| `request()` | "Who owns cell X?" — first block that answers wins |
+### Event Naming Convention
 
-### Event routing
+Triple-dotted: `"{mod}.{target}.{verb}"`. Examples:
+- `"eln.block.created"` — a block instance was created
+- `"eln.block.edited"` — a block instance was edited
+- `"eln.block.deleted"` — a block instance was deleted
+- `"eln.table.row-added"` — a row was added to a LimsTable
+- `"eln.export.requested"` — export button clicked
 
-The bus is **workspace-scoped and cross-slot.** A button in `"eln.header.actions"` fires `bus.collect("data.export")`, and a block in `"eln.editor"` with `listensTo: ["data.export"]` receives it. Event routing is bus-wide, not slot-local.
+### Lifecycle Events
 
-**Blocks** declare what they listen to via `listensTo` + `onEvent`. Each renderer subscribes to `bus.on()` for its blocks' events and routes to the matching `onEvent` handler. The renderer owns registration/unregistration as blocks are mounted/unmounted.
+Lifecycle events are **renderer-emitted** — block authors never call `bus.emit()` for lifecycle. The renderer detects block creation, edit, and deletion and emits the appropriate events. The block merely declares what it listens to via `listensTo` and provides handlers via `onEvent`.
 
-**Components** subscribe imperatively via `bus.on(event, handler)` inside `useEffect`. Mounting = subscribing, unmounting = unsubscribing.
+```ts
+// Block declares what it cares about
+registerBlock({
+  id: "eln.table",
+  listensTo: ["eln.block.edited", "library.folder.moved"],
+  onEvent: {
+    "eln.block.edited": (instance, payload) => {
+      // React to own edit — e.g., sync entity data
+    },
+    "library.folder.moved": (instance, payload) => {
+      // React to cross-block event
+    },
+  },
+});
+```
 
-**The workspace shell** subscribes to lifecycle events for cross-cutting concerns (action logging, lock management, auto-save). These listeners are set up when the workspace mounts.
-
-### No `registerEventListener()`
-
-Two patterns only: declarative `listensTo` + `onEvent` for blocks; imperative `bus.on()` for components and the workspace shell. No third API surface.
+**Principle: pit of success.** Block authors can't forget to emit lifecycle events because they never emit them — the renderer does.
 
 ---
 
-## Block Lifecycle & Action Logging
+## Block Serialization
 
-### Lifecycle events (framework-emitted, never block-emitted)
+Blocks must serialize/deserialize their state for TipTap JSON persistence. The block author provides `serialize` and `deserialize` functions.
 
-`TipTapRenderer` emits these automatically. Block authors never call `bus.emit()`.
-
-| Event | Payload | When |
-|-------|---------|------|
-| `{mod}.{block}.created` | `{ blockId, slotId, blockInstanceId, attrs }` | Block inserted into editor |
-| `{mod}.{block}.edited` | `{ blockId, slotId, blockInstanceId, changedAttrs }` | Block content changed |
-| `{mod}.{block}.deleted` | `{ blockId, slotId, blockInstanceId }` | Block removed from editor |
-
-All three always fire — no opt-out. Message overrides available, not event suppression.
-
-Only the `TipTapRenderer` emits lifecycle events. `PanelRenderer` and `TabRenderer` do not — blocks in sidebars or tabs aren't "created" or "deleted," they're just rendered.
-
-### Event naming
-
-Triple-dotted: `"{mod}.{target}.{verb_past}"`. Same string on bus, in DB action_type column, and in UI subscriptions.
-
-### Action type derivation
-
-Mechanical, zero-ceremony. Block author only provides `messages` overrides and `getDisplayName`.
-
-```
-Block ID: "eln.table"
-Lifecycle verb: edited
-Action type: "eln.table.edited"
+```ts
+registerBlock({
+  id: "eln.table",
+  defaultState: { columns: [], rows: [] },
+  serialize: (state) => JSON.stringify(state),
+  deserialize: (json) => JSON.parse(json),
+});
 ```
 
-### Action logging path
-
-```
-ProseMirror transaction commits (block inserted/changed/removed)
-    │
-    ▼
-TipTapRenderer detects block node affected
-    │
-    ▼
-TipTapRenderer emits "{mod}.{block}.{verb}" on WorkspaceBus
-    │
-    ├──▶ Workspace shell's action-logging listener:
-    │      - Receives event
-    │      - Derives action_type from event name (same string)
-    │      - Derives mod from block ID's first segment for routing to correct action table
-    │      - Derives human-readable message from block's messages config or default template
-    │      - POST /api/{mod}/entries/{entryId}/actions/
-    │
-    ├──▶ ActivityFeed component (bus.on subscriber):
-    │      - Optimistically prepends action to feed
-    │
-    └──▶ Future consumers (notifications, audit export, etc.)
-```
-
-### Message derivation
-
-```
-Default template:      "{label} was {verb_past}"  → "Table was edited"
-With getDisplayName:   "{label} '{name}' was {verb_past}" → "Table 'Samples' was edited"
-With messages override: uses custom string          → "spreadsheet was updated"
-```
-
-### Action table routing
-
-Derived from the block ID's first segment: `"eln.table"` → mod = `"eln"` → writes to `ElnAction` table. `"lims.data-table"` → mod = `"lims"` → writes to LIMS `Action` table. The derivation rule handles cross-mod blocks.
+In non-TipTap renderers (PanelRenderer, TabRenderer), serialization is not used — blocks maintain their own state via `instance.updateAttrs()`.
 
 ---
 
-## SlotRenderer Component
+## Defaults & Overrides
 
-Thin resolution component. Receives a slot ID, bus, and context. Delegates to the renderer.
+Slots declare `defaults` that apply to all bindings. Bindings provide `overrides` that win on a per-key basis. The merge happens at resolution time in `ModRegistry.resolveSlot()`.
 
+```ts
+// Slot declares a default icon size for all blocks
+declareSlot({
+  id: "eln.sidebar",
+  defaults: { iconSize: "md", collapsible: true },
+  // ...
+});
+
+// Binding overrides the icon size for this specific block
+registerIntoSlot("eln.sidebar", "activity.feed", { iconSize: "lg" });
+// Resolved: { iconSize: "lg", collapsible: true }
 ```
-<SlotRenderer slotId="eln.editor" bus={bus} context={context} />
-```
-
-1. Looks up `registry.slots.get("eln.editor")` → `{ renderer: TipTapRenderer, defaults: { nodeType: "block", atom: true }, ... }`
-2. Looks up `registry.bindings.get("eln.editor")` → `[{ targetId: "eln.table", overrides: {}, order: 0 }, ...]`
-3. Resolves each binding: looks up target in `blocks` or `buttons` (based on slot's `accepts`), merges slot defaults with binding overrides
-4. Renders: `<TipTapRenderer bindings={resolvedBindings} bus={bus} context={context} />`
-
-The workspace shell creates one bus instance per workspace and passes the same bus to every `SlotRenderer`.
 
 ---
 
-## Registry Shapes
+## Block-Level Action Logging
 
-### ModRegistry additions
+Blocks can declare action log messages for lifecycle events. When a block's `messages` are set, the workspace shell translates create/edit/delete lifecycle events into batched action log API calls on save.
 
-The existing `ModRegistry` singleton gains four new stores and methods:
-
-```
-slots: Map<string, SlotDeclaration>
-buttons: Map<string, ButtonRegistration>
-bindings: Map<string, SlotBinding[]>  // keyed by slotId
-// blocks already exists — BlockConfig shape changes to match new model
-```
-
-### Type shapes
-
-```typescript
-interface SlotDeclaration {
-  id: string;                    // "eln.editor"
-  accepts: "block" | "button";
-  renderer: ComponentType<RendererProps>;
-  layout: "horizontal" | "vertical";
-  order: number;
-  defaults: Record<string, unknown>;
-}
-
-interface BlockRegistration {
-  id: string;                    // "eln.table"
-  label: string;
-  icon: ComponentType;
-  component: ComponentType<BlockComponentProps>;
-  listensTo: string[];
-  onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  messages?: { created?: string; edited?: string; deleted?: string };
-  getDisplayName?: (attrs: Record<string, unknown>) => string;
-  tags?: string[];
-  serialize: (state: Record<string, unknown>) => string;
-  deserialize: (json: string) => Record<string, unknown>;
-  defaultState: Record<string, unknown>;
-}
-
-interface ButtonRegistration {
-  id: string;                    // "eln.export"
-  label: string;
-  icon?: ComponentType;
-  onClick: (args: { bus: WorkspaceBus; context: SlotContext }) => void;
-}
-
-interface SlotBinding {
-  slotId: string;                // "eln.editor"
-  targetId: string;              // "eln.table" (block ID or button ID)
-  overrides: Record<string, unknown>;
-  order: number;
-}
+```ts
+registerBlock({
+  id: "eln.table",
+  messages: {
+    created: "added a LimsTable",
+    edited: "edited a LimsTable",
+    deleted: "removed a LimsTable",
+  },
+  getDisplayName: (attrs) => attrs.tableName || "Untitled Table",
+});
 ```
 
-### What the existing `BlockConfig` becomes
-
-The current `BlockConfig` (type-discriminated with `type` + `payload`) is replaced by the new `BlockRegistration`. The `type: "tiptap-node"` discriminator dissolves — blocks are no longer TipTap-specific. A block is a block; the renderer determines presentation.
-
-The existing `registerBlock()` call sites (currently only `eln.table`) migrate to the new shape.
+Action types follow the triple-dotted convention: `"eln.block.created"`, `"eln.block.edited"`, `"eln.block.deleted"`. The ActivityFeed block reads from the action log and renders actions from any mod.
 
 ---
 
 ## Validation
 
-At boot (during `ModRegistry.validate()`):
+The `ModRegistry.validate()` method checks slot bindings at boot:
 
-1. **Slot must be declared before bindings target it.** If a binding targets an undeclared slot, log a console warning and skip the binding.
-2. **Binding target must match slot's `accepts`.** If a slot `accepts: "block"` and the target is a button, log a console warning and skip the binding.
-3. **Binding target must exist in the registry.** If the target ID isn't a registered block or button, log a console warning and skip.
-4. **Duplicate slot IDs / block IDs / button IDs** — throw (same pattern as existing registry methods).
+1. **Slot must be declared** before bindings target it — otherwise the binding is skipped with a warning
+2. **Target must exist** in blocks or buttons registry — otherwise skipped with a warning
+3. **Target type must match slot's `accepts`** — a block bound to a `"button"` slot (or vice versa) is skipped with a warning
 
-Failure mode: **console warning in production, skip the bad binding.** No crash. The slot renders what it can.
-
-TypeScript prevents most mismatches at dev time; runtime validation catches plain-JS or misconfigured external mods.
+Invalid bindings are **skipped, not crashed** — the app boots but the offending content doesn't appear. This is intentional: a misconfigured binding shouldn't take down the whole application.
 
 ---
 
-## Rollout Sketch
-
-1. Add `WorkspaceBus` — scoped to workspace instance, `on()`/`emit()`/`collect()`/`request()`
-2. Add new `registerBlock()` shape and `registerButton()` to `ModRegistry`
-3. Add `declareSlot()` with renderer + defaults
-4. Add `registerIntoSlot()` for bindings
-5. Add `SlotRenderer` component — resolves slot + bindings, delegates to renderer
-6. Build `TipTapRenderer` — first renderer, handles block lifecycle events + event routing
-7. Build `ButtonGroupRenderer` — header toolbars
-8. Convert ELN workspace header to a slot, dogfood with one button
-9. Convert ELN editor to `"block-container"` slot with `TipTapRenderer`
-10. Build `PanelRenderer` — sidebar panels
-11. Convert sidebar to slots
-12. Wire up workspace shell's action-logging listener
-13. Migrate existing `registerBlock()` call sites to new shape
-14. Remove old `BlockConfig` type + `BLOCK_TYPE_TIPTAP_NODE`
-
----
-
-## Key Design Decisions
+## Key Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Slot taxonomy | Renderer-based — no fixed type enum | Renderer IS the type. New renderers added without changing the slot system. |
-| Block rendering | Slot owns the renderer; block owns the component | Same block renders in editor, sidebar, and tabs without the block author writing rendering-mode code. |
-| Buttons vs blocks | Two registration functions | Buttons are fire-only, no component. Blocks have components + lifecycle. Same slot pattern, different targets. |
-| BlockComponentProps | `{ context, instance }` — no `bus` | Blocks respond to events via `onEvent`, never initiate. Buttons get `bus` in `onClick`. Clean separation. |
-| Block serialization | `serialize`/`deserialize` + opaque `content` attribute | Renderer doesn't need to know internal block state shape. Block author writes serialization once. |
-| `updateAttrs` | Full replacement, not merge | Simpler contract. Merging is the block's responsibility. |
-| Lifecycle events | Renderer-emitted, only by TipTapRenderer | Editor is the only context where blocks are "created"/"deleted." Sidebar/tab blocks just render. |
-| Event routing | Renderer owns routing for its blocks | Renderer subscribes to `bus.on()` for each block's `listensTo`, routes to `onEvent`. Manages mount/unmount lifecycle. |
-| Bus scope | Workspace-scoped, cross-slot | Button in toolbar slot talks to block in editor slot. Bus is the shared pipe. |
-| Listener patterns | Declarative (`listensTo`+`onEvent`) for blocks; imperative (`bus.on()`) for components | Blocks are the common case and need renderer routing. Components use standard React patterns. |
-| Event naming | Triple-dotted `"{mod}.{target}.{verb_past}"` | Same string on bus, in DB action_type, in UI subscriptions. |
-| Action logging ownership | Workspace shell, not renderer | Renderer emits facts; workspace translates facts into action log entries. |
-| Slot ID convention | `"{workspaceId}.{region}.{name}"` | Displays origin; used as binding target. Single source of truth. |
-| Slot defaults + binding overrides | Merged per-key; binding overrides win | Lazy registration (use defaults) with escape hatches (override per binding). |
-| Validation failure mode | Console warning + skip binding, no crash | Devs notice; production degrades gracefully for bad external mod bindings. |
-| No `maxItems` on slots | Removed | Editor slots need unlimited blocks; header slots self-limit by number of buttons registered. |
-| No `registerEventListener()` | Blocks: `listensTo`+`onEvent`. Components: `bus.on()`. | Two patterns, no third API surface. |
-| Flat registrations stay | `registerHub()`, `registerRoute()`, `registerSettingsSection()`, etc. unchanged | Slots for embedded UI extension only. App-level concerns keep flat registrations. |
-
----
-
-## References
-
-- [Mod System Architecture](mod-system.md) — existing registration API this extends
-- [Actions System Design](actions-system-design.md) — action logging built on this event system
-- [Cross-Cutting Events](cross-cutting-events.md) — reconciliation doc: event naming, block→action path, service boundaries
-- [Grilling Alignment](grilling-alignment.md) — hard constraints for all design docs
+| Renderer owns presentation | Slot declares renderer; block provides component | Block authors write once, render anywhere |
+| No slot type enum | `accepts: "block" \| "button"` with arbitrary renderer | Extensible without framework changes |
+| Lifecycle events | Renderer-emitted, block-declared | Pit of success — block authors can't forget |
+| Event naming | Triple-dotted: `mod.target.verb` | Consistent with action logging convention |
+| Button = fire-only | Buttons emit, never listen | Clear separation: if you need to listen, use a block |
+| Bus optional in BlockComponentProps | Only PanelRenderer passes `bus` | Editor blocks shouldn't imperatively subscribe to events |
+| Defaults + overrides merge | Slot defaults ← binding overrides (binding wins) | Sensible defaults with per-binding customization |
+| Validation is warn-and-skip | Bad bindings logged, app boots | Misconfiguration shouldn't be catastrophic |

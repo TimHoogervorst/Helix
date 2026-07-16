@@ -1,14 +1,18 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks } from "lucide-react";
+import { FlaskConical, ListChecks, Download } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
   registerWorkspace,
   registerBlock,
   registerSettingsSection,
+  declareSlot,
+  registerButton,
+  registerIntoSlot,
   ModRegistry,
   BLOCK_TYPE_TIPTAP_NODE,
 } from "../../core/mod-system";
+import { ButtonGroupRenderer } from "../../core/workspace/ButtonGroupRenderer";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import LimsTable from "./blocks/LimsTable";
 import CommentBlock from "./blocks/CommentBlock";
@@ -24,6 +28,29 @@ export const meta = {
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
   registerWorkspace({ id: "eln", displayName: "ELN" });
+
+  // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
+  declareSlot({
+    id: "eln.header.actions",
+    accepts: "button",
+    renderer: ButtonGroupRenderer,
+    layout: "horizontal",
+    order: 0,
+    defaults: {},
+  });
+
+  // ── Button: Export ───────────────────────────────────────────────────────
+  registerButton({
+    id: "eln.export",
+    label: "Export",
+    icon: Download,
+    onClick: ({ bus }) => {
+      bus.collect("data.export");
+    },
+  });
+
+  // ── Bind Export button into header actions slot ─────────────────────────
+  registerIntoSlot("eln.header.actions", "eln.export", {}, 0);
 
   // ── Entity type: register ELN entries with the LIMS registry ────────────
   // Depends on "lims" to ensure lims.registerEntityType service is available.

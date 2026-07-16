@@ -1,5 +1,5 @@
 import { useNavigate, Link } from "react-router-dom";
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import {
   History,
   MessageSquare,
@@ -26,6 +26,9 @@ import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
 import ActivityFeed from "../components/ActivityFeed";
 import MoreActions from "../components/MoreActions";
+import { WorkspaceBus } from "../../../core/workspace/WorkspaceBus";
+import { SlotRenderer } from "../../../core/workspace/SlotRenderer";
+import type { SlotContext } from "../../../core/mod-system/types";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -88,6 +91,25 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const navigate = useNavigate();
 
   const showActions = editorState.isReady;
+
+  // ── WorkspaceBus — one per workspace instance, shared across all slots ─
+  const busRef = useRef<WorkspaceBus>(null);
+  if (!busRef.current) {
+    busRef.current = new WorkspaceBus();
+  }
+  const bus = busRef.current;
+
+  // ── SlotContext — flat metadata bag available to all blocks and buttons ─
+  const slotContext: SlotContext = useMemo(
+    () => ({
+      workspaceId: "eln",
+      user: null,
+      viewMode: "edit",
+      entryId,
+      displayId: entryDisplayId,
+    }),
+    [entryId, entryDisplayId],
+  );
 
   // ── Share state ──
   const [shareClicked, setShareClicked] = useState(false);
@@ -188,6 +210,13 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
         {/* Right: actions + avatars + share */}
         <div className="flex items-center gap-1">
+          {/* ── Slot-rendered header actions (dogfood #227) ── */}
+          <SlotRenderer
+            slotId="eln.header.actions"
+            bus={bus}
+            context={slotContext}
+          />
+
           {/* ── Save status indicator ── */}
           {showActions && (() => {
             // When locked by another user, show lock icon with tooltip.

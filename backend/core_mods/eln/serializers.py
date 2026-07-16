@@ -168,6 +168,40 @@ class ElnActionCreateSerializer(serializers.ModelSerializer):
         # target_type, target_id, and performed_by are set by the view
 
 
+class ElnActionBatchSerializer(serializers.Serializer):
+    """Serializer for batched block-level action log entries.
+
+    Accepts a list of ``{action_type, metadata}`` entries.  The view
+    derives ``performed_by``, ``target_type``, ``target_id``, and
+    ``request_id`` from the request context.
+    """
+
+    actions = serializers.ListField(
+        child=serializers.DictField(child=serializers.JSONField()),
+        min_length=1,
+        allow_empty=False,
+    )
+
+    def validate_actions(self, value):
+        """Validate that each action entry has a valid triple-dotted action_type."""
+        for i, entry in enumerate(value):
+            action_type = entry.get("action_type", "")
+            if not action_type or not str(action_type).strip():
+                raise serializers.ValidationError(
+                    f"actions[{i}]: 'action_type' is required and must "
+                    f"not be blank."
+                )
+            # Enforce triple-dotted convention: "{mod}.{target}.{verb_past}"
+            if str(action_type).count(".") < 2:
+                raise serializers.ValidationError(
+                    f"actions[{i}]: 'action_type' must follow the "
+                    f"triple-dotted convention "
+                    f"('{{mod}}.{{target}}.{{verb_past}}'), "
+                    f"got '{action_type}'."
+                )
+        return value
+
+
 class ProtocolSerializer(serializers.ModelSerializer):
     """Serializer for Protocol definitions (CRUD in Settings)."""
 

@@ -4,6 +4,8 @@ Django settings for Helix project.
 import os
 from pathlib import Path
 
+from helix_core.mod_system.loader import get_helix_mods
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
@@ -14,6 +16,13 @@ ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
+
+# ── Helix Mod System ─────────────────────────────────────────────────────────
+
+# Override auto-discovery by setting HELIX_MODS to an explicit list of
+# dotted mod paths (e.g. ["core_mods.eln", "core_mods.lims"]).  When None
+# (the default), all core_mods/*/mod.py directories are auto-discovered.
+HELIX_MODS = None
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -28,14 +37,12 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "django_filters",
-    # Helix apps
+    # Helix platform
+    "helix_core",
     "core",
-    "core_mods.tags",
-    "core_mods.eln",
-    "core_mods.lims",
-    "core_mods.library",
-    "core_mods.pins",
-    "core_mods.users",
+    # Helix mods — auto-discovered from core_mods/*/mod.py (or overridden
+    # via HELIX_MODS above).  Returned in dependency order.
+    *get_helix_mods(base_dir=BASE_DIR, helix_mods_override=HELIX_MODS),
     "core.mentions",
 ]
 

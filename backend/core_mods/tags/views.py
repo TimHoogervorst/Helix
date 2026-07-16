@@ -1,10 +1,12 @@
 from rest_framework import viewsets
 
+from helix_core.actions.mixins import ActionLoggingMixin
+
 from .models import Tag
 from .serializers import TagSerializer
 
 
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for tags.
 
@@ -20,6 +22,13 @@ class TagViewSet(viewsets.ModelViewSet):
     serializer_class = TagSerializer
     # Full CRUD — DELETE is now included (was excluded on the old ELN TagViewSet)
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
+
+    action_log_config = {
+        "create": {"action_type": "tags.tag.created"},
+        "update": {"action_type": "tags.tag.edited"},
+        "partial_update": {"action_type": "tags.tag.edited"},
+        "destroy": {"action_type": "tags.tag.deleted"},
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()

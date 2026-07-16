@@ -154,8 +154,10 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         """The cascade receiver is connected to post_save for NotebookEntry."""
         from django.db.models.signals import post_save
 
-        receivers = post_save._live_receivers(sender=NotebookEntry)
+        sync_receivers, async_receivers = post_save._live_receivers(
+            sender=NotebookEntry
+        )
         self.assertTrue(
-            any(r[0] for r in receivers),
+            sync_receivers or async_receivers,
             "No receiver connected to post_save for NotebookEntry",
         )

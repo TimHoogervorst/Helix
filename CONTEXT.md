@@ -12,8 +12,10 @@
 |------|-----------|
 | **Mod** | A self-contained unit of functionality registered into Core. Owns consoles, workspaces, detail cards, settings, routes, and commands. |
 | **Core** | The immutable app shell: Layout, Router, Console panels, Mod Loader, Mod Registry, Reference resolution, API client. |
-| **Core Mod** | A mod under `core-mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
+| **Core Mod** | A built-in mod under `src/mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
 | **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, detail/workspace resolution. |
+| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
+| **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
 | **Workspace** | A mod's dedicated work surface for a type of content. Declared via `registerWorkspace({ id, displayName })` — the `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Any mod that registers a workspace is automatically discoverable by the mention system and the pins/bookmarks system. |
 
 ### Workspace Registration
@@ -320,15 +322,25 @@ LIMS is the **gatekeeper** for all entity type registrations. Mods register via 
 
 **Out of scope (for now):** custom entity behaviors (DNA sequence viewer, GC analysis), per-entity-type action sets, dynamic registration after boot.
 
-### Action
+### Entity Action
 
-A recorded operation performed on an Entity by a User. Has a type (e.g., "Used", "Created", "Measured", "Noted"), the performer, optional data (e.g., `{"volume_ul": 50}`), and an optional source Notebook Entry (the entry where this action was recorded).
+A user-explicit operation recorded on an Entity. Has a type (e.g., "Used", "Created", "Measured", "Noted"), the performer, optional data (e.g., `{"volume_ul": 50}`), and an optional source Notebook Entry (the entry where this action was recorded).
 
-Actions are **user-explicit** — the user records them deliberately. They are not inferred from text.
+Entity Actions are **user-explicit** — the user records them deliberately. They are not inferred from text. Distinct from the cross-mod [Action Log](#action-log) entry below.
 
-**Invariant:** An Action acts on exactly one Entity.
+**Invariant:** An Entity Action acts on exactly one Entity.
 
-**Synonyms:** event, operation, activity
+**Synonyms:** entity event, entity operation, entity activity
+
+### Action Log Entry
+
+A framework-logged record of any mutating operation in the system. Created automatically by the `log_action()` dispatcher — not manually by users. Each entry records: who performed the operation (`performed_by`), what they did (`action_type`), what record they acted on (`target_type`, `target_id`), when (`created_at`), and relevant metadata about what changed (`metadata` JSON).
+
+Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod owns its own action table via `register_action_model()`. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`, `"eln.table.edited"`).
+
+**Invariant:** An action log entry belongs to exactly one mod's action table. Action logging failure must never break the operation being logged.
+
+**Synonyms:** audit record, action log row, logged action
 
 ---
 

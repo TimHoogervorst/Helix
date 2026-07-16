@@ -3,6 +3,8 @@ Tests for the ELN API endpoints.
 
 All tests exercise the API through HTTP calls using DRF's APIClient.
 """
+from unittest.mock import patch
+
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from core.mentions.models import Mention
@@ -178,61 +180,91 @@ class MentionSyncOnSaveTests(BaseTestCase):
         self.assertEqual(Mention.objects.count(), 0)
 
 
+MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
+
+
+def _log_kwargs(mock):
+    """Return the keyword-args dict from the *first* call to *mock*."""
+    if mock.call_count == 0:
+        return {}
+    return mock.call_args[1]
+
+
 class EntryActionLoggingTests(BaseTestCase):
-    """Integration: creating/updating entries logs actions via log_action()."""
+    """ActionLoggingMixin: spy on log_action() — the highest seam.
+
+    Tests verify the mixin calls log_action() with the correct
+    action_type, target_type, target_id, user, and metadata.  No
+    DB-row inspection — just the dispatch boundary.
+    """
 
     def setUp(self):
         super().setUp()
-        # Authentication is required for log_action to fire.
         self.client.force_authenticate(user=self.user)
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
 
     def test_create_entry_logs_action(self):
-        """POST creates an ElnAction with action_type='created'."""
-        self.assertEqual(ElnAction.objects.count(), 0)
+        """POST calls log_action with action_type='eln.entry.created'."""
         response = self.client.post(
             "/api/eln/entries/",
             {"title": "Logged Create", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(ElnAction.objects.count(), 1)
-        action = ElnAction.objects.first()
-        self.assertEqual(action.action_type, "created")
-        self.assertEqual(action.target_type, "eln.entry")
-        self.assertEqual(action.target_id, response.data["id"])
-        self.assertEqual(action.performed_by, self.user)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.created")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], response.data["id"])
+        self.assertEqual(kwargs["user"], self.user)
 
     def test_update_entry_logs_action(self):
-        """PUT creates an ElnAction with action_type='edited'."""
+        """PUT calls log_action with action_type='eln.entry.edited'."""
         entry = NotebookEntry.objects.create(
             title="Before Edit", content=TEXT_DOC, folder=self.folder, author=self.user
         )
-        self.assertEqual(ElnAction.objects.count(), 0)
         response = self.client.put(
             f"/api/eln/entries/{entry.display_id}/",
             {"title": "After Edit", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(ElnAction.objects.count(), 1)
-        action = ElnAction.objects.first()
-        self.assertEqual(action.action_type, "edited")
-        self.assertEqual(action.target_type, "eln.entry")
-        self.assertEqual(action.target_id, entry.id)
-        self.assertEqual(action.performed_by, self.user)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.edited")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], entry.id)
+        self.assertEqual(kwargs["user"], self.user)
+
+    def test_destroy_entry_logs_action(self):
+        """DELETE calls log_action with action_type='eln.entry.deleted'."""
+        entry = NotebookEntry.objects.create(
+            title="To Delete", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        response = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
+        self.assertEqual(response.status_code, 204)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.deleted")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], entry.id)
+        self.assertEqual(kwargs["user"], self.user)
 
     def test_create_entry_unauthenticated_returns_403(self):
         """When no user is authenticated, POST returns 403."""
         from rest_framework.test import APIClient
         anon_client = APIClient()
-        self.assertEqual(ElnAction.objects.count(), 0)
         response = anon_client.post(
             "/api/eln/entries/",
             {"title": "Anon Entry", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(ElnAction.objects.count(), 0)
+        self.mock_log.assert_not_called()
         self.assertEqual(NotebookEntry.objects.count(), 0)
 
     def test_update_entry_unauthenticated_returns_403(self):
@@ -242,14 +274,13 @@ class EntryActionLoggingTests(BaseTestCase):
         )
         from rest_framework.test import APIClient
         anon_client = APIClient()
-        self.assertEqual(ElnAction.objects.count(), 0)
         response = anon_client.put(
             f"/api/eln/entries/{entry.display_id}/",
             {"title": "Anon Edit", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(ElnAction.objects.count(), 0)
+        self.mock_log.assert_not_called()
 
 
 class EntryActionsEndpointTests(BaseTestCase):
@@ -263,13 +294,13 @@ class EntryActionsEndpointTests(BaseTestCase):
             title="Actions Entry", content=TEXT_DOC, folder=self.folder, author=self.user
         )
         # Create several actions via the logger so they exist before tests
-        from core.actions.logger import log_action
+        from helix_core.actions.logger import log_action
         self.a1 = log_action(
-            user=self.user, action_type="created",
+            user=self.user, action_type="eln.entry.created",
             target_type="eln.entry", target_id=self.entry.id,
         )
         self.a2 = log_action(
-            user=self.user, action_type="edited",
+            user=self.user, action_type="eln.entry.edited",
             target_type="eln.entry", target_id=self.entry.id,
         )
 
@@ -299,22 +330,22 @@ class EntryActionsEndpointTests(BaseTestCase):
     # ── GET: filter by action_type ────────────────────────────────────────
 
     def test_filter_by_action_type(self):
-        """?action_type=edited returns only edited actions."""
+        """?action_type=eln.entry.edited returns only edited actions."""
         response = self.client.get(
-            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=edited"
+            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=eln.entry.edited"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
-        self.assertEqual(response.data["results"][0]["action_type"], "edited")
+        self.assertEqual(response.data["results"][0]["action_type"], "eln.entry.edited")
 
     def test_filter_by_action_type_created(self):
-        """?action_type=created returns only created actions."""
+        """?action_type=eln.entry.created returns only created actions."""
         response = self.client.get(
-            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=created"
+            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=eln.entry.created"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
-        self.assertEqual(response.data["results"][0]["action_type"], "created")
+        self.assertEqual(response.data["results"][0]["action_type"], "eln.entry.created")
 
     # ── GET: filter by since ──────────────────────────────────────────────
 
@@ -385,3 +416,56 @@ class EntryActionsEndpointTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 0)
+
+
+class EntryTagActionsLoggingTests(BaseTestCase):
+    """Test that tag attach/detach on entries logs actions via @logs_action."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.entry = NotebookEntry.objects.create(
+            title="Tag Test Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+        )
+        from core_mods.tags.models import Tag
+        self.tag1 = Tag.objects.create(name="Important", color="enzyme", icon="dna")
+        self.tag2 = Tag.objects.create(name="Urgent", color="warn", icon="circle")
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_attach_tags_logs_action(self):
+        response = self.client.post(
+            f"/api/eln/entries/{self.entry.display_id}/tags/",
+            {"tag_ids": [self.tag1.id, self.tag2.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.tags_attached")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], self.entry.id)
+        self.assertEqual(kwargs["metadata"], {"tag_ids": [self.tag1.id, self.tag2.id]})
+
+    def test_detach_tag_logs_action(self):
+        self.entry.tags.add(self.tag1)
+        response = self.client.delete(
+            f"/api/eln/entries/{self.entry.display_id}/tags/{self.tag1.id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "eln.entry.tag_detached")
+        self.assertEqual(kwargs["target_type"], "eln.entry")
+        self.assertEqual(kwargs["target_id"], self.entry.id)
+        self.assertEqual(kwargs["metadata"], {"tag_id": self.tag1.id})
+
+    def test_detach_nonexistent_tag_does_not_log(self):
+        response = self.client.delete(
+            f"/api/eln/entries/{self.entry.display_id}/tags/99999/"
+        )
+        self.assertEqual(response.status_code, 404)
+        self.mock_log.assert_not_called()

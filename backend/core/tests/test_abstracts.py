@@ -2,7 +2,7 @@
 
 from django.test import TestCase
 
-from core.abstracts import BrowsableItem
+from helix_core.abstracts import BrowsableItem
 from core_mods.eln.models import NotebookEntry
 from core_mods.lims.models import Entity, EntityType
 

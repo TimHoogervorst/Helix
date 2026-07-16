@@ -5,6 +5,7 @@ import { registerSettingsSection } from "../../core/mod-system";
 export const meta = {
   id: "tags",
   displayName: "Labelling",
+  version: "0.1.0",
   dependsOn: [] as string[],
 };
 

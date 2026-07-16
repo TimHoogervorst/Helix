@@ -1,8 +1,10 @@
 # Mod System Architecture
 
-> Date: 2026-07-09
+> Date: 2026-07-13 (updated with slot system references)
 > Status: Accepted
-> This document captures the full architecture for the Helix Mod System. It reflects the Hub-based architecture (EPIC #140), the Block Registry (#175), the Library UI rework (#133), and the references→mentions consolidation (#131). It supersedes the previous Console-based architecture (see deprecated ADR-0004).
+> Companion to: [Slot System & Event Bus](slot-system.md), [Actions System Design](actions-system-design.md), [Backend Mod System Design](backend-mod-system.md)
+>
+> This document captures the full architecture for the Helix Mod System. It reflects the Hub-based architecture (EPIC #140), the Block Registry (#175), the Library UI rework (#133), and the references→mentions consolidation (#131). The slot system and workspace event bus (#205) extend this architecture — see [slot-system.md](slot-system.md).
 
 ---
 
@@ -34,7 +36,7 @@
 | **Mod Registry** | Central data structure populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, settings panels, slash command menus, and block extensions. |
 | **Hub** | A free-form browsing page that links to Workspaces. Each hub is registered by a mod and appears in the sidebar nav. Hubs are minimal — they own no defaults, no `accepts` filter, and no workspace type registry. Each hub manages its own item registrations internally (e.g., `registerLibraryItem()` for the Library hub). |
 | **Workspace** | A full work surface for a specific item, accessed via a dedicated URL (e.g., `/eln/E-1234`). Workspaces are plain routes registered via `registerRoute()`. There is no `registerWorkspace()` — the mutual-agreement Console↔Workspace pattern has been removed. |
-| **Block** | A content block that can be inserted into the ELN editor via the `/` slash menu. Blocks are registered via `registerBlock()` and carry a type-discriminated payload (e.g., `"tiptap-node"` for TipTap extensions). Mods contribute blocks without importing from the ELN mod. |
+| **Block** | A content block that can be inserted into the ELN editor via the `/` slash menu. Blocks are registered as `BlockSlotContent` (type: `"block"`) via `registerIntoSlot()` into the editor's `"block-container"` slot. Carries `listensTo` + `onEvent` for event bus reactions, and optional `messages` overrides for action logging. The legacy `registerBlock()` function is replaced by the slot system — see [slot-system.md](slot-system.md). |
 | **Library Item** | A card rendered in the Library hub. Mods register a `listCard` component via `registerLibraryItem()`. The library core wraps it in a `BaseLibraryCard` that handles view-mode CSS, selection state, and field visibility toggles. |
 | **Mention** | A cross-reference from one piece of content to another via a display ID (e.g., `#DNA34`). Previously called "reference" — the entire stack (backend app, frontend module, components, API routes) has been renamed from `references` to `mentions`. |
 
@@ -380,6 +382,22 @@ registerService({
 }): void;
 ```
 
+### Slot System (extends this API)
+
+The slot system adds two new registration functions for embedded UI extension. Workspaces declare named slots; mods register content into them. See [slot-system.md](slot-system.md) for the full design.
+
+```ts
+// Workspace declares a named placeholder
+declareSlot({ id: string; type: SlotType; maxItems?: number }): void;
+
+// Mod registers content into a declared slot
+registerIntoSlot(slotId: string, content: ButtonSlotContent | BlockSlotContent | ComponentSlotContent): void;
+```
+
+The eight `register*()` functions above remain for app-level concerns (hubs, routes, settings). Slots handle embedded UI extension only — not everything is a slot.
+
+> **Note:** `registerBlock()` will be superseded by `registerIntoSlot()` with `BlockSlotContent` when the slot system lands. During the transition, both exist. New blocks should use the slot API.
+
 ---
 
 ## Boot Sequence
@@ -412,6 +430,7 @@ main.tsx
 export const meta = {
   id: 'eln',
   displayName: 'Electronic Lab Notebook',
+  version: '0.1.0',
   dependsOn: ['lims'],              // LIMS must load first
 };
 ```
@@ -668,6 +687,8 @@ External mods will live in separate repositories and be installed via npm. They 
 | Standalone workspace | Workspace fetches own data | Different workspaces fetch different data shapes |
 | Settings | Distributed — Settings mod owns shell, other mods register sections | Flexible, scalable |
 | Mod-to-mod communication | Service registry (`registry.call()`) | No direct imports between mods |
-| Backend mod system | Django `INSTALLED_APPS` | Django already handles model/URL/admin discovery |
+| Slot system | Extends mod API with `declareSlot()` + `registerIntoSlot()` | Embedded UI extension; flat registrations stay for app-level concerns |
+| Block lifecycle events | Framework-emitted on workspace bus, triple-dotted naming | Block authors never call `bus.emit()`; pit of success |
+| Backend mod system | Django `INSTALLED_APPS` with `ModManifest` validation layer | Builds on Django, doesn't fight it |
 | `BrowsableItem` location | `core/` | Importable by external mods via `@helix/core` |
-| Migration strategy | Big-bang restructure | Clean break, no legacy paths to maintain |
+| Migration strategy | Incremental per phase | No big-bang — each phase adopted by mods one at a time |

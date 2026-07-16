@@ -5,15 +5,15 @@
  * - Shows available commands from blocks registered via ``registerBlock()``.
  * - Arrow keys to navigate, Enter/Tab to select, Escape to dismiss.
  *
- * Blocks of type ``"tiptap-node"`` are auto-converted to slash commands:
- * the insert action is derived from the TipTap node name and optional
- * default attributes.
+ * Blocks are discovered from the ModRegistry. Each BlockRegistration
+ * becomes a slash command that inserts the block's node type into the
+ * editor with default serialized content.
  */
 import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
-import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, type TipTapBlockPayload } from "../../../../core/mod-system";
+import { ModRegistry } from "../../../../core/mod-system";
 
 const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 
@@ -29,9 +29,9 @@ interface SlashCommand {
 /**
  * Build the slash command list from registered blocks.
  *
- * Only blocks with ``type === "tiptap-node"`` are included.  The insert
- * action is auto-derived from the node name and optional default attrs,
- * so mods don't need to write TipTap chain boilerplate.
+ * Each BlockRegistration in the registry becomes a slash command. The
+ * insert action creates a node whose type matches the block's ID, with
+ * default serialized content from the block's `defaultState`.
  *
  * Results are sorted alphabetically by label.
  */
@@ -40,25 +40,21 @@ function getCommands(): SlashCommand[] {
   const commands: SlashCommand[] = [];
 
   for (const block of blocks.values()) {
-    if (block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
-
-    const payload = block.payload as TipTapBlockPayload;
-    const nodeName = payload.node.name;
+    const serializedContent = block.serialize(block.defaultState);
 
     commands.push({
       label: block.label,
-      description: block.description,
-      icon: block.icon,
+      description: block.tags?.join(", ") ?? "",
+      icon: "📦",
       action: (editor, range) => {
-        const content: Record<string, unknown> = { type: nodeName };
-        if (payload.defaultAttrs) {
-          content.attrs = payload.defaultAttrs;
-        }
         editor
           .chain()
           .focus()
           .deleteRange(range)
-          .insertContentAt(range.from, content)
+          .insertContentAt(range.from, {
+            type: block.id,
+            attrs: { content: serializedContent },
+          })
           .run();
       },
     });

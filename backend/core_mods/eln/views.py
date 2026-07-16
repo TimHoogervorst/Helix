@@ -1,3 +1,6 @@
+import logging
+import uuid
+
 import django.db.models
 from django.db import IntegrityError
 
@@ -7,7 +10,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
-from core.actions.logger import log_action
+from helix_core.actions.logger import bulk_log_actions, log_action
+from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
 from core_mods.tags.models import Tag
 
@@ -16,10 +20,13 @@ from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
     ElnActionSerializer,
+    ElnActionBatchSerializer,
     ElnActionCreateSerializer,
     ProtocolSerializer,
 )
 from .sync import sync_entry_content
+
+eln_logger = logging.getLogger(__name__)
 
 
 DEFAULT_SAVE_MODE = "manual"
@@ -33,7 +40,7 @@ class LockedException(APIException):
     default_code = "locked"
 
 
-class NotebookEntryViewSet(viewsets.ModelViewSet):
+class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for ELN notebook entries.
 
@@ -57,6 +64,24 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
     serializer_class = NotebookEntrySerializer
     lookup_field = "display_id"
 
+    _entry_edited_config = {
+        "action_type": "eln.entry.edited",
+        # _version_metadata is set as a transient attr in perform_update
+        # before _maybe_log fires.  The lambda reads it back so version
+        # metadata flows from the save pipeline into the action log without
+        # duplicating the computation.
+        "get_metadata": lambda instance, validated_data, request: getattr(
+            instance, "_version_metadata", {}
+        ),
+    }
+
+    action_log_config = {
+        "create": {"action_type": "eln.entry.created"},
+        "update": _entry_edited_config,
+        "partial_update": _entry_edited_config,
+        "destroy": {"action_type": "eln.entry.deleted"},
+    }
+
     def get_serializer_class(self):
         if self.action == "create":
             return NotebookEntryCreateSerializer
@@ -66,13 +91,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         author = self.request.user if self.request.user.is_authenticated else None
         instance = serializer.save(author=author)
         sync_entry_content(instance)
-        if author is not None:
-            log_action(
-                user=author,
-                action_type="created",
-                target_type="eln.entry",
-                target_id=instance.id,
-            )
+        self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
 
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
@@ -164,15 +183,13 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                 "save_mode": save_mode,
             }
 
-        # ── Log action ──────────────────────────────────────────────────
-        if self.request.user.is_authenticated:
-            log_action(
-                user=self.request.user,
-                action_type="edited",
-                target_type="eln.entry",
-                target_id=instance.id,
-                metadata=version_metadata,
-            )
+        # ── Log action (delegated to ActionLoggingMixin) ────────────────
+        instance._version_metadata = version_metadata
+        self._maybe_log(
+            self.action,
+            instance=instance,
+            validated_data=validated_data,
+        )
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)
@@ -188,6 +205,10 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         count, _ = NotebookEntry.objects.all().delete()
         return Response({"deleted": count})
 
+    @logs_action(
+        "eln.entry.tags_attached",
+        get_metadata=lambda inst, data, req: {"tag_ids": req.data.get("tag_ids", [])},
+    )
     @action(detail=True, methods=["post"], url_path="tags")
     def attach_tags(self, request, display_id=None):
         """Attach one or more tags to the entry.
@@ -206,6 +227,10 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         read_serializer = NotebookEntrySerializer(entry)
         return Response(read_serializer.data)
 
+    @logs_action(
+        "eln.entry.tag_detached",
+        get_metadata=lambda inst, data, req: {"tag_id": int(req.resolver_match.kwargs["tag_id"])},
+    )
     @action(detail=True, methods=["delete"], url_path="tags/(?P<tag_id>[^/.]+)")
     def detach_tag(self, request, display_id=None, tag_id=None):
         """Detach a tag from the entry."""
@@ -283,6 +308,60 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
 
         read_serializer = ElnActionSerializer(action)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="actions/batch")
+    def entry_actions_batch(self, request, display_id=None):
+        """POST /api/eln/entries/{display_id}/actions/batch/
+
+        Accept a batched list of block-level action log entries.
+        Creates all action rows in a single bulk insert per mod table.
+
+        Body:
+            {
+                "actions": [
+                    {"action_type": "eln.table.edited", "metadata": {...}},
+                    {"action_type": "eln.comment.created", "metadata": {...}},
+                ]
+            }
+
+        ``performed_by`` is derived from ``request.user``.
+        ``target_type`` and ``target_id`` are derived from the route.
+        All actions in the batch share a single ``request_id``.
+
+        Returns 201 with ``{count, request_id}``.  Fail-open: logging
+        failure never breaks the response.
+        """
+        entry = self.get_object()
+        serializer = ElnActionBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        batch_request_id = uuid.uuid4()
+        client_ip = request.META.get("REMOTE_ADDR", "")
+
+        try:
+            results = bulk_log_actions(
+                user=request.user,
+                actions=serializer.validated_data["actions"],
+                target_type="eln.entry",
+                target_id=entry.id,
+                request_id=batch_request_id,
+                client_ip=client_ip or None,
+            )
+            return Response(
+                {"count": len(results), "request_id": str(batch_request_id)},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception:
+            eln_logger.exception(
+                "Batch action logging failed for entry %s (display_id=%s)",
+                entry.id,
+                display_id,
+            )
+            # Fail-open: return success even if logging fails.
+            return Response(
+                {"count": 0, "request_id": str(batch_request_id)},
+                status=status.HTTP_201_CREATED,
+            )
 
     # ── Lock helpers ──────────────────────────────────────────────────────
 
@@ -436,7 +515,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         return Response(self._lock_response(existing))
 
 
-class ProtocolViewSet(viewsets.ModelViewSet):
+class ProtocolViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for ELN protocol definitions.
 
@@ -451,6 +530,13 @@ class ProtocolViewSet(viewsets.ModelViewSet):
     queryset = Protocol.objects.all()
     serializer_class = ProtocolSerializer
     permission_classes = []
+
+    action_log_config = {
+        "create": {"action_type": "eln.protocol.created"},
+        "update": {"action_type": "eln.protocol.edited"},
+        "partial_update": {"action_type": "eln.protocol.edited"},
+        "destroy": {"action_type": "eln.protocol.deleted"},
+    }
 
     def get_queryset(self):
         """Filter to active protocols by default.
@@ -469,5 +555,7 @@ class ProtocolViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """Soft-delete: set is_active=False instead of removing the row."""
+        instance._pre_delete_pk = instance.pk
         instance.is_active = False
         instance.save(update_fields=["is_active"])
+        self._maybe_log("destroy", instance=instance)

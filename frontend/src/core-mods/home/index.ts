@@ -5,6 +5,7 @@ import HomePage from "./HomePage";
 export const meta = {
   id: "home",
   displayName: "Home",
+  version: "0.1.0",
   dependsOn: [],
 };
 

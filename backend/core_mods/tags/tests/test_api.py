@@ -3,8 +3,19 @@ Tests for the Tags API endpoints.
 
 All tests exercise the API through HTTP calls using DRF's APIClient.
 """
+from unittest.mock import patch
+
 from core.tests.base import BaseTestCase
 from core_mods.tags.models import Tag
+
+MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
+
+
+def _log_kwargs(mock):
+    """Return the keyword-args dict from the *first* call to *mock*."""
+    if mock.call_count == 0:
+        return {}
+    return mock.call_args[1]
 
 
 class TagsApiTests(BaseTestCase):
@@ -148,3 +159,100 @@ class TagsApiTests(BaseTestCase):
         self.client.logout()
         response = self.client.get("/api/tags/")
         self.assertEqual(response.status_code, 403)
+
+
+class TagsActionLoggingTests(BaseTestCase):
+    """Test that Tag CRUD operations log actions via ActionLoggingMixin."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_create_tag_logs_action(self):
+        response = self.client.post(
+            "/api/tags/",
+            {"name": "ActionLogged", "color": "enzyme", "icon": "dna"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "tags.tag.created")
+        self.assertEqual(kwargs["target_type"], "tags.tag")
+        self.assertEqual(kwargs["target_id"], response.data["id"])
+        self.assertEqual(kwargs["user"], self.user)
+
+    def test_update_tag_logs_action(self):
+        tag = Tag.objects.create(name="Before", color="enzyme", icon="circle")
+        response = self.client.put(
+            f"/api/tags/{tag.id}/",
+            {"name": "After", "color": "flask", "icon": "dna"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "tags.tag.edited")
+        self.assertEqual(kwargs["target_type"], "tags.tag")
+        self.assertEqual(kwargs["target_id"], tag.id)
+
+    def test_partial_update_tag_logs_action(self):
+        tag = Tag.objects.create(name="PatchMe", color="enzyme", icon="circle")
+        response = self.client.patch(
+            f"/api/tags/{tag.id}/",
+            {"color": "flask"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "tags.tag.edited")
+
+    def test_delete_tag_logs_action(self):
+        tag = Tag.objects.create(name="DeleteMe", color="enzyme", icon="circle")
+        response = self.client.delete(f"/api/tags/{tag.id}/")
+        self.assertEqual(response.status_code, 204)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "tags.tag.deleted")
+        self.assertEqual(kwargs["target_type"], "tags.tag")
+        self.assertEqual(kwargs["target_id"], tag.id)
+
+    def test_create_tag_captures_request_id(self):
+        self.client.post(
+            "/api/tags/",
+            {"name": "ReqID", "color": "muted"},
+            format="json",
+        )
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertIsNotNone(kwargs["request_id"])
+        self.assertEqual(len(str(kwargs["request_id"])), 36)
+
+    def test_create_tag_captures_client_ip(self):
+        self.client.post(
+            "/api/tags/",
+            {"name": "IP", "color": "muted"},
+            format="json",
+        )
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+
+    def test_get_does_not_log(self):
+        Tag.objects.create(name="ReadOnly", color="enzyme", icon="circle")
+        self.client.get("/api/tags/")
+        self.mock_log.assert_not_called()
+
+    def test_unauthenticated_does_not_log(self):
+        self.client.logout()
+        response = self.client.post(
+            "/api/tags/",
+            {"name": "Anon", "color": "muted"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.mock_log.assert_not_called()

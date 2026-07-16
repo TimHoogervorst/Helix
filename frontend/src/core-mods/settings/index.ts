@@ -4,6 +4,7 @@ import SettingsPage from "./pages/SettingsPage";
 export const meta = {
   id: "settings",
   displayName: "Settings",
+  version: "0.1.0",
   dependsOn: [],
 };
 

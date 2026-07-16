@@ -4,6 +4,8 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from helix_core.actions.mixins import ActionLoggingMixin
+
 from .models import CoreSetting, Folder
 from .serializers import (
     CoreSettingSerializer,
@@ -20,7 +22,7 @@ def csrf_token_view(request):
 # ── Folder ─────────────────────────────────────────────────────────────────
 
 
-class FolderViewSet(viewsets.ModelViewSet):
+class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for folders.
 
@@ -35,11 +37,18 @@ class FolderViewSet(viewsets.ModelViewSet):
     serializer_class = FolderSerializer
     pagination_class = None
 
+    action_log_config = {
+        "create": {"action_type": "core.folder.created"},
+        "update": {"action_type": "core.folder.edited"},
+        "partial_update": {"action_type": "core.folder.edited"},
+        "destroy": {"action_type": "core.folder.deleted"},
+    }
+
 
 # ── CoreSetting ────────────────────────────────────────────────────────────
 
 
-class CoreSettingViewSet(viewsets.ReadOnlyModelViewSet):
+class CoreSettingViewSet(ActionLoggingMixin, viewsets.ReadOnlyModelViewSet):
     """Read-only list + retrieve for CoreSettings.
 
     list:     GET    /api/core/settings/       — list all settings
@@ -54,6 +63,10 @@ class CoreSettingViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     lookup_field = "key"
 
+    action_log_config = {
+        "partial_update": {"action_type": "core.setting.edited"},
+    }
+
     def partial_update(self, request, key=None):
         """PATCH /api/core/settings/{key}/ — update a setting value."""
         try:
@@ -67,4 +80,9 @@ class CoreSettingViewSet(viewsets.ReadOnlyModelViewSet):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
+        self._maybe_log(
+            "partial_update",
+            instance=setting,
+            validated_data=serializer.validated_data,
+        )
         return Response(serializer.data)

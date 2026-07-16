@@ -2,15 +2,18 @@
 Prefix-based display-ID resolution, icon lookup, and cached prefix maps.
 
 Splits out of the old ``references.services`` god module.  Caches the
-prefix→model map via Django's cache framework so the per-request
-``EntityType.objects.values_list()`` query is eliminated.
+prefix→model map via Django's cache framework.  Cross-mod queries use
+the service registry (``registry.call(...)``) instead of direct model
+imports for behavioural queries.
 """
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Model
 
+# Direct imports for data/model relationships — the ORM requires the model
+# class for ``model.objects.get(display_id=...)`` lookups.  Per the
+# cross-mod boundary rule, data/FK imports stay as direct imports.
 from core_mods.eln.models import NotebookEntry
-from core_mods.lims.models import EntityType
 
 
 # ── Cache keys ──────────────────────────────────────────────────────────────
@@ -49,10 +52,25 @@ def _get_entity_model() -> type[Model]:
 
 
 def _build_prefix_map() -> dict[str, type[Model]]:
-    """Build the merged static+dynamic prefix→model map (no caching)."""
+    """Build the merged static+dynamic prefix→model map (no caching).
+
+    Uses ``registry.call("lims.getEntityPrefixes")`` for the cross-mod
+    EntityType prefix query instead of a direct import of
+    ``core_mods.lims.models.EntityType``.
+    """
+    from helix_core.mod_system.registry import registry
+
     pmap = dict(PREFIX_MAP)
-    for et in EntityType.objects.values_list("prefix", flat=True):
-        pmap[et] = _get_entity_model()
+    try:
+        entity_prefixes = registry.call("lims.getEntityPrefixes")
+    except ValueError:
+        # Service not registered — fall back to empty dynamic prefixes.
+        # This path is exercised during test runs where the real LIMS app
+        # is not installed.
+        entity_prefixes = []
+    entity_model = _get_entity_model()
+    for prefix in entity_prefixes:
+        pmap[prefix] = entity_model
     return pmap
 
 
@@ -92,12 +110,21 @@ def invalidate_prefix_cache(sender, **kwargs) -> None:
 
 
 def _build_workspace_map() -> dict[str, str]:
-    """Build prefix→workspace_id map from RegisteredEntityType rows."""
-    from core_mods.lims.models import RegisteredEntityType
+    """Build prefix→workspace_id map from RegisteredEntityType rows.
 
-    return dict(
-        RegisteredEntityType.objects.values_list("prefix", "workspace_id")
-    )
+    Uses ``registry.call("lims.getWorkspaceMap")`` for the cross-mod
+    query instead of a direct import of
+    ``core_mods.lims.models.RegisteredEntityType``.
+    """
+    from helix_core.mod_system.registry import registry
+
+    try:
+        return registry.call("lims.getWorkspaceMap")
+    except ValueError:
+        # Service not registered — fall back to empty map.
+        # This path is hit during test runs where the real LIMS app
+        # is not installed.
+        return {}
 
 
 def get_workspace_id(prefix: str) -> str | None:

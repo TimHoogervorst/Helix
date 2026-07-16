@@ -17,7 +17,7 @@ function makeMod(
   registerFn: () => void = () => {},
 ): ModModule {
   return {
-    meta: { id, displayName: id.toUpperCase(), dependsOn },
+    meta: { id, displayName: id.toUpperCase(), version: "0.1.0", dependsOn },
     register: registerFn,
   };
 }

@@ -14,6 +14,7 @@ import SchemaSettings from "./settings/SchemaSettings";
 export const meta = {
   id: "lims",
   displayName: "LIMS",
+  version: "0.1.0",
   dependsOn: [],
 };
 

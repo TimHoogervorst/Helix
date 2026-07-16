@@ -8,7 +8,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
-from core.actions.logger import log_action
+from helix_core.actions.logger import log_action
 from core.models import CoreSetting, User
 
 from .serializers import (
@@ -150,7 +150,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user = serializer.save()
         log_action(
             user=request.user,
-            action_type="created",
+            action_type="core.user.created",
             target_type="core.user",
             target_id=user.id,
             metadata={"username": user.username},
@@ -173,7 +173,7 @@ class UserViewSet(viewsets.ModelViewSet):
         ):
             log_action(
                 user=self.request.user,
-                action_type="deactivated",
+                action_type="core.user.deactivated",
                 target_type="core.user",
                 target_id=instance.id,
                 metadata={"username": instance.username},

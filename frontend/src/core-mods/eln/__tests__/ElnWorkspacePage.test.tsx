@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
+import { ModRegistry } from "../../../core/mod-system/ModRegistry";
+import * as elnMod from "../index";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -104,6 +106,13 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     mockFetchActions.mockResolvedValue([]);
     mockLockedState.isLockedByOther = false;
     mockLockedState.lockHeldBy = null;
+
+    // Set up the ModRegistry so SlotRenderer can resolve eln.sidebar
+    // and the ActivityFeedBlock.
+    ModRegistry._reset();
+    const registry = ModRegistry.getInstance();
+    registry.registerMod(elnMod.meta.id);
+    elnMod.register();
   });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 
@@ -192,7 +201,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   // ── Top toolbar: user avatars ──────────────────────────────────────────
 
   it("does not render avatar row when no recent editors exist", async () => {
-    mockFetchActions.mockResolvedValueOnce([]);
+    mockFetchActions.mockResolvedValue([]);
     renderAtRoute("/eln/EXP-0284");
     // No fetchActions error — avatars simply absent
     await vi.waitFor(() => {
@@ -212,7 +221,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       last_name: "Keller",
       color: "#d9b3e6",
     };
-    mockFetchActions.mockResolvedValueOnce([
+    mockFetchActions.mockResolvedValue([
       {
         id: 1,
         action_type: "edited",
@@ -248,7 +257,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
       created_at: now,
       performed_by: makeUser(userId),
     });
-    mockFetchActions.mockResolvedValueOnce([
+    mockFetchActions.mockResolvedValue([
       makeAction(1),
       makeAction(2),
       makeAction(3),
@@ -390,7 +399,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     });
 
     it("shows empty state when there are no actions", async () => {
-      mockFetchActions.mockResolvedValueOnce([]);
+      mockFetchActions.mockResolvedValue([]);
       renderAtRoute("/eln/EXP-0284");
       const empty = await screen.findByTestId("activity-empty");
       expect(empty.textContent).toBe("No activity yet");
@@ -398,7 +407,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
 
     it("renders activity items from fetched actions", async () => {
       const now = new Date().toISOString();
-      mockFetchActions.mockResolvedValueOnce([
+      mockFetchActions.mockResolvedValue([
         {
           id: 1,
           action_type: "created",
@@ -437,11 +446,11 @@ describe("ElnWorkspacePage — 3-column layout", () => {
 
       // First item should be the most recent (created action)
       expect(screen.getByText("Mira Keller")).toBeDefined();
-      expect(screen.getByText("Created this entry")).toBeDefined();
+      expect(screen.getByText("Created")).toBeDefined();
 
       // Second item
       expect(screen.getByText("Jordan")).toBeDefined();
-      expect(screen.getByText("Edited this entry")).toBeDefined();
+      expect(screen.getByText("Edited")).toBeDefined();
     });
 
     it("shows Show all toggle when there are more than 10 items", async () => {
@@ -461,7 +470,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
           color: "#d9b3e6",
         },
       }));
-      mockFetchActions.mockResolvedValueOnce(actions);
+      mockFetchActions.mockResolvedValue(actions);
       renderAtRoute("/eln/EXP-0284");
 
       const toggle = await screen.findByTestId("activity-show-all");

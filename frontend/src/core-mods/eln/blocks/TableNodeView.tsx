@@ -13,6 +13,7 @@
 import { useCallback, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Plus, Trash2 } from "lucide-react";
+import type { BlockComponentProps } from "../../../core/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -24,6 +25,13 @@ export interface TableColumn {
 export interface TableRow {
   id: string;
   cells: Record<string, string>;
+}
+
+interface TableBlockContentProps {
+  title: string;
+  columns: TableColumn[];
+  rows: TableRow[];
+  updateAttrs: (attrs: Record<string, unknown>) => void;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────
@@ -137,21 +145,28 @@ function InlineEdit({
   );
 }
 
-// ── NodeView ────────────────────────────────────────────────────────────
+// ── Inner Content Component (shared by old + new wrappers) ──────────────
 
-function TableNodeView(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
-
-  const title = (node.attrs.title as string) ?? DEFAULT_TITLE;
-  const columns: TableColumn[] = (node.attrs.columns as TableColumn[]) ?? [];
-  const rows: TableRow[] = (node.attrs.rows as TableRow[]) ?? [];
-
+/**
+ * Pure rendering logic for the table block.
+ *
+ * Decoupled from TipTap's NodeViewWrapper so it can be reused by both
+ * the legacy `TableNodeView` (NodeViewProps → NodeViewWrapper) and
+ * the new `TableBlockComponent` (BlockComponentProps, no wrapper —
+ * BlockNodeView provides it).
+ */
+export function TableBlockContent({
+  title,
+  columns,
+  rows,
+  updateAttrs,
+}: TableBlockContentProps) {
   // ── Title ──────────────────────────────────────────────────────────────
   const handleTitleChange = useCallback(
     (newTitle: string) => {
-      updateAttributes({ title: newTitle });
+      updateAttrs({ title: newTitle });
     },
-    [updateAttributes],
+    [updateAttrs],
   );
 
   // ── Column operations ──────────────────────────────────────────────────
@@ -160,9 +175,9 @@ function TableNodeView(props: NodeViewProps) {
       const updated = columns.map((c) =>
         c.id === colId ? { ...c, name: newName } : c,
       );
-      updateAttributes({ columns: updated });
+      updateAttrs({ columns: updated });
     },
-    [columns, updateAttributes],
+    [columns, updateAttrs],
   );
 
   const handleAddColumn = useCallback(() => {
@@ -174,8 +189,8 @@ function TableNodeView(props: NodeViewProps) {
       ...r,
       cells: { ...r.cells, [id]: "" },
     }));
-    updateAttributes({ columns: updatedColumns, rows: updatedRows });
-  }, [columns, rows, updateAttributes]);
+    updateAttrs({ columns: updatedColumns, rows: updatedRows });
+  }, [columns, rows, updateAttrs]);
 
   const handleDeleteColumn = useCallback(
     (colId: string) => {
@@ -184,9 +199,9 @@ function TableNodeView(props: NodeViewProps) {
         const { [colId]: _, ...rest } = r.cells;
         return { ...r, cells: rest };
       });
-      updateAttributes({ columns: updatedColumns, rows: updatedRows });
+      updateAttrs({ columns: updatedColumns, rows: updatedRows });
     },
-    [columns, rows, updateAttributes],
+    [columns, rows, updateAttrs],
   );
 
   // ── Hover state for column delete button ──────────────────────────────
@@ -201,9 +216,9 @@ function TableNodeView(props: NodeViewProps) {
           ? { ...r, cells: { ...r.cells, [colId]: value } }
           : r,
       );
-      updateAttributes({ rows: updatedRows });
+      updateAttrs({ rows: updatedRows });
     },
-    [rows, updateAttributes],
+    [rows, updateAttrs],
   );
 
   const handleAddRow = useCallback(() => {
@@ -212,24 +227,21 @@ function TableNodeView(props: NodeViewProps) {
     for (const col of columns) {
       cells[col.id] = "";
     }
-    updateAttributes({ rows: [...rows, { id, cells }] });
-  }, [columns, rows, updateAttributes]);
+    updateAttrs({ rows: [...rows, { id, cells }] });
+  }, [columns, rows, updateAttrs]);
 
   const handleDeleteRow = useCallback(
     (rowId: string) => {
-      updateAttributes({ rows: rows.filter((r) => r.id !== rowId) });
+      updateAttrs({ rows: rows.filter((r) => r.id !== rowId) });
     },
-    [rows, updateAttributes],
+    [rows, updateAttrs],
   );
 
   // ── Render ────────────────────────────────────────────────────────────
   const hasRows = rows.length > 0;
 
   return (
-    <NodeViewWrapper
-      className="table-block-wrapper"
-      contentEditable={false}
-    >
+    <>
       <div
         className="rounded-lg border border-hairline bg-panel"
         data-testid="eln-table"
@@ -367,8 +379,56 @@ function TableNodeView(props: NodeViewProps) {
         <Plus className="h-3 w-3" />
         <span>New Row</span>
       </button>
+    </>
+  );
+}
+
+// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
+
+function TableNodeView(props: NodeViewProps) {
+  const { node, updateAttributes } = props;
+
+  const title = (node.attrs.title as string) ?? DEFAULT_TITLE;
+  const columns: TableColumn[] = (node.attrs.columns as TableColumn[]) ?? [];
+  const rows: TableRow[] = (node.attrs.rows as TableRow[]) ?? [];
+
+  return (
+    <NodeViewWrapper
+      className="table-block-wrapper"
+      contentEditable={false}
+    >
+      <TableBlockContent
+        title={title}
+        columns={columns}
+        rows={rows}
+        updateAttrs={updateAttributes}
+      />
     </NodeViewWrapper>
   );
 }
 
 export default TableNodeView;
+
+// ── New BlockComponentProps wrapper (for the slot system) ───────────────
+
+/**
+ * Slot-system block component for the ELN table.
+ *
+ * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
+ * provides one). Renders the same inner content as the legacy NodeView.
+ */
+export function TableBlockComponent({ instance }: BlockComponentProps) {
+  const attrs = instance.attrs as Record<string, unknown>;
+  const title = (attrs.title as string) ?? DEFAULT_TITLE;
+  const columns: TableColumn[] = (attrs.columns as TableColumn[]) ?? [];
+  const rows: TableRow[] = (attrs.rows as TableRow[]) ?? [];
+
+  return (
+    <TableBlockContent
+      title={title}
+      columns={columns}
+      rows={rows}
+      updateAttrs={instance.updateAttrs}
+    />
+  );
+}

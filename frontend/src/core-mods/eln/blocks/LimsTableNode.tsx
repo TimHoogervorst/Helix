@@ -20,6 +20,7 @@ import type { EntityTypeSummary } from "../types";
 import { get } from "../../../core/api/client";
 import { DisplayIdCellRenderer, MentionCellRenderer } from "../editor/extensions/MentionBadgeCellRenderer";
 import { useClickOutside } from "../../../shared/hooks/useClickOutside";
+import type { BlockComponentProps } from "../../../core/mod-system/types";
 
 // ── Type-to-symbol mapping ────────────────────────────────────────────
 const TYPE_SYMBOL: Record<string, string> = {
@@ -140,18 +141,35 @@ function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   return vals;
 }
 
-// ── NodeView ───────────────────────────────────────────────────────────
+// ── Inner Content Props ─────────────────────────────────────────────────
 
-function LimsTableNode(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
+interface LimsTableContentProps {
+  schemaId: number | null;
+  schemaName: string | null;
+  title: string;
+  columns: GridColumn[];
+  rows: GridRow[];
+  updateAttrs: (attrs: Record<string, unknown>) => void;
+}
 
-  // Read attrs from the TipTap node (source of truth)
-  const schemaId = (node.attrs.schemaId as number | null) ?? null;
-  const schemaName = (node.attrs.schemaName as string | null) ?? null;
-  const title = (node.attrs.title as string) || "Table";
-  const columns: GridColumn[] = (node.attrs.columns as GridColumn[]) ?? [];
-  const rows: GridRow[] = (node.attrs.rows as GridRow[]) ?? [];
+// ── Inner Content Component (shared by old + new wrappers) ──────────────
 
+/**
+ * Pure rendering logic for the LIMS table block.
+ *
+ * Decoupled from TipTap's NodeViewWrapper so it can be reused by both
+ * the legacy `LimsTableNode` (NodeViewProps → NodeViewWrapper) and
+ * the new `LimsTableBlockComponent` (BlockComponentProps, no wrapper —
+ * BlockNodeView provides it).
+ */
+export function LimsTableContent({
+  schemaId,
+  schemaName,
+  title,
+  columns,
+  rows,
+  updateAttrs,
+}: LimsTableContentProps) {
   const gridRef = useRef<AgGridReactType>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showGearMenu, setShowGearMenu] = useState(false);
@@ -218,7 +236,7 @@ function LimsTableNode(props: NodeViewProps) {
     // (same pattern as handleSelectSchema).
     queueMicrotask(() => {
       try {
-        updateAttributes({
+        updateAttrs({
           columns: [...columns, newColumn],
           rows: newRows,
         });
@@ -232,7 +250,7 @@ function LimsTableNode(props: NodeViewProps) {
     newColumnType,
     columns,
     rows,
-    updateAttributes,
+    updateAttrs,
     closePanel,
   ]);
 
@@ -304,7 +322,7 @@ function LimsTableNode(props: NodeViewProps) {
       // which React rejects because it is already processing the event.
       queueMicrotask(() => {
         try {
-          updateAttributes({
+          updateAttrs({
             schemaId: entityType.id,
             schemaName: entityType.name,
             columns: newColumns,
@@ -316,7 +334,7 @@ function LimsTableNode(props: NodeViewProps) {
       });
       closePanel();
     },
-    [columns, rows, updateAttributes, closePanel]
+    [columns, rows, updateAttrs, closePanel]
   );
 
   // ── ColDefs ──────────────────────────────────────────────────────────
@@ -356,7 +374,7 @@ function LimsTableNode(props: NodeViewProps) {
           if (r.displayId !== ev.data.displayId) return r;
           return { ...r, __name: (ev.newValue as string) ?? "" };
         });
-        updateAttributes({ rows: updatedRows });
+        updateAttrs({ rows: updatedRows });
         return;
       }
 
@@ -368,9 +386,9 @@ function LimsTableNode(props: NodeViewProps) {
           values: { ...r.values, [colName]: ev.newValue },
         };
       });
-      updateAttributes({ rows: updatedRows });
+      updateAttrs({ rows: updatedRows });
     },
-    [rows, updateAttributes]
+    [rows, updateAttrs]
   );
 
   const handleAddRow = useCallback(() => {
@@ -380,15 +398,15 @@ function LimsTableNode(props: NodeViewProps) {
       values: emptyValues(columns),
       __name: "",
     };
-    updateAttributes({ rows: [...rows, newRow] });
-  }, [rows, columns, updateAttributes]);
+    updateAttrs({ rows: [...rows, newRow] });
+  }, [rows, columns, updateAttrs]);
 
   const handleDeleteSelected = useCallback(() => {
     const selected = gridRef.current?.api.getSelectedNodes();
     if (!selected?.length) return;
     const ids = new Set(selected.map((n) => n.data?.displayId));
-    updateAttributes({ rows: rows.filter((r) => !ids.has(r.displayId)) });
-  }, [rows, updateAttributes]);
+    updateAttrs({ rows: rows.filter((r) => !ids.has(r.displayId)) });
+  }, [rows, updateAttrs]);
 
   // ── Ensure AG Grid cell editing starts inside ProseMirror's non-editable wrapper ─
   const handleCellMouseDown = useCallback((params: CellMouseDownEvent) => {
@@ -409,10 +427,10 @@ function LimsTableNode(props: NodeViewProps) {
     (e: React.FocusEvent<HTMLSpanElement>) => {
       const newTitle = e.currentTarget.textContent?.trim() || "Table";
       if (newTitle !== title) {
-        updateAttributes({ title: newTitle });
+        updateAttrs({ title: newTitle });
       }
     },
-    [title, updateAttributes]
+    [title, updateAttrs]
   );
 
   const handleTitleKeyDown = useCallback(
@@ -469,14 +487,14 @@ function LimsTableNode(props: NodeViewProps) {
     get<EntityTypeSummary>(`/lims/entity-types/${schemaId}/`)
       .then((et) => {
         if (!cancelled && et?.name) {
-          updateAttributes({ schemaName: et.name });
+          updateAttrs({ schemaName: et.name });
         }
       })
       .catch(() => {
         // keep fallback
       });
     return () => { cancelled = true; };
-  }, [schemaId, schemaName, updateAttributes]);
+  }, [schemaId, schemaName, updateAttrs]);
 
   // ── Prevent ProseMirror from intercepting events inside the AG Grid ────
   // ProseMirror listens on its editor element (ancestor of this NodeView).
@@ -495,221 +513,273 @@ function LimsTableNode(props: NodeViewProps) {
   }, []);
 
   return (
-    <NodeViewWrapper className="lims-table-wrapper" contentEditable={false}>
-      <div className={`eln-table-card${schemaId !== null ? " eln-table-card--schema-backed" : ""}`}>
-        {/* Title bar */}
-        <div className="eln-table-title-bar">
-          <div className="eln-table-title-left">
-            <span className="eln-table-title-icon">⊞</span>
-            <span
-              className="eln-table-title-text"
-              contentEditable
-              suppressContentEditableWarning
-              onBlur={handleTitleBlur}
-              onKeyDown={handleTitleKeyDown}
-            >
-              {title}
-            </span>
-            {schemaId !== null && (
-              <span className="eln-table-schema-label" title={`Schema ID: ${schemaId}`}>
-                {schemaName || `Schema #${schemaId}`}
-              </span>
-            )}
-          </div>
-          <div className="eln-table-title-right">
-            <button
-              ref={gearBtnRef}
-              type="button"
-              className="eln-table-gear-btn"
-              onClick={() => setShowGearMenu((v) => !v)}
-              title="Table settings"
-              aria-label="Table settings"
-            >
-              ⚙
-            </button>
-          </div>
-        </div>
-
-        {/* ── Gear menu — portaled to document.body to escape ancestor
-              overflow:hidden clipping on .eln-table-card / .lims-table-wrapper. */}
-        {showGearMenu &&
-          menuPos &&
-          createPortal(
-            <div
-              className={`eln-table-gear-menu${activePanel ? " eln-table-gear-panel" : ""}`}
-              ref={menuContainerRef}
-              style={{
-                position: "fixed",
-                top: menuPos.top,
-                right: menuPos.right,
-              }}
-            >
-              {!activePanel && (
-                <>
-                  <button
-                    className="eln-table-gear-item"
-                    onClick={() => {
-                      handleAddRow();
-                      setShowGearMenu(false);
-                    }}
-                  >
-                    + Add Row
-                  </button>
-                  <button
-                    className="eln-table-gear-item"
-                    onClick={() => {
-                      handleDeleteSelected();
-                      setShowGearMenu(false);
-                    }}
-                  >
-                    − Delete Row
-                  </button>
-                  <div className="eln-table-gear-divider" />
-                  <button
-                    className="eln-table-gear-item"
-                    onClick={handleOpenAddColumn}
-                  >
-                    Add Column…
-                  </button>
-                  <button
-                    className="eln-table-gear-item"
-                    onClick={handleOpenLoadSchema}
-                  >
-                    Load Schema…
-                  </button>
-                </>
-              )}
-
-              {/* ── Add Column panel ──────────────────────────────── */}
-              {activePanel === "addColumn" && (
-                <>
-                  <div className="eln-table-gear-panel-head">
-                    <button
-                      className="eln-table-gear-back"
-                      onClick={() => setActivePanel(null)}
-                      title="Back"
-                    >
-                      ←
-                    </button>
-                    <span className="eln-table-gear-panel-title">Add Column</span>
-                  </div>
-                  <div className="eln-table-gear-panel-body">
-                    <input
-                      ref={addColNameRef}
-                      className="eln-table-gear-input"
-                      type="text"
-                      placeholder="Column name"
-                      value={newColumnName}
-                      onChange={(e) => setNewColumnName(e.target.value)}
-                      onKeyDown={handleAddColumnKeyDown}
-                    />
-                    <select
-                      className="eln-table-gear-select"
-                      value={newColumnType}
-                      onChange={(e) =>
-                        setNewColumnType(
-                          e.target.value as GridColumn["type"]
-                        )
-                      }
-                      onKeyDown={handleAddColumnKeyDown}
-                    >
-                      <option value="Text">Aa Text</option>
-                      <option value="Number"># Number</option>
-                      <option value="Date">📅 Date</option>
-                      <option value="Boolean">☑ Boolean</option>
-                    </select>
-                    <button
-                      className="eln-table-gear-confirm"
-                      onClick={handleAddColumn}
-                      disabled={!newColumnName.trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* ── Load Schema panel ────────────────────────────── */}
-              {activePanel === "loadSchema" && (
-                <>
-                  <div className="eln-table-gear-panel-head">
-                    <button
-                      className="eln-table-gear-back"
-                      onClick={() => setActivePanel(null)}
-                      title="Back"
-                    >
-                      ←
-                    </button>
-                    <span className="eln-table-gear-panel-title">
-                      Load Schema
-                    </span>
-                  </div>
-                  <div className="eln-table-gear-panel-body">
-                    {schemasLoading ? (
-                      <span className="eln-table-gear-hint">Loading…</span>
-                    ) : schemas.length === 0 ? (
-                      <span className="eln-table-gear-hint">
-                        No schemas available
-                      </span>
-                    ) : (
-                      schemas.map((s) => (
-                        <button
-                          key={s.id}
-                          className="eln-table-gear-item eln-table-schema-option"
-                          onClick={() => handleSelectSchema(s)}
-                        >
-                          <span className="eln-table-schema-name">{s.name}</span>
-                          <span className="eln-table-schema-prefix">
-                            {s.prefix}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </>
-              )}
-            </div>,
-            document.body
-          )}
-
-        {/* AG Grid */}
-        <div
-          ref={gridContainerRef}
-          className="eln-grid-theme ag-theme-alpine"
-          style={{ width: "100%" }}
-        >
-          <AgGridReact<GridRow>
-            ref={gridRef}
-            rowData={rows}
-            columnDefs={colDefs}
-            defaultColDef={defaultColDef}
-            domLayout="autoHeight"
-            rowSelection="single"
-            suppressRowClickSelection={true}
-            enableRangeSelection={false}
-            onCellMouseDown={handleCellMouseDown}
-            onCellValueChanged={handleCellValueChanged}
-            getRowId={(p) => p.data.displayId}
-            undoRedoCellEditing={true}
-            stopEditingWhenCellsLoseFocus={true}
-            singleClickEdit={true}
-          />
-        </div>
-
-        {/* Bottom "+" button */}
-        <div className="eln-table-add-row-tag">
-          <button
-            className="eln-table-add-row-btn"
-            onClick={handleAddRow}
-            aria-label="Add row"
-            title="Add row"
+    <div className={`eln-table-card${schemaId !== null ? " eln-table-card--schema-backed" : ""}`}>
+      {/* Title bar */}
+      <div className="eln-table-title-bar">
+        <div className="eln-table-title-left">
+          <span className="eln-table-title-icon">⊞</span>
+          <span
+            className="eln-table-title-text"
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={handleTitleBlur}
+            onKeyDown={handleTitleKeyDown}
           >
-            +
+            {title}
+          </span>
+          {schemaId !== null && (
+            <span className="eln-table-schema-label" title={`Schema ID: ${schemaId}`}>
+              {schemaName || `Schema #${schemaId}`}
+            </span>
+          )}
+        </div>
+        <div className="eln-table-title-right">
+          <button
+            ref={gearBtnRef}
+            type="button"
+            className="eln-table-gear-btn"
+            onClick={() => setShowGearMenu((v) => !v)}
+            title="Table settings"
+            aria-label="Table settings"
+          >
+            ⚙
           </button>
         </div>
       </div>
+
+      {/* ── Gear menu — portaled to document.body to escape ancestor
+            overflow:hidden clipping on .eln-table-card / .lims-table-wrapper. */}
+      {showGearMenu &&
+        menuPos &&
+        createPortal(
+          <div
+            className={`eln-table-gear-menu${activePanel ? " eln-table-gear-panel" : ""}`}
+            ref={menuContainerRef}
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              right: menuPos.right,
+            }}
+          >
+            {!activePanel && (
+              <>
+                <button
+                  className="eln-table-gear-item"
+                  onClick={() => {
+                    handleAddRow();
+                    setShowGearMenu(false);
+                  }}
+                >
+                  + Add Row
+                </button>
+                <button
+                  className="eln-table-gear-item"
+                  onClick={() => {
+                    handleDeleteSelected();
+                    setShowGearMenu(false);
+                  }}
+                >
+                  − Delete Row
+                </button>
+                <div className="eln-table-gear-divider" />
+                <button
+                  className="eln-table-gear-item"
+                  onClick={handleOpenAddColumn}
+                >
+                  Add Column…
+                </button>
+                <button
+                  className="eln-table-gear-item"
+                  onClick={handleOpenLoadSchema}
+                >
+                  Load Schema…
+                </button>
+              </>
+            )}
+
+            {/* ── Add Column panel ──────────────────────────────── */}
+            {activePanel === "addColumn" && (
+              <>
+                <div className="eln-table-gear-panel-head">
+                  <button
+                    className="eln-table-gear-back"
+                    onClick={() => setActivePanel(null)}
+                    title="Back"
+                  >
+                    ←
+                  </button>
+                  <span className="eln-table-gear-panel-title">Add Column</span>
+                </div>
+                <div className="eln-table-gear-panel-body">
+                  <input
+                    ref={addColNameRef}
+                    className="eln-table-gear-input"
+                    type="text"
+                    placeholder="Column name"
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                    onKeyDown={handleAddColumnKeyDown}
+                  />
+                  <select
+                    className="eln-table-gear-select"
+                    value={newColumnType}
+                    onChange={(e) =>
+                      setNewColumnType(
+                        e.target.value as GridColumn["type"]
+                      )
+                    }
+                    onKeyDown={handleAddColumnKeyDown}
+                  >
+                    <option value="Text">Aa Text</option>
+                    <option value="Number"># Number</option>
+                    <option value="Date">📅 Date</option>
+                    <option value="Boolean">☑ Boolean</option>
+                  </select>
+                  <button
+                    className="eln-table-gear-confirm"
+                    onClick={handleAddColumn}
+                    disabled={!newColumnName.trim()}
+                  >
+                    Add
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Load Schema panel ────────────────────────────── */}
+            {activePanel === "loadSchema" && (
+              <>
+                <div className="eln-table-gear-panel-head">
+                  <button
+                    className="eln-table-gear-back"
+                    onClick={() => setActivePanel(null)}
+                    title="Back"
+                  >
+                    ←
+                  </button>
+                  <span className="eln-table-gear-panel-title">
+                    Load Schema
+                  </span>
+                </div>
+                <div className="eln-table-gear-panel-body">
+                  {schemasLoading ? (
+                    <span className="eln-table-gear-hint">Loading…</span>
+                  ) : schemas.length === 0 ? (
+                    <span className="eln-table-gear-hint">
+                      No schemas available
+                    </span>
+                  ) : (
+                    schemas.map((s) => (
+                      <button
+                        key={s.id}
+                        className="eln-table-gear-item eln-table-schema-option"
+                        onClick={() => handleSelectSchema(s)}
+                      >
+                        <span className="eln-table-schema-name">{s.name}</span>
+                        <span className="eln-table-schema-prefix">
+                          {s.prefix}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>,
+          document.body
+        )}
+
+      {/* AG Grid */}
+      <div
+        ref={gridContainerRef}
+        className="eln-grid-theme ag-theme-alpine"
+        style={{ width: "100%" }}
+      >
+        <AgGridReact<GridRow>
+          ref={gridRef}
+          rowData={rows}
+          columnDefs={colDefs}
+          defaultColDef={defaultColDef}
+          domLayout="autoHeight"
+          rowSelection="single"
+          suppressRowClickSelection={true}
+          enableRangeSelection={false}
+          onCellMouseDown={handleCellMouseDown}
+          onCellValueChanged={handleCellValueChanged}
+          getRowId={(p) => p.data.displayId}
+          undoRedoCellEditing={true}
+          stopEditingWhenCellsLoseFocus={true}
+          singleClickEdit={true}
+        />
+      </div>
+
+      {/* Bottom "+" button */}
+      <div className="eln-table-add-row-tag">
+        <button
+          className="eln-table-add-row-btn"
+          onClick={handleAddRow}
+          aria-label="Add row"
+          title="Add row"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
+
+function LimsTableNode(props: NodeViewProps) {
+  const { node, updateAttributes } = props;
+
+  // Read attrs from the TipTap node (source of truth)
+  const schemaId = (node.attrs.schemaId as number | null) ?? null;
+  const schemaName = (node.attrs.schemaName as string | null) ?? null;
+  const title = (node.attrs.title as string) || "Table";
+  const columns: GridColumn[] = (node.attrs.columns as GridColumn[]) ?? [];
+  const rows: GridRow[] = (node.attrs.rows as GridRow[]) ?? [];
+
+  return (
+    <NodeViewWrapper className="lims-table-wrapper" contentEditable={false}>
+      <LimsTableContent
+        schemaId={schemaId}
+        schemaName={schemaName}
+        title={title}
+        columns={columns}
+        rows={rows}
+        updateAttrs={updateAttributes}
+      />
     </NodeViewWrapper>
   );
 }
 
 export default LimsTableNode;
+
+// ── New BlockComponentProps wrapper (for the slot system) ───────────────
+
+/**
+ * Slot-system block component for the LIMS table.
+ *
+ * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
+ * provides one). Renders the same inner content as the legacy NodeView.
+ */
+export function LimsTableBlockComponent({ instance }: BlockComponentProps) {
+  const attrs = instance.attrs as Record<string, unknown>;
+  const schemaId = (attrs.schemaId as number | null) ?? null;
+  const schemaName = (attrs.schemaName as string | null) ?? null;
+  const title = (attrs.title as string) || "Table";
+  const columns: GridColumn[] = (attrs.columns as GridColumn[]) ?? [];
+  const rows: GridRow[] = (attrs.rows as GridRow[]) ?? [];
+
+  return (
+    <LimsTableContent
+      schemaId={schemaId}
+      schemaName={schemaName}
+      title={title}
+      columns={columns}
+      rows={rows}
+      updateAttrs={instance.updateAttrs}
+    />
+  );
+}

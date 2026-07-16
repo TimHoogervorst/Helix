@@ -9,21 +9,45 @@ const shellNodeModules = path.resolve(import.meta.dirname, "node_modules");
 const shellRequire = createRequire(import.meta.url);
 
 /**
+ * Packages that Vite pre-bundles internally.  We must let Vite handle
+ * resolution for these so the optimized ESM builds are used (otherwise
+ * named exports like ``Fragment`` from ``react/jsx-dev-runtime`` are
+ * missing, causing white-screen crashes on pages that use JSX fragments).
+ */
+const VITE_PREBUNDLED = new Set([
+  "react",
+  "react-dom",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+]);
+
+/**
  * Vite plugin that redirects bare-specifier imports from mod files
- * (``src/mods/*``) to the shell's ``node_modules``.  Without this,
- * mod files cannot resolve npm packages because Node module resolution
- * walks up from the mod directory and never reaches the shell.
+ * (``src/mods/*``) to the shell's ``node_modules`` as a **last resort**.
+ *
+ * Vite's built-in dependency resolution searches for ``node_modules``
+ * starting from the importer's directory up to the filesystem root, and
+ * also falls back to the project root.  For most packages this works
+ * correctly and - crucially - returns the **pre-bundled ESM** version.
+ *
+ * This plugin only fires when Vite's default resolution would fail
+ * (packages that are installed in the shell's node_modules but for
+ * whatever reason aren't found by the standard upward search).  It runs
+ * at ``enforce: "post"`` so Vite's native resolution (including
+ * dependency pre-bundling) takes precedence.
  */
 function modResolutionPlugin() {
   return {
-    name: "mod-resolution",
-    enforce: "pre" as const,
+    name: "mod-resolution-fallback",
+    enforce: "post" as const,
     resolveId(id: string, importer: string | undefined) {
       if (!importer) return null;
       const normalized = importer.replace(/\\/g, "/");
       if (!normalized.includes("/mods/")) return null;
       // Only redirect bare specifiers, not relative imports.
       if (id.startsWith(".") || id.startsWith("/") || id.startsWith("\0")) return null;
+      // Let Vite handle pre-bundled packages so optimized ESM is used.
+      if (VITE_PREBUNDLED.has(id)) return null;
       try {
         return shellRequire.resolve(id, { paths: [shellNodeModules] });
       } catch {

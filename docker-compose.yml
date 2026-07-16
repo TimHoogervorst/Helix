@@ -42,8 +42,9 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./src/shell:/app
-      - /app/node_modules
+      - ./src/shell:/repo/src/shell
+      - ./src/mods:/repo/src/mods
+      - /repo/src/shell/node_modules
     environment:
       VITE_API_URL: http://backend:8000
     depends_on:

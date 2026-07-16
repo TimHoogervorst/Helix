@@ -6,6 +6,7 @@ internal helper functions directly for edge-case coverage.
 
 from __future__ import annotations
 
+import json
 import textwrap
 from pathlib import Path
 
@@ -13,7 +14,10 @@ import pytest
 
 from helix_core.mod_system.loader import (
     _auto_discover,
+    _get_all_manifests,
+    _load_external_mods_from_json,
     _load_manifests_from_paths,
+    _sanitize_module_name,
     _topological_sort,
     _validate_manifest_set,
     get_helix_mods,
@@ -496,3 +500,406 @@ class TestGetHelixMods:
 
         with pytest.raises(ValueError, match="expected id 'mismatch'"):
             get_helix_mods(base_dir=tmp_path)
+
+
+# ── _sanitize_module_name ────────────────────────────────────────────────────
+
+
+class TestSanitizeModuleName:
+    """Tests for _sanitize_module_name."""
+
+    def test_preserves_valid_identifier(self):
+        assert _sanitize_module_name("my_plugin") == "my_plugin"
+
+    def test_replaces_hyphens(self):
+        assert _sanitize_module_name("my-plugin") == "my_plugin"
+
+    def test_replaces_dots(self):
+        assert _sanitize_module_name("my.plugin") == "my_plugin"
+
+    def test_strips_leading_trailing_special(self):
+        assert _sanitize_module_name("-my_plugin-") == "my_plugin"
+
+    def test_prepends_underscore_for_digit_start(self):
+        assert _sanitize_module_name("123plugin") == "_123plugin"
+
+    def test_raises_on_all_special_chars(self):
+        with pytest.raises(ValueError, match="Cannot derive"):
+            _sanitize_module_name("---")
+
+
+# ── helpers for external mod tests ───────────────────────────────────────────
+
+
+def _make_external_mod_dir(
+    base: Path,
+    mod_id: str,
+    depends_on: list[str] | None = None,
+    has_apps_py: bool = True,
+) -> Path:
+    """Create an external mod directory with ``mod.py`` and ``__init__.py``.
+
+    Args:
+        base: The parent directory (e.g. ``external_mods/``).
+        mod_id: The mod ID (also used as the directory name).
+        depends_on: List of dependency mod IDs.
+        has_apps_py: If True, create a minimal ``apps.py``.
+
+    Returns:
+        The created mod directory path.
+    """
+    manifest = _make_manifest(mod_id, depends_on)
+
+    dep_list = [f'"{d}"' for d in manifest.depends_on]
+    dep_str = f"[{', '.join(dep_list)}]"
+
+    mod_dir = base / mod_id
+    mod_dir.mkdir(parents=True, exist_ok=True)
+
+    (mod_dir / "__init__.py").write_text("")
+    (mod_dir / "mod.py").write_text(
+        textwrap.dedent(f"""\
+        from helix_core.mod_system.manifest import ModManifest
+
+        manifest = ModManifest(
+            id="{manifest.id}",
+            display_name="{manifest.display_name}",
+            version="{manifest.version}",
+            depends_on={dep_str},
+        )
+        """)
+    )
+
+    if has_apps_py:
+        safe_name = _sanitize_module_name(mod_id)
+        (mod_dir / "apps.py").write_text(
+            textwrap.dedent(f"""\
+            from django.apps import AppConfig
+
+
+            class {safe_name.title().replace('_', '')}Config(AppConfig):
+                name = "{safe_name}"
+                default_auto_field = "django.db.models.BigAutoField"
+            """)
+        )
+
+    return mod_dir
+
+
+# ── _load_external_mods_from_json ────────────────────────────────────────────
+
+
+class TestLoadExternalModsFromJson:
+    """Tests for _load_external_mods_from_json."""
+
+    def test_no_json_file_returns_empty(self, tmp_path):
+        result = _load_external_mods_from_json(tmp_path)
+        assert result == {}
+
+    def test_none_base_dir_returns_empty(self):
+        result = _load_external_mods_from_json(None)
+        assert result == {}
+
+    def test_empty_mods_list(self, tmp_path):
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({"mods": []}))
+
+        result = _load_external_mods_from_json(tmp_path)
+        assert result == {}
+
+    def test_single_external_mod(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "my-plugin")
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [
+                {"path": "./external_mods/my-plugin/mod.py"},
+            ],
+        }))
+
+        result = _load_external_mods_from_json(tmp_path)
+        assert "my-plugin" in result
+        manifest, dotted_path = result["my-plugin"]
+        assert manifest.id == "my-plugin"
+        assert dotted_path == "my_plugin"
+
+    def test_multiple_external_mods(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "plugin-a")
+        _make_external_mod_dir(ext_dir, "plugin-b")
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [
+                {"path": "./external_mods/plugin-a/mod.py"},
+                {"path": "./external_mods/plugin-b/mod.py"},
+            ],
+        }))
+
+        result = _load_external_mods_from_json(tmp_path)
+        assert set(result.keys()) == {"plugin-a", "plugin-b"}
+        assert result["plugin-a"][1] == "plugin_a"
+        assert result["plugin-b"][1] == "plugin_b"
+
+    def test_mod_with_dependencies(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "my-plugin", depends_on=["tags"])
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [
+                {"path": "./external_mods/my-plugin/mod.py"},
+            ],
+        }))
+
+        result = _load_external_mods_from_json(tmp_path)
+        manifest, _ = result["my-plugin"]
+        assert manifest.depends_on == ["tags"]
+
+    def test_missing_mod_py_raises(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        (ext_dir / "empty").mkdir()
+        (ext_dir / "empty" / "__init__.py").write_text("")
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [
+                {"path": "./external_mods/empty/mod.py"},
+            ],
+        }))
+
+        with pytest.raises(FileNotFoundError, match="does not exist"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_no_init_py_raises(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        mod_dir = ext_dir / "no-package"
+        mod_dir.mkdir()
+        (mod_dir / "mod.py").write_text(
+            textwrap.dedent("""\
+            from helix_core.mod_system.manifest import ModManifest
+            manifest = ModManifest(
+                id="no-package",
+                display_name="No Package",
+                version="0.1.0",
+            )
+            """)
+        )
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [
+                {"path": "./external_mods/no-package/mod.py"},
+            ],
+        }))
+
+        with pytest.raises(ImportError, match="__init__.py"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_malformed_json_raises(self, tmp_path):
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text("{ not valid json")
+
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_missing_mods_key_raises(self, tmp_path):
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({"something": "else"}))
+
+        with pytest.raises(ValueError, match="'mods' key"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_mods_not_a_list_raises(self, tmp_path):
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({"mods": "not-a-list"}))
+
+        with pytest.raises(ValueError, match="must be a list"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_entry_missing_path_raises(self, tmp_path):
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"not_path": "x"}],
+        }))
+
+        with pytest.raises(ValueError, match="'path' key"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_entry_empty_path_raises(self, tmp_path):
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": ""}],
+        }))
+
+        with pytest.raises(ValueError, match="non-empty string"):
+            _load_external_mods_from_json(tmp_path)
+
+    def test_adds_parent_to_sys_path(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "my-plugin")
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/my-plugin/mod.py"}],
+        }))
+
+        import sys
+        parent = str(ext_dir)
+        assert parent not in sys.path
+
+        _load_external_mods_from_json(tmp_path)
+
+        assert parent in sys.path
+
+    def test_manifest_id_mismatch_raises(self, tmp_path):
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        mod_dir = ext_dir / "my-plugin"
+        mod_dir.mkdir()
+        (mod_dir / "__init__.py").write_text("")
+        (mod_dir / "mod.py").write_text(
+            textwrap.dedent("""\
+            from helix_core.mod_system.manifest import ModManifest
+            manifest = ModManifest(
+                id="wrong_id",
+                display_name="Wrong",
+                version="0.1.0",
+            )
+            """)
+        )
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/my-plugin/mod.py"}],
+        }))
+
+        with pytest.raises(ValueError, match="expected id 'my-plugin'"):
+            _load_external_mods_from_json(tmp_path)
+
+
+# ── get_helix_mods with external mods ────────────────────────────────────────
+
+
+class TestGetHelixModsWithExternal:
+    """Integration tests for get_helix_mods() with helix.mods.json."""
+
+    def test_includes_external_mods(self, tmp_path):
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "my-plugin")
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/my-plugin/mod.py"}],
+        }))
+
+        result = get_helix_mods(base_dir=tmp_path)
+        assert "core_mods.tags" in result
+        assert "my_plugin" in result
+
+    def test_external_mod_in_topological_order(self, tmp_path):
+        """External mod dependencies are respected in sorting."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        # my-plugin depends on tags, so tags must come before my_plugin.
+        _make_external_mod_dir(ext_dir, "my-plugin", depends_on=["tags"])
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/my-plugin/mod.py"}],
+        }))
+
+        result = get_helix_mods(base_dir=tmp_path)
+        assert result.index("core_mods.tags") < result.index("my_plugin")
+
+    def test_external_mod_missing_dependency_detected(self, tmp_path):
+        """External mod depending on non-existent mod raises error."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "my-plugin", depends_on=["nonexistent"])
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/my-plugin/mod.py"}],
+        }))
+
+        with pytest.raises(ValueError, match="nonexistent"):
+            get_helix_mods(base_dir=tmp_path)
+
+    def test_duplicate_id_between_core_and_external_raises(self, tmp_path):
+        """Same mod ID in core_mods and helix.mods.json raises."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "tags")
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/tags/mod.py"}],
+        }))
+
+        with pytest.raises(ValueError, match="Duplicate mod ID"):
+            get_helix_mods(base_dir=tmp_path)
+
+    def test_external_mod_with_helix_mods_override(self, tmp_path):
+        """External mods are included even when HELIX_MODS is set."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+        _make_mod_dir(core_mods, "users")
+
+        ext_dir = tmp_path / "external_mods"
+        ext_dir.mkdir()
+        _make_external_mod_dir(ext_dir, "my-plugin", depends_on=["tags"])
+
+        json_path = tmp_path / "helix.mods.json"
+        json_path.write_text(json.dumps({
+            "mods": [{"path": "./external_mods/my-plugin/mod.py"}],
+        }))
+
+        # Override to only load tags from core, but my-plugin from external.
+        result = get_helix_mods(
+            base_dir=tmp_path,
+            helix_mods_override=["core_mods.tags"],
+        )
+        assert "core_mods.tags" in result
+        assert "core_mods.users" not in result
+        assert "my_plugin" in result
+
+    def test_no_helix_mods_json_with_override(self, tmp_path):
+        """When no helix.mods.json exists and override is set, only
+        the overridden mods are returned."""
+        core_mods = tmp_path / "core_mods"
+        core_mods.mkdir()
+        _make_mod_dir(core_mods, "tags")
+
+        # No helix.mods.json created.
+
+        result = get_helix_mods(
+            base_dir=tmp_path,
+            helix_mods_override=["core_mods.tags"],
+        )
+        assert result == ["core_mods.tags"]

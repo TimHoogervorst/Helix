@@ -4,11 +4,25 @@ The loader function ``get_helix_mods()`` is the entry point called from
 ``settings.py`` to build the ``INSTALLED_APPS`` list dynamically.  It discovers
 mod manifests, validates the dependency graph, topologically sorts mods
 (Kahn's algorithm), and returns dotted-path strings.
+
+External mods can be declared via a ``helix.mods.json`` file at the project
+root.  The JSON format is::
+
+    {
+      "mods": [
+        { "path": "./external_mods/my-plugin/mod.py" }
+      ]
+    }
+
+Each ``path`` is relative to the project root and must point to a ``mod.py``
+file whose parent directory is a Python package (contains ``__init__.py``).
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -48,15 +62,53 @@ def get_helix_mods(
             a duplicated mod ID, or a mod ``id`` that doesn't match its
             directory name.
     """
+    manifests, id_to_path = _get_all_manifests(base_dir, helix_mods_override)
+
+    _validate_manifest_set(manifests)
+    sorted_ids = _topological_sort(manifests)
+
+    return [id_to_path[mod_id] for mod_id in sorted_ids]
+
+
+def _get_all_manifests(
+    base_dir: str | Path | None = None,
+    helix_mods_override: list[str] | None = None,
+) -> tuple[dict[str, ModManifest], dict[str, str]]:
+    """Discover all mod manifests (core + external) and build path mappings.
+
+    Returns a tuple ``(manifests, id_to_path)`` where *manifests* maps
+    mod IDs to their ``ModManifest`` and *id_to_path* maps each mod ID
+    to its dotted path for ``INSTALLED_APPS``.
+
+    This is the single call site for manifest discovery — used by both
+    ``get_helix_mods()`` and ``HelixCoreConfig.ready()`` to avoid
+    redundant JSON I/O and duplicate validation.
+    """
     if helix_mods_override is not None:
         manifests = _load_manifests_from_paths(helix_mods_override)
     else:
         manifests = _auto_discover(base_dir)
 
-    _validate_manifest_set(manifests)
-    sorted_ids = _topological_sort(manifests)
+    # Build dotted-path mapping for core mods.
+    id_to_path: dict[str, str] = {
+        mod_id: f"core_mods.{mod_id}" for mod_id in manifests
+    }
 
-    return [f"core_mods.{mod_id}" for mod_id in sorted_ids]
+    # ── external mods (helix.mods.json) ──────────────────────────────────
+    external_mods = _load_external_mods_from_json(base_dir)
+
+    # Detect duplicate IDs between core and external mods.
+    for ext_id, (ext_manifest, ext_path) in external_mods.items():
+        if ext_id in manifests:
+            raise ValueError(
+                f"Duplicate mod ID '{ext_id}': declared in "
+                f"helix.mods.json but a mod with that id already "
+                f"exists in core_mods/."
+            )
+        manifests[ext_id] = ext_manifest
+        id_to_path[ext_id] = ext_path
+
+    return manifests, id_to_path
 
 
 # ── discovery ────────────────────────────────────────────────────────────────
@@ -173,6 +225,128 @@ def _load_manifests_from_paths(
         manifests[mod_id] = manifest
 
     return manifests
+
+
+def _load_external_mods_from_json(
+    base_dir: str | Path | None,
+) -> dict[str, tuple[ModManifest, str]]:
+    """Load external mods declared in ``helix.mods.json``.
+
+    Reads ``<base_dir>/helix.mods.json`` and processes each entry.  Each entry
+    must have a ``"path"`` key pointing to a ``mod.py`` file relative to
+    *base_dir*.  The mod's parent directory is added to ``sys.path`` so that
+    Django can import it via ``INSTALLED_APPS``.
+
+    Args:
+        base_dir: The project root directory where ``helix.mods.json`` lives.
+
+    Returns:
+        A dict mapping mod IDs to ``(ModManifest, dotted_path)`` tuples.
+        Returns an empty dict if the JSON file does not exist or has no mods.
+
+    Raises:
+        FileNotFoundError: If a declared ``mod.py`` path does not exist.
+        ImportError: If a ``mod.py`` cannot be imported or has no ``manifest``.
+        TypeError: If a ``manifest`` is not a ``ModManifest`` instance.
+        ValueError: If a ``manifest.id`` does not match the directory name,
+            or if the JSON is malformed.
+    """
+    if base_dir is None:
+        return {}
+
+    json_path = Path(base_dir) / "helix.mods.json"
+    if not json_path.is_file():
+        return {}
+
+    with open(json_path, "r", encoding="utf-8") as fh:
+        try:
+            data = json.load(fh)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"helix.mods.json at {json_path} is not valid JSON: {exc}"
+            ) from exc
+
+    if not isinstance(data, dict) or "mods" not in data:
+        raise ValueError(
+            f"helix.mods.json at {json_path} must be a JSON object "
+            f"with a 'mods' key."
+        )
+
+    entries = data["mods"]
+    if not isinstance(entries, list):
+        raise ValueError(
+            f"helix.mods.json 'mods' must be a list, "
+            f"got {type(entries).__name__}."
+        )
+
+    result: dict[str, tuple[ModManifest, str]] = {}
+
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict) or "path" not in entry:
+            raise ValueError(
+                f"helix.mods.json mods[{i}] must be an object "
+                f"with a 'path' key."
+            )
+
+        raw_path = entry["path"]
+        if not isinstance(raw_path, str) or not raw_path:
+            raise ValueError(
+                f"helix.mods.json mods[{i}].path must be a "
+                f"non-empty string."
+            )
+
+        # Resolve the path relative to the project root.
+        mod_py_path = (Path(base_dir) / raw_path).resolve()
+
+        if not mod_py_path.is_file():
+            raise FileNotFoundError(
+                f"helix.mods.json mods[{i}] references "
+                f"'{raw_path}' — resolved to '{mod_py_path}' which "
+                f"does not exist."
+            )
+
+        # The mod package is the directory containing mod.py.
+        mod_dir = mod_py_path.parent
+
+        # Ensure the mod package is importable as a Python module.
+        if not (mod_dir / "__init__.py").is_file():
+            raise ImportError(
+                f"External mod at '{mod_dir}' must be a Python "
+                f"package — it needs an __init__.py file."
+            )
+
+        mod_id = mod_dir.name
+        # Sanitize for Python identifier (hyphens → underscores).
+        dotted_path = _sanitize_module_name(mod_id)
+
+        # Add the parent to sys.path so Django can import the package.
+        parent = str(mod_dir.parent)
+        if parent not in sys.path:
+            sys.path.insert(0, parent)
+
+        # Load the manifest.
+        manifest = _import_manifest(mod_py_path, mod_id)
+        result[mod_id] = (manifest, dotted_path)
+
+    return result
+
+
+def _sanitize_module_name(name: str) -> str:
+    """Convert a directory name to a valid Python module name.
+
+    Replaces hyphens and other non-identifier characters with underscores,
+    then strips leading/trailing underscores.  If the result starts with
+    a digit, a leading underscore is prepended.
+    """
+    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+    sanitized = sanitized.strip("_")
+    if not sanitized:
+        raise ValueError(
+            f"Cannot derive a valid Python module name from '{name}'."
+        )
+    if sanitized[0].isdigit():
+        sanitized = "_" + sanitized
+    return sanitized
 
 
 def _import_manifest(mod_py_path: Path, mod_id: str) -> ModManifest:

@@ -8,17 +8,16 @@ class HelixCoreConfig(AppConfig):
 
     def ready(self):
         from helix_core.mod_system.loader import (
-            _auto_discover,
-            _load_manifests_from_paths,
+            _get_all_manifests,
             get_helix_mods,
         )
         from helix_core.mod_system.registry import registry
 
-        # Discover manifests for dependency-aware signal validation.
-        if settings.HELIX_MODS is not None:
-            manifests = _load_manifests_from_paths(settings.HELIX_MODS)
-        else:
-            manifests = _auto_discover(settings.BASE_DIR)
+        # Discover all manifests (core + external) for signal validation.
+        manifests, _ = _get_all_manifests(
+            base_dir=settings.BASE_DIR,
+            helix_mods_override=settings.HELIX_MODS,
+        )
 
         # Get the topologically sorted mod order.
         sorted_paths = get_helix_mods(

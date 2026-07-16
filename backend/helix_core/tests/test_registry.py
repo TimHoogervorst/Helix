@@ -663,6 +663,141 @@ class TestServiceRegistration:
         assert services["test.svc"]() == "new"
 
 
+# ── override (service mocking context manager) ─────────────────────────────
+
+
+class TestOverride:
+    """Tests for ``registry.override()`` context manager."""
+
+    def test_override_replaces_handler(self):
+        """Within the context, call() uses the mock handler."""
+        reg = _fresh_registry()
+
+        def real_handler(x):
+            return f"real:{x}"
+
+        def mock_handler(x):
+            return f"mock:{x}"
+
+        reg.register_service("test.svc", real_handler)
+
+        with reg.override("test.svc", mock_handler):
+            result = reg.call("test.svc", "data")
+            assert result == "mock:data"
+
+    def test_original_restored_after_exit(self):
+        """After the context exits, the original handler is restored."""
+        reg = _fresh_registry()
+
+        def real_handler(x):
+            return f"real:{x}"
+
+        reg.register_service("test.svc", real_handler)
+
+        with reg.override("test.svc", lambda x: f"mock:{x}"):
+            pass
+
+        result = reg.call("test.svc", "data")
+        assert result == "real:data"
+
+    def test_override_service_not_previously_registered(self):
+        """Can override a service ID that wasn't registered before."""
+        reg = _fresh_registry()
+
+        def mock_handler(x):
+            return f"mock:{x}"
+
+        with reg.override("new.svc", mock_handler):
+            result = reg.call("new.svc", "data")
+            assert result == "mock:data"
+
+        # After exit, the service should be removed (not left as stale mock).
+        with pytest.raises(ValueError, match="not registered"):
+            reg.call("new.svc", "data")
+
+    def test_override_restores_on_exception(self):
+        """Original handler is restored even if the context raises."""
+        reg = _fresh_registry()
+
+        def real_handler():
+            return "real"
+
+        reg.register_service("test.svc", real_handler)
+
+        try:
+            with reg.override("test.svc", lambda: "mock"):
+                raise RuntimeError("oops")
+        except RuntimeError:
+            pass
+
+        # Original should be restored despite the exception.
+        assert reg.call("test.svc") == "real"
+
+    def test_override_restores_previous_mock_on_exception(self):
+        """When a previously-unregistered service override raises,
+        the service is removed after exit."""
+        reg = _fresh_registry()
+
+        def mock_handler():
+            return "mock"
+
+        try:
+            with reg.override("temp.svc", mock_handler):
+                raise RuntimeError("oops")
+        except RuntimeError:
+            pass
+
+        # Service should not exist after exception exit.
+        with pytest.raises(ValueError, match="not registered"):
+            reg.call("temp.svc")
+
+    def test_override_nested_contexts(self):
+        """Nested overrides restore each level correctly."""
+        reg = _fresh_registry()
+
+        def real():
+            return "real"
+
+        reg.register_service("test.svc", real)
+
+        with reg.override("test.svc", lambda: "outer"):
+            assert reg.call("test.svc") == "outer"
+            with reg.override("test.svc", lambda: "inner"):
+                assert reg.call("test.svc") == "inner"
+            # Inner exited — back to outer.
+            assert reg.call("test.svc") == "outer"
+        # Outer exited — back to real.
+        assert reg.call("test.svc") == "real"
+
+    def test_override_does_not_affect_other_services(self):
+        """Overriding one service does not change others."""
+        reg = _fresh_registry()
+
+        reg.register_service("a.one", lambda: "a-real")
+        reg.register_service("b.two", lambda: "b-real")
+
+        with reg.override("a.one", lambda: "a-mock"):
+            assert reg.call("a.one") == "a-mock"
+            assert reg.call("b.two") == "b-real"
+
+        assert reg.call("a.one") == "a-real"
+        assert reg.call("b.two") == "b-real"
+
+    def test_override_updates_list_services(self):
+        """list_services() reflects the mock during override."""
+        reg = _fresh_registry()
+        reg.register_service("test.svc", lambda: "real")
+
+        mock = lambda: "mock"  # noqa: E731
+
+        with reg.override("test.svc", mock):
+            services = reg.list_services()
+            assert services["test.svc"] is mock
+
+        services = reg.list_services()
+        assert services["test.svc"] is not mock
+
+
 # ── _resolve_mod_id ─────────────────────────────────────────────────────────
 
 

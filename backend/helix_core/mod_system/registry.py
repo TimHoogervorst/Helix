@@ -27,7 +27,8 @@ Usage::
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Callable, Optional
+from contextlib import contextmanager
+from typing import Any, Callable, Generator, Optional
 
 from helix_core.mod_system.manifest import ModManifest
 
@@ -69,7 +70,12 @@ class BackendModRegistry:
         """Set the topological mod order from the loader's sorted output.
 
         Each entry in *dotted_paths* is a string like
-        ``"core_mods.tags"`` — the final segment is extracted as the mod ID.
+        ``"core_mods.tags"`` (for core mods) or ``"my_plugin"`` (for
+        external mods).  For core mods the final dot-separated segment
+        is extracted as the mod ID.  For external mods the manifest
+        keys are used directly to recover the original mod ID (which
+        may differ from the sanitized dotted path, e.g. ``"my-plugin"``
+        vs ``"my_plugin"``).
 
         If *manifests* is provided, they are stored for dependency-aware
         signal validation.
@@ -77,9 +83,30 @@ class BackendModRegistry:
         Called once during ``HelixCoreConfig.ready()`` before any URL
         patterns are collected.
         """
-        self._mod_order = [path.split(".")[-1] for path in dotted_paths]
         if manifests is not None:
             self._manifests = dict(manifests)
+            # Build a reverse mapping: dotted path → manifest ID.
+            # For core mods: "core_mods.tags" section → "tags"
+            # For external mods: "my_plugin" → "my-plugin"
+            path_to_id: dict[str, str] = {}
+            for mod_id in manifests:
+                core_path = f"core_mods.{mod_id}"
+                path_to_id[core_path] = mod_id
+            # External mods: dotted path is the sanitized mod_id.
+            from helix_core.mod_system.loader import _sanitize_module_name
+
+            for mod_id in manifests:
+                if f"core_mods.{mod_id}" not in dotted_paths:
+                    path_to_id[_sanitize_module_name(mod_id)] = mod_id
+
+            self._mod_order = [
+                path_to_id.get(path, path.split(".")[-1])
+                for path in dotted_paths
+            ]
+        else:
+            self._mod_order = [
+                path.split(".")[-1] for path in dotted_paths
+            ]
 
     # ── registration methods ─────────────────────────────────────────────
 
@@ -262,6 +289,38 @@ class BackendModRegistry:
     def list_services(self) -> dict[str, Callable[..., Any]]:
         """Return all registered services as ``{service_id: handler}``."""
         return dict(self._services)
+
+    @contextmanager
+    def override(
+        self,
+        service_id: str,
+        mock_handler: Callable[..., Any],
+    ) -> Generator[None, None, None]:
+        """Temporarily override a service handler for testing.
+
+        Usage::
+
+            with registry.override("lims.resolveEntity", mock_handler):
+                # Service calls within this block use the mock
+                registry.call("lims.resolveEntity", entity_id=42)
+            # Original handler restored
+
+        If *service_id* was not previously registered, it is removed after
+        the context exits (rather than leaving a stale mock).
+
+        Parameters:
+            service_id: The service to override.
+            mock_handler: The callable to use in place of the real handler.
+        """
+        original = self._services.get(service_id)
+        self._services[service_id] = mock_handler
+        try:
+            yield
+        finally:
+            if original is None:
+                del self._services[service_id]
+            else:
+                self._services[service_id] = original
 
     # ── query methods ────────────────────────────────────────────────────
 

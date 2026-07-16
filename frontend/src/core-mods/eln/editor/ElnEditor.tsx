@@ -295,10 +295,15 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     if (!editor || !entry || initialContentLoaded.current) return;
     const { body } = splitFirstParagraph(entry.content);
     if (JSON.stringify(editor.getJSON()) !== JSON.stringify(body)) {
+      // Notify the bus that content is being loaded programmatically so
+      // downstream subscribers (useBlockActionLogging) can suppress
+      // accumulation of lifecycle events during the load.
+      bus?.emit("eln.editor.content-loading", true);
       isProgrammaticChange.current = true;
       editor.commands.setContent(body);
       contentRef.current = body as TipTapDoc;
       isProgrammaticChange.current = false;
+      bus?.emit("eln.editor.content-loading", false);
     }
     initialContentLoaded.current = true;
   }, [editor, entry]);

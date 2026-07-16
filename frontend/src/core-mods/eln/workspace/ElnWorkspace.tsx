@@ -118,7 +118,15 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     const current = editorState.lastSavedAt;
     // Skip initial null and unchanged values
     if (current === null) return;
-    if (prevLastSavedAtRef.current?.getTime() === current.getTime()) return;
+    // Skip the initial transition from null → first Date value on page load.
+    // The entry was just fetched from the server, not saved by the user, so
+    // we must not flush accumulated lifecycle events that were emitted during
+    // programmatic content loading (Strict Mode re-mounts, etc.).
+    if (prevLastSavedAtRef.current === null) {
+      prevLastSavedAtRef.current = current;
+      return;
+    }
+    if (prevLastSavedAtRef.current.getTime() === current.getTime()) return;
     prevLastSavedAtRef.current = current;
 
     bus.emit("eln.entry.saved", {

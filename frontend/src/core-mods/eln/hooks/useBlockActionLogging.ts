@@ -111,6 +111,12 @@ export function useBlockActionLogging(
   const entryIdRef = useRef<string | undefined>(entryId);
   entryIdRef.current = entryId;
 
+  // Suppression flag — set to true during programmatic content loads
+  // (e.g. initial fetch, setContent) so we don't accumulate spurious
+  // lifecycle events emitted by blocks being mounted/configured by the
+  // server payload rather than by user action.
+  const suppressRef = useRef(false);
+
   // Track unsubscribe functions for all lifecycle listeners + save listener
   const unsubsRef = useRef<Array<() => void>>([]);
 
@@ -119,10 +125,23 @@ export function useBlockActionLogging(
     const unsubs: Array<() => void> = [];
     const pending = pendingRef.current;
 
+    // ── Suppression gate: skip accumulation during programmatic loads ──
+    const loadingUnsub = bus.on(
+      "eln.editor.content-loading",
+      (payload: unknown) => {
+        suppressRef.current = payload as boolean;
+      },
+    );
+    unsubs.push(loadingUnsub);
+
     for (const blockId of blockIds) {
       for (const verb of VERBS) {
         const event = `${blockId}.${verb}`;
         const unsub = bus.on(event, (payload: unknown) => {
+          // Skip accumulation during programmatic content loads — the
+          // blocks are being mounted from a server payload, not by the user.
+          if (suppressRef.current) return;
+
           const p = payload as BlockLifecyclePayload;
           const key = `${p.blockInstanceId}:${verb}`;
 

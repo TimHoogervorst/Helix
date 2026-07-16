@@ -58,7 +58,10 @@ export function BlockNodeView(props: BlockNodeViewProps) {
     slotId,
     attrs: binding.deserialize(node.attrs.content as string),
     updateAttrs: (newAttrs: Record<string, unknown>) => {
-      const serialized = binding.serialize(newAttrs);
+      // Merge with existing state so partial updates don't lose other fields.
+      // Mirrors TipTap's native updateAttributes merge semantics.
+      const merged = { ...instanceRef.current.attrs, ...newAttrs };
+      const serialized = binding.serialize(merged);
       // Persist to ProseMirror node attribute — triggers re-render
       updateAttributes({ content: serialized });
     },
@@ -92,7 +95,9 @@ export function BlockNodeView(props: BlockNodeViewProps) {
   const hasEmittedCreated = useRef(false);
 
   useEffect(() => {
-    // Only emit on true mount, not on React Strict Mode double-invoke
+    // Only emit on true mount, not on React Strict Mode double-invoke.
+    // The ref survives the simulated unmount/remount cycle so the second
+    // effect invocation sees it as true and skips.
     if (hasEmittedCreated.current) return;
     hasEmittedCreated.current = true;
 
@@ -108,34 +113,58 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   // ── Lifecycle: edited ──────────────────────────────────────────────────
 
-  // Track initial render to avoid emitting "edited" for the initial mount
-  const isInitialRender = useRef(true);
+  // Track the last committed content so we only emit "edited" when content
+  // genuinely changes from the baseline — not on mount or on Strict Mode
+  // double-invoke (where content is identical on the second run).
+  const committedContentRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isInitialRender.current) {
-      isInitialRender.current = false;
+    if (committedContentRef.current === null) {
+      // First commit — record the baseline, don't emit
+      committedContentRef.current = currentContent;
       return;
     }
 
-    const eventName = `${binding.id}.edited`;
-    bus.emit(eventName, {
-      blockId: binding.id,
-      slotId,
-      blockInstanceId: instanceRef.current.id,
-      changedAttrs: binding.deserialize(currentContent),
-    });
+    if (committedContentRef.current !== currentContent) {
+      committedContentRef.current = currentContent;
+      const eventName = `${binding.id}.edited`;
+      bus.emit(eventName, {
+        blockId: binding.id,
+        slotId,
+        blockInstanceId: instanceRef.current.id,
+        changedAttrs: binding.deserialize(currentContent),
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentContent]);
 
   // ── Lifecycle: deleted ─────────────────────────────────────────────────
 
+  // Strict Mode (dev) double-invokes effects: mount → cleanup → re-mount.
+  // The cleanup runs between the two effect invocations, which would
+  // spuriously emit "deleted".  We detect this by storing a generation
+  // token in a ref, replacing it on each effect run, and checking in a
+  // microtask whether our token was replaced (Strict Mode re-mount) or is
+  // still ours (real unmount).
+  const unmountTokenRef = useRef<object | null>(null);
+
   useEffect(() => {
+    const token = {};
+    unmountTokenRef.current = token;
+
     return () => {
-      const eventName = `${binding.id}.deleted`;
-      bus.emit(eventName, {
-        blockId: binding.id,
-        slotId,
-        blockInstanceId: instanceRef.current.id,
+      // Schedule a microtask — if a Strict Mode re-mount happens, it runs
+      // synchronously after this cleanup and replaces the token before the
+      // microtask fires.  On a real unmount, nobody replaces the token.
+      queueMicrotask(() => {
+        if (unmountTokenRef.current === token) {
+          const eventName = `${binding.id}.deleted`;
+          bus.emit(eventName, {
+            blockId: binding.id,
+            slotId,
+            blockInstanceId: instanceRef.current.id,
+          });
+        }
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

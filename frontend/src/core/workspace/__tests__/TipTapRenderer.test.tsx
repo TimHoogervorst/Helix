@@ -491,6 +491,75 @@ describe("TipTapRenderer", () => {
     expect(payload.changedAttrs).toEqual({ rows: 5 });
   });
 
+  it("updateAttrs merges partial updates with existing state", async () => {
+    const editedPayloads: unknown[] = [];
+    bus.on("eln.table.edited", (payload) => {
+      editedPayloads.push(payload);
+    });
+
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.table",
+        label: "Table",
+        component: TestBlock,
+      }),
+    ];
+
+    render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(capture.editor).toBeTruthy();
+    });
+
+    // Insert a block with multi-field content
+    await act(async () => {
+      capture.editor!.commands.setContent({
+        type: "doc",
+        content: [
+          {
+            type: "eln.table",
+            attrs: {
+              content: JSON.stringify({ title: "My Table", rows: 3, cols: 2 }),
+            },
+          },
+        ],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // Trigger a partial update via the TestBlock's update button.
+    // TestBlock calls updateAttrs({ updated: true }) — if merging works,
+    // the serialized content should still contain title, rows, and cols.
+    await act(async () => {
+      const btn = document.querySelector(
+        '[data-testid="update-attrs-btn-eln.table"]',
+      );
+      btn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // The edited event payload carries changedAttrs — the full deserialized
+    // state after the update. With the merge fix, it should preserve all
+    // existing fields AND include the new partial field.
+    expect(editedPayloads.length).toBeGreaterThanOrEqual(1);
+    const payload = editedPayloads[0] as Record<string, unknown>;
+    const changedAttrs = payload.changedAttrs as Record<string, unknown>;
+    expect(changedAttrs.title).toBe("My Table");
+    expect(changedAttrs.rows).toBe(3);
+    expect(changedAttrs.cols).toBe(2);
+    expect(changedAttrs.updated).toBe(true);
+  });
+
   // ── Lifecycle: deleted ──────────────────────────────────────────────
 
   it("emits deleted event when a block node is removed", async () => {

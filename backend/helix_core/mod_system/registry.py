@@ -206,7 +206,7 @@ class BackendModRegistry:
         # Wrap the handler to check dependency readiness at call time.
         original_handler = handler
 
-        def _dependency_gated_handler(sender_instance=None, **kwargs):  # type: ignore[no-untyped-def]
+        def _dependency_gated_handler(sender=None, **kwargs):  # type: ignore[no-untyped-def]
             # Check that all declared dependencies are ready.
             if mod_id in self._manifests:
                 for dep_id in self._manifests[mod_id].depends_on:
@@ -218,7 +218,7 @@ class BackendModRegistry:
                     if not dep_config.ready:
                         # Dependency not ready yet — don't fire.
                         return None
-            return original_handler(sender=sender_instance, **kwargs)
+            return original_handler(sender=sender, **kwargs)
 
         signal.connect(_dependency_gated_handler, sender=sender)
         self._signal_registrations.append({

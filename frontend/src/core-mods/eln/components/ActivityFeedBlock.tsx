@@ -53,14 +53,27 @@ function mapElnAction(a: ElnAction): DisplayActionItem {
   };
 }
 
+/** Payload shape emitted by BlockNodeView for lifecycle events. */
+interface BlockLifecyclePayload {
+  blockId: string;
+  slotId: string;
+  blockInstanceId: string;
+  attrs?: Record<string, unknown>;
+  changedAttrs?: Record<string, unknown>;
+}
+
+/** Monotonic counter for unique negative pending item IDs. */
+let _pendingIdCounter = 0;
+
 /** Create a pending DisplayActionItem from a bus event. */
 function createPendingItem(
   eventName: string,
   message: string,
+  blockInstanceId: string,
 ): DisplayActionItem {
   const now = new Date().toISOString();
   return {
-    id: -Date.now(), // temporary negative ID — replaced on reconciliation
+    id: --_pendingIdCounter, // unique negative ID — replaced on reconciliation
     performedBy: {
       id: 0,
       username: "",
@@ -71,7 +84,7 @@ function createPendingItem(
     actionType: eventName,
     targetType: "",
     targetId: 0,
-    metadata: { message },
+    metadata: { message, blockInstanceId },
     createdAt: now,
     state: "pending",
   };
@@ -173,17 +186,36 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
 
       for (const verb of VERBS) {
         const eventName = `${blockId}.${verb}`;
-        const unsub = bus.on(eventName, () => {
+        const unsub = bus.on(eventName, (payload: unknown) => {
+          const p = payload as BlockLifecyclePayload;
+
           // Derive human-readable message from block registration
-          const displayName = block.getDisplayName?.({}) ?? block.label;
+          const attrs = verb === "edited" ? p.changedAttrs : p.attrs;
+          const displayName = block.getDisplayName?.(attrs ?? {}) ?? block.label;
           const template = block.messages?.[verb];
           const message = template
             ? template.replace(/\{name\}/g, displayName)
             : `${block.label} was ${verb}`;
 
-          // Create optimistic pending item
-          const pending = createPendingItem(eventName, message);
-          setPendingItems((prev) => [pending, ...prev]);
+          // Dedup: replace any existing pending item for the same
+          // (actionType, blockInstanceId) so repeated edits don't stack.
+          const dedupKey = `${p.blockInstanceId}:${eventName}`;
+          setPendingItems((prev) => {
+            const filtered = prev.filter(
+              (item) =>
+                !(
+                  item.state === "pending" &&
+                  item.metadata?.blockInstanceId &&
+                  `${item.metadata.blockInstanceId}:${item.actionType}` === dedupKey
+                ),
+            );
+            const pending = createPendingItem(
+              eventName,
+              message,
+              p.blockInstanceId,
+            );
+            return [pending, ...filtered];
+          });
 
           // Refetch from server to reconcile
           refetchRef.current();

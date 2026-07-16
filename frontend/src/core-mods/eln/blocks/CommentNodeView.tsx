@@ -11,7 +11,7 @@
  * entry from the current user.  Subsequent edits sync back to node attributes
  * via ``updateAttributes``.
  */
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Check, ChevronDown, ChevronRight, MessageSquare, Undo2 } from "lucide-react";
 import { useCurrentUser } from "../../../core/user/CurrentUserProvider";
@@ -162,7 +162,6 @@ export function CommentContent({
 }: CommentContentProps) {
   const { user } = useCurrentUser();
   const { showComments } = useCommentVisibility();
-  const hasInitialized = useRef(false);
 
   // Editable body state — mirrors thread[0].text, synced on blur
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -181,8 +180,9 @@ export function CommentContent({
 
   // ── Auto-initialise first comment from current user ──────────────────
   // Lazy-init a local entry during render so the comment card is shown
-  // immediately, avoiding a flash of "Loading comment…".  Persisted to
-  // the node in the layout effect below.
+  // immediately, avoiding a flash of "Loading comment…".  The entry is
+  // only visual — it is NOT persisted to the node attributes until the
+  // user actually types something, avoiding a spurious "edited" event.
   const localEntryRef = useRef<CommentEntry | null>(null);
   if (thread.length === 0 && user && !localEntryRef.current) {
     localEntryRef.current = makeCommentEntry(user, "");
@@ -191,18 +191,6 @@ export function CommentContent({
   if (thread.length > 0 && localEntryRef.current) {
     localEntryRef.current = null;
   }
-
-  useLayoutEffect(() => {
-    if (hasInitialized.current) return;
-    if (thread.length > 0) {
-      hasInitialized.current = true;
-      return;
-    }
-    if (!user || !localEntryRef.current) return;
-
-    hasInitialized.current = true;
-    updateAttrs({ thread: [localEntryRef.current] });
-  }, [thread.length, user, updateAttrs]);
 
   // Effective thread — uses the locally-initialized entry while the node
   // hasn't been updated yet, otherwise uses the node's stored thread.

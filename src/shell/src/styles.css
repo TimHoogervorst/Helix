@@ -2520,7 +2520,7 @@ input.library-new-folder-input:focus {
 
 .library-filter-search-icon {
   position: absolute;
-  left: 0.55rem;
+  left: 0.65rem;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
@@ -2529,7 +2529,7 @@ input.library-new-folder-input:focus {
 
 .library-filter-search {
   width: 100%;
-  padding: 0.35rem 0.65rem 0.35rem 1.9rem;
+  padding: 0.35rem 0.65rem 0.35rem 2.1rem;
   font-size: 0.82rem;
   border: 1px solid var(--gray-300);
   border-radius: 4px;

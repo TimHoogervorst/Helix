@@ -2,8 +2,7 @@
  * Tests for Layout — the global sidebar shell wrapping <Outlet />.
  *
  * Verifies:
- *  - Sidebar renders with all required sections (brand, search, nav,
- *    user menu)
+ *  - Sidebar renders with all required sections (brand, nav, user menu)
  *  - The old horizontal <nav> topbar no longer exists
  *  - Sidebar actions (registered by mods via registry) render inline
  *  - UserMenu trigger renders (avatar + username from CurrentUserContext)
@@ -93,12 +92,6 @@ describe("Layout sidebar", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument();
   });
 
-  it("renders the search placeholder with ⌘K badge", () => {
-    renderLayout();
-    expect(screen.getByText("Search entries…")).toBeInTheDocument();
-    expect(screen.getByText("⌘K")).toBeInTheDocument();
-  });
-
   it("renders Home nav link", () => {
     renderLayout();
     expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
@@ -177,11 +170,6 @@ describe("Layout sidebar", () => {
     renderLayout();
     const aside = document.querySelector("aside");
     expect(aside).toBeInTheDocument();
-  });
-
-  it("has the search placeholder bar with correct aria-label", () => {
-    renderLayout();
-    expect(screen.getByLabelText("Search")).toBeInTheDocument();
   });
 
   it("renders all nav links with tooltip titles", () => {

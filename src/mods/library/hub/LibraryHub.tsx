@@ -339,38 +339,40 @@ function LibraryHub() {
               disabled
             />
           </div>
-          <div className="library-filter-select-wrap">
-            <ChevronDown size={14} className="library-filter-select-icon" />
-            <select className="library-filter-select" disabled>
-              <option>Type</option>
-            </select>
+          <div className="library-filter-actions">
+            <div className="library-filter-select-wrap">
+              <ChevronDown size={14} className="library-filter-select-icon" />
+              <select className="library-filter-select" disabled>
+                <option>Type</option>
+              </select>
+            </div>
+            <div className="library-filter-select-wrap">
+              <ChevronDown size={14} className="library-filter-select-icon" />
+              <select className="library-filter-select" disabled>
+                <option>Status</option>
+              </select>
+            </div>
+            <div className="library-filter-select-wrap">
+              <ChevronDown size={14} className="library-filter-select-icon" />
+              <select className="library-filter-select" disabled>
+                <option>Owner</option>
+              </select>
+            </div>
+            <div className="library-filter-select-wrap">
+              <ChevronDown size={14} className="library-filter-select-icon" />
+              <select className="library-filter-select" disabled>
+                <option>Time</option>
+              </select>
+            </div>
+            <button
+              className="library-filter-sort-btn"
+              type="button"
+              disabled
+            >
+              <ArrowUpDown size={14} />
+              Last updated
+            </button>
           </div>
-          <div className="library-filter-select-wrap">
-            <ChevronDown size={14} className="library-filter-select-icon" />
-            <select className="library-filter-select" disabled>
-              <option>Status</option>
-            </select>
-          </div>
-          <div className="library-filter-select-wrap">
-            <ChevronDown size={14} className="library-filter-select-icon" />
-            <select className="library-filter-select" disabled>
-              <option>Owner</option>
-            </select>
-          </div>
-          <div className="library-filter-select-wrap">
-            <ChevronDown size={14} className="library-filter-select-icon" />
-            <select className="library-filter-select" disabled>
-              <option>Time</option>
-            </select>
-          </div>
-          <button
-            className="library-filter-sort-btn"
-            type="button"
-            disabled
-          >
-            <ArrowUpDown size={14} />
-            Last updated
-          </button>
         </div>
 
         {/* Card List */}

@@ -152,6 +152,7 @@ class ElnActionSerializer(serializers.ModelSerializer):
             "action_type",
             "target_type",
             "target_id",
+            "request_id",
             "metadata",
             "created_at",
             "performed_by",

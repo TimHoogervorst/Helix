@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
-import { ArrowLeft, Dna, Search } from "lucide-react";
+import { ArrowLeft, Dna } from "lucide-react";
 import { get } from "../api/client";
 import { MentionProvider } from "../mentions/MentionProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
@@ -37,21 +37,6 @@ function Layout() {
               </span>
               <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 Alpha
-              </span>
-            </div>
-          </div>
-
-          {/* Search placeholder */}
-          <div className="px-3 py-2.5">
-            <div
-              className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-sm text-muted-foreground"
-              title="Search coming soon"
-              aria-label="Search"
-            >
-              <Search className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="text-[13px]">Search entries…</span>
-              <span className="ml-auto rounded border border-hairline px-1 font-mono text-[10px]">
-                ⌘K
               </span>
             </div>
           </div>

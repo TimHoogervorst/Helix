@@ -1,6 +1,35 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Suspense } from "react";
 import Layout from "./Layout";
 import { ModRegistry } from "../mod-system/ModRegistry";
+import { ErrorBoundary } from "../shared/components/ErrorBoundary";
+
+/** Shared loading fallback for lazy-loaded route components. */
+function RouteLoadingFallback() {
+  return (
+    <div
+      className="flex min-h-[40vh] items-center justify-center"
+      data-testid="route-loading-fallback"
+    >
+      <p className="text-[13px] text-muted-foreground">Loading…</p>
+    </div>
+  );
+}
+
+/**
+ * Wraps a route component in ErrorBoundary + Suspense so that:
+ *   1. Render crashes don't unmount the full component tree (white-page crash)
+ *   2. Lazy-loaded components show a loading fallback during code-split fetch
+ */
+function wrapRoute(Comp: React.ComponentType<any>) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Comp />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
 
 /**
  * Registry-driven route generator.
@@ -16,20 +45,35 @@ function Router() {
 
   // ── Dynamic hub routes (one per registered hub) ───────────────────────
   const hubRoutes = [...registry.getHubs().values()].map((h) => {
-    const Comp = h.component;
-    return <Route key={h.id} path={h.route} element={<Comp />} />;
+    return (
+      <Route
+        key={h.id}
+        path={h.route}
+        element={wrapRoute(h.component)}
+      />
+    );
   });
 
   // ── Dynamic layout routes (rendered inside Layout shell) ─────────────
   const layoutRoutes = registry.getLayoutRoutes().map((r) => {
-    const Comp = r.component;
-    return <Route key={r.id} path={r.path} element={<Comp />} />;
+    return (
+      <Route
+        key={r.id}
+        path={r.path}
+        element={wrapRoute(r.component)}
+      />
+    );
   });
 
   // ── Dynamic public routes (rendered outside Layout, no sidebar) ──────
   const publicRoutes = registry.getPublicRoutes().map((r) => {
-    const Comp = r.component;
-    return <Route key={r.id} path={r.path} element={<Comp />} />;
+    return (
+      <Route
+        key={r.id}
+        path={r.path}
+        element={wrapRoute(r.component)}
+      />
+    );
   });
 
   return (

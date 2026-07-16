@@ -184,12 +184,16 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             }
 
         # ── Log action (delegated to ActionLoggingMixin) ────────────────
+        # Suppress eln.entry.edited when the frontend signals that block-level
+        # actions exist for this save cycle (X-Block-Actions header). Block
+        # actions are the canonical audit record for content changes.
         instance._version_metadata = version_metadata
-        self._maybe_log(
-            self.action,
-            instance=instance,
-            validated_data=validated_data,
-        )
+        if not self.request.headers.get("X-Block-Actions"):
+            self._maybe_log(
+                self.action,
+                instance=instance,
+                validated_data=validated_data,
+            )
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)

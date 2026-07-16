@@ -12,12 +12,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import { Circle, CheckCircle, Plus, Loader } from "lucide-react";
 import { get } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -336,39 +335,6 @@ export function ProtocolContent({
     </div>
   );
 }
-
-// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
-
-function ProtocolBlockNode(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
-
-  // ── Read attrs from the TipTap node (source of truth) ─────────────────
-  const protocolId = (node.attrs.protocolId as number | null) ?? null;
-  const name = (node.attrs.name as string) || "Protocol";
-  const items: ProtocolItem[] = (node.attrs.items as ProtocolItem[]) ?? [];
-  const stepStates: Record<number, StepState> =
-    (node.attrs.stepStates as Record<number, StepState>) ?? {};
-
-  return (
-    <NodeViewWrapper
-      className="protocol-wrapper"
-      contentEditable={false}
-    >
-      <ProtocolContent
-        protocolId={protocolId}
-        name={name}
-        items={items}
-        stepStates={stepStates}
-        updateAttrs={updateAttributes}
-      />
-    </NodeViewWrapper>
-  );
-}
-
-export default ProtocolBlockNode;
-
-// ── New BlockComponentProps wrapper (for the slot system) ───────────────
-
 /**
  * Slot-system block component for the ELN protocol.
  *

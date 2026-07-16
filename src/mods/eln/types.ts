@@ -105,6 +105,7 @@ export interface ElnAction {
   action_type: string;
   target_type: string;
   target_id: number;
+  request_id?: string;
   metadata: Record<string, unknown>;
   created_at: string;
   performed_by: ActionUser;

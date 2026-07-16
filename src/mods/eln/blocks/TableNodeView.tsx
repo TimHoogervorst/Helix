@@ -11,9 +11,8 @@
  * All edits sync back to node attributes via ``updateAttributes``.
  */
 import { useCallback, useState } from "react";
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { Plus, Trash2 } from "lucide-react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import { Plus, Trash2 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -382,35 +381,6 @@ export function TableBlockContent({
     </>
   );
 }
-
-// ── Legacy NodeView wrapper (for existing TipTap node extensions) ───────
-
-function TableNodeView(props: NodeViewProps) {
-  const { node, updateAttributes } = props;
-
-  const title = (node.attrs.title as string) ?? DEFAULT_TITLE;
-  const columns: TableColumn[] = (node.attrs.columns as TableColumn[]) ?? [];
-  const rows: TableRow[] = (node.attrs.rows as TableRow[]) ?? [];
-
-  return (
-    <NodeViewWrapper
-      className="table-block-wrapper"
-      contentEditable={false}
-    >
-      <TableBlockContent
-        title={title}
-        columns={columns}
-        rows={rows}
-        updateAttrs={updateAttributes}
-      />
-    </NodeViewWrapper>
-  );
-}
-
-export default TableNodeView;
-
-// ── New BlockComponentProps wrapper (for the slot system) ───────────────
-
 /**
  * Slot-system block component for the ELN table.
  *

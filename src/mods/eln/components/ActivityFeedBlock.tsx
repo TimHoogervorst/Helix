@@ -19,8 +19,10 @@ import type { BlockLifecyclePayload } from "../../../shell/src/workspace/Workspa
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { useActivity } from "../hooks/useActivity";
 import { Activity } from "../../../shell/src/shared/components/Activity";
+import { groupConfirmedActions } from "../../../shell/src/shared/groupActions";
 import type {
   DisplayActionItem,
+  FeedItem,
   ActionUser,
 } from "../../../shell/src/shared/types/actions";
 import type { ElnAction } from "../types";
@@ -41,13 +43,14 @@ function mapActionUser(u: ElnAction["performed_by"]): ActionUser {
 }
 
 /** Map an ELN API ElnAction to a confirmed DisplayActionItem. */
-function mapElnAction(a: ElnAction): DisplayActionItem {
+export function mapElnAction(a: ElnAction): DisplayActionItem {
   return {
     id: a.id,
     performedBy: mapActionUser(a.performed_by),
     actionType: a.action_type,
     targetType: a.target_type,
     targetId: a.target_id,
+    requestId: a.request_id ?? undefined,
     metadata: a.metadata,
     createdAt: a.created_at,
     state: "confirmed",
@@ -114,14 +117,15 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
     [actions],
   );
 
-  // Merge confirmed + pending, most recent first
-  const displayActions = useMemo<DisplayActionItem[]>(() => {
+  // Merge confirmed + pending, most recent first, then group consecutive
+  // confirmed items that share a requestId.
+  const displayActions = useMemo<FeedItem[]>(() => {
     const all = [...confirmedItems, ...pendingItems];
     all.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
-    return all;
+    return groupConfirmedActions(all);
   }, [confirmedItems, pendingItems]);
 
   // ── Bus subscriptions ──────────────────────────────────────────────────

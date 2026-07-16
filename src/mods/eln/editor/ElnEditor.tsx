@@ -12,7 +12,8 @@
  * Action buttons (MoreActions with Delete) are exposed via ref so the parent
  * (ElnWorkspace) can render them in the top toolbar.
  */
-import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
+import type { MutableRefObject } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Lock } from "lucide-react";
@@ -38,7 +39,7 @@ function formatDateShort(iso: string): string {
 
 /** Public handle exposed to parent components via ref. */
 export interface ElnEditorHandle {
-  save: () => void;
+  save: (options?: { hasBlockActions?: boolean }) => void;
   deleteEntry: () => void;
   setFolderId: (id: number | null) => void;
   setStatus: (status: string) => void;
@@ -82,13 +83,17 @@ interface ElnEditorProps {
   bus?: WorkspaceBus;
   /** Flat metadata bag available to block components. */
   slotContext?: SlotContext;
+  /** Mutable ref set by useBlockActionLogging — true when block actions
+   *  are pending. Read at save time to decide whether to set the
+   *  X-Block-Actions header so the server suppresses eln.entry.edited. */
+  hasBlockActionsRef?: MutableRefObject<boolean>;
 }
 
 /** Editor component — MentionProvider is provided by Layout.
  *  Action buttons (MoreActions menu) are exposed via ref so the parent can
  *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
-  function ElnEditor({ entryId, onStateChange, bus, slotContext }, ref) {
+  function ElnEditor({ entryId, onStateChange, bus, slotContext, hasBlockActionsRef }, ref) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // A "new" entry is one that was just created server-side and navigated
@@ -123,6 +128,10 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   //     Programmatic changes (setContent from server) are gated so they
   //     don't trigger a spurious auto-save on initial load.
   const [contentVersion, setContentVersion] = useState(0);
+
+  // ── Error surfaced from content loading (setContent). Separate from
+  //     crud.error, which covers API-level failures (fetch, save, delete).
+  const [contentError, setContentError] = useState<string | null>(null);
 
   // ── Title ref (for contentEditable cursor preservation) ──
   const titleRef = useRef<HTMLHeadingElement | null>(null);
@@ -216,6 +225,15 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   });
 
   // ── Auto-save ──
+  // Wrap crud.autoSave so hasBlockActionsRef is read at call time
+  // (the ref is updated synchronously by useBlockActionLogging).
+  const autoSaveWithBlockActions = useCallback(
+    (folderId: number | null) => {
+      crud.autoSave(folderId, hasBlockActionsRef?.current ?? false);
+    },
+    [crud.autoSave, hasBlockActionsRef],
+  );
+
   useAutoSave({
     entryId: entryId ?? crud.entry?.display_id,
     title: crud.title,
@@ -223,7 +241,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     status: crud.status,
     contentVersion,
     folderId: folder.folderId,
-    autoSave: crud.autoSave,
+    autoSave: autoSaveWithBlockActions,
   });
 
   // Destructure for convenient access in JSX
@@ -255,7 +273,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   const { folderId, setFolderId, folders } = folder;
 
   // Wire cross-hook actions
-  const save = () => crud.save(folderId, isNew ? pendingTagIds : []);
+  const save = (options?: { hasBlockActions?: boolean }) =>
+    crud.save(folderId, isNew ? pendingTagIds : [], options?.hasBlockActions);
   const { deleteEntry } = crud;
 
   // ── Lock-based read-only ──
@@ -271,7 +290,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   actionsRef.current = { save, deleteEntry, setFolderId, setStatus };
 
   useImperativeHandle(ref, () => ({
-    save: () => actionsRef.current.save(),
+    save: (options?: { hasBlockActions?: boolean }) => actionsRef.current.save(options),
     deleteEntry: () => actionsRef.current.deleteEntry(),
     setFolderId: (id: number | null) => actionsRef.current.setFolderId(id),
     setStatus: (s: string) => actionsRef.current.setStatus(s),
@@ -306,9 +325,18 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       bus?.emit("eln.editor.content-loading", true);
       isProgrammaticChange.current = true;
       queueMicrotask(() => {
-        editor.commands.setContent(body);
-        contentRef.current = body as TipTapDoc;
-        isProgrammaticChange.current = false;
+        try {
+          editor.commands.setContent(body);
+          contentRef.current = body as TipTapDoc;
+          setContentError(null);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Failed to load editor content";
+          setContentError(message);
+          console.error("ElnEditor: setContent failed:", err);
+        } finally {
+          isProgrammaticChange.current = false;
+        }
       });
       queueMicrotask(() => {
         bus?.emit("eln.editor.content-loading", false);
@@ -393,6 +421,17 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
+
+      {/* ── Content loading error banner ── */}
+      {contentError && (
+        <div
+          className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"
+          data-testid="content-error-banner"
+        >
+          <p className="font-medium">Failed to load editor content</p>
+          <p className="mt-1 text-[12px] text-destructive/80">{contentError}</p>
+        </div>
+      )}
 
       {/* ── Content area ── */}
 

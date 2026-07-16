@@ -25,6 +25,7 @@
  *   discarded (no save → no action rows).
  */
 import { useEffect, useRef } from "react";
+import type { MutableRefObject } from "react";
 import type { WorkspaceBus, BlockLifecyclePayload } from "../../../shell/src/workspace/WorkspaceBus";
 import type { BlockRegistration } from "../../../shell/src/mod-system/types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
@@ -83,16 +84,21 @@ function deriveMessage(
  * with human-readable messages, and flush as a batched API call when the
  * entry saves.
  *
- * @param bus       Workspace-scoped event bus.
- * @param entryId   Current entry display ID (e.g. "E-001"). Flush is skipped
- *                  when undefined (new entry, not yet created).
- * @param blockIds  Block IDs whose lifecycle events to listen for
- *                  (e.g. `["eln.table-block", "eln.comment-block"]`).
+ * @param bus            Workspace-scoped event bus.
+ * @param entryId        Current entry display ID (e.g. "E-001"). Flush is skipped
+ *                       when undefined (new entry, not yet created).
+ * @param blockIds       Block IDs whose lifecycle events to listen for
+ *                       (e.g. `["eln.table-block", "eln.comment-block"]`).
+ * @param hasPendingRef  Optional mutable ref that the hook updates to `true` when
+ *                       the accumulation map is non-empty, and `false` when empty.
+ *                       Callers (ElnWorkspace) read this ref at save time to
+ *                       decide whether to set the X-Block-Actions header.
  */
 export function useBlockActionLogging(
   bus: WorkspaceBus,
   entryId: string | undefined,
   blockIds: string[],
+  hasPendingRef?: MutableRefObject<boolean>,
 ): void {
   // ── Accumulation map: `${blockInstanceId}:${verb}` → AccumulatedAction ──
   const pendingRef = useRef<Map<string, AccumulatedAction>>(new Map());
@@ -150,6 +156,7 @@ export function useBlockActionLogging(
             action_type: event,
             metadata: { message },
           });
+          if (hasPendingRef) hasPendingRef.current = true;
         });
         unsubs.push(unsub);
       }
@@ -167,6 +174,7 @@ export function useBlockActionLogging(
       // successful POST for exact pending-item reconciliation.
       const flushedKeys = Array.from(pending.keys());
       pending.clear();
+      if (hasPendingRef) hasPendingRef.current = false;
 
       try {
         await post<BatchActionsResponse>(

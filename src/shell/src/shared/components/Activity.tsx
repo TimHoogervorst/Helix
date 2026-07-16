@@ -1,6 +1,12 @@
 import { useState } from "react";
-import type { DisplayActionItem, ActionUser } from "../types/actions";
-import { relativeTime } from "../format";
+import type {
+  DisplayActionItem,
+  GroupedDisplayItem,
+  FeedItem,
+  ActionUser,
+} from "../types/actions";
+import { relativeTime, humanizeActionType } from "../format";
+import { isGroup } from "../groupActions";
 
 /**
  * Derive a display name from an action's `performedBy` user.
@@ -11,25 +17,6 @@ export function actorName(user: ActionUser): string {
     return `${user.firstName} ${user.lastName}`.trim();
   }
   return user.username;
-}
-
-/**
- * Humanize a triple-dotted action type string for display.
- *
- * Mechanical, zero-registration: splits on ".", takes the last segment
- * as the verb, replaces underscores with spaces, and capitalises each word.
- *
- * Examples:
- * - "eln.entry.created"          → "Created"
- * - "eln.table.edited"           → "Edited"
- * - "lims.entity.status_changed" → "Status Changed"
- */
-export function humanizeActionType(actionType: string): string {
-  const parts = actionType.split(".");
-  const verb = parts[parts.length - 1];
-  return verb
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -48,8 +35,8 @@ function actionMessage(item: DisplayActionItem): string {
 }
 
 export interface ActivityProps {
-  /** Actions to display, most recent first. Each item carries its visual state. */
-  actions: DisplayActionItem[];
+  /** Actions to display, most recent first. May include grouped batches. */
+  actions: FeedItem[];
   /** True while the initial fetch is in flight. */
   isLoading?: boolean;
   /** Non-null if the fetch failed. */
@@ -163,9 +150,13 @@ export function Activity({
         Activity
       </h3>
       <ul className="space-y-2 text-[12px]">
-        {visible.map((action) => (
-          <ActivityItem key={action.id} action={action} />
-        ))}
+        {visible.map((item) =>
+          isGroup(item) ? (
+            <GroupedActivityItem key={item.id} group={item} />
+          ) : (
+            <ActivityItem key={item.id} action={item} />
+          ),
+        )}
       </ul>
       {hasMore && (
         <button
@@ -180,17 +171,71 @@ export function Activity({
   );
 }
 
+// ── Internal: grouped activity item ────────────────────────────────────────
+
+interface GroupedActivityItemProps {
+  group: GroupedDisplayItem;
+}
+
+function GroupedActivityItem({ group }: GroupedActivityItemProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <li data-testid="activity-item" data-state={group.state}>
+      <button
+        type="button"
+        className="btn-ghost flex w-full items-start gap-2 p-0 text-left"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        data-testid="activity-group-toggle"
+      >
+        <span
+          className="mt-1.5 shrink-0 text-[10px] leading-none text-muted-foreground/70"
+          aria-hidden="true"
+        >
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span
+          className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1 text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {actorName(group.performedBy)}
+          </span>{" "}
+          {group.summary}
+        </span>
+        <span className="shrink-0 text-muted-foreground/70">
+          · {relativeTime(group.createdAt)}
+        </span>
+      </button>
+      {expanded && (
+        <ul className="mt-1 space-y-1">
+          {group.children.map((child) => (
+            <ActivityItem key={child.id} action={child} isGroupChild />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 // ── Internal: single activity item ────────────────────────────────────────
 
 interface ActivityItemProps {
   action: DisplayActionItem;
+  /** When true, the item is rendered inside an expanded group. */
+  isGroupChild?: boolean;
 }
 
-function ActivityItem({ action }: ActivityItemProps) {
+function ActivityItem({ action, isGroupChild = false }: ActivityItemProps) {
   const isPending = action.state === "pending";
-  const containerClass = isPending
-    ? "flex items-start gap-2 opacity-60 animate-pulse"
-    : "flex items-start gap-2";
+  const containerClass = [
+    "flex items-start gap-2",
+    isPending && "opacity-60 animate-pulse",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const dotClass = isPending
     ? "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50"
@@ -199,7 +244,7 @@ function ActivityItem({ action }: ActivityItemProps) {
   return (
     <li
       className={containerClass}
-      data-testid="activity-item"
+      data-testid={isGroupChild ? "activity-group-child" : "activity-item"}
       data-state={action.state}
     >
       <span className={dotClass} aria-hidden="true" />

@@ -1,5 +1,5 @@
 /**
- * Tests for the ProtocolBlockNode React NodeView component.
+ * Tests for the ProtocolBlockComponent React NodeView component.
  *
  * Covers: placeholder state, picker open/close, protocol selection,
  * rendered card (steps, notes), step toggle (complete/incomplete),
@@ -17,7 +17,7 @@ vi.mock("../../../../core/api/client", () => ({
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────
 
-import ProtocolBlockNode from "../ProtocolBlockNode";
+import { ProtocolBlockComponent } from "../ProtocolBlockComponent";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -50,15 +50,15 @@ const sampleProtocols = [
 ];
 
 /**
- * Build a mock NodeViewProps object.
+ * Build a mock BlockComponentProps object for testing.
  *
  * Two-level merge:
- * - `nodeAttrs` replaces node.attrs keys (merged over defaults)
- * - `rest` replaces any top-level NodeViewProps keys (e.g. updateAttributes)
+ * - `attrs` replaces instance.attrs keys (merged over defaults)
+ * - `rest` replaces any top-level keys (e.g. instance)
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeNodeViewProps(opts?: {
-  nodeAttrs?: Record<string, unknown>;
+function makeBlockComponentProps(opts?: {
+  attrs?: Record<string, unknown>;
   rest?: Record<string, unknown>;
 }): any {
   const attrs = {
@@ -67,17 +67,18 @@ function makeNodeViewProps(opts?: {
     items: [],
     stepStates: {},
     editable: false,
-    ...(opts?.nodeAttrs ?? {}),
+    ...(opts?.attrs ?? {}),
   };
 
   const defaults = {
-    node: { attrs },
-    updateAttributes: vi.fn(),
-    selected: false,
-    extension: {},
-    getPos: () => 0,
-    editor: { isEditable: true },
-    deleteNode: vi.fn(),
+    context: {} as any,
+    instance: {
+      id: "inst-1",
+      blockId: "eln.protocol-block",
+      slotId: "eln.editor",
+      attrs,
+      updateAttrs: vi.fn(),
+    },
   };
 
   return { ...defaults, ...(opts?.rest ?? {}) };
@@ -87,25 +88,25 @@ function makeNodeViewProps(opts?: {
 // Placeholder state
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("ProtocolBlockNode — placeholder state", () => {
+describe("ProtocolBlockComponent — placeholder state", () => {
   beforeEach(() => {
     mockGet.mockReset();
   });
 
   it("renders the Protocol heading", () => {
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
     expect(screen.getByText("Protocol")).toBeInTheDocument();
   });
 
   it("renders the Add Protocol button", () => {
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
     const btn = screen.getByTestId("add-protocol-btn");
     expect(btn).toBeInTheDocument();
     expect(btn).toHaveTextContent("Add Protocol");
   });
 
   it("renders the placeholder container", () => {
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
     expect(screen.getByTestId("protocol-placeholder")).toBeInTheDocument();
   });
 });
@@ -114,14 +115,14 @@ describe("ProtocolBlockNode — placeholder state", () => {
 // Picker dropdown
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("ProtocolBlockNode — picker dropdown", () => {
+describe("ProtocolBlockComponent — picker dropdown", () => {
   beforeEach(() => {
     mockGet.mockReset();
   });
 
   it("opens picker on Add Protocol click", async () => {
     mockGet.mockResolvedValue({ results: sampleProtocols });
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
 
     fireEvent.click(screen.getByTestId("add-protocol-btn"));
 
@@ -133,7 +134,7 @@ describe("ProtocolBlockNode — picker dropdown", () => {
   it("displays loading state initially", () => {
     // Don't resolve the promise yet — should show loading
     mockGet.mockReturnValue(new Promise(() => {}));
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
 
     fireEvent.click(screen.getByTestId("add-protocol-btn"));
 
@@ -142,7 +143,7 @@ describe("ProtocolBlockNode — picker dropdown", () => {
 
   it("displays fetched protocols in the picker", async () => {
     mockGet.mockResolvedValue({ results: sampleProtocols });
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
 
     fireEvent.click(screen.getByTestId("add-protocol-btn"));
 
@@ -156,7 +157,7 @@ describe("ProtocolBlockNode — picker dropdown", () => {
 
   it("shows empty message when no protocols exist", async () => {
     mockGet.mockResolvedValue({ results: [] });
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
 
     fireEvent.click(screen.getByTestId("add-protocol-btn"));
 
@@ -172,8 +173,8 @@ describe("ProtocolBlockNode — picker dropdown", () => {
     mockGet.mockResolvedValue({ results: sampleProtocols });
 
     render(
-      <ProtocolBlockNode
-        {...makeNodeViewProps({ rest: { updateAttributes } })}
+      <ProtocolBlockComponent
+        {...makeBlockComponentProps({ rest: { updateAttributes } })}
       />,
     );
 
@@ -195,7 +196,7 @@ describe("ProtocolBlockNode — picker dropdown", () => {
   it("picker closes after selecting a protocol", async () => {
     mockGet.mockResolvedValue({ results: sampleProtocols });
 
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
 
     fireEvent.click(screen.getByTestId("add-protocol-btn"));
     const option = await screen.findByText("CRISPR RNP Transfection");
@@ -208,7 +209,7 @@ describe("ProtocolBlockNode — picker dropdown", () => {
 
   it("does not re-fetch protocols if already loaded", async () => {
     mockGet.mockResolvedValue({ results: sampleProtocols });
-    render(<ProtocolBlockNode {...makeNodeViewProps()} />);
+    render(<ProtocolBlockComponent {...makeBlockComponentProps()} />);
 
     // Open picker first time
     fireEvent.click(screen.getByTestId("add-protocol-btn"));
@@ -233,7 +234,7 @@ describe("ProtocolBlockNode — picker dropdown", () => {
 // Rendered card
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("ProtocolBlockNode — rendered card", () => {
+describe("ProtocolBlockComponent — rendered card", () => {
   beforeEach(() => {
     mockGet.mockReset();
   });
@@ -242,8 +243,8 @@ describe("ProtocolBlockNode — rendered card", () => {
     nodeAttrs?: Record<string, unknown>;
     rest?: Record<string, unknown>;
   }) {
-    return makeNodeViewProps({
-      nodeAttrs: {
+    return makeBlockComponentProps({
+      attrs: {
         protocolId: 1,
         name: "CRISPR RNP Transfection",
         items: sampleItems,
@@ -256,14 +257,14 @@ describe("ProtocolBlockNode — rendered card", () => {
   }
 
   it("renders the protocol name as a heading", () => {
-    render(<ProtocolBlockNode {...cardProps()} />);
+    render(<ProtocolBlockComponent {...cardProps()} />);
     expect(
       screen.getByText("CRISPR RNP Transfection"),
     ).toBeInTheDocument();
   });
 
   it("renders step items with step numbers", () => {
-    render(<ProtocolBlockNode {...cardProps()} />);
+    render(<ProtocolBlockComponent {...cardProps()} />);
     expect(screen.getByText("Step 01")).toBeInTheDocument();
     expect(screen.getByText("Step 02")).toBeInTheDocument();
     expect(
@@ -275,7 +276,7 @@ describe("ProtocolBlockNode — rendered card", () => {
   });
 
   it("renders note items without checkboxes", () => {
-    render(<ProtocolBlockNode {...cardProps()} />);
+    render(<ProtocolBlockComponent {...cardProps()} />);
     const note = screen.getByTestId("protocol-note-1");
     expect(note).toBeInTheDocument();
     expect(note).toHaveTextContent(
@@ -289,15 +290,15 @@ describe("ProtocolBlockNode — rendered card", () => {
   });
 
   it("renders toggle buttons for each step", () => {
-    render(<ProtocolBlockNode {...cardProps()} />);
+    render(<ProtocolBlockComponent {...cardProps()} />);
     expect(screen.getByTestId("step-toggle-0")).toBeInTheDocument();
     expect(screen.getByTestId("step-toggle-1")).toBeInTheDocument();
   });
 
   it("shows empty message when there are no items", () => {
     render(
-      <ProtocolBlockNode
-        {...cardProps({ nodeAttrs: { items: [] } })}
+      <ProtocolBlockComponent
+        {...cardProps({ attrs: { items: [] } })}
       />,
     );
     expect(
@@ -307,9 +308,9 @@ describe("ProtocolBlockNode — rendered card", () => {
 
   it("shows notes-only message when there are only notes", () => {
     render(
-      <ProtocolBlockNode
+      <ProtocolBlockComponent
         {...cardProps({
-          nodeAttrs: {
+          attrs: {
             items: [
               { type: "note" as const, text: "Just a note." },
               { type: "note" as const, text: "Another note." },
@@ -328,7 +329,7 @@ describe("ProtocolBlockNode — rendered card", () => {
 // Step toggle
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("ProtocolBlockNode — step toggle", () => {
+describe("ProtocolBlockComponent — step toggle", () => {
   beforeEach(() => {
     mockGet.mockReset();
   });
@@ -337,8 +338,8 @@ describe("ProtocolBlockNode — step toggle", () => {
     nodeAttrs?: Record<string, unknown>;
     rest?: Record<string, unknown>;
   }) {
-    return makeNodeViewProps({
-      nodeAttrs: {
+    return makeBlockComponentProps({
+      attrs: {
         protocolId: 1,
         name: "Test Protocol",
         items: [
@@ -356,7 +357,7 @@ describe("ProtocolBlockNode — step toggle", () => {
   it("marks a step complete on toggle click", () => {
     const updateAttributes = vi.fn();
     render(
-      <ProtocolBlockNode
+      <ProtocolBlockComponent
         {...cardProps({ rest: { updateAttributes } })}
       />,
     );
@@ -373,9 +374,9 @@ describe("ProtocolBlockNode — step toggle", () => {
   it("marks a completed step incomplete on second click — clears entry", () => {
     const updateAttributes = vi.fn();
     render(
-      <ProtocolBlockNode
+      <ProtocolBlockComponent
         {...cardProps({
-          nodeAttrs: {
+          attrs: {
             stepStates: {
               0: {
                 completed: true,
@@ -398,9 +399,9 @@ describe("ProtocolBlockNode — step toggle", () => {
 
   it("shows completed badge with timestamp for completed step", () => {
     render(
-      <ProtocolBlockNode
+      <ProtocolBlockComponent
         {...cardProps({
-          nodeAttrs: {
+          attrs: {
             stepStates: {
               0: {
                 completed: true,
@@ -419,9 +420,9 @@ describe("ProtocolBlockNode — step toggle", () => {
 
   it("toggle button aria-label reflects state", () => {
     render(
-      <ProtocolBlockNode
+      <ProtocolBlockComponent
         {...cardProps({
-          nodeAttrs: {
+          attrs: {
             stepStates: {
               0: {
                 completed: true,

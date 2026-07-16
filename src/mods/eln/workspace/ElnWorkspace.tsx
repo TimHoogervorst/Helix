@@ -110,7 +110,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const bus = busRef.current;
 
   // ── Block action logging: accumulate lifecycle events, flush on save ──
-  useBlockActionLogging(bus, entryId, EDITOR_BLOCK_IDS);
+  const hasBlockActionsRef = useRef<boolean>(false);
+  useBlockActionLogging(bus, entryId, EDITOR_BLOCK_IDS, hasBlockActionsRef);
 
   // ── Emit "eln.entry.saved" on the bus whenever a save completes ───────
   const prevLastSavedAtRef = useRef<Date | null>(null);
@@ -289,7 +290,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                 className="btn-icon rounded-md"
                 aria-label={label}
                 title={label}
-                onClick={() => editorRef.current?.save()}
+                onClick={() => editorRef.current?.save({ hasBlockActions: hasBlockActionsRef.current })}
               >
                 <Icon className={iconClass} aria-hidden="true" />
               </button>
@@ -397,7 +398,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
             <CommentVisibilityProvider showComments={showComments}>
-              <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} bus={bus} slotContext={slotContext} />
+              <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} bus={bus} slotContext={slotContext} hasBlockActionsRef={hasBlockActionsRef} />
             </CommentVisibilityProvider>
           </div>
         </main>

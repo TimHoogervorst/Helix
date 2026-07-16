@@ -2,6 +2,8 @@
 
 @import "tailwindcss";
 
+@source "../../mods";
+
 @theme {
   /* ── Radius scale ── */
   --radius: 0.5rem;

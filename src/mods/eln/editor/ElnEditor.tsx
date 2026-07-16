@@ -299,15 +299,17 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       // downstream subscribers (useBlockActionLogging) can suppress
       // accumulation of lifecycle events during the load.
       //
-      // IMPORTANT: setContent triggers React renders synchronously, but
-      // passive effects (useEffect) are deferred to a microtask.  We defer
-      // the "loading done" signal the same way so it fires *after* the
-      // BlockNodeView effects, keeping suppressRef true during the flush.
+      // IMPORTANT: setContent triggers React renders synchronously via
+      // TipTap's useSyncExternalStore, which calls flushSync internally.
+      // Deferring to a microtask avoids the "flushSync was called from
+      // inside a lifecycle method" error in React 18 concurrent mode.
       bus?.emit("eln.editor.content-loading", true);
       isProgrammaticChange.current = true;
-      editor.commands.setContent(body);
-      contentRef.current = body as TipTapDoc;
-      isProgrammaticChange.current = false;
+      queueMicrotask(() => {
+        editor.commands.setContent(body);
+        contentRef.current = body as TipTapDoc;
+        isProgrammaticChange.current = false;
+      });
       queueMicrotask(() => {
         bus?.emit("eln.editor.content-loading", false);
       });

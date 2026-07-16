@@ -10,6 +10,10 @@ import { createPortal } from "react-dom";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { AgGridReact } from "ag-grid-react";
 import type { AgGridReact as AgGridReactType } from "ag-grid-react";
+import {
+  AllCommunityModule,
+  ModuleRegistry,
+} from "ag-grid-community";
 import type {
   ColDef,
   CellValueChangedEvent,
@@ -368,25 +372,31 @@ export function LimsTableContent({
       const field = ev.colDef.field ?? "";
       const colName = field.replace("values.", "");
 
-      // __name is a row-level key, not inside values
-      if (colName === "__name") {
+      // Defer the ProseMirror transaction via queueMicrotask to avoid
+      // flushSync during React's render phase — AG Grid fires cell value
+      // change events synchronously during the edit cycle, and calling
+      // updateAttrs directly would trigger a ProseMirror dispatch that
+      // React 18 rejects while it's already rendering.
+      queueMicrotask(() => {
+        if (colName === "__name") {
+          const updatedRows = rows.map((r) => {
+            if (r.displayId !== ev.data.displayId) return r;
+            return { ...r, __name: (ev.newValue as string) ?? "" };
+          });
+          updateAttrs({ rows: updatedRows });
+          return;
+        }
+
         const updatedRows = rows.map((r) => {
           if (r.displayId !== ev.data.displayId) return r;
-          return { ...r, __name: (ev.newValue as string) ?? "" };
+          return {
+            entityId: r.entityId ?? ev.data.entityId ?? null,
+            displayId: r.displayId,
+            values: { ...r.values, [colName]: ev.newValue },
+          };
         });
         updateAttrs({ rows: updatedRows });
-        return;
-      }
-
-      const updatedRows = rows.map((r) => {
-        if (r.displayId !== ev.data.displayId) return r;
-        return {
-          entityId: r.entityId ?? ev.data.entityId ?? null,
-          displayId: r.displayId,
-          values: { ...r.values, [colName]: ev.newValue },
-        };
       });
-      updateAttrs({ rows: updatedRows });
     },
     [rows, updateAttrs]
   );
@@ -697,6 +707,8 @@ export function LimsTableContent({
       >
         <AgGridReact<GridRow>
           ref={gridRef}
+          theme="legacy"
+          modules={[AllCommunityModule]}
           rowData={rows}
           columnDefs={colDefs}
           defaultColDef={defaultColDef}

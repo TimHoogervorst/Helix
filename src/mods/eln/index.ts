@@ -34,19 +34,6 @@ export function register() {
     defaults: {},
   });
 
-  // ── Button: Export ───────────────────────────────────────────────────────
-  registerButton({
-    id: "eln.export",
-    label: "Export",
-    icon: Download,
-    onClick: ({ bus }) => {
-      bus.collect("eln.data.exported");
-    },
-  });
-
-  // ── Bind Export button into header actions slot ─────────────────────────
-  registerIntoSlot("eln.header.actions", "eln.export", {}, 0);
-
   // ── Entity type: register ELN entries with the LIMS registry ────────────
   // Depends on "lims" to ensure lims.registerEntityType service is available.
   ModRegistry.getInstance()
@@ -80,7 +67,7 @@ export function register() {
       { key: "attachments_count" },
     ],
   });
-  // ── Slot: ELN Editor (dogfood #231) ────────────────────────────────────
+  // ── Slot: ELN Editor ────────────────────────────────────
   declareSlot({
     id: "eln.editor",
     accepts: "block",

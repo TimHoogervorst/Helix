@@ -432,7 +432,7 @@ A **Mention** is a passive link: "I referenced sample #42." An **Action** is an 
 
 ## Design Language
 
-> Visual design terms that form the ubiquitous language for UI decisions. For the full reference document, see [docs/styling-guide.md](docs/styling-guide.md).
+> Visual design terms that form the ubiquitous language for UI decisions. The full styling reference is deferred to a future PRD.
 
 ### Semantic Icon Size
 

@@ -6,7 +6,6 @@ import type {
   ServiceConfig,
   LibraryItemConfig,
   WorkspaceConfig,
-  BlockConfig,
   BlockRegistration,
   ButtonRegistration,
   SlotDeclaration,
@@ -52,7 +51,7 @@ export class ModRegistry {
   private services = new Map<string, ServiceConfig>();
   private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
-  private blocks = new Map<string, BlockConfig | BlockRegistration>();
+  private blocks = new Map<string, BlockRegistration>();
   private slots = new Map<string, SlotDeclaration>();
   private buttons = new Map<string, ButtonRegistration>();
   /** Bindings keyed by slotId. Each slot can have multiple bindings. */
@@ -135,18 +134,13 @@ export class ModRegistry {
   }
 
   /**
-   * Register a content block.
+   * Register a renderer-agnostic content block.
    *
-   * Accepts both the legacy BlockConfig (type-discriminated, with `type` +
-   * `payload`) and the new BlockRegistration (renderer-agnostic, with
-   * `component`, `serialize`, `deserialize`, etc.). Both shapes are stored
-   * in the same map; consumers narrow via isLegacyBlockConfig() when
-   * reading from getBlocks().
+   * Blocks are stored in a single map and can be bound into any slot via
+   * {@link registerIntoSlot}. Consumers read blocks via {@link getBlocks}
+   * or resolve them through the slot system via {@link resolveSlot}.
    */
-  registerBlock(config: BlockConfig): void;
-  registerBlock(config: BlockRegistration): void;
-  registerBlock(config: BlockConfig | BlockRegistration): void;
-  registerBlock(config: BlockConfig | BlockRegistration): void {
+  registerBlock(config: BlockRegistration): void {
     if (this.blocks.has(config.id)) {
       throw new Error(
         `Duplicate block registration: '${config.id}' is already registered.`,
@@ -225,9 +219,6 @@ export class ModRegistry {
       if (slot.accepts === "block") {
         const block = this.blocks.get(binding.targetId);
         if (!block) continue;
-        // Narrow to BlockRegistration — legacy BlockConfig blocks don't
-        // participate in the slot system (they have no component/serialize).
-        if (!("component" in block)) continue;
 
         // Merge slot defaults with binding overrides (binding wins per-key)
         const mergedOverrides: Record<string, unknown> = {
@@ -424,7 +415,7 @@ export class ModRegistry {
   }
 
   /** Returns a read-only view of all registered blocks. */
-  getBlocks(): ReadonlyMap<string, BlockConfig | BlockRegistration> {
+  getBlocks(): ReadonlyMap<string, BlockRegistration> {
     return this.blocks;
   }
 

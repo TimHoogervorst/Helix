@@ -12,7 +12,6 @@ export { declareSlot } from "./declareSlot";
 export { registerButton } from "./registerButton";
 export { registerIntoSlot } from "./registerIntoSlot";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
-export { BLOCK_TYPE_TIPTAP_NODE, isLegacyBlockConfig } from "./types";
 export type {
   ModManifest,
   HubConfig,
@@ -26,8 +25,6 @@ export type {
   WorkspaceConfig,
   RegisteredEntityType,
   CurrentWorkspace,
-  BlockConfig,
-  TipTapBlockPayload,
   BlockRegistration,
   ButtonRegistration,
   SlotDeclaration,

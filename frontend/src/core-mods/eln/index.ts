@@ -10,16 +10,11 @@ import {
   registerButton,
   registerIntoSlot,
   ModRegistry,
-  BLOCK_TYPE_TIPTAP_NODE,
 } from "../../core/mod-system";
 import { ButtonGroupRenderer } from "../../core/workspace/ButtonGroupRenderer";
 import { PanelRenderer } from "../../core/workspace/PanelRenderer";
 import { TipTapRenderer } from "../../core/workspace/TipTapRenderer";
 import ElnLibraryCard from "./library/ElnLibraryCard";
-import LimsTable from "./blocks/LimsTable";
-import CommentBlock from "./blocks/CommentBlock";
-import TableBlock from "./blocks/TableBlock";
-import ProtocolBlock from "./blocks/ProtocolBlock";
 import { TableBlockComponent } from "./blocks/TableNodeView";
 import { LimsTableBlockComponent } from "./blocks/LimsTableNode";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
@@ -52,7 +47,7 @@ export function register() {
     label: "Export",
     icon: Download,
     onClick: ({ bus }) => {
-      bus.collect("data.export");
+      bus.collect("eln.data.exported");
     },
   });
 
@@ -93,95 +88,6 @@ export function register() {
     ],
   });
 
-  // ── Block: Legacy LIMS table ─────────────────────────────────────────
-  registerBlock({
-    id: "eln.legacyTable",
-    label: "Legacy Table",
-    description: "Insert a legacy schema-backed LIMS table",
-    icon: "📊",
-    type: BLOCK_TYPE_TIPTAP_NODE,
-    payload: {
-      node: LimsTable,
-      defaultAttrs: {
-        schemaId: null,
-        title: "Table",
-        columns: [
-          { name: "Column 1", type: "Text" },
-          { name: "Column 2", type: "Text" },
-        ],
-        rows: [
-          {
-            entityId: null,
-            displayId: "#1",
-            values: { "Column 1": "", "Column 2": "" },
-          },
-          {
-            entityId: null,
-            displayId: "#2",
-            values: { "Column 1": "", "Column 2": "" },
-          },
-        ],
-      },
-    },
-  });
-
-  // ── Block: Generic Table ────────────────────────────────────────────
-  registerBlock({
-    id: "eln.table",
-    label: "Table",
-    description: "Insert a simple editable data table",
-    icon: "📋",
-    type: BLOCK_TYPE_TIPTAP_NODE,
-    payload: {
-      node: TableBlock,
-      defaultAttrs: {
-        title: "Table",
-        columns: [
-          { id: "col-1", name: "Column 1" },
-          { id: "col-2", name: "Column 2" },
-        ],
-        rows: [
-          { id: "row-1", cells: { "col-1": "", "col-2": "" } },
-          { id: "row-2", cells: { "col-1": "", "col-2": "" } },
-        ],
-      },
-    },
-  });
-
-  // ── Block: Comment ──────────────────────────────────────────────────
-  registerBlock({
-    id: "eln.comment",
-    label: "Comment",
-    description: "Insert a threaded comment",
-    icon: "💬",
-    type: BLOCK_TYPE_TIPTAP_NODE,
-    payload: {
-      node: CommentBlock,
-      defaultAttrs: {
-        resolved: false,
-        thread: [],
-      },
-    },
-  });
-
-  // ── Block: Protocol ─────────────────────────────────────────────────
-  registerBlock({
-    id: "eln.protocol",
-    label: "Protocol",
-    description: "Insert a reusable protocol",
-    icon: "🧪",
-    type: BLOCK_TYPE_TIPTAP_NODE,
-    payload: {
-      node: ProtocolBlock,
-      defaultAttrs: {
-        protocolId: null,
-        name: "Protocol",
-        items: [],
-        stepStates: {},
-        editable: false,
-      },
-    },
-  });
 
   // ── Slot: ELN Editor (dogfood #231) ────────────────────────────────────
   declareSlot({

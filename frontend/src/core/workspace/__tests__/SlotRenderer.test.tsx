@@ -450,9 +450,9 @@ describe("SlotRenderer", () => {
     expect(getB()).not.toBeNull();
   });
 
-  // ── Skips legacy blocks ───────────────────────────────────────────────
+  // ── All blocks participate ────────────────────────────────────────────
 
-  it("skips legacy BlockConfig blocks that lack a component", () => {
+  it("resolves blocks that have a component (all BlockRegistration entries)", () => {
     const { StubRenderer } = createStubRenderer();
 
     registry.declareSlot(
@@ -462,15 +462,10 @@ describe("SlotRenderer", () => {
         renderer: StubRenderer,
       }),
     );
-    // Legacy BlockConfig has `type` + `payload`, no `component`
-    registry.registerBlock({
-      id: "eln.legacy-block",
-      label: "Legacy",
-      description: "Old block",
-      icon: "📊",
-      type: "tiptap-node",
-      payload: { node: DummyComponent },
-    });
+    // All blocks are BlockRegistration now — they all have component/serialize
+    registry.registerBlock(
+      makeBlockRegistration({ id: "eln.legacy-block", label: "Legacy" }),
+    );
     registry.registerIntoSlot("eln.editor", "eln.legacy-block");
 
     const { container } = render(
@@ -480,8 +475,8 @@ describe("SlotRenderer", () => {
         context={defaultContext}
       />,
     );
-    // Legacy block is skipped — renderer receives no bindings, SlotRenderer renders null
-    expect(container.innerHTML).toBe("");
+    // Block is resolved — container renders the stub renderer's output
+    expect(container.innerHTML).not.toBe("");
   });
 
   // ── All BlockRegistration fields propagated to bindings ───────────────

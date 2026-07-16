@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   ModRegistry,
-  BLOCK_TYPE_TIPTAP_NODE,
-  type BlockConfig,
   type SlotDeclaration,
   type ButtonRegistration,
   type SlotBinding,
@@ -86,87 +84,6 @@ describe("eln mod registration", () => {
     expect(tagSection).toBeUndefined();
   });
 
-  it("registers the legacy table block with correct metadata", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    const blocks = registry.getBlocks();
-    const tableBlock = blocks.get("eln.legacyTable") as BlockConfig | undefined;
-
-    expect(tableBlock).toBeDefined();
-    expect(tableBlock!.label).toBe("Legacy Table");
-    expect(tableBlock!.description).toBe("Insert a legacy schema-backed LIMS table");
-    expect(tableBlock!.icon).toBe("📊");
-    expect(tableBlock!.type).toBe(BLOCK_TYPE_TIPTAP_NODE);
-    expect(tableBlock!.payload).toBeDefined();
-
-    const payload = tableBlock!.payload as Record<string, unknown>;
-    expect(payload.node).toBeDefined();
-    expect(payload.defaultAttrs).toBeDefined();
-
-    const defaultAttrs = payload.defaultAttrs as Record<string, unknown>;
-    expect(defaultAttrs.title).toBe("Table");
-    expect(defaultAttrs.schemaId).toBeNull();
-    expect((defaultAttrs.columns as unknown[])).toHaveLength(2);
-    expect((defaultAttrs.rows as unknown[])).toHaveLength(2);
-  });
-
-  it("registers the generic table block under eln.table with correct metadata", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    const blocks = registry.getBlocks();
-    const tableBlock = blocks.get("eln.table") as BlockConfig | undefined;
-
-    expect(tableBlock).toBeDefined();
-    expect(tableBlock!.label).toBe("Table");
-    expect(tableBlock!.description).toBe("Insert a simple editable data table");
-    expect(tableBlock!.icon).toBe("📋");
-    expect(tableBlock!.type).toBe(BLOCK_TYPE_TIPTAP_NODE);
-    expect(tableBlock!.payload).toBeDefined();
-
-    const payload = tableBlock!.payload as Record<string, unknown>;
-    expect(payload.node).toBeDefined();
-    expect(payload.defaultAttrs).toBeDefined();
-
-    const defaultAttrs = payload.defaultAttrs as Record<string, unknown>;
-    expect(defaultAttrs.title).toBe("Table");
-    expect((defaultAttrs.columns as unknown[])).toHaveLength(2);
-    expect((defaultAttrs.rows as unknown[])).toHaveLength(2);
-  });
-
-  it("registers the comment block with correct metadata", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    const blocks = registry.getBlocks();
-    const commentBlock = blocks.get("eln.comment") as BlockConfig | undefined;
-
-    expect(commentBlock).toBeDefined();
-    expect(commentBlock!.label).toBe("Comment");
-    expect(commentBlock!.description).toBe("Insert a threaded comment");
-    expect(commentBlock!.icon).toBe("💬");
-    expect(commentBlock!.type).toBe(BLOCK_TYPE_TIPTAP_NODE);
-    expect(commentBlock!.payload).toBeDefined();
-
-    const payload = commentBlock!.payload as Record<string, unknown>;
-    expect(payload.node).toBeDefined();
-    expect(payload.defaultAttrs).toBeDefined();
-
-    const defaultAttrs = payload.defaultAttrs as Record<string, unknown>;
-    expect(defaultAttrs.resolved).toBe(false);
-    expect((defaultAttrs.thread as unknown[])).toEqual([]);
-  });
-
   it("passes validation (no console/workspace cross-references to validate)", async () => {
     const mod = await import("../index");
 
@@ -244,7 +161,7 @@ describe("eln mod registration", () => {
     expect(exportBinding!.overrides).toEqual({});
   });
 
-  it("eln.export button onClick calls bus.collect(\"data.export\")", async () => {
+  it("eln.export button onClick calls bus.collect(\"eln.data.exported\")", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -258,7 +175,7 @@ describe("eln mod registration", () => {
 
     expect(exportBtn).toBeDefined();
 
-    // Create a mock bus to verify onClick calls bus.collect("data.export")
+    // Create a mock bus to verify onClick calls bus.collect("eln.data.exported")
     const collectCalls: string[] = [];
     const mockBus = {
       collect: (event: string) => {
@@ -277,6 +194,6 @@ describe("eln mod registration", () => {
       },
     });
 
-    expect(collectCalls).toEqual(["data.export"]);
+    expect(collectCalls).toEqual(["eln.data.exported"]);
   });
 });

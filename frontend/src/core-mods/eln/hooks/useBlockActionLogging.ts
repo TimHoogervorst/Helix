@@ -130,13 +130,12 @@ export function useBlockActionLogging(
           const registry = ModRegistry.getInstance();
           const block = registry.getBlocks().get(blockId);
           let message = "";
-          if (block && "component" in block) {
+          if (block) {
             const attrs = verb === "edited" ? p.changedAttrs : p.attrs;
             message = deriveMessage(block, verb, attrs);
           } else {
-            // Legacy block — use default template with block label
-            const label = block?.label ?? blockId;
-            message = `${label} was ${verb}`;
+            // Unknown block — use blockId as fallback label
+            message = `${blockId} was ${verb}`;
           }
 
           pending.set(key, {

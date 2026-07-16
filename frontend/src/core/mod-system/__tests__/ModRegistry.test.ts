@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ModRegistry } from "../ModRegistry";
-import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 import type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,
   LibraryItemConfig,
-  BlockConfig,
   SlotDeclaration,
   ButtonRegistration,
   BlockRegistration,
@@ -82,18 +80,6 @@ function makeLibraryItem(
     id: "test.item",
     icon: DummyComponent,
     listCard: DummyComponent,
-    ...overrides,
-  };
-}
-
-function makeBlock(overrides?: Partial<BlockConfig>): BlockConfig {
-  return {
-    id: "eln.table",
-    label: "Table",
-    description: "Insert a schema-backed LIMS table",
-    icon: "📊",
-    type: BLOCK_TYPE_TIPTAP_NODE,
-    payload: { node: DummyComponent },
     ...overrides,
   };
 }
@@ -338,21 +324,21 @@ describe("ModRegistry", () => {
 
   // ── registerBlock ────────────────────────────────────────────────────────
 
-  it("registerBlock stores a block config", () => {
-    const config = makeBlock({ id: "eln.table" });
+  it("registerBlock stores a block registration", () => {
+    const config = makeBlockRegistration({ id: "eln.table" });
     registry.registerBlock(config);
     expect(registry.getBlocks().get("eln.table")).toBe(config);
   });
 
   it("registerBlock throws on duplicate ID", () => {
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
     expect(() =>
-      registry.registerBlock(makeBlock({ id: "eln.table" })),
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" })),
     ).toThrow("Duplicate block registration");
   });
 
   it("getBlocks returns a read-only view", () => {
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
     const blocks = registry.getBlocks();
     expect(blocks.has("eln.table")).toBe(true);
     expect(blocks.get("eln.table")?.id).toBe("eln.table");
@@ -361,21 +347,6 @@ describe("ModRegistry", () => {
   it("getBlocks returns empty map when no blocks registered", () => {
     const blocks = registry.getBlocks();
     expect(blocks.size).toBe(0);
-  });
-
-  // ── registerBlock (overloaded: new BlockRegistration shape) ──────────
-
-  it("registerBlock accepts new BlockRegistration shape", () => {
-    const config = makeBlockRegistration({ id: "eln.chart" });
-    registry.registerBlock(config);
-    expect(registry.getBlocks().get("eln.chart")).toBe(config);
-  });
-
-  it("registerBlock throws on duplicate ID across both shapes", () => {
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
-    expect(() =>
-      registry.registerBlock(makeBlockRegistration({ id: "eln.table" })),
-    ).toThrow("Duplicate block registration");
   });
 
   // ── declareSlot ─────────────────────────────────────────────────────
@@ -477,14 +448,14 @@ describe("ModRegistry", () => {
 
   it("validate passes when all slot bindings are valid", () => {
     registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
     registry.registerIntoSlot("eln.editor", "eln.table");
     expect(() => registry.validate()).not.toThrow();
   });
 
   it("validate warns and removes binding when slot is not declared", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
     registry.registerIntoSlot("eln.editor", "eln.table");
     registry.validate();
     expect(warnSpy).toHaveBeenCalledWith(
@@ -509,7 +480,7 @@ describe("ModRegistry", () => {
   it("validate warns and skips binding when target type does not match slot accepts", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     registry.declareSlot(makeSlotDeclaration({ id: "eln.header.actions", accepts: "button" }));
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
     registry.registerIntoSlot("eln.header.actions", "eln.table");
     registry.validate();
     expect(warnSpy).toHaveBeenCalledWith(
@@ -535,8 +506,8 @@ describe("ModRegistry", () => {
   it("validate keeps valid bindings while removing invalid ones", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
-    registry.registerBlock(makeBlock({ id: "eln.table" }));
-    registry.registerBlock(makeBlock({ id: "eln.chart" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.chart" }));
     registry.registerIntoSlot("eln.editor", "eln.table");
     registry.registerIntoSlot("eln.editor", "nonexistent.block");
 
@@ -642,17 +613,18 @@ describe("ModRegistry", () => {
     expect(result!.bindings[0].id).toBe("eln.table");
   });
 
-  it("resolveSlot skips legacy BlockConfig blocks (no component)", () => {
+  it("resolveSlot resolves all registered blocks (no legacy discrimination)", () => {
     registry.declareSlot(
       makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
     );
-    // Legacy BlockConfig has `type` + `payload`, no `component`
-    registry.registerBlock(makeBlock({ id: "eln.legacy-block" }));
+    registry.registerBlock(makeBlockRegistration({ id: "eln.legacy-block" }));
     registry.registerIntoSlot("eln.editor", "eln.legacy-block");
 
     const result = registry.resolveSlot("eln.editor");
-    // Legacy blocks don't participate in the slot system
-    expect(result).toBeNull();
+    // All BlockRegistration entries participate in the slot system
+    expect(result).not.toBeNull();
+    expect(result!.bindings).toHaveLength(1);
+    expect(result!.bindings[0].id).toBe("eln.legacy-block");
   });
 
   it("resolveSlot resolves a button binding", () => {

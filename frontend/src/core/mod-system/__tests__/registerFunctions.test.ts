@@ -9,7 +9,6 @@ import { registerBlock } from "../registerBlock";
 import { declareSlot } from "../declareSlot";
 import { registerButton } from "../registerButton";
 import { registerIntoSlot } from "../registerIntoSlot";
-import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 
 /** Reset the singleton between tests. */
 function resetRegistry(): ModRegistry {
@@ -91,21 +90,7 @@ describe("register functions", () => {
     expect(spy).toHaveBeenCalledWith(config);
   });
 
-  it("registerBlock delegates to ModRegistry.registerBlock (legacy BlockConfig)", () => {
-    const spy = vi.spyOn(registry, "registerBlock");
-    const config = {
-      id: "eln.table",
-      label: "Table",
-      description: "Insert a schema-backed LIMS table",
-      icon: "📊",
-      type: BLOCK_TYPE_TIPTAP_NODE,
-      payload: { node: DummyComponent },
-    };
-    registerBlock(config);
-    expect(spy).toHaveBeenCalledWith(config);
-  });
-
-  it("registerBlock delegates to ModRegistry.registerBlock (new BlockRegistration)", () => {
+  it("registerBlock delegates to ModRegistry.registerBlock", () => {
     const spy = vi.spyOn(registry, "registerBlock");
     const config = {
       id: "eln.chart",

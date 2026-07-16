@@ -11,6 +11,7 @@ COPY src/server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/server/ .
+COPY src/mods/ /mods/
 
 RUN chmod +x /app/entrypoint.sh
 

@@ -174,6 +174,16 @@ def _auto_discover(
     if not mod_dir.is_dir():
         return manifests
 
+    # Ensure the mods package is importable by adding its parent directory
+    # to sys.path.  Mirrors the same insertion in
+    # _load_external_mods_from_json so that core mods and external mods
+    # follow the same import-resolution rule.  Resolved paths are compared
+    # to avoid duplicate entries that would confuse Django's app loader.
+    mods_parent = str(mod_dir.parent.resolve())
+    existing_resolved = {str(Path(p).resolve()) for p in sys.path if p}
+    if mods_parent not in existing_resolved:
+        sys.path.insert(0, mods_parent)
+
     for entry in sorted(mod_dir.iterdir()):
         if not entry.is_dir():
             continue

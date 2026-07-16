@@ -13,7 +13,8 @@ from django.db.models import Model
 # Direct imports for data/model relationships — the ORM requires the model
 # class for ``model.objects.get(display_id=...)`` lookups.  Per the
 # cross-mod boundary rule, data/FK imports stay as direct imports.
-from mods.eln.models import NotebookEntry
+# These imports are deferred to the build functions below so that the
+# module can be imported even when a particular mod is not installed.
 
 
 # ── Cache keys ──────────────────────────────────────────────────────────────
@@ -22,20 +23,6 @@ PREFIX_CACHE_KEY = "mentions:prefix_map"
 MODEL_TYPE_CACHE_KEY = "mentions:model_type_map"
 WORKSPACE_CACHE_KEY = "mentions:workspace_map"
 CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
-
-
-# ── Static maps ─────────────────────────────────────────────────────────────
-
-#: Map display_id prefix letter to the model it identifies.
-#: Entity prefixes are loaded dynamically from the EntityType table.
-PREFIX_MAP: dict[str, type[Model]] = {
-    "E": NotebookEntry,
-}
-
-#: Map model class to the short type string used in API responses.
-MODEL_TYPE_MAP: dict[type[Model], str] = {
-    NotebookEntry: "entry",
-}
 
 
 # ── Entity model access ─────────────────────────────────────────────────────
@@ -60,7 +47,13 @@ def _build_prefix_map() -> dict[str, type[Model]]:
     """
     from helix_core.mod_system.registry import registry
 
-    pmap = dict(PREFIX_MAP)
+    from mods.eln.models import NotebookEntry
+
+    #: Map display_id prefix letter to the model it identifies.
+    #: Entity prefixes are loaded dynamically from the EntityType table.
+    pmap: dict[str, type[Model]] = {
+        "E": NotebookEntry,
+    }
     try:
         entity_prefixes = registry.call("lims.getEntityPrefixes")
     except ValueError:
@@ -76,7 +69,12 @@ def _build_prefix_map() -> dict[str, type[Model]]:
 
 def _build_model_type_map() -> dict[type[Model], str]:
     """Build the model→type-string map including entity (no caching)."""
-    mmap = dict(MODEL_TYPE_MAP)
+    from mods.eln.models import NotebookEntry
+
+    #: Map model class to the short type string used in API responses.
+    mmap: dict[type[Model], str] = {
+        NotebookEntry: "entry",
+    }
     mmap[_get_entity_model()] = "entity"
     return mmap
 

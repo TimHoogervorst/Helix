@@ -23,6 +23,7 @@ services:
       - "8000:8000"
     volumes:
       - ./src/server:/app
+      - ./src/mods:/mods
     environment:
       DATABASE_URL: postgres://openscience:openscience@db:5432/openscience
       SECRET_KEY: dev-secret-key-change-in-production

@@ -11,14 +11,47 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Mod** | A self-contained unit of functionality — owns its own hub, workspace, detail cards, settings, routes, slash commands, and sidebar actions. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods | plugin, extension, module |
-| **Core** | The immutable app shell — Layout, routing, hub pages, mod loader, reference resolution, API client. Core provides the frame; mods provide the content | shell, platform, host |
-| **Core Mod** | A mod that ships with the repository under `core-mods/`. Always loaded at boot. Uses the same registration API that external mods will use. Current core mods: LIMS, ELN, Library, Home, Settings, Pins | built-in mod, first-party mod, internal mod |
+| **Mod** | A self-contained unit of functionality — owns its own hub, workspace, blocks, buttons, settings, routes, and sidebar actions. Lives in a single co-located directory under `src/mods/<id>/` containing both frontend and backend code. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods | plugin, extension, module |
+| **Core / Shell** | The immutable app frame at `src/shell/` (frontend) and `src/server/` (backend) — Layout, routing, hub pages, mod loader, slot resolution, mention resolution, API client. The shell provides the frame; mods provide the content | shell, platform, host |
+| **Core Mod** | A mod that ships with the repository under `src/mods/`. Always loaded at boot. Uses the same registration API that external mods will use. Current core mods: LIMS, ELN, Library, Home, Settings, Pins, Tags, Users | built-in mod, first-party mod, internal mod |
 | **Mod API** | The registration surface (`register*()` functions in `core/mod-system/`) that every mod calls to declare what it provides. The contract between core and mods | plugin API, extension API |
 | **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
 | **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
-| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerSettingsSection()`, `registerBlock()`, `registerRoute()`, `registerSidebarAction()`, `registerWorkspace()`, `registerService()` | register, declare, contribute |
-| **`dependsOn`** | Metadata in each mod's `index.ts` declaring which other mods must load first. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
+| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerBlock()`, `registerButton()`, `declareSlot()`, `registerIntoSlot()`, `registerSettingsSection()`, `registerRoute()`, `registerPublicRoute()`, `registerSidebarAction()`, `registerWorkspace()`. The contract between core and mods | register, declare, contribute |
+| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn`, `coreVersion`, and `description`. The single source of truth read by both frontend and backend loaders. Does NOT describe capabilities — those are discovered from `register*()` calls at boot | mod.json, manifest, mod identity |
+| **`dependsOn`** | Field in `modManifest.json` declaring which other mods must load first. Supports bare mod ID strings and objects with optional `version` constraints. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
+
+## Slot System
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Slot** | A named placeholder in a workspace declared via `declareSlot({ id, accepts, renderer })`. The `renderer` owns presentation; the slot's `accepts` field (`"block"` or `"button"`) filters what can bind into it. Naming convention: `{workspaceId}.{region}.{name}` (e.g. `eln.editor`) | placeholder, extension point |
+| **Block** | A reusable, renderer-agnostic content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), serialization functions, and optional action log `messages`. The same block can render in a TipTap editor, a sidebar panel, or a tab without rendering-mode-specific code | content block, editor block, widget |
+| **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Rendered in toolbar slots by ButtonGroupRenderer | toolbar button, action button |
+| **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides that merge with slot defaults (binding wins per-key) | slot binding, slot content |
+| **Renderer** | The component that owns presentation within a slot. Determines how bound content is presented (TipTapRenderer embeds as nodes, PanelRenderer as panels, TabRenderer as tabs, ButtonGroupRenderer as button groups). The slot's `renderer` field IS the type — no fixed enum | slot renderer, presentation component |
+| **Event Bus** | A workspace-scoped pub/sub bus (`WorkspaceBus`). Buttons emit events via `bus.emit()`; blocks listen via declarative `listensTo` + `onEvent` handlers. Lifecycle events (created/edited/deleted) are renderer-emitted — block authors never call `bus.emit()` | workspace bus, pub/sub |
+
+## Backend Mod System
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **helix_core** | The backend platform SDK at `src/server/helix_core/`. Provides `ModLoader`, `BackendModRegistry`, `ModManifest` dataclass, `AbstractBaseAction`, `ActionLoggingMixin`, and `@logs_action`. Importable by external mods as a pip package | backend core, platform SDK |
+| **BackendModRegistry** | Singleton populated by mod `mod.py` `register()` calls. Provides `register_*()` methods for action models, entity types, URLs, settings, signals, and services. Read by Core to wire up the application | backend registry |
+| **mod.py** | The backend entry point for a mod. Exports a `register()` function called by `ModLoader` after topological sort. The backend equivalent of frontend `index.ts` | mod entry point, backend mod file |
+| **Service Registry** | Cross-mod communication layer. Mods call `registry.call("mod.service_name", ...args)` instead of importing directly. Backend equivalent of the frontend service registry | backend service registry |
+
+## Action Logging
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Action Log** | A framework-logged record of any mutating operation. Created automatically by `ActionLoggingMixin` or `@logs_action` — not manually by users. Each row records: `performed_by`, `action_type`, `target_type`, `target_id`, `created_at`, `metadata` | audit trail, audit record |
+| **AbstractBaseAction** | The abstract Django model that all mod action tables inherit from. Provides the standard action log schema with indexes on `(performed_by, created_at)`, `(target_type, target_id)`, and `action_type` | base action model |
+| **ActionLoggingMixin** | A DRF viewset mixin that intercepts successful mutating responses and writes action rows automatically. Zero boilerplate for mod authors | logging mixin |
+| **`@logs_action`** | A decorator for non-viewset mutating operations (service-layer functions). Captures the target object and writes an action row on success | action decorator |
+| **Action Type** | Triple-dotted identifier: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`, `"lims.schema.updated"`). Used by both the action logging system and the workspace event bus | action name, event type |
+| **ActivityFeed** | A cross-mod block registered via `registerBlock()` that renders actions from any mod's action table. Bindable into any workspace sidebar slot via `registerIntoSlot()` | action log viewer, audit feed |
+| **Block Action** | An action logged for a block-level mutation (create, edit, delete). Routed through the workspace event bus via `bus.collect()` and batched on save | editor action, block log |
 
 ## The Hub Pattern
 
@@ -99,7 +132,7 @@
 | **BaseCard** | Shared card wrapper component providing view modes (list/grid/compact), selection state, star button, and owner display. Used by hubs to render items consistently | card, list item, library card |
 | **Breadcrumbs** | Navigational path bar rendering `BreadcrumbSegment[]` — callers build segments, component renders. Moved from the old console system into `shared/components/` | path bar, nav trail |
 | **StatusBadge** | Colored pill for entry/entity status (e.g., "In Progress", "Completed"). Extracted from BaseCard into `shared/components/` | status chip, status label |
-| **TagPill** | Tag display component used on cards and in detail views. Lives in `core-mods/tags/ui/` — the single shared tag display for the entire platform | tags, labels |
+| **TagPill** | Tag display component used on cards and in detail views. Lives in `src/mods/tags/ui/` — the single shared tag display for the entire platform | tags, labels |
 | **ReferenceBadge** | Clickable UI badge showing a display ID (e.g., `E12`). Clicking navigates to the target's dedicated URL | badge, ref chip, #-badge |
 | **Activity** | Placeholder timeline component showing actions performed on an item (user + action + timestamp). Future: reads from platform-level standardized action log with CFR Part 11 traceability | action log, audit trail, history |
 | **OwnerStack** | Placeholder for stacked user avatars. Currently renders a single avatar; future: overlapping avatar circles for multiple owners | avatar stack, owner list |
@@ -217,7 +250,7 @@ A **Folder** is a data-model concept — a node in the folder tree. The **Librar
 | "three-step fold" / "LIMS three-step fold" | Hub + Workspace architecture |
 | "Master Panel" / "Detail Panel" / "Workspace Panel" | Hub page (browsing) + dedicated Workspace URL |
 | registerConsole() | registerHub() |
-| registerWorkspace() | registerRoute() (workspaces are plain routes) |
+| registerWorkspace() (as console member) | registerWorkspace() (standalone identity) + registerRoute() for URL |
 | ConsoleConfig | HubConfig |
 | ConsolePage / ConsoleProvider / ConsoleCollapsedStrip | Removed — no replacement |
 | useConsoleView / useConsoleData | usePaginatedData (shared/hooks/) |
@@ -225,6 +258,13 @@ A **Folder** is a data-model concept — a node in the folder tree. The **Librar
 | "ELN browser" / "ELN console" | Library Hub |
 | "sample" | Entity |
 | "project" | Folder |
+| registerSlashCommand() | registerBlock() (renderer-agnostic blocks, discoverable via slash menu) |
+| TipTapBlockPayload / type: "tiptap-node" | BlockRegistration (renderer-agnostic component, serialize, deserialize) |
+| frontend/src/core-mods/ | src/mods/ (co-located frontend + backend) |
+| backend/core_mods/ | src/mods/<id>/ (backend code co-located with frontend) |
+| inline meta export in index.ts | modManifest.json (single identity source of truth) |
+| manual log_action() calls | ActionLoggingMixin + @logs_action (declarative) |
+| registerService() (unexported) | registry.call() (internal ModRegistry method) |
 
 ## Flagged Ambiguities
 

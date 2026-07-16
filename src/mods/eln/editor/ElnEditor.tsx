@@ -13,6 +13,7 @@
  * (ElnWorkspace) can render them in the top toolbar.
  */
 import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
+import type { MutableRefObject } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Lock } from "lucide-react";
@@ -38,7 +39,7 @@ function formatDateShort(iso: string): string {
 
 /** Public handle exposed to parent components via ref. */
 export interface ElnEditorHandle {
-  save: () => void;
+  save: (options?: { hasBlockActions?: boolean }) => void;
   deleteEntry: () => void;
   setFolderId: (id: number | null) => void;
   setStatus: (status: string) => void;
@@ -82,13 +83,17 @@ interface ElnEditorProps {
   bus?: WorkspaceBus;
   /** Flat metadata bag available to block components. */
   slotContext?: SlotContext;
+  /** Mutable ref set by useBlockActionLogging — true when block actions
+   *  are pending. Read at save time to decide whether to set the
+   *  X-Block-Actions header so the server suppresses eln.entry.edited. */
+  hasBlockActionsRef?: MutableRefObject<boolean>;
 }
 
 /** Editor component — MentionProvider is provided by Layout.
  *  Action buttons (MoreActions menu) are exposed via ref so the parent can
  *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
-  function ElnEditor({ entryId, onStateChange, bus, slotContext }, ref) {
+  function ElnEditor({ entryId, onStateChange, bus, slotContext, hasBlockActionsRef }, ref) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // A "new" entry is one that was just created server-side and navigated
@@ -216,6 +221,15 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   });
 
   // ── Auto-save ──
+  // Wrap crud.autoSave so hasBlockActionsRef is read at call time
+  // (the ref is updated synchronously by useBlockActionLogging).
+  const autoSaveWithBlockActions = useCallback(
+    (folderId: number | null) => {
+      crud.autoSave(folderId, hasBlockActionsRef?.current ?? false);
+    },
+    [crud.autoSave, hasBlockActionsRef],
+  );
+
   useAutoSave({
     entryId: entryId ?? crud.entry?.display_id,
     title: crud.title,
@@ -223,7 +237,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     status: crud.status,
     contentVersion,
     folderId: folder.folderId,
-    autoSave: crud.autoSave,
+    autoSave: autoSaveWithBlockActions,
   });
 
   // Destructure for convenient access in JSX
@@ -255,7 +269,8 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   const { folderId, setFolderId, folders } = folder;
 
   // Wire cross-hook actions
-  const save = () => crud.save(folderId, isNew ? pendingTagIds : []);
+  const save = (options?: { hasBlockActions?: boolean }) =>
+    crud.save(folderId, isNew ? pendingTagIds : [], options?.hasBlockActions);
   const { deleteEntry } = crud;
 
   // ── Lock-based read-only ──
@@ -271,7 +286,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   actionsRef.current = { save, deleteEntry, setFolderId, setStatus };
 
   useImperativeHandle(ref, () => ({
-    save: () => actionsRef.current.save(),
+    save: (options?: { hasBlockActions?: boolean }) => actionsRef.current.save(options),
     deleteEntry: () => actionsRef.current.deleteEntry(),
     setFolderId: (id: number | null) => actionsRef.current.setFolderId(id),
     setStatus: (s: string) => actionsRef.current.setStatus(s),

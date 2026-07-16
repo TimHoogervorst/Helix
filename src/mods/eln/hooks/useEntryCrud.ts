@@ -49,9 +49,9 @@ export interface UseEntryCrudReturn {
   /** Username of the lock holder, or null if not locked by another. */
   lockHeldBy: string | null;
   /** Fire-and-forget auto-save — enqueues with saveMode "autosave". */
-  autoSave: (folderId: number | null) => void;
+  autoSave: (folderId: number | null, hasBlockActions?: boolean) => void;
   /** Manual save — enqueues with saveMode "manual", returns the promise. */
-  save: (folderId: number | null, tagIds: number[]) => Promise<void>;
+  save: (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => Promise<void>;
   deleteEntry: () => Promise<void>;
   /** Apply server response to local state (shared by autoSave and save). */
   applySavedEntry: (entry: EntryDetail) => void;
@@ -113,7 +113,7 @@ export function useEntryCrud({
 
   // ── Auto-save (fire-and-forget) ──
   const autoSave = useCallback(
-    (folderId: number | null) => {
+    (folderId: number | null, hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -131,7 +131,7 @@ export function useEntryCrud({
         status,
       };
 
-      enqueue(payload, "autosave").then((saved) => {
+      enqueue(payload, "autosave", hasBlockActions).then((saved) => {
         // For auto-saves we do NOT apply the server response to local
         // state — the user may have edited since the save was triggered,
         // and overwriting title / content would reset the cursor and
@@ -148,7 +148,7 @@ export function useEntryCrud({
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
-    async (folderId: number | null, tagIds: number[]) => {
+    async (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -166,7 +166,7 @@ export function useEntryCrud({
         status,
       };
 
-      const saved = await enqueue(payload, "manual");
+      const saved = await enqueue(payload, "manual", hasBlockActions);
 
       // For new entries, flush deferred tags after the first save
       if (isNew && tagIds.length > 0 && effectiveEntryId) {

@@ -29,6 +29,9 @@ export type SaveMode = "autosave" | "manual";
 interface QueuedSave {
   payload: Record<string, unknown>;
   saveMode?: SaveMode;
+  /** When true, the X-Block-Actions header is set on the PUT request,
+   *  signalling the server to suppress eln.entry.edited logging. */
+  hasBlockActions?: boolean;
   resolve: (value: EntryDetail) => void;
   reject: (reason: unknown) => void;
 }
@@ -51,10 +54,13 @@ export interface UseSaveQueueReturn {
    *
    * @param payload  The PUT request body (title, content, folder, status, etc.)
    * @param saveMode Optional save mode ("autosave" | "manual"), sent as X-Save-Mode header.
+   * @param hasBlockActions When true, sets X-Block-Actions header so the server
+   *   suppresses the entry-level eln.entry.edited action log.
    */
   enqueue: (
     payload: Record<string, unknown>,
     saveMode?: SaveMode,
+    hasBlockActions?: boolean,
   ) => Promise<EntryDetail>;
 }
 
@@ -83,6 +89,9 @@ export function useSaveQueue({
         const extraHeaders: Record<string, string> = {};
         if (item.saveMode) {
           extraHeaders["X-Save-Mode"] = item.saveMode;
+        }
+        if (item.hasBlockActions) {
+          extraHeaders["X-Block-Actions"] = "1";
         }
 
         const result = await put<EntryDetail>(
@@ -121,11 +130,13 @@ export function useSaveQueue({
     (
       payload: Record<string, unknown>,
       saveMode?: SaveMode,
+      hasBlockActions?: boolean,
     ): Promise<EntryDetail> => {
       const promise = new Promise<EntryDetail>((resolve, reject) => {
         queueRef.current.push({
           payload,
           saveMode,
+          hasBlockActions,
           resolve,
           reject,
         });

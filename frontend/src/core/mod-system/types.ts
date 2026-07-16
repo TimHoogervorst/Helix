@@ -424,6 +424,8 @@ export interface ButtonBinding extends BaseBinding {
  * to the renderer component via this interface.
  */
 export interface RendererProps<T extends BaseBinding = BaseBinding> {
+  /** The slot ID being rendered, e.g. "eln.editor". */
+  slotId: string;
   /** Resolved bindings — blocks or buttons, depending on the slot's `accepts`. */
   bindings: T[];
   /** The workspace-scoped event bus. */

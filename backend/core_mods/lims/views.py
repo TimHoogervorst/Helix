@@ -2,6 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.actions.mixins import ActionLoggingMixin
+
 from .models import EntityType, Entity, Action
 from .serializers import (
     EntityTypeSerializer,
@@ -12,7 +14,7 @@ from .serializers import (
 )
 
 
-class EntityTypeViewSet(viewsets.ModelViewSet):
+class EntityTypeViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for LIMS entity types (schemas).
 
@@ -29,6 +31,13 @@ class EntityTypeViewSet(viewsets.ModelViewSet):
     permission_classes = []
     pagination_class = None
 
+    action_log_config = {
+        "create": {"action_type": "lims.entity_type.created"},
+        "update": {"action_type": "lims.entity_type.edited"},
+        "partial_update": {"action_type": "lims.entity_type.edited"},
+        "destroy": {"action_type": "lims.entity_type.deleted"},
+    }
+
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
             return EntityTypeDetailSerializer
@@ -36,8 +45,10 @@ class EntityTypeViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """Soft-delete: set is_active=False instead of removing the row."""
+        instance._pre_delete_pk = instance.pk
         instance.is_active = False
         instance.save(update_fields=["is_active"])
+        self._maybe_log("destroy", instance=instance)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -53,7 +64,7 @@ class EntityTypeViewSet(viewsets.ModelViewSet):
         return Response({"deleted": count})
 
 
-class EntityViewSet(viewsets.ModelViewSet):
+class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for LIMS entities.
 
@@ -74,9 +85,21 @@ class EntityViewSet(viewsets.ModelViewSet):
     filterset_fields = ["entity_type"]
     search_fields = ["name", "display_id"]
 
+    action_log_config = {
+        "create": {"action_type": "lims.entity.created"},
+        "update": {"action_type": "lims.entity.edited"},
+        "partial_update": {"action_type": "lims.entity.edited"},
+        "destroy": {"action_type": "lims.entity.deleted"},
+    }
+
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=author)
+        instance = serializer.save(created_by=author)
+        self._maybe_log(
+            "create",
+            instance=instance,
+            validated_data=serializer.validated_data,
+        )
 
     def filter_queryset(self, queryset):
         # Support ?type= as an alias for ?entity_type=

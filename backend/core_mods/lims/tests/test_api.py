@@ -1,11 +1,13 @@
 """
 Tests for the LIMS API endpoints.
 """
+from unittest.mock import patch
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.tests.base import BaseTestCase
-from core_mods.lims.models import EntityType, Entity
+from core_mods.lims.models import Action as LimsAction, EntityType, Entity
 
 
 class LimsApiTests(BaseTestCase):
@@ -358,3 +360,304 @@ class EntityApiTests(BaseTestCase):
         self.assertEqual(response.data[e1.display_id]["properties"]["concentration"], 99)
         self.assertEqual(response.data[e2.display_id]["name"], "Batch Two")
         self.assertIsNone(response.data["NONEXIST1"])
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Action logging tests — EntityType CRUD
+# ═══════════════════════════════════════════════════════════════════════
+
+MIXIN_LOG_ACTION_PATH = "core.actions.mixins.log_action"
+
+
+def _log_kwargs(mock):
+    """Return the keyword-args dict from the *first* call to *mock*."""
+    if mock.call_count == 0:
+        return {}
+    return mock.call_args[1]
+
+
+class EntityTypeActionLoggingTests(BaseTestCase):
+    """Test that EntityType CRUD operations log actions via ActionLoggingMixin."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_create_entity_type_logs_action(self):
+        response = self.client.post(
+            "/api/lims/entity-types/",
+            {"name": "Blood Sample", "prefix": "BLOOD", "columns": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity_type.created")
+        self.assertEqual(kwargs["target_type"], "lims.entity_type")
+        self.assertEqual(kwargs["target_id"], response.data["id"])
+        self.assertEqual(kwargs["user"], self.user)
+
+    def test_update_entity_type_logs_action(self):
+        et = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+        response = self.client.put(
+            f"/api/lims/entity-types/{et.id}/",
+            {"name": "DNA Updated", "prefix": "DNA", "columns": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity_type.edited")
+        self.assertEqual(kwargs["target_type"], "lims.entity_type")
+        self.assertEqual(kwargs["target_id"], et.id)
+
+    def test_partial_update_entity_type_logs_action(self):
+        et = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+        response = self.client.patch(
+            f"/api/lims/entity-types/{et.id}/",
+            {"name": "DNA Patched"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity_type.edited")
+        self.assertEqual(kwargs["target_type"], "lims.entity_type")
+
+    def test_soft_delete_entity_type_logs_action(self):
+        et = EntityType.objects.create(name="Temp", prefix="TEMP", columns=[])
+        response = self.client.delete(f"/api/lims/entity-types/{et.id}/")
+        self.assertEqual(response.status_code, 204)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity_type.deleted")
+        self.assertEqual(kwargs["target_type"], "lims.entity_type")
+        self.assertEqual(kwargs["target_id"], et.id)
+
+    def test_create_entity_type_captures_request_id(self):
+        self.client.post(
+            "/api/lims/entity-types/",
+            {"name": "Blood", "prefix": "BLOOD", "columns": []},
+            format="json",
+        )
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertIsNotNone(kwargs["request_id"])
+        self.assertEqual(len(str(kwargs["request_id"])), 36)
+
+    def test_create_entity_type_captures_client_ip(self):
+        self.client.post(
+            "/api/lims/entity-types/",
+            {"name": "Blood", "prefix": "BLOOD", "columns": []},
+            format="json",
+        )
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Action logging tests — Entity CRUD
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class EntityActionLoggingTests(BaseTestCase):
+    """Test that Entity CRUD operations log actions via ActionLoggingMixin."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_create_entity_logs_action(self):
+        response = self.client.post(
+            "/api/lims/entities/",
+            {"name": "Sample A", "entity_type": self.dna_type.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity.created")
+        self.assertEqual(kwargs["target_type"], "lims.entity")
+        self.assertEqual(kwargs["target_id"], response.data["id"])
+        self.assertEqual(kwargs["user"], self.user)
+
+    def test_update_entity_logs_action(self):
+        entity = Entity.objects.create(
+            name="Sample A", entity_type=self.dna_type,
+            folder=self.folder, created_by=self.user,
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {"name": "Sample A Updated", "entity_type": self.dna_type.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity.edited")
+        self.assertEqual(kwargs["target_type"], "lims.entity")
+        self.assertEqual(kwargs["target_id"], entity.pk)
+
+    def test_partial_update_entity_logs_action(self):
+        entity = Entity.objects.create(
+            name="Sample B", entity_type=self.dna_type,
+            folder=self.folder, created_by=self.user,
+        )
+        response = self.client.patch(
+            f"/api/lims/entities/{entity.display_id}/",
+            {"name": "Sample B Patched"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity.edited")
+        self.assertEqual(kwargs["target_type"], "lims.entity")
+
+    def test_delete_entity_logs_action(self):
+        entity = Entity.objects.create(
+            name="Delete Me", entity_type=self.dna_type,
+            folder=self.folder, created_by=self.user,
+        )
+        response = self.client.delete(
+            f"/api/lims/entities/{entity.display_id}/"
+        )
+        self.assertEqual(response.status_code, 204)
+        self.mock_log.assert_called_once()
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertEqual(kwargs["action_type"], "lims.entity.deleted")
+        self.assertEqual(kwargs["target_type"], "lims.entity")
+        self.assertEqual(kwargs["target_id"], entity.pk)
+
+    def test_create_entity_captures_request_id_and_client_ip(self):
+        self.client.post(
+            "/api/lims/entities/",
+            {"name": "Sample C", "entity_type": self.dna_type.id},
+            format="json",
+        )
+        kwargs = _log_kwargs(self.mock_log)
+        self.assertIsNotNone(kwargs["request_id"])
+        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+
+    def test_list_entities_does_not_log(self):
+        response = self.client.get("/api/lims/entities/")
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_not_called()
+
+    def test_retrieve_entity_does_not_log(self):
+        entity = Entity.objects.create(
+            name="Read Only", entity_type=self.dna_type,
+            folder=self.folder, created_by=self.user,
+        )
+        response = self.client.get(
+            f"/api/lims/entities/{entity.display_id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_not_called()
+
+    def test_batch_resolve_does_not_log(self):
+        response = self.client.post(
+            "/api/lims/entities/batch/",
+            {"ids": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_not_called()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Action logging — fail-open tests
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class LimsActionLoggingFailOpenTests(BaseTestCase):
+    """Test that action logging failure never breaks LIMS responses."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+
+    def test_log_exception_does_not_break_entity_type_create(self):
+        with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
+            response = self.client.post(
+                "/api/lims/entity-types/",
+                {"name": "Survivor", "prefix": "SURV", "columns": []},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("id", response.data)
+
+    def test_log_exception_does_not_break_entity_type_delete(self):
+        et = EntityType.objects.create(name="Temp", prefix="TEMP", columns=[])
+        with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
+            response = self.client.delete(f"/api/lims/entity-types/{et.id}/")
+        self.assertEqual(response.status_code, 204)
+
+    def test_log_exception_does_not_break_entity_create(self):
+        with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
+            response = self.client.post(
+                "/api/lims/entities/",
+                {"name": "Survivor", "entity_type": self.dna_type.id},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("id", response.data)
+
+    def test_log_exception_does_not_break_entity_delete(self):
+        entity = Entity.objects.create(
+            name="Delete Me", entity_type=self.dna_type,
+            folder=self.folder, created_by=self.user,
+        )
+        with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
+            response = self.client.delete(
+                f"/api/lims/entities/{entity.display_id}/"
+            )
+        self.assertEqual(response.status_code, 204)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Regression — existing LIMS Entity Actions (user-recorded) untouched
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class ActionViewSetRegressionTests(BaseTestCase):
+    """Verify ActionViewSet (user-recorded LIMS actions) still works after
+    ActionLoggingMixin is added to the other LIMS viewsets."""
+
+    def setUp(self):
+        super().setUp()
+        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+
+    def test_list_actions_returns_200(self):
+        """GET /api/lims/actions/ still responds correctly."""
+        response = self.client.get("/api/lims/actions/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
+
+    def test_action_model_still_creates_rows(self):
+        """LimsAction.objects.create() still works directly."""
+        entity = Entity.objects.create(
+            name="Test Entity", entity_type=self.dna_type,
+            folder=self.folder, created_by=self.user,
+        )
+        action = LimsAction.objects.create(
+            performed_by=self.user,
+            action_type="created",
+            target_type="lims.entity",
+            target_id=entity.pk,
+            entity=entity,
+        )
+        self.assertIsNotNone(action.pk)
+        self.assertEqual(action.action_type, "created")
+        self.assertEqual(action.entity, entity)

@@ -190,6 +190,12 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
         data-testid="activity-group-toggle"
       >
         <span
+          className="mt-1.5 shrink-0 text-[10px] leading-none text-muted-foreground/70"
+          aria-hidden="true"
+        >
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span
           className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
           aria-hidden="true"
         />
@@ -204,15 +210,9 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
         </span>
       </button>
       {expanded && (
-        <ul className="ml-4 mt-1 space-y-1 border-l border-hairline pl-3">
+        <ul className="mt-1 space-y-1">
           {group.children.map((child) => (
-            <li
-              key={child.id}
-              className="text-muted-foreground"
-              data-testid="activity-group-child"
-            >
-              {actionMessage(child)}
-            </li>
+            <ActivityItem key={child.id} action={child} indented />
           ))}
         </ul>
       )}
@@ -224,13 +224,19 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
 
 interface ActivityItemProps {
   action: DisplayActionItem;
+  /** When true, renders with left margin and border for nested group display. */
+  indented?: boolean;
 }
 
-function ActivityItem({ action }: ActivityItemProps) {
+function ActivityItem({ action, indented = false }: ActivityItemProps) {
   const isPending = action.state === "pending";
-  const containerClass = isPending
-    ? "flex items-start gap-2 opacity-60 animate-pulse"
-    : "flex items-start gap-2";
+  const containerClass = [
+    "flex items-start gap-2",
+    isPending && "opacity-60 animate-pulse",
+    indented && "ml-4 border-l border-hairline pl-3",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const dotClass = isPending
     ? "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50"
@@ -239,7 +245,7 @@ function ActivityItem({ action }: ActivityItemProps) {
   return (
     <li
       className={containerClass}
-      data-testid="activity-item"
+      data-testid={indented ? "activity-group-child" : "activity-item"}
       data-state={action.state}
     >
       <span className={dotClass} aria-hidden="true" />

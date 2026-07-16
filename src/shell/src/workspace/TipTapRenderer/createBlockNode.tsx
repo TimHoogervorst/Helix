@@ -104,7 +104,47 @@ export function createBlockNode(
     },
 
     addNodeView() {
-      return ReactNodeViewRenderer(WrapperNodeView);
+      return ReactNodeViewRenderer(WrapperNodeView, {
+        stopEvent: ({ event }) => {
+          const target = event.target as HTMLElement;
+
+          // Interactive elements and their descendants should always be
+          // handled by the block's own UI, not ProseMirror.
+          // Use closest() instead of exact tag check so clicks on SVG
+          // icons and spans inside buttons are also stopped.
+          const isInteractive =
+            target.matches("input, button, select, textarea") ||
+            target.closest("input, button, select, textarea") !== null ||
+            target.isContentEditable;
+
+          if (
+            isInteractive &&
+            event.type !== "drop" &&
+            !event.type.startsWith("drag")
+          ) {
+            return true;
+          }
+
+          // Clipboard events go to ProseMirror for integration.
+          if (
+            event.type === "copy" ||
+            event.type === "paste" ||
+            event.type === "cut"
+          ) {
+            return false;
+          }
+
+          // Drag events go to ProseMirror.
+          if (event.type.startsWith("drag") || event.type === "drop") {
+            return false;
+          }
+
+          // Stop all other events (click, dblclick, keydown, mousedown, etc.)
+          // from reaching ProseMirror. This prevents NodeSelection when
+          // clicking on non-interactive content inside the block.
+          return true;
+        },
+      });
     },
   });
 }

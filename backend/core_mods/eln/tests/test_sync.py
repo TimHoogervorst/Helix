@@ -255,9 +255,11 @@ class SyncEntryContentTests(BaseServiceTestCase):
         """A receiver is connected to entry_content_sync for NotebookEntry."""
         from core.signals import entry_content_sync
 
-        receivers = entry_content_sync._live_receivers(sender=NotebookEntry)
+        sync_receivers, async_receivers = entry_content_sync._live_receivers(
+            sender=NotebookEntry
+        )
         self.assertTrue(
-            any(r[0] for r in receivers),
+            sync_receivers or async_receivers,
             "No receiver connected to entry_content_sync",
         )
 

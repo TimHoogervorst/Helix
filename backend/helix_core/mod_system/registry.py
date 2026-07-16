@@ -210,8 +210,18 @@ class BackendModRegistry:
             # Check that all declared dependencies are ready.
             if mod_id in self._manifests:
                 for dep_id in self._manifests[mod_id].depends_on:
-                    dep_app_label = f"core_mods.{dep_id}"
-                    dep_config = apps.app_configs.get(dep_app_label)
+                    # Try label first (e.g. "lims"), then dotted name
+                    # (e.g. "core_mods.lims") — Django app_configs keys
+                    # are app labels, which for core_mods are the last
+                    # component of the dotted name.
+                    dep_config = apps.app_configs.get(dep_id)
+                    if dep_config is None:
+                        # Fall back: search by full dotted name
+                        dep_dotted = f"core_mods.{dep_id}"
+                        for config in apps.app_configs.values():
+                            if config.name == dep_dotted:
+                                dep_config = config
+                                break
                     if dep_config is None:
                         # Dependency not installed — don't fire.
                         return None
@@ -226,6 +236,7 @@ class BackendModRegistry:
             "signal": signal,
             "handler": handler,
             "sender": sender,
+            "_wrapper": _dependency_gated_handler,  # keep a strong reference
         })
 
     @staticmethod

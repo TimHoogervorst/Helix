@@ -12,8 +12,10 @@
 |------|-----------|
 | **Mod** | A self-contained unit of functionality registered into Core. Owns consoles, workspaces, detail cards, settings, routes, and commands. |
 | **Core** | The immutable app shell: Layout, Router, Console panels, Mod Loader, Mod Registry, Reference resolution, API client. |
-| **Core Mod** | A mod under `core-mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
+| **Core Mod** | A built-in mod under `src/mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
 | **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, detail/workspace resolution. |
+| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
+| **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
 | **Workspace** | A mod's dedicated work surface for a type of content. Declared via `registerWorkspace({ id, displayName })` — the `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Any mod that registers a workspace is automatically discoverable by the mention system and the pins/bookmarks system. |
 
 ### Workspace Registration

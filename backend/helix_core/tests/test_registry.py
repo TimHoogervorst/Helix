@@ -453,7 +453,7 @@ class TestSignalDependencyGating:
         sender = _mock_sender("lims")
 
         with patch("django.apps.apps.app_configs", {
-            "core_mods.lims": MagicMock(ready=True),
+            "lims": MagicMock(ready=True),
         }):
             reg.register_signal("eln", signal, original_handler, sender=sender)
 
@@ -506,7 +506,7 @@ class TestSignalDependencyGating:
 
         # lims is installed but NOT ready.
         with patch("django.apps.apps.app_configs", {
-            "core_mods.lims": MagicMock(ready=False),
+            "lims": MagicMock(ready=False),
         }):
             reg.register_signal("eln", signal, original_handler, sender=sender)
 

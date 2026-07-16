@@ -129,6 +129,10 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
   //     don't trigger a spurious auto-save on initial load.
   const [contentVersion, setContentVersion] = useState(0);
 
+  // ── Error surfaced from content loading (setContent). Separate from
+  //     crud.error, which covers API-level failures (fetch, save, delete).
+  const [contentError, setContentError] = useState<string | null>(null);
+
   // ── Title ref (for contentEditable cursor preservation) ──
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   // Guard so auto-focus only fires once on mount, not on every re-render.
@@ -321,9 +325,18 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
       bus?.emit("eln.editor.content-loading", true);
       isProgrammaticChange.current = true;
       queueMicrotask(() => {
-        editor.commands.setContent(body);
-        contentRef.current = body as TipTapDoc;
-        isProgrammaticChange.current = false;
+        try {
+          editor.commands.setContent(body);
+          contentRef.current = body as TipTapDoc;
+          setContentError(null);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Failed to load editor content";
+          setContentError(message);
+          console.error("ElnEditor: setContent failed:", err);
+        } finally {
+          isProgrammaticChange.current = false;
+        }
       });
       queueMicrotask(() => {
         bus?.emit("eln.editor.content-loading", false);
@@ -408,6 +421,17 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
+
+      {/* ── Content loading error banner ── */}
+      {contentError && (
+        <div
+          className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"
+          data-testid="content-error-banner"
+        >
+          <p className="font-medium">Failed to load editor content</p>
+          <p className="mt-1 text-[12px] text-destructive/80">{contentError}</p>
+        </div>
+      )}
 
       {/* ── Content area ── */}
 

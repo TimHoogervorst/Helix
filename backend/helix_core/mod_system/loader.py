@@ -114,6 +114,34 @@ def _get_all_manifests(
 # ── discovery ────────────────────────────────────────────────────────────────
 
 
+def _load_manifest_from_dir(mod_dir: Path, mod_id: str) -> ModManifest | None:
+    """Load a manifest from a mod directory, preferring ``modManifest.json``.
+
+    Checks for ``modManifest.json`` first; if that file exists its contents
+    are parsed via ``_read_json_manifest``.  Otherwise falls back to
+    ``mod.py`` via ``_import_manifest``.  Returns ``None`` when neither
+    manifest source exists in the directory.
+
+    This is the single implementation of the JSON-first resolution policy.
+    Every discovery path routes through this helper so the preference rule
+    lives in exactly one place.
+
+    Args:
+        mod_dir: Absolute path to the mod directory.
+        mod_id: Expected mod ID (directory name).
+
+    Returns:
+        The parsed ``ModManifest``, or ``None`` if neither source exists.
+    """
+    json_path = mod_dir / "modManifest.json"
+    if json_path.is_file():
+        return _read_json_manifest(mod_dir, mod_id)
+    mod_py = mod_dir / "mod.py"
+    if mod_py.is_file():
+        return _import_manifest(mod_py, mod_id)
+    return None
+
+
 def _auto_discover(
     base_dir: str | Path | None,
 ) -> dict[str, ModManifest]:
@@ -150,10 +178,9 @@ def _auto_discover(
             continue
         if entry.name.startswith("_"):
             continue
-        mod_py = entry / "mod.py"
-        if not mod_py.is_file():
+        manifest = _load_manifest_from_dir(entry, entry.name)
+        if manifest is None:
             continue
-        manifest = _import_manifest(mod_py, entry.name)
         manifests[entry.name] = manifest
 
     return manifests
@@ -214,14 +241,13 @@ def _load_manifests_from_paths(
                 f"directory could not be found on sys.path."
             )
 
-        mod_py = mod_dir / "mod.py"
-        if not mod_py.is_file():
+        manifest = _load_manifest_from_dir(mod_dir, mod_id)
+        if manifest is None:
             raise ImportError(
                 f"HELIX_MODS references '{dotted_path}', but "
-                f"'{mod_py}' does not exist."
+                f"neither 'modManifest.json' nor 'mod.py' "
+                f"exist in '{mod_dir}'."
             )
-
-        manifest = _import_manifest(mod_py, mod_id)
         manifests[mod_id] = manifest
 
     return manifests
@@ -324,8 +350,13 @@ def _load_external_mods_from_json(
         if parent not in sys.path:
             sys.path.insert(0, parent)
 
-        # Load the manifest.
-        manifest = _import_manifest(mod_py_path, mod_id)
+        # Load the manifest — prefer modManifest.json when present.
+        manifest = _load_manifest_from_dir(mod_dir, mod_id)
+        if manifest is None:
+            raise ImportError(
+                f"External mod at '{mod_dir}' has neither "
+                f"modManifest.json nor mod.py."
+            )
         result[mod_id] = (manifest, dotted_path)
 
     return result
@@ -347,6 +378,99 @@ def _sanitize_module_name(name: str) -> str:
     if sanitized[0].isdigit():
         sanitized = "_" + sanitized
     return sanitized
+
+
+def _read_json_manifest(mod_dir: Path, mod_id: str) -> ModManifest:
+    """Read a ``modManifest.json`` file from a mod directory.
+
+    Parses the JSON and constructs a ``ModManifest`` instance.  This is the
+    JSON counterpart to ``_import_manifest`` — use it when a mod directory
+    contains a ``modManifest.json`` file instead of (or in addition to) a
+    ``mod.py`` with a ``manifest`` variable.
+
+    The JSON format uses camelCase keys matching the frontend schema::
+
+        {
+          "id": "eln",
+          "displayName": "Electronic Lab Notebook",
+          "version": "0.1.0",
+          "dependsOn": ["lims", "tags"]
+        }
+
+    Object-form dependencies are also supported::
+
+        {
+          "dependsOn": [
+            "lims",
+            {"id": "tags", "version": ">=2.0"}
+          ]
+        }
+
+    Args:
+        mod_dir: Absolute path to the mod directory.
+        mod_id: Expected mod ID (directory name).
+
+    Returns:
+        The parsed ``ModManifest`` instance.
+
+    Raises:
+        FileNotFoundError: If ``modManifest.json`` does not exist in *mod_dir*.
+        ValueError: If the JSON is malformed, missing required fields, or
+            the ``id`` does not match *mod_id*.
+        TypeError: If any field has the wrong type (delegates to
+            ``ModManifest.__post_init__``).
+    """
+    json_path = mod_dir / "modManifest.json"
+    if not json_path.is_file():
+        raise FileNotFoundError(
+            f"modManifest.json not found at {json_path}"
+        )
+
+    with open(json_path, "r", encoding="utf-8") as fh:
+        try:
+            data = json.load(fh)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"modManifest.json at {json_path} is not valid JSON: {exc}"
+            ) from exc
+
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"modManifest.json at {json_path} must be a JSON object, "
+            f"got {type(data).__name__}"
+        )
+
+    # Validate required fields before constructing ModManifest.
+    if "id" not in data:
+        raise ValueError(
+            f"modManifest.json at {json_path} is missing required "
+            f"field 'id'"
+        )
+    if "displayName" not in data:
+        raise ValueError(
+            f"modManifest.json at {json_path} is missing required "
+            f"field 'displayName'"
+        )
+
+    # Map camelCase JSON keys to snake_case ModManifest kwargs.
+    manifest = ModManifest(
+        id=data["id"],
+        display_name=data["displayName"],
+        version=data.get("version"),
+        depends_on=data.get("dependsOn", []),
+        core_version=data.get("coreVersion"),
+        icon=data.get("icon"),
+        description=data.get("description"),
+    )
+
+    if manifest.id != mod_id:
+        raise ValueError(
+            f"modManifest.json at '{json_path}' declares id "
+            f"'{manifest.id}' but expected id '{mod_id}' "
+            f"(must match directory name)."
+        )
+
+    return manifest
 
 
 def _import_manifest(mod_py_path: Path, mod_id: str) -> ModManifest:

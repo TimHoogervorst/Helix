@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ModRegistry } from "../ModRegistry";
 import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 import type {
@@ -8,6 +8,9 @@ import type {
   SidebarActionConfig,
   LibraryItemConfig,
   BlockConfig,
+  SlotDeclaration,
+  ButtonRegistration,
+  BlockRegistration,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -91,6 +94,48 @@ function makeBlock(overrides?: Partial<BlockConfig>): BlockConfig {
     icon: "📊",
     type: BLOCK_TYPE_TIPTAP_NODE,
     payload: { node: DummyComponent },
+    ...overrides,
+  };
+}
+
+function makeSlotDeclaration(
+  overrides?: Partial<SlotDeclaration>,
+): SlotDeclaration {
+  return {
+    id: "eln.editor",
+    accepts: "block",
+    renderer: DummyComponent,
+    layout: "vertical",
+    order: 0,
+    defaults: {},
+    ...overrides,
+  };
+}
+
+function makeButtonRegistration(
+  overrides?: Partial<ButtonRegistration>,
+): ButtonRegistration {
+  return {
+    id: "eln.export",
+    label: "Export",
+    onClick: () => {},
+    ...overrides,
+  };
+}
+
+function makeBlockRegistration(
+  overrides?: Partial<BlockRegistration>,
+): BlockRegistration {
+  return {
+    id: "eln.table",
+    label: "Table",
+    icon: DummyComponent,
+    component: DummyComponent,
+    listensTo: [],
+    onEvent: {},
+    serialize: (state) => JSON.stringify(state),
+    deserialize: (json) => JSON.parse(json),
+    defaultState: {},
     ...overrides,
   };
 }
@@ -316,5 +361,196 @@ describe("ModRegistry", () => {
   it("getBlocks returns empty map when no blocks registered", () => {
     const blocks = registry.getBlocks();
     expect(blocks.size).toBe(0);
+  });
+
+  // ── registerBlock (overloaded: new BlockRegistration shape) ──────────
+
+  it("registerBlock accepts new BlockRegistration shape", () => {
+    const config = makeBlockRegistration({ id: "eln.chart" });
+    registry.registerBlock(config);
+    expect(registry.getBlocks().get("eln.chart")).toBe(config);
+  });
+
+  it("registerBlock throws on duplicate ID across both shapes", () => {
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    expect(() =>
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" })),
+    ).toThrow("Duplicate block registration");
+  });
+
+  // ── declareSlot ─────────────────────────────────────────────────────
+
+  it("declareSlot stores a slot declaration", () => {
+    const config = makeSlotDeclaration({ id: "eln.editor" });
+    registry.declareSlot(config);
+    expect(registry.getSlots().get("eln.editor")).toBe(config);
+  });
+
+  it("declareSlot throws on duplicate ID", () => {
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor" }));
+    expect(() =>
+      registry.declareSlot(makeSlotDeclaration({ id: "eln.editor" })),
+    ).toThrow("Duplicate slot declaration");
+  });
+
+  it("getSlots returns a read-only view", () => {
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor" }));
+    expect(registry.getSlots().has("eln.editor")).toBe(true);
+    expect(registry.getSlots().get("eln.editor")?.id).toBe("eln.editor");
+  });
+
+  it("getSlots returns empty map when no slots declared", () => {
+    expect(registry.getSlots().size).toBe(0);
+  });
+
+  // ── registerButton ──────────────────────────────────────────────────
+
+  it("registerButton stores a button registration", () => {
+    const config = makeButtonRegistration({ id: "eln.export" });
+    registry.registerButton(config);
+    expect(registry.getButtons().get("eln.export")).toBe(config);
+  });
+
+  it("registerButton throws on duplicate ID", () => {
+    registry.registerButton(makeButtonRegistration({ id: "eln.export" }));
+    expect(() =>
+      registry.registerButton(makeButtonRegistration({ id: "eln.export" })),
+    ).toThrow("Duplicate button registration");
+  });
+
+  it("getButtons returns a read-only view", () => {
+    registry.registerButton(makeButtonRegistration({ id: "eln.export" }));
+    expect(registry.getButtons().has("eln.export")).toBe(true);
+    expect(registry.getButtons().get("eln.export")?.id).toBe("eln.export");
+  });
+
+  it("getButtons returns empty map when no buttons registered", () => {
+    expect(registry.getButtons().size).toBe(0);
+  });
+
+  // ── registerIntoSlot ────────────────────────────────────────────────
+
+  it("registerIntoSlot stores a binding keyed by slotId", () => {
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    const bindings = registry.getBindings().get("eln.editor");
+    expect(bindings).toBeDefined();
+    expect(bindings).toHaveLength(1);
+    expect(bindings![0].slotId).toBe("eln.editor");
+    expect(bindings![0].targetId).toBe("eln.table");
+  });
+
+  it("registerIntoSlot stores multiple bindings for the same slot", () => {
+    registry.registerIntoSlot("eln.editor", "eln.table", {}, 0);
+    registry.registerIntoSlot("eln.editor", "eln.chart", {}, 1);
+    const bindings = registry.getBindings().get("eln.editor");
+    expect(bindings).toHaveLength(2);
+    expect(bindings![0].targetId).toBe("eln.table");
+    expect(bindings![1].targetId).toBe("eln.chart");
+  });
+
+  it("registerIntoSlot stores bindings with overrides and order", () => {
+    registry.registerIntoSlot("eln.editor", "eln.table", { nodeType: "inline" }, 5);
+    const binding = registry.getBindings().get("eln.editor")![0];
+    expect(binding.overrides).toEqual({ nodeType: "inline" });
+    expect(binding.order).toBe(5);
+  });
+
+  it("registerIntoSlot defaults overrides to {} and order to 0", () => {
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    const binding = registry.getBindings().get("eln.editor")![0];
+    expect(binding.overrides).toEqual({});
+    expect(binding.order).toBe(0);
+  });
+
+  it("registerIntoSlot stores bindings for different slots independently", () => {
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    registry.registerIntoSlot("eln.header.actions", "eln.export");
+    expect(registry.getBindings().get("eln.editor")).toHaveLength(1);
+    expect(registry.getBindings().get("eln.header.actions")).toHaveLength(1);
+  });
+
+  it("getBindings returns empty map when no bindings registered", () => {
+    expect(registry.getBindings().size).toBe(0);
+  });
+
+  // ── validate (slot binding validation) ──────────────────────────────
+
+  it("validate passes when all slot bindings are valid", () => {
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    expect(() => registry.validate()).not.toThrow();
+  });
+
+  it("validate warns and removes binding when slot is not declared", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    registry.validate();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("slot 'eln.editor' is not declared"),
+    );
+    expect(registry.getBindings().has("eln.editor")).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  it("validate warns and skips binding when target does not exist", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
+    registry.registerIntoSlot("eln.editor", "nonexistent.block");
+    registry.validate();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("not a registered block or button"),
+    );
+    expect(registry.getBindings().has("eln.editor")).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  it("validate warns and skips binding when target type does not match slot accepts", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.header.actions", accepts: "button" }));
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerIntoSlot("eln.header.actions", "eln.table");
+    registry.validate();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("accepts 'button' but target"),
+    );
+    expect(registry.getBindings().has("eln.header.actions")).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  it("validate warns and skips binding when button bound to block-only slot", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
+    registry.registerButton(makeButtonRegistration({ id: "eln.export" }));
+    registry.registerIntoSlot("eln.editor", "eln.export");
+    registry.validate();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("accepts 'block' but target"),
+    );
+    expect(registry.getBindings().has("eln.editor")).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  it("validate keeps valid bindings while removing invalid ones", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.editor", accepts: "block" }));
+    registry.registerBlock(makeBlock({ id: "eln.table" }));
+    registry.registerBlock(makeBlock({ id: "eln.chart" }));
+    registry.registerIntoSlot("eln.editor", "eln.table");
+    registry.registerIntoSlot("eln.editor", "nonexistent.block");
+
+    registry.validate();
+
+    const bindings = registry.getBindings().get("eln.editor");
+    expect(bindings).toHaveLength(1);
+    expect(bindings![0].targetId).toBe("eln.table");
+    // Warning was logged for the bad binding
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
+  it("validate does not crash when there are no bindings to validate", () => {
+    expect(() => registry.validate()).not.toThrow();
   });
 });

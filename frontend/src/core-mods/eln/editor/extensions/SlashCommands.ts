@@ -13,7 +13,7 @@ import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
-import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, type TipTapBlockPayload } from "../../../../core/mod-system";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, isLegacyBlockConfig, type TipTapBlockPayload } from "../../../../core/mod-system";
 
 const SLASH_SUGGESTION_KEY = new PluginKey("slash-suggestion");
 
@@ -40,7 +40,7 @@ function getCommands(): SlashCommand[] {
   const commands: SlashCommand[] = [];
 
   for (const block of blocks.values()) {
-    if (block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
+    if (!isLegacyBlockConfig(block) || block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
 
     const payload = block.payload as TipTapBlockPayload;
     const nodeName = payload.node.name;

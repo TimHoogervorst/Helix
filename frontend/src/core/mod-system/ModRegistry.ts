@@ -7,6 +7,10 @@ import type {
   LibraryItemConfig,
   WorkspaceConfig,
   BlockConfig,
+  BlockRegistration,
+  ButtonRegistration,
+  SlotDeclaration,
+  SlotBinding,
 } from "./types";
 
 /**
@@ -46,7 +50,11 @@ export class ModRegistry {
   private services = new Map<string, ServiceConfig>();
   private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
-  private blocks = new Map<string, BlockConfig>();
+  private blocks = new Map<string, BlockConfig | BlockRegistration>();
+  private slots = new Map<string, SlotDeclaration>();
+  private buttons = new Map<string, ButtonRegistration>();
+  /** Bindings keyed by slotId. Each slot can have multiple bindings. */
+  private bindings = new Map<string, SlotBinding[]>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -124,13 +132,58 @@ export class ModRegistry {
     this.workspaces.set(config.id, config);
   }
 
-  registerBlock(config: BlockConfig): void {
+  /**
+   * Register a content block.
+   *
+   * Accepts both the legacy BlockConfig (type-discriminated, with `type` +
+   * `payload`) and the new BlockRegistration (renderer-agnostic, with
+   * `component`, `serialize`, `deserialize`, etc.). Both shapes are stored
+   * in the same map; consumers narrow via isLegacyBlockConfig() when
+   * reading from getBlocks().
+   */
+  registerBlock(config: BlockConfig): void;
+  registerBlock(config: BlockRegistration): void;
+  registerBlock(config: BlockConfig | BlockRegistration): void;
+  registerBlock(config: BlockConfig | BlockRegistration): void {
     if (this.blocks.has(config.id)) {
       throw new Error(
         `Duplicate block registration: '${config.id}' is already registered.`,
       );
     }
     this.blocks.set(config.id, config);
+  }
+
+  declareSlot(config: SlotDeclaration): void {
+    if (this.slots.has(config.id)) {
+      throw new Error(
+        `Duplicate slot declaration: '${config.id}' is already registered.`,
+      );
+    }
+    this.slots.set(config.id, config);
+  }
+
+  registerButton(config: ButtonRegistration): void {
+    if (this.buttons.has(config.id)) {
+      throw new Error(
+        `Duplicate button registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.buttons.set(config.id, config);
+  }
+
+  registerIntoSlot(
+    slotId: string,
+    targetId: string,
+    overrides: Record<string, unknown> = {},
+    order = 0,
+  ): void {
+    const binding: SlotBinding = { slotId, targetId, overrides, order };
+    const existing = this.bindings.get(slotId);
+    if (existing) {
+      existing.push(binding);
+    } else {
+      this.bindings.set(slotId, [binding]);
+    }
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
@@ -189,6 +242,62 @@ export class ModRegistry {
         );
       }
     }
+
+    // Validate slot bindings (warning-based — bad bindings are skipped, not crashed)
+    for (const [slotId, slotBindings] of this.bindings) {
+      const slot = this.slots.get(slotId);
+
+      // Check 1: slot must be declared before bindings target it
+      if (!slot) {
+        console.warn(
+          `Slot binding skipped: slot '${slotId}' is not declared. ` +
+            `Declare the slot with declareSlot() before calling registerIntoSlot().`,
+        );
+        this.bindings.delete(slotId);
+        continue;
+      }
+
+      // Check 2 & 3: each binding's target must exist and match slot accepts
+      const validBindings = slotBindings.filter((binding) => {
+        // Check target exists in blocks or buttons
+        const targetInBlocks = this.blocks.has(binding.targetId);
+        const targetInButtons = this.buttons.has(binding.targetId);
+
+        if (!targetInBlocks && !targetInButtons) {
+          console.warn(
+            `Slot binding skipped: target '${binding.targetId}' is not a registered ` +
+              `block or button. Register the target before calling registerIntoSlot().`,
+          );
+          return false;
+        }
+
+        // Check target type matches slot's accepts
+        if (slot.accepts === "block" && !targetInBlocks) {
+          console.warn(
+            `Slot binding skipped: slot '${slotId}' accepts 'block' but target ` +
+              `'${binding.targetId}' is a button.`,
+          );
+          return false;
+        }
+
+        if (slot.accepts === "button" && !targetInButtons) {
+          console.warn(
+            `Slot binding skipped: slot '${slotId}' accepts 'button' but target ` +
+              `'${binding.targetId}' is a block.`,
+          );
+          return false;
+        }
+
+        return true;
+      });
+
+      // Replace with validated bindings
+      if (validBindings.length > 0) {
+        this.bindings.set(slotId, validBindings);
+      } else {
+        this.bindings.delete(slotId);
+      }
+    }
   }
 
   // ── Read-only accessors ───────────────────────────────────────────────
@@ -236,7 +345,22 @@ export class ModRegistry {
   }
 
   /** Returns a read-only view of all registered blocks. */
-  getBlocks(): ReadonlyMap<string, BlockConfig> {
+  getBlocks(): ReadonlyMap<string, BlockConfig | BlockRegistration> {
     return this.blocks;
+  }
+
+  /** Returns a read-only view of all declared slots. */
+  getSlots(): ReadonlyMap<string, SlotDeclaration> {
+    return this.slots;
+  }
+
+  /** Returns a read-only view of all registered buttons. */
+  getButtons(): ReadonlyMap<string, ButtonRegistration> {
+    return this.buttons;
+  }
+
+  /** Returns a read-only view of all slot bindings, keyed by slotId. */
+  getBindings(): ReadonlyMap<string, SlotBinding[]> {
+    return this.bindings;
   }
 }

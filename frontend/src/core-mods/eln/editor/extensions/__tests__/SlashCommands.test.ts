@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import SlashCommands from "../SlashCommands";
 import LimsTable from "../../../blocks/LimsTable";
 import { createTestEditor } from "../../../../../test/factories";
-import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE } from "../../../../../core/mod-system";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, isLegacyBlockConfig, type BlockConfig } from "../../../../../core/mod-system";
 
 // ── Inlined helpers from SlashCommands.ts ──────────────────────────────────
 
@@ -35,9 +35,9 @@ function getCommands() {
   }> = [];
 
   for (const block of blocks.values()) {
-    if (block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
+    if (!isLegacyBlockConfig(block) || block.type !== BLOCK_TYPE_TIPTAP_NODE) continue;
 
-    const payload = block.payload as any;
+    const payload = (block as BlockConfig).payload as any;
     const nodeName = payload.node.name;
 
     commands.push({

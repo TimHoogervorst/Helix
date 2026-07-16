@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE } from "../../../core/mod-system";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, type BlockConfig } from "../../../core/mod-system";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -87,7 +87,7 @@ describe("eln mod registration", () => {
     mod.register();
 
     const blocks = registry.getBlocks();
-    const tableBlock = blocks.get("eln.legacyTable");
+    const tableBlock = blocks.get("eln.legacyTable") as BlockConfig | undefined;
 
     expect(tableBlock).toBeDefined();
     expect(tableBlock!.label).toBe("Legacy Table");
@@ -115,7 +115,7 @@ describe("eln mod registration", () => {
     mod.register();
 
     const blocks = registry.getBlocks();
-    const tableBlock = blocks.get("eln.table");
+    const tableBlock = blocks.get("eln.table") as BlockConfig | undefined;
 
     expect(tableBlock).toBeDefined();
     expect(tableBlock!.label).toBe("Table");
@@ -142,7 +142,7 @@ describe("eln mod registration", () => {
     mod.register();
 
     const blocks = registry.getBlocks();
-    const commentBlock = blocks.get("eln.comment");
+    const commentBlock = blocks.get("eln.comment") as BlockConfig | undefined;
 
     expect(commentBlock).toBeDefined();
     expect(commentBlock!.label).toBe("Comment");

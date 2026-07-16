@@ -8,8 +8,11 @@ export { registerSidebarAction } from "./registerSidebarAction";
 export { registerLibraryItem } from "./registerLibraryItem";
 export { registerWorkspace } from "./registerWorkspace";
 export { registerBlock } from "./registerBlock";
+export { declareSlot } from "./declareSlot";
+export { registerButton } from "./registerButton";
+export { registerIntoSlot } from "./registerIntoSlot";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
-export { BLOCK_TYPE_TIPTAP_NODE } from "./types";
+export { BLOCK_TYPE_TIPTAP_NODE, isLegacyBlockConfig } from "./types";
 export type {
   ModManifest,
   HubConfig,
@@ -25,4 +28,11 @@ export type {
   CurrentWorkspace,
   BlockConfig,
   TipTapBlockPayload,
+  BlockRegistration,
+  ButtonRegistration,
+  SlotDeclaration,
+  SlotBinding,
+  BlockComponentProps,
+  BlockInstance,
+  SlotContext,
 } from "./types";

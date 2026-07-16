@@ -6,6 +6,9 @@ import { registerRoute } from "../registerRoute";
 import { registerSidebarAction } from "../registerSidebarAction";
 import { registerLibraryItem } from "../registerLibraryItem";
 import { registerBlock } from "../registerBlock";
+import { declareSlot } from "../declareSlot";
+import { registerButton } from "../registerButton";
+import { registerIntoSlot } from "../registerIntoSlot";
 import { BLOCK_TYPE_TIPTAP_NODE } from "../types";
 
 /** Reset the singleton between tests. */
@@ -88,7 +91,7 @@ describe("register functions", () => {
     expect(spy).toHaveBeenCalledWith(config);
   });
 
-  it("registerBlock delegates to ModRegistry.registerBlock", () => {
+  it("registerBlock delegates to ModRegistry.registerBlock (legacy BlockConfig)", () => {
     const spy = vi.spyOn(registry, "registerBlock");
     const config = {
       id: "eln.table",
@@ -100,5 +103,59 @@ describe("register functions", () => {
     };
     registerBlock(config);
     expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("registerBlock delegates to ModRegistry.registerBlock (new BlockRegistration)", () => {
+    const spy = vi.spyOn(registry, "registerBlock");
+    const config = {
+      id: "eln.chart",
+      label: "Chart",
+      icon: DummyComponent,
+      component: DummyComponent,
+      listensTo: [],
+      onEvent: {},
+      serialize: (state: Record<string, unknown>) => JSON.stringify(state),
+      deserialize: (json: string) => JSON.parse(json),
+      defaultState: {},
+    };
+    registerBlock(config);
+    expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("declareSlot delegates to ModRegistry.declareSlot", () => {
+    const spy = vi.spyOn(registry, "declareSlot");
+    const config = {
+      id: "eln.editor",
+      accepts: "block" as const,
+      renderer: DummyComponent,
+      layout: "vertical" as const,
+      order: 0,
+      defaults: {},
+    };
+    declareSlot(config);
+    expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("registerButton delegates to ModRegistry.registerButton", () => {
+    const spy = vi.spyOn(registry, "registerButton");
+    const config = {
+      id: "eln.export",
+      label: "Export",
+      onClick: () => {},
+    };
+    registerButton(config);
+    expect(spy).toHaveBeenCalledWith(config);
+  });
+
+  it("registerIntoSlot delegates to ModRegistry.registerIntoSlot with defaults", () => {
+    const spy = vi.spyOn(registry, "registerIntoSlot");
+    registerIntoSlot("eln.editor", "eln.table");
+    expect(spy).toHaveBeenCalledWith("eln.editor", "eln.table", undefined, undefined);
+  });
+
+  it("registerIntoSlot delegates to ModRegistry.registerIntoSlot with all args", () => {
+    const spy = vi.spyOn(registry, "registerIntoSlot");
+    registerIntoSlot("eln.editor", "eln.table", { nodeType: "inline" }, 5);
+    expect(spy).toHaveBeenCalledWith("eln.editor", "eln.table", { nodeType: "inline" }, 5);
   });
 });

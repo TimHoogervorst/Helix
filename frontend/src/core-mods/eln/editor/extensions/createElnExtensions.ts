@@ -14,14 +14,14 @@ import { TableKit } from "@tiptap/extension-table";
 import Reference from "./Reference";
 import MentionSuggestion from "./MentionSuggestion";
 import SlashCommands from "./SlashCommands";
-import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, type TipTapBlockPayload } from "../../../../core/mod-system";
+import { ModRegistry, BLOCK_TYPE_TIPTAP_NODE, isLegacyBlockConfig, type TipTapBlockPayload } from "../../../../core/mod-system";
 
 export function createElnExtensions() {
   const blocks = ModRegistry.getInstance().getBlocks();
   const tiptapNodes: any[] = [];
 
   for (const block of blocks.values()) {
-    if (block.type === BLOCK_TYPE_TIPTAP_NODE) {
+    if (isLegacyBlockConfig(block) && block.type === BLOCK_TYPE_TIPTAP_NODE) {
       const payload = block.payload as TipTapBlockPayload;
       tiptapNodes.push(payload.node);
     }

@@ -8,6 +8,7 @@ from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
 from core.actions.logger import log_action
+from core.actions.mixins import ActionLoggingMixin
 
 from core_mods.tags.models import Tag
 
@@ -33,7 +34,7 @@ class LockedException(APIException):
     default_code = "locked"
 
 
-class NotebookEntryViewSet(viewsets.ModelViewSet):
+class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for ELN notebook entries.
 
@@ -57,6 +58,24 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
     serializer_class = NotebookEntrySerializer
     lookup_field = "display_id"
 
+    _entry_edited_config = {
+        "action_type": "eln.entry.edited",
+        # _version_metadata is set as a transient attr in perform_update
+        # before _maybe_log fires.  The lambda reads it back so version
+        # metadata flows from the save pipeline into the action log without
+        # duplicating the computation.
+        "get_metadata": lambda instance, validated_data, request: getattr(
+            instance, "_version_metadata", {}
+        ),
+    }
+
+    action_log_config = {
+        "create": {"action_type": "eln.entry.created"},
+        "update": _entry_edited_config,
+        "partial_update": _entry_edited_config,
+        "destroy": {"action_type": "eln.entry.deleted"},
+    }
+
     def get_serializer_class(self):
         if self.action == "create":
             return NotebookEntryCreateSerializer
@@ -66,13 +85,7 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
         author = self.request.user if self.request.user.is_authenticated else None
         instance = serializer.save(author=author)
         sync_entry_content(instance)
-        if author is not None:
-            log_action(
-                user=author,
-                action_type="created",
-                target_type="eln.entry",
-                target_id=instance.id,
-            )
+        self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
 
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
@@ -164,15 +177,13 @@ class NotebookEntryViewSet(viewsets.ModelViewSet):
                 "save_mode": save_mode,
             }
 
-        # ── Log action ──────────────────────────────────────────────────
-        if self.request.user.is_authenticated:
-            log_action(
-                user=self.request.user,
-                action_type="edited",
-                target_type="eln.entry",
-                target_id=instance.id,
-                metadata=version_metadata,
-            )
+        # ── Log action (delegated to ActionLoggingMixin) ────────────────
+        instance._version_metadata = version_metadata
+        self._maybe_log(
+            self.action,
+            instance=instance,
+            validated_data=validated_data,
+        )
 
     def create(self, request, *args, **kwargs):
         write_serializer = self.get_serializer(data=request.data)

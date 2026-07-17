@@ -233,6 +233,7 @@ export function register() {
       schemaContentHash: null,
       title: "Registry Table",
       columns: [],
+      rows: [],
     },
   });
 

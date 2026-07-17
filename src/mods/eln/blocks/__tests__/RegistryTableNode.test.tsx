@@ -356,10 +356,10 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     expect(screen.getByTestId("registry-table-header-name")).toHaveTextContent("Name");
   });
 
-  it("renders schema column headers with 'Name (Type)' format", () => {
+  it("renders schema column headers with compact type labels", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
-    expect(screen.getByTestId("registry-table-header-Volume")).toHaveTextContent("Volume (Number)");
-    expect(screen.getByTestId("registry-table-header-Collection Date")).toHaveTextContent("Collection Date (Date)");
+    expect(screen.getByTestId("registry-table-header-Volume")).toHaveTextContent("Volume#");
+    expect(screen.getByTestId("registry-table-header-Collection Date")).toHaveTextContent("Collection DateDate");
   });
 
   it("renders status dot and delete column headers", () => {
@@ -1572,11 +1572,11 @@ describe("RegistryTableContent — Register Entities button", () => {
     };
   }
 
-  it("renders the Register Entities button when schema is loaded and editable", () => {
+  it("renders the Register button (icon-only) when schema is loaded and editable", () => {
     render(<RegistryTableContent {...contentProps()} />);
     const btn = screen.getByTestId("register-entities-btn");
     expect(btn).toBeInTheDocument();
-    expect(btn).toHaveTextContent("Register Entities");
+    expect(btn).toHaveAttribute("aria-label", "Register entities");
   });
 
   it("does not render Register Entities button when readOnly", () => {
@@ -2114,7 +2114,6 @@ describe("RegistryTableContent — Register Entities error path", () => {
     fireEvent.click(screen.getByTestId("register-entities-btn"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("register-entities-btn")).toHaveTextContent("Registering…");
       expect(screen.getByTestId("register-entities-btn")).toBeDisabled();
     });
 

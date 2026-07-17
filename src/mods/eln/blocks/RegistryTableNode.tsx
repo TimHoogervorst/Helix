@@ -65,6 +65,20 @@ function emptyValue(col: GridColumn): unknown {
   }
 }
 
+/** Map a GridColumnType to its compact label shown after the column name. */
+function columnTypeLabel(type: GridColumnType): string {
+  switch (type) {
+    case "Text":
+      return "Aa";
+    case "Number":
+      return "#";
+    case "Reference":
+      return "@";
+    default:
+      return type;
+  }
+}
+
 /** Convert an EntityTypeSummary's columns to GridColumn[] for use in the table. */
 function toGridColumns(entityType: EntityTypeSummary): GridColumn[] {
   return entityType.columns.map((c) => ({
@@ -567,7 +581,7 @@ function ReferenceCell({
           <button
             ref={triggerRef}
             type="button"
-            className="text-xs text-muted-foreground italic hover:text-foreground px-1 py-0.5 rounded hover:bg-surface/50"
+            className="btn-ghost text-xs text-muted-foreground italic px-1 py-0.5 rounded"
             onClick={() => setOpen(true)}
             data-testid="ref-trigger-btn"
           >
@@ -1071,10 +1085,11 @@ export function RegistryTableContent({
 
   // ── Loaded table state ──────────────────────────────────────────────
   return (
-    <div
-      className="rounded-lg border border-hairline bg-panel"
-      data-testid="registry-table-loaded"
-    >
+    <>
+      <div
+        className="rounded-lg border border-hairline bg-panel"
+        data-testid="registry-table-loaded"
+      >
       {/* Title bar */}
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -1112,21 +1127,17 @@ export function RegistryTableContent({
           <>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-ghost grid place-items-center rounded p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleRegister}
               disabled={registering}
+              title="Register entities"
+              aria-label="Register entities"
               data-testid="register-entities-btn"
             >
               {registering ? (
-                <>
-                  <Loader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  Registering…
-                </>
+                <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <>
-                  <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                  Register Entities
-                </>
+                <Upload className="h-4 w-4" aria-hidden="true" />
               )}
             </button>
             <MoreActions
@@ -1169,7 +1180,10 @@ export function RegistryTableContent({
                   className="px-4 py-2 text-left font-medium text-foreground"
                   data-testid={`registry-table-header-${col.name}`}
                 >
-                  {col.name} ({col.type})
+                  {col.name}
+                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                    {columnTypeLabel(col.type)}
+                  </span>
                 </th>
               ))}
               {/* Delete button column — hidden in read-only mode */}
@@ -1291,13 +1305,13 @@ export function RegistryTableContent({
                     <td className="px-2 py-2 align-middle text-center">
                       <button
                         type="button"
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 rounded hover:bg-surface/50"
+                        className="opacity-0 group-hover:opacity-100 btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive transition-opacity"
                         onClick={() => handleDeleteRow(row.displayId)}
                         title="Delete row"
                         aria-label={`Delete row ${row.displayId}`}
                         data-testid={`delete-row-${row.displayId}`}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     </td>
                   )}
@@ -1308,21 +1322,21 @@ export function RegistryTableContent({
         </table>
       </div>
 
-      {/* "+ New Row" ghost button — hidden in read-only mode */}
-      {!readOnly && (
-        <div className="border-t border-hairline px-4 py-1.5">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 w-full text-xs text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded px-2 py-1.5 transition-colors"
-            onClick={handleAddRow}
-            data-testid="add-row-btn"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Row
-          </button>
-        </div>
-      )}
     </div>
+    {/* "+ New Row" ghost button below the card — hidden in read-only mode */}
+    {!readOnly && (
+      <button
+        type="button"
+        className="btn-ghost mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+        onClick={handleAddRow}
+        aria-label="Add new row"
+        data-testid="add-row-btn"
+      >
+        <Plus className="h-3 w-3" />
+        <span>New Row</span>
+      </button>
+    )}
+    </>
   );
 }
 

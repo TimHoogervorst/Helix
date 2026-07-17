@@ -44,6 +44,12 @@ vi.mock("lucide-react", () => ({
   Plus: (props: Record<string, unknown>) => (
     <span data-testid="icon-plus" {...props}>+</span>
   ),
+  RefreshCw: (props: Record<string, unknown>) => (
+    <span data-testid="icon-refresh" {...props}>🔄</span>
+  ),
+  Ellipsis: (props: Record<string, unknown>) => (
+    <span data-testid="icon-ellipsis" {...props}>…</span>
+  ),
 }));
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────
@@ -870,5 +876,645 @@ describe("RegistryTableBlockComponent — block defaults and serialization", () 
     expect(defaultState).toHaveProperty("schemaId", null);
     expect(defaultState).toHaveProperty("rows");
     expect(Array.isArray(defaultState.rows)).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Import RegistryTableContent for direct testing (bypasses BlockComponent)
+// ══════════════════════════════════════════════════════════════════════════
+
+import { RegistryTableContent } from "../RegistryTableNode";
+
+// ══════════════════════════════════════════════════════════════════════════
+// Three-dot menu on the title bar
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — three-dot menu", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+  });
+
+  function contentProps(opts?: {
+    schemaId?: number | null;
+    columns?: Array<{ name: string; type: string; id?: string }>;
+    rows?: RegistryTableRow[];
+    readOnly?: boolean;
+  }) {
+    return {
+      schemaId: opts?.schemaId ?? 1,
+      schemaName: "Blood Sample",
+      schemaContentHash: "abc123",
+      title: "Test Table",
+      columns: opts?.columns ?? [
+        { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+      ],
+      rows: opts?.rows ?? [makeRow()],
+      updateAttrs: vi.fn(),
+      readOnly: opts?.readOnly ?? false,
+    };
+  }
+
+  it("renders the three-dot menu trigger button", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    // MoreActions renders an Ellipsis icon button with aria-label "More actions"
+    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+  });
+
+  it("opens the menu on three-dot click showing Refresh schema item", async () => {
+    render(<RegistryTableContent {...contentProps()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+  });
+
+  it("hides the three-dot menu when readOnly is true", () => {
+    render(<RegistryTableContent {...contentProps({ readOnly: true })} />);
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Refresh schema
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — refresh schema", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+  });
+
+  const existingColumns = [
+    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-vol" },
+    { name: "Collection Date", type: "Date" as const, id: "uuid-date" },
+  ];
+
+  const existingRows: RegistryTableRow[] = [
+    {
+      entityId: 1,
+      displayId: "BLOOD1",
+      __name: "Sample A",
+      values: { Volume: 10, "Collection Date": "2025-06-15" },
+      isRegistered: true,
+      lastRegisteredValueHash: "hash1",
+      registrationError: null,
+    },
+    {
+      entityId: null,
+      displayId: "#new-1",
+      __name: "Sample B",
+      values: { Volume: 5, "Collection Date": "2025-07-01" },
+      isRegistered: false,
+      lastRegisteredValueHash: null,
+      registrationError: null,
+    },
+  ];
+
+  function contentProps(overrides?: {
+    schemaId?: number | null;
+    columns?: Array<{ name: string; type: string; id?: string }>;
+    rows?: RegistryTableRow[];
+    schemaContentHash?: string;
+    schemaName?: string;
+  }) {
+    const updateAttrs = vi.fn();
+    return {
+      schemaId: overrides && "schemaId" in overrides ? overrides.schemaId! : 1,
+      schemaName: overrides?.schemaName ?? "Blood Sample",
+      schemaContentHash: overrides?.schemaContentHash ?? "abc123",
+      title: "Test Table",
+      columns: overrides?.columns ?? existingColumns,
+      rows: overrides?.rows ?? existingRows,
+      updateAttrs,
+      readOnly: false,
+    };
+  }
+
+  it("calls GET /lims/entity-types/{schemaId}/ with the current schemaId", async () => {
+    mockGet.mockResolvedValue({
+      id: 1,
+      name: "Blood Sample",
+      prefix: "BLOOD",
+      columns: [
+        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+        { id: "uuid-date", name: "Collection Date", type: "Date" },
+      ],
+      is_active: true,
+      content_hash: "abc123",
+    });
+
+    render(<RegistryTableContent {...contentProps()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith("/lims/entity-types/1/");
+    });
+  });
+
+  it("updates schemaContentHash and schemaName on refresh", async () => {
+    const updateAttrs = vi.fn();
+    mockGet.mockResolvedValue({
+      id: 1,
+      name: "Blood Sample (updated)",
+      prefix: "BLOOD",
+      columns: [
+        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+      ],
+      is_active: true,
+      content_hash: "new-hash-789",
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps({ schemaName: "Blood Sample", schemaContentHash: "abc123" })}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalledTimes(1);
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    expect(callArg.schemaContentHash).toBe("new-hash-789");
+    expect(callArg.schemaName).toBe("Blood Sample (updated)");
+  });
+
+  it("adds new columns with default values to all rows", async () => {
+    const updateAttrs = vi.fn();
+    mockGet.mockResolvedValue({
+      id: 1,
+      name: "Blood Sample",
+      prefix: "BLOOD",
+      columns: [
+        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+        { id: "uuid-date", name: "Collection Date", type: "Date" },
+        { id: "uuid-new", name: "Temperature", type: "Number", units: "°C" },
+      ],
+      is_active: true,
+      content_hash: "hash-expanded",
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps()}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    expect(callArg.columns).toHaveLength(3);
+
+    // Existing row: preserved values for surviving columns, default for new
+    const blood1Row = (callArg.rows as RegistryTableRow[])[0];
+    expect(blood1Row.values["Volume"]).toBe(10);
+    expect(blood1Row.values["Collection Date"]).toBe("2025-06-15");
+    expect(blood1Row.values["Temperature"]).toBe(0); // Number default
+
+    const newRow = (callArg.rows as RegistryTableRow[])[1];
+    expect(newRow.values["Volume"]).toBe(5);
+    expect(newRow.values["Temperature"]).toBe(0);
+  });
+
+  it("removes deleted columns from all rows", async () => {
+    const updateAttrs = vi.fn();
+    mockGet.mockResolvedValue({
+      id: 1,
+      name: "Blood Sample",
+      prefix: "BLOOD",
+      columns: [
+        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+        // Collection Date removed
+      ],
+      is_active: true,
+      content_hash: "hash-reduced",
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps()}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    expect(callArg.columns).toHaveLength(1);
+
+    const blood1Row = (callArg.rows as RegistryTableRow[])[0];
+    expect(blood1Row.values["Volume"]).toBe(10);
+    expect(blood1Row.values).not.toHaveProperty("Collection Date");
+  });
+
+  it("preserves values for surviving columns matched by UUID even when renamed", async () => {
+    const updateAttrs = vi.fn();
+    mockGet.mockResolvedValue({
+      id: 1,
+      name: "Blood Sample",
+      prefix: "BLOOD",
+      columns: [
+        { id: "uuid-vol", name: "Volume (mL)", type: "Number", units: "mL" }, // renamed
+        { id: "uuid-date", name: "Collected On", type: "Date" }, // renamed
+      ],
+      is_active: true,
+      content_hash: "hash-renamed",
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps()}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const blood1Row = (callArg.rows as RegistryTableRow[])[0];
+    // Values preserved under new names
+    expect(blood1Row.values["Volume (mL)"]).toBe(10);
+    expect(blood1Row.values["Collected On"]).toBe("2025-06-15");
+    // Old keys gone
+    expect(blood1Row.values).not.toHaveProperty("Volume");
+    expect(blood1Row.values).not.toHaveProperty("Collection Date");
+  });
+
+  it("handles API error gracefully by leaving state unchanged", async () => {
+    const updateAttrs = vi.fn();
+    mockGet.mockRejectedValue(new Error("Network error"));
+
+    render(
+      <RegistryTableContent
+        {...contentProps()}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    // Wait a tick for the async handler
+    await waitFor(() => {
+      // updateAttrs should NOT have been called
+      expect(updateAttrs).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not call API when schemaId is null", async () => {
+    const updateAttrs = vi.fn();
+
+    // Refresh is not available when schemaId is null (placeholder state has no three-dot menu)
+    render(
+      <RegistryTableContent
+        {...contentProps({ schemaId: null })}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    // Placeholder has no MoreActions button at all
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+  });
+
+  it("disables Refresh schema button while refreshing", async () => {
+    // Don't resolve the promise so we stay in "refreshing" state
+    let resolvePromise: (value: unknown) => void;
+    const pendingPromise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+    mockGet.mockReturnValue(pendingPromise);
+
+    render(<RegistryTableContent {...contentProps()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    // The menu closes on item click (MoreActions behavior). Reopen to check.
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+
+    await waitFor(() => {
+      const item = screen.getByText("Refresh schema").closest("button");
+      expect(item).toBeDisabled();
+    });
+
+    // Cleanup: resolve the promise
+    resolvePromise!({
+      id: 1,
+      name: "Blood Sample",
+      prefix: "BLOOD",
+      columns: [{ id: "uuid-vol", name: "Volume", type: "Number", units: "mL" }],
+      is_active: true,
+      content_hash: "abc",
+    });
+  });
+
+  it("registered rows preserve their entityId, displayId, and registration metadata after refresh", async () => {
+    const updateAttrs = vi.fn();
+    mockGet.mockResolvedValue({
+      id: 1,
+      name: "Blood Sample",
+      prefix: "BLOOD",
+      columns: [
+        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+        { id: "uuid-new", name: "Temp", type: "Number" },
+      ],
+      is_active: true,
+      content_hash: "new-hash",
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps()}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await waitFor(() => {
+      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Refresh schema"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const registeredRow = (callArg.rows as RegistryTableRow[])[0];
+    expect(registeredRow.entityId).toBe(1);
+    expect(registeredRow.displayId).toBe("BLOOD1");
+    expect(registeredRow.isRegistered).toBe(true);
+    expect(registeredRow.lastRegisteredValueHash).toBe("hash1");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// View mode (readOnly)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — view mode (readOnly)", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+  });
+
+  const columns = [
+    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+    { name: "Notes", type: "Text" as const, id: "uuid-2" },
+    { name: "Active", type: "Boolean" as const, id: "uuid-3" },
+    { name: "Collected", type: "Date" as const, id: "uuid-4" },
+    { name: "Related", type: "Reference" as const, id: "uuid-5" },
+  ];
+
+  const row: RegistryTableRow = {
+    entityId: 1,
+    displayId: "BLOOD1",
+    __name: "Sample A",
+    values: {
+      Volume: 10,
+      Notes: "Test note",
+      Active: true,
+      Collected: "2025-06-15",
+      Related: "E1",
+    },
+    isRegistered: true,
+    lastRegisteredValueHash: "hash1",
+    registrationError: null,
+  };
+
+  function contentProps(overrides?: { readOnly?: boolean; rows?: RegistryTableRow[] }) {
+    return {
+      schemaId: 1 as number | null,
+      schemaName: "Blood Sample",
+      schemaContentHash: "abc123",
+      title: "Test Table",
+      columns,
+      rows: overrides?.rows ?? [row],
+      updateAttrs: vi.fn(),
+      readOnly: overrides?.readOnly ?? true,
+    };
+  }
+
+  it("title is not editable when readOnly (no contentEditable attribute)", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    const title = screen.getByTestId("registry-table-title");
+    expect(title).toHaveTextContent("Test Table");
+    expect(title.getAttribute("contentEditable")).toBeNull();
+  });
+
+  it("three-dot menu is hidden when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+  });
+
+  it("+ New Row button is hidden when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    expect(screen.queryByTestId("add-row-btn")).not.toBeInTheDocument();
+  });
+
+  it("delete column header is hidden when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    expect(screen.queryByTestId("registry-table-header-delete")).not.toBeInTheDocument();
+  });
+
+  it("delete buttons are not rendered for rows when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    expect(screen.queryByTestId("delete-row-BLOOD1")).not.toBeInTheDocument();
+  });
+
+  it("name cell is rendered as plain text (not contentEditable) when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    const nameCell = screen.getByTestId("name-cell-BLOOD1");
+    expect(nameCell).toHaveTextContent("Sample A");
+    expect(nameCell.getAttribute("contentEditable")).toBeNull();
+  });
+
+  it("text column renders as plain text when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    const cell = screen.getByTestId("cell-BLOOD1-Notes");
+    expect(cell.querySelector('[data-testid="readonly-cell"]')).toHaveTextContent("Test note");
+  });
+
+  it("number column renders as plain text when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    const cell = screen.getByTestId("cell-BLOOD1-Volume");
+    expect(cell.querySelector('[data-testid="readonly-cell"]')).toHaveTextContent("10");
+  });
+
+  it("boolean column renders as Yes/No text when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    const cell = screen.getByTestId("cell-BLOOD1-Active");
+    expect(cell.querySelector('[data-testid="boolean-display"]')).toHaveTextContent("Yes");
+  });
+
+  it("boolean column shows No for false values when readOnly", () => {
+    const falseRow = { ...row, values: { ...row.values, Active: false } };
+    render(<RegistryTableContent {...contentProps({ rows: [falseRow] })} />);
+    const cell = screen.getByTestId("cell-BLOOD1-Active");
+    expect(cell.querySelector('[data-testid="boolean-display"]')).toHaveTextContent("No");
+  });
+
+  it("reference cell shows MentionBadge but no clear button when readOnly", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    // The clear button should not be present
+    expect(screen.queryByTestId("ref-clear-btn")).not.toBeInTheDocument();
+  });
+
+  it("reference cell does not show @mention trigger for empty values when readOnly", () => {
+    const emptyRefRow = { ...row, values: { ...row.values, Related: "" } };
+    render(<RegistryTableContent {...contentProps({ rows: [emptyRefRow] })} />);
+    expect(screen.queryByTestId("ref-trigger-btn")).not.toBeInTheDocument();
+  });
+
+  it("empty state message changes in readOnly mode", () => {
+    render(<RegistryTableContent {...contentProps({ rows: [] })} />);
+    expect(screen.getByText("No rows.")).toBeInTheDocument();
+    expect(screen.queryByText(/No rows yet/)).not.toBeInTheDocument();
+  });
+
+  it("shows all action buttons and editors when readOnly is false", () => {
+    render(<RegistryTableContent {...contentProps({ readOnly: false })} />);
+    // All interactive elements should be present
+    expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("registry-table-header-delete")).toBeInTheDocument();
+    expect(screen.getByTestId("delete-row-BLOOD1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+    // Title should be editable
+    expect(screen.getByTestId("registry-table-title").getAttribute("contentEditable")).toBe("true");
+    // Name cell should be editable
+    expect(screen.getByTestId("name-cell-BLOOD1").getAttribute("contentEditable")).toBe("true");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// RegistryTableBlockComponent — viewMode integration
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableBlockComponent — viewMode integration", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+  });
+
+  it("passes readOnly=false when context.viewMode is 'edit'", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...makeBlockComponentProps({
+          attrs: {
+            schemaId: 1,
+            schemaName: "Blood Sample",
+            schemaContentHash: "abc123",
+            title: "Test",
+            columns: [{ name: "Volume", type: "Number", id: "uuid-1" }],
+            rows: [makeRow()],
+          },
+          rest: {
+            context: { viewMode: "edit" },
+          },
+        })}
+      />,
+    );
+
+    // "+ New Row" button should be visible
+    expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
+    // Three-dot menu should be visible
+    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+  });
+
+  it("passes readOnly=true when context.viewMode is 'view'", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...makeBlockComponentProps({
+          attrs: {
+            schemaId: 1,
+            schemaName: "Blood Sample",
+            schemaContentHash: "abc123",
+            title: "Test",
+            columns: [{ name: "Volume", type: "Number", id: "uuid-1" }],
+            rows: [makeRow()],
+          },
+          rest: {
+            context: { viewMode: "view" },
+          },
+        })}
+      />,
+    );
+
+    // "+ New Row" button should be hidden
+    expect(screen.queryByTestId("add-row-btn")).not.toBeInTheDocument();
+    // Three-dot menu should be hidden
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+  });
+
+  it("passes readOnly=false when context.viewMode is undefined", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...makeBlockComponentProps({
+          attrs: {
+            schemaId: 1,
+            schemaName: "Blood Sample",
+            schemaContentHash: "abc123",
+            title: "Test",
+            columns: [{ name: "Volume", type: "Number", id: "uuid-1" }],
+            rows: [makeRow()],
+          },
+          rest: {
+            context: {} as any,
+          },
+        })}
+      />,
+    );
+
+    // "+ New Row" button should be visible (defaults to edit mode)
+    expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
   });
 });

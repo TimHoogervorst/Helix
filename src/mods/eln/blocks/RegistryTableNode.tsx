@@ -16,12 +16,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import { Database, Loader, Trash2, Plus } from "lucide-react";
+import { Database, Loader, Trash2, Plus, RefreshCw } from "lucide-react";
 import { get, del } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types/types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
+import MoreActions from "../components/MoreActions";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -47,19 +48,34 @@ export interface RegistryTableRow {
 function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   const vals: Record<string, unknown> = {};
   for (const c of columns) {
-    switch (c.type) {
-      case "Number":
-        vals[c.name] = c.default ? Number(c.default) : 0;
-        break;
-      case "Boolean":
-        vals[c.name] = c.default === "true";
-        break;
-      default:
-        vals[c.name] = c.default ?? "";
-        break;
-    }
+    vals[c.name] = emptyValue(c);
   }
   return vals;
+}
+
+/** Get the default value for a single column. */
+function emptyValue(col: GridColumn): unknown {
+  switch (col.type) {
+    case "Number":
+      return col.default ? Number(col.default) : 0;
+    case "Boolean":
+      return col.default === "true";
+    default:
+      return col.default ?? "";
+  }
+}
+
+/** Convert an EntityTypeSummary's columns to GridColumn[] for use in the table. */
+function toGridColumns(entityType: EntityTypeSummary): GridColumn[] {
+  return entityType.columns.map((c) => ({
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    required: c.required,
+    default: c.default,
+    units: c.units,
+    description: c.description,
+  }));
 }
 
 // ── Status Dot ─────────────────────────────────────────────────────────────
@@ -156,6 +172,7 @@ interface EditableCellProps {
   value: unknown;
   rowDisplayId: string;
   onCommit: (columnName: string, newValue: unknown) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -173,7 +190,34 @@ function EditableCell({
   value,
   rowDisplayId,
   onCommit,
+  readOnly = false,
 }: EditableCellProps) {
+  if (readOnly) {
+    // Render all cell types as read-only display, except Reference which
+    // keeps its MentionBadge clickable.
+    if (columnType === "Reference") {
+      return (
+        <ReferenceCell
+          value={value as string}
+          onCommit={(v) => onCommit(columnName, v)}
+          readOnly
+        />
+      );
+    }
+    if (columnType === "Boolean") {
+      return (
+        <span className="text-sm" data-testid="boolean-display">
+          {value === true ? "Yes" : "No"}
+        </span>
+      );
+    }
+    return (
+      <span className="text-sm" data-testid="readonly-cell">
+        {value != null ? String(value) : ""}
+      </span>
+    );
+  }
+
   switch (columnType) {
     case "Number":
       return (
@@ -419,9 +463,11 @@ interface SearchResult {
 function ReferenceCell({
   value,
   onCommit,
+  readOnly = false,
 }: {
   value: string;
   onCommit: (v: string) => void;
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -487,27 +533,31 @@ function ReferenceCell({
       {value ? (
         <div className="flex items-center gap-1">
           <MentionBadge displayId={value} clickable />
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-destructive text-xs leading-none px-0.5"
-            onClick={handleClear}
-            title="Clear reference"
-            aria-label="Clear reference"
-            data-testid="ref-clear-btn"
-          >
-            ×
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-destructive text-xs leading-none px-0.5"
+              onClick={handleClear}
+              title="Clear reference"
+              aria-label="Clear reference"
+              data-testid="ref-clear-btn"
+            >
+              ×
+            </button>
+          )}
         </div>
       ) : (
-        <button
-          ref={triggerRef}
-          type="button"
-          className="text-xs text-muted-foreground italic hover:text-foreground px-1 py-0.5 rounded hover:bg-surface/50"
-          onClick={() => setOpen(true)}
-          data-testid="ref-trigger-btn"
-        >
-          @mention…
-        </button>
+        !readOnly && (
+          <button
+            ref={triggerRef}
+            type="button"
+            className="text-xs text-muted-foreground italic hover:text-foreground px-1 py-0.5 rounded hover:bg-surface/50"
+            onClick={() => setOpen(true)}
+            data-testid="ref-trigger-btn"
+          >
+            @mention…
+          </button>
+        )
       )}
 
       {/* ── Popover — portaled to body ────────────────────────────────── */}
@@ -594,6 +644,8 @@ interface RegistryTableContentProps {
   columns: GridColumn[];
   rows: RegistryTableRow[];
   updateAttrs: (attrs: Record<string, unknown>) => void;
+  /** When true, inline editing and action buttons are hidden. */
+  readOnly?: boolean;
 }
 
 // ── Inner Content Component ─────────────────────────────────────────────────
@@ -612,6 +664,7 @@ export function RegistryTableContent({
   columns,
   rows,
   updateAttrs,
+  readOnly = false,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
@@ -677,15 +730,7 @@ export function RegistryTableContent({
   // ── Select an entity type → snapshot schema into block attrs ────────
   const handleSelectEntityType = useCallback(
     (entityType: EntityTypeSummary) => {
-      const newColumns: GridColumn[] = entityType.columns.map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: c.type,
-        required: c.required,
-        default: c.default,
-        units: c.units,
-        description: c.description,
-      }));
+      const newColumns = toGridColumns(entityType);
 
       updateAttrs({
         schemaId: entityType.id,
@@ -781,6 +826,54 @@ export function RegistryTableContent({
     [rows, updateAttrs],
   );
 
+  // ── Refresh schema ───────────────────────────────────────────────────
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefreshSchema = useCallback(async () => {
+    if (schemaId === null) return;
+    setRefreshing(true);
+    try {
+      const entityType = await get<EntityTypeSummary>(
+        `/lims/entity-types/${schemaId}/`,
+      );
+
+      const newColumns = toGridColumns(entityType);
+
+      // Build UUID → old column lookup for value migration
+      const idToOldCol = new Map<string, GridColumn>();
+      for (const col of columns) {
+        if (col.id) idToOldCol.set(col.id, col);
+      }
+
+      // Migrate row values: preserve surviving columns, default for new ones
+      const updatedRows = rows.map((row) => {
+        const newValues: Record<string, unknown> = {};
+        for (const newCol of newColumns) {
+          if (newCol.id && idToOldCol.has(newCol.id)) {
+            // Column survived — preserve value from old column name key
+            const oldCol = idToOldCol.get(newCol.id)!;
+            newValues[newCol.name] =
+              row.values[oldCol.name] ?? emptyValue(newCol);
+          } else {
+            // New column — fill with default empty value
+            newValues[newCol.name] = emptyValue(newCol);
+          }
+        }
+        return { ...row, values: newValues };
+      });
+
+      updateAttrs({
+        schemaContentHash: entityType.content_hash,
+        schemaName: entityType.name,
+        columns: newColumns,
+        rows: updatedRows,
+      });
+    } catch {
+      // silently leave state unchanged on failure
+    } finally {
+      setRefreshing(false);
+    }
+  }, [schemaId, columns, rows, updateAttrs]);
+
   // ── Placeholder state ───────────────────────────────────────────────
   if (schemaId === null) {
     return (
@@ -861,16 +954,28 @@ export function RegistryTableContent({
       {/* Title bar */}
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <span
-          className="flex-1 text-sm font-medium text-foreground outline-none"
-          contentEditable
-          suppressContentEditableWarning
-          onBlur={handleTitleBlur}
-          onKeyDown={handleTitleKeyDown}
-          data-testid="registry-table-title"
-        >
-          {title}
-        </span>
+        {readOnly ? (
+          <span
+            className="flex-1 text-sm font-medium text-foreground"
+            data-testid="registry-table-title"
+          >
+            {title}
+          </span>
+        ) : (
+          <span
+            className="flex-1 text-sm font-medium text-foreground outline-none"
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={handleTitleBlur}
+            onKeyDown={handleTitleKeyDown}
+            data-testid="registry-table-title"
+          >
+            {title}
+          </span>
+        )}
+        {refreshing && (
+          <Loader className="h-3.5 w-3.5 animate-spin text-muted-foreground" data-testid="refresh-spinner" />
+        )}
         {schemaName && (
           <span
             className="text-xs text-muted-foreground bg-surface px-2 py-0.5 rounded"
@@ -878,6 +983,19 @@ export function RegistryTableContent({
           >
             {schemaName}
           </span>
+        )}
+        {!readOnly && (
+          <MoreActions
+            items={[
+              {
+                key: "refresh-schema",
+                icon: RefreshCw,
+                label: "Refresh schema",
+                onClick: handleRefreshSchema,
+                disabled: refreshing,
+              },
+            ]}
+          />
         )}
       </div>
 
@@ -909,22 +1027,26 @@ export function RegistryTableContent({
                   {col.name} ({col.type})
                 </th>
               ))}
-              {/* Delete button column */}
-              <th
-                className="w-8 px-2 py-2"
-                data-testid="registry-table-header-delete"
-                aria-label="Actions"
-              />
+              {/* Delete button column — hidden in read-only mode */}
+              {!readOnly && (
+                <th
+                  className="w-8 px-2 py-2"
+                  data-testid="registry-table-header-delete"
+                  aria-label="Actions"
+                />
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr data-testid="registry-table-empty-row">
                 <td
-                  colSpan={3 + columns.length}
+                  colSpan={readOnly ? 2 + columns.length : 3 + columns.length}
                   className="px-4 py-6 text-center text-sm text-muted-foreground"
                 >
-                  No rows yet. Click "+ New Row" below to add one.
+                  {readOnly
+                    ? "No rows."
+                    : 'No rows yet. Click "+ New Row" below to add one.'}
                 </td>
               </tr>
             ) : (
@@ -944,30 +1066,41 @@ export function RegistryTableContent({
 
                   {/* Name column */}
                   <td className="px-4 py-2 align-middle">
-                    <span
-                      className="outline-none min-w-[100px] inline-block px-1 py-0.5 rounded hover:bg-surface/50 focus:bg-surface/80 text-sm"
-                      contentEditable
-                      suppressContentEditableWarning
-                      onBlur={(e) => {
-                        const newName = e.currentTarget.textContent ?? "";
-                        if (newName !== (row.__name ?? "")) {
-                          handleNameCommit(row.displayId, newName);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          (e.target as HTMLElement).blur();
-                        }
-                      }}
-                      data-testid={`name-cell-${row.displayId}`}
-                    >
-                      {row.__name || ""}
-                    </span>
-                    {!row.__name && (
-                      <span className="text-xs text-muted-foreground italic pointer-events-none select-none">
-                        Enter name…
+                    {readOnly ? (
+                      <span
+                        className="text-sm"
+                        data-testid={`name-cell-${row.displayId}`}
+                      >
+                        {row.__name || ""}
                       </span>
+                    ) : (
+                      <>
+                        <span
+                          className="outline-none min-w-[100px] inline-block px-1 py-0.5 rounded hover:bg-surface/50 focus:bg-surface/80 text-sm"
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => {
+                            const newName = e.currentTarget.textContent ?? "";
+                            if (newName !== (row.__name ?? "")) {
+                              handleNameCommit(row.displayId, newName);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              (e.target as HTMLElement).blur();
+                            }
+                          }}
+                          data-testid={`name-cell-${row.displayId}`}
+                        >
+                          {row.__name || ""}
+                        </span>
+                        {!row.__name && (
+                          <span className="text-xs text-muted-foreground italic pointer-events-none select-none">
+                            Enter name…
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
 
@@ -986,23 +1119,26 @@ export function RegistryTableContent({
                         onCommit={(colName, newValue) =>
                           handleCellCommit(row.displayId, colName, newValue)
                         }
+                        readOnly={readOnly}
                       />
                     </td>
                   ))}
 
-                  {/* Delete button — visible on row hover */}
-                  <td className="px-2 py-2 align-middle text-center">
-                    <button
-                      type="button"
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 rounded hover:bg-surface/50"
-                      onClick={() => handleDeleteRow(row.displayId)}
-                      title="Delete row"
-                      aria-label={`Delete row ${row.displayId}`}
-                      data-testid={`delete-row-${row.displayId}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
+                  {/* Delete button — visible on row hover, hidden in read-only mode */}
+                  {!readOnly && (
+                    <td className="px-2 py-2 align-middle text-center">
+                      <button
+                        type="button"
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 rounded hover:bg-surface/50"
+                        onClick={() => handleDeleteRow(row.displayId)}
+                        title="Delete row"
+                        aria-label={`Delete row ${row.displayId}`}
+                        data-testid={`delete-row-${row.displayId}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -1010,18 +1146,20 @@ export function RegistryTableContent({
         </table>
       </div>
 
-      {/* "+ New Row" ghost button */}
-      <div className="border-t border-hairline px-4 py-1.5">
-        <button
-          type="button"
-          className="flex items-center gap-1.5 w-full text-xs text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded px-2 py-1.5 transition-colors"
-          onClick={handleAddRow}
-          data-testid="add-row-btn"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New Row
-        </button>
-      </div>
+      {/* "+ New Row" ghost button — hidden in read-only mode */}
+      {!readOnly && (
+        <div className="border-t border-hairline px-4 py-1.5">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 w-full text-xs text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded px-2 py-1.5 transition-colors"
+            onClick={handleAddRow}
+            data-testid="add-row-btn"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New Row
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1036,6 +1174,7 @@ export function RegistryTableContent({
  */
 export function RegistryTableBlockComponent({
   instance,
+  context,
 }: BlockComponentProps) {
   const attrs = instance.attrs as Record<string, unknown>;
   const schemaId = (attrs.schemaId as number | null) ?? null;
@@ -1046,6 +1185,7 @@ export function RegistryTableBlockComponent({
   const columns: GridColumn[] = (attrs.columns as GridColumn[]) ?? [];
   const rows: RegistryTableRow[] =
     (attrs.rows as RegistryTableRow[]) ?? [];
+  const readOnly = context.viewMode === "view";
 
   return (
     <RegistryTableContent
@@ -1056,6 +1196,7 @@ export function RegistryTableBlockComponent({
       columns={columns}
       rows={rows}
       updateAttrs={instance.updateAttrs}
+      readOnly={readOnly}
     />
   );
 }

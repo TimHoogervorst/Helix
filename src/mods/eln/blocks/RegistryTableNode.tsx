@@ -1255,6 +1255,17 @@ export function RegistryTableContent({
                         contentEditable
                         suppressContentEditableWarning
                         data-placeholder="Enter name…"
+                        onInput={(e) => {
+                          // Keep the placeholder class in sync on every keystroke
+                          // so it survives browser-injected <br> tags in contentEditable.
+                          const el = e.currentTarget;
+                          const text = el.textContent ?? "";
+                          if (text.trim().length === 0) {
+                            el.classList.add("name-cell-placeholder");
+                          } else {
+                            el.classList.remove("name-cell-placeholder");
+                          }
+                        }}
                         onBlur={(e) => {
                           const newName = e.currentTarget.textContent ?? "";
                           if (newName !== (row.__name ?? "")) {

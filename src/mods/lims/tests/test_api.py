@@ -806,3 +806,453 @@ class EntityTypeContentHashApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertIn("content_hash", response.data)
         self.assertEqual(len(response.data["content_hash"]), 64)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Batch register endpoint — issue #253
+# ═══════════════════════════════════════════════════════════════════════
+
+BATCH_REGISTER_URL = "/api/lims/entities/batch-register/"
+BATCH_LOG_ACTION_PATH = "mods.lims.views.log_action"
+
+
+class BatchRegisterCreateTests(BaseTestCase):
+    """Test batch-register creates new entities when entity_id is null."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+
+    def test_create_single_entity(self):
+        """POST with one row and entity_id: null creates a new entity."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+        result = response.data["results"][0]
+        self.assertEqual(result["row_index"], 0)
+        self.assertEqual(result["status"], "created")
+        self.assertTrue(result["display_id"].startswith("DNA"))
+        self.assertIsNotNone(result["entity_id"])
+
+        # Verify entity was persisted
+        entity = Entity.objects.get(pk=result["entity_id"])
+        self.assertEqual(entity.name, "Sample A")
+        self.assertEqual(entity.entity_type, self.dna_type)
+        self.assertEqual(entity.properties, {"concentration": 42})
+
+    def test_create_multiple_entities(self):
+        """POST with multiple rows creates multiple entities."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": None, "name": "Sample A", "values": {}},
+                    {"entity_id": None, "name": "Sample B", "values": {}},
+                    {"entity_id": None, "name": "Sample C", "values": {}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 3)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+        for i, result in enumerate(response.data["results"]):
+            self.assertEqual(result["row_index"], i)
+            self.assertEqual(result["status"], "created")
+
+        self.assertEqual(Entity.objects.filter(entity_type=self.dna_type).count(), 3)
+
+
+class BatchRegisterUpdateTests(BaseTestCase):
+    """Test batch-register updates existing entities when entity_id is provided."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+        self.entity = Entity.objects.create(
+            name="Original Name",
+            entity_type=self.dna_type,
+            properties={"concentration": 10},
+            created_by=self.user,
+        )
+
+    def test_update_existing_entity(self):
+        """POST with an existing entity_id updates the entity."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {
+                        "entity_id": self.entity.id,
+                        "name": "Updated Name",
+                        "values": {"concentration": 99},
+                    },
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+        result = response.data["results"][0]
+        self.assertEqual(result["row_index"], 0)
+        self.assertEqual(result["entity_id"], self.entity.id)
+        self.assertEqual(result["display_id"], self.entity.display_id)
+        self.assertEqual(result["status"], "updated")
+
+        # Verify entity was persisted
+        self.entity.refresh_from_db()
+        self.assertEqual(self.entity.name, "Updated Name")
+        self.assertEqual(self.entity.properties, {"concentration": 99})
+
+    def test_update_nonexistent_entity_id(self):
+        """POST with an entity_id that does not exist returns an error for that row."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": 99999, "name": "Ghost", "values": {}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["row_index"], 0)
+        self.assertEqual(response.data["errors"][0]["field"], "entity_id")
+
+
+class BatchRegisterValidationTests(BaseTestCase):
+    """Test validation errors in batch-register."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+
+    def test_missing_name_returns_error(self):
+        """A row without a name returns a validation error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": None, "name": "", "values": {}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["row_index"], 0)
+        self.assertEqual(response.data["errors"][0]["field"], "name")
+        self.assertEqual(response.data["errors"][0]["message"], "Name is required.")
+
+    def test_whitespace_name_returns_error(self):
+        """A row with a whitespace-only name returns a validation error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": None, "name": "   ", "values": {}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "name")
+
+
+class BatchRegisterPartialSuccessTests(BaseTestCase):
+    """Test that valid rows succeed even when other rows fail validation."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+
+    def test_partial_success_mixed_valid_invalid(self):
+        """Valid rows are created even when other rows have errors."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": None, "name": "Valid A", "values": {}},
+                    {"entity_id": None, "name": "", "values": {}},         # missing name
+                    {"entity_id": None, "name": "Valid B", "values": {}},
+                    {"entity_id": None, "name": "   ", "values": {}},      # whitespace name
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["errors"]), 2)
+
+        self.assertEqual(response.data["results"][0]["row_index"], 0)
+        self.assertEqual(response.data["results"][0]["status"], "created")
+        self.assertEqual(response.data["results"][1]["row_index"], 2)
+        self.assertEqual(response.data["results"][1]["status"], "created")
+
+        self.assertEqual(response.data["errors"][0]["row_index"], 1)
+        self.assertEqual(response.data["errors"][0]["field"], "name")
+        self.assertEqual(response.data["errors"][1]["row_index"], 3)
+        self.assertEqual(response.data["errors"][1]["field"], "name")
+
+        # Verify only the valid entities were created
+        self.assertEqual(Entity.objects.filter(entity_type=self.dna_type).count(), 2)
+
+    def test_partial_success_update_and_create(self):
+        """Mix of updates and creates with an error in between."""
+        existing = Entity.objects.create(
+            name="Existing", entity_type=self.dna_type,
+            created_by=self.user,
+        )
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": existing.id, "name": "Existing Updated", "values": {}},
+                    {"entity_id": None, "name": "", "values": {}},                      # error
+                    {"entity_id": None, "name": "New Entity", "values": {}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["errors"]), 1)
+
+        self.assertEqual(response.data["results"][0]["status"], "updated")
+        self.assertEqual(response.data["results"][1]["status"], "created")
+        self.assertEqual(response.data["errors"][0]["row_index"], 1)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.name, "Existing Updated")
+
+
+class BatchRegisterIdempotencyTests(BaseTestCase):
+    """Test that batch-register is idempotent — no duplicates on re-registration."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+
+    def test_create_is_idempotent_by_name_and_type(self):
+        """Registering the same (null entity_id, name) twice does not create a duplicate."""
+        payload = {
+            "entity_type_id": self.dna_type.id,
+            "rows": [
+                {"entity_id": None, "name": "Idempotent Sample", "values": {"concentration": 42}},
+            ],
+        }
+
+        # First request — creates
+        response1 = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1.data["results"][0]["status"], "created")
+        entity_id1 = response1.data["results"][0]["entity_id"]
+
+        # Second request — same payload, should update instead of creating duplicate
+        response2 = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.data["results"][0]["status"], "updated")
+        self.assertEqual(response2.data["results"][0]["entity_id"], entity_id1)
+
+        # Only one entity exists
+        self.assertEqual(
+            Entity.objects.filter(name="Idempotent Sample", entity_type=self.dna_type).count(),
+            1,
+        )
+
+    def test_update_is_idempotent(self):
+        """Updating an entity with the same data twice produces the same result."""
+        entity = Entity.objects.create(
+            name="Update Me", entity_type=self.dna_type,
+            properties={"concentration": 10}, created_by=self.user,
+        )
+        payload = {
+            "entity_type_id": self.dna_type.id,
+            "rows": [
+                {"entity_id": entity.id, "name": "Update Me", "values": {"concentration": 99}},
+            ],
+        }
+
+        # First update
+        response1 = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1.data["results"][0]["status"], "updated")
+
+        # Second update — same payload
+        response2 = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.data["results"][0]["status"], "updated")
+        self.assertEqual(response2.data["results"][0]["entity_id"], entity.id)
+
+        # Only one entity exists
+        self.assertEqual(Entity.objects.filter(entity_type=self.dna_type).count(), 1)
+
+
+class BatchRegisterActionLoggingTests(BaseTestCase):
+    """Test that batch-register logs an action with correct metadata."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.dna_type = EntityType.objects.create(
+            name="DNA", prefix="DNA",
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+        self._patcher = patch(BATCH_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_logs_action_with_correct_metadata(self):
+        """Batch register logs eln.entities.registered with metadata."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [
+                    {"entity_id": None, "name": "Sample A", "values": {}},
+                    {"entity_id": None, "name": "Sample B", "values": {}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        self.mock_log.assert_called_once()
+        kwargs = self.mock_log.call_args[1]
+        self.assertEqual(kwargs["action_type"], "eln.entities.registered")
+        self.assertEqual(kwargs["target_type"], "lims.entities")
+        self.assertEqual(kwargs["target_id"], self.dna_type.id)
+        self.assertEqual(kwargs["user"], self.user)
+
+        metadata = kwargs["metadata"]
+        self.assertEqual(metadata["entity_type_id"], self.dna_type.id)
+        self.assertEqual(metadata["count"], 2)
+        self.assertEqual(len(metadata["entity_ids"]), 2)
+
+    def test_logs_action_with_request_id(self):
+        """Batch register action log includes request_id."""
+        self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
+            },
+            format="json",
+        )
+        kwargs = self.mock_log.call_args[1]
+        self.assertIsNotNone(kwargs["request_id"])
+
+    def test_logs_action_with_client_ip(self):
+        """Batch register action log includes client_ip."""
+        self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": self.dna_type.id,
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
+            },
+            format="json",
+        )
+        kwargs = self.mock_log.call_args[1]
+        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+
+
+class BatchRegisterEntityTypeNotFoundTests(BaseTestCase):
+    """Test behaviour when entity_type_id does not exist."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+
+    def test_nonexistent_entity_type_returns_404(self):
+        """POST with a non-existent entity_type_id returns 404."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "entity_type_id": 99999,
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+class BatchRegisterSerializerValidationTests(TestCase):
+    """Test top-level serializer validation for batch-register."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_missing_entity_type_id_returns_400(self):
+        """POST without entity_type_id returns 400."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"rows": [{"entity_id": None, "name": "Sample", "values": {}}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_missing_rows_returns_400(self):
+        """POST without rows returns 400."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"entity_type_id": 1},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_empty_rows_returns_400(self):
+        """POST with empty rows array returns 400."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"entity_type_id": 1, "rows": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)

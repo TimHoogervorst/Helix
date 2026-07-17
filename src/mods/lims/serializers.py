@@ -110,6 +110,22 @@ class EntityBatchSerializer(serializers.Serializer):
     )
 
 
+class EntityBatchRegisterRowSerializer(serializers.Serializer):
+    """Serializer for a single row in the batch-register payload."""
+    entity_id = serializers.IntegerField(required=False, allow_null=True)
+    name = serializers.CharField(required=True, allow_blank=True)
+    values = serializers.DictField(default=dict)
+
+
+class EntityBatchRegisterSerializer(serializers.Serializer):
+    """Serializer for the batch-register endpoint payload."""
+    entity_type_id = serializers.IntegerField(required=True)
+    rows = serializers.ListField(
+        child=EntityBatchRegisterRowSerializer(),
+        allow_empty=False,
+    )
+
+
 class ActionSerializer(serializers.ModelSerializer):
     entity_name = serializers.CharField(source="entity.name", read_only=True)
     performed_by_username = serializers.CharField(

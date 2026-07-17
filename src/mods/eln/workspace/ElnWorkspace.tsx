@@ -67,7 +67,6 @@ interface ElnWorkspaceProps {
  *  actions endpoint on save. */
 const EDITOR_BLOCK_IDS = [
   "eln.table-block",
-  "eln.legacyTable-block",
   "eln.comment-block",
   "eln.protocol-block",
 ];

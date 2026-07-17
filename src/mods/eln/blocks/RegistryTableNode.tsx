@@ -6,8 +6,8 @@
  *    "Registry Table" label, and "Load Schema" button.
  * 2. **Picker open**: a portaled popover lists active EntityTypes fetched
  *    from the LIMS API. Loading and empty states handled.
- * 3. **Loaded table**: editable title bar, schema name label, blue-tinted
- *    header row with mandatory "Name" column + schema columns, data rows
+ * 3. **Loaded table**: editable title bar, schema name label, header row
+ *    with mandatory "Name" column + schema columns, data rows
  *    with type-aware cell editors, status dots, row add/delete operations,
  *    and reference-cell @-mention popover.
  *
@@ -217,13 +217,13 @@ function EditableCell({
     }
     if (columnType === "Boolean") {
       return (
-        <span className="text-sm" data-testid="boolean-display">
+        <span data-testid="boolean-display" className="inline-block px-4 py-2">
           {value === true ? "Yes" : "No"}
         </span>
       );
     }
     return (
-      <span className="text-sm" data-testid="readonly-cell">
+      <span data-testid="readonly-cell" className="inline-block px-4 py-2">
         {value != null ? String(value) : ""}
       </span>
     );
@@ -297,7 +297,7 @@ function TextCell({
   return (
     <span
       ref={ref}
-      className="outline-none min-w-[60px] inline-block px-1 py-0.5 rounded hover:bg-surface/50 focus:bg-surface/80"
+      className="outline-none min-w-[60px] inline-block px-4 py-2 rounded hover:bg-surface/50 focus:bg-surface/80"
       contentEditable
       suppressContentEditableWarning
       onBlur={handleBlur}
@@ -333,7 +333,7 @@ function NumberCell({
       <input
         ref={inputRef}
         type="number"
-        className="w-full bg-surface/80 px-1 py-0.5 rounded border border-primary/30 outline-none text-sm"
+        className="w-full bg-surface/80 px-4 py-2 rounded border border-primary/30 outline-none"
         defaultValue={value != null ? String(value) : ""}
         onBlur={(e) => {
           const raw = e.target.value.trim();
@@ -355,7 +355,7 @@ function NumberCell({
 
   return (
     <span
-      className="cursor-text min-w-[40px] inline-block px-1 py-0.5 rounded hover:bg-surface/50 text-sm tabular-nums"
+      className="cursor-text min-w-[40px] inline-block px-4 py-2 rounded hover:bg-surface/50 tabular-nums"
       onClick={() => setEditing(true)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -394,7 +394,7 @@ function DateCell({
       <input
         ref={inputRef}
         type="date"
-        className="bg-surface/80 px-1 py-0.5 rounded border border-primary/30 outline-none text-sm"
+        className="bg-surface/80 px-4 py-2 rounded border border-primary/30 outline-none"
         defaultValue={value ?? ""}
         onBlur={(e) => {
           const raw = e.target.value;
@@ -423,7 +423,7 @@ function DateCell({
 
   return (
     <span
-      className="cursor-text min-w-[80px] inline-block px-1 py-0.5 rounded hover:bg-surface/50 text-sm"
+      className="cursor-text min-w-[80px] inline-block px-4 py-2 rounded hover:bg-surface/50"
       onClick={() => setEditing(true)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -449,7 +449,7 @@ function BooleanCell({
   onCommit: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-center">
+    <div className="flex items-center justify-center px-4 py-2">
       <input
         type="checkbox"
         className="h-4 w-4 rounded border-hairline cursor-pointer accent-primary"
@@ -540,7 +540,7 @@ function ReferenceCell({
   }, [onCommit]);
 
   return (
-    <div className="relative inline-flex items-center gap-1">
+    <div className="relative inline-flex items-center gap-1 px-4 py-2">
       {value ? (
         <div className="flex items-center gap-1">
           <MentionBadge displayId={value} clickable />
@@ -562,7 +562,7 @@ function ReferenceCell({
           <button
             ref={triggerRef}
             type="button"
-            className="btn-ghost text-xs text-muted-foreground italic px-1 py-0.5 rounded"
+            className="bg-transparent border-transparent text-xs text-muted-foreground italic px-1 py-0.5 rounded hover:bg-muted hover:text-muted-foreground"
             onClick={() => setOpen(true)}
             data-testid="ref-trigger-btn"
           >
@@ -1002,8 +1002,15 @@ export function RegistryTableContent({
       >
         <div className="flex items-center gap-2.5">
           <Database className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          <span className="text-sm font-medium text-foreground">
-            Registry Table
+          <span
+            className="text-sm font-medium text-foreground outline-none"
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={handleTitleBlur}
+            onKeyDown={handleTitleKeyDown}
+            data-testid="registry-table-title"
+          >
+            {title}
           </span>
         </div>
         <div className="mt-3">
@@ -1139,18 +1146,18 @@ export function RegistryTableContent({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" data-testid="registry-table-grid">
+        <table className="min-w-full text-[13px]" data-testid="registry-table-grid">
           <thead>
-            <tr className="bg-blue-50 border-b border-hairline">
+            <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
               <th
-                className="px-2 py-2 bg-blue-100 whitespace-nowrap"
+                className="px-2 py-2 whitespace-nowrap"
                 data-testid="registry-table-header-status"
                 aria-label="Status"
               />
               {/* Mandatory Name column */}
               <th
-                className="px-4 py-2 text-left font-medium text-foreground bg-blue-100"
+                className="px-4 py-2 text-left font-medium whitespace-nowrap"
                 data-testid="registry-table-header-name"
               >
                 Name
@@ -1159,7 +1166,7 @@ export function RegistryTableContent({
               {columns.map((col) => (
                 <th
                   key={col.name}
-                  className="px-4 py-2 text-left font-medium text-foreground"
+                  className="px-4 py-2 text-left font-medium whitespace-nowrap"
                   data-testid={`registry-table-header-${col.name}`}
                 >
                   {col.name}
@@ -1234,42 +1241,36 @@ export function RegistryTableContent({
                   </td>
 
                   {/* Name column */}
-                  <td className="px-4 py-2 align-middle">
+                  <td className="align-middle font-mono text-[12px] whitespace-nowrap">
                     {readOnly ? (
                       <span
-                        className="text-sm"
                         data-testid={`name-cell-${row.displayId}`}
+                        className="inline-block px-4 py-2"
                       >
                         {row.__name || ""}
                       </span>
                     ) : (
-                      <>
-                        <span
-                          className="outline-none min-w-[100px] inline-block px-1 py-0.5 rounded hover:bg-surface/50 focus:bg-surface/80 text-sm"
-                          contentEditable
-                          suppressContentEditableWarning
-                          onBlur={(e) => {
-                            const newName = e.currentTarget.textContent ?? "";
-                            if (newName !== (row.__name ?? "")) {
-                              handleNameCommit(row.displayId, newName);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              (e.target as HTMLElement).blur();
-                            }
-                          }}
-                          data-testid={`name-cell-${row.displayId}`}
-                        >
-                          {row.__name || ""}
-                        </span>
-                        {!row.__name && (
-                          <span className="text-xs text-muted-foreground italic pointer-events-none select-none">
-                            Enter name…
-                          </span>
-                        )}
-                      </>
+                      <span
+                        className={`outline-none min-w-[100px] inline-block px-4 py-2 rounded hover:bg-surface/50 focus:bg-surface/80 ${!row.__name ? "name-cell-placeholder" : ""}`}
+                        contentEditable
+                        suppressContentEditableWarning
+                        data-placeholder="Enter name…"
+                        onBlur={(e) => {
+                          const newName = e.currentTarget.textContent ?? "";
+                          if (newName !== (row.__name ?? "")) {
+                            handleNameCommit(row.displayId, newName);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            (e.target as HTMLElement).blur();
+                          }
+                        }}
+                        data-testid={`name-cell-${row.displayId}`}
+                      >
+                        {row.__name || null}
+                      </span>
                     )}
                   </td>
 
@@ -1277,7 +1278,7 @@ export function RegistryTableContent({
                   {columns.map((col) => (
                     <td
                       key={col.name}
-                      className="px-4 py-2 align-middle"
+                      className="align-middle font-mono text-[12px] whitespace-nowrap"
                       data-testid={`cell-${row.displayId}-${col.name}`}
                     >
                       <EditableCell

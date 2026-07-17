@@ -419,38 +419,36 @@ class WalkerHandlerPatternTests(TestCase):
         self.assertIs(result, doc)  # no-op → identical
 
     def test_conditionally_patch_nodes(self):
-        """Replace limsTable-type nodes while leaving others intact."""
-        def patch_lims_tables(node):
-            if node.get("type") != "limsTable":
+        """Replace customBlock-type nodes while leaving others intact."""
+        def patch_custom_blocks(node):
+            if node.get("type") != "customBlock":
                 return None
-            # Simulate patching entityId/displayId into rows
+            # Simulate patching data into the node
             new_node = dict(node)
             new_node["attrs"] = dict(node.get("attrs", {}))
-            new_node["attrs"]["rows"] = [
-                {"entityId": 1, "displayId": "BLOOD1", "values": {"vol": "50"}},
-            ]
+            new_node["attrs"]["data"] = {"id": 1, "label": "PATCHED"}
             return new_node
 
         doc = {
             "type": "doc",
             "content": [
                 {
-                    "type": "limsTable",
+                    "type": "customBlock",
                     "attrs": {
-                        "schemaId": 1,
-                        "rows": [{"entityId": None, "displayId": "#new", "values": {"vol": "50"}}],
+                        "id": 1,
+                        "data": {"id": None, "label": "original"},
                     },
                 },
                 {"type": "paragraph"},
             ],
         }
 
-        result = walk_tiptap_tree(doc, patch_lims_tables)
+        result = walk_tiptap_tree(doc, patch_custom_blocks)
 
-        # limsTable was patched
-        row0 = result["content"][0]["attrs"]["rows"][0]
-        self.assertEqual(row0["entityId"], 1)
-        self.assertEqual(row0["displayId"], "BLOOD1")
+        # customBlock was patched
+        data0 = result["content"][0]["attrs"]["data"]
+        self.assertEqual(data0["id"], 1)
+        self.assertEqual(data0["label"], "PATCHED")
 
         # paragraph is unchanged (same object)
         self.assertIs(result["content"][1], doc["content"][1])

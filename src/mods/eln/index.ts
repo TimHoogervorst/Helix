@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks, Download, History, Table, Table2, MessageSquare, Database } from "lucide-react";
+import { FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
@@ -16,7 +16,6 @@ import { PanelRenderer } from "../../shell/src/workspace/PanelRenderer";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import { TableBlockComponent } from "./blocks/TableNodeView";
-import { LimsTableBlockComponent } from "./blocks/LimsTableNode";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
 import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
@@ -110,47 +109,6 @@ export function register() {
     },
   });
 
-  // ── Block: Legacy LIMS Table (new shape, slot-ready) ────────────────
-  registerBlock({
-    id: "eln.legacyTable-block",
-    label: "Legacy Table",
-    icon: Table2,
-    component: LimsTableBlockComponent,
-    listensTo: [],
-    onEvent: {},
-    tags: ["data", "spreadsheet", "legacy"],
-    getDisplayName: (attrs) => ((attrs.schemaName || attrs.title) as string) || "Table",
-    messages: {
-      created: "Legacy Table '{name}' created",
-      edited: "Legacy Table '{name}' edited",
-      deleted: "Legacy Table '{name}' deleted",
-    },
-    serialize: (state) => JSON.stringify(state),
-    deserialize: (json) => {
-      try { return JSON.parse(json); } catch { return {}; }
-    },
-    defaultState: {
-      schemaId: null,
-      title: "Table",
-      columns: [
-        { name: "Column 1", type: "Text" },
-        { name: "Column 2", type: "Text" },
-      ],
-      rows: [
-        {
-          entityId: null,
-          displayId: "#1",
-          values: { "Column 1": "", "Column 2": "" },
-        },
-        {
-          entityId: null,
-          displayId: "#2",
-          values: { "Column 1": "", "Column 2": "" },
-        },
-      ],
-    },
-  });
-
   // ── Block: Comment (new shape, slot-ready) ──────────────────────────
   registerBlock({
     id: "eln.comment-block",
@@ -239,10 +197,9 @@ export function register() {
 
   // ── Bind blocks into eln.editor slot ──────────────────────────────────
   registerIntoSlot("eln.editor", "eln.table-block", {}, 0);
-  registerIntoSlot("eln.editor", "eln.legacyTable-block", {}, 1);
-  registerIntoSlot("eln.editor", "eln.comment-block", {}, 2);
-  registerIntoSlot("eln.editor", "eln.protocol-block", {}, 3);
-  registerIntoSlot("eln.editor", "eln.registryTable-block", {}, 4);
+  registerIntoSlot("eln.editor", "eln.comment-block", {}, 1);
+  registerIntoSlot("eln.editor", "eln.protocol-block", {}, 2);
+  registerIntoSlot("eln.editor", "eln.registryTable-block", {}, 3);
 
   // ── Slot: ELN Sidebar (dogfood #233) ──────────────────────────────────
   declareSlot({

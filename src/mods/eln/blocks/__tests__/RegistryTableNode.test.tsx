@@ -2,11 +2,12 @@
  * Tests for the RegistryTableBlockComponent React component.
  *
  * Covers: placeholder state, picker open/close, schema selection,
- * loaded table (title bar, blue-tinted header, Name column, schema columns,
+ * loaded table (title bar, header row, Name column, schema columns,
  * status bars, type-aware cells, row add/delete, reference popover),
  * and the schema-is-locked behavior.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import React from "react";
 import {
   render,
   screen,

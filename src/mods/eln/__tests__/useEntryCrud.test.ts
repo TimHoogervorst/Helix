@@ -269,37 +269,6 @@ describe("useEntryCrud", () => {
     expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
-  it("autoSave validates entity names and skips on invalid", () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const contentWithEmptyName: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [{ entityId: null, displayId: "#1", __name: "", values: {} }],
-          },
-        },
-      ],
-    };
-
-    const { result } = renderHook(() =>
-      useEntryCrud(
-        makeOptions({ isNew: true, entryId: "E1", contentRef: { current: contentWithEmptyName } }),
-      ),
-    );
-
-    act(() => {
-      result.current.setTitle("Test");
-      result.current.autoSave(null);
-    });
-
-    // autoSave silently skips (no alert, no enqueue)
-    expect(mockEnqueue).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
-  });
-
   // ── save (manual) ────────────────────────────────────────────────────────
 
   it("save enqueues with manual saveMode", async () => {
@@ -327,38 +296,6 @@ describe("useEntryCrud", () => {
       expect.objectContaining({ title: "Manual Saved", folder: 5 }),
       "manual",
     );
-  });
-
-  it("save validates entity names and shows alert", async () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const contentWithEmptyName: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [{ entityId: null, displayId: "#1", __name: "", values: {} }],
-          },
-        },
-      ],
-    };
-
-    const { result } = renderHook(() =>
-      useEntryCrud(
-        makeOptions({ isNew: true, entryId: "E1", contentRef: { current: contentWithEmptyName } }),
-      ),
-    );
-
-    act(() => { result.current.setTitle("Test"); });
-
-    await act(async () => {
-      await result.current.save(null, []);
-    });
-
-    expect(alertSpy).toHaveBeenCalledWith("Name not filled in.");
-    expect(mockEnqueue).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 
   it("save for isNew attaches deferred tags after save", async () => {

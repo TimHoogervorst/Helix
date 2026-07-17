@@ -1164,118 +1164,6 @@ h1 {
   padding: 0.1em 0.4em;
 }
 
-/* ── limsTable Node ── */
-
-.lims-table-wrapper {
-  margin: 1rem 0;
-  border: none;
-  border-radius: 8px;
-  overflow: hidden;
-  position: relative;
-}
-
-.lims-table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.05rem 0.4rem;
-  background: var(--gray-50);
-  gap: 0.25rem;
-}
-
-/* Schema-backed tables → blue header bar */
-.lims-table-header.is-schema {
-  background: var(--blue-50);
-}
-
-.lims-table-header-left {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex: 1;
-}
-
-/* Match specificity with global input[type="text"] so these win. */
-input.lims-table-title-input {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  font-weight: 500;
-  font-size: 0.92rem;
-  color: var(--gray-600);
-  padding: 0.05rem 0;
-  width: 100%;
-  max-width: none;
-  outline: none;
-  box-shadow: none;
-}
-input.lims-table-title-input:focus {
-  color: var(--gray-700);
-  outline: none;
-  box-shadow: none;
-}
-
-.lims-table-header-right {
-  display: flex;
-  gap: 0.15rem;
-}
-
-/* Minimal icon-only button */
-.lims-table-header-btn {
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 0.15rem;
-  font-weight: 500;
-  background: transparent;
-  color: var(--gray-400);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.15s, background 0.15s;
-}
-.lims-table-header-btn:hover {
-  color: var(--blue-600);
-  background: var(--blue-50);
-}
-
-.lims-table-plain-hint {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.7rem;
-  color: var(--gray-400);
-  background: var(--blue-50);
-  border-top: 1px solid var(--blue-200);
-  text-align: center;
-}
-
-/* Table element inside limsTable */
-.lims-table-el {
-  width: auto;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.lims-table-el th,
-.lims-table-el td {
-  width: 120px;
-  border: none;
-  border-bottom: 1px solid var(--gray-200);
-  border-right: 1px solid var(--gray-200);
-  padding: 0.2rem 0.75rem;
-  font-size: 0.9rem;
-  text-align: left;
-  box-sizing: border-box;
-}
-
-.lims-table-el th:last-child,
-.lims-table-el td:last-child {
-  border-right: none;
-}
-
-.lims-table-el tr:last-child td,
-.lims-table-el tr:last-child th {
-  border-bottom: none;
-}
 
 .lims-table-el th {
   background: var(--gray-50);
@@ -3060,6 +2948,18 @@ input.library-new-folder-input:focus {
 .hub-load-more button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* ── Registry Table Name Cell Placeholder ───────────────────────────── */
+
+/* Mirrors the ProseMirror editor-empty pattern: when the contentEditable
+   name cell is empty, show a placeholder hint inside the typing area. */
+.name-cell-placeholder:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-muted-foreground);
+  font-style: italic;
+  font-size: 0.75rem;
+  pointer-events: none;
 }
 
 /* ── Responsive: Library Hub ── */

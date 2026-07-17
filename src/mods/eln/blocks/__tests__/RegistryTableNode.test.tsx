@@ -3,7 +3,7 @@
  *
  * Covers: placeholder state, picker open/close, schema selection,
  * loaded table (title bar, blue-tinted header, Name column, schema columns,
- * status dots, type-aware cells, row add/delete, reference popover),
+ * status bars, type-aware cells, row add/delete, reference popover),
  * and the schema-is-locked behavior.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -54,6 +54,12 @@ vi.mock("lucide-react", () => ({
   ),
   Upload: (props: Record<string, unknown>) => (
     <span data-testid="icon-upload" {...props}>↑</span>
+  ),
+  Check: (props: Record<string, unknown>) => (
+    <span data-testid="icon-check" {...props}>✓</span>
+  ),
+  Calendar: (props: Record<string, unknown>) => (
+    <span data-testid="icon-calendar" {...props}>📅</span>
   ),
 }));
 
@@ -359,10 +365,31 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
   it("renders schema column headers with compact type labels", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.getByTestId("registry-table-header-Volume")).toHaveTextContent("Volume#");
-    expect(screen.getByTestId("registry-table-header-Collection Date")).toHaveTextContent("Collection DateDate");
+    // Date columns show Calendar icon instead of text label
+    const dateHeader = screen.getByTestId("registry-table-header-Collection Date");
+    expect(dateHeader).toHaveTextContent("Collection Date");
+    expect(within(dateHeader).getByTestId("icon-calendar")).toBeInTheDocument();
   });
 
-  it("renders status dot and delete column headers", () => {
+  it("renders Boolean column header with check icon", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedProps({
+          attrs: {
+            columns: [
+              { name: "Volume", type: "Number" as const, units: "mL" },
+              { name: "Active", type: "Boolean" as const },
+            ],
+          },
+        })}
+      />,
+    );
+    const boolHeader = screen.getByTestId("registry-table-header-Active");
+    expect(boolHeader).toHaveTextContent("Active");
+    expect(within(boolHeader).getByTestId("icon-check")).toBeInTheDocument();
+  });
+
+  it("renders status bar and delete column headers", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.getByTestId("registry-table-header-status")).toBeInTheDocument();
     expect(screen.getByTestId("registry-table-header-delete")).toBeInTheDocument();
@@ -398,10 +425,10 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// Status dots
+// Status bars
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("RegistryTableBlockComponent — status dots", () => {
+describe("RegistryTableBlockComponent — status bars", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
@@ -424,17 +451,17 @@ describe("RegistryTableBlockComponent — status dots", () => {
     return { props, row, updateAttrs: props.instance.updateAttrs };
   }
 
-  it("shows blue dot for unregistered row with no errors", () => {
+  it("shows blue bar for unregistered row with no errors", () => {
     const { props } = renderWithRow({
       entityId: null,
       isRegistered: false,
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-blue")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-blue")).toBeInTheDocument();
   });
 
-  it("shows green dot for registered row with matching data", () => {
+  it("shows green bar for registered row with matching data", () => {
     const values = { Volume: 10 };
     const hash = computeSnapshot(values);
     const { props } = renderWithRow({
@@ -445,10 +472,10 @@ describe("RegistryTableBlockComponent — status dots", () => {
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-green")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-green")).toBeInTheDocument();
   });
 
-  it("shows orange dot when data changed since registration", () => {
+  it("shows orange bar when data changed since registration", () => {
     const { props } = renderWithRow({
       entityId: 1,
       isRegistered: true,
@@ -457,10 +484,10 @@ describe("RegistryTableBlockComponent — status dots", () => {
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-orange")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-orange")).toBeInTheDocument();
   });
 
-  it("shows yellow dot when schemaContentHash is unavailable", () => {
+  it("shows yellow bar when schemaContentHash is unavailable", () => {
     const { props } = renderWithRow(
       {
         entityId: 1,
@@ -472,20 +499,20 @@ describe("RegistryTableBlockComponent — status dots", () => {
       { schemaContentHash: null },
     );
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-yellow")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-yellow")).toBeInTheDocument();
   });
 
-  it("shows red dot when there is a registration error", () => {
+  it("shows red bar when there is a registration error", () => {
     const { props } = renderWithRow({
       entityId: 1,
       isRegistered: true,
       registrationError: "Network failure",
     });
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-red")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-red")).toBeInTheDocument();
   });
 
-  it("red dot takes priority over green (all other statuses)", () => {
+  it("red bar takes priority over green (all other statuses)", () => {
     const values = { Volume: 10 };
     const hash = computeSnapshot(values);
     const { props } = renderWithRow({
@@ -496,10 +523,10 @@ describe("RegistryTableBlockComponent — status dots", () => {
       registrationError: "Error!",  // but error overrides
     });
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-red")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-red")).toBeInTheDocument();
   });
 
-  it("orange dot beats green when data differs", () => {
+  it("orange bar beats green when data differs", () => {
     const { props } = renderWithRow({
       entityId: 1,
       isRegistered: true,
@@ -508,7 +535,7 @@ describe("RegistryTableBlockComponent — status dots", () => {
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-dot-orange")).toBeInTheDocument();
+    expect(screen.getByTestId("status-bar-orange")).toBeInTheDocument();
   });
 });
 
@@ -897,10 +924,10 @@ describe("RegistryTableBlockComponent — block defaults and serialization", () 
 import { RegistryTableContent } from "../RegistryTableNode";
 
 // ══════════════════════════════════════════════════════════════════════════
-// Three-dot menu on the title bar
+// Refresh schema ghost button on the title bar
 // ══════════════════════════════════════════════════════════════════════════
 
-describe("RegistryTableContent — three-dot menu", () => {
+describe("RegistryTableContent — refresh schema button", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
@@ -927,26 +954,16 @@ describe("RegistryTableContent — three-dot menu", () => {
     };
   }
 
-  it("renders the three-dot menu trigger button", () => {
+  it("renders the Refresh Schema ghost button", () => {
     render(<RegistryTableContent {...contentProps()} />);
-    // MoreActions renders an Ellipsis icon button with aria-label "More actions"
-    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+    const btn = screen.getByTestId("refresh-schema-btn");
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveAttribute("aria-label", "Refresh schema");
   });
 
-  it("opens the menu on three-dot click showing Refresh schema item", async () => {
-    render(<RegistryTableContent {...contentProps()} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("menu")).toBeInTheDocument();
-    });
-    expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-  });
-
-  it("hides the three-dot menu when readOnly is true", () => {
+  it("hides the Refresh Schema button when readOnly is true", () => {
     render(<RegistryTableContent {...contentProps({ readOnly: true })} />);
-    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("refresh-schema-btn")).not.toBeInTheDocument();
   });
 });
 
@@ -1022,12 +1039,7 @@ describe("RegistryTableContent — refresh schema", () => {
 
     render(<RegistryTableContent {...contentProps()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
       expect(mockGet).toHaveBeenCalledWith("/lims/entity-types/1/");
@@ -1054,11 +1066,7 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
       expect(updateAttrs).toHaveBeenCalledTimes(1);
@@ -1091,11 +1099,7 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
       expect(updateAttrs).toHaveBeenCalled();
@@ -1136,11 +1140,7 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
       expect(updateAttrs).toHaveBeenCalled();
@@ -1175,11 +1175,7 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
       expect(updateAttrs).toHaveBeenCalled();
@@ -1206,11 +1202,7 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     // Wait a tick for the async handler
     await waitFor(() => {
@@ -1230,8 +1222,8 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    // Placeholder has no MoreActions button at all
-    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+    // Placeholder has no refresh button
+    expect(screen.queryByTestId("refresh-schema-btn")).not.toBeInTheDocument();
   });
 
   it("disables Refresh schema button while refreshing", async () => {
@@ -1244,19 +1236,10 @@ describe("RegistryTableContent — refresh schema", () => {
 
     render(<RegistryTableContent {...contentProps()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Refresh schema"));
-
-    // The menu closes on item click (MoreActions behavior). Reopen to check.
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
-      const item = screen.getByText("Refresh schema").closest("button");
-      expect(item).toBeDisabled();
+      expect(screen.getByTestId("refresh-schema-btn")).toBeDisabled();
     });
 
     // Cleanup: resolve the promise
@@ -1291,11 +1274,7 @@ describe("RegistryTableContent — refresh schema", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await waitFor(() => {
-      expect(screen.getByText("Refresh schema")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Refresh schema"));
+    fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
       expect(updateAttrs).toHaveBeenCalled();
@@ -1441,7 +1420,7 @@ describe("RegistryTableContent — view mode (readOnly)", () => {
     expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
     expect(screen.getByTestId("registry-table-header-delete")).toBeInTheDocument();
     expect(screen.getByTestId("delete-row-BLOOD1")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+    expect(screen.getByTestId("refresh-schema-btn")).toBeInTheDocument();
     // Title should be editable
     expect(screen.getByTestId("registry-table-title").getAttribute("contentEditable")).toBe("true");
     // Name cell should be editable
@@ -1482,7 +1461,7 @@ describe("RegistryTableBlockComponent — viewMode integration", () => {
     // "+ New Row" button should be visible
     expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
     // Three-dot menu should be visible
-    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+    expect(screen.getByTestId("refresh-schema-btn")).toBeInTheDocument();
   });
 
   it("passes readOnly=true when context.viewMode is 'view'", () => {
@@ -1893,7 +1872,7 @@ describe("RegistryTableContent — Register Entities success path", () => {
 
     // The displayId "#new-1" should not appear as an entity pill
     // (it only appears as the row key, not as a MentionBadge)
-    // Registered rows show clickable MentionBadge; unregistered show only status dot
+    // Registered rows show clickable MentionBadge; unregistered show only status bar
     expect(screen.queryByText("#new-1")).not.toBeInTheDocument();
   });
 
@@ -1966,7 +1945,7 @@ describe("RegistryTableContent — Register Entities error path", () => {
     };
   }
 
-  it("shows red status dot for rows with registration error", async () => {
+  it("shows red status bar for rows with registration error", async () => {
     const updateAttrs = vi.fn();
     const row = makeRow({ displayId: "#new-1", __name: "Sample", values: { Volume: 10 } });
 
@@ -1989,7 +1968,7 @@ describe("RegistryTableContent — Register Entities error path", () => {
     expect(updatedRows[0].registrationError).toBe("Network failure");
   });
 
-  it("API error per-row: red dot appears, other rows unaffected", async () => {
+  it("API error per-row: red bar appears, other rows unaffected", async () => {
     const updateAttrs = vi.fn();
     const row1 = makeRow({ displayId: "#new-1", __name: "OK", values: { Volume: 1 } });
     const row2 = makeRow({ displayId: "#new-2", __name: "Fail", values: { Volume: 2 } });

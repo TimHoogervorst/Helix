@@ -16,13 +16,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import { Database, Loader, Trash2, Plus, RefreshCw, Upload } from "lucide-react";
+import { Database, Loader, Trash2, Plus, RefreshCw, Upload, Check, Calendar } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types/types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
-import MoreActions from "../components/MoreActions";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -92,18 +91,13 @@ function toGridColumns(entityType: EntityTypeSummary): GridColumn[] {
   }));
 }
 
-// ── Status Dot ─────────────────────────────────────────────────────────────
+// ── Status Bar ─────────────────────────────────────────────────────────────
 
 /** Priority order: red > yellow > orange > blue > green */
 type DotColor = "red" | "yellow" | "orange" | "blue" | "green";
 
-interface StatusDotProps {
-  row: RegistryTableRow;
-  schemaContentHash: string | null;
-}
-
 /**
- * Computes the status dot color for a row following the priority rules:
+ * Computes the status color for a row following the priority rules:
  * - Red: registration error exists
  * - Yellow: schema content hash unavailable (stored hash is null → can't verify match)
  * - Orange: row data changed since last registration
@@ -180,19 +174,6 @@ const DOT_LABELS: Record<DotColor, string> = {
   blue: "Not yet registered",
   green: "Registered, up to date",
 };
-
-function StatusDot({ row, schemaContentHash }: StatusDotProps) {
-  const color = getDotColor(row, schemaContentHash);
-  return (
-    <span
-      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-      style={{ backgroundColor: DOT_COLORS[color] }}
-      title={DOT_LABELS[color]}
-      data-testid={`status-dot-${color}`}
-      aria-label={DOT_LABELS[color]}
-    />
-  );
-}
 
 // ── Editable Cell ──────────────────────────────────────────────────────────
 
@@ -1095,14 +1076,14 @@ export function RegistryTableContent({
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         {readOnly ? (
           <span
-            className="flex-1 text-sm font-medium text-foreground"
+            className="text-sm font-medium text-foreground"
             data-testid="registry-table-title"
           >
             {title}
           </span>
         ) : (
           <span
-            className="flex-1 text-sm font-medium text-foreground outline-none"
+            className="text-sm font-medium text-foreground outline-none"
             contentEditable
             suppressContentEditableWarning
             onBlur={handleTitleBlur}
@@ -1112,19 +1093,31 @@ export function RegistryTableContent({
             {title}
           </span>
         )}
-        {refreshing && (
-          <Loader className="h-3.5 w-3.5 animate-spin text-muted-foreground" data-testid="refresh-spinner" />
-        )}
         {schemaName && (
           <span
-            className="text-xs text-muted-foreground bg-surface px-2 py-0.5 rounded"
+            className="text-xs text-muted-foreground"
             data-testid="registry-table-schema-label"
           >
             {schemaName}
           </span>
         )}
+        <div className="flex-1" />
+        {refreshing && (
+          <Loader className="h-3.5 w-3.5 animate-spin text-muted-foreground" data-testid="refresh-spinner" />
+        )}
         {!readOnly && (
           <>
+            <button
+              type="button"
+              className="btn-ghost grid place-items-center rounded p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleRefreshSchema}
+              disabled={refreshing}
+              title="Refresh schema"
+              aria-label="Refresh schema"
+              data-testid="refresh-schema-btn"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            </button>
             <button
               type="button"
               className="btn-ghost grid place-items-center rounded p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1140,17 +1133,6 @@ export function RegistryTableContent({
                 <Upload className="h-4 w-4" aria-hidden="true" />
               )}
             </button>
-            <MoreActions
-              items={[
-                {
-                  key: "refresh-schema",
-                  icon: RefreshCw,
-                  label: "Refresh schema",
-                  onClick: handleRefreshSchema,
-                  disabled: refreshing,
-                },
-              ]}
-            />
           </>
         )}
       </div>
@@ -1181,8 +1163,14 @@ export function RegistryTableContent({
                   data-testid={`registry-table-header-${col.name}`}
                 >
                   {col.name}
-                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                    {columnTypeLabel(col.type)}
+                  <span className="ml-1 inline-flex items-center text-[10px] text-muted-foreground font-normal align-middle">
+                    {col.type === "Boolean" ? (
+                      <Check className="h-4 w-4" aria-label="Boolean" />
+                    ) : col.type === "Date" ? (
+                      <Calendar className="h-3.5 w-3.5" aria-label="Date" />
+                    ) : (
+                      columnTypeLabel(col.type)
+                    )}
                   </span>
                 </th>
               ))}
@@ -1209,35 +1197,40 @@ export function RegistryTableContent({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              rows.map((row) => {
+                const dotColor = getDotColor(row, schemaContentHash);
+                return (
                 <tr
                   key={row.displayId}
                   className="border-b border-hairline last:border-b-0 group"
                   data-testid={`registry-table-row-${row.displayId}`}
                 >
-                  {/* Status dot + entity pill */}
-                  <td className="px-2 py-2 text-center align-middle">
-                    <div className="flex items-center gap-1.5">
-                      <StatusDot
-                        row={row}
-                        schemaContentHash={schemaContentHash}
+                  {/* Status bar + entity pill */}
+                  <td className="relative px-2 py-2 text-center align-middle">
+                    {/* Colored status bar on the left edge of the row,
+                        top-to-bottom, extends inward on row hover */}
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-[3px] group-hover:w-[5px] transition-all duration-150"
+                      style={{ backgroundColor: DOT_COLORS[dotColor] }}
+                      title={DOT_LABELS[dotColor]}
+                      aria-label={DOT_LABELS[dotColor]}
+                      data-testid={`status-bar-${dotColor}`}
+                    />
+                    {row.isRegistered && row.entityId !== null && row.displayId && (
+                      <MentionBadge
+                        displayId={row.displayId}
+                        clickable
+                        compact
+                        resolved={{
+                          displayId: row.displayId,
+                          title: row.__name,
+                          type: "entity",
+                          id: row.entityId,
+                          icon: "📦",
+                          workspaceId: "lims",
+                        }}
                       />
-                      {row.isRegistered && row.entityId !== null && row.displayId && (
-                        <MentionBadge
-                          displayId={row.displayId}
-                          clickable
-                          compact
-                          resolved={{
-                            displayId: row.displayId,
-                            title: row.__name,
-                            type: "entity",
-                            id: row.entityId,
-                            icon: "📦",
-                            workspaceId: "lims",
-                          }}
-                        />
-                      )}
-                    </div>
+                    )}
                   </td>
 
                   {/* Name column */}
@@ -1316,7 +1309,8 @@ export function RegistryTableContent({
                     </td>
                   )}
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>

@@ -1209,7 +1209,7 @@ export function RegistryTableContent({
                 return (
                 <tr
                   key={row.displayId}
-                  className="border-b border-hairline last:border-b-0 group"
+                  className="border-b border-hairline last:border-b-0 hover:bg-surface/60 transition-colors group"
                   data-testid={`registry-table-row-${row.displayId}`}
                 >
                   {/* Status bar + entity pill */}

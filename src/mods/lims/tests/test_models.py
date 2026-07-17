@@ -234,3 +234,191 @@ class EntitySourceEntryTests(BaseServiceTestCase):
             created_by=self.user,
         )
         self.assertIsNone(entity.source_entry)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Column IDs and content hash — issue #252
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class EntityTypeColumnIdTests(TestCase):
+    """Column UUID ids are generated and preserved across saves."""
+
+    def test_columns_receive_ids_on_create(self):
+        """Each column gets a UUID id upon creation."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[
+                {"name": "volume", "type": "Number"},
+                {"name": "colour", "type": "Text"},
+            ],
+        )
+        self.assertEqual(len(et.columns), 2)
+        for col in et.columns:
+            self.assertIn("id", col)
+            self.assertEqual(len(col["id"]), 36)  # UUID string length
+
+    def test_existing_column_ids_preserved_on_update(self):
+        """Columns that already have an id keep it across saves."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number"}],
+        )
+        original_id = et.columns[0]["id"]
+
+        # Update the entity type — same columns
+        et.name = "Test Type Updated"
+        et.save()
+
+        et.refresh_from_db()
+        self.assertEqual(et.columns[0]["id"], original_id)
+
+    def test_new_columns_receive_new_ids_on_update(self):
+        """Columns added during an update get fresh UUIDs."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number"}],
+        )
+        original_id = et.columns[0]["id"]
+
+        # Add a new column
+        et.columns.append({"name": "colour", "type": "Text"})
+        et.save()
+
+        et.refresh_from_db()
+        self.assertEqual(len(et.columns), 2)
+        # Original column keeps its ID
+        self.assertEqual(et.columns[0]["id"], original_id)
+        # New column gets an ID
+        self.assertIn("id", et.columns[1])
+        self.assertEqual(len(et.columns[1]["id"]), 36)
+        self.assertNotEqual(et.columns[1]["id"], original_id)
+
+    def test_column_ids_are_unique(self):
+        """Every column gets a distinct UUID."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[
+                {"name": "a", "type": "Text"},
+                {"name": "b", "type": "Text"},
+                {"name": "c", "type": "Text"},
+            ],
+        )
+        ids = [col["id"] for col in et.columns]
+        self.assertEqual(len(ids), len(set(ids)))  # all unique
+
+
+class EntityTypeContentHashTests(TestCase):
+    """content_hash is computed from column definitions on every save."""
+
+    def test_content_hash_is_set_on_create(self):
+        """content_hash is non-empty after creation."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number"}],
+        )
+        self.assertTrue(et.content_hash)
+        self.assertEqual(len(et.content_hash), 64)  # SHA-256 hex digest
+
+    def test_content_hash_empty_for_no_columns(self):
+        """An entity type with no columns still gets a content_hash."""
+        et = EntityType.objects.create(name="Test Type", prefix="TEST", columns=[])
+        self.assertTrue(et.content_hash)
+        self.assertEqual(len(et.content_hash), 64)
+
+    def test_content_hash_changes_when_columns_change(self):
+        """Modifying columns produces a different hash."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number"}],
+        )
+        hash1 = et.content_hash
+
+        et.columns = [{"name": "volume", "type": "Number"}, {"name": "colour", "type": "Text"}]
+        et.save()
+        et.refresh_from_db()
+
+        self.assertNotEqual(et.content_hash, hash1)
+
+    def test_content_hash_changes_when_column_order_changes(self):
+        """Reordering columns produces a different hash."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[
+                {"name": "volume", "type": "Number"},
+                {"name": "colour", "type": "Text"},
+            ],
+        )
+        hash1 = et.content_hash
+
+        # Reverse order
+        et.columns = [
+            {"name": "colour", "type": "Text"},
+            {"name": "volume", "type": "Number"},
+        ]
+        et.save()
+        et.refresh_from_db()
+
+        self.assertNotEqual(et.content_hash, hash1)
+
+    def test_content_hash_ignores_description_field(self):
+        """Changing only description does not change the content hash."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number", "description": "The volume in mL"}],
+        )
+        hash1 = et.content_hash
+
+        et.columns[0]["description"] = "Updated description"
+        et.save()
+        et.refresh_from_db()
+
+        self.assertEqual(et.content_hash, hash1)
+
+    def test_content_hash_same_for_identical_columns(self):
+        """Two entity types with identical column definitions have the same hash."""
+        columns = [{"name": "volume", "type": "Number", "required": True, "units": "mL"}]
+        et1 = EntityType.objects.create(name="Type A", prefix="TYPEA", columns=columns)
+        et2 = EntityType.objects.create(name="Type B", prefix="TYPEB", columns=columns)
+
+        self.assertEqual(et1.content_hash, et2.content_hash)
+
+    def test_content_hash_stable_across_saves(self):
+        """Saving without changes produces the same hash."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number"}],
+        )
+        hash1 = et.content_hash
+
+        # Save again without any changes
+        et.save()
+        et.refresh_from_db()
+
+        self.assertEqual(et.content_hash, hash1)
+
+    def test_content_hash_includes_column_ids(self):
+        """The hash covers column IDs so regenerated IDs change the hash."""
+        et = EntityType.objects.create(
+            name="Test Type",
+            prefix="TEST",
+            columns=[{"name": "volume", "type": "Number"}],
+        )
+        hash1 = et.content_hash
+
+        # Manually change the column ID and re-save (simulates a new column)
+        import uuid
+        et.columns[0]["id"] = str(uuid.uuid4())
+        et.save()
+        et.refresh_from_db()
+
+        self.assertNotEqual(et.content_hash, hash1)

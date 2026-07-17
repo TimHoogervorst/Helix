@@ -49,8 +49,8 @@ class EntityTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EntityType
-        fields = ["id", "name", "prefix", "icon", "columns", "is_active"]
-        read_only_fields = ["id", "is_active"]
+        fields = ["id", "name", "prefix", "icon", "columns", "is_active", "content_hash"]
+        read_only_fields = ["id", "is_active", "content_hash"]
 
     def validate_prefix(self, value):
         """Validate prefix format and uniqueness."""
@@ -70,7 +70,7 @@ class EntityTypeDetailSerializer(serializers.ModelSerializer):
     """Read serializer that includes is_active (used for list/retrieve)."""
     class Meta:
         model = EntityType
-        fields = ["id", "name", "prefix", "icon", "columns", "is_active"]
+        fields = ["id", "name", "prefix", "icon", "columns", "is_active", "content_hash"]
 
 
 class EntitySerializer(serializers.ModelSerializer):

@@ -1,5 +1,6 @@
 /** A column definition within an entity type schema. */
 export interface ColumnDef {
+  id?: string;
   name: string;
   type: "Text" | "Number" | "Date" | "Boolean" | "Reference";
   required?: boolean;
@@ -16,6 +17,7 @@ export interface EntityType {
   icon: string;
   columns: ColumnDef[];
   is_active: boolean;
+  content_hash: string;
 }
 
 /** Payload for creating/updating an entity type. */

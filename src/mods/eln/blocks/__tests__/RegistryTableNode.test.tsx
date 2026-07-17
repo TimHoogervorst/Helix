@@ -19,14 +19,16 @@ import {
 // Uses vi.hoisted so mock instances exist before the factory runs (vitest
 // hoists vi.mock calls above all other code).
 
-const { mockGet, mockDel } = vi.hoisted(() => ({
+const { mockGet, mockDel, mockPost } = vi.hoisted(() => ({
   mockGet: vi.fn(),
   mockDel: vi.fn().mockResolvedValue(undefined),
+  mockPost: vi.fn(),
 }));
 
 vi.mock("../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   del: (...args: unknown[]) => mockDel(...args),
+  post: (...args: unknown[]) => mockPost(...args),
 }));
 
 // ── Mock lucide-react icons ───────────────────────────────────────────────
@@ -49,6 +51,9 @@ vi.mock("lucide-react", () => ({
   ),
   Ellipsis: (props: Record<string, unknown>) => (
     <span data-testid="icon-ellipsis" {...props}>…</span>
+  ),
+  Upload: (props: Record<string, unknown>) => (
+    <span data-testid="icon-upload" {...props}>↑</span>
   ),
 }));
 
@@ -142,6 +147,7 @@ function makeRow(overrides?: Partial<RegistryTableRow>): RegistryTableRow {
 describe("RegistryTableBlockComponent — placeholder state", () => {
   beforeEach(() => {
     mockGet.mockReset();
+    mockPost.mockReset();
   });
 
   it("renders the Registry Table label", () => {
@@ -175,6 +181,7 @@ describe("RegistryTableBlockComponent — picker dropdown", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   it("opens picker on Load Schema click", async () => {
@@ -304,6 +311,7 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   function loadedProps(opts?: { attrs?: Record<string, unknown>; rest?: Record<string, unknown> }) {
@@ -397,6 +405,7 @@ describe("RegistryTableBlockComponent — status dots", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   function renderWithRow(rowOverrides?: Partial<RegistryTableRow>, blockAttrs?: Record<string, unknown>) {
@@ -522,6 +531,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   function renderWithColumns(columns: Array<{ name: string; type: string; units?: string }>, values: Record<string, unknown>) {
@@ -686,6 +696,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   function loadedPropsWithUpdateAttrs(updateAttrs: ReturnType<typeof vi.fn>) {
@@ -893,6 +904,7 @@ describe("RegistryTableContent — three-dot menu", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   function contentProps(opts?: {
@@ -946,6 +958,7 @@ describe("RegistryTableContent — refresh schema", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   const existingColumns = [
@@ -1305,6 +1318,7 @@ describe("RegistryTableContent — view mode (readOnly)", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   const columns = [
@@ -1443,6 +1457,7 @@ describe("RegistryTableBlockComponent — viewMode integration", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
+    mockPost.mockReset();
   });
 
   it("passes readOnly=false when context.viewMode is 'edit'", () => {
@@ -1516,5 +1531,803 @@ describe("RegistryTableBlockComponent — viewMode integration", () => {
 
     // "+ New Row" button should be visible (defaults to edit mode)
     expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Register Entities button
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — Register Entities button", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+    mockPost.mockReset();
+  });
+
+  const baseColumns = [
+    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+  ];
+
+  function contentProps(
+    opts?: {
+      schemaId?: number | null;
+      rows?: RegistryTableRow[];
+      readOnly?: boolean;
+      schemaContentHash?: string | null;
+    },
+  ) {
+    return {
+      schemaId: opts?.schemaId ?? 1,
+      schemaName: "Blood Sample",
+      schemaContentHash:
+        "schemaContentHash" in (opts ?? {})
+          ? (opts!.schemaContentHash as string | null)
+          : "abc123",
+      title: "Test Table",
+      columns: baseColumns,
+      rows: opts?.rows ?? [makeRow()],
+      updateAttrs: vi.fn(),
+      readOnly: opts?.readOnly ?? false,
+    };
+  }
+
+  it("renders the Register Entities button when schema is loaded and editable", () => {
+    render(<RegistryTableContent {...contentProps()} />);
+    const btn = screen.getByTestId("register-entities-btn");
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveTextContent("Register Entities");
+  });
+
+  it("does not render Register Entities button when readOnly", () => {
+    render(<RegistryTableContent {...contentProps({ readOnly: true })} />);
+    expect(
+      screen.queryByTestId("register-entities-btn"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Register Entities button sends POST with non-green rows only", async () => {
+    const updateAttrs = vi.fn();
+    const greenHash = computeSnapshot({ Volume: 10 });
+
+    // Green row — should be skipped
+    const greenRow: RegistryTableRow = {
+      entityId: 1,
+      displayId: "BLOOD1",
+      __name: "Green Sample",
+      values: { Volume: 10 },
+      isRegistered: true,
+      lastRegisteredValueHash: greenHash,
+      registrationError: null,
+    };
+
+    // Blue row — unregistered, should be included
+    const blueRow = makeRow({
+      displayId: "#new-1",
+      __name: "New Sample",
+      values: { Volume: 5 },
+    });
+
+    // Orange row — data changed, should be included
+    const orangeRow: RegistryTableRow = {
+      entityId: 2,
+      displayId: "BLOOD2",
+      __name: "Changed Sample",
+      values: { Volume: 99 },
+      isRegistered: true,
+      lastRegisteredValueHash: "old-different-hash",
+      registrationError: null,
+    };
+
+    // Red row — has error, should be included (re-register to clear error)
+    const redRow: RegistryTableRow = {
+      entityId: 3,
+      displayId: "BLOOD3",
+      __name: "Error Sample",
+      values: { Volume: 7 },
+      isRegistered: true,
+      lastRegisteredValueHash: computeSnapshot({ Volume: 7 }),
+      registrationError: "Previous error",
+    };
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 10, display_id: "BLOOD10", status: "created" },
+        { row_index: 1, entity_id: 2, display_id: "BLOOD2", status: "updated" },
+        { row_index: 2, entity_id: 3, display_id: "BLOOD3", status: "updated" },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps({
+          rows: [greenRow, blueRow, orangeRow, redRow],
+          schemaContentHash: "abc123",
+        })}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
+
+    // Green row should be skipped — only 3 rows sent
+    const postCall = mockPost.mock.calls[0];
+    expect(postCall[0]).toBe("/lims/entities/batch-register/");
+    expect(postCall[1].entity_type_id).toBe(1);
+    expect(postCall[1].rows).toHaveLength(3);
+    // Verify sent rows (in order: blue, orange, red)
+    expect(postCall[1].rows[0]).toEqual({
+      entity_id: null,
+      name: "New Sample",
+      values: { Volume: 5 },
+    });
+    expect(postCall[1].rows[1]).toEqual({
+      entity_id: 2,
+      name: "Changed Sample",
+      values: { Volume: 99 },
+    });
+    expect(postCall[1].rows[2]).toEqual({
+      entity_id: 3,
+      name: "Error Sample",
+      values: { Volume: 7 },
+    });
+  });
+
+  it("skips rows with empty names and adds local error", async () => {
+    const updateAttrs = vi.fn();
+    const emptyNameRow = makeRow({
+      displayId: "#new-1",
+      __name: "",
+      values: { Volume: 5 },
+    });
+
+    mockPost.mockResolvedValue({
+      results: [],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps({ rows: [emptyNameRow] })}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    // Empty name row should not be sent to the API
+    expect(mockPost).not.toHaveBeenCalled();
+
+    // Instead, it should get a local error
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+    expect(updatedRows[0].registrationError).toBe("Name is required.");
+  });
+
+  it("trims whitespace to detect empty names", async () => {
+    const updateAttrs = vi.fn();
+    const whitespaceRow = makeRow({
+      displayId: "#new-1",
+      __name: "   ",
+      values: { Volume: 5 },
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps({ rows: [whitespaceRow] })}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    expect(mockPost).not.toHaveBeenCalled();
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+    expect(updatedRows[0].registrationError).toBe("Name is required.");
+  });
+
+  it("empty name and non-empty name rows: valid row is sent, invalid gets local error", async () => {
+    const updateAttrs = vi.fn();
+    const emptyNameRow = makeRow({
+      displayId: "#new-empty",
+      __name: "",
+      values: { Volume: 5 },
+    });
+    const validRow = makeRow({
+      displayId: "#new-valid",
+      __name: "Valid Sample",
+      values: { Volume: 10 },
+    });
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 42, display_id: "BLOOD42", status: "created" },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps({ rows: [emptyNameRow, validRow] })}
+        updateAttrs={updateAttrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
+
+    // Only the valid row should be sent
+    expect(mockPost.mock.calls[0][1].rows).toHaveLength(1);
+    expect(mockPost.mock.calls[0][1].rows[0]).toEqual({
+      entity_id: null,
+      name: "Valid Sample",
+      values: { Volume: 10 },
+    });
+
+    // Both rows should be updated
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+    expect(updatedRows[0].registrationError).toBe("Name is required.");
+    expect(updatedRows[1].registrationError).toBeNull();
+    expect(updatedRows[1].isRegistered).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Register Entities — success path
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — Register Entities success path", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+    mockPost.mockReset();
+  });
+
+  const baseColumns = [
+    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+  ];
+
+  function contentProps(rows: RegistryTableRow[], updateAttrs?: ReturnType<typeof vi.fn>) {
+    return {
+      schemaId: 1 as number | null,
+      schemaName: "Blood Sample",
+      schemaContentHash: "abc123",
+      title: "Test Table",
+      columns: baseColumns,
+      rows,
+      updateAttrs: updateAttrs ?? vi.fn(),
+      readOnly: false,
+    };
+  }
+
+  it("updates row with entityId, displayId, isRegistered, and value hash on success", async () => {
+    const updateAttrs = vi.fn();
+    const newRow = makeRow({
+      displayId: "#new-1",
+      __name: "New Sample",
+      values: { Volume: 42 },
+    });
+
+    const newEntityId = 100;
+    const newDisplayId = "BLOOD100";
+
+    mockPost.mockResolvedValue({
+      results: [
+        {
+          row_index: 0,
+          entity_id: newEntityId,
+          display_id: newDisplayId,
+          status: "created",
+        },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps([newRow], updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+    const updated = updatedRows[0];
+
+    expect(updated.entityId).toBe(newEntityId);
+    expect(updated.displayId).toBe(newDisplayId);
+    expect(updated.isRegistered).toBe(true);
+    expect(updated.lastRegisteredValueHash).toBe(computeSnapshot({ Volume: 42 }));
+    expect(updated.registrationError).toBeNull();
+  });
+
+  it("entity pill (MentionBadge) appears for registered rows", () => {
+    const registeredRow: RegistryTableRow = {
+      entityId: 42,
+      displayId: "BLOOD42",
+      __name: "Sample",
+      values: { Volume: 10 },
+      isRegistered: true,
+      lastRegisteredValueHash: computeSnapshot({ Volume: 10 }),
+      registrationError: null,
+    };
+
+    render(<RegistryTableContent {...contentProps([registeredRow])} />);
+
+    // The MentionBadge should render with the displayId text
+    const badge = screen.getByText("BLOOD42");
+    expect(badge).toBeInTheDocument();
+  });
+
+  it("does not show entity pill for unregistered rows", () => {
+    const unregisteredRow = makeRow({
+      displayId: "#new-1",
+      __name: "Sample",
+      values: { Volume: 10 },
+    });
+
+    render(<RegistryTableContent {...contentProps([unregisteredRow])} />);
+
+    // The displayId "#new-1" should not appear as an entity pill
+    // (it only appears as the row key, not as a MentionBadge)
+    // Registered rows show clickable MentionBadge; unregistered show only status dot
+    expect(screen.queryByText("#new-1")).not.toBeInTheDocument();
+  });
+
+  it("partial success: successful rows updated, failed rows get error", async () => {
+    const updateAttrs = vi.fn();
+    const row1 = makeRow({ displayId: "#new-1", __name: "Good Sample", values: { Volume: 10 } });
+    const row2 = makeRow({ displayId: "#new-2", __name: "Bad Sample", values: { Volume: 20 } });
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 1, display_id: "BLOOD1", status: "created" },
+      ],
+      errors: [
+        { row_index: 1, field: "name", message: "Name already exists." },
+      ],
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps([row1, row2], updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+
+    // Row 1: success
+    expect(updatedRows[0].isRegistered).toBe(true);
+    expect(updatedRows[0].entityId).toBe(1);
+    expect(updatedRows[0].displayId).toBe("BLOOD1");
+    expect(updatedRows[0].registrationError).toBeNull();
+
+    // Row 2: error
+    expect(updatedRows[1].isRegistered).toBe(false);
+    expect(updatedRows[1].registrationError).toBe("Name already exists.");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Register Entities — error path
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — Register Entities error path", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+    mockPost.mockReset();
+  });
+
+  const baseColumns = [
+    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+  ];
+
+  function contentProps(rows: RegistryTableRow[], updateAttrs: ReturnType<typeof vi.fn>) {
+    return {
+      schemaId: 1 as number | null,
+      schemaName: "Blood Sample",
+      schemaContentHash: "abc123",
+      title: "Test Table",
+      columns: baseColumns,
+      rows,
+      updateAttrs,
+      readOnly: false,
+    };
+  }
+
+  it("shows red status dot for rows with registration error", async () => {
+    const updateAttrs = vi.fn();
+    const row = makeRow({ displayId: "#new-1", __name: "Sample", values: { Volume: 10 } });
+
+    mockPost.mockRejectedValue(new Error("Network failure"));
+
+    render(
+      <RegistryTableContent
+        {...contentProps([row], updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+    expect(updatedRows[0].registrationError).toBe("Network failure");
+  });
+
+  it("API error per-row: red dot appears, other rows unaffected", async () => {
+    const updateAttrs = vi.fn();
+    const row1 = makeRow({ displayId: "#new-1", __name: "OK", values: { Volume: 1 } });
+    const row2 = makeRow({ displayId: "#new-2", __name: "Fail", values: { Volume: 2 } });
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 10, display_id: "BLOOD10", status: "created" },
+      ],
+      errors: [
+        { row_index: 1, field: "entity_id", message: "Entity not found." },
+      ],
+    });
+
+    render(
+      <RegistryTableContent
+        {...contentProps([row1, row2], updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+
+    // Row 1: OK
+    expect(updatedRows[0].isRegistered).toBe(true);
+    expect(updatedRows[0].entityId).toBe(10);
+    expect(updatedRows[0].registrationError).toBeNull();
+
+    // Row 2: error
+    expect(updatedRows[1].registrationError).toBe("Entity not found.");
+  });
+
+  it("network error marks all sent rows with error", async () => {
+    const updateAttrs = vi.fn();
+    const rows = [
+      makeRow({ displayId: "#new-1", __name: "A", values: { Volume: 1 } }),
+      makeRow({ displayId: "#new-2", __name: "B", values: { Volume: 2 } }),
+    ];
+
+    mockPost.mockRejectedValue(new Error("Network failure"));
+
+    render(
+      <RegistryTableContent
+        {...contentProps(rows, updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+    expect(updatedRows[0].registrationError).toBe("Network failure");
+    expect(updatedRows[1].registrationError).toBe("Network failure");
+  });
+
+  it("green rows are NOT affected by network error", async () => {
+    const updateAttrs = vi.fn();
+    const greenHash = computeSnapshot({ Volume: 5 });
+    const greenRow: RegistryTableRow = {
+      entityId: 1,
+      displayId: "BLOOD1",
+      __name: "Green",
+      values: { Volume: 5 },
+      isRegistered: true,
+      lastRegisteredValueHash: greenHash,
+      registrationError: null,
+    };
+    const blueRow = makeRow({ displayId: "#new-1", __name: "Blue", values: { Volume: 10 } });
+
+    mockPost.mockRejectedValue(new Error("Network failure"));
+
+    render(
+      <RegistryTableContent
+        {...contentProps([greenRow, blueRow], updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(updateAttrs).toHaveBeenCalled();
+    });
+
+    const callArg = updateAttrs.mock.calls[0][0];
+    const updatedRows = callArg.rows as RegistryTableRow[];
+
+    // Green row unchanged
+    expect(updatedRows[0].entityId).toBe(1);
+    expect(updatedRows[0].isRegistered).toBe(true);
+    expect(updatedRows[0].registrationError).toBeNull();
+
+    // Blue row got error
+    expect(updatedRows[1].registrationError).toBe("Network failure");
+  });
+
+  it("button shows loading state while registering", async () => {
+    // Don't resolve the promise so we stay in "registering" state
+    let resolvePromise: (value: unknown) => void;
+    const pendingPromise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+    mockPost.mockReturnValue(pendingPromise);
+
+    const updateAttrs = vi.fn();
+    const row = makeRow({ displayId: "#new-1", __name: "Sample", values: { Volume: 10 } });
+
+    render(
+      <RegistryTableContent
+        {...contentProps([row], updateAttrs)}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("register-entities-btn")).toHaveTextContent("Registering…");
+      expect(screen.getByTestId("register-entities-btn")).toBeDisabled();
+    });
+
+    // Cleanup
+    resolvePromise!({
+      results: [
+        { row_index: 0, entity_id: 1, display_id: "BLOOD1", status: "created" },
+      ],
+      errors: [],
+    });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Register Entities — green row detection
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableContent — green row detection", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+    mockPost.mockReset();
+  });
+
+  const baseColumns = [
+    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+  ];
+
+  it("skips green rows (no non-green → no API call, no updateAttrs)", () => {
+    const updateAttrs = vi.fn();
+    const hash = computeSnapshot({ Volume: 10 });
+    const greenRow: RegistryTableRow = {
+      entityId: 1,
+      displayId: "BLOOD1",
+      __name: "Green",
+      values: { Volume: 10 },
+      isRegistered: true,
+      lastRegisteredValueHash: hash,
+      registrationError: null,
+    };
+
+    render(
+      <RegistryTableContent
+        schemaId={1}
+        schemaName="Blood Sample"
+        schemaContentHash="abc123"
+        title="Test"
+        columns={baseColumns}
+        rows={[greenRow]}
+        updateAttrs={updateAttrs}
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    // No API call should be made (all rows are green)
+    expect(mockPost).not.toHaveBeenCalled();
+    // No updateAttrs should be called (nothing changed)
+    expect(updateAttrs).not.toHaveBeenCalled();
+  });
+
+  it("does not skip blue (unregistered) rows", async () => {
+    const updateAttrs = vi.fn();
+    const blueRow = makeRow({
+      displayId: "#new-1",
+      __name: "Blue",
+      values: { Volume: 10 },
+    });
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 1, display_id: "BLOOD1", status: "created" },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        schemaId={1}
+        schemaName="Blood Sample"
+        schemaContentHash="abc123"
+        title="Test"
+        columns={baseColumns}
+        rows={[blueRow]}
+        updateAttrs={updateAttrs}
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
+  });
+
+  it("does not skip orange (data changed) rows", async () => {
+    const updateAttrs = vi.fn();
+    const orangeRow: RegistryTableRow = {
+      entityId: 2,
+      displayId: "BLOOD2",
+      __name: "Changed",
+      values: { Volume: 99 },
+      isRegistered: true,
+      lastRegisteredValueHash: "different-hash",
+      registrationError: null,
+    };
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 2, display_id: "BLOOD2", status: "updated" },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        schemaId={1}
+        schemaName="Blood Sample"
+        schemaContentHash="abc123"
+        title="Test"
+        columns={baseColumns}
+        rows={[orangeRow]}
+        updateAttrs={updateAttrs}
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
+  });
+
+  it("does not skip red (error) rows (re-register to clear error)", async () => {
+    const updateAttrs = vi.fn();
+    const hash = computeSnapshot({ Volume: 7 });
+    const redRow: RegistryTableRow = {
+      entityId: 3,
+      displayId: "BLOOD3",
+      __name: "Fix Me",
+      values: { Volume: 7 },
+      isRegistered: true,
+      lastRegisteredValueHash: hash,
+      registrationError: "Previous failure",
+    };
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 3, display_id: "BLOOD3", status: "updated" },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        schemaId={1}
+        schemaName="Blood Sample"
+        schemaContentHash="abc123"
+        title="Test"
+        columns={baseColumns}
+        rows={[redRow]}
+        updateAttrs={updateAttrs}
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
+  });
+
+  it("does not skip yellow rows (missing schemaContentHash)", async () => {
+    const updateAttrs = vi.fn();
+    const hash = computeSnapshot({ Volume: 10 });
+    const yellowRow: RegistryTableRow = {
+      entityId: 4,
+      displayId: "BLOOD4",
+      __name: "Stale Schema",
+      values: { Volume: 10 },
+      isRegistered: true,
+      lastRegisteredValueHash: hash,
+      registrationError: null,
+    };
+
+    mockPost.mockResolvedValue({
+      results: [
+        { row_index: 0, entity_id: 4, display_id: "BLOOD4", status: "updated" },
+      ],
+      errors: [],
+    });
+
+    render(
+      <RegistryTableContent
+        schemaId={1}
+        schemaName="Blood Sample"
+        schemaContentHash={null} // yellow condition
+        title="Test"
+        columns={baseColumns}
+        rows={[yellowRow]}
+        updateAttrs={updateAttrs}
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("register-entities-btn"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
   });
 });

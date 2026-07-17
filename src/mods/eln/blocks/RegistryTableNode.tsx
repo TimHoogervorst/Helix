@@ -16,8 +16,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import { Database, Loader, Trash2, Plus, RefreshCw } from "lucide-react";
-import { get, del } from "../../../shell/src/api/client";
+import { Database, Loader, Trash2, Plus, RefreshCw, Upload } from "lucide-react";
+import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types/types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
@@ -133,6 +133,22 @@ function computeValueSnapshot(values: Record<string, unknown>): string {
       return acc;
     }, {});
   return JSON.stringify(sorted);
+}
+
+/**
+ * A row is "green" (unchanged since last registration) when all of these hold:
+ * - isRegistered is true
+ * - entityId is non-null
+ * - No registration error
+ * - Schema content hash is available
+ * - lastRegisteredValueHash is non-null and matches the current value snapshot
+ */
+function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boolean {
+  if (!row.isRegistered || row.entityId === null) return false;
+  if (row.registrationError) return false;
+  if (!schemaContentHash) return false;
+  if (row.lastRegisteredValueHash === null) return false;
+  return computeValueSnapshot(row.values) === row.lastRegisteredValueHash;
 }
 
 const DOT_COLORS: Record<DotColor, string> = {
@@ -634,6 +650,26 @@ function ReferenceCell({
   );
 }
 
+// ── Batch Register Response Types ───────────────────────────────────────────
+
+interface BatchRegisterResult {
+  row_index: number;
+  entity_id: number;
+  display_id: string;
+  status: string;
+}
+
+interface BatchRegisterError {
+  row_index: number;
+  field: string;
+  message: string;
+}
+
+interface BatchRegisterResponse {
+  results: BatchRegisterResult[];
+  errors: BatchRegisterError[];
+}
+
 // ── Inner Content Props ─────────────────────────────────────────────────────
 
 interface RegistryTableContentProps {
@@ -874,6 +910,94 @@ export function RegistryTableContent({
     }
   }, [schemaId, columns, rows, updateAttrs]);
 
+  // ── Register entities ───────────────────────────────────────────────
+  const [registering, setRegistering] = useState(false);
+
+  const handleRegister = useCallback(async () => {
+    if (schemaId === null) return;
+
+    // Collect non-green rows with their original indices
+    const nonGreenRows: { index: number; row: RegistryTableRow }[] = [];
+    const emptyNameErrors: { index: number; error: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (isGreen(row, schemaContentHash)) continue;
+      if (!row.__name || !row.__name.trim()) {
+        emptyNameErrors.push({ index: i, error: "Name is required." });
+        continue;
+      }
+      nonGreenRows.push({ index: i, row });
+    }
+
+    // Nothing to do
+    if (nonGreenRows.length === 0 && emptyNameErrors.length === 0) return;
+
+    setRegistering(true);
+
+    // Apply local empty-name errors immediately
+    const updatedRows = [...rows];
+    for (const { index, error } of emptyNameErrors) {
+      updatedRows[index] = { ...updatedRows[index], registrationError: error };
+    }
+
+    if (nonGreenRows.length > 0) {
+      try {
+        const payload = {
+          entity_type_id: schemaId,
+          rows: nonGreenRows.map(({ row }) => ({
+            entity_id: row.entityId,
+            name: row.__name,
+            values: row.values,
+          })),
+        };
+
+        const response = await post<BatchRegisterResponse>(
+          "/lims/entities/batch-register/",
+          payload,
+        );
+
+        // Apply successful results
+        for (const result of response.results) {
+          if (result.row_index < 0 || result.row_index >= nonGreenRows.length) continue;
+          const { index: originalIndex, row } = nonGreenRows[result.row_index];
+          const hash = computeValueSnapshot(row.values);
+          updatedRows[originalIndex] = {
+            ...updatedRows[originalIndex],
+            entityId: result.entity_id,
+            displayId: result.display_id,
+            isRegistered: true,
+            lastRegisteredValueHash: hash,
+            registrationError: null,
+          };
+        }
+
+        // Apply API errors
+        for (const error of response.errors) {
+          if (error.row_index < 0 || error.row_index >= nonGreenRows.length) continue;
+          const { index: originalIndex } = nonGreenRows[error.row_index];
+          updatedRows[originalIndex] = {
+            ...updatedRows[originalIndex],
+            registrationError: error.message,
+          };
+        }
+      } catch (err) {
+        // Network or unexpected error — mark all sent rows as errored
+        const message =
+          err instanceof Error ? err.message : "Registration failed";
+        for (const { index: originalIndex } of nonGreenRows) {
+          updatedRows[originalIndex] = {
+            ...updatedRows[originalIndex],
+            registrationError: message,
+          };
+        }
+      }
+    }
+
+    updateAttrs({ rows: updatedRows });
+    setRegistering(false);
+  }, [schemaId, rows, schemaContentHash, updateAttrs]);
+
   // ── Placeholder state ───────────────────────────────────────────────
   if (schemaId === null) {
     return (
@@ -985,17 +1109,38 @@ export function RegistryTableContent({
           </span>
         )}
         {!readOnly && (
-          <MoreActions
-            items={[
-              {
-                key: "refresh-schema",
-                icon: RefreshCw,
-                label: "Refresh schema",
-                onClick: handleRefreshSchema,
-                disabled: refreshing,
-              },
-            ]}
-          />
+          <>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleRegister}
+              disabled={registering}
+              data-testid="register-entities-btn"
+            >
+              {registering ? (
+                <>
+                  <Loader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  Registering…
+                </>
+              ) : (
+                <>
+                  <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                  Register Entities
+                </>
+              )}
+            </button>
+            <MoreActions
+              items={[
+                {
+                  key: "refresh-schema",
+                  icon: RefreshCw,
+                  label: "Refresh schema",
+                  onClick: handleRefreshSchema,
+                  disabled: refreshing,
+                },
+              ]}
+            />
+          </>
         )}
       </div>
 
@@ -1004,9 +1149,9 @@ export function RegistryTableContent({
         <table className="w-full text-sm" data-testid="registry-table-grid">
           <thead>
             <tr className="bg-blue-50 border-b border-hairline">
-              {/* Status dot column */}
+              {/* Status + entity pill column */}
               <th
-                className="w-8 px-2 py-2 bg-blue-100"
+                className="px-2 py-2 bg-blue-100 whitespace-nowrap"
                 data-testid="registry-table-header-status"
                 aria-label="Status"
               />
@@ -1056,12 +1201,29 @@ export function RegistryTableContent({
                   className="border-b border-hairline last:border-b-0 group"
                   data-testid={`registry-table-row-${row.displayId}`}
                 >
-                  {/* Status dot */}
+                  {/* Status dot + entity pill */}
                   <td className="px-2 py-2 text-center align-middle">
-                    <StatusDot
-                      row={row}
-                      schemaContentHash={schemaContentHash}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <StatusDot
+                        row={row}
+                        schemaContentHash={schemaContentHash}
+                      />
+                      {row.isRegistered && row.entityId !== null && row.displayId && (
+                        <MentionBadge
+                          displayId={row.displayId}
+                          clickable
+                          compact
+                          resolved={{
+                            displayId: row.displayId,
+                            title: row.__name,
+                            type: "entity",
+                            id: row.entityId,
+                            icon: "📦",
+                            workspaceId: "lims",
+                          }}
+                        />
+                      )}
+                    </div>
                   </td>
 
                   {/* Name column */}

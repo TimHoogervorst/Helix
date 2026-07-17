@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks, Download, History, Table, Table2, MessageSquare } from "lucide-react";
+import { FlaskConical, ListChecks, Download, History, Table, Table2, MessageSquare, Database } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
@@ -19,6 +19,7 @@ import { TableBlockComponent } from "./blocks/TableNodeView";
 import { LimsTableBlockComponent } from "./blocks/LimsTableNode";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
+import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
 import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
@@ -206,11 +207,41 @@ export function register() {
     },
   });
 
+  // ── Block: Registry Table ────────────────────────────────────────────
+  registerBlock({
+    id: "eln.registryTable-block",
+    label: "Registry Table",
+    icon: Database,
+    component: RegistryTableBlockComponent,
+    listensTo: [],
+    onEvent: {},
+    tags: ["table", "registry", "lims"],
+    getDisplayName: (attrs) =>
+      (attrs.schemaName || attrs.title) as string || "Registry Table",
+    messages: {
+      created: "Registry Table '{name}' created",
+      edited: "Registry Table '{name}' edited",
+      deleted: "Registry Table '{name}' deleted",
+    },
+    serialize: (state) => JSON.stringify(state),
+    deserialize: (json) => {
+      try { return JSON.parse(json); } catch { return {}; }
+    },
+    defaultState: {
+      schemaId: null,
+      schemaName: null,
+      schemaContentHash: null,
+      title: "Registry Table",
+      columns: [],
+    },
+  });
+
   // ── Bind blocks into eln.editor slot ──────────────────────────────────
   registerIntoSlot("eln.editor", "eln.table-block", {}, 0);
   registerIntoSlot("eln.editor", "eln.legacyTable-block", {}, 1);
   registerIntoSlot("eln.editor", "eln.comment-block", {}, 2);
   registerIntoSlot("eln.editor", "eln.protocol-block", {}, 3);
+  registerIntoSlot("eln.editor", "eln.registryTable-block", {}, 4);
 
   // ── Slot: ELN Sidebar (dogfood #233) ──────────────────────────────────
   declareSlot({

@@ -11,6 +11,8 @@ export type GridColumnType = "Text" | "Number" | "Date" | "Boolean" | "Reference
 /** A column definition for the ELN table grid. Mirrors LIMS ColumnDef but
  *  adds grid-only metadata like width and pinned. */
 export interface GridColumn {
+  /** Stable UUID from the server-side column definition (#252). */
+  id?: string;
   name: string;
   type: GridColumnType;
   required?: boolean;

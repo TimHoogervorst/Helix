@@ -22,6 +22,7 @@ import type { EntityTypeSummary } from "../types";
 import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types/types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
+import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -1181,10 +1182,11 @@ export function RegistryTableContent({
                   </span>
                 </th>
               ))}
-              {/* Delete button column — hidden in read-only mode */}
+              {/* Actions column — sticky to right edge, always visible during horizontal scroll.
+                   No border or background so it blends seamlessly. Hidden in read-only mode. */}
               {!readOnly && (
                 <th
-                  className="w-8 px-2 py-2"
+                  className="sticky right-0 w-0 p-0"
                   data-testid="registry-table-header-delete"
                   aria-label="Actions"
                 />
@@ -1305,19 +1307,24 @@ export function RegistryTableContent({
                     </td>
                   ))}
 
-                  {/* Delete button — visible on row hover, hidden in read-only mode */}
+                  {/* Three-dot action menu — sticky to right edge, always visible on row hover.
+                       No border or background so it blends seamlessly. Hidden in read-only mode. */}
                   {!readOnly && (
-                    <td className="px-2 py-2 align-middle text-center">
-                      <button
-                        type="button"
-                        className="opacity-0 group-hover:opacity-100 btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive transition-opacity"
-                        onClick={() => handleDeleteRow(row.displayId)}
-                        title="Delete row"
-                        aria-label={`Delete row ${row.displayId}`}
-                        data-testid={`delete-row-${row.displayId}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                    <td className="sticky right-0 w-0 p-0 align-middle">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreActions
+                          items={[
+                            {
+                              key: "delete",
+                              icon: Trash2,
+                              label: "Delete",
+                              onClick: () => handleDeleteRow(row.displayId),
+                              destructive: true,
+                              tooltip: `Delete row ${row.displayId}`,
+                            },
+                          ]}
+                        />
+                      </div>
                     </td>
                   )}
                 </tr>

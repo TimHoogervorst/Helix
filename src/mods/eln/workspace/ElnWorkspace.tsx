@@ -69,6 +69,7 @@ const EDITOR_BLOCK_IDS = [
   "eln.table-block",
   "eln.comment-block",
   "eln.protocol-block",
+  "eln.registryTable-block",
 ];
 
 function ElnWorkspace({ entryId }: ElnWorkspaceProps) {

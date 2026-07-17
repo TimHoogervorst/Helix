@@ -50,8 +50,8 @@ vi.mock("lucide-react", () => ({
   RefreshCw: (props: Record<string, unknown>) => (
     <span data-testid="icon-refresh" {...props}>🔄</span>
   ),
-  Ellipsis: (props: Record<string, unknown>) => (
-    <span data-testid="icon-ellipsis" {...props}>…</span>
+  EllipsisVertical: (props: Record<string, unknown>) => (
+    <span data-testid="icon-ellipsis-vertical" {...props}>⋮</span>
   ),
   Upload: (props: Record<string, unknown>) => (
     <span data-testid="icon-upload" {...props}>↑</span>
@@ -772,7 +772,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
     expect(newRow.values).toEqual({ Volume: 0 });
   });
 
-  it("delete button calls del API for registered rows", async () => {
+  it("three-dot menu calls del API for registered rows", async () => {
     mockDel.mockResolvedValue(undefined);
     const updateAttrs = vi.fn();
     const registeredRow = makeRow({ entityId: 42, displayId: "BLOOD1", isRegistered: true });
@@ -802,10 +802,13 @@ describe("RegistryTableBlockComponent — row operations", () => {
       />,
     );
 
-    // Verify the row is rendered
-    expect(screen.getByTestId("delete-row-BLOOD1")).toBeInTheDocument();
+    // Open the three-dot menu on the row
+    const row = screen.getByTestId("registry-table-row-BLOOD1");
+    const moreActionsBtn = within(row).getByLabelText("More actions");
+    fireEvent.click(moreActionsBtn);
 
-    fireEvent.click(screen.getByTestId("delete-row-BLOOD1"));
+    // Click "Delete" in the popover
+    fireEvent.click(screen.getByText("Delete"));
 
     // The delete handler is async — wait for the del call
     await waitFor(() => {
@@ -815,24 +818,30 @@ describe("RegistryTableBlockComponent — row operations", () => {
     expect(updateAttrs).toHaveBeenCalledWith({ rows: [] });
   });
 
-  it("delete button does not call API for unregistered rows", () => {
+  it("three-dot menu does not call API for unregistered rows", () => {
     const updateAttrs = vi.fn();
     render(<RegistryTableBlockComponent {...loadedPropsWithUpdateAttrs(updateAttrs)} />);
 
-    fireEvent.click(screen.getByTestId("delete-row-#new-1"));
+    // Open the three-dot menu on the row
+    const row = screen.getByTestId("registry-table-row-#new-1");
+    const moreActionsBtn = within(row).getByLabelText("More actions");
+    fireEvent.click(moreActionsBtn);
+
+    // Click "Delete" in the popover
+    fireEvent.click(screen.getByText("Delete"));
 
     expect(mockDel).not.toHaveBeenCalled();
     expect(updateAttrs).toHaveBeenCalledWith({ rows: [] });
   });
 
-  it("hover reveals delete button on row", () => {
+  it("hover reveals three-dot menu on row", () => {
     const updateAttrs = vi.fn();
     render(<RegistryTableBlockComponent {...loadedPropsWithUpdateAttrs(updateAttrs)} />);
 
-    const deleteBtn = screen.getByTestId("delete-row-#new-1");
-    // The button should exist but have opacity-0 class (from group-hover)
-    expect(deleteBtn).toBeInTheDocument();
-    expect(deleteBtn.className).toContain("opacity-0");
+    // The MoreActions trigger should exist within the row
+    const row = screen.getByTestId("registry-table-row-#new-1");
+    const moreActionsBtn = within(row).getByLabelText("More actions");
+    expect(moreActionsBtn).toBeInTheDocument();
   });
 });
 
@@ -1362,7 +1371,9 @@ describe("RegistryTableContent — view mode (readOnly)", () => {
 
   it("delete buttons are not rendered for rows when readOnly", () => {
     render(<RegistryTableContent {...contentProps()} />);
-    expect(screen.queryByTestId("delete-row-BLOOD1")).not.toBeInTheDocument();
+    // The MoreActions trigger should not exist within the row
+    const row = screen.getByTestId("registry-table-row-BLOOD1");
+    expect(within(row).queryByLabelText("More actions")).not.toBeInTheDocument();
   });
 
   it("name cell is rendered as plain text (not contentEditable) when readOnly", () => {
@@ -1420,7 +1431,9 @@ describe("RegistryTableContent — view mode (readOnly)", () => {
     // All interactive elements should be present
     expect(screen.getByTestId("add-row-btn")).toBeInTheDocument();
     expect(screen.getByTestId("registry-table-header-delete")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-row-BLOOD1")).toBeInTheDocument();
+    // The MoreActions three-dot trigger should exist within the row
+    const row = screen.getByTestId("registry-table-row-BLOOD1");
+    expect(within(row).getByLabelText("More actions")).toBeInTheDocument();
     expect(screen.getByTestId("refresh-schema-btn")).toBeInTheDocument();
     // Title should be editable
     expect(screen.getByTestId("registry-table-title").getAttribute("contentEditable")).toBe("true");

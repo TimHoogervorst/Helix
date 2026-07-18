@@ -12,7 +12,7 @@ import {
   ModRegistry,
 } from "../../shell/src/mod-system";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
-import { PanelRenderer } from "../../shell/src/workspace/PanelRenderer";
+import { SlotSidebar } from "../../shell/src/workspace/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import { TableBlockComponent } from "./blocks/TableNodeView";
@@ -205,7 +205,7 @@ export function register() {
   declareSlot({
     id: "eln.sidebar",
     accepts: "block",
-    renderer: PanelRenderer,
+    renderer: SlotSidebar,
     layout: "vertical",
     order: 2,
     defaults: {},

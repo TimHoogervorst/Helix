@@ -7,6 +7,11 @@ import type {
   BlockInstance,
   RendererProps,
 } from "../mod-system/types";
+import { SidebarProvider } from "./SidebarContext";
+import { CollapsibleSidebar } from "../shared/components/Sidebar/CollapsibleSidebar";
+import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
+import { useBlockInstance } from "./useBlockInstance";
+import type { WorkspaceBus } from "./WorkspaceBus";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -54,8 +59,12 @@ const NOOP_UPDATE_ATTRS = () => {};
  *    invoked by SlotRenderer. Receives resolved bindings, bus, and context
  *    via RendererProps.
  *
- * Blocks are rendered in order without card wrappers — each block owns its
- * own section markup including headings and containers.
+ * Internally wraps content in a {@link CollapsibleSidebar} (variant
+ * `"full-hide"`, `side="right"`) and each block binding in a
+ * {@link SidebarSection} whose label comes from the block registration.
+ *
+ * Sidebar collapse and section collapse are independent — collapsing the
+ * whole sidebar preserves which sections were collapsed when it re-expands.
  */
 export function SlotSidebar(props: SlotSidebarProps) {
   // ── Resolve bindings ──────────────────────────────────────────────────
@@ -77,31 +86,89 @@ export function SlotSidebar(props: SlotSidebarProps) {
   // Both union members carry slotId — read it directly.
   const slotId = props.slotId;
 
+  // ── Mode discrimination ───────────────────────────────────────────────
+
+  const isRendererMode = "bindings" in props && "bus" in props;
+  const context = isRendererMode ? props.context : STUB_CONTEXT;
+  const bus = isRendererMode ? props.bus : undefined;
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <aside className="library-sidebar">
-      {bindings.map((binding) => {
-        // Only blocks are rendered in sidebar; buttons are skipped.
-        if (binding.type !== "block") return null;
+    <SidebarProvider>
+      <CollapsibleSidebar side="right" variant="full-hide">
+        {bindings.map((binding) => {
+          // Only blocks are rendered in sidebar; buttons are skipped.
+          if (binding.type !== "block") return null;
 
-        const Component = binding.component;
-        const instance: BlockInstance = {
-          id: `${binding.id}::static`,
-          blockId: binding.id,
-          slotId,
-          attrs: binding.defaultState,
-          updateAttrs: NOOP_UPDATE_ATTRS,
-        };
+          // Renderer mode with a bus — useBlockInstance for proper state
+          // management, event subscriptions, and attrs updates.
+          if (bus) {
+            return (
+              <SlotSidebarBlock
+                key={binding.id}
+                binding={binding}
+                slotId={slotId}
+                bus={bus}
+                context={context}
+              />
+            );
+          }
 
-        return (
-          <Component
-            key={binding.id}
-            context={STUB_CONTEXT}
-            instance={instance}
-          />
-        );
-      })}
-    </aside>
+          // Standalone mode — static block instance, no bus subscriptions.
+          const Component = binding.component;
+          const instance: BlockInstance = {
+            id: `${binding.id}::static`,
+            blockId: binding.id,
+            slotId,
+            attrs: binding.defaultState,
+            updateAttrs: NOOP_UPDATE_ATTRS,
+          };
+
+          return (
+            <SidebarSection
+              key={binding.id}
+              id={binding.id}
+              label={binding.label}
+            >
+              <Component context={context} instance={instance} />
+            </SidebarSection>
+          );
+        })}
+      </CollapsibleSidebar>
+    </SidebarProvider>
+  );
+}
+
+// ── Internal: block with useBlockInstance ────────────────────────────────
+
+interface SlotSidebarBlockProps {
+  binding: BlockBinding;
+  slotId: string;
+  bus: WorkspaceBus;
+  context: SlotContext;
+}
+
+/**
+ * Renders a single block inside a {@link SidebarSection} using
+ * {@link useBlockInstance} for proper state management, event
+ * subscriptions, and attrs updates.
+ *
+ * Extracted so {@link useBlockInstance} is called unconditionally
+ * in a React component (the hook cannot be inside a conditional).
+ */
+function SlotSidebarBlock({
+  binding,
+  slotId,
+  bus,
+  context,
+}: SlotSidebarBlockProps) {
+  const Component = binding.component;
+  const instance = useBlockInstance(binding, slotId, bus);
+
+  return (
+    <SidebarSection id={binding.id} label={binding.label}>
+      <Component context={context} instance={instance} bus={bus} />
+    </SidebarSection>
   );
 }

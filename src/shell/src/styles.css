@@ -2542,28 +2542,179 @@ input.library-new-folder-input:focus {
   padding-bottom: 0;
 }
 
-/* ── Right Sidebar ── */
+/* ── Collapsible Sidebar ────────────────────────────────────────────────── */
 
-.library-sidebar {
-  width: 220px;
-  flex-shrink: 0;
+.collapsible-sidebar {
   display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  padding: 0.75rem 1rem;
+  flex-shrink: 0;
+  height: 100vh;
+  overflow: hidden;
+  transition: width 0.3s ease;
+}
+.collapsible-sidebar[data-side="right"] {
   border-left: 1px solid var(--color-hairline);
-  overflow-y: auto;
+}
+.collapsible-sidebar[data-side="left"] {
+  border-right: 1px solid var(--color-hairline);
 }
 
-.library-sidebar-heading {
+/* Expanded */
+.collapsible-sidebar.is-expanded {
+  width: var(--sidebar-width);
+}
+
+/* Collapsed: icon-strip variant (left sidebar → ~48px) */
+.collapsible-sidebar.is-collapsed.variant-icon-strip {
+  width: 48px;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Collapsed: full-hide variant (right sidebar → ~24px toggle strip) */
+.collapsible-sidebar.is-collapsed.variant-full-hide {
+  width: 24px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 0.5rem;
+}
+
+/* ── Sidebar Content ── */
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Sidebar Toggle ── */
+
+.sidebar-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem;
+  color: var(--color-muted-foreground);
+}
+
+/* Toggle row inside .sidebar-content — full-width bar above sections.
+   Right sidebar: toggle is on the left; Left sidebar: toggle is on the right. */
+.sidebar-toggle-row {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--color-hairline);
+}
+.sidebar-toggle-row[data-side="right"] {
+  justify-content: flex-start;
+}
+.sidebar-toggle-row[data-side="left"] {
+  justify-content: flex-end;
+}
+
+/* ── Collapsed logo-as-toggle ── */
+
+.sidebar-logo-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  border-radius: 6px;
+  color: var(--color-muted-foreground);
+}
+.sidebar-logo-toggle:hover {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+}
+
+/* Show the logo icon by default, chevron on hover */
+.sidebar-logo-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar-logo-toggle-chevron {
+  display: none;
+}
+.sidebar-logo-toggle:hover .sidebar-logo-toggle-icon {
+  display: none;
+}
+.sidebar-logo-toggle:hover .sidebar-logo-toggle-chevron {
+  display: block;
+}
+
+/* ── Sidebar Section ── */
+
+.sidebar-section {
+  border-bottom: 1px solid var(--color-hairline);
+  min-width: 0;
+  overflow: hidden;
+}
+.sidebar-section:last-child {
+  border-bottom: none;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  min-height: 2rem;
+  transition: background 0.1s;
+}
+.sidebar-section-header:hover {
+  background: var(--color-muted);
+}
+
+.sidebar-section-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--color-muted-foreground);
-  margin-bottom: 0.375rem;
 }
+
+.sidebar-section-icon {
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+}
+
+.sidebar-section-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-section-content {
+  padding: 0.5rem 0.75rem 0.75rem;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* ── Right Sidebar (migrated content styles) ── */
 
 .library-sidebar-placeholder {
   font-size: 0.8rem;
@@ -2969,9 +3120,11 @@ input.library-new-folder-input:focus {
     flex-direction: column;
   }
 
-  .library-sidebar {
+  .collapsible-sidebar.is-expanded {
     width: 100%;
     flex-shrink: 1;
+  }
+  .collapsible-sidebar[data-side="right"] {
     border-left: none;
     border-top: 1px solid var(--color-hairline);
   }

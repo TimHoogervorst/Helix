@@ -100,8 +100,11 @@ describe("CollapsibleSidebar", () => {
   // ── Collapsed state: icon-strip variant ──────────────────────────────
 
   describe("collapsed state: icon-strip variant", () => {
-    it("renders an IconStrip when collapsed with icon-strip variant", () => {
-      const groups = [makeIconGroup([{ label: "Hub", onClick: vi.fn() }])];
+    it("treats the first icon as a logo-toggle when side is left", () => {
+      const groups = [
+        makeIconGroup([{ label: "Logo" }]),
+        makeIconGroup([{ label: "Hub", onClick: vi.fn() }]),
+      ];
 
       renderWithProvider(
         <CollapsibleSidebar
@@ -119,19 +122,26 @@ describe("CollapsibleSidebar", () => {
       // Collapse
       fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-      // IconStrip icons should be rendered
+      // The first icon ("Logo") becomes a logo-as-toggle button
+      const logoToggle = screen.getByRole("button", { name: "Expand sidebar" });
+      expect(logoToggle).toBeInTheDocument();
+      expect(logoToggle).toHaveClass("sidebar-logo-toggle");
+      // The logo icon is rendered inside the toggle
+      expect(screen.getByTestId("icon-Logo")).toBeInTheDocument();
+
+      // Remaining groups (Hub) are rendered in an IconStrip
       expect(screen.getByTestId("icon-Hub")).toBeInTheDocument();
 
       // Children should be hidden
       expect(screen.queryByTestId("child")).not.toBeInTheDocument();
     });
 
-    it("renders a toggle button alongside the IconStrip when collapsed", () => {
+    it("renders standard IconStrip + toggle for right side (no logo extraction)", () => {
       const groups = [makeIconGroup([{ label: "Hub", onClick: vi.fn() }])];
 
       renderWithProvider(
         <CollapsibleSidebar
-          side="left"
+          side="right"
           variant="icon-strip"
           iconStripGroups={groups}
         >
@@ -141,17 +151,21 @@ describe("CollapsibleSidebar", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-      // There should be a toggle to expand back
-      expect(
-        screen.getByRole("button", { name: "Expand sidebar" }),
-      ).toBeInTheDocument();
+      // IconStrip should render the icon
+      expect(screen.getByTestId("icon-Hub")).toBeInTheDocument();
+
+      // There should be a separate toggle button (not a logo-toggle)
+      const toggle = screen.getByRole("button", { name: "Expand sidebar" });
+      expect(toggle).toBeInTheDocument();
+      expect(toggle).toHaveClass("sidebar-toggle");
+      expect(toggle).not.toHaveClass("sidebar-logo-toggle");
     });
   });
 
   // ── Toggle button positioning ────────────────────────────────────────
 
   describe("toggle button positioning", () => {
-    it("for left sidebar: toggle is on the right edge", () => {
+    it("for left sidebar: toggle is inside sidebar-content in a toggle row", () => {
       renderWithProvider(
         <CollapsibleSidebar side="left" variant="full-hide">
           <p>Content</p>
@@ -161,19 +175,27 @@ describe("CollapsibleSidebar", () => {
       const sidebar = screen.getByRole("complementary");
       expect(sidebar).toHaveAttribute("data-side", "left");
 
-      // The toggle should be after the content in the DOM (right-edge = after content)
       const contentEl = sidebar.querySelector(".sidebar-content");
+      const toggleRow = sidebar.querySelector(".sidebar-toggle-row");
       const toggleEl = sidebar.querySelector(".sidebar-toggle");
       expect(contentEl).toBeInTheDocument();
+      expect(toggleRow).toBeInTheDocument();
       expect(toggleEl).toBeInTheDocument();
 
-      // Content should come before the toggle in DOM order
+      // Toggle row should be inside sidebar-content
+      expect(contentEl!.contains(toggleRow!)).toBe(true);
+
+      // Toggle row should come before the <p>Content in DOM order
+      const paraEl = sidebar.querySelector("p");
       expect(
-        contentEl!.compareDocumentPosition(toggleEl!),
+        toggleRow!.compareDocumentPosition(paraEl!),
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+      // Toggle row aligns right for left sidebars
+      expect(toggleRow).toHaveAttribute("data-side", "left");
     });
 
-    it("for right sidebar: toggle is on the left edge", () => {
+    it("for right sidebar: toggle is inside sidebar-content in a toggle row", () => {
       renderWithProvider(
         <CollapsibleSidebar side="right" variant="full-hide">
           <p>Content</p>
@@ -184,14 +206,37 @@ describe("CollapsibleSidebar", () => {
       expect(sidebar).toHaveAttribute("data-side", "right");
 
       const contentEl = sidebar.querySelector(".sidebar-content");
+      const toggleRow = sidebar.querySelector(".sidebar-toggle-row");
       const toggleEl = sidebar.querySelector(".sidebar-toggle");
       expect(contentEl).toBeInTheDocument();
+      expect(toggleRow).toBeInTheDocument();
       expect(toggleEl).toBeInTheDocument();
 
-      // Toggle should come before the content in DOM order (left-edge = before content)
+      // Toggle row should be inside sidebar-content
+      expect(contentEl!.contains(toggleRow!)).toBe(true);
+
+      // Toggle row should come before the <p>Content in DOM order
+      const paraEl = sidebar.querySelector("p");
       expect(
-        toggleEl!.compareDocumentPosition(contentEl!),
+        toggleRow!.compareDocumentPosition(paraEl!),
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+      // Toggle row aligns left for right sidebars
+      expect(toggleRow).toHaveAttribute("data-side", "right");
+    });
+
+    it("when hideToggle is true, no toggle row is rendered in expanded state", () => {
+      renderWithProvider(
+        <CollapsibleSidebar side="left" variant="full-hide" hideToggle>
+          <p data-testid="child">Content</p>
+        </CollapsibleSidebar>,
+      );
+
+      const sidebar = screen.getByRole("complementary");
+      expect(sidebar.querySelector(".sidebar-toggle-row")).not.toBeInTheDocument();
+      expect(sidebar.querySelector(".sidebar-toggle")).not.toBeInTheDocument();
+      // Children are still rendered
+      expect(screen.getByTestId("child")).toBeInTheDocument();
     });
   });
 

@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { SlotSidebar } from "../SlotSidebar";
-import { ModRegistry } from "../../mod-system/ModRegistry";
-import { WorkspaceBus } from "../WorkspaceBus";
+import { ModRegistry } from "../../../../mod-system/ModRegistry";
+import { WorkspaceBus } from "../../../../workspace/WorkspaceBus";
 import type {
   SlotContext,
   BlockBinding,
   BlockRegistration,
   SlotDeclaration,
   BlockInstance,
-} from "../../mod-system/types";
+} from "../../../../mod-system/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -389,6 +389,49 @@ describe("SlotSidebar", () => {
       expect(
         screen.getByTestId("block-content-test.b"),
       ).toBeInTheDocument();
+    });
+  });
+
+  // ── Icon rendering ──────────────────────────────────────────────────
+
+  describe("icon rendering", () => {
+    beforeEach(() => {
+      ModRegistry._reset();
+    });
+
+    it("renders block icon in SidebarSection header", () => {
+      ModRegistry._reset();
+      const registry = ModRegistry.getInstance();
+      registry.declareSlot(makeSlotDecl({ id: "test.sidebar" }));
+      // Use a recognizable icon element that can be queried
+      function StarIcon({ size, className }: { size?: number; className?: string }) {
+        return <svg data-testid="icon-star" data-size={size} className={className} />;
+      }
+      registry.registerBlock(
+        makeBlockReg({
+          id: "test.block",
+          label: "Test Section",
+          icon: StarIcon,
+        }),
+      );
+      registry.registerIntoSlot("test.sidebar", "test.block", {}, 0);
+
+      render(<SlotSidebar slotId="test.sidebar" />);
+
+      // The icon should be rendered in the SidebarSection header
+      const icon = screen.getByTestId("icon-star");
+      expect(icon).toBeInTheDocument();
+
+      // The icon should appear before the label in the header
+      const header = screen.getByText("Test Section").parentElement;
+      const iconEl = header?.querySelector("[data-testid='icon-star']");
+      const labelEl = header?.querySelector(".sidebar-section-label");
+      expect(iconEl).toBeInTheDocument();
+      expect(labelEl).toBeInTheDocument();
+      // Icon should be before label in DOM order
+      expect(
+        iconEl!.compareDocumentPosition(labelEl!),
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
   });
 

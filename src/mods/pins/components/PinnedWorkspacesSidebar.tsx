@@ -31,11 +31,6 @@ function PinnedWorkspacesSidebar() {
 
   return (
     <>
-      {/* Workspace section header */}
-      <div className="mt-1 px-3 pb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Workspace
-      </div>
-
       {/* Workspace tree area */}
       <div className="flex-1 overflow-y-auto px-2 pb-6 text-[13px]">
         {/* Current workspace (temporary, not pinned) */}

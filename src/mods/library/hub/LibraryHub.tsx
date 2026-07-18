@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -18,8 +18,9 @@ import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Bre
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { LibraryItemConfig } from "../../../shell/src/mod-system/types";
-import { SlotSidebar } from "../../../shell/src/workspace/SlotSidebar";
+import type { LibraryItemConfig, SlotContext } from "../../../shell/src/mod-system/types";
+import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
+import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -135,6 +136,23 @@ function LibraryHub() {
     getDisplayId: (item) =>
       item.type === "entry" ? item.display_id : "",
   });
+
+  // ── Sidebar bus and context ────────────────────────────────────────────
+
+  const busRef = useRef<WorkspaceBus>(null);
+  if (!busRef.current) {
+    busRef.current = new WorkspaceBus();
+  }
+  const bus = busRef.current;
+
+  const sidebarContext: SlotContext = useMemo(
+    () => ({
+      workspaceId: "library",
+      user: null,
+      viewMode,
+    }),
+    [viewMode],
+  );
 
   // ── Registry-driven card config ───────────────────────────────────────
 
@@ -408,7 +426,11 @@ function LibraryHub() {
       </div>
 
       {/* ── Right Sidebar (slot-driven, full height, alongside everything) ── */}
-      <SlotSidebar slotId="library.sidebar" />
+      <SlotSidebar
+        slotId="library.sidebar"
+        context={sidebarContext}
+        bus={bus}
+      />
     </div>
   );
 }

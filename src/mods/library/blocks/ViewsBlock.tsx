@@ -10,47 +10,47 @@ import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
  *
  * "All Entries" is marked as is-active by default (placeholder behavior).
  *
+ * The section heading is provided by SidebarSection in SlotSidebar,
+ * so this block only outputs the inner list content.
+ *
  * Conforms to the BlockComponentProps contract so it can be bound into
  * any block-accepting slot.
  */
 export function ViewsBlock(_props: BlockComponentProps) {
   return (
-    <div className="library-sidebar-section">
-      <h3 className="library-sidebar-heading">VIEWS</h3>
-      <ul className="library-sidebar-views">
-        <li className="library-sidebar-view-item is-active">
-          <LayoutList
-            size={14}
-            className="library-sidebar-view-icon"
-            aria-hidden="true"
-          />
-          All Entries
-        </li>
-        <li className="library-sidebar-view-item">
-          <Star
-            size={14}
-            className="library-sidebar-view-icon"
-            aria-hidden="true"
-          />
-          Starred
-        </li>
-        <li className="library-sidebar-view-item">
-          <User
-            size={14}
-            className="library-sidebar-view-icon"
-            aria-hidden="true"
-          />
-          My Entries
-        </li>
-        <li className="library-sidebar-view-item">
-          <Archive
-            size={14}
-            className="library-sidebar-view-icon"
-            aria-hidden="true"
-          />
-          Archived
-        </li>
-      </ul>
-    </div>
+    <ul className="library-sidebar-views">
+      <li className="library-sidebar-view-item is-active">
+        <LayoutList
+          size={14}
+          className="library-sidebar-view-icon"
+          aria-hidden="true"
+        />
+        All Entries
+      </li>
+      <li className="library-sidebar-view-item">
+        <Star
+          size={14}
+          className="library-sidebar-view-icon"
+          aria-hidden="true"
+        />
+        Starred
+      </li>
+      <li className="library-sidebar-view-item">
+        <User
+          size={14}
+          className="library-sidebar-view-icon"
+          aria-hidden="true"
+        />
+        My Entries
+      </li>
+      <li className="library-sidebar-view-item">
+        <Archive
+          size={14}
+          className="library-sidebar-view-icon"
+          aria-hidden="true"
+        />
+        Archived
+      </li>
+    </ul>
   );
 }

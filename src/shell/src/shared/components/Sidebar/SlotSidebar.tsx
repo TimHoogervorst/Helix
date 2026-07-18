@@ -12,6 +12,7 @@ import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import { SidebarSection } from "./SidebarSection";
 import { useBlockInstance } from "../../../workspace/useBlockInstance";
 import type { WorkspaceBus } from "../../../workspace/WorkspaceBus";
+import type { IconStripGroup } from "./IconStrip";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,10 @@ import type { WorkspaceBus } from "../../../workspace/WorkspaceBus";
  * An optional `bus` enables workspace event subscriptions for blocks
  * that need them (e.g. ActivityFeedBlock). When omitted, blocks render
  * as static instances without bus access.
+ *
+ * An optional `side`, `variant`, and `iconStripGroups` override the
+ * CollapsibleSidebar defaults (right + full-hide). Use this to reuse
+ * SlotSidebar for left-sidebar or icon-strip scenarios.
  */
 export interface SlotSidebarStandaloneProps {
   slotId: string;
@@ -33,6 +38,14 @@ export interface SlotSidebarStandaloneProps {
   context?: SlotContext;
   /** Optional workspace bus — enables block event subscriptions. */
   bus?: WorkspaceBus;
+  /** Side of the screen the sidebar is attached to. @default "right" */
+  side?: "left" | "right";
+  /** How the sidebar renders when collapsed. @default "full-hide" */
+  variant?: "icon-strip" | "full-hide";
+  /** Icon groups for the IconStrip when `variant="icon-strip"`. */
+  iconStripGroups?: IconStripGroup[];
+  /** Optional className forwarded to the CollapsibleSidebar's aside. */
+  className?: string;
 }
 
 /**
@@ -71,8 +84,8 @@ const NOOP_UPDATE_ATTRS = () => {};
  *    invoked by SlotRenderer. Receives resolved bindings, bus, and context
  *    via RendererProps.
  *
- * Internally wraps content in a {@link CollapsibleSidebar} (variant
- * `"full-hide"`, `side="right"`) and each block binding in a
+ * Internally wraps content in a {@link CollapsibleSidebar} (defaults to
+ * `variant="full-hide"`, `side="right"`) and each block binding in a
  * {@link SidebarSection} whose label and icon come from the block registration.
  *
  * Sidebar collapse and section collapse are independent — collapsing the
@@ -108,11 +121,30 @@ export function SlotSidebar(props: SlotSidebarProps) {
     ? props.bus
     : (props as SlotSidebarStandaloneProps).bus;
 
+  // ── Configurable sidebar options from standalone props ────────────────
+
+  const side =
+    ("side" in props
+      ? (props as SlotSidebarStandaloneProps).side
+      : undefined) ?? "right";
+  const variant =
+    ("variant" in props
+      ? (props as SlotSidebarStandaloneProps).variant
+      : undefined) ?? "full-hide";
+  const iconStripGroups =
+    ("iconStripGroups" in props
+      ? (props as SlotSidebarStandaloneProps).iconStripGroups
+      : undefined) ?? [];
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <SidebarProvider>
-      <CollapsibleSidebar side="right" variant="full-hide">
+      <CollapsibleSidebar
+        side={side}
+        variant={variant}
+        iconStripGroups={iconStripGroups}
+      >
         {bindings.map((binding) => {
           // Only blocks are rendered in sidebar; buttons are skipped.
           if (binding.type !== "block") return null;

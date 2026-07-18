@@ -3,12 +3,13 @@ import {
   useContext,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 
 // ── Context value ──────────────────────────────────────────────────────────
 
-interface SidebarContextValue {
+export interface SidebarContextValue {
   /** Whether the sidebar itself is collapsed. */
   isCollapsed: boolean;
   /** Toggle the sidebar collapse state. */
@@ -25,7 +26,7 @@ const SidebarContext = createContext<SidebarContextValue | null>(null);
 
 // ── Provider ───────────────────────────────────────────────────────────────
 
-interface SidebarProviderProps {
+export interface SidebarProviderProps {
   children: ReactNode;
 }
 
@@ -67,16 +68,19 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     [collapsedSections],
   );
 
+  const value = useMemo<SidebarContextValue>(
+    () => ({
+      isCollapsed,
+      toggleSidebar,
+      collapsedSections,
+      toggleSection,
+      isSectionCollapsed,
+    }),
+    [isCollapsed, toggleSidebar, collapsedSections, toggleSection, isSectionCollapsed],
+  );
+
   return (
-    <SidebarContext.Provider
-      value={{
-        isCollapsed,
-        toggleSidebar,
-        collapsedSections,
-        toggleSection,
-        isSectionCollapsed,
-      }}
-    >
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );

@@ -121,7 +121,7 @@ function getDotColor(row: RegistryTableRow, schemaContentHash: string | null): D
 
     // Orange: data changed since last registration
     if (row.lastRegisteredValueHash !== null) {
-      const currentSnapshot = computeValueSnapshot(row.values);
+      const currentSnapshot = computeRowSnapshot(row);
       if (currentSnapshot !== row.lastRegisteredValueHash) return "orange";
     }
 
@@ -133,12 +133,13 @@ function getDotColor(row: RegistryTableRow, schemaContentHash: string | null): D
   return "blue";
 }
 
-/** Produces a deterministic serialisation of values for change detection. */
-function computeValueSnapshot(values: Record<string, unknown>): string {
-  const sorted = Object.keys(values)
+/** Produces a deterministic serialisation of row state (values + name) for change detection. */
+function computeRowSnapshot(row: RegistryTableRow): string {
+  const data: Record<string, unknown> = { ...row.values, __name: row.__name };
+  const sorted = Object.keys(data)
     .sort()
     .reduce<Record<string, unknown>>((acc, key) => {
-      acc[key] = values[key];
+      acc[key] = data[key];
       return acc;
     }, {});
   return JSON.stringify(sorted);
@@ -157,7 +158,7 @@ function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boole
   if (row.registrationError) return false;
   if (!schemaContentHash) return false;
   if (row.lastRegisteredValueHash === null) return false;
-  return computeValueSnapshot(row.values) === row.lastRegisteredValueHash;
+  return computeRowSnapshot(row) === row.lastRegisteredValueHash;
 }
 
 const DOT_COLORS: Record<DotColor, string> = {
@@ -957,7 +958,7 @@ export function RegistryTableContent({
         for (const result of response.results) {
           if (result.row_index < 0 || result.row_index >= nonGreenRows.length) continue;
           const { index: originalIndex, row } = nonGreenRows[result.row_index];
-          const hash = computeValueSnapshot(row.values);
+          const hash = computeRowSnapshot(row);
           updatedRows[originalIndex] = {
             ...updatedRows[originalIndex],
             entityId: result.entity_id,

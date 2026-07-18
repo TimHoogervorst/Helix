@@ -57,7 +57,7 @@ vi.mock("../../../core/mod-system/ModRegistry", () => ({
 
 // Mock SlotSidebar — renders the same HTML as the previously hardcoded aside
 // so existing sidebar assertions continue to pass.
-vi.mock("../../../shell/src/workspace/SlotSidebar", () => ({
+vi.mock("../../../shell/src/shared/components/Sidebar/SlotSidebar", () => ({
   SlotSidebar: function MockSlotSidebar(_props: { slotId: string }) {
     return (
       <aside className="library-sidebar">

@@ -464,7 +464,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
 
   it("shows green bar for registered row with matching data", () => {
     const values = { Volume: 10 };
-    const hash = computeSnapshot(values);
+    const hash = computeSnapshot(values, "Sample 1");
     const { props } = renderWithRow({
       entityId: 1,
       isRegistered: true,
@@ -494,7 +494,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
         entityId: 1,
         isRegistered: true,
         values: { Volume: 10 },
-        lastRegisteredValueHash: computeSnapshot({ Volume: 10 }),
+        lastRegisteredValueHash: computeSnapshot({ Volume: 10 }, "Sample 1"),
         registrationError: null,
       },
       { schemaContentHash: null },
@@ -515,7 +515,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
 
   it("red bar takes priority over green (all other statuses)", () => {
     const values = { Volume: 10 };
-    const hash = computeSnapshot(values);
+    const hash = computeSnapshot(values, "Sample 1");
     const { props } = renderWithRow({
       entityId: 1,
       isRegistered: true,
@@ -532,7 +532,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       entityId: 1,
       isRegistered: true,
       values: { Volume: 30 },
-      lastRegisteredValueHash: computeSnapshot({ Volume: 10 }),
+      lastRegisteredValueHash: computeSnapshot({ Volume: 10 }, "Sample 1"),
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -540,12 +540,13 @@ describe("RegistryTableBlockComponent — status bars", () => {
   });
 });
 
-/** Deterministic value snapshot matching the component's algorithm. */
-function computeSnapshot(values: Record<string, unknown>): string {
-  const sorted = Object.keys(values)
+/** Deterministic row snapshot matching the component's computeRowSnapshot algorithm. */
+function computeSnapshot(values: Record<string, unknown>, name: string): string {
+  const data = { ...values, __name: name };
+  const sorted = Object.keys(data)
     .sort()
     .reduce<Record<string, unknown>>((acc, key) => {
-      acc[key] = values[key];
+      acc[key] = data[key];
       return acc;
     }, {});
   return JSON.stringify(sorted);
@@ -1581,7 +1582,7 @@ describe("RegistryTableContent — Register Entities button", () => {
 
   it("Register Entities button sends POST with non-green rows only", async () => {
     const updateAttrs = vi.fn();
-    const greenHash = computeSnapshot({ Volume: 10 });
+    const greenHash = computeSnapshot({ Volume: 10 }, "Green Sample");
 
     // Green row — should be skipped
     const greenRow: RegistryTableRow = {
@@ -1619,7 +1620,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       __name: "Error Sample",
       values: { Volume: 7 },
       isRegistered: true,
-      lastRegisteredValueHash: computeSnapshot({ Volume: 7 }),
+      lastRegisteredValueHash: computeSnapshot({ Volume: 7 }, "Error Sample"),
       registrationError: "Previous error",
     };
 
@@ -1853,7 +1854,7 @@ describe("RegistryTableContent — Register Entities success path", () => {
     expect(updated.entityId).toBe(newEntityId);
     expect(updated.displayId).toBe(newDisplayId);
     expect(updated.isRegistered).toBe(true);
-    expect(updated.lastRegisteredValueHash).toBe(computeSnapshot({ Volume: 42 }));
+    expect(updated.lastRegisteredValueHash).toBe(computeSnapshot({ Volume: 42 }, "New Sample"));
     expect(updated.registrationError).toBeNull();
   });
 
@@ -1864,7 +1865,7 @@ describe("RegistryTableContent — Register Entities success path", () => {
       __name: "Sample",
       values: { Volume: 10 },
       isRegistered: true,
-      lastRegisteredValueHash: computeSnapshot({ Volume: 10 }),
+      lastRegisteredValueHash: computeSnapshot({ Volume: 10 }, "Sample"),
       registrationError: null,
     };
 
@@ -2049,7 +2050,7 @@ describe("RegistryTableContent — Register Entities error path", () => {
 
   it("green rows are NOT affected by network error", async () => {
     const updateAttrs = vi.fn();
-    const greenHash = computeSnapshot({ Volume: 5 });
+    const greenHash = computeSnapshot({ Volume: 5 }, "Green");
     const greenRow: RegistryTableRow = {
       entityId: 1,
       displayId: "BLOOD1",
@@ -2137,7 +2138,7 @@ describe("RegistryTableContent — green row detection", () => {
 
   it("skips green rows (no non-green → no API call, no updateAttrs)", () => {
     const updateAttrs = vi.fn();
-    const hash = computeSnapshot({ Volume: 10 });
+    const hash = computeSnapshot({ Volume: 10 }, "Green");
     const greenRow: RegistryTableRow = {
       entityId: 1,
       displayId: "BLOOD1",
@@ -2245,7 +2246,7 @@ describe("RegistryTableContent — green row detection", () => {
 
   it("does not skip red (error) rows (re-register to clear error)", async () => {
     const updateAttrs = vi.fn();
-    const hash = computeSnapshot({ Volume: 7 });
+    const hash = computeSnapshot({ Volume: 7 }, "Fix Me");
     const redRow: RegistryTableRow = {
       entityId: 3,
       displayId: "BLOOD3",
@@ -2285,7 +2286,7 @@ describe("RegistryTableContent — green row detection", () => {
 
   it("does not skip yellow rows (missing schemaContentHash)", async () => {
     const updateAttrs = vi.fn();
-    const hash = computeSnapshot({ Volume: 10 });
+    const hash = computeSnapshot({ Volume: 10 }, "Stale Schema");
     const yellowRow: RegistryTableRow = {
       entityId: 4,
       displayId: "BLOOD4",

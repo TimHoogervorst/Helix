@@ -9,3 +9,6 @@ export type { CollapsibleSidebarProps } from "./CollapsibleSidebar";
 
 export { SlotSidebar } from "./SlotSidebar";
 export type { SlotSidebarProps, SlotSidebarStandaloneProps } from "./SlotSidebar";
+
+export { SidebarProvider, useSidebar } from "../../../workspace/SidebarContext";
+export type { SidebarContextValue, SidebarProviderProps } from "../../../workspace/SidebarContext";

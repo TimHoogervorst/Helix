@@ -5,7 +5,7 @@ import {
   registerBlock,
   registerIntoSlot,
 } from "../../shell/src/mod-system";
-import { SlotSidebar } from "../../shell/src/workspace/SlotSidebar";
+import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { SelectionBlock } from "./blocks/SelectionBlock";
 import { ViewsBlock } from "./blocks/ViewsBlock";
 import LibraryHub from "./hub/LibraryHub";

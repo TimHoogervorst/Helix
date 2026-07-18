@@ -20,9 +20,6 @@ export function LinkedEntitiesBlock({ context }: BlockComponentProps) {
 
   return (
     <section>
-      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Linked entities
-      </h3>
       <div className="space-y-1.5 text-[13px]">
         {mentions.length > 0 ? (
           mentions.map((mention) => {

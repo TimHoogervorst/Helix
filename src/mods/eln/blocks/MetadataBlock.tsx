@@ -20,9 +20,6 @@ export function MetadataBlock({ context }: BlockComponentProps) {
 
   return (
     <section>
-      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Metadata
-      </h3>
       <dl className="space-y-2.5 text-[13px]">
         <div className="flex items-start justify-between gap-3">
           <dt className="text-muted-foreground">Author</dt>

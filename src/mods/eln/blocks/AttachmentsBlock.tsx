@@ -20,9 +20,6 @@ const PLACEHOLDER_ATTACHMENTS = [
 export function AttachmentsBlock(_props: BlockComponentProps) {
   return (
     <section>
-      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Attachments
-      </h3>
       <div className="space-y-1.5 text-[13px]">
         {PLACEHOLDER_ATTACHMENTS.map((file) => (
           <div

@@ -354,9 +354,9 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   });
 
   describe("Metadata Panel — Section 2: Linked Entities", () => {
-    it("renders the Linked entities section header", () => {
+    it("renders the Linked Entities section header", () => {
       renderAtRoute("/eln/EXP-0284");
-      expect(screen.getByText("Linked entities")).toBeDefined();
+      expect(screen.getByText("Linked Entities")).toBeDefined();
     });
 
     it("shows empty state when entry has no mentions", () => {

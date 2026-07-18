@@ -1,4 +1,4 @@
-import { Cog } from "lucide-react";
+import { Cog, FlaskConical } from "lucide-react";
 import {
   registerRoute,
   registerSettingsSection,
@@ -12,7 +12,7 @@ import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
 export function register() {
   // ── Workspace: LIMS entity workspace ───────────────────────────────────
-  registerWorkspace({ id: "lims", displayName: "LIMS" });
+  registerWorkspace({ id: "lims", displayName: "LIMS", icon: FlaskConical });
 
   // ── Service: entity type registry ──────────────────────────────────────
   // LIMS is the central registry for all mentionable entity types.

@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database } from "lucide-react";
+import { BookOpen, FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
@@ -22,7 +22,7 @@ import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
 import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
-  registerWorkspace({ id: "eln", displayName: "ELN" });
+  registerWorkspace({ id: "eln", displayName: "ELN", icon: BookOpen });
 
   // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
   declareSlot({

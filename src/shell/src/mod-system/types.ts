@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { LucideIcon } from "lucide-react";
 import type { WorkspaceBus } from "../workspace/WorkspaceBus";
 
 // ── Mod Manifest ──────────────────────────────────────────────────────────
@@ -124,8 +125,8 @@ export interface WorkspaceConfig {
   id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
-  /** Optional icon component. Falls back to a generic default when absent. */
-  icon?: ComponentType<any>;
+  /** Optional Lucide icon. Falls back to a generic default when absent. */
+  icon?: LucideIcon;
 }
 
 // ── Entity Type (client-side type for lims.registerEntityType service) ─────

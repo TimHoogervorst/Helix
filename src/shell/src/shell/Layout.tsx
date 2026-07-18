@@ -1,13 +1,18 @@
-import { Outlet, Link, useLocation, useSearchParams } from "react-router-dom";
-import { useEffect } from "react";
-import { ArrowLeft, Dna } from "lucide-react";
+import { Outlet, Link, useLocation, useSearchParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { ArrowLeft, Box, Dna } from "lucide-react";
 import { get } from "../api/client";
 import { MentionProvider } from "../mentions/MentionProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { UserMenu } from "../user/UserMenu";
+import { SidebarProvider } from "../workspace/SidebarContext";
+import { CollapsibleSidebar } from "../shared/components/Sidebar/CollapsibleSidebar";
+import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
+import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
 
 function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
   const [searchParams] = useSearchParams();
 
@@ -22,97 +27,174 @@ function Layout() {
   const activeSectionId =
     searchParams.get("section") ?? settingsSections[0]?.id ?? null;
 
+  // ── Derived data shared between icon strip and nav rendering ──────────
+  const sortedHubs = useMemo(
+    () =>
+      [...ModRegistry.getInstance().getHubs().values()].sort(
+        (a, b) => a.order - b.order,
+      ),
+    [],
+  );
+
+  const inlineSidebarActions = useMemo(
+    () =>
+      [...ModRegistry.getInstance().getSidebarActions().values()].filter(
+        (a) => a.position === "inline",
+      ),
+    [],
+  );
+
+  // ── Icon-strip groups for collapsed state ──────────────────────────────
+  const iconStripGroups = useMemo((): IconStripGroup[] => {
+    const groups: IconStripGroup[] = [];
+
+    // Group 1: Helix brand logo (decorative — no onClick)
+    groups.push({
+      icons: [
+        {
+          icon: <Dna className="h-4 w-4" aria-hidden="true" />,
+          label: "Helix",
+        },
+      ],
+    });
+
+    // Group 2: Hub icons from the registry
+    if (sortedHubs.length > 0) {
+      groups.push({
+        icons: sortedHubs.map((h) => ({
+          icon: <h.icon className="h-4 w-4" aria-hidden="true" />,
+          label: h.label,
+          onClick: () => navigate(h.route),
+        })),
+      });
+    }
+
+    // Group 3: Workspace icons from the registry
+    const workspaces = [
+      ...ModRegistry.getInstance().getWorkspaces().values(),
+    ];
+    if (workspaces.length > 0) {
+      groups.push({
+        icons: workspaces.map((w) => ({
+          icon: w.icon ? (
+            <w.icon className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Box className="h-4 w-4" aria-hidden="true" />
+          ),
+          label: w.displayName,
+          onClick: () => navigate(`/${w.id}`),
+        })),
+      });
+    }
+
+    return groups;
+  }, [navigate, sortedHubs]);
+
   return (
     <MentionProvider>
       <div className="flex h-screen overflow-hidden">
-        <aside className="flex w-64 shrink-0 flex-col border-r border-hairline bg-background">
-          {/* Brand */}
-          <div className="flex items-center gap-2 border-b border-hairline px-4 py-3.5">
-            <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-              <Dna className="h-4 w-4" aria-hidden="true" />
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="font-serif text-[15px] font-semibold tracking-tight">
-                Helix
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Alpha
-              </span>
-            </div>
-          </div>
+        <SidebarProvider>
+          <CollapsibleSidebar
+            side="left"
+            variant="icon-strip"
+            iconStripGroups={iconStripGroups}
+          >
+            {/* Brand — visible only when expanded (logo renders in IconStrip when collapsed) */}
+            <div className="flex w-64 flex-col bg-background">
+              <div className="flex items-center gap-2 border-b border-hairline px-4 py-3.5">
+                <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
+                  <Dna className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="flex flex-col leading-tight">
+                  <span className="font-serif text-[15px] font-semibold tracking-tight">
+                    Helix
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Alpha
+                  </span>
+                </div>
+              </div>
 
-          {/* Navigation + sidebar actions — fills remaining space to push UserMenu to bottom */}
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
-              {isSettings ? (
-                /* ── Settings sections — replace normal nav when on /settings ── */
-                <>
-                  <Link
-                    to="/library"
-                    className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px] text-muted-foreground"
-                    aria-label="Back to Home"
-                  >
-                    <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    Back to Home
-                  </Link>
-
-                  <div className="mt-2 mb-1 px-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Settings
-                  </div>
-
-                  {settingsSections.map((s) => {
-                    const Icon = s.icon;
-                    const isActive = s.id === activeSectionId;
-                    return (
-                      <Link
-                        key={s.id}
-                        to={`/settings?section=${s.id}`}
-                        className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${isActive ? " bg-muted font-medium text-foreground" : ""}`}
-                        title={s.label}
-                        aria-label={s.label}
-                      >
-                        {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-                        {s.label}
-                      </Link>
-                    );
-                  })}
-                </>
-              ) : (
-                /* ── Normal navigation (Hubs) ── */
-                <>
-                  {[...ModRegistry.getInstance().getHubs().values()]
-                    .sort((a, b) => a.order - b.order)
-                    .map((h) => {
-                      const Icon = h.icon;
-                      return (
+              {/* Navigation + sidebar actions — fills remaining space to push UserMenu to bottom */}
+              <div className="flex flex-1 flex-col overflow-y-auto">
+                {/* Navigation section — never collapses */}
+                <SidebarSection
+                  id="navigation"
+                  label="Navigation"
+                  collapsible={false}
+                >
+                  <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
+                    {isSettings ? (
+                      /* ── Settings sections — replace normal nav when on /settings ── */
+                      <>
                         <Link
-                          key={h.id}
-                          to={h.route}
-                          className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith(h.route) ? " bg-muted font-medium text-foreground" : ""}`}
-                          title={h.label}
-                          aria-label={h.label}
+                          to="/library"
+                          className="btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px] text-muted-foreground"
+                          aria-label="Back to Home"
                         >
-                          <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {h.label}
+                          <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          Back to Home
                         </Link>
-                      );
+
+                        <div className="mt-2 mb-1 px-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          Settings
+                        </div>
+
+                        {settingsSections.map((s) => {
+                          const Icon = s.icon;
+                          const isActive = s.id === activeSectionId;
+                          return (
+                            <Link
+                              key={s.id}
+                              to={`/settings?section=${s.id}`}
+                              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${isActive ? " bg-muted font-medium text-foreground" : ""}`}
+                              title={s.label}
+                              aria-label={s.label}
+                            >
+                              {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                              {s.label}
+                            </Link>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      /* ── Normal navigation (Hubs) ── */
+                      <>
+                        {sortedHubs.map((h) => {
+                          const Icon = h.icon;
+                          return (
+                            <Link
+                              key={h.id}
+                              to={h.route}
+                              className={`btn-ghost flex w-full items-center gap-2 rounded-md py-1.5 pl-3 pr-2 text-[13px]${currentPath.startsWith(h.route) ? " bg-muted font-medium text-foreground" : ""}`}
+                              title={h.label}
+                              aria-label={h.label}
+                            >
+                              <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {h.label}
+                            </Link>
+                          );
+                        })}
+                      </>
+                    )}
+                  </nav>
+                </SidebarSection>
+
+                {/* Workspace section — collapsible, hidden on settings pages */}
+                {!isSettings && inlineSidebarActions.length > 0 && (
+                  <SidebarSection id="workspace" label="Workspace">
+                    {inlineSidebarActions.map((a) => {
+                      const Comp = a.component;
+                      return <Comp key={a.id} />;
                     })}
-                </>
-              )}
-            </nav>
+                  </SidebarSection>
+                )}
+              </div>
 
-            {/* Sidebar actions (registered by mods, e.g. pinned workspaces) — hidden on settings pages */}
-            {!isSettings &&
-              [...ModRegistry.getInstance().getSidebarActions().values()]
-                .filter((a) => a.position === "inline")
-                .map((a) => {
-                  const Comp = a.component;
-                  return <Comp key={a.id} />;
-                })}
-          </div>
-
-          {/* User section — live avatar + UserMenu popover (always at bottom) */}
-          <UserMenu />
-        </aside>
+              {/* User section — live avatar + UserMenu popover (always at bottom) */}
+              <UserMenu />
+            </div>
+          </CollapsibleSidebar>
+        </SidebarProvider>
 
         <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           <Outlet />

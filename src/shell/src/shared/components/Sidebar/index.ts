@@ -6,3 +6,6 @@ export type { SidebarSectionProps } from "./SidebarSection";
 
 export { CollapsibleSidebar } from "./CollapsibleSidebar";
 export type { CollapsibleSidebarProps } from "./CollapsibleSidebar";
+
+export { SlotSidebar } from "./SlotSidebar";
+export type { SlotSidebarProps, SlotSidebarStandaloneProps } from "./SlotSidebar";

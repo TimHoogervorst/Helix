@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useSidebar } from "../../../workspace/SidebarContext";
 
 // ── Props ───────────────────────────────────────────────────────────────
@@ -9,6 +9,8 @@ export interface SidebarSectionProps {
   id: string;
   /** Label displayed in the section header. */
   label: string;
+  /** Optional icon component rendered before the label in the section header. */
+  icon?: ComponentType<{ size?: number; className?: string }>;
   /** When false, the chevron is hidden and the section cannot be collapsed. */
   collapsible?: boolean;
   /** Content rendered when the section is expanded. */
@@ -27,6 +29,7 @@ export interface SidebarSectionProps {
 export function SidebarSection({
   id,
   label,
+  icon: Icon,
   collapsible = true,
   children,
 }: SidebarSectionProps) {
@@ -56,6 +59,7 @@ export function SidebarSection({
         aria-expanded={collapsible ? !collapsed : undefined}
         aria-label={collapsible ? `${label} section` : undefined}
       >
+        {Icon && <Icon size={16} className="sidebar-section-icon" />}
         <span className="sidebar-section-label">{label}</span>
         {collapsible && (
           <span className="sidebar-section-chevron" aria-hidden="true">

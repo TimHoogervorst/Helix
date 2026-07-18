@@ -4,6 +4,12 @@ import type { ReactNode } from "react";
 import { SidebarProvider } from "../../../../workspace/SidebarContext";
 import { SidebarSection } from "../SidebarSection";
 
+// ── Test icon ──────────────────────────────────────────────────────────
+
+function TestIcon({ size, className }: { size?: number; className?: string }) {
+  return <svg data-testid="test-icon" data-size={size} className={className} />;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 function renderWithProvider(ui: ReactNode) {
@@ -229,6 +235,48 @@ describe("SidebarSection", () => {
       fireEvent.keyDown(header, { key: "Enter" });
 
       expect(screen.getByTestId("content")).toBeInTheDocument();
+    });
+  });
+
+  // ── Icon rendering ────────────────────────────────────────────────────
+
+  describe("icon rendering", () => {
+    it("renders the icon component when provided", () => {
+      renderWithProvider(
+        <SidebarSection id="views" label="Views" icon={TestIcon}>
+          <p>Content</p>
+        </SidebarSection>,
+      );
+
+      expect(screen.getByTestId("test-icon")).toBeInTheDocument();
+    });
+
+    it("renders the icon before the label in the header", () => {
+      renderWithProvider(
+        <SidebarSection id="views" label="Views" icon={TestIcon}>
+          <p>Content</p>
+        </SidebarSection>,
+      );
+
+      const header = screen.getByText("Views").parentElement!;
+      const children = Array.from(header.children);
+      const iconIndex = children.findIndex(
+        (c) => c.getAttribute("data-testid") === "test-icon",
+      );
+      const labelIndex = children.findIndex((c) =>
+        c.classList.contains("sidebar-section-label"),
+      );
+      expect(iconIndex).toBeLessThan(labelIndex);
+    });
+
+    it("does not render an icon element when icon prop is not provided", () => {
+      renderWithProvider(
+        <SidebarSection id="views" label="Views">
+          <p>Content</p>
+        </SidebarSection>,
+      );
+
+      expect(screen.queryByTestId("test-icon")).not.toBeInTheDocument();
     });
   });
 

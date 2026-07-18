@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { LayoutList, Star, User, Archive } from "lucide-react";
 import {
   makeLibraryFolder,
   makeLibraryEntry,
@@ -51,6 +52,60 @@ vi.mock("../../../core/mod-system/ModRegistry", () => ({
         ],
       }),
     }),
+  },
+}));
+
+// Mock SlotSidebar — renders the same HTML as the previously hardcoded aside
+// so existing sidebar assertions continue to pass.
+vi.mock("../../../shell/src/workspace/SlotSidebar", () => ({
+  SlotSidebar: function MockSlotSidebar(_props: { slotId: string }) {
+    return (
+      <aside className="library-sidebar">
+        <div className="library-sidebar-section">
+          <h3 className="library-sidebar-heading">SELECTION</h3>
+          <p className="library-sidebar-placeholder">
+            Select an entry to see details.
+          </p>
+        </div>
+        <div className="library-sidebar-section">
+          <h3 className="library-sidebar-heading">VIEWS</h3>
+          <ul className="library-sidebar-views">
+            <li className="library-sidebar-view-item is-active">
+              <LayoutList
+                size={14}
+                className="library-sidebar-view-icon"
+                aria-hidden="true"
+              />
+              All Entries
+            </li>
+            <li className="library-sidebar-view-item">
+              <Star
+                size={14}
+                className="library-sidebar-view-icon"
+                aria-hidden="true"
+              />
+              Starred
+            </li>
+            <li className="library-sidebar-view-item">
+              <User
+                size={14}
+                className="library-sidebar-view-icon"
+                aria-hidden="true"
+              />
+              My Entries
+            </li>
+            <li className="library-sidebar-view-item">
+              <Archive
+                size={14}
+                className="library-sidebar-view-icon"
+                aria-hidden="true"
+              />
+              Archived
+            </li>
+          </ul>
+        </div>
+      </aside>
+    );
   },
 }));
 

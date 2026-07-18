@@ -9,9 +9,6 @@ import {
   LayoutList,
   LayoutGrid,
   AlignJustify,
-  Star,
-  User,
-  Archive,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem } from "../types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
@@ -22,6 +19,7 @@ import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { LibraryItemConfig } from "../../../shell/src/mod-system/types";
+import { SlotSidebar } from "../../../shell/src/workspace/SlotSidebar";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -409,37 +407,8 @@ function LibraryHub() {
         </div>
       </div>
 
-      {/* ── Right Sidebar (full height, alongside everything) ──────────── */}
-      <aside className="library-sidebar">
-        <div className="library-sidebar-section">
-          <h3 className="library-sidebar-heading">SELECTION</h3>
-          <p className="library-sidebar-placeholder">
-            Select an entry to see details.
-          </p>
-        </div>
-
-        <div className="library-sidebar-section">
-          <h3 className="library-sidebar-heading">VIEWS</h3>
-          <ul className="library-sidebar-views">
-            <li className="library-sidebar-view-item is-active">
-              <LayoutList size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              All Entries
-            </li>
-            <li className="library-sidebar-view-item">
-              <Star size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              Starred
-            </li>
-            <li className="library-sidebar-view-item">
-              <User size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              My Entries
-            </li>
-            <li className="library-sidebar-view-item">
-              <Archive size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              Archived
-            </li>
-          </ul>
-        </div>
-      </aside>
+      {/* ── Right Sidebar (slot-driven, full height, alongside everything) ── */}
+      <SlotSidebar slotId="library.sidebar" />
     </div>
   );
 }

@@ -504,15 +504,14 @@ describe("CollapsibleSidebar integration", () => {
     expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 
-  it("Navigation section has no chevron (collapsible={false})", () => {
+  it("Navigation section has a chevron (collapsible by default)", () => {
     renderLayout("/library");
 
     const navHeader = screen.getByText("Navigation").closest(".sidebar-section-header");
     expect(navHeader).toBeInTheDocument();
-    // collapsible={false} means no chevron element in the header
     expect(
       navHeader!.querySelector(".sidebar-section-chevron"),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
   });
 
   it("Workspace section has a chevron (collapsible by default)", () => {

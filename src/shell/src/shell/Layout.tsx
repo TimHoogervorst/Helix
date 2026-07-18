@@ -1,14 +1,47 @@
 import { Outlet, Link, useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
-import { ArrowLeft, Box, Dna } from "lucide-react";
+import { ArrowLeft, Box, ChevronLeft, Dna } from "lucide-react";
 import { get } from "../api/client";
 import { MentionProvider } from "../mentions/MentionProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { UserMenu } from "../user/UserMenu";
-import { SidebarProvider } from "../workspace/SidebarContext";
+import { SidebarProvider, useSidebar } from "../workspace/SidebarContext";
 import { CollapsibleSidebar } from "../shared/components/Sidebar/CollapsibleSidebar";
 import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
 import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
+
+/**
+ * Brand header with logo, "Helix Alpha" text, and a collapse toggle.
+ * Rendered inside the left sidebar's expanded content — uses
+ * `useSidebar()` to access collapse state and toggle.
+ */
+function BrandHeader() {
+  const { toggleSidebar } = useSidebar();
+
+  return (
+    <div className="flex items-center gap-2 border-b border-hairline px-4 py-3.5">
+      <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
+        <Dna className="h-4 w-4" aria-hidden="true" />
+      </div>
+      <div className="flex flex-1 flex-col leading-tight">
+        <span className="font-serif text-[15px] font-semibold tracking-tight">
+          Helix
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          Alpha
+        </span>
+      </div>
+      <button
+        className="btn-icon sidebar-toggle"
+        onClick={toggleSidebar}
+        title="Collapse sidebar"
+        aria-label="Collapse sidebar"
+      >
+        <ChevronLeft size={16} />
+      </button>
+    </div>
+  );
+}
 
 function Layout() {
   const location = useLocation();
@@ -98,31 +131,17 @@ function Layout() {
             side="left"
             variant="icon-strip"
             iconStripGroups={iconStripGroups}
+            hideToggle
           >
             {/* Brand — visible only when expanded (logo renders in IconStrip when collapsed) */}
             <div className="flex w-64 flex-col bg-background">
-              <div className="flex items-center gap-2 border-b border-hairline px-4 py-3.5">
-                <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-                  <Dna className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <div className="flex flex-col leading-tight">
-                  <span className="font-serif text-[15px] font-semibold tracking-tight">
-                    Helix
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Alpha
-                  </span>
-                </div>
-              </div>
+              <BrandHeader />
+
 
               {/* Navigation + sidebar actions — fills remaining space to push UserMenu to bottom */}
               <div className="flex flex-1 flex-col overflow-y-auto">
-                {/* Navigation section — never collapses */}
-                <SidebarSection
-                  id="navigation"
-                  label="Navigation"
-                  collapsible={false}
-                >
+                {/* Navigation section */}
+                <SidebarSection id="navigation" label="Navigation">
                   <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
                     {isSettings ? (
                       /* ── Settings sections — replace normal nav when on /settings ── */

@@ -395,7 +395,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   describe("Metadata Panel — Section 4: Activity", () => {
     it("renders the Activity section header", () => {
       renderAtRoute("/eln/EXP-0284");
-      expect(screen.getByText("Activity")).toBeDefined();
+      expect(screen.getByText("Activity Feed")).toBeDefined();
     });
 
     it("shows empty state when there are no actions", async () => {

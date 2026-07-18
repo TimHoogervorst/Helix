@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { BookOpen, FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database } from "lucide-react";
+import { BookOpen, FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
@@ -12,7 +12,7 @@ import {
   ModRegistry,
 } from "../../shell/src/mod-system";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
-import { SlotSidebar } from "../../shell/src/workspace/SlotSidebar";
+import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
 import ElnLibraryCard from "./library/ElnLibraryCard";
 import { TableBlockComponent } from "./blocks/TableNodeView";
@@ -20,6 +20,9 @@ import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
 import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
 import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
+import { MetadataBlock } from "./blocks/MetadataBlock";
+import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
+import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
   registerWorkspace({ id: "eln", displayName: "ELN", icon: BookOpen });
@@ -211,6 +214,56 @@ export function register() {
     defaults: {},
   });
 
+  // ── Block: Metadata ──────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.metadata-block",
+    label: "Metadata",
+    icon: Info,
+    component: MetadataBlock,
+    listensTo: [],
+    onEvent: {},
+    getDisplayName: () => "Metadata",
+    messages: {},
+    serialize: () => "{}",
+    deserialize: () => ({}),
+    defaultState: {},
+  });
+
+  // ── Block: Linked Entities ─────────────────────────────────────────────
+  registerBlock({
+    id: "eln.linked-entities-block",
+    label: "Linked Entities",
+    icon: Link,
+    component: LinkedEntitiesBlock,
+    listensTo: [],
+    onEvent: {},
+    getDisplayName: () => "Linked Entities",
+    messages: {},
+    serialize: () => "{}",
+    deserialize: () => ({}),
+    defaultState: {},
+  });
+
+  // ── Block: Attachments ────────────────────────────────────────────────
+  registerBlock({
+    id: "eln.attachments-block",
+    label: "Attachments",
+    icon: Paperclip,
+    component: AttachmentsBlock,
+    listensTo: [],
+    onEvent: {},
+    getDisplayName: () => "Attachments",
+    messages: {},
+    serialize: () => "{}",
+    deserialize: () => ({}),
+    defaultState: {},
+  });
+
+  // ── Bind sidebar blocks into eln.sidebar slot ──────────────────────────
+  registerIntoSlot("eln.sidebar", "eln.metadata-block", {}, 0);
+  registerIntoSlot("eln.sidebar", "eln.linked-entities-block", {}, 1);
+  registerIntoSlot("eln.sidebar", "eln.attachments-block", {}, 2);
+
   // ── Block: Activity Feed ─────────────────────────────────────────────
   registerBlock({
     id: "eln.activity-feed",
@@ -227,7 +280,7 @@ export function register() {
   });
 
   // ── Bind Activity Feed into sidebar slot ──────────────────────────────
-  registerIntoSlot("eln.sidebar", "eln.activity-feed", { noCard: true }, 0);
+  registerIntoSlot("eln.sidebar", "eln.activity-feed", { noCard: true }, 3);
 
   // ── Settings: Protocol management ────────────────────────────────────
   registerSettingsSection({

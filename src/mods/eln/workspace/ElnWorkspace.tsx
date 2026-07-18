@@ -10,8 +10,6 @@ import {
   Folder,
   ChevronRight,
   Trash2,
-  FlaskConical,
-  Paperclip,
   Check,
   Loader2,
   AlertTriangle,
@@ -27,7 +25,9 @@ import { getRecentEditors } from "../activityHelpers";
 import MoreActions from "../components/MoreActions";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
+import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import type { SlotContext } from "../../../shell/src/mod-system/types";
+import type { ElnSidebarData } from "../blocks/sidebarData";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
@@ -143,8 +143,34 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       viewMode: "edit",
       entryId,
       displayId: entryDisplayId,
+      entry: {
+        entry,
+        lastEditor,
+        status: editorState.status,
+        folders: editorState.folders,
+        folderId: editorState.folderId,
+        isLockedByOther: editorState.isLockedByOther,
+        onStatusChange: (status: string) =>
+          editorRef.current?.setStatus(status),
+        onFolderChange: (folderId: number | null) =>
+          editorRef.current?.setFolderId(folderId),
+        resolutionMap,
+        mentions: entry?.mentions ?? [],
+        navigate: (path: string) => navigate(path),
+      } satisfies ElnSidebarData,
     }),
-    [entryId, entryDisplayId],
+    [
+      entryId,
+      entryDisplayId,
+      entry,
+      lastEditor,
+      editorState.status,
+      editorState.folders,
+      editorState.folderId,
+      editorState.isLockedByOther,
+      resolutionMap,
+      navigate,
+    ],
   );
 
   // ── Share state ──
@@ -404,203 +430,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         </main>
       </div>
 
-      {/* Metadata panel — visible at xl and above, full height from top */}
-      <aside className="hidden w-72 shrink-0 border-l border-hairline bg-surface/60 xl:block">
-        <div className="h-full space-y-6 overflow-y-auto px-5 py-6">
-            {/* ── Metadata ── */}
-            <section>
-              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Metadata
-              </h3>
-              <dl className="space-y-2.5 text-[13px]">
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Author</dt>
-                  <dd className="text-right">
-                    {entry?.author_info ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Avatar
-                          initials={getInitials(entry.author_info)}
-                          color={entry.author_info.color}
-                          size="sm"
-                        />
-                        {entry.author_info.username}
-                      </span>
-                    ) : (
-                      entry?.author_username || "—"
-                    )}
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Last editor</dt>
-                  <dd className="text-right">
-                    {lastEditor ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Avatar
-                          initials={getInitials(lastEditor)}
-                          color={lastEditor.color}
-                          size="sm"
-                        />
-                        {lastEditor.username}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Project</dt>
-                  <dd className="text-right">
-                    {entry?.folder_name || "—"}
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Started</dt>
-                  <dd className="text-right">
-                    {entry
-                      ? new Date(entry.created_at).toLocaleDateString(
-                          "en-CA",
-                        ) +
-                        " " +
-                        new Date(entry.created_at).toLocaleTimeString(
-                          "en-GB",
-                          { hour: "2-digit", minute: "2-digit" },
-                        )
-                      : "—"}
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Status</dt>
-                  <dd className="text-right">
-                    <select
-                      value={editorState.status}
-                      onChange={(e) =>
-                        editorRef.current?.setStatus(e.target.value)
-                      }
-                      disabled={editorState.isLockedByOther}
-                      className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
-                      data-testid="status-select"
-                    >
-                      <option value="in_progress">In Progress</option>
-                      <option value="finished">Finished</option>
-                    </select>
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <dt className="text-muted-foreground">Folder</dt>
-                  <dd className="text-right">
-                    <select
-                      value={editorState.folderId ?? ""}
-                      onChange={(e) =>
-                        editorRef.current?.setFolderId(
-                          e.target.value ? Number(e.target.value) : null,
-                        )
-                      }
-                      disabled={editorState.isLockedByOther}
-                      className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
-                      data-testid="folder-select"
-                    >
-                      <option value="">Folder…</option>
-                      {editorState.folders.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            {/* ── Linked entities ── */}
-            <section>
-              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Linked entities
-              </h3>
-              <div className="space-y-1.5 text-[13px]">
-                {entry?.mentions && entry.mentions.length > 0 ? (
-                  entry.mentions.map((mention) => {
-                    const displayId = mention.target_display_id;
-                    const resolved = displayId
-                      ? resolutionMap.get(displayId)
-                      : undefined;
-                    // Use resolved title if available, otherwise fall back to mention target_title
-                    const title =
-                      resolved?.title || mention.target_title || "Unknown";
-                    // workspace-aware navigation: /:workspaceId/:displayId
-                    const workspaceId = resolved?.workspaceId;
-                    const IconComponent = FlaskConical;
-                    return (
-                      <button
-                        key={mention.id}
-                        className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left hover:bg-background transition-colors"
-                        aria-label={`View ${title}`}
-                        onClick={() => {
-                          if (displayId && workspaceId) {
-                            navigate(`/${workspaceId}/${displayId}`);
-                          } else if (displayId) {
-                            // Transitional fallback: navigate to /lims/ when
-                            // workspaceId is absent (not yet resolved or
-                            // entity type not yet registered).
-                            navigate(`/lims/${displayId}`);
-                          }
-                        }}
-                        disabled={!displayId}
-                      >
-                        <IconComponent
-                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          aria-hidden="true"
-                        />
-                        <span className="min-w-0 flex-1 truncate">
-                          {title}
-                        </span>
-                        {displayId && (
-                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                            {displayId}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <p className="text-muted-foreground/60 text-[12px] italic px-0.5">
-                    No linked entities
-                  </p>
-                )}
-              </div>
-            </section>
-
-            {/* ── Attachments ── */}
-            <section>
-              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Attachments
-              </h3>
-              <div className="space-y-1.5 text-[13px]">
-                <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5">
-                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate font-mono">raw_gel_2026-06-30.tif</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">4.2 MB</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5">
-                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate font-mono">plate_layout.xlsx</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">18 KB</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5">
-                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate font-mono">sequencing_reads.fastq.gz</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">112 MB</span>
-                </div>
-              </div>
-            </section>
-
-            {/* ── Activity (slot-rendered, dogfood #233) ── */}
-            <SlotRenderer
-              slotId="eln.sidebar"
-              bus={bus}
-              context={slotContext}
-            />
-          </div>
-        </aside>
+      {/* Sidebar — slot-driven, visible at xl and above */}
+      <SlotSidebar
+        slotId="eln.sidebar"
+        context={slotContext}
+        bus={bus}
+      />
     </div>
   );
 }

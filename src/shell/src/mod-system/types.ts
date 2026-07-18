@@ -178,6 +178,8 @@ export interface SlotContext {
   entryId?: string;
   entityId?: string;
   displayId?: string;
+  /** Arbitrary entry-specific data passed from workspace to sidebar blocks. */
+  entry?: unknown;
 }
 
 /**

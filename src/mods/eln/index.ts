@@ -11,6 +11,7 @@ import {
   registerIntoSlot,
   ModRegistry,
 } from "../../shell/src/mod-system";
+import type { ModManifest } from "../../shell/src/mod-system/types";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
@@ -23,6 +24,14 @@ import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
+
+export const meta: ModManifest = {
+  id: "eln",
+  displayName: "Electronic Lab Notebook",
+  version: "0.1.0",
+  dependsOn: ["lims", "tags"],
+};
+
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
   registerWorkspace({ id: "eln", displayName: "ELN", icon: BookOpen });

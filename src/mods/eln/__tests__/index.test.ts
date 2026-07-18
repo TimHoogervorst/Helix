@@ -23,7 +23,7 @@ describe("eln mod registration", () => {
     const mod = await import("../index");
 
     expect(mod.meta.id).toBe("eln");
-    expect(mod.meta.displayName).toBe("ELN");
+    expect(mod.meta.displayName).toBe("Electronic Lab Notebook");
     expect(mod.meta.dependsOn).toEqual(["lims", "tags"]);
   });
 

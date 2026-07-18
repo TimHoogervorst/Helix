@@ -135,6 +135,34 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     });
   }, [editorState.lastSavedAt, editorState.entry?.display_id, entryId, bus]);
 
+  // ── Activity data (single fetch serves Activity feed + toolbar avatars + last editor) ──
+  const { actions } = useActivity(entryId);
+
+  // Deduplicate editors from the last week for the toolbar avatar row
+  const recentEditors = getRecentEditors(actions);
+
+  // Most recent action's performer is the "last editor"
+  const lastEditor =
+    actions.length > 0 ? actions[0].performed_by : null;
+
+  // ── Reference resolution for linked entities ──
+  const { resolutionMap, resolveIds } = useMentionContext();
+
+  useEffect(() => {
+    const mentions = editorState.entry?.mentions;
+    if (mentions && mentions.length > 0) {
+      const ids = mentions
+        .map((m) => m.target_display_id)
+        .filter((id): id is string => id !== null);
+      if (ids.length > 0) resolveIds(ids);
+    }
+  }, [editorState.entry?.mentions, resolveIds]);
+
+  // ── Derived metadata for the panel ──
+  const entry = editorState.entry;
+  const folderPath = entry?.folder_path || "";
+  const pathSegments = folderPath.split("/").filter(Boolean);
+
   // ── SlotContext — flat metadata bag available to all blocks and buttons ─
   const slotContext: SlotContext = useMemo(
     () => ({
@@ -187,34 +215,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       // Clipboard API may fail in insecure contexts; no-op
     });
   }, [entryDisplayId]);
-
-  // ── Activity data (single fetch serves Activity feed + toolbar avatars + last editor) ──
-  const { actions } = useActivity(entryId);
-
-  // Deduplicate editors from the last week for the toolbar avatar row
-  const recentEditors = getRecentEditors(actions);
-
-  // Most recent action's performer is the "last editor"
-  const lastEditor =
-    actions.length > 0 ? actions[0].performed_by : null;
-
-  // ── Reference resolution for linked entities ──
-  const { resolutionMap, resolveIds } = useMentionContext();
-
-  useEffect(() => {
-    const mentions = editorState.entry?.mentions;
-    if (mentions && mentions.length > 0) {
-      const ids = mentions
-        .map((m) => m.target_display_id)
-        .filter((id): id is string => id !== null);
-      if (ids.length > 0) resolveIds(ids);
-    }
-  }, [editorState.entry?.mentions, resolveIds]);
-
-  // ── Derived metadata for the panel ──
-  const entry = editorState.entry;
-  const folderPath = entry?.folder_path || "";
-  const pathSegments = folderPath.split("/").filter(Boolean);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">

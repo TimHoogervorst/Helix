@@ -6,13 +6,22 @@ import { Avatar, getInitials } from "./Avatar";
 import { logout } from "./api";
 import { useClickOutside } from "../shared/hooks/useClickOutside";
 
+export interface UserMenuProps {
+  /**
+   * When true, renders a compact trigger suitable for collapsed sidebars:
+   * just the avatar button without the username text. The popover still
+   * opens with the full menu. Defaults to false.
+   */
+  compact?: boolean;
+}
+
 /**
  * Popover card triggered by clicking the sidebar avatar.
  *
  * Shows a mini header (avatar + username) and four items:
  *   Profile, Preferences (placeholder), Settings, Logout.
  */
-export function UserMenu() {
+export function UserMenu({ compact = false }: UserMenuProps) {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -38,21 +47,37 @@ export function UserMenu() {
     <div className="relative" ref={menuRef}>
       {/* ── Trigger button ──────────────────────────────────────────── */}
       <button
-        className="btn-ghost w-full gap-2 border-t border-hairline px-3 py-2.5 hover:bg-muted transition-colors"
+        className={
+          compact
+            ? "btn-ghost flex items-center justify-center w-full py-2 hover:bg-muted transition-colors"
+            : "btn-ghost w-full gap-2 border-t border-hairline px-3 py-2.5 hover:bg-muted transition-colors"
+        }
         onClick={() => setOpen((prev) => !prev)}
         aria-label="User menu"
       >
-        <Avatar initials={initials} color={user.color} size="md" />
-        <div className="flex flex-col leading-tight min-w-0">
-          <span className="text-[13px] font-medium truncate">
-            {user.username}
-          </span>
-        </div>
+        <Avatar
+          initials={initials}
+          color={user.color}
+          size={compact ? "sm" : "md"}
+        />
+        {!compact && (
+          <div className="flex flex-col leading-tight min-w-0">
+            <span className="text-[13px] font-medium truncate">
+              {user.username}
+            </span>
+          </div>
+        )}
       </button>
 
       {/* ── Popover card ────────────────────────────────────────────── */}
       {open && (
-        <div className="absolute bottom-full left-2 right-2 mb-1 z-50 rounded-lg border border-hairline bg-panel shadow-lg p-1">
+        <div
+          className={
+            compact
+              ? "absolute bottom-full left-0 mb-1 z-50 w-48 rounded-lg border border-hairline bg-panel shadow-lg p-1"
+              : "absolute bottom-full left-2 right-2 mb-1 z-50 rounded-lg border border-hairline bg-panel shadow-lg p-1"
+          }
+        >
           {/* Mini header */}
           <div className="flex items-center gap-2 border-b border-hairline px-3 py-2.5">
             <Avatar initials={initials} color={user.color} size="md" />

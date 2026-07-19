@@ -24,6 +24,12 @@ export interface CollapsibleSidebarProps {
    * `useSidebar()`.  Defaults to false.
    */
   hideToggle?: boolean;
+  /**
+   * Rendered at the bottom in both expanded and collapsed states.
+   * Use this for persistent UI like a user menu that must remain
+   * accessible regardless of collapse state.
+   */
+  footer?: ReactNode;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -75,6 +81,7 @@ export function CollapsibleSidebar({
   iconStripGroups = [],
   children,
   hideToggle = false,
+  footer,
 }: CollapsibleSidebarProps) {
   const { isCollapsed, toggleSidebar } = useSidebar();
 
@@ -104,6 +111,7 @@ export function CollapsibleSidebar({
         data-side={side}
         role="complementary"
         aria-label={side === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)"}
+        style={footer ? { overflow: "visible" } : undefined}
       >
         <button
           className="btn-icon sidebar-toggle"
@@ -113,6 +121,7 @@ export function CollapsibleSidebar({
         >
           <ToggleIcon size={16} />
         </button>
+        {footer && <div className="mt-auto">{footer}</div>}
       </aside>
     );
   }
@@ -133,6 +142,7 @@ export function CollapsibleSidebar({
         data-side={side}
         role="complementary"
         aria-label={side === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)"}
+        style={footer ? { overflow: "visible" } : undefined}
       >
         {/* Logo-as-toggle (left sidebar only): clickable, shows chevron on hover */}
         {logoIcon && (
@@ -167,6 +177,9 @@ export function CollapsibleSidebar({
             <ToggleIcon size={16} />
           </button>
         )}
+
+        {/* Footer — e.g. user menu, pinned to bottom */}
+        {footer && <div className="mt-auto">{footer}</div>}
       </aside>
     );
   }
@@ -197,6 +210,7 @@ export function CollapsibleSidebar({
           </div>
         )}
         {children}
+        {footer}
       </div>
     </aside>
   );

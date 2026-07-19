@@ -43,6 +43,16 @@ function BrandHeader() {
   );
 }
 
+/**
+ * Renders the UserMenu, adapting to the sidebar collapse state.
+ * When collapsed, shows only the avatar (compact mode) so the user
+ * can still access the popover menu from the icon strip.
+ */
+function SidebarUserFooter() {
+  const { isCollapsed } = useSidebar();
+  return <UserMenu compact={isCollapsed} />;
+}
+
 function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -132,6 +142,7 @@ function Layout() {
             variant="icon-strip"
             iconStripGroups={iconStripGroups}
             hideToggle
+            footer={<SidebarUserFooter />}
           >
             {/* Brand — visible only when expanded (logo renders in IconStrip when collapsed) */}
             <div className="flex w-64 flex-col bg-background">
@@ -209,8 +220,6 @@ function Layout() {
                 )}
               </div>
 
-              {/* User section — live avatar + UserMenu popover (always at bottom) */}
-              <UserMenu />
             </div>
           </CollapsibleSidebar>
         </SidebarProvider>

@@ -1087,7 +1087,7 @@ export function RegistryTableContent({
     <>
       <div
         className={`rounded-lg border border-hairline bg-panel ${
-          stretchMode === "auto" ? "w-max max-w-full" : "w-full"
+          stretchMode === "auto" ? "w-max" : "w-full"
         }`}
         data-testid="registry-table-loaded"
       >

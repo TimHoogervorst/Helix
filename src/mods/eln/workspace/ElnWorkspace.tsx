@@ -218,10 +218,10 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
-      {/* ── Left column: toolbar + main content ── */}
+      {/* ── Left column: toolbar + main content (scrolls independently) ── */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* ── Top toolbar ── */}
-        <div className="flex items-center justify-between px-6 py-2.5">
+        <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
         {/* Left: breadcrumbs — real folder path with clickable segments */}
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Folder
@@ -420,17 +420,30 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       </div>
 
         {/* ── Content: five-zone layout (zones 2–5; zone 1 left sidebar is from Layout.tsx) ── */}
-        {/* Zone 3 (center) + Zone 4 (right gutter) are centered as a group
-            via justify-center.  The auto margins act as left/right gutters
-            (zones 2 + right spacer) that shrink to zero before the center
-            content yields — keeping the editor centred and readable at all
-            viewport widths.  Scroll propagates up to Layout's <main> so the
-            scrollbar stays at the viewport edge. */}
-        <div className="flex min-h-0 flex-1 justify-center">
-          {/* Zone 3: Center gutter — main content column, max-w-3xl.
-              Per-block centering (max-w-3xl mx-auto) lives on .ProseMirror
-              and individual BlockNodeView wrappers. */}
-          <main className="min-h-0 w-full max-w-3xl">
+        {/* An invisible left counterweight (zone 2) balances the right gutter
+            (zone 4) so the center gutter (zone 3) is always horizontally
+            centred via justify-center — the group (counterweight + center +
+            right gutter) is symmetric.  When comments hide below xl, the
+            counterweight hides with them so the center gutter is still centred.
+
+            Scroll lives on this five-zone content row, not on
+            Layout's <main> — the scrollbar stays between the left sidebar
+            and the right sidebar. The toolbar above is fixed (not scrollable). */}
+        <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+          {/* Zone 2: Left gutter counterweight — invisible spacer matching
+              right gutter width (w-64 16rem + ml-6 1.5rem = 17.5rem).
+              Hidden together with the right gutter below xl. */}
+          <div
+            className="hidden xl:block shrink-0"
+            style={{ width: "17.5rem" }}
+            aria-hidden="true"
+          />
+
+          {/* Zone 3: Center gutter — per-block centering (max-w-3xl mx-auto)
+              lives on .ProseMirror children and BlockNodeView wrappers.
+              No max-w-3xl on <main> itself so stretched blocks can expand
+              beyond the text column into the gutter space. */}
+          <main className="min-h-0 w-full">
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
                 <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} bus={bus} slotContext={slotContext} hasBlockActionsRef={hasBlockActionsRef} />
@@ -438,9 +451,11 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             </div>
           </main>
 
-          {/* Zone 4: Right gutter — comment cards, w-64, hidden below xl */}
+          {/* Zone 4: Right gutter — comment cards, w-64, hidden below xl.
+              Border separator only appears when the gutter has content
+              (rendered by comment card components — future PRD). */}
           <aside
-            className="hidden xl:block w-64 overflow-y-auto border-l border-hairline ml-6"
+            className="hidden xl:block w-64 shrink-0 overflow-y-auto ml-6"
             aria-label="Comments"
           >
             {/* Comment cards rendered here — future PRD */}

@@ -2401,7 +2401,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
     expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
   });
 
-  it("default stretchMode uses w-max class (auto-fit)", () => {
+  it("default stretchMode uses w-max class (auto-fit, left-aligned)", () => {
     render(
       <RegistryTableBlockComponent
         {...loadedStretchProps({ overrides: { stretch: true } })}
@@ -2409,7 +2409,10 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
     );
     const container = screen.getByTestId("registry-table-loaded");
     expect(container.className).toContain("w-max");
-    expect(container.className).toContain("max-w-full");
+    // Auto mode is left-aligned so the table's left edge matches
+    // other centred blocks; it grows into the right gutter only.
+    expect(container.className).not.toContain("mx-auto");
+    expect(container.className).not.toContain("max-w-full");
   });
 
   it("toggle click switches to full-width mode", () => {
@@ -2511,5 +2514,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
     );
     const container = screen.getByTestId("registry-table-loaded");
     expect(container.className).toContain("w-max");
+    // Auto mode: left-aligned, not centred
+    expect(container.className).not.toContain("mx-auto");
   });
 });

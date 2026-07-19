@@ -306,28 +306,63 @@ h1 {
   min-height: 60vh;
   padding: 0;
   color: var(--color-foreground, oklch(0.22 0.02 260));
-  /* Center gutter constraint — mirrors BlockNodeView default wrapper.
-     Stretch blocks use .block-node-view-wrapper--stretch to go full-width. */
+  /* Per-child centering replaces the old container-level max-width
+     (see .ProseMirror > * below).  Stretch blocks use
+     .block-node-view-wrapper--stretch to go full-width. */
+  max-width: none;
+}
+
+/* Default centering for all direct children: paragraphs, headings,
+   block wrappers, etc.  Inherits the center-gutter constraint from
+   the old .ProseMirror container rule. */
+.ProseMirror > * {
   max-width: 48rem; /* max-w-3xl */
   margin-left: auto;
   margin-right: auto;
 }
 
-.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  float: left;
-  color: var(--color-muted-foreground, oklch(0.48 0.02 260));
-  pointer-events: none;
-  height: 0;
+/* Stretch blocks override the per-child max-width so they expand
+   beyond the text column into the left and right gutters.
+
+   TipTap wraps NodeViewWrapper in a .react-renderer div, so the
+   .block-node-view-wrapper--stretch class sits one level deeper:
+     .ProseMirror > .react-renderer > .block-node-view-wrapper--stretch
+
+   :has() lifts the override to the ProseMirror-direct wrapper so it
+   stops constraining the block to max-w-3xl. */
+.ProseMirror > .react-renderer:has(.block-node-view-wrapper--stretch) {
+  max-width: none;
 }
-
-/* ── Block Node View Wrappers (per-block centering, #281) ── */
-
 .block-node-view-wrapper--stretch {
-  /* Override the default max-w-3xl centering so the block expands full-width
-     beyond the center gutter into both left and right gutters equally. */
   max-width: none;
   width: 100%;
+}
+
+/* Stretch-auto: left-aligned with the text column so the block's left edge
+   matches centered max-w-3xl blocks.  The left margin is calculated to match
+   the auto margin of centered blocks: max(0, (100% - 48rem) / 2).  When the
+   viewport is narrower than 48rem, the margin is 0 so the block fills the
+   column.  width: max-content lets the block grow past 48rem into the right
+   gutter without ever expanding into the left gutter. */
+.ProseMirror > .react-renderer:has(.block-node-view-wrapper--stretch-auto) {
+  max-width: none;
+  margin-left: max(0px, calc(50% - 24rem));
+  margin-right: 0;
+  width: max-content;
+}
+.block-node-view-wrapper--stretch-auto {
+  max-width: none;
+}
+
+/* Full-stretch: expand past the five-zone layout's counterweight (zone 2,
+   17.5rem) and right gutter (zone 4, w-64 + ml-6 = 17.5rem), plus the px-6
+   padding (1.5rem per side) on the center <main> inner wrapper.  Total
+   breakout per side = 19rem (17.5 + 1.5). */
+.block-node-view-wrapper--stretch-full {
+  max-width: none;
+  width: calc(100% + 38rem);
+  margin-left: -19rem;
+  margin-right: -19rem;
 }
 
 /* ProseMirror spacing */
@@ -2603,6 +2638,11 @@ input.library-new-folder-input:focus {
   display: flex;
   flex-direction: column;
   gap: 0;
+  scrollbar-width: none;
+}
+
+.sidebar-content::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── Sidebar Toggle ── */
@@ -2674,6 +2714,7 @@ input.library-new-folder-input:focus {
   border-bottom: 1px solid var(--color-hairline);
   min-width: 0;
   overflow: hidden;
+  flex-shrink: 0;
 }
 .sidebar-section:last-child {
   border-bottom: none;

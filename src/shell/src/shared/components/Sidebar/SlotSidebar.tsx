@@ -180,7 +180,7 @@ export function SlotSidebar(props: SlotSidebarProps) {
               label={binding.label}
               icon={binding.icon}
             >
-              <Component context={context} instance={instance} />
+              <Component context={context} instance={instance} overrides={binding.overrides} />
             </SidebarSection>
           );
         })}
@@ -221,7 +221,7 @@ function SlotSidebarBlock({
       label={binding.label}
       icon={binding.icon}
     >
-      <Component context={context} instance={instance} bus={bus} />
+      <Component context={context} instance={instance} bus={bus} overrides={binding.overrides} />
     </SidebarSection>
   );
 }

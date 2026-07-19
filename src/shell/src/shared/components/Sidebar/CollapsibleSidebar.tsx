@@ -30,6 +30,13 @@ export interface CollapsibleSidebarProps {
    * accessible regardless of collapse state.
    */
   footer?: ReactNode;
+  /**
+   * Rendered in the collapsed icon-strip variant, between the icon
+   * groups and the footer.  Use this for dynamic content (e.g. pinned
+   * workspace items) that needs to appear as icon buttons in the
+   * collapsed strip.  Not rendered in expanded or full-hide states.
+   */
+  collapsedContent?: ReactNode;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -82,6 +89,7 @@ export function CollapsibleSidebar({
   children,
   hideToggle = false,
   footer,
+  collapsedContent,
 }: CollapsibleSidebarProps) {
   const { isCollapsed, toggleSidebar } = useSidebar();
 
@@ -121,6 +129,7 @@ export function CollapsibleSidebar({
         >
           <ToggleIcon size={16} />
         </button>
+        {collapsedContent}
         {footer && <div className="mt-auto">{footer}</div>}
       </aside>
     );
@@ -177,6 +186,9 @@ export function CollapsibleSidebar({
             <ToggleIcon size={16} />
           </button>
         )}
+
+        {/* Dynamic collapsed content (e.g. pinned workspace icons) */}
+        {collapsedContent}
 
         {/* Footer — e.g. user menu, pinned to bottom */}
         {footer && <div className="mt-auto">{footer}</div>}

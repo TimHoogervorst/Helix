@@ -209,6 +209,8 @@ export interface BlockComponentProps {
   instance: BlockInstance;
   /** Workspace event bus. Only present when rendered by PanelRenderer. */
   bus?: WorkspaceBus;
+  /** Binding-level overrides merged from slot defaults and per-binding config. */
+  overrides: Record<string, unknown>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

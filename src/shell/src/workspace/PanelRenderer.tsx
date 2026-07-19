@@ -53,12 +53,12 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
   const noCard = binding.overrides?.noCard === true;
 
   if (noCard) {
-    return <Component context={context} instance={instance} bus={bus} />;
+    return <Component context={context} instance={instance} bus={bus} overrides={binding.overrides} />;
   }
 
   return (
     <div className="rounded-lg border border-hairline bg-background p-4">
-      <Component context={context} instance={instance} bus={bus} />
+      <Component context={context} instance={instance} bus={bus} overrides={binding.overrides} />
     </div>
   );
 }

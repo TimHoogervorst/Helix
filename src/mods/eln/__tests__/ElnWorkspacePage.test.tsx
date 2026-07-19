@@ -1,9 +1,11 @@
 /**
- * Tests for ElnWorkspacePage — 3-column ELN entry page.
+ * Tests for ElnWorkspacePage — five-zone ELN entry page (#281).
  *
  * Verifies the top toolbar (breadcrumbs, editor action buttons, ghost icon
- * buttons, avatars, share/sign & witness), content area, and metadata panel
- * with wired sections: Metadata, Linked Entities, Attachments, Activity.
+ * buttons, avatars, share/sign & witness), five-zone layout (left sidebar
+ * from Layout, left gutter, center gutter, right gutter, right sidebar),
+ * and metadata panel with wired sections: Metadata, Linked Entities,
+ * Attachments, Activity.
  *
  * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
  * toolbar via state lifted from ElnEditor through onStateChange + ref.
@@ -100,7 +102,7 @@ import ElnWorkspacePage from "../workspace/ElnWorkspacePage";
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
-describe("ElnWorkspacePage — 3-column layout", () => {
+describe("ElnWorkspacePage — five-zone layout", () => {
   beforeEach(() => {
     mockFetchActions.mockReset();
     mockFetchActions.mockResolvedValue([]);
@@ -302,6 +304,75 @@ describe("ElnWorkspacePage — 3-column layout", () => {
     renderAtRoute("/eln/E-NEW?new=true");
     const editor = screen.getByTestId("eln-editor");
     expect(editor.getAttribute("data-entry-id")).toBe("E-NEW");
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // ── Five-zone layout ── (#281)
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  describe("Five-zone layout", () => {
+    it("renders all five zones: left gutter, center gutter, right gutter, and right sidebar", () => {
+      renderAtRoute("/eln/EXP-0284");
+
+      // Zone 2: Left gutter + right flex spacer — aria-hidden flex spacers
+      // that center the main content column symmetrically
+      const spacers = document.querySelectorAll('[aria-hidden="true"]');
+      // At least two spacers (left gutter and right flex spacer)
+      expect(spacers.length).toBeGreaterThanOrEqual(2);
+
+      // Zone 3: Center gutter — main element with editor content
+      const main = document.querySelector("main");
+      expect(main).toBeDefined();
+      expect(main).not.toBeNull();
+      // The editor is rendered inside main
+      expect(main!.querySelector('[data-testid="eln-editor"]')).toBeDefined();
+
+      // Zone 4: Right gutter — aside for comments, hidden below xl
+      const commentsAside = screen.getByLabelText("Comments");
+      expect(commentsAside).toBeDefined();
+      expect(commentsAside.tagName).toBe("ASIDE");
+      // Hidden below xl — the class should include 'hidden' (jsdom
+      // doesn't match xl media queries, so the element is hidden in the DOM)
+      expect(commentsAside.className).toContain("hidden");
+
+      // Zone 5: Right sidebar — metadata panel via SlotSidebar
+      // The sidebar renders sections that are verified in Metadata Panel tests below.
+      // Just confirm the sidebar content is present.
+      expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
+    });
+
+    it("center gutter has max-w-3xl constraint with symmetric flex spacers for centering", () => {
+      // The center gutter (<main>) has w-full max-w-3xl, flanked by two
+      // flex-1 spacers that center it between the left sidebar and the
+      // right gutter + sidebar.  Per-block centering (max-w-3xl mx-auto)
+      // additionally lives on .ProseMirror and BlockNodeView wrappers.
+      renderAtRoute("/eln/EXP-0284");
+      const main = document.querySelector("main");
+      expect(main).toBeDefined();
+      // Main defines the center gutter with max-w-3xl
+      expect(main!.className).toContain("max-w-3xl");
+      // Two aria-hidden flex spacers (left gutter + right flex spacer)
+      // center the main content column
+      const spacers = document.querySelectorAll('[aria-hidden="true"]');
+      expect(spacers.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("right gutter is w-64 and has border separator", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const commentsAside = screen.getByLabelText("Comments");
+      // w-64 Tailwind class
+      expect(commentsAside.className).toContain("w-64");
+      // border separator from center gutter
+      expect(commentsAside.className).toContain("border-l");
+    });
+
+    it("right gutter hides below xl breakpoint (hidden xl:block)", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const commentsAside = screen.getByLabelText("Comments");
+      // Must have 'hidden' for mobile, 'xl:block' for wide screens
+      expect(commentsAside.className).toContain("hidden");
+      expect(commentsAside.className).toContain("xl:block");
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════

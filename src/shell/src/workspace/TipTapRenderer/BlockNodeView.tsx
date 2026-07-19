@@ -198,13 +198,21 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const BlockComponent = binding.component;
 
+  // Per-block centering: max-w-3xl mx-auto by default.
+  // When overrides.stretch is true, the block expands full-width to grow
+  // beyond the center gutter into both left and right gutters equally.
+  const stretch = binding.overrides.stretch === true;
+  const wrapperClass = stretch
+    ? "block-node-view-wrapper block-node-view-wrapper--stretch"
+    : "block-node-view-wrapper max-w-3xl mx-auto";
+
   return (
     <NodeViewWrapper
-      className="block-node-view-wrapper"
+      className={wrapperClass}
       data-block-type={binding.id}
       contentEditable={false}
     >
-      <BlockComponent context={context} instance={instanceRef.current} />
+      <BlockComponent context={context} instance={instanceRef.current} overrides={binding.overrides} />
     </NodeViewWrapper>
   );
 }

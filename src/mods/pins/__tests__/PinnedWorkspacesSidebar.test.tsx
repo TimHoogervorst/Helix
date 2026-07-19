@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
@@ -44,13 +45,16 @@ async function renderSidebar(overrides: {
 } = {}) {
   mockHook(overrides);
 
-  const { default: Component } = await import(
-    "../components/PinnedWorkspacesSidebar"
-  );
+  const [{ default: Component }, { SidebarProvider: Provider }] = await Promise.all([
+    import("../components/PinnedWorkspacesSidebar"),
+    import("../../../shell/src/workspace/SidebarContext"),
+  ]);
 
   return render(
     <MemoryRouter>
-      <Component />
+      <Provider>
+        <Component />
+      </Provider>
     </MemoryRouter>,
   );
 }

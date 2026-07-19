@@ -306,6 +306,11 @@ h1 {
   min-height: 60vh;
   padding: 0;
   color: var(--color-foreground, oklch(0.22 0.02 260));
+  /* Center gutter constraint — mirrors BlockNodeView default wrapper.
+     Stretch blocks use .block-node-view-wrapper--stretch to go full-width. */
+  max-width: 48rem; /* max-w-3xl */
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
@@ -314,6 +319,15 @@ h1 {
   color: var(--color-muted-foreground, oklch(0.48 0.02 260));
   pointer-events: none;
   height: 0;
+}
+
+/* ── Block Node View Wrappers (per-block centering, #281) ── */
+
+.block-node-view-wrapper--stretch {
+  /* Override the default max-w-3xl centering so the block expands full-width
+     beyond the center gutter into both left and right gutters equally. */
+  max-width: none;
+  width: 100%;
 }
 
 /* ProseMirror spacing */

@@ -1091,8 +1091,14 @@ export function RegistryTableContent({
         }`}
         data-testid="registry-table-loaded"
       >
-      {/* Title bar */}
-      <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
+      {/* Title bar — constrained to center gutter width (max-w-3xl = 48rem).
+          In auto mode it stays left-aligned so the table can extend past it
+          into the right gutter; in full mode it's centered at 48rem. */}
+      <div className={`flex items-center gap-2 border-b border-hairline px-4 py-2.5 ${
+        stretchMode === "auto"
+          ? "min-w-[48rem] max-w-3xl"
+          : "max-w-3xl mx-auto w-full"
+      }`}>
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         {/* Stretch toggle — only rendered when overrides.stretch is truthy */}
         {showStretchToggle && (
@@ -1181,7 +1187,7 @@ export function RegistryTableContent({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="min-w-full text-[13px]" data-testid="registry-table-grid">
+        <table className={`text-[13px] ${stretchMode === "auto" ? "w-max" : "min-w-full"}`} data-testid="registry-table-grid">
           <thead>
             <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
@@ -1370,18 +1376,27 @@ export function RegistryTableContent({
       </div>
 
     </div>
-    {/* "+ New Row" ghost button below the card — hidden in read-only mode */}
+    {/* "+ New Row" button below the card — constrained to center gutter width.
+         In auto mode left-aligned so it stays anchored to the center gutter
+         even when the table extends past it; in full mode centered at 48rem.
+         Hidden in read-only mode. */}
     {!readOnly && (
-      <button
-        type="button"
-        className="btn-ghost mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
-        onClick={handleAddRow}
-        aria-label="Add new row"
-        data-testid="add-row-btn"
-      >
-        <Plus className="h-3 w-3" />
-        <span>New Row</span>
-      </button>
+      <div className={`mt-2 ${
+        stretchMode === "auto"
+          ? "max-w-3xl"
+          : "max-w-3xl mx-auto"
+      }`}>
+        <button
+          type="button"
+          className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+          onClick={handleAddRow}
+          aria-label="Add new row"
+          data-testid="add-row-btn"
+        >
+          <Plus className="h-3 w-3" />
+          <span>New Row</span>
+        </button>
+      </div>
     )}
     </>
   );

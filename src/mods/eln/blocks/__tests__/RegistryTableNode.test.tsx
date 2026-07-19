@@ -62,6 +62,9 @@ vi.mock("lucide-react", () => ({
   Calendar: (props: Record<string, unknown>) => (
     <span data-testid="icon-calendar" {...props}>📅</span>
   ),
+  ArrowLeftRight: (props: Record<string, unknown>) => (
+    <span data-testid="icon-arrow-left-right" {...props}>↔</span>
+  ),
 }));
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────
@@ -107,6 +110,7 @@ const sampleEntityTypes = [
 function makeBlockComponentProps(opts?: {
   attrs?: Record<string, unknown>;
   rest?: Record<string, unknown>;
+  overrides?: Record<string, unknown>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): any {
   const attrs = {
@@ -128,6 +132,7 @@ function makeBlockComponentProps(opts?: {
       attrs,
       updateAttrs: vi.fn(),
     },
+    overrides: opts?.overrides ?? {},
   };
 
   return { ...defaults, ...(opts?.rest ?? {}) };
@@ -2322,5 +2327,189 @@ describe("RegistryTableContent — green row detection", () => {
     await waitFor(() => {
       expect(mockPost).toHaveBeenCalled();
     });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Stretch toggle (#282)
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableBlockComponent — stretch toggle", () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockDel.mockReset();
+    mockPost.mockReset();
+  });
+
+  function loadedStretchProps(opts?: {
+    attrs?: Record<string, unknown>;
+    overrides?: Record<string, unknown>;
+    rest?: Record<string, unknown>;
+  }) {
+    return makeBlockComponentProps({
+      attrs: {
+        schemaId: 1,
+        schemaName: "Blood Sample",
+        schemaContentHash: "abc123",
+        title: "Test Table",
+        columns: [{ name: "Volume", type: "Number" as const, units: "mL" }],
+        rows: [makeRow()],
+        ...(opts?.attrs ?? {}),
+      },
+      overrides: opts?.overrides ?? {},
+      rest: opts?.rest,
+    });
+  }
+
+  it("renders stretch toggle button when overrides.stretch is true", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({ overrides: { stretch: true } })}
+      />,
+    );
+    const btn = screen.getByTestId("stretch-toggle-btn");
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveAttribute("aria-label", "Stretch table to full width");
+    expect(btn).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("does NOT render stretch toggle when overrides.stretch is absent", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({ overrides: {} })}
+      />,
+    );
+    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
+  });
+
+  it("does NOT render stretch toggle when overrides.stretch is false", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({ overrides: { stretch: false } })}
+      />,
+    );
+    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
+  });
+
+  it("does NOT render stretch toggle in placeholder state even with stretch override", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...makeBlockComponentProps({ overrides: { stretch: true } })}
+      />,
+    );
+    // Placeholder state (schemaId is null) — no toggle shown
+    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
+  });
+
+  it("default stretchMode uses w-max class (auto-fit)", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({ overrides: { stretch: true } })}
+      />,
+    );
+    const container = screen.getByTestId("registry-table-loaded");
+    expect(container.className).toContain("w-max");
+    expect(container.className).toContain("max-w-full");
+  });
+
+  it("toggle click switches to full-width mode", () => {
+    const updateAttrs = vi.fn();
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({
+          overrides: { stretch: true },
+          rest: {
+            instance: {
+              id: "inst-1",
+              blockId: "eln.registryTable-block",
+              slotId: "eln.editor",
+              attrs: {
+                schemaId: 1,
+                schemaName: "Blood Sample",
+                schemaContentHash: "abc123",
+                title: "Test Table",
+                columns: [{ name: "Volume", type: "Number", units: "mL" }],
+                rows: [makeRow()],
+              },
+              updateAttrs,
+            },
+          },
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("stretch-toggle-btn"));
+
+    expect(updateAttrs).toHaveBeenCalledWith({ stretchMode: "full" });
+  });
+
+  it("toggle click switches back to auto-fit mode", () => {
+    const updateAttrs = vi.fn();
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({
+          attrs: { stretchMode: "full" },
+          overrides: { stretch: true },
+          rest: {
+            instance: {
+              id: "inst-1",
+              blockId: "eln.registryTable-block",
+              slotId: "eln.editor",
+              attrs: {
+                schemaId: 1,
+                schemaName: "Blood Sample",
+                schemaContentHash: "abc123",
+                title: "Test Table",
+                columns: [{ name: "Volume", type: "Number", units: "mL" }],
+                rows: [makeRow()],
+                stretchMode: "full",
+              },
+              updateAttrs,
+            },
+          },
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("stretch-toggle-btn"));
+
+    expect(updateAttrs).toHaveBeenCalledWith({ stretchMode: "auto" });
+  });
+
+  it("full-width mode uses w-full class", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({
+          attrs: { stretchMode: "full" },
+          overrides: { stretch: true },
+        })}
+      />,
+    );
+    const container = screen.getByTestId("registry-table-loaded");
+    expect(container.className).toContain("w-full");
+  });
+
+  it("toggle has correct aria-label and aria-pressed in full mode", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({
+          attrs: { stretchMode: "full" },
+          overrides: { stretch: true },
+        })}
+      />,
+    );
+    const btn = screen.getByTestId("stretch-toggle-btn");
+    expect(btn).toHaveAttribute("aria-label", "Auto-fit table to content");
+    expect(btn).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("stretchMode defaults to 'auto' when not in attrs", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...loadedStretchProps({ overrides: { stretch: true } })}
+      />,
+    );
+    const container = screen.getByTestId("registry-table-loaded");
+    expect(container.className).toContain("w-max");
   });
 });

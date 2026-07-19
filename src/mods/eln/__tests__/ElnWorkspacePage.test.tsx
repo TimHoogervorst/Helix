@@ -311,14 +311,12 @@ describe("ElnWorkspacePage — five-zone layout", () => {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   describe("Five-zone layout", () => {
-    it("renders all five zones: left gutter, center gutter, right gutter, and right sidebar", () => {
+    it("renders all five zones: center gutter, right gutter, and right sidebar", () => {
       renderAtRoute("/eln/EXP-0284");
 
-      // Zone 2: Left gutter + right flex spacer — aria-hidden flex spacers
-      // that center the main content column symmetrically
-      const spacers = document.querySelectorAll('[aria-hidden="true"]');
-      // At least two spacers (left gutter and right flex spacer)
-      expect(spacers.length).toBeGreaterThanOrEqual(2);
+      // Zone 2 + right spacer: auto margins from justify-center on the
+      // content row centre the (center + right gutter) group.  No explicit
+      // spacer elements — the gutters are implicit.
 
       // Zone 3: Center gutter — main element with editor content
       const main = document.querySelector("main");
@@ -341,20 +339,21 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
     });
 
-    it("center gutter has max-w-3xl constraint with symmetric flex spacers for centering", () => {
-      // The center gutter (<main>) has w-full max-w-3xl, flanked by two
-      // flex-1 spacers that center it between the left sidebar and the
-      // right gutter + sidebar.  Per-block centering (max-w-3xl mx-auto)
-      // additionally lives on .ProseMirror and BlockNodeView wrappers.
+    it("center gutter has max-w-3xl constraint and is centred via justify-center", () => {
+      // The center gutter (<main>) has w-full max-w-3xl.  The content row
+      // uses justify-center so the (center + right gutter) group is centred
+      // with auto margins that shrink to zero before the content yields.
+      // Per-block centering (max-w-3xl mx-auto) additionally lives on
+      // .ProseMirror and BlockNodeView wrappers.
       renderAtRoute("/eln/EXP-0284");
       const main = document.querySelector("main");
       expect(main).toBeDefined();
       // Main defines the center gutter with max-w-3xl
       expect(main!.className).toContain("max-w-3xl");
-      // Two aria-hidden flex spacers (left gutter + right flex spacer)
-      // center the main content column
-      const spacers = document.querySelectorAll('[aria-hidden="true"]');
-      expect(spacers.length).toBeGreaterThanOrEqual(2);
+      // The parent flex row uses justify-center for centering
+      const contentRow = main!.parentElement;
+      expect(contentRow).toBeDefined();
+      expect(contentRow!.className).toContain("justify-center");
     });
 
     it("right gutter is w-64 and has border separator", () => {

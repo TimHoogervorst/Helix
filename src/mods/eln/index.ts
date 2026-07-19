@@ -211,7 +211,7 @@ export function register() {
   registerIntoSlot("eln.editor", "eln.table-block", {}, 0);
   registerIntoSlot("eln.editor", "eln.comment-block", {}, 1);
   registerIntoSlot("eln.editor", "eln.protocol-block", {}, 2);
-  registerIntoSlot("eln.editor", "eln.registryTable-block", {}, 3);
+  registerIntoSlot("eln.editor", "eln.registryTable-block", { stretch: true }, 3);
 
   // ── Slot: ELN Sidebar (dogfood #233) ──────────────────────────────────
   declareSlot({

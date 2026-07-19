@@ -217,9 +217,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, [entryDisplayId]);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1">
       {/* ── Left column: toolbar + main content ── */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* ── Top toolbar ── */}
         <div className="flex items-center justify-between px-6 py-2.5">
         {/* Left: breadcrumbs — real folder path with clickable segments */}
@@ -420,16 +420,17 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       </div>
 
         {/* ── Content: five-zone layout (zones 2–5; zone 1 left sidebar is from Layout.tsx) ── */}
-        {/* Zone 2–4 content row: left gutter, center, right flex spacer, and right gutter.
-            Symmetric flex-1 spacers on both sides center the max-w-3xl content column. */}
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {/* Zone 2: Left gutter — absorbs stretch from centered blocks */}
-          <div className="flex-1 min-w-0" aria-hidden="true" />
-
+        {/* Zone 3 (center) + Zone 4 (right gutter) are centered as a group
+            via justify-center.  The auto margins act as left/right gutters
+            (zones 2 + right spacer) that shrink to zero before the center
+            content yields — keeping the editor centred and readable at all
+            viewport widths.  Scroll propagates up to Layout's <main> so the
+            scrollbar stays at the viewport edge. */}
+        <div className="flex min-h-0 flex-1 justify-center">
           {/* Zone 3: Center gutter — main content column, max-w-3xl.
-              max-w-3xl centering lives on .ProseMirror text and individual
-              BlockNodeView wrappers so each block is centered by default. */}
-          <main className="min-h-0 w-full max-w-3xl overflow-y-auto">
+              Per-block centering (max-w-3xl mx-auto) lives on .ProseMirror
+              and individual BlockNodeView wrappers. */}
+          <main className="min-h-0 w-full max-w-3xl">
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
                 <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} bus={bus} slotContext={slotContext} hasBlockActionsRef={hasBlockActionsRef} />
@@ -437,13 +438,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             </div>
           </main>
 
-          {/* Right flex spacer — mirrors the left gutter so the center column
-              is symmetrically centered between the sidebar and the right zones. */}
-          <div className="flex-1 min-w-0" aria-hidden="true" />
-
           {/* Zone 4: Right gutter — comment cards, w-64, hidden below xl */}
           <aside
-            className="hidden xl:block w-64 overflow-y-auto border-l border-hairline"
+            className="hidden xl:block w-64 overflow-y-auto border-l border-hairline ml-6"
             aria-label="Comments"
           >
             {/* Comment cards rendered here — future PRD */}

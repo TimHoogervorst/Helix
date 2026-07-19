@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import { Database, Loader, Trash2, Plus, RefreshCw, Upload, Check, Calendar } from "lucide-react";
+import { Database, Loader, Trash2, Plus, RefreshCw, Upload, Check, Calendar, ArrowLeftRight } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types/types";
@@ -679,6 +679,12 @@ interface RegistryTableContentProps {
   updateAttrs: (attrs: Record<string, unknown>) => void;
   /** When true, inline editing and action buttons are hidden. */
   readOnly?: boolean;
+  /** Current stretch mode — "auto" (max-content) or "full" (full-width). */
+  stretchMode?: "auto" | "full";
+  /** Called when the user clicks the stretch toggle button. */
+  onToggleStretch?: () => void;
+  /** When true, the stretch toggle button is rendered. */
+  showStretchToggle?: boolean;
 }
 
 // ── Inner Content Component ─────────────────────────────────────────────────
@@ -698,6 +704,9 @@ export function RegistryTableContent({
   rows,
   updateAttrs,
   readOnly = false,
+  stretchMode = "auto",
+  onToggleStretch,
+  showStretchToggle = false,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
@@ -1077,12 +1086,36 @@ export function RegistryTableContent({
   return (
     <>
       <div
-        className="rounded-lg border border-hairline bg-panel"
+        className={`rounded-lg border border-hairline bg-panel ${
+          stretchMode === "auto" ? "w-max max-w-full" : "w-full"
+        }`}
         data-testid="registry-table-loaded"
       >
       {/* Title bar */}
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        {/* Stretch toggle — only rendered when overrides.stretch is truthy */}
+        {showStretchToggle && (
+          <button
+            type="button"
+            className="btn-icon rounded-md"
+            onClick={onToggleStretch}
+            title={
+              stretchMode === "auto"
+                ? "Stretch table to full width"
+                : "Auto-fit table to content"
+            }
+            aria-label={
+              stretchMode === "auto"
+                ? "Stretch table to full width"
+                : "Auto-fit table to content"
+            }
+            aria-pressed={stretchMode === "full"}
+            data-testid="stretch-toggle-btn"
+          >
+            <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
         {readOnly ? (
           <span
             className="text-sm font-medium text-foreground"
@@ -1365,6 +1398,7 @@ export function RegistryTableContent({
 export function RegistryTableBlockComponent({
   instance,
   context,
+  overrides = {},
 }: BlockComponentProps) {
   const attrs = instance.attrs as Record<string, unknown>;
   const schemaId = (attrs.schemaId as number | null) ?? null;
@@ -1376,6 +1410,12 @@ export function RegistryTableBlockComponent({
   const rows: RegistryTableRow[] =
     (attrs.rows as RegistryTableRow[]) ?? [];
   const readOnly = context.viewMode === "view";
+  const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
+
+  const handleToggleStretch = () => {
+    const nextMode = stretchMode === "auto" ? "full" : "auto";
+    instance.updateAttrs({ stretchMode: nextMode });
+  };
 
   return (
     <RegistryTableContent
@@ -1387,6 +1427,9 @@ export function RegistryTableBlockComponent({
       rows={rows}
       updateAttrs={instance.updateAttrs}
       readOnly={readOnly}
+      stretchMode={stretchMode}
+      onToggleStretch={handleToggleStretch}
+      showStretchToggle={overrides.stretch === true}
     />
   );
 }

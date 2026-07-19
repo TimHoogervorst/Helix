@@ -221,7 +221,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       {/* ── Left column: toolbar + main content ── */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* ── Top toolbar ── */}
-        <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
+        <div className="flex items-center justify-between px-6 py-2.5">
         {/* Left: breadcrumbs — real folder path with clickable segments */}
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Folder

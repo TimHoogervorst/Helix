@@ -1087,16 +1087,16 @@ export function RegistryTableContent({
     <>
       <div
         className={`rounded-lg border border-hairline bg-panel ${
-          stretchMode === "auto" ? "w-max" : "w-full"
+          stretchMode === "auto" ? "min-w-[48rem] max-w-3xl" : "w-full"
         }`}
         data-testid="registry-table-loaded"
       >
-      {/* Title bar — constrained to center gutter width (max-w-3xl = 48rem).
-          In auto mode it stays left-aligned so the table can extend past it
-          into the right gutter; in full mode it's centered at 48rem. */}
+      {/* Title bar — in auto mode the card itself is capped at 48rem so the
+          table overflows past the card border to the right; the toolbar fills
+          the card. In full mode it's centered at 48rem inside the full card. */}
       <div className={`flex items-center gap-2 border-b border-hairline px-4 py-2.5 ${
         stretchMode === "auto"
-          ? "min-w-[48rem] max-w-3xl"
+          ? "w-full"
           : "max-w-3xl mx-auto w-full"
       }`}>
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -1185,10 +1185,11 @@ export function RegistryTableContent({
         )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className={`text-[13px] ${stretchMode === "auto" ? "w-max" : "min-w-full"}`} data-testid="registry-table-grid">
-          <thead>
+      {/* Table — in auto mode the table overflows the card naturally so
+          columns extend past 48rem into the right gutter. */}
+      <div className={stretchMode === "auto" ? "" : "overflow-x-auto"}>
+        <table className={`text-[13px] ${stretchMode === "auto" ? "w-max bg-panel border border-hairline" : "min-w-full"}`} data-testid="registry-table-grid">
+          <thead className={stretchMode === "auto" ? "bg-panel" : ""}>
             <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
               <th

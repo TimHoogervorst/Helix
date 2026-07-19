@@ -145,7 +145,7 @@ function Layout() {
             footer={<SidebarUserFooter />}
           >
             {/* Brand — visible only when expanded (logo renders in IconStrip when collapsed) */}
-            <div className="flex w-64 flex-col bg-background">
+            <div className="flex flex-1 w-64 flex-col bg-background">
               <BrandHeader />
 
 

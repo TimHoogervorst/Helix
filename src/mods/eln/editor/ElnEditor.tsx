@@ -435,92 +435,103 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
       {/* ── Content area ── */}
 
-      {/* Metadata line */}
-      <div
-        className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
-        data-testid="metadata-line"
-      >
-        {entry ? (
-          <>
-            {entry.display_id}
-            {" · "}
-            Created {formatDateShort(entry.created_at)}
-            {" · "}
-            Updated {formatDateShort(entry.updated_at)}
-          </>
-        ) : (
-          "New entry"
-        )}
+      {/* Header section: centred like ProseMirror text, so the title,
+          description, tags, and metadata line align with the text column.
+          Stretch blocks (e.g. registry tables) still expand full-width
+          because the ProseMirror wrapper lives outside this container. */}
+      <div className="max-w-3xl mx-auto">
+
+        {/* Metadata line */}
+        <div
+          className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
+          data-testid="metadata-line"
+        >
+          {entry ? (
+            <>
+              {entry.display_id}
+              {" · "}
+              Created {formatDateShort(entry.created_at)}
+              {" · "}
+              Updated {formatDateShort(entry.updated_at)}
+            </>
+          ) : (
+            "New entry"
+          )}
+        </div>
+
+        {/* Title — contentEditable when not locked, plain text when locked */}
+        <h1
+          ref={(el) => {
+            titleRef.current = el;
+            // Autofocus new entries exactly once on mount (not on every re-render).
+            if (el && isNew && !isLockedByOther && !hasAutoFocusedRef.current) {
+              hasAutoFocusedRef.current = true;
+              requestAnimationFrame(() => el.focus());
+            }
+          }}
+          contentEditable={!isLockedByOther}
+          suppressContentEditableWarning
+          onInput={(e) => {
+            if (!isLockedByOther) setTitle(e.currentTarget.textContent || "");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
+          onPaste={(e) => {
+            if (isLockedByOther) return;
+            e.preventDefault();
+            const text = e.clipboardData.getData("text/plain");
+            document.execCommand("insertText", false, text);
+          }}
+          onBlur={() => {
+            if (!isLockedByOther && title.trim() !== title) setTitle(title.trim());
+          }}
+          className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
+          data-testid="title-display"
+        />
+
+        {/* Description — textarea, readOnly when locked */}
+        <textarea
+          ref={descriptionRef}
+          className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
+          value={description}
+          onChange={(e) => {
+            if (!isLockedByOther) setDescription(e.target.value);
+          }}
+          readOnly={isLockedByOther}
+          placeholder="Add a description…"
+          data-testid="description-input"
+        />
+
+        {/* Tags — read-only display when locked */}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
+          {tags.map((tag) => (
+            <TagPill
+              key={tag.id}
+              tag={tag}
+              onRemove={isLockedByOther ? undefined : removeTag}
+            />
+          ))}
+
+          {!isLockedByOther && (
+            <TagAutocomplete
+              attachedTagIds={tags.map((t) => t.id)}
+              onTagSelect={addTag}
+              onTagCreated={addTag}
+              placeholder="Search tags…"
+            />
+          )}
+        </div>
+
+        {/* Hairline divider */}
+        <div className="my-6 h-px bg-hairline" data-testid="content-divider" />
+
       </div>
 
-      {/* Title — contentEditable when not locked, plain text when locked */}
-      <h1
-        ref={(el) => {
-          titleRef.current = el;
-          // Autofocus new entries exactly once on mount (not on every re-render).
-          if (el && isNew && !isLockedByOther && !hasAutoFocusedRef.current) {
-            hasAutoFocusedRef.current = true;
-            requestAnimationFrame(() => el.focus());
-          }
-        }}
-        contentEditable={!isLockedByOther}
-        suppressContentEditableWarning
-        onInput={(e) => {
-          if (!isLockedByOther) setTitle(e.currentTarget.textContent || "");
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.preventDefault();
-        }}
-        onPaste={(e) => {
-          if (isLockedByOther) return;
-          e.preventDefault();
-          const text = e.clipboardData.getData("text/plain");
-          document.execCommand("insertText", false, text);
-        }}
-        onBlur={() => {
-          if (!isLockedByOther && title.trim() !== title) setTitle(title.trim());
-        }}
-        className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
-        data-testid="title-display"
-      />
-
-      {/* Description — textarea, readOnly when locked */}
-      <textarea
-        ref={descriptionRef}
-        className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
-        value={description}
-        onChange={(e) => {
-          if (!isLockedByOther) setDescription(e.target.value);
-        }}
-        readOnly={isLockedByOther}
-        placeholder="Add a description…"
-        data-testid="description-input"
-      />
-
-      {/* Tags — read-only display when locked */}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
-        {tags.map((tag) => (
-          <TagPill
-            key={tag.id}
-            tag={tag}
-            onRemove={isLockedByOther ? undefined : removeTag}
-          />
-        ))}
-
-        {!isLockedByOther && (
-          <TagAutocomplete
-            attachedTagIds={tags.map((t) => t.id)}
-            onTagSelect={addTag}
-            onTagCreated={addTag}
-            placeholder="Search tags…"
-          />
-        )}
-      </div>
-
-      {/* Hairline divider */}
-      <div className="my-6 h-px bg-hairline" data-testid="content-divider" />
-
-      {/* ── ProseMirror Content (always editable, no click-to-edit) ── */}
+      {/* ── ProseMirror Content (always editable, no click-to-edit) ──
+          Not constrained by max-w-3xl so stretch blocks (registry tables,
+          etc.) can expand into the gutters. Per-child centering is handled
+          by .ProseMirror > * in styles.css. */}
       <div className="min-h-[60vh]" data-testid="prosemirror-wrapper">
         {editor && <EditorContent editor={editor} />}
       </div>

@@ -339,30 +339,28 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
     });
 
-    it("center gutter has max-w-3xl constraint and is centred via justify-center", () => {
-      // The center gutter (<main>) has w-full max-w-3xl.  The content row
-      // uses justify-center so the (center + right gutter) group is centred
-      // with auto margins that shrink to zero before the content yields.
-      // Per-block centering (max-w-3xl mx-auto) additionally lives on
-      // .ProseMirror and BlockNodeView wrappers.
+    it("center gutter is centred via justify-center with counterweight balancing right gutter", () => {
+      // The content row uses justify-center. An invisible left counterweight
+      // (17.5rem, hidden xl:block) balances the right gutter so the center
+      // gutter is always horizontally centred — not pushed left by the right
+      // gutter. Per-block centering (max-w-3xl mx-auto) lives on .ProseMirror
+      // children and BlockNodeView wrappers, not on the <main> itself.
       renderAtRoute("/eln/EXP-0284");
       const main = document.querySelector("main");
       expect(main).toBeDefined();
-      // Main defines the center gutter with max-w-3xl
-      expect(main!.className).toContain("max-w-3xl");
+      // Main no longer carries max-w-3xl — per-block centering handles it
+      expect(main!.className).not.toContain("max-w-3xl");
       // The parent flex row uses justify-center for centering
       const contentRow = main!.parentElement;
       expect(contentRow).toBeDefined();
       expect(contentRow!.className).toContain("justify-center");
     });
 
-    it("right gutter is w-64 and has border separator", () => {
+    it("right gutter is w-64 and hides below xl", () => {
       renderAtRoute("/eln/EXP-0284");
       const commentsAside = screen.getByLabelText("Comments");
       // w-64 Tailwind class
       expect(commentsAside.className).toContain("w-64");
-      // border separator from center gutter
-      expect(commentsAside.className).toContain("border-l");
     });
 
     it("right gutter hides below xl breakpoint (hidden xl:block)", () => {

@@ -241,7 +241,7 @@ function Layout() {
           </CollapsibleSidebar>
         </SidebarProvider>
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Outlet />
         </main>
       </div>

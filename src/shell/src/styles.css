@@ -2764,7 +2764,7 @@ input.library-new-folder-input:focus {
 }
 
 .sidebar-section-content {
-  padding: 0.1rem 0.5rem 0.1rem;
+  padding: 0.1rem 0.5rem 0.5rem;
   min-width: 0;
   overflow-x: hidden;
 }

@@ -1086,18 +1086,11 @@ export function RegistryTableContent({
   return (
     <>
       <div
-        className={`rounded-lg border border-hairline bg-panel ${
-          stretchMode === "auto" ? "max-w-3xl" : "w-full"
-        }`}
+        className="rounded-lg border border-hairline bg-panel w-full"
         data-testid="registry-table-loaded"
       >
-      {/* Title bar — stays fixed above the scrollable table.
-          In auto mode it fills the card; in full mode it's centered at 48rem. */}
-      <div className={`flex items-center gap-2 border-b border-hairline px-4 py-2.5 ${
-        stretchMode === "auto"
-          ? "w-full"
-          : "max-w-3xl mx-auto w-full"
-      }`}>
+      {/* Title bar — always full width, matching the workspace content container. */}
+      <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5 w-full">
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         {/* Stretch toggle — only rendered when overrides.stretch is truthy */}
         {showStretchToggle && (
@@ -1184,6 +1177,9 @@ export function RegistryTableContent({
         )}
       </div>
 
+      {/* Table wrapper — constrained in auto mode so only the title bar
+          spans the full workspace content width. */}
+      <div className={stretchMode === "auto" ? "max-w-3xl" : "w-full"}>
       {/* Table — overflow-x-auto constrains the scrollbar while negative
           margins + padding let the table content extend visually into both
           left and right gutters when scrolled. In auto mode the wrapper
@@ -1381,6 +1377,7 @@ export function RegistryTableContent({
         </table>
       </div>
 
+      </div>
     </div>
     {/* "+ New Row" button below the card — constrained to center gutter width.
          In auto mode left-aligned so it stays anchored to the center gutter

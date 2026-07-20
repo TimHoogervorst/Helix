@@ -2401,16 +2401,15 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
     expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
   });
 
-  it("default stretchMode uses w-max class (auto-fit, left-aligned)", () => {
+  it("default stretchMode uses max-w-3xl class (auto-fit, left-aligned)", () => {
     render(
       <RegistryTableBlockComponent
         {...loadedStretchProps({ overrides: { stretch: true } })}
       />,
     );
     const container = screen.getByTestId("registry-table-loaded");
-    expect(container.className).toContain("min-w-[48rem]");
     expect(container.className).toContain("max-w-3xl");
-    // Auto mode: card is capped at 48rem, table overflows past it.
+    // Auto mode: card is capped at 48rem, table scrolls within it.
     // No mx-auto centering — left-aligned in the centre gutter.
     expect(container.className).not.toContain("mx-auto");
   });
@@ -2513,7 +2512,6 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
       />,
     );
     const container = screen.getByTestId("registry-table-loaded");
-    expect(container.className).toContain("min-w-[48rem]");
     expect(container.className).toContain("max-w-3xl");
     // Auto mode: left-aligned, not centred
     expect(container.className).not.toContain("mx-auto");

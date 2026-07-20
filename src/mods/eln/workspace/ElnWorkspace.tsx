@@ -429,7 +429,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             Scroll lives on this five-zone content row, not on
             Layout's <main> — the scrollbar stays between the left sidebar
             and the right sidebar. The toolbar above is fixed (not scrollable). */}
-        <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+        <div className="flex min-h-0 flex-1 justify-center overflow-y-auto" style={{ overflowX: "clip" }}>
           {/* Zone 2: Left gutter counterweight — invisible spacer matching
               right gutter width (w-64 16rem + ml-6 1.5rem = 17.5rem).
               Hidden together with the right gutter below xl. */}

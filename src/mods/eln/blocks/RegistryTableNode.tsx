@@ -1193,7 +1193,7 @@ export function RegistryTableContent({
       <div className={`overflow-x-auto ${
         stretchMode === "auto" ? "-ml-[19rem] -mr-[19rem] pl-[19rem] pr-[19rem]" : ""
       }`}>
-        <table className={`text-[13px] ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
+        <table className={`text-[13px] bg-panel ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
           <thead className={stretchMode === "auto" ? "bg-panel" : ""}>
             <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}

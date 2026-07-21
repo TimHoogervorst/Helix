@@ -18,7 +18,7 @@
 | **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
 | **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
 | **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerBlock()`, `registerButton()`, `declareSlot()`, `registerIntoSlot()`, `registerSettingsSection()`, `registerRoute()`, `registerPublicRoute()`, `registerSidebarAction()`, `registerWorkspace()`. The contract between core and mods | register, declare, contribute |
-| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn`, `coreVersion`, and `description`. The single source of truth read by both frontend and backend loaders. Does NOT describe capabilities — those are discovered from `register*()` calls at boot | mod.json, manifest, mod identity |
+| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn`, `coreVersion`, and `description`. The single source of truth read by both frontend and backend loaders. Does NOT describe capabilities — those are discovered from `register*()` calls at boot. The `description` field provides a human-readable summary shown on hub cards in the Jump Back In section | mod.json, manifest, mod identity |
 | **`dependsOn`** | Field in `modManifest.json` declaring which other mods must load first. Supports bare mod ID strings and objects with optional `version` constraints. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
 
 ## Slot System
@@ -67,7 +67,7 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Home** | The hub at `/home`, registered by the Home core mod (`order: 0` — first in sidebar). Placeholder page for future quick-jump tiles, recent items, and dashboard content | landing page, dashboard |
+| **Home** | The hub at `/home`, registered by the Home core mod (`order: 0` — first in sidebar). Serves as the lab landing page with a personalised greeting, **Jump Back In** hub cards for quick navigation to other hubs, and placeholders for stats, recent activity, and daily schedule. The greeting uses the current user's first name from `useCurrentUser()` | landing page, dashboard |
 | **Library** | The hub at `/library`, registered by the Library core mod (`order: 10`). Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Each entry type registers its card renderer via `registerLibraryItem()` | Library Hub, ELN browser |
 
 ## Items
@@ -124,6 +124,19 @@
 | **Dedicated URL** | A shareable, bookmarkable URL that resolves to an item's full Workspace as a standalone page (e.g., `/eln/E12`, `/lims/BLOOD1`) | permalink, direct link, standalone URL |
 | **EntityWorkspace** | The standalone page at `/lims/:displayId` showing a single Entity's full detail with tabbed Workspace (Properties, Activity, Insights, Storage) | entity detail page, entity permalink |
 | **ElnEditor** | The TipTap editor component at the dedicated URL `/eln/:id` | entry editor, notebook editor |
+
+## Home Hub Sections
+
+> Layout sections of the Home hub page at `/home`. Rendered by `HomePage.tsx`.
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Greeting Section** | The hero area at the top of the Home page with a full-width grid-paper background. Shows "Good morning, [first_name]" pulled from `useCurrentUser()`, with a placeholder subtitle. The sidebar overlays this section | hero, welcome area |
+| **Jump Back In** | A section listing **Hub Cards** — clickable tiles for each registered hub (excluding Home itself). Each card is built from `HubConfig` data: `label`, `icon`, `description`, and `route`. Populated by calling `ModRegistry.getHubs()`. Currently shows only the Library hub card; stats (entries count, folders, new this week) are hardcoded placeholders | quick-jump, recent hubs |
+| **Hub Card** | A clickable tile in the Jump Back In section representing a single registered hub. Renders: a colored icon square, title (`label`), description (from the mod's `modManifest.json`), placeholder stats line, and a footer with status chip and timestamp. Clicking navigates to the hub's `route` | hub tile, jump card |
+| **Hub Description** | A short human-readable summary of what a hub does. Stored in `modManifest.json` under the `description` field and threaded through `HubConfig` via `registerHub()`. Displayed on the Hub Card in Jump Back In | hub summary, mod description |
+| **Stats Bar** | A placeholder 4-column strip on the Home page showing lab-wide metrics (Experiments running, Entries this week, Freezer temperature, Reagents low). Hardcoded placeholder values for now — future: real data from backend aggregation | metrics bar, lab stats |
+| **Today in the Lab** | A placeholder sidebar-style panel on the Home page showing the day's schedule as a timeline (time + task). Currently hardcoded; future: real schedule data. The inspirational quote from the prototype is omitted | daily schedule, lab timeline |
 
 ## Shared Hub Components
 

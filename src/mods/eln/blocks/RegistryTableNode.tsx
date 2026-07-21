@@ -1186,7 +1186,7 @@ export function RegistryTableContent({
           breaks out 19rem on each side (17.5rem gutter + 1.5rem main px-6)
           so columns remain visible in the gutter spaces.  The table uses
           w-max min-w-full so it can grow past the card width. */}
-      <div className={`overflow-x-auto ${
+      <div className={`overflow-x-auto scrollbar-on-hover ${
         stretchMode === "auto" ? "-ml-[19rem] -mr-[19rem] pl-[19rem] pr-[19rem]" : ""
       }`}>
         <table className={`text-[13px] bg-panel ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">

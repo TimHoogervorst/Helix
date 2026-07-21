@@ -3168,6 +3168,15 @@ input.library-new-folder-input:focus {
   pointer-events: none;
 }
 
+/* ── Registry Table: hide horizontal scrollbar until hover ────────────── */
+
+.scrollbar-on-hover:not(:hover) {
+  scrollbar-width: none;
+}
+.scrollbar-on-hover:not(:hover)::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Responsive: Library Hub ── */
 
 @media (max-width: 800px) {

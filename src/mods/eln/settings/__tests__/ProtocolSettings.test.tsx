@@ -8,7 +8,7 @@ const mockPost = vi.fn();
 const mockPut = vi.fn();
 const mockDel = vi.fn();
 
-vi.mock("../../../../core/api/client", () => ({
+vi.mock("../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: (...args: unknown[]) => mockPost(...args),
   put: (...args: unknown[]) => mockPut(...args),

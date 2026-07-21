@@ -1,7 +1,7 @@
-// ── ELN Table v2 (AG Grid) types ──────────────────────────────────────
+// ── ELN Table / Registry Table grid types ─────────────────────────────
 //
-// These describe the grid data model used by the ELN editor's limsTable
-// node.  They live in shared/ because both the ELN editor and the LIMS
+// These describe the grid data model used by Registry Table blocks.
+// They live in shared/ because both the ELN editor and the LIMS
 // module reference them, but they are not LIMS domain concepts — they
 // are presentation-level grid types.
 
@@ -11,6 +11,8 @@ export type GridColumnType = "Text" | "Number" | "Date" | "Boolean" | "Reference
 /** A column definition for the ELN table grid. Mirrors LIMS ColumnDef but
  *  adds grid-only metadata like width and pinned. */
 export interface GridColumn {
+  /** Stable UUID from the server-side column definition (#252). */
+  id?: string;
   name: string;
   type: GridColumnType;
   required?: boolean;

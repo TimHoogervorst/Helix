@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { EntityType } from "../../types";
-import { makeEntityType, makeColumnDef, makeMockMentionBadge } from "../../../../test/factories";
+import { makeEntityType, makeColumnDef, makeMockMentionBadge } from "../../../../shell/src/test/factories";
 import TypeDetailPanel from "../TypeDetailPanel";
 
 // Mock MentionBadge

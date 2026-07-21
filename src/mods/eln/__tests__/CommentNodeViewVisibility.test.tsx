@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { NodeViewProps } from "@tiptap/react";
-import type { CommentEntry } from "../blocks/CommentBlockComponent";
+import type { CommentEntry } from "../blocks/CommentNodeView";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 
@@ -25,13 +25,13 @@ const { mockUser, mockNodeAttrs } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../../core/user/CurrentUserProvider", () => ({
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
   useCurrentUser: () => ({ user: mockUser, isChecking: false, error: null, refresh: vi.fn() }),
 }));
 
 // ── Dynamic imports (after mocks) ────────────────────────────────────────
 
-import { CommentBlockComponent } from "../blocks/CommentBlockComponent";
+import { CommentBlockComponent } from "../blocks/CommentNodeView";
 import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────

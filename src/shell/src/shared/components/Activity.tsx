@@ -77,9 +77,6 @@ export function Activity({
   if (isLoading) {
     return (
       <section>
-        <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Activity
-        </h3>
         <ul className="space-y-3 text-[12px]">
           {Array.from({ length: 4 }).map((_, i) => (
             <li key={i} className="flex items-start gap-2 animate-pulse">
@@ -102,9 +99,6 @@ export function Activity({
   if (error) {
     return (
       <section>
-        <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Activity
-        </h3>
         <div data-testid="activity-error">
           <p className="text-[12px] text-muted-foreground">
             Could not load activity
@@ -127,9 +121,6 @@ export function Activity({
   if (actions.length === 0) {
     return (
       <section>
-        <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Activity
-        </h3>
         <p
           className="text-[12px] text-muted-foreground/60 italic px-0.5"
           data-testid="activity-empty"
@@ -146,9 +137,6 @@ export function Activity({
 
   return (
     <section>
-      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Activity
-      </h3>
       <ul className="space-y-2 text-[12px]">
         {visible.map((item) =>
           isGroup(item) ? (

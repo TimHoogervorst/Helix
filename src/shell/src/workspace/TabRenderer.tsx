@@ -94,7 +94,7 @@ function TabContent({
 
   return (
     <div className="p-4" style={{ display: hidden ? "none" : undefined }}>
-      <Component context={context} instance={instance} />
+      <Component context={context} instance={instance} overrides={binding.overrides} />
     </div>
   );
 }

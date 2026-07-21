@@ -9,7 +9,6 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import {
   useEntryEditor,
   collectDisplayIds,
-  validateEntityNames,
   type UseEntryEditorOptions,
 } from "../hooks/useEntryEditor";
 import { EMPTY_DOC, type TipTapDoc } from "../types";
@@ -23,7 +22,7 @@ vi.mock("react-router-dom", () => ({
 
 const mockGet = vi.fn();
 const mockDel = vi.fn();
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   del: (...args: unknown[]) => mockDel(...args),
   ApiError: class ApiError extends Error {
@@ -36,7 +35,7 @@ vi.mock("../../../core/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn();
-vi.mock("../../../core/mentions/MentionProvider", () => ({
+vi.mock("../../../shell/src/mentions/MentionProvider", () => ({
   useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
@@ -55,7 +54,7 @@ vi.mock("../api", () => ({
   getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
 }));
 
-vi.mock("../../../core/user/CurrentUserProvider", () => ({
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
   useCurrentUser: () => ({
     user: { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" },
     isChecking: false,
@@ -347,6 +346,7 @@ describe("useEntryEditor", () => {
         status: "in_progress",
       }),
       "manual",
+      undefined,
     );
   });
 
@@ -423,6 +423,7 @@ describe("useEntryEditor", () => {
         status: "in_progress",
       }),
       "manual",
+      undefined,
     );
     // Always editable — mode never changes
     expect(result.current.mode).toBe("edit-existing");
@@ -730,42 +731,6 @@ describe("collectDisplayIds", () => {
     expect(collectDisplayIds(doc)).toEqual(["BLOOD1", "CELL2"]);
   });
 
-  it("collects displayId from limsTable entity rows", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            rows: [
-              { entityId: 1, displayId: "SAMPLE_A", name: "Sample A" },
-              { entityId: 2, displayId: "SAMPLE_B", name: "Sample B" },
-            ],
-          },
-        },
-      ],
-    };
-    expect(collectDisplayIds(doc)).toEqual(["SAMPLE_A", "SAMPLE_B"]);
-  });
-
-  it("skips limsTable rows without entityId", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            rows: [
-              { displayId: "NO_ENTITY", name: "No Entity" },
-              { entityId: 1, displayId: "HAS_ENTITY" },
-            ],
-          },
-        },
-      ],
-    };
-    expect(collectDisplayIds(doc)).toEqual(["HAS_ENTITY"]);
-  });
-
   it("walks nested content recursively", () => {
     const doc: TipTapDoc = {
       type: "doc",
@@ -787,221 +752,5 @@ describe("collectDisplayIds", () => {
   });
 });
 
-// ── validateEntityNames ───────────────────────────────────────────────────────
-
-describe("validateEntityNames", () => {
-  it("returns true for empty doc (no tables)", () => {
-    expect(validateEntityNames({ type: "doc", content: [] })).toBe(true);
-  });
-
-  it("returns true for plain table (no schemaId)", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: null,
-            rows: [
-              { displayId: "#1", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    expect(validateEntityNames(doc)).toBe(true);
-  });
-
-  it("returns true when all schema-backed rows have __name", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [
-              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
-              { entityId: null, displayId: "#2", __name: "Beta", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    expect(validateEntityNames(doc)).toBe(true);
-  });
-
-  it("returns false when a schema-backed row has empty __name", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [
-              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
-              { entityId: null, displayId: "#2", __name: "", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    expect(validateEntityNames(doc)).toBe(false);
-  });
-
-  it("returns false when a schema-backed row is missing __name", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [
-              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
-              { entityId: null, displayId: "#2", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    expect(validateEntityNames(doc)).toBe(false);
-  });
-
-  it("returns false when __name is whitespace only", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [
-              { entityId: null, displayId: "#1", __name: "   ", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    expect(validateEntityNames(doc)).toBe(false);
-  });
-
-  it("walks nested content for limsTable nodes", () => {
-    const doc: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "blockquote",
-          content: [
-            {
-              type: "limsTable",
-              attrs: {
-                schemaId: 1,
-                rows: [
-                  { entityId: null, displayId: "#1", __name: "", values: {} },
-                ],
-              },
-            },
-          ],
-        },
-      ],
-    };
-    expect(validateEntityNames(doc)).toBe(false);
-  });
-
-  it("handles null / undefined gracefully", () => {
-    expect(validateEntityNames(null as unknown as TipTapDoc)).toBe(true);
-  });
-});
-
-describe("save with name validation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGet.mockReset();
-    mockEnqueue.mockReset();
-    mockNavigate.mockReset();
-    mockAcquireLock.mockReset();
-    mockReleaseLock.mockReset();
-    mockAcquireLock.mockResolvedValue({});
-    mockReleaseLock.mockResolvedValue(undefined);
-    // Default: folders fetch returns empty array (prevents crash on mount)
-    mockGet.mockResolvedValue([]);
-    mockEnqueue.mockResolvedValue(makeEntry());
-  });
-
-  it("shows alert and does not save when Name cells are empty", async () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const contentWithEmptyName: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [
-              { entityId: null, displayId: "#1", __name: "", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    const contentRef = { current: contentWithEmptyName };
-
-    const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
-    );
-
-    act(() => {
-      result.current.setTitle("Test");
-    });
-
-    await act(async () => {
-      await result.current.save();
-    });
-
-    expect(alertSpy).toHaveBeenCalledWith("Name not filled in.");
-    expect(mockEnqueue).not.toHaveBeenCalled();
-
-    alertSpy.mockRestore();
-  });
-
-  it("saves when all Name cells are filled", async () => {
-    mockEnqueue.mockResolvedValue(makeEntry({ display_id: "NEW1", id: 10 }));
-    const contentWithNames: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [
-              { entityId: null, displayId: "#1", __name: "Alpha", values: {} },
-            ],
-          },
-        },
-      ],
-    };
-    const contentRef = { current: contentWithNames };
-
-    const { result } = renderHook(() =>
-      useEntryEditor(makeOptions({ isNew: true, entryId: "E1", contentRef })),
-    );
-
-    act(() => {
-      result.current.setTitle("Test");
-    });
-
-    await act(async () => {
-      await result.current.save();
-    });
-
-    expect(mockEnqueue).toHaveBeenCalled();
-    // Verify the content has the description paragraph prepended
-    const callArgs = mockEnqueue.mock.calls[0] as [Record<string, unknown>, string];
-    const payload = callArgs[0];
-    const content = payload.content as TipTapDoc;
-    expect(Array.isArray(content.content)).toBe(true);
-    expect((content.content as Array<unknown>).length).toBe(2); // description para + limsTable
-  });
-});
+// No more tests after this point — validateEntityNames and save-with-name-validation
+// tests were removed along with the legacy limsTable block.

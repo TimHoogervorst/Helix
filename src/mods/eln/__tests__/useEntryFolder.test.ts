@@ -6,7 +6,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useEntryFolder } from "../hooks/useEntryFolder";
 
 const mockGet = vi.fn();
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 

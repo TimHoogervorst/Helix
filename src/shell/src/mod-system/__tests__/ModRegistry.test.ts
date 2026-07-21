@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Box } from "lucide-react";
 import { ModRegistry } from "../ModRegistry";
 import type {
   HubConfig,
@@ -299,6 +300,22 @@ describe("ModRegistry", () => {
       id: "lims",
       displayName: "LIMS",
     });
+  });
+
+  it("registerWorkspace stores an optional icon", () => {
+    registry.registerWorkspace({ id: "lims", displayName: "LIMS", icon: Box });
+    expect(registry.getWorkspaces().get("lims")).toEqual({
+      id: "lims",
+      displayName: "LIMS",
+      icon: Box,
+    });
+  });
+
+  it("registerWorkspace works without providing an icon (backward-compatible)", () => {
+    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+    const ws = registry.getWorkspaces().get("lims");
+    expect(ws).toBeDefined();
+    expect(ws?.icon).toBeUndefined();
   });
 
   it("registerWorkspace throws on duplicate ID", () => {

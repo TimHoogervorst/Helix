@@ -152,6 +152,7 @@ const _entityTypeDefaults: EntityType = {
   icon: "🩸",
   is_active: true,
   columns: [],
+  content_hash: "",
 };
 
 /** A single EntityType. */

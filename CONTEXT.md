@@ -37,7 +37,11 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), serialization, and optional action log `messages`. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. |
 | **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Use for toolbar buttons (export, lock, delete). |
 | **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
+| **Binding Override** | A per-binding configuration key (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; binding wins per-key. Used for presentation-level configuration like `stretch: true` — the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
+| **Inline Block** | A block stored inside the ProseMirror/TipTap document JSON. Part of the document body — locked when the document is locked (e.g. during review). Created and edited through the editor. |
+| **Outline Block** | A block stored outside the ProseMirror document, in a separate `outline_blocks` array on the entry. Carries a document position anchor (`pos`). Can be added even when the document content is locked — enabling review-time annotations. Rendered outside the editor (e.g. in a gutter). |
 | **Event Bus** | A workspace-scoped pub/sub bus. Buttons emit events via `bus.emit()`; blocks listen via declarative `listensTo` + `onEvent` handlers. Lifecycle events (created/edited/deleted) are renderer-emitted — block authors never call `bus.emit()`. |
+| **Block Stretch** | A slot-binding override (`stretch: true`) that allows a block to grow beyond the center content gutter. When enabled, the block expands outward equally into the left and right gutters, staying centered. Other blocks remain constrained to the center gutter. The block component reads `overrides.stretch` to conditionally render stretch-related UI (e.g. a full-width toggle button). Stretch is a presentation concern of the slot/renderer, not an intrinsic property of the block type. |
 
 ### Backend Mod System
 
@@ -172,6 +176,26 @@ A read-only link to a Notebook Entry's Workspace. The current implementation is 
 An entity (from the LIMS domain) that is connected to a Notebook Entry through the Mention system. When a user references an entity in the TipTap content (via `@` or a `reference` node), a Mention row is created linking the entry to that entity. The Linked Entities section of the metadata panel renders these Mentions — showing the entity's type icon, name, and display ID. Each is clickable, navigating to the entity's Workspace in the LIMS console.
 
 **Distinction from entities created in the entry:** Entities whose `source_entry` is this entry (created via LIMS tables in the content) are connected through a direct FK, not through Mentions. They may or may not appear as Linked Entities. A future PRD will unify both connection types in the panel.
+
+### ELN Workspace Layout
+
+The ELN workspace uses a **five-zone** horizontal layout (left to right): Left Sidebar (shell icon strip, collapsible), Left Gutter (empty space that absorbs stretch from centered blocks), Center Gutter (the main content column, `max-w-3xl`, centered — normal blocks like paragraphs and headings live here), Right Gutter (comment cards, `w-64`, hidden below `xl` breakpoint), and Right Sidebar (metadata panel, `w-72`, hidden below `xl`). Stretch-capable blocks expand outward equally from the center gutter into the left and right gutters, preserving centering.
+
+### Center Gutter
+
+The main content column of the ELN workspace — `max-w-3xl` (768px), horizontally centered. All normal blocks (paragraphs, headings, lists) render inside this column by default. Provides a comfortable reading width for narrative text.
+
+**Synonyms:** content column, centered editor area
+
+### Left Gutter
+
+Empty space between the left sidebar and the center gutter. Absorbs expansion from stretch-capable blocks — a stretched table grows into this space equally with the right gutter, keeping the block centered.
+
+### Right Gutter
+
+The column to the right of the center gutter that renders **outline blocks** (specifically comment cards). Fixed width (`w-64`), hidden on smaller viewports (below `xl`). Cards are sorted by document position, top to bottom. Distinct from the Right Sidebar (metadata panel).
+
+**Synonyms:** comment gutter, annotations column
 
 ### Rich-Text Document
 
@@ -311,6 +335,31 @@ Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod
 ---
 
 ## Sidebar & Navigation
+
+### CollapsibleSidebar
+
+A shared component (`src/shell/src/shared/components/Sidebar/`) that wraps a full-height sidebar panel and provides collapse/expand behavior. Owns the toggle button, collapse animation, and section management. Supports two variants:
+
+- **Icon Strip** (left sidebar): collapses to a narrow vertical bar (~48px) showing only icons — Helix logo, hub icons, workspace icons — with a thin divider between hub icons and workspace icons. All text labels are hidden.
+- **Full Hide** (right sidebar): collapses to a thin toggle strip (~24px) on the outer edge. A `[>]` button re-expands the sidebar. No content or icons shown.
+
+Sidebar collapse state is independent of section collapse state — collapsing the whole sidebar preserves which sections were collapsed when it re-expands.
+
+### Sidebar Section
+
+A named, collapsible group within a CollapsibleSidebar (e.g., "Workspaces", "Metadata", "Activity"). Has a header with a chevron toggle. All sections are collapsible by default; opt-out via `collapsible={false}`. Collapse icon convention follows VS Code: `▼` (ChevronDown) when expanded, `>` (ChevronRight) when collapsed.
+
+### Collapsed Section
+
+A Sidebar Section whose content is hidden. Renders as a thin clickable header bar in its original position — not moved to a separate tray. The header shows the section label and `>` icon. Clicking re-expands the section in place. Multiple collapsed sections stack as thin bars at their original positions, preserving order.
+
+### Icon Strip
+
+The narrow (~48px) collapsed state of the left sidebar. Renders a vertical stack of icon buttons: Helix logo (top, decorative — no action), hub icons (clickable, navigate to hub), a thin horizontal divider, and workspace icons (clickable, navigate to pinned workspace). Icons are provided by the consumer (`Layout.tsx`); the Icon Strip is a dumb renderer. The helix logo is decorative only and performs no navigation.
+
+### Sidebar Toggle
+
+The `[<]` / `[>]` button that collapses/expands an entire sidebar. Positioned on the outer edge: right edge for left sidebar, left edge for right sidebar. When the sidebar is collapsed (right, variant full-hide), the toggle appears in a thin persistent strip.
 
 ### Pinned Workspace
 

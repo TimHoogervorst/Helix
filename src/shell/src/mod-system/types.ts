@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { LucideIcon } from "lucide-react";
 import type { WorkspaceBus } from "../workspace/WorkspaceBus";
 
 // ── Mod Manifest ──────────────────────────────────────────────────────────
@@ -124,8 +125,8 @@ export interface WorkspaceConfig {
   id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
-  /** Optional icon component. Falls back to a generic default when absent. */
-  icon?: ComponentType<any>;
+  /** Optional Lucide icon. Falls back to a generic default when absent. */
+  icon?: LucideIcon;
 }
 
 // ── Entity Type (client-side type for lims.registerEntityType service) ─────
@@ -177,6 +178,8 @@ export interface SlotContext {
   entryId?: string;
   entityId?: string;
   displayId?: string;
+  /** Arbitrary entry-specific data passed from workspace to sidebar blocks. */
+  entry?: unknown;
 }
 
 /**
@@ -206,6 +209,8 @@ export interface BlockComponentProps {
   instance: BlockInstance;
   /** Workspace event bus. Only present when rendered by PanelRenderer. */
   bus?: WorkspaceBus;
+  /** Binding-level overrides merged from slot defaults and per-binding config. */
+  overrides: Record<string, unknown>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

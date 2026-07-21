@@ -20,7 +20,6 @@ import {
   splitFirstParagraph,
   prependDescription,
   collectDisplayIds,
-  validateEntityNames,
 } from "./useEntryEditor";
 
 export interface UseEntryCrudOptions {
@@ -117,11 +116,6 @@ export function useEntryCrud({
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
-      if (!validateEntityNames(contentRef.current)) {
-        // Silently skip auto-save when entity names are incomplete.
-        return;
-      }
-
       const fullContent = prependDescription(contentRef.current, description);
 
       const payload: Record<string, unknown> = {
@@ -151,11 +145,6 @@ export function useEntryCrud({
     async (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
-
-      if (!validateEntityNames(contentRef.current)) {
-        alert("Name not filled in.");
-        return;
-      }
 
       const fullContent = prependDescription(contentRef.current, description);
 

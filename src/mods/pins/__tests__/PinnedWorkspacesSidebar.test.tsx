@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
@@ -44,13 +45,16 @@ async function renderSidebar(overrides: {
 } = {}) {
   mockHook(overrides);
 
-  const { default: Component } = await import(
-    "../components/PinnedWorkspacesSidebar"
-  );
+  const [{ default: Component }, { SidebarProvider: Provider }] = await Promise.all([
+    import("../components/PinnedWorkspacesSidebar"),
+    import("../../../shell/src/workspace/SidebarContext"),
+  ]);
 
   return render(
     <MemoryRouter>
-      <Component />
+      <Provider>
+        <Component />
+      </Provider>
     </MemoryRouter>,
   );
 }
@@ -86,11 +90,13 @@ describe("PinnedWorkspacesSidebar", () => {
     setupWorkspaces();
   });
 
-  // ── Section header ────────────────────────────────────────────────────
+  // ── Section rendering ──────────────────────────────────────────────────
 
-  it("renders the Workspace section header", async () => {
+  it("renders without the section header (delegated to parent SidebarSection)", async () => {
     await renderSidebar();
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    // The "Workspace" header is rendered by Layout's SidebarSection label,
+    // not by this component — it should not duplicate the heading.
+    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
   });
 
   // ── Current workspace (not pinned) ────────────────────────────────────
@@ -189,9 +195,8 @@ describe("PinnedWorkspacesSidebar", () => {
   it("renders correctly with no current and no pins", async () => {
     await renderSidebar({ current: null, pins: [] });
 
-    // Section header should still be there
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
-    // No workspace rows
+    // The section header is delegated to the parent Layout's SidebarSection.
+    // No workspace rows should be rendered when there are none.
     expect(screen.queryByLabelText("Pin current workspace")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Unpin workspace/)).not.toBeInTheDocument();
   });

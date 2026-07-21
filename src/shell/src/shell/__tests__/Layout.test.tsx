@@ -449,3 +449,108 @@ describe("Layout settings sidebar", () => {
     expect(screen.getByTestId("ws-action")).toBeInTheDocument();
   });
 });
+
+// ── Collapsible sidebar structure ───────────────────────────────────────
+
+describe("CollapsibleSidebar integration", () => {
+  beforeEach(() => {
+    ModRegistry._reset();
+    ModRegistry.getInstance().registerHub({
+      id: "home",
+      label: "Home",
+      icon: House,
+      route: "/home",
+      component: () => null,
+      order: 0,
+    });
+    ModRegistry.getInstance().registerHub({
+      id: "library",
+      label: "Library",
+      icon: BookOpen,
+      route: "/library",
+      component: () => null,
+      order: 10,
+    });
+    // Register a mock sidebar action so the Workspace section renders
+    ModRegistry.getInstance().registerMod("test-mod");
+    ModRegistry.getInstance().registerSidebarAction({
+      id: "test.action",
+      workspaceId: "*",
+      component: () => <div data-testid="sidebar-action">Sidebar action content</div>,
+      position: "inline",
+    });
+    mockGet.mockResolvedValue([]);
+  });
+
+  it("renders CollapsibleSidebar with complementary role and left side", () => {
+    renderLayout("/library");
+
+    const aside = screen.getByRole("complementary");
+    expect(aside).toHaveAttribute("data-side", "left");
+  });
+
+  it("renders a collapse toggle button", () => {
+    renderLayout("/library");
+
+    expect(
+      screen.getByRole("button", { name: "Collapse sidebar" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders SidebarSection headers for Navigation and Workspace", () => {
+    renderLayout("/library");
+
+    expect(screen.getByText("Navigation")).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
+  });
+
+  it("Navigation section has a chevron (collapsible by default)", () => {
+    renderLayout("/library");
+
+    const navHeader = screen.getByText("Navigation").closest(".sidebar-section-header");
+    expect(navHeader).toBeInTheDocument();
+    expect(
+      navHeader!.querySelector(".sidebar-section-chevron"),
+    ).toBeInTheDocument();
+  });
+
+  it("Workspace section has a chevron (collapsible by default)", () => {
+    renderLayout("/library");
+
+    const wsHeader = screen.getByText("Workspace").closest(".sidebar-section-header");
+    expect(wsHeader).toBeInTheDocument();
+    expect(
+      wsHeader!.querySelector(".sidebar-section-chevron"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Workspace section on settings pages", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Layout />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+  });
+
+  it("hides Workspace section when no inline sidebar actions are registered", () => {
+    // Reset and only register hubs (no sidebar actions)
+    ModRegistry._reset();
+    ModRegistry.getInstance().registerHub({
+      id: "home",
+      label: "Home",
+      icon: House,
+      route: "/home",
+      component: () => null,
+      order: 0,
+    });
+
+    renderLayout("/library");
+
+    // Navigation still shows
+    expect(screen.getByText("Navigation")).toBeInTheDocument();
+    // Workspace section is absent when no inline actions exist
+    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+  });
+});

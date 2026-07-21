@@ -58,6 +58,7 @@ export interface EntityTypeSummary {
   name: string;
   prefix: string;
   columns: {
+    id?: string; // UUID assigned by the server (#252)
     name: string;
     type: GridColumnType;
     required?: boolean;
@@ -66,6 +67,7 @@ export interface EntityTypeSummary {
     description?: string;
   }[];
   is_active: boolean;
+  content_hash: string; // SHA-256 of column definitions (#252)
 }
 
 /** An empty TipTap document — a single empty paragraph. */

@@ -1,9 +1,11 @@
 /**
- * Tests for ElnWorkspacePage — 3-column ELN entry page.
+ * Tests for ElnWorkspacePage — five-zone ELN entry page (#281).
  *
  * Verifies the top toolbar (breadcrumbs, editor action buttons, ghost icon
- * buttons, avatars, share/sign & witness), content area, and metadata panel
- * with wired sections: Metadata, Linked Entities, Attachments, Activity.
+ * buttons, avatars, share/sign & witness), five-zone layout (left sidebar
+ * from Layout, left gutter, center gutter, right gutter, right sidebar),
+ * and metadata panel with wired sections: Metadata, Linked Entities,
+ * Attachments, Activity.
  *
  * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
  * toolbar via state lifted from ElnEditor through onStateChange + ref.
@@ -100,7 +102,7 @@ import ElnWorkspacePage from "../workspace/ElnWorkspacePage";
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
-describe("ElnWorkspacePage — 3-column layout", () => {
+describe("ElnWorkspacePage — five-zone layout", () => {
   beforeEach(() => {
     mockFetchActions.mockReset();
     mockFetchActions.mockResolvedValue([]);
@@ -305,6 +307,72 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════
+  // ── Five-zone layout ── (#281)
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  describe("Five-zone layout", () => {
+    it("renders all five zones: center gutter, right gutter, and right sidebar", () => {
+      renderAtRoute("/eln/EXP-0284");
+
+      // Zone 2 + right spacer: auto margins from justify-center on the
+      // content row centre the (center + right gutter) group.  No explicit
+      // spacer elements — the gutters are implicit.
+
+      // Zone 3: Center gutter — main element with editor content
+      const main = document.querySelector("main");
+      expect(main).toBeDefined();
+      expect(main).not.toBeNull();
+      // The editor is rendered inside main
+      expect(main!.querySelector('[data-testid="eln-editor"]')).toBeDefined();
+
+      // Zone 4: Right gutter — aside for comments, hidden below xl
+      const commentsAside = screen.getByLabelText("Comments");
+      expect(commentsAside).toBeDefined();
+      expect(commentsAside.tagName).toBe("ASIDE");
+      // Hidden below xl — the class should include 'hidden' (jsdom
+      // doesn't match xl media queries, so the element is hidden in the DOM)
+      expect(commentsAside.className).toContain("hidden");
+
+      // Zone 5: Right sidebar — metadata panel via SlotSidebar
+      // The sidebar renders sections that are verified in Metadata Panel tests below.
+      // Just confirm the sidebar content is present.
+      expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
+    });
+
+    it("center gutter is centred via justify-center with counterweight balancing right gutter", () => {
+      // The content row uses justify-center. An invisible left counterweight
+      // (17.5rem, hidden xl:block) balances the right gutter so the center
+      // gutter is always horizontally centred — not pushed left by the right
+      // gutter. Per-block centering (max-w-3xl mx-auto) lives on .ProseMirror
+      // children and BlockNodeView wrappers, not on the <main> itself.
+      renderAtRoute("/eln/EXP-0284");
+      const main = document.querySelector("main");
+      expect(main).toBeDefined();
+      // Main no longer carries max-w-3xl — per-block centering handles it
+      expect(main!.className).not.toContain("max-w-3xl");
+      // The parent flex row uses justify-center for centering
+      const contentRow = main!.parentElement;
+      expect(contentRow).toBeDefined();
+      expect(contentRow!.className).toContain("justify-center");
+    });
+
+    it("right gutter is w-64 and hides below xl", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const commentsAside = screen.getByLabelText("Comments");
+      // w-64 Tailwind class
+      expect(commentsAside.className).toContain("w-64");
+    });
+
+    it("right gutter hides below xl breakpoint (hidden xl:block)", () => {
+      renderAtRoute("/eln/EXP-0284");
+      const commentsAside = screen.getByLabelText("Comments");
+      // Must have 'hidden' for mobile, 'xl:block' for wide screens
+      expect(commentsAside.className).toContain("hidden");
+      expect(commentsAside.className).toContain("xl:block");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════
   // ── Metadata panel ── (PRD #6)
   // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -354,9 +422,9 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   });
 
   describe("Metadata Panel — Section 2: Linked Entities", () => {
-    it("renders the Linked entities section header", () => {
+    it("renders the Linked Entities section header", () => {
       renderAtRoute("/eln/EXP-0284");
-      expect(screen.getByText("Linked entities")).toBeDefined();
+      expect(screen.getByText("Linked Entities")).toBeDefined();
     });
 
     it("shows empty state when entry has no mentions", () => {
@@ -395,7 +463,7 @@ describe("ElnWorkspacePage — 3-column layout", () => {
   describe("Metadata Panel — Section 4: Activity", () => {
     it("renders the Activity section header", () => {
       renderAtRoute("/eln/EXP-0284");
-      expect(screen.getByText("Activity")).toBeDefined();
+      expect(screen.getByText("Activity Feed")).toBeDefined();
     });
 
     it("shows empty state when there are no actions", async () => {

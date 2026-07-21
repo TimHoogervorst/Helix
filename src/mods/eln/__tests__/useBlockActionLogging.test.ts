@@ -24,7 +24,7 @@ import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 
 const mockPost = vi.fn();
 
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   post: (...args: unknown[]) => mockPost(...args),
 }));
 

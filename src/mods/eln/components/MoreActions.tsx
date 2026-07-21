@@ -8,7 +8,7 @@
  */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Ellipsis } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 
 export interface MoreActionsItem {
@@ -144,7 +144,7 @@ function MoreActions({ items }: MoreActionsProps) {
         aria-haspopup="menu"
         onClick={() => setOpen((prev) => !prev)}
       >
-        <Ellipsis className="h-4 w-4" aria-hidden="true" />
+        <EllipsisVertical className="h-4 w-4" aria-hidden="true" />
       </button>
 
       {open &&

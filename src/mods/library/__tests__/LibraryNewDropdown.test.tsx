@@ -11,7 +11,7 @@ const { mockPost, mockCreateEntry } = vi.hoisted(() => ({
 }));
 
 // Mock the API client
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   post: mockPost,
   get: vi.fn(),
 }));

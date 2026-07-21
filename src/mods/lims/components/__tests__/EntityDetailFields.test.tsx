@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { EntityListItem } from "../../types";
-import { makeEntityListItem, makeMockMentionBadge } from "../../../../test/factories";
+import { makeEntityListItem, makeMockMentionBadge } from "../../../../shell/src/test/factories";
 import EntityDetailFields from "../EntityDetailFields";
 
 // Mock MentionBadge
-vi.mock("../../../../shared/components/MentionBadge", () => ({
+vi.mock("../../../../shell/src/shared/components/MentionBadge", () => ({
   default: makeMockMentionBadge(),
 }));
 

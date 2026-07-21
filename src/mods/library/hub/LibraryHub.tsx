@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -9,9 +9,6 @@ import {
   LayoutList,
   LayoutGrid,
   AlignJustify,
-  Star,
-  User,
-  Archive,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem } from "../types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
@@ -21,7 +18,9 @@ import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Bre
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { LibraryItemConfig } from "../../../shell/src/mod-system/types";
+import type { LibraryItemConfig, SlotContext } from "../../../shell/src/mod-system/types";
+import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
+import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -137,6 +136,23 @@ function LibraryHub() {
     getDisplayId: (item) =>
       item.type === "entry" ? item.display_id : "",
   });
+
+  // ── Sidebar bus and context ────────────────────────────────────────────
+
+  const busRef = useRef<WorkspaceBus>(null);
+  if (!busRef.current) {
+    busRef.current = new WorkspaceBus();
+  }
+  const bus = busRef.current;
+
+  const sidebarContext: SlotContext = useMemo(
+    () => ({
+      workspaceId: "library",
+      user: null,
+      viewMode,
+    }),
+    [viewMode],
+  );
 
   // ── Registry-driven card config ───────────────────────────────────────
 
@@ -409,37 +425,12 @@ function LibraryHub() {
         </div>
       </div>
 
-      {/* ── Right Sidebar (full height, alongside everything) ──────────── */}
-      <aside className="library-sidebar">
-        <div className="library-sidebar-section">
-          <h3 className="library-sidebar-heading">SELECTION</h3>
-          <p className="library-sidebar-placeholder">
-            Select an entry to see details.
-          </p>
-        </div>
-
-        <div className="library-sidebar-section">
-          <h3 className="library-sidebar-heading">VIEWS</h3>
-          <ul className="library-sidebar-views">
-            <li className="library-sidebar-view-item is-active">
-              <LayoutList size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              All Entries
-            </li>
-            <li className="library-sidebar-view-item">
-              <Star size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              Starred
-            </li>
-            <li className="library-sidebar-view-item">
-              <User size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              My Entries
-            </li>
-            <li className="library-sidebar-view-item">
-              <Archive size={14} className="library-sidebar-view-icon" aria-hidden="true" />
-              Archived
-            </li>
-          </ul>
-        </div>
-      </aside>
+      {/* ── Right Sidebar (slot-driven, full height, alongside everything) ── */}
+      <SlotSidebar
+        slotId="library.sidebar"
+        context={sidebarContext}
+        bus={bus}
+      />
     </div>
   );
 }

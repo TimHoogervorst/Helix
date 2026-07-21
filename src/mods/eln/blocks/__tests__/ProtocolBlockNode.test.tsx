@@ -11,13 +11,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // ── Mock API client ───────────────────────────────────────────────────────
 
 const mockGet = vi.fn();
-vi.mock("../../../../core/api/client", () => ({
+vi.mock("../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────
 
-import { ProtocolBlockComponent } from "../ProtocolBlockComponent";
+import { ProtocolBlockComponent } from "../ProtocolBlockNode";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -81,7 +81,8 @@ function makeBlockComponentProps(opts?: {
     },
   };
 
-  return { ...defaults, ...(opts?.rest ?? {}) };
+  const { instance: restInstance, ...restTop } = (opts?.rest as any) ?? {};
+  return { ...defaults, ...restTop, instance: { ...defaults.instance, ...restInstance } };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -174,7 +175,7 @@ describe("ProtocolBlockComponent — picker dropdown", () => {
 
     render(
       <ProtocolBlockComponent
-        {...makeBlockComponentProps({ rest: { updateAttributes } })}
+        {...makeBlockComponentProps({ rest: { instance: { updateAttrs: updateAttributes } } })}
       />,
     );
 
@@ -240,7 +241,7 @@ describe("ProtocolBlockComponent — rendered card", () => {
   });
 
   function cardProps(opts?: {
-    nodeAttrs?: Record<string, unknown>;
+    attrs?: Record<string, unknown>;
     rest?: Record<string, unknown>;
   }) {
     return makeBlockComponentProps({
@@ -250,7 +251,7 @@ describe("ProtocolBlockComponent — rendered card", () => {
         items: sampleItems,
         stepStates: {},
         editable: false,
-        ...(opts?.nodeAttrs ?? {}),
+        ...(opts?.attrs ?? {}),
       },
       rest: opts?.rest,
     });
@@ -335,7 +336,7 @@ describe("ProtocolBlockComponent — step toggle", () => {
   });
 
   function cardProps(opts?: {
-    nodeAttrs?: Record<string, unknown>;
+    attrs?: Record<string, unknown>;
     rest?: Record<string, unknown>;
   }) {
     return makeBlockComponentProps({
@@ -348,7 +349,7 @@ describe("ProtocolBlockComponent — step toggle", () => {
         ],
         stepStates: {},
         editable: false,
-        ...(opts?.nodeAttrs ?? {}),
+        ...(opts?.attrs ?? {}),
       },
       rest: opts?.rest,
     });
@@ -358,7 +359,7 @@ describe("ProtocolBlockComponent — step toggle", () => {
     const updateAttributes = vi.fn();
     render(
       <ProtocolBlockComponent
-        {...cardProps({ rest: { updateAttributes } })}
+        {...cardProps({ rest: { instance: { updateAttrs: updateAttributes } } })}
       />,
     );
 
@@ -384,7 +385,7 @@ describe("ProtocolBlockComponent — step toggle", () => {
               },
             },
           },
-          rest: { updateAttributes },
+          rest: { instance: { updateAttrs: updateAttributes } },
         })}
       />,
     );

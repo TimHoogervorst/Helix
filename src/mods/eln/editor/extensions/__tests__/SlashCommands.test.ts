@@ -8,8 +8,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Node } from "@tiptap/core";
 import SlashCommands from "../SlashCommands";
-import { createTestEditor } from "../../../../../test/factories";
-import { ModRegistry } from "../../../../../core/mod-system";
+import { createTestEditor } from "../../../../../shell/src/test/factories";
+import { ModRegistry } from "../../../../../shell/src/mod-system";
 
 /** Minimal inline TipTap node for testing — matches the block ID used in registerTableBlock. */
 const TestTableNode = Node.create({
@@ -20,6 +20,9 @@ const TestTableNode = Node.create({
     return {
       content: { default: "{}" },
     };
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", HTMLAttributes];
   },
 });
 

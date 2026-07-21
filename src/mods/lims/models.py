@@ -1,3 +1,7 @@
+import hashlib
+import json
+import uuid
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -22,7 +26,7 @@ class EntityType(models.Model):
     columns = models.JSONField(
         default=list,
         blank=True,
-        help_text="Ordered array of column definitions: {name, type, required, default, units, description}.",
+        help_text="Ordered array of column definitions: {id, name, type, required, default, units, description}.",
     )
     icon = models.CharField(
         max_length=10,
@@ -33,6 +37,12 @@ class EntityType(models.Model):
         default=True,
         help_text="Soft-delete flag. Inactive schemas are hidden from dropdowns but preserve existing entities.",
     )
+    content_hash = models.CharField(
+        max_length=64,
+        default="",
+        blank=True,
+        help_text="SHA-256 hash of column definitions (id, name, type, required, default, units). Computed on every save.",
+    )
 
     class Meta:
         db_table = "lims_entity_type"
@@ -40,6 +50,47 @@ class EntityType(models.Model):
 
     def __str__(self):
         return self.name
+
+    # ── Column ID helpers ───────────────────────────────────────────────
+
+    @staticmethod
+    def ensure_column_ids(columns):
+        """Assign a stable UUID to each column that doesn't already have one.
+
+        Mutates the column dicts in-place.  Existing columns with a truthy
+        ``id`` keep it; new columns receive a fresh ``uuid.uuid4()`` string.
+        """
+        for col in columns:
+            if not col.get("id"):
+                col["id"] = str(uuid.uuid4())
+        return columns
+
+    # ── Content hash ────────────────────────────────────────────────────
+
+    _HASH_FIELDS = ("id", "name", "type", "required", "default", "units")
+
+    @classmethod
+    def compute_content_hash(cls, columns):
+        """SHA-256 of the canonicalised column definitions.
+
+        Only the fields in ``_HASH_FIELDS`` are included so that metadata
+        (e.g. ``description``) can change without invalidating the hash.
+        """
+        hash_data = [
+            {f: col.get(f, "" if f != "required" else False) for f in cls._HASH_FIELDS}
+            for col in (columns or [])
+        ]
+        canonical = json.dumps(hash_data, sort_keys=True)
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    # ── Save hook ───────────────────────────────────────────────────────
+
+    def save(self, *args, **kwargs):
+        """Ensure every column has an id and the content hash is up-to-date."""
+        if self.columns:
+            self.ensure_column_ids(self.columns)
+        self.content_hash = self.compute_content_hash(self.columns or [])
+        super().save(*args, **kwargs)
 
 
 class RegisteredEntityType(models.Model):

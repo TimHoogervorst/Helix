@@ -18,64 +18,6 @@ Do **not** copy-paste these definitions into new test files.
 EMPTY_DOC: dict = {"type": "doc", "content": [{"type": "paragraph"}]}
 
 
-# ── LIMS table document ────────────────────────────────────────────────────
-
-
-def make_lims_table_doc(
-    schema_id: int,
-    rows_data: list[dict] | None = None,
-    entity_type: object | None = None,
-    row_names: list[str] | None = None,
-) -> dict:
-    """Build a TipTap doc containing a single limsTable v2 node.
-
-    Args:
-        schema_id: PK of the EntityType.
-        rows_data: List of dicts with column-name keys, e.g.
-            ``[{"volume": "50", "patient": "Alice"}]``.
-            If ``None``, an empty rows array is used.
-        entity_type: Optional EntityType instance; used to populate
-            ``attrs.columns``.  If omitted, columns will be empty.
-        row_names: Optional list of entity names (``__name``) for each row.
-            Defaults to ``"Row {i+1}"``.
-
-    Each row in ``rows_data`` becomes
-    ``{entityId: None, displayId: "#new", __name: ..., values: {...}}``.
-    """
-    if rows_data is None:
-        rows_data = []
-
-    # Derive columns from entity type if provided
-    columns: list = []
-    if entity_type is not None:
-        columns = entity_type.columns
-
-    rows = []
-    for i, row in enumerate(rows_data):
-        name = row_names[i] if row_names and i < len(row_names) else f"Row {i + 1}"
-        rows.append({
-            "entityId": None,
-            "displayId": "#new",
-            "__name": name,
-            "values": row,
-        })
-
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "limsTable",
-                "attrs": {
-                    "schemaId": schema_id,
-                    "title": "Test Table",
-                    "columns": columns,
-                    "rows": rows,
-                },
-            }
-        ],
-    }
-
-
 # ── Reference document ─────────────────────────────────────────────────────
 
 

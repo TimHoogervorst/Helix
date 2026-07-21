@@ -22,7 +22,7 @@ vi.mock("react-router-dom", () => ({
 
 const mockGet = vi.fn();
 const mockDel = vi.fn();
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   del: (...args: unknown[]) => mockDel(...args),
   ApiError: class ApiError extends Error {
@@ -35,7 +35,7 @@ vi.mock("../../../core/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn();
-vi.mock("../../../core/mentions/MentionProvider", () => ({
+vi.mock("../../../shell/src/mentions/MentionProvider", () => ({
   useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
@@ -54,7 +54,7 @@ vi.mock("../api", () => ({
 }));
 
 const mockUser = { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" };
-vi.mock("../../../core/user/CurrentUserProvider", () => ({
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
   useCurrentUser: () => ({ user: mockUser, isChecking: false, error: null, refresh: vi.fn() }),
 }));
 
@@ -244,6 +244,7 @@ describe("useEntryCrud", () => {
     expect(mockEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Auto Saved" }),
       "autosave",
+      undefined,
     );
 
     // After the promise resolves, title stays as-is (auto-save does NOT
@@ -267,37 +268,6 @@ describe("useEntryCrud", () => {
     });
 
     expect(mockEnqueue).not.toHaveBeenCalled();
-  });
-
-  it("autoSave validates entity names and skips on invalid", () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const contentWithEmptyName: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [{ entityId: null, displayId: "#1", __name: "", values: {} }],
-          },
-        },
-      ],
-    };
-
-    const { result } = renderHook(() =>
-      useEntryCrud(
-        makeOptions({ isNew: true, entryId: "E1", contentRef: { current: contentWithEmptyName } }),
-      ),
-    );
-
-    act(() => {
-      result.current.setTitle("Test");
-      result.current.autoSave(null);
-    });
-
-    // autoSave silently skips (no alert, no enqueue)
-    expect(mockEnqueue).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 
   // ── save (manual) ────────────────────────────────────────────────────────
@@ -326,39 +296,8 @@ describe("useEntryCrud", () => {
     expect(mockEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Manual Saved", folder: 5 }),
       "manual",
+      undefined,
     );
-  });
-
-  it("save validates entity names and shows alert", async () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const contentWithEmptyName: TipTapDoc = {
-      type: "doc",
-      content: [
-        {
-          type: "limsTable",
-          attrs: {
-            schemaId: 1,
-            rows: [{ entityId: null, displayId: "#1", __name: "", values: {} }],
-          },
-        },
-      ],
-    };
-
-    const { result } = renderHook(() =>
-      useEntryCrud(
-        makeOptions({ isNew: true, entryId: "E1", contentRef: { current: contentWithEmptyName } }),
-      ),
-    );
-
-    act(() => { result.current.setTitle("Test"); });
-
-    await act(async () => {
-      await result.current.save(null, []);
-    });
-
-    expect(alertSpy).toHaveBeenCalledWith("Name not filled in.");
-    expect(mockEnqueue).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 
   it("save for isNew attaches deferred tags after save", async () => {

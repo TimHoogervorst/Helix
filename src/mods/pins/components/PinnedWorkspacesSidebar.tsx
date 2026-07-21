@@ -3,6 +3,7 @@ import { Pin, PinOff, Box } from "lucide-react";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
+import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 
 /**
  * Render the icon for a workspace, falling back to a generic Box icon.
@@ -19,6 +20,7 @@ function WorkspaceIcon({ workspaceId }: { workspaceId: string }) {
 function PinnedWorkspacesSidebar() {
   const navigate = useNavigate();
   const { pins, current, pin, unpin } = usePinnedWorkspaces();
+  const { isCollapsed } = useSidebar();
 
   // ── Derived: is the current workspace already pinned? ──────────────────
   const isCurrentPinned = current
@@ -29,13 +31,48 @@ function PinnedWorkspacesSidebar() {
     navigate(url);
   }
 
+  // ── Collapsed: compact icon-only buttons ─────────────────────────────
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col items-center gap-1 py-2">
+        {/* Current workspace (temporary, not pinned) */}
+        {current && !isCurrentPinned && (
+          <button
+            className="btn-icon flex items-center justify-center w-8 h-8 rounded-md"
+            onClick={() => handleRowClick(current.url)}
+            title={current.displayId}
+            aria-label={`Current workspace: ${current.displayId}`}
+          >
+            <WorkspaceIcon workspaceId={current.icon} />
+          </button>
+        )}
+
+        {/* Pinned workspaces */}
+        {pins.map((p) => {
+          const wsId = extractWorkspaceId(p.url);
+          const tooltip =
+            p.label && p.label !== p.display_id
+              ? `${p.label} — ${p.display_id}`
+              : p.display_id;
+          return (
+            <button
+              key={p.id}
+              className="btn-icon flex items-center justify-center w-8 h-8 rounded-md"
+              onClick={() => handleRowClick(p.url)}
+              title={tooltip}
+              aria-label={`Open workspace: ${p.display_id}`}
+            >
+              {wsId ? <WorkspaceIcon workspaceId={wsId} /> : <Box className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Expanded: full rows with text, badges, and pin/unpin actions ─────
   return (
     <>
-      {/* Workspace section header */}
-      <div className="mt-1 px-3 pb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Workspace
-      </div>
-
       {/* Workspace tree area */}
       <div className="flex-1 overflow-y-auto px-2 pb-6 text-[13px]">
         {/* Current workspace (temporary, not pinned) */}

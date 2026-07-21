@@ -143,7 +143,7 @@ export function prependDescription(
 
 /**
  * Walk the TipTap JSON tree and collect all ``displayId`` values
- * from ``reference`` nodes and ``limsTable`` entity rows.
+ * from ``reference`` nodes.
  */
 export function collectDisplayIds(doc: TipTapDoc): string[] {
   const ids: string[] = [];
@@ -161,21 +161,6 @@ export function collectDisplayIds(doc: TipTapDoc): string[] {
       return; // reference nodes are atomic
     }
 
-    if (n.type === "limsTable") {
-      const attrs = n.attrs as Record<string, unknown> | undefined;
-      const rows = attrs?.rows;
-      if (Array.isArray(rows)) {
-        for (const row of rows) {
-          if (row && typeof row === "object") {
-            const r = row as Record<string, unknown>;
-            if (r.entityId != null && typeof r.displayId === "string") {
-              ids.push(r.displayId);
-            }
-          }
-        }
-      }
-    }
-
     const content = n.content;
     if (Array.isArray(content)) {
       for (const child of content) {
@@ -186,48 +171,6 @@ export function collectDisplayIds(doc: TipTapDoc): string[] {
 
   walk(doc);
   return ids;
-}
-
-/**
- * Walk the TipTap JSON tree and validate that every schema-backed limsTable
- * row has a non-empty ``__name``.  Returns ``true`` if all names are filled,
- * or ``false`` if any row in a schema-backed table has a blank name.
- */
-export function validateEntityNames(doc: TipTapDoc): boolean {
-  function walk(node: unknown): boolean {
-    if (!node || typeof node !== "object") return true;
-    const n = node as Record<string, unknown>;
-
-    if (n.type === "limsTable") {
-      const attrs = n.attrs as Record<string, unknown> | undefined;
-      const schemaId = attrs?.schemaId;
-      // Only validate schema-backed tables
-      if (schemaId != null) {
-        const rows = attrs?.rows;
-        if (Array.isArray(rows)) {
-          for (const row of rows) {
-            if (row && typeof row === "object") {
-              const r = row as Record<string, unknown>;
-              const name = (r.__name as string | undefined) ?? "";
-              if (name.trim() === "") {
-                return false;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    const content = n.content;
-    if (Array.isArray(content)) {
-      for (const child of content) {
-        if (!walk(child)) return false;
-      }
-    }
-    return true;
-  }
-
-  return walk(doc);
 }
 
 // ── Hook (composition wrapper) ────────────────────────────────────────────────

@@ -49,8 +49,8 @@ class EntityTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EntityType
-        fields = ["id", "name", "prefix", "icon", "columns", "is_active"]
-        read_only_fields = ["id", "is_active"]
+        fields = ["id", "name", "prefix", "icon", "columns", "is_active", "content_hash"]
+        read_only_fields = ["id", "is_active", "content_hash"]
 
     def validate_prefix(self, value):
         """Validate prefix format and uniqueness."""
@@ -70,7 +70,7 @@ class EntityTypeDetailSerializer(serializers.ModelSerializer):
     """Read serializer that includes is_active (used for list/retrieve)."""
     class Meta:
         model = EntityType
-        fields = ["id", "name", "prefix", "icon", "columns", "is_active"]
+        fields = ["id", "name", "prefix", "icon", "columns", "is_active", "content_hash"]
 
 
 class EntitySerializer(serializers.ModelSerializer):
@@ -107,6 +107,22 @@ class EntityBatchSerializer(serializers.Serializer):
     """Serializer for the batch resolve endpoint."""
     ids = serializers.ListField(
         child=serializers.CharField(), allow_empty=True
+    )
+
+
+class EntityBatchRegisterRowSerializer(serializers.Serializer):
+    """Serializer for a single row in the batch-register payload."""
+    entity_id = serializers.IntegerField(required=False, allow_null=True)
+    name = serializers.CharField(required=True, allow_blank=True)
+    values = serializers.DictField(default=dict)
+
+
+class EntityBatchRegisterSerializer(serializers.Serializer):
+    """Serializer for the batch-register endpoint payload."""
+    entity_type_id = serializers.IntegerField(required=True)
+    rows = serializers.ListField(
+        child=EntityBatchRegisterRowSerializer(),
+        allow_empty=False,
     )
 
 

@@ -1,7 +1,11 @@
+import logging
+
+from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
 
 from .models import EntityType, Entity, Action
@@ -10,8 +14,11 @@ from .serializers import (
     EntityTypeDetailSerializer,
     EntitySerializer,
     EntityBatchSerializer,
+    EntityBatchRegisterSerializer,
     ActionSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class EntityTypeViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
@@ -147,6 +154,124 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         """Delete ALL entities. Danger zone endpoint for testing."""
         count, _ = Entity.objects.all().delete()
         return Response({"deleted": count})
+
+    @action(detail=False, methods=["post"], url_path="batch-register")
+    def batch_register(self, request):
+        """Batch-register (create or update) LIMS entities.
+
+        POST /api/lims/entities/batch-register/
+        Body: {"entity_type_id": 1, "rows": [{"entity_id": null, "name": "...", "values": {...}}]}
+
+        - ``entity_id: null`` → create new entity.
+        - ``entity_id`` provided → update existing entity.
+        - Idempotent: re-registering the same (name, entity_type) does not duplicate.
+        - Partial success: errors in some rows don't block valid rows.
+        """
+        input_serializer = EntityBatchRegisterSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        entity_type_id = input_serializer.validated_data["entity_type_id"]
+        rows = input_serializer.validated_data["rows"]
+
+        # Validate entity_type exists
+        try:
+            entity_type = EntityType.objects.get(pk=entity_type_id)
+        except EntityType.DoesNotExist:
+            return Response(
+                {"detail": f"EntityType with id {entity_type_id} not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        author = request.user if request.user.is_authenticated else None
+
+        results = []
+        errors = []
+
+        for row_index, row in enumerate(rows):
+            entity_id = row.get("entity_id")
+            name = (row.get("name") or "").strip()
+            values = row.get("values", {})
+
+            # Validate name
+            if not name:
+                errors.append({
+                    "row_index": row_index,
+                    "field": "name",
+                    "message": "Name is required.",
+                })
+                continue
+
+            if entity_id is not None:
+                # Update existing entity
+                try:
+                    entity = Entity.objects.get(pk=entity_id)
+                    entity.name = name
+                    entity.properties = values
+                    entity.save(update_fields=["name", "properties"])
+                    results.append({
+                        "row_index": row_index,
+                        "entity_id": entity.id,
+                        "display_id": entity.display_id,
+                        "status": "updated",
+                    })
+                except Entity.DoesNotExist:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "entity_id",
+                        "message": f"Entity with id {entity_id} not found.",
+                    })
+            else:
+                # Idempotent create: check for existing entity with same name + type
+                existing = Entity.objects.filter(
+                    name=name, entity_type=entity_type
+                ).first()
+                if existing:
+                    # Idempotency — update instead of duplicate
+                    existing.properties = values
+                    existing.save(update_fields=["properties"])
+                    results.append({
+                        "row_index": row_index,
+                        "entity_id": existing.id,
+                        "display_id": existing.display_id,
+                        "status": "updated",
+                    })
+                else:
+                    entity = Entity.objects.create(
+                        name=name,
+                        entity_type=entity_type,
+                        properties=values,
+                        created_by=author,
+                    )
+                    results.append({
+                        "row_index": row_index,
+                        "entity_id": entity.id,
+                        "display_id": entity.display_id,
+                        "status": "created",
+                    })
+
+        # Action logging — log eln.entities.registered
+        if author and results:
+            try:
+                with transaction.atomic():
+                    log_action(
+                        user=author,
+                        action_type="eln.entities.registered",
+                        target_type="lims.entities",
+                        target_id=entity_type_id,
+                        metadata={
+                            "entity_type_id": entity_type_id,
+                            "count": len(results),
+                            "entity_ids": [r["entity_id"] for r in results],
+                        },
+                        request_id=getattr(self, "_request_id", None),
+                        client_ip=request.META.get("REMOTE_ADDR", "") or None,
+                    )
+            except Exception:
+                logger.exception(
+                    "Action logging failed for EntityViewSet.batch_register"
+                )
+
+        return Response({"results": results, "errors": errors})
 
 
 class ActionViewSet(viewsets.ReadOnlyModelViewSet):

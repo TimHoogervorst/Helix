@@ -2407,11 +2407,11 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
         {...loadedStretchProps({ overrides: { stretch: true } })}
       />,
     );
-    const container = screen.getByTestId("registry-table-loaded");
-    expect(container.className).toContain("max-w-3xl");
+    const wrapper = screen.getByTestId("registry-table-stretch-wrapper");
+    expect(wrapper.className).toContain("max-w-3xl");
     // Auto mode: card is capped at 48rem, table scrolls within it.
     // No mx-auto centering — left-aligned in the centre gutter.
-    expect(container.className).not.toContain("mx-auto");
+    expect(wrapper.className).not.toContain("mx-auto");
   });
 
   it("toggle click switches to full-width mode", () => {
@@ -2511,9 +2511,9 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
         {...loadedStretchProps({ overrides: { stretch: true } })}
       />,
     );
-    const container = screen.getByTestId("registry-table-loaded");
-    expect(container.className).toContain("max-w-3xl");
+    const wrapper = screen.getByTestId("registry-table-stretch-wrapper");
+    expect(wrapper.className).toContain("max-w-3xl");
     // Auto mode: left-aligned, not centred
-    expect(container.className).not.toContain("mx-auto");
+    expect(wrapper.className).not.toContain("mx-auto");
   });
 });

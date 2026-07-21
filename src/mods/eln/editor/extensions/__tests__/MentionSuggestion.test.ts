@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Reference from "../Reference";
 import MentionSuggestion from "../MentionSuggestion";
-import { createTestEditor } from "../../../../../test/factories";
+import { createTestEditor } from "../../../../../shell/src/test/factories";
 
 // ── Inlined helpers from MentionSuggestion.ts ───────────────────────────────
 
@@ -29,7 +29,7 @@ async function fetchItems(query: string): Promise<any[]> {
 
 // ── Mock API client ───────────────────────────────────────────────────────
 const mockGet = vi.fn();
-vi.mock("../../../../../core/api/client", () => ({
+vi.mock("../../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 

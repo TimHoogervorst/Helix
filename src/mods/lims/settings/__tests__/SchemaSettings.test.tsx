@@ -4,7 +4,7 @@ import SchemaSettings from "../SchemaSettings";
 
 // Mock the API client
 const mockGet = vi.fn();
-vi.mock("../../../../core/api/client", () => ({
+vi.mock("../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: vi.fn(),
   put: vi.fn(),

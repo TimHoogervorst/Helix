@@ -15,7 +15,7 @@ const { mockRegisterRoute, mockRegisterPublicRoute, mockRegisterSettingsSection 
     mockRegisterSettingsSection: vi.fn(),
   }));
 
-vi.mock("../../../core/mod-system", () => ({
+vi.mock("../../../shell/src/mod-system", () => ({
   registerRoute: mockRegisterRoute,
   registerPublicRoute: mockRegisterPublicRoute,
   registerSettingsSection: mockRegisterSettingsSection,

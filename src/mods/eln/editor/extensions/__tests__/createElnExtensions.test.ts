@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { createElnExtensions } from "../createElnExtensions";
-import { ModRegistry } from "../../../../../core/mod-system";
+import { ModRegistry } from "../../../../../shell/src/mod-system";
 
 /** Safe cast through unknown for loose access to extension internals. */
 function opts(e: unknown): Record<string, unknown> | undefined {
@@ -77,3 +77,4 @@ describe("createElnExtensions", () => {
     );
     expect(tableKit).toBeDefined();
   });
+});

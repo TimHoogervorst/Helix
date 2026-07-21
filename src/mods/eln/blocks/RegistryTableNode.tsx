@@ -1179,7 +1179,10 @@ export function RegistryTableContent({
 
       {/* Table wrapper — constrained in auto mode so only the title bar
           spans the full workspace content width. */}
-      <div className={stretchMode === "auto" ? "max-w-3xl" : "w-full"}>
+      <div
+        className={stretchMode === "auto" ? "max-w-3xl" : "w-full"}
+        data-testid="registry-table-stretch-wrapper"
+      >
       {/* Table — overflow-x-auto constrains the scrollbar while negative
           margins + padding let the table content extend visually into both
           left and right gutters when scrolled. In auto mode the wrapper

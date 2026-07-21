@@ -22,7 +22,7 @@ vi.mock("react-router-dom", () => ({
 
 const mockGet = vi.fn();
 const mockDel = vi.fn();
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   del: (...args: unknown[]) => mockDel(...args),
   ApiError: class ApiError extends Error {
@@ -35,7 +35,7 @@ vi.mock("../../../core/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn();
-vi.mock("../../../core/mentions/MentionProvider", () => ({
+vi.mock("../../../shell/src/mentions/MentionProvider", () => ({
   useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
@@ -54,7 +54,7 @@ vi.mock("../api", () => ({
   getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
 }));
 
-vi.mock("../../../core/user/CurrentUserProvider", () => ({
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
   useCurrentUser: () => ({
     user: { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" },
     isChecking: false,
@@ -346,6 +346,7 @@ describe("useEntryEditor", () => {
         status: "in_progress",
       }),
       "manual",
+      undefined,
     );
   });
 
@@ -422,6 +423,7 @@ describe("useEntryEditor", () => {
         status: "in_progress",
       }),
       "manual",
+      undefined,
     );
     // Always editable — mode never changes
     expect(result.current.mode).toBe("edit-existing");

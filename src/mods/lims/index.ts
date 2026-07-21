@@ -5,11 +5,18 @@ import {
   registerWorkspace,
   ModRegistry,
 } from "../../shell/src/mod-system";
-import type { RegisteredEntityType } from "../../shell/src/mod-system";
+import type { RegisteredEntityType, ModManifest } from "../../shell/src/mod-system";
 import { get } from "../../shell/src/api/client";
 import type { EntityType } from "./types";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
+
+export const meta: ModManifest = {
+  id: "lims",
+  displayName: "LIMS",
+  dependsOn: [],
+};
+
 export function register() {
   // ── Workspace: LIMS entity workspace ───────────────────────────────────
   registerWorkspace({ id: "lims", displayName: "LIMS", icon: FlaskConical });

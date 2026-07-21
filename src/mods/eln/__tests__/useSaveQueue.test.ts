@@ -24,7 +24,7 @@ const mockPut = vi.fn();
 
 // We need the mocked NetworkError to be importable so tests can create
 // instances for the hook's instanceof/name check.
-vi.mock("../../../core/api/client", () => {
+vi.mock("../../../shell/src/api/client", () => {
   class NetworkError extends Error {
     constructor(message: string) {
       super(message);

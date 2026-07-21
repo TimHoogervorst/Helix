@@ -1,6 +1,14 @@
 import { lazy } from "react";
 import { Users } from "lucide-react";
 import { registerRoute, registerPublicRoute, registerSettingsSection } from "../../shell/src/mod-system";
+import type { ModManifest } from "../../shell/src/mod-system/types";
+
+export const meta: ModManifest = {
+  id: "users",
+  displayName: "Users",
+  dependsOn: [],
+};
+
 export function register() {
   // ── Public routes (no sidebar, full-page) ──────────────────────────────
   registerPublicRoute({

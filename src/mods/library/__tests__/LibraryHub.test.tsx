@@ -39,7 +39,7 @@ Object.defineProperty(window, "localStorage", {
 });
 
 // Mock ModRegistry — LibraryHub resolves library item configs
-vi.mock("../../../core/mod-system/ModRegistry", () => ({
+vi.mock("../../../shell/src/mod-system/ModRegistry", () => ({
   ModRegistry: {
     getInstance: () => ({
       resolveLibraryItem: () => ({

@@ -26,7 +26,7 @@ vi.mock("react-router-dom", async () => {
 
 const mockGet = vi.fn();
 const mockDel = vi.fn();
-vi.mock("../../../core/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   del: (...args: unknown[]) => mockDel(...args),
   ApiError: class ApiError extends Error {
@@ -39,7 +39,7 @@ vi.mock("../../../core/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn().mockResolvedValue(undefined);
-vi.mock("../../../core/mentions/MentionProvider", () => ({
+vi.mock("../../../shell/src/mentions/MentionProvider", () => ({
   useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
@@ -59,7 +59,7 @@ vi.mock("../api", () => ({
   getLockStatus: (...args: unknown[]) => mockGetLockStatus(...args),
 }));
 
-vi.mock("../../../core/user/CurrentUserProvider", () => ({
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
   useCurrentUser: () => ({
     user: { id: 1, username: "alice", first_name: "", last_name: "", color: "#000", is_active: true, date_joined: "2025-01-01" },
     isChecking: false,

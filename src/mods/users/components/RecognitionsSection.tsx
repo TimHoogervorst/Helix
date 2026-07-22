@@ -110,7 +110,7 @@ export function RecognitionsSection() {
   const editing = mode.type !== "view";
 
   return (
-    <section className="rounded-lg border border-border bg-panel p-5">
+    <section className="group/section rounded-lg border border-border bg-panel p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ export function RecognitionsSection() {
         {!editing && (
           <button
             type="button"
-            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground"
+            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground opacity-0 group-hover/section:opacity-100 transition-opacity"
             onClick={() => setMode({ type: "adding" })}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -158,7 +158,7 @@ export function RecognitionsSection() {
               /* ── View row ────────────────────────────────── */
               <div
                 key={item.id}
-                className="group flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
+                className="group/row flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium text-foreground">
@@ -169,7 +169,7 @@ export function RecognitionsSection() {
                   </p>
                 </div>
                 {mode.type === "view" && (
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
                     <button
                       type="button"
                       className="btn-icon rounded text-muted-foreground hover:text-foreground"

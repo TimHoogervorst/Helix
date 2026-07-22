@@ -44,7 +44,7 @@ function GreetingSection() {
   const userName = user?.username ?? "there";
 
   return (
-    <section className="grid-paper w-full px-6 py-6">
+    <section className="grid-paper w-full px-6 py-10">
       <div className="mx-auto max-w-4xl">
         <h1 className="mt-3 font-serif text-[1rem] font-semibold leading-[1.05] tracking-tight md:text-[4rem]">
           Good morning,{" "}
@@ -508,7 +508,7 @@ function TodayInTheLab() {
 function HomePage() {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
-      <DecorativeHeader />
+      {/* <DecorativeHeader /> */}
       <GreetingSection />
       <StatsBar />
       <JumpBackIn />

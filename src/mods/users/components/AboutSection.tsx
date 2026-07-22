@@ -6,11 +6,11 @@ import { ApiError } from "../../../shell/src/api/client";
 import type { UserProfile } from "../../../shell/src/user/types";
 
 /**
- * Section card displaying editable profile details.
+ * Section card for the user's bio.
  *
  * States:
- *  - view:  renders fields as label/value pairs with an Edit button in the header
- *  - edit:  renders inline text inputs, textarea for bio, Save/Cancel buttons
+ *  - view:  shows the bio paragraph only (other fields are shown in ProfileHeader)
+ *  - edit:  renders inline text inputs for all fields + textarea for bio, Save/Cancel buttons
  *
  * Editable fields: title, username, position, pronouns, location, email, bio.
  */
@@ -110,7 +110,7 @@ export function AboutSection() {
   };
 
   return (
-    <section className="rounded-lg border border-border bg-panel p-5">
+    <section className="group rounded-lg border border-border bg-panel p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold tracking-tight">
@@ -119,7 +119,7 @@ export function AboutSection() {
         {!editing && (
           <button
             type="button"
-            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground"
+            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={handleEdit}
           >
             <Pencil className="h-3 w-3" />
@@ -186,56 +186,19 @@ export function AboutSection() {
           </div>
         </div>
       ) : (
-        /* ── View mode ──────────────────────────────────────── */
-        <div className="space-y-2.5">
-          {user.profile.title && (
-            <FieldRow label="Title" value={user.profile.title} />
+        /* ── View mode — only bio text (fields shown in profile header) ── */
+        <div>
+          {user.profile.bio ? (
+            <p className="text-[13px] leading-relaxed text-foreground">
+              {user.profile.bio}
+            </p>
+          ) : (
+            <p className="text-[13px] text-muted-foreground">
+              No bio yet. Click Edit to add one.
+            </p>
           )}
-          <FieldRow label="Username" value={user.username} />
-          {user.profile.position && (
-            <FieldRow label="Position" value={user.profile.position} />
-          )}
-          {user.profile.pronouns && (
-            <FieldRow label="Pronouns" value={user.profile.pronouns} />
-          )}
-          {user.profile.location && (
-            <FieldRow label="Location" value={user.profile.location} />
-          )}
-          {user.email && <FieldRow label="Email" value={user.email} />}
-          {user.profile.bio && (
-            <div>
-              <span className="text-[12px] font-medium text-muted-foreground">
-                Bio
-              </span>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-foreground">
-                {user.profile.bio}
-              </p>
-            </div>
-          )}
-          {!user.profile.title &&
-            !user.profile.position &&
-            !user.profile.pronouns &&
-            !user.profile.location &&
-            !user.email &&
-            !user.profile.bio && (
-              <p className="text-[13px] text-muted-foreground">
-                No profile details yet. Click Edit to add some.
-              </p>
-            )}
         </div>
       )}
     </section>
-  );
-}
-
-/** A single label/value row in view mode. */
-function FieldRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="w-20 shrink-0 text-[12px] font-medium text-muted-foreground">
-        {label}
-      </span>
-      <span className="text-[13px] text-foreground">{value}</span>
-    </div>
   );
 }

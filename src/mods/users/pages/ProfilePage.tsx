@@ -27,7 +27,7 @@ export default function ProfilePage() {
 
       {/* Two-column content grid */}
       <section className="mx-auto w-full max-w-6xl px-6 py-8">
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-[70%_30%]">
           {/* ── Left column ─────────────────────────────────── */}
           <div className="flex flex-col gap-6">
             <AboutSection />

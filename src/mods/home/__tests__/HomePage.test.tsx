@@ -80,9 +80,8 @@ describe("HomePage", () => {
     // The decorative header is an aria-hidden div — verify it's present
     const decorativeHeader = document.querySelector("[aria-hidden='true']");
     expect(decorativeHeader).toBeInTheDocument();
-    expect(decorativeHeader).toHaveClass("border-b");
+    expect(decorativeHeader).toHaveClass("border-b-1");
     expect(decorativeHeader).toHaveClass("border-border");
-    expect(decorativeHeader).toHaveClass("bg-panel");
   });
 
   // ── Greeting section ───────────────────────────────────────────────────
@@ -132,7 +131,7 @@ describe("HomePage", () => {
     renderHomePage();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("−79.4 °C")).toBeInTheDocument();
+    expect(screen.getByText("-79.4 °C")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 

@@ -119,7 +119,7 @@ export function AboutSection() {
         {!editing && (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground"
             onClick={handleEdit}
           >
             <Pencil className="h-3 w-3" />
@@ -169,7 +169,7 @@ export function AboutSection() {
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
-              className="rounded-md bg-primary px-3 py-1.5 text-[13px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              className="btn-ghost rounded-md px-3 py-1.5 text-[13px] font-medium disabled:opacity-50"
               onClick={handleSave}
               disabled={saving}
             >
@@ -177,7 +177,7 @@ export function AboutSection() {
             </button>
             <button
               type="button"
-              className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground"
+              className="btn-ghost rounded-md px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-50"
               onClick={handleCancel}
               disabled={saving}
             >

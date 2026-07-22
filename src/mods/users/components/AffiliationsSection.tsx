@@ -125,7 +125,7 @@ export function AffiliationsSection() {
         {!editing && (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground"
             onClick={() => setMode({ type: "adding" })}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -183,7 +183,7 @@ export function AffiliationsSection() {
                   <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       type="button"
-                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="btn-icon rounded text-muted-foreground hover:text-foreground"
                       onClick={() => handleEdit(item)}
                       aria-label="Edit affiliation"
                     >
@@ -191,7 +191,7 @@ export function AffiliationsSection() {
                     </button>
                     <button
                       type="button"
-                      className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      className="btn-icon rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => handleDelete(item.id)}
                       aria-label="Delete affiliation"
                     >
@@ -300,7 +300,7 @@ function AffiliationEditRow({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
           onClick={onSave}
           disabled={saving}
         >
@@ -308,7 +308,7 @@ function AffiliationEditRow({
         </button>
         <button
           type="button"
-          className="rounded-md px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-50"
           onClick={onCancel}
           disabled={saving}
         >

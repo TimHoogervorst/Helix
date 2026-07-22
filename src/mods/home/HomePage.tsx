@@ -23,7 +23,12 @@ import type { HubConfig } from "../../shell/src/mod-system/types";
  * Purely visual — no text or interactive elements.
  */
 function DecorativeHeader() {
-  return <div className="h-6 border-b border-hairline" aria-hidden="true" />;
+  return (
+    <div
+      className="h-12 border-b border-border bg-panel"
+      aria-hidden="true"
+    />
+  );
 }
 
 // ── Greeting Section ─────────────────────────────────────────────────────────

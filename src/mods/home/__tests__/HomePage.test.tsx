@@ -81,7 +81,8 @@ describe("HomePage", () => {
     const decorativeHeader = document.querySelector("[aria-hidden='true']");
     expect(decorativeHeader).toBeInTheDocument();
     expect(decorativeHeader).toHaveClass("border-b");
-    expect(decorativeHeader).toHaveClass("border-hairline");
+    expect(decorativeHeader).toHaveClass("border-border");
+    expect(decorativeHeader).toHaveClass("bg-panel");
   });
 
   // ── Greeting section ───────────────────────────────────────────────────

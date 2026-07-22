@@ -34,6 +34,7 @@
   --color-hairline: oklch(0.93 0.008 90);
   --color-surface: oklch(0.975 0.008 95);
   --color-panel: oklch(1 0 0);
+  --color-card: oklch(1 0 0);
   --color-muted: oklch(0.955 0.008 95);
   --color-muted-foreground: oklch(0.48 0.02 260);
 

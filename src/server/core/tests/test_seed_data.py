@@ -98,12 +98,12 @@ class SeedDataTests(TestCase):
 
         user = User.objects.get(username="prof_test")
         self.assertIsInstance(user.profile, dict)
-        self.assertEqual(user.profile["title"], "Dr.")
-        self.assertEqual(user.profile["position"], "Distinguished Geneticist")
-        self.assertIn("jumping genes", user.profile["bio"])
+        self.assertEqual(user.profile["title"], "")
+        self.assertEqual(user.profile["position"], "System Administrator")
+        self.assertIn("Platform administrator", user.profile["bio"])
 
     def test_seeds_affiliations_on_new_user(self):
-        """Seed creates three affiliations for the new user."""
+        """Seed creates two affiliations for the new user."""
         self.call_seed({
             "SEED_USERNAME": "aff_test",
             "SEED_PASSWORD": "pass123",
@@ -111,11 +111,10 @@ class SeedDataTests(TestCase):
 
         user = User.objects.get(username="aff_test")
         affiliations = Affiliation.objects.filter(user=user)
-        self.assertEqual(affiliations.count(), 3)
+        self.assertEqual(affiliations.count(), 2)
         institutions = {a.institution for a in affiliations}
-        self.assertIn("Cold Spring Harbor Laboratory", institutions)
-        self.assertIn("Cornell University", institutions)
-        self.assertIn("University of Missouri", institutions)
+        self.assertIn("Helix Platform", institutions)
+        self.assertIn("OpenScience Initiative", institutions)
 
     def test_seeds_publications_on_new_user(self):
         """Seed creates two publications for the new user."""
@@ -128,10 +127,10 @@ class SeedDataTests(TestCase):
         publications = Publication.objects.filter(user=user)
         self.assertEqual(publications.count(), 2)
         titles = {p.title for p in publications}
-        self.assertIn("The origin and behavior of mutable loci in maize", titles)
+        self.assertIn("Helix: An open-science platform for collaborative research", titles)
 
     def test_seeds_recognitions_on_new_user(self):
-        """Seed creates three recognitions for the new user."""
+        """Seed creates two recognitions for the new user."""
         self.call_seed({
             "SEED_USERNAME": "rec_test",
             "SEED_PASSWORD": "pass123",
@@ -139,9 +138,9 @@ class SeedDataTests(TestCase):
 
         user = User.objects.get(username="rec_test")
         recognitions = Recognition.objects.filter(user=user)
-        self.assertEqual(recognitions.count(), 3)
+        self.assertEqual(recognitions.count(), 2)
         titles = {r.title for r in recognitions}
-        self.assertIn("Nobel Prize in Physiology or Medicine", titles)
+        self.assertIn("Best Open-Source Tool", titles)
 
     def test_profile_data_is_idempotent(self):
         """Running seed twice does not duplicate profile lists."""
@@ -150,7 +149,7 @@ class SeedDataTests(TestCase):
         out = self.call_seed(env)
 
         user = User.objects.get(username="idem_profile")
-        self.assertEqual(Affiliation.objects.filter(user=user).count(), 3)
+        self.assertEqual(Affiliation.objects.filter(user=user).count(), 2)
         self.assertEqual(Publication.objects.filter(user=user).count(), 2)
-        self.assertEqual(Recognition.objects.filter(user=user).count(), 3)
+        self.assertEqual(Recognition.objects.filter(user=user).count(), 2)
         self.assertIn("Profile already populated", out)

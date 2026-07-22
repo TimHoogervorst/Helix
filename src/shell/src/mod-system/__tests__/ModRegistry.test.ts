@@ -35,6 +35,7 @@ function makeHub(overrides?: Partial<HubConfig>): HubConfig {
     route: "/test-hub",
     component: DummyComponent,
     order: 5,
+    description: "A test hub for unit tests.",
     ...overrides,
   };
 }
@@ -157,6 +158,14 @@ describe("ModRegistry", () => {
     expect(() => registry.registerHub(makeHub({ id: "h1" }))).toThrow(
       "Duplicate hub registration",
     );
+  });
+
+  it("registerHub stores and returns a hub with a description", () => {
+    const config = makeHub({ id: "h1", description: "A test hub." });
+    registry.registerHub(config);
+    const hub = registry.getHubs().get("h1");
+    expect(hub).toBeDefined();
+    expect(hub?.description).toBe("A test hub.");
   });
 
   // ── registerSettingsSection ──────────────────────────────────────────

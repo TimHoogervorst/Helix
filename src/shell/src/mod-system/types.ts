@@ -38,6 +38,8 @@ export interface HubConfig {
   route: string;
   component: ComponentType<any>;
   order: number;
+  /** Short description shown in hub listings and navigation. */
+  description?: string;
 }
 
 // ── Settings Section ──────────────────────────────────────────────────────

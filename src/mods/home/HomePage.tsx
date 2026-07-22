@@ -42,9 +42,11 @@ function GreetingSection() {
   return (
     <section className="grid-paper w-full px-6 py-12">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mt-3 font-serif text-16xl font-semibold leading-[1.05] tracking-tight md:text-9xl">
+        <h1 className="mt-3 font-serif text-[8rem] font-semibold leading-[1.05] tracking-tight md:text-[12rem]">
           Good morning,{" "}
           <span className="italic text-primary">{userName}</span>
+          .<br />
+          Your bench is warm.
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {GREETING_SUBTITLE}

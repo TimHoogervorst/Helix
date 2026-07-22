@@ -24,9 +24,12 @@ class User(AbstractUser):
     """Custom user model. Adds auth_token via DRF's Token model.
 
     The ``color`` field stores a hex color used as the avatar background.
+    The ``profile`` JSONField holds rich profile data (title, position,
+    pronouns, location, bio, orcid).
     """
 
     color = models.CharField(max_length=7, default=random_user_color)
+    profile = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "core_user"

@@ -99,6 +99,11 @@ describe("HomePage", () => {
     expect(userName).toHaveClass("text-primary");
   });
 
+  it("renders 'Your bench is warm.' below the greeting", () => {
+    renderHomePage();
+    expect(screen.getByText(/Your bench is warm\./)).toBeInTheDocument();
+  });
+
   it("renders the placeholder subtitle below the greeting", () => {
     renderHomePage();
     expect(

@@ -24,10 +24,9 @@ import type { HubConfig } from "../../shell/src/mod-system/types";
  */
 function DecorativeHeader() {
   return (
-    <div
-      className="h-12 border-b border-border bg-panel"
-      aria-hidden="true"
-    />
+    <div className="border-b-1 border-border" aria-hidden="true">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6" />
+    </div>
   );
 }
 
@@ -45,9 +44,9 @@ function GreetingSection() {
   const userName = user?.username ?? "there";
 
   return (
-    <section className="grid-paper w-full px-6 py-12">
+    <section className="grid-paper w-full px-6 py-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mt-3 font-serif text-[8rem] font-semibold leading-[1.05] tracking-tight md:text-[12rem]">
+        <h1 className="mt-3 font-serif text-[1rem] font-semibold leading-[1.05] tracking-tight md:text-[4rem]">
           Good morning,{" "}
           <span className="italic text-primary">{userName}</span>
           .<br />
@@ -87,7 +86,7 @@ const STAT_TILES: StatTileData[] = [
   {
     icon: <Thermometer className="h-4 w-4" aria-hidden="true" />,
     label: "Freezer",
-    value: "−79.4 °C",
+    value: "-79.4 °C",
     subtitle: "All systems normal",
   },
   {
@@ -103,6 +102,7 @@ const STAT_TILES: StatTileData[] = [
  */
 function StatTile({ icon, label, value, subtitle }: StatTileData) {
   return (
+   
     <div className="flex flex-col items-start gap-1.5 bg-card px-5 py-3">
       <span className="text-muted-foreground">{icon}</span>
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -123,7 +123,7 @@ function StatTile({ icon, label, value, subtitle }: StatTileData) {
  */
 function StatsBar() {
   return (
-    <section className="border-b border-hairline bg-surface">
+    <section className="border-y-1 border-border bg-surface">
       <div className="mx-auto max-w-4xl">
         <div className="grid grid-cols-1 gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
           {STAT_TILES.map((tile) => (
@@ -251,7 +251,7 @@ function JumpBackIn() {
     .map(([, hub], index) => ({ hub, index }));
 
   return (
-    <section className="px-6 py-12">
+    <section className="px-6 py-6">
       <div className="mx-auto max-w-4xl">
         {/* Section heading */}
         <div className="mb-5 flex items-baseline justify-between">
@@ -512,7 +512,7 @@ function HomePage() {
       <GreetingSection />
       <StatsBar />
       <JumpBackIn />
-      <section className="px-6 py-12">
+      <section className="px-6 py-6">
         <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <RecentActivity />

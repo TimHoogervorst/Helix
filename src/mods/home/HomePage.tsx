@@ -5,6 +5,11 @@ import {
   AlertTriangle,
   ArrowRight,
   Beaker,
+  Eye,
+  Pencil,
+  Flag,
+  MessageSquare,
+  TrendingUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCurrentUser } from "../../shell/src/user/CurrentUserProvider";
@@ -142,6 +147,18 @@ const HUB_COLOR_CLASSES: Record<
   solvent: { bg: "bg-solvent", text: "text-solvent-foreground" },
 };
 
+/** All semantic color tokens used for icon badges (includes warn). */
+type SemanticColorToken = HubColorToken | "warn";
+
+/** Tailwind classes for all semantic color tokens (flask, enzyme, solvent, warn). */
+const SEMANTIC_COLOR_CLASSES: Record<
+  SemanticColorToken,
+  { bg: string; text: string }
+> = {
+  ...HUB_COLOR_CLASSES,
+  warn: { bg: "bg-warn", text: "text-warn-foreground" },
+};
+
 function getHubColor(index: number): HubColorToken {
   return HUB_COLOR_TOKENS[index % HUB_COLOR_TOKENS.length];
 }
@@ -261,16 +278,225 @@ function JumpBackIn() {
   );
 }
 
+// ── Recent Activity ──────────────────────────────────────────────────────────
+
+interface RecentActivityItem {
+  icon: React.ReactNode;
+  colorToken: SemanticColorToken;
+  person: string;
+  action: string;
+  target: string;
+  timestamp: string;
+  filePath: string;
+}
+
+/** Hardcoded placeholder activity items for the Recent Activity panel. */
+const RECENT_ACTIVITY_ITEMS: RecentActivityItem[] = [
+  {
+    icon: <Eye className="h-3.5 w-3.5" aria-hidden="true" />,
+    colorToken: "flask",
+    person: "Mira Kato",
+    action: "witnessed",
+    target: "PCR run #142",
+    timestamp: "2 min ago",
+    filePath: "/eln/notebooks/lab-a/pcr-142",
+  },
+  {
+    icon: <Pencil className="h-3.5 w-3.5" aria-hidden="true" />,
+    colorToken: "enzyme",
+    person: "James Chen",
+    action: "edited",
+    target: "Buffer prep SOP",
+    timestamp: "18 min ago",
+    filePath: "/library/sops/buffer-prep-v3",
+  },
+  {
+    icon: <FileText className="h-3.5 w-3.5" aria-hidden="true" />,
+    colorToken: "solvent",
+    person: "Priya Sharma",
+    action: "logged",
+    target: "Cell culture passage",
+    timestamp: "47 min ago",
+    filePath: "/eln/notebooks/lab-b/cell-culture",
+  },
+  {
+    icon: <Flag className="h-3.5 w-3.5" aria-hidden="true" />,
+    colorToken: "warn",
+    person: "Alex Müller",
+    action: "flagged",
+    target: "Incubator temperature",
+    timestamp: "1 hour ago",
+    filePath: "/lims/equipment/incubator-3",
+  },
+  {
+    icon: <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />,
+    colorToken: "flask",
+    person: "Sarah Okafor",
+    action: "commented",
+    target: "Western blot results",
+    timestamp: "2 hours ago",
+    filePath: "/eln/notebooks/lab-a/western-blot-089",
+  },
+];
+
+/**
+ * A single activity row: colored icon badge, bold person name, action + target,
+ * and a monospaced timestamp with file path.
+ */
+function ActivityRow({ item }: { item: RecentActivityItem }) {
+  const colorClasses = SEMANTIC_COLOR_CLASSES[item.colorToken];
+
+  return (
+    <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+      {/* Colored icon badge */}
+      <span
+        className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md ${colorClasses.bg} ${colorClasses.text}`}
+      >
+        {item.icon}
+      </span>
+
+      {/* Description + timestamp */}
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] leading-snug text-foreground">
+          <span className="font-semibold">{item.person}</span>{" "}
+          {item.action}{" "}
+          <span className="font-medium">{item.target}</span>
+        </p>
+        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+          {item.timestamp} — {item.filePath}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Recent activity" panel — bordered card with a heading, a "live" chip,
+ * and five hardcoded activity items.
+ */
+function RecentActivity() {
+  return (
+    <section className="rounded-lg border border-border bg-panel p-5">
+      {/* Heading row */}
+      <div className="mb-4 flex items-center gap-2">
+        <h2 className="font-serif text-lg font-semibold tracking-tight">
+          Recent activity
+        </h2>
+        <span className="chip">
+          <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+          live
+        </span>
+      </div>
+
+      {/* Activity list */}
+      <div className="divide-y divide-hairline">
+        {RECENT_ACTIVITY_ITEMS.map((item, index) => (
+          <ActivityRow key={index} item={item} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── Today in the Lab ────────────────────────────────────────────────────────
+
+interface TimelineEntry {
+  time: string;
+  colorToken: SemanticColorToken;
+  description: string;
+}
+
+/** Hardcoded placeholder timeline entries for the Today in the Lab panel. */
+const TIMELINE_ENTRIES: TimelineEntry[] = [
+  {
+    time: "09:15",
+    colorToken: "flask",
+    description: "Daily instrument calibration completed across all labs.",
+  },
+  {
+    time: "10:30",
+    colorToken: "enzyme",
+    description: "New reagent batch QC passed — ready for distribution.",
+  },
+  {
+    time: "13:45",
+    colorToken: "solvent",
+    description: "Safety inspection walkthrough starting in Lab B.",
+  },
+  {
+    time: "15:00",
+    colorToken: "warn",
+    description: "Freezer −80 °C defrost cycle scheduled for tonight.",
+  },
+];
+
+/**
+ * A single timeline row: monospaced time label, a small colored dot,
+ * and a text description.
+ */
+function TimelineRow({ entry }: { entry: TimelineEntry }) {
+  const colorClasses = SEMANTIC_COLOR_CLASSES[entry.colorToken];
+
+  return (
+    <div className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+      {/* Time label */}
+      <span className="font-mono text-[11px] text-muted-foreground shrink-0 w-10">
+        {entry.time}
+      </span>
+
+      {/* Colored dot */}
+      <span
+        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${colorClasses.bg}`}
+        aria-hidden="true"
+      />
+
+      {/* Description */}
+      <p className="text-[13px] leading-snug text-foreground">
+        {entry.description}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * "Today in the lab" panel — bordered card with a heading, a trending icon,
+ * and four hardcoded timeline entries.
+ */
+function TodayInTheLab() {
+  return (
+    <section className="rounded-lg border border-border bg-panel p-5">
+      {/* Heading row */}
+      <div className="mb-4 flex items-center gap-2">
+        <h2 className="font-serif text-lg font-semibold tracking-tight">
+          Today in the lab
+        </h2>
+        <TrendingUp
+          className="h-4 w-4 text-muted-foreground"
+          aria-hidden="true"
+        />
+      </div>
+
+      {/* Timeline */}
+      <div className="divide-y divide-hairline">
+        {TIMELINE_ENTRIES.map((entry, index) => (
+          <TimelineRow key={index} entry={entry} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ── HomePage ─────────────────────────────────────────────────────────────────
 
 /**
  * HomePage — the Home hub dashboard.
  *
- * Composed of four visible sections:
+ * Composed of six visible sections:
  *  1. Decorative header (thin bar with bottom border)
  *  2. Greeting section (grid-paper background, greets user by first name)
  *  3. Stats bar (4-column grid of placeholder metrics)
  *  4. Jump Back In (grid of hub cards for quick navigation)
+ *  5. Recent Activity + Today in the Lab (2/3 + 1/3 side-by-side panels)
  */
 function HomePage() {
   return (
@@ -279,6 +505,16 @@ function HomePage() {
       <GreetingSection />
       <StatsBar />
       <JumpBackIn />
+      <section className="px-6 py-12">
+        <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <RecentActivity />
+          </div>
+          <div className="lg:col-span-1">
+            <TodayInTheLab />
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

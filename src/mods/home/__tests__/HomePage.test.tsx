@@ -10,6 +10,9 @@
  *  - Hub cards for non-home hubs with labels, descriptions, and link targets
  *  - Home hub is excluded from cards
  *  - Empty state when no non-home hubs exist
+ *  - Recent Activity panel with heading, live chip, five activity items
+ *  - Today in the Lab panel with heading, trending icon, four timeline entries
+ *  - Both panels render side by side, no inspirational quote
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -326,6 +329,145 @@ describe("HomePage", () => {
       // Footer with chip and timestamp
       expect(screen.getByText("open")).toBeInTheDocument();
       expect(screen.getByText("edited 8 min ago")).toBeInTheDocument();
+    });
+  });
+
+  // ── Recent Activity panel ─────────────────────────────────────────────
+
+  describe("Recent Activity", () => {
+    it("renders the panel heading and live chip", () => {
+      renderHomePage();
+      expect(
+        screen.getByRole("heading", { name: "Recent activity" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("live")).toBeInTheDocument();
+      // The live chip includes a green pulsing dot
+      const liveChip = screen.getByText("live").closest(".chip");
+      expect(liveChip).toBeInTheDocument();
+      expect(liveChip!.querySelector(".bg-green-500")).toBeInTheDocument();
+    });
+
+    it("renders all five activity items with person names", () => {
+      renderHomePage();
+      expect(screen.getByText(/Mira Kato/)).toBeInTheDocument();
+      expect(screen.getByText(/James Chen/)).toBeInTheDocument();
+      expect(screen.getByText(/Priya Sharma/)).toBeInTheDocument();
+      expect(screen.getByText(/Alex Müller/)).toBeInTheDocument();
+      expect(screen.getByText(/Sarah Okafor/)).toBeInTheDocument();
+    });
+
+    it("renders activity actions and targets", () => {
+      renderHomePage();
+      expect(screen.getByText(/PCR run #142/)).toBeInTheDocument();
+      expect(screen.getByText(/Buffer prep SOP/)).toBeInTheDocument();
+      expect(screen.getByText(/Cell culture passage/)).toBeInTheDocument();
+      expect(screen.getByText(/Incubator temperature/)).toBeInTheDocument();
+      expect(screen.getByText(/Western blot results/)).toBeInTheDocument();
+    });
+
+    it("renders monospaced timestamps with file paths", () => {
+      renderHomePage();
+      // Each activity row has a timestamp + file path in mono font
+      expect(screen.getByText(/2 min ago/)).toBeInTheDocument();
+      expect(screen.getByText(/18 min ago/)).toBeInTheDocument();
+      expect(screen.getByText(/47 min ago/)).toBeInTheDocument();
+      expect(screen.getByText(/1 hour ago/)).toBeInTheDocument();
+      expect(screen.getByText(/2 hours ago/)).toBeInTheDocument();
+    });
+
+    it("renders the panel inside a bordered card", () => {
+      renderHomePage();
+      const heading = screen.getByRole("heading", {
+        name: "Recent activity",
+      });
+      const section = heading.closest("section");
+      expect(section).toBeInTheDocument();
+      expect(section).toHaveClass("rounded-lg");
+      expect(section).toHaveClass("border");
+      expect(section).toHaveClass("border-border");
+      expect(section).toHaveClass("bg-panel");
+    });
+  });
+
+  // ── Today in the Lab panel ────────────────────────────────────────────
+
+  describe("Today in the Lab", () => {
+    it("renders the panel heading and trending icon", () => {
+      renderHomePage();
+      expect(
+        screen.getByRole("heading", { name: "Today in the lab" }),
+      ).toBeInTheDocument();
+      // The trending icon (TrendingUp) is an SVG with aria-hidden in the heading row
+      const heading = screen.getByRole("heading", {
+        name: "Today in the lab",
+      });
+      const headingRow = heading.closest("div");
+      expect(headingRow).toBeInTheDocument();
+      expect(
+        headingRow!.querySelector("svg[aria-hidden='true']"),
+      ).toBeInTheDocument();
+    });
+
+    it("renders all four timeline entries with time labels", () => {
+      renderHomePage();
+      expect(screen.getByText("09:15")).toBeInTheDocument();
+      expect(screen.getByText("10:30")).toBeInTheDocument();
+      expect(screen.getByText("13:45")).toBeInTheDocument();
+      expect(screen.getByText("15:00")).toBeInTheDocument();
+    });
+
+    it("renders timeline descriptions", () => {
+      renderHomePage();
+      expect(
+        screen.getByText(/Daily instrument calibration completed/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/New reagent batch QC passed/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Safety inspection walkthrough starting/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Freezer −80 °C defrost cycle/),
+      ).toBeInTheDocument();
+    });
+
+    it("renders the panel inside a bordered card", () => {
+      renderHomePage();
+      const heading = screen.getByRole("heading", {
+        name: "Today in the lab",
+      });
+      const section = heading.closest("section");
+      expect(section).toBeInTheDocument();
+      expect(section).toHaveClass("rounded-lg");
+      expect(section).toHaveClass("border");
+      expect(section).toHaveClass("border-border");
+      expect(section).toHaveClass("bg-panel");
+    });
+  });
+
+  // ── Panel layout ──────────────────────────────────────────────────────
+
+  describe("panel layout", () => {
+    it("renders Recent Activity and Today in the Lab side by side", () => {
+      renderHomePage();
+      // Both panels should be present
+      expect(
+        screen.getByRole("heading", { name: "Recent activity" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Today in the lab" }),
+      ).toBeInTheDocument();
+    });
+
+    it("does not render an inspirational quote", () => {
+      renderHomePage();
+      expect(
+        screen.queryByText(/Asimov/i),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/inspiration/i),
+      ).not.toBeInTheDocument();
     });
   });
 });

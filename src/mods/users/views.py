@@ -11,11 +11,16 @@ from rest_framework.throttling import ScopedRateThrottle
 from helix_core.actions.logger import log_action
 from core.models import CoreSetting, User
 
+from .models import Affiliation, Publication, Recognition
 from .serializers import (
+    AffiliationSerializer,
     ChangePasswordSerializer,
     CreateUserSerializer,
     LoginSerializer,
+    PublicationSerializer,
+    RecognitionSerializer,
     RegisterSerializer,
+    UserAdminSerializer,
     UserSerializer,
 )
 
@@ -141,6 +146,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "create":
             return CreateUserSerializer
+        if self.action in ("update", "partial_update"):
+            return UserAdminSerializer
         return UserSerializer
 
     def create(self, request, *args, **kwargs):
@@ -178,3 +185,58 @@ class UserViewSet(viewsets.ModelViewSet):
                 target_id=instance.id,
                 metadata={"username": instance.username},
             )
+
+
+# ── Profile list viewsets (scoped to request.user) ──────────────────────────
+
+
+class _BaseUserScopedViewSet(viewsets.ModelViewSet):
+    """Base viewset that scopes queryset to request.user and sets user on create."""
+
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        return super().get_queryset().filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class AffiliationViewSet(_BaseUserScopedViewSet):
+    """CRUD for the current user's affiliations.
+
+    list:           GET    /api/core/me/affiliations/
+    create:         POST   /api/core/me/affiliations/
+    partial_update: PATCH  /api/core/me/affiliations/:id/
+    destroy:        DELETE /api/core/me/affiliations/:id/
+    """
+
+    queryset = Affiliation.objects.all()
+    serializer_class = AffiliationSerializer
+
+
+class PublicationViewSet(_BaseUserScopedViewSet):
+    """CRUD for the current user's publications.
+
+    list:           GET    /api/core/me/publications/
+    create:         POST   /api/core/me/publications/
+    partial_update: PATCH  /api/core/me/publications/:id/
+    destroy:        DELETE /api/core/me/publications/:id/
+    """
+
+    queryset = Publication.objects.all()
+    serializer_class = PublicationSerializer
+
+
+class RecognitionViewSet(_BaseUserScopedViewSet):
+    """CRUD for the current user's recognitions.
+
+    list:           GET    /api/core/me/recognitions/
+    create:         POST   /api/core/me/recognitions/
+    partial_update: PATCH  /api/core/me/recognitions/:id/
+    destroy:        DELETE /api/core/me/recognitions/:id/
+    """
+
+    queryset = Recognition.objects.all()
+    serializer_class = RecognitionSerializer

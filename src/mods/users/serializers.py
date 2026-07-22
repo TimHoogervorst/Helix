@@ -8,14 +8,67 @@ from rest_framework import serializers
 
 from core.models import User
 
+from .models import Affiliation, Publication, Recognition
+
+
+# ── Profile list serializers ────────────────────────────────────────────────
+
+
+class AffiliationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Affiliation
+        fields = [
+            "id", "institution", "role", "department",
+            "start_date", "end_date", "order",
+        ]
+        read_only_fields = ["id"]
+
+
+class PublicationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Publication
+        fields = ["id", "title", "journal", "year", "role", "url", "order"]
+        read_only_fields = ["id"]
+
+
+class RecognitionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recognition
+        fields = ["id", "title", "issuer", "date", "order"]
+        read_only_fields = ["id"]
+
+
+# ── User / auth serializers ─────────────────────────────────────────────────
+
 
 class UserSerializer(serializers.ModelSerializer):
     """Public user representation returned by /me/, /users/, etc."""
 
+    affiliations = AffiliationSerializer(many=True, read_only=True)
+    publications = PublicationSerializer(many=True, read_only=True)
+    recognitions = RecognitionSerializer(many=True, read_only=True)
+
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "color", "is_active", "date_joined"]
-        read_only_fields = ["id", "color", "date_joined"]
+        fields = [
+            "id", "username", "email", "first_name", "last_name", "color",
+            "is_active", "date_joined", "profile",
+            "affiliations", "publications", "recognitions",
+        ]
+        read_only_fields = [
+            "id", "color", "date_joined", "is_active",
+            "affiliations", "publications", "recognitions",
+        ]
+
+
+class UserAdminSerializer(UserSerializer):
+    """User serializer for admin user management — allows writing is_active."""
+
+    class Meta(UserSerializer.Meta):
+        read_only_fields = [
+            "id", "color", "date_joined",
+            "affiliations", "publications", "recognitions",
+        ]
 
 
 class LoginSerializer(serializers.Serializer):
@@ -38,6 +91,7 @@ class LoginSerializer(serializers.Serializer):
 
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(min_length=3, max_length=150)
+    email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True, style={"input_type": "password"})
 
     def validate_password(self, value):
@@ -49,9 +103,15 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("A user with that username already exists.")
         return value
 
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with that email already exists.")
+        return value
+
     def create(self, validated_data):
         return User.objects.create_user(
             username=validated_data["username"],
+            email=validated_data["email"],
             password=validated_data["password"],
             is_staff=True,  # All users are admins for now (decision #5)
         )

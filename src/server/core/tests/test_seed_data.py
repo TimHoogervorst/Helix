@@ -8,6 +8,7 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from core.models import CoreSetting, User
+from mods.users.models import Affiliation, Publication, Recognition
 
 
 class SeedDataTests(TestCase):
@@ -85,3 +86,71 @@ class SeedDataTests(TestCase):
         # Existing value preserved, not overwritten
         self.assertTrue(setting.value)
         self.assertIn("already exists", out)
+
+    # ── Profile data seeding ─────────────────────────────────────────────────
+
+    def test_seeds_profile_json_on_new_user(self):
+        """Seed populates profile JSON on a newly created superuser."""
+        self.call_seed({
+            "SEED_USERNAME": "prof_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="prof_test")
+        self.assertIsInstance(user.profile, dict)
+        self.assertEqual(user.profile["title"], "Dr.")
+        self.assertEqual(user.profile["position"], "Distinguished Geneticist")
+        self.assertIn("jumping genes", user.profile["bio"])
+
+    def test_seeds_affiliations_on_new_user(self):
+        """Seed creates three affiliations for the new user."""
+        self.call_seed({
+            "SEED_USERNAME": "aff_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="aff_test")
+        affiliations = Affiliation.objects.filter(user=user)
+        self.assertEqual(affiliations.count(), 3)
+        institutions = {a.institution for a in affiliations}
+        self.assertIn("Cold Spring Harbor Laboratory", institutions)
+        self.assertIn("Cornell University", institutions)
+        self.assertIn("University of Missouri", institutions)
+
+    def test_seeds_publications_on_new_user(self):
+        """Seed creates two publications for the new user."""
+        self.call_seed({
+            "SEED_USERNAME": "pub_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="pub_test")
+        publications = Publication.objects.filter(user=user)
+        self.assertEqual(publications.count(), 2)
+        titles = {p.title for p in publications}
+        self.assertIn("The origin and behavior of mutable loci in maize", titles)
+
+    def test_seeds_recognitions_on_new_user(self):
+        """Seed creates three recognitions for the new user."""
+        self.call_seed({
+            "SEED_USERNAME": "rec_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="rec_test")
+        recognitions = Recognition.objects.filter(user=user)
+        self.assertEqual(recognitions.count(), 3)
+        titles = {r.title for r in recognitions}
+        self.assertIn("Nobel Prize in Physiology or Medicine", titles)
+
+    def test_profile_data_is_idempotent(self):
+        """Running seed twice does not duplicate profile lists."""
+        env = {"SEED_USERNAME": "idem_profile", "SEED_PASSWORD": "pass"}
+        self.call_seed(env)
+        out = self.call_seed(env)
+
+        user = User.objects.get(username="idem_profile")
+        self.assertEqual(Affiliation.objects.filter(user=user).count(), 3)
+        self.assertEqual(Publication.objects.filter(user=user).count(), 2)
+        self.assertEqual(Recognition.objects.filter(user=user).count(), 3)
+        self.assertIn("Profile already populated", out)

@@ -3,7 +3,7 @@
  *
  * Verifies:
  *  - Decorative header bar renders
- *  - Greeting section shows user's first name from useCurrentUser
+ *  - Greeting section shows user's username from useCurrentUser
  *  - Greeting section includes the placeholder subtitle
  *  - Stats bar renders all four hardcoded metric tiles
  *  - Jump Back In section heading with hub count
@@ -21,7 +21,7 @@ import { BookOpen } from "lucide-react";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../../shell/src/mod-system/types";
 
-// Mock useCurrentUser so the greeting renders with a known first name
+// Mock useCurrentUser so the greeting renders with a known username
 vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
   CurrentUserProvider: ({ children }: { children: React.ReactNode }) => children,
   useCurrentUser: () => ({
@@ -86,17 +86,17 @@ describe("HomePage", () => {
 
   // ── Greeting section ───────────────────────────────────────────────────
 
-  it("renders a greeting with the user's first name", () => {
+  it("renders a greeting with the user's username", () => {
     renderHomePage();
     expect(screen.getByText(/Good morning,/i)).toBeInTheDocument();
-    expect(screen.getByText("Mira")).toBeInTheDocument();
+    expect(screen.getByText("mkato")).toBeInTheDocument();
   });
 
-  it("styles the first name in italic primary color", () => {
+  it("styles the username in italic primary color", () => {
     renderHomePage();
-    const firstName = screen.getByText("Mira");
-    expect(firstName).toHaveClass("italic");
-    expect(firstName).toHaveClass("text-primary");
+    const userName = screen.getByText("mkato");
+    expect(userName).toHaveClass("italic");
+    expect(userName).toHaveClass("text-primary");
   });
 
   it("renders the placeholder subtitle below the greeting", () => {

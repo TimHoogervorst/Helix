@@ -23,7 +23,7 @@ import type { HubConfig } from "../../shell/src/mod-system/types";
  * Purely visual — no text or interactive elements.
  */
 function DecorativeHeader() {
-  return <div className="h-3 border-b border-hairline" aria-hidden="true" />;
+  return <div className="h-6 border-b border-hairline" aria-hidden="true" />;
 }
 
 // ── Greeting Section ─────────────────────────────────────────────────────────
@@ -33,18 +33,18 @@ const GREETING_SUBTITLE = "Here's what's happening in your lab today.";
 
 /**
  * Full-viewport-width greeting section with a grid-paper background.
- * Greets the current user by first name, styled in italic primary color.
+ * Greets the current user by username, styled in italic primary color.
  */
 function GreetingSection() {
   const { user } = useCurrentUser();
-  const firstName = user?.first_name ?? "there";
+  const userName = user?.username ?? "there";
 
   return (
     <section className="grid-paper w-full px-6 py-12">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mt-3 font-serif text-6xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
+        <h1 className="mt-3 font-serif text-16xl font-semibold leading-[1.05] tracking-tight md:text-9xl">
           Good morning,{" "}
-          <span className="italic text-primary">{firstName}</span>
+          <span className="italic text-primary">{userName}</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {GREETING_SUBTITLE}
@@ -96,7 +96,7 @@ const STAT_TILES: StatTileData[] = [
  */
 function StatTile({ icon, label, value, subtitle }: StatTileData) {
   return (
-    <div className="flex flex-col items-start gap-1.5 bg-card px-5 py-4">
+    <div className="flex flex-col items-start gap-1.5 bg-card px-5 py-3">
       <span className="text-muted-foreground">{icon}</span>
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
@@ -493,14 +493,14 @@ function TodayInTheLab() {
  *
  * Composed of six visible sections:
  *  1. Decorative header (thin bar with bottom border)
- *  2. Greeting section (grid-paper background, greets user by first name)
+ *  2. Greeting section (grid-paper background, greets user by username)
  *  3. Stats bar (4-column grid of placeholder metrics)
  *  4. Jump Back In (grid of hub cards for quick navigation)
  *  5. Recent Activity + Today in the Lab (2/3 + 1/3 side-by-side panels)
  */
 function HomePage() {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-1 flex-col overflow-y-auto">
       <DecorativeHeader />
       <GreetingSection />
       <StatsBar />

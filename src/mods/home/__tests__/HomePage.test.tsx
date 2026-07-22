@@ -75,13 +75,12 @@ function renderHomePage() {
 describe("HomePage", () => {
   // ── Decorative header ─────────────────────────────────────────────────
 
-  it("renders the decorative header bar", () => {
+  it("does not render the decorative header bar (removed during profile redesign)", () => {
     renderHomePage();
-    // The decorative header is an aria-hidden div — verify it's present
-    const decorativeHeader = document.querySelector("[aria-hidden='true']");
-    expect(decorativeHeader).toBeInTheDocument();
-    expect(decorativeHeader).toHaveClass("border-b-1");
-    expect(decorativeHeader).toHaveClass("border-border");
+    // The decorative header was intentionally removed — verify no element
+    // with both border-b-1 and border-border classes exists
+    const decorativeHeader = document.querySelector(".border-b-1.border-border");
+    expect(decorativeHeader).not.toBeInTheDocument();
   });
 
   // ── Greeting section ───────────────────────────────────────────────────

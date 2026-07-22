@@ -23,7 +23,7 @@ import type { HubConfig } from "../../shell/src/mod-system/types";
  * Purely visual — no text or interactive elements.
  */
 function DecorativeHeader() {
-  return <div className="h-1.5 border-b border-hairline" aria-hidden="true" />;
+  return <div className="h-3 border-b border-hairline" aria-hidden="true" />;
 }
 
 // ── Greeting Section ─────────────────────────────────────────────────────────
@@ -42,10 +42,10 @@ function GreetingSection() {
   return (
     <section className="grid-paper w-full px-6 py-12">
       <div className="mx-auto max-w-4xl">
-        <h2 className="font-serif text-2xl font-semibold tracking-tight">
+        <h1 className="mt-3 font-serif text-6xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
           Good morning,{" "}
           <span className="italic text-primary">{firstName}</span>
-        </h2>
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {GREETING_SUBTITLE}
         </p>
@@ -96,7 +96,7 @@ const STAT_TILES: StatTileData[] = [
  */
 function StatTile({ icon, label, value, subtitle }: StatTileData) {
   return (
-    <div className="flex flex-col items-start gap-1.5 rounded-lg border border-hairline bg-background p-4">
+    <div className="flex flex-col items-start gap-1.5 bg-card px-5 py-4">
       <span className="text-muted-foreground">{icon}</span>
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
@@ -116,9 +116,9 @@ function StatTile({ icon, label, value, subtitle }: StatTileData) {
  */
 function StatsBar() {
   return (
-    <section className="px-6 py-8">
+    <section className="border-b border-hairline bg-surface">
       <div className="mx-auto max-w-4xl">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
           {STAT_TILES.map((tile) => (
             <StatTile key={tile.label} {...tile} />
           ))}

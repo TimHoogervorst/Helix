@@ -1,5 +1,15 @@
-import { FlaskConical, FileText, Thermometer, AlertTriangle } from "lucide-react";
+import {
+  FlaskConical,
+  FileText,
+  Thermometer,
+  AlertTriangle,
+  ArrowRight,
+  Beaker,
+} from "lucide-react";
+import { Link } from "react-router-dom";
 import { useCurrentUser } from "../../shell/src/user/CurrentUserProvider";
+import { ModRegistry } from "../../shell/src/mod-system/ModRegistry";
+import type { HubConfig } from "../../shell/src/mod-system/types";
 
 // ── Decorative Header ────────────────────────────────────────────────────────
 
@@ -113,15 +123,154 @@ function StatsBar() {
   );
 }
 
+// ── Jump Back In ────────────────────────────────────────────────────────────
+
+/** The hub ID for the home hub — excluded from the card grid. */
+const HOME_HUB_ID = "home";
+
+/** Color tokens cycled through per hub card: flask → enzyme → solvent → repeat. */
+const HUB_COLOR_TOKENS = ["flask", "enzyme", "solvent"] as const;
+type HubColorToken = (typeof HUB_COLOR_TOKENS)[number];
+
+/** Tailwind classes for each hub color token (static lookup — dynamic classes won't tree-shake). */
+const HUB_COLOR_CLASSES: Record<
+  HubColorToken,
+  { bg: string; text: string }
+> = {
+  flask: { bg: "bg-flask", text: "text-flask-foreground" },
+  enzyme: { bg: "bg-enzyme", text: "text-enzyme-foreground" },
+  solvent: { bg: "bg-solvent", text: "text-solvent-foreground" },
+};
+
+function getHubColor(index: number): HubColorToken {
+  return HUB_COLOR_TOKENS[index % HUB_COLOR_TOKENS.length];
+}
+
+/** Placeholder stats line shown on every hub card. */
+const PLACEHOLDER_STATS = "2 active · 14 entries";
+
+/**
+ * A single hub card showing:
+ *  - colored icon square (flask / enzyme / solvent)
+ *  - arrow icon that shifts on hover
+ *  - serif heading (hub label)
+ *  - muted description text
+ *  - hardcoded placeholder stats in mono
+ *  - footer with status chip and timestamp
+ *
+ * The entire card is a link to the hub's route.
+ */
+function HubCard({
+  hub,
+  colorToken,
+}: {
+  hub: HubConfig;
+  colorToken: HubColorToken;
+}) {
+  const Icon = hub.icon;
+  const colorClasses = HUB_COLOR_CLASSES[colorToken];
+
+  return (
+    <Link
+      to={hub.route}
+      className="group flex flex-col rounded-lg border border-border bg-panel p-5 transition hover:border-primary/40 hover:shadow-sm"
+    >
+      {/* Top row: coloured icon square + arrow */}
+      <div className="flex items-center justify-between">
+        <span
+          className={`grid h-9 w-9 place-items-center rounded-md ${colorClasses.bg} ${colorClasses.text}`}
+        >
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+      </div>
+
+      {/* Hub label */}
+      <h3 className="mt-4 font-serif text-lg font-semibold tracking-tight">
+        {hub.label}
+      </h3>
+
+      {/* Placeholder stats line (mono) */}
+      <p className="font-mono text-[11px] text-muted-foreground">
+        {PLACEHOLDER_STATS}
+      </p>
+
+      {/* Description (muted) */}
+      {hub.description && (
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          {hub.description}
+        </p>
+      )}
+
+      {/* Footer: status chip + timestamp */}
+      <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3 text-[11px] text-muted-foreground">
+        <span className="chip">
+          <Beaker className="h-3 w-3" aria-hidden="true" /> open
+        </span>
+        <span className="font-mono">edited 8 min ago</span>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * "Jump Back In" section — heading with hub count, grid of hub cards.
+ *
+ * Reads all registered hubs from {@link ModRegistry}, excludes the `home`
+ * hub, and renders one card per remaining hub. Cards are inline-mapped
+ * (no slot system).
+ */
+function JumpBackIn() {
+  const registry = ModRegistry.getInstance();
+  const nonHomeHubs = Array.from(registry.getHubs())
+    .filter(([id]) => id !== HOME_HUB_ID)
+    .map(([, hub], index) => ({ hub, index }));
+
+  return (
+    <section className="px-6 py-12">
+      <div className="mx-auto max-w-4xl">
+        {/* Section heading */}
+        <div className="mb-5 flex items-baseline justify-between">
+          <h2 className="font-serif text-2xl font-semibold tracking-tight">
+            Jump back in
+          </h2>
+          <span className="text-[12px] text-muted-foreground">
+            {nonHomeHubs.length}{" "}
+            {nonHomeHubs.length === 1 ? "workspace" : "workspaces"}
+          </span>
+        </div>
+
+        {/* Card grid */}
+        {nonHomeHubs.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {nonHomeHubs.map(({ hub, index }) => (
+              <HubCard
+                key={hub.id}
+                hub={hub}
+                colorToken={getHubColor(index)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No other workspaces available.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── HomePage ─────────────────────────────────────────────────────────────────
 
 /**
  * HomePage — the Home hub dashboard.
  *
- * Composed of three visible sections:
+ * Composed of four visible sections:
  *  1. Decorative header (thin bar with bottom border)
  *  2. Greeting section (grid-paper background, greets user by first name)
  *  3. Stats bar (4-column grid of placeholder metrics)
+ *  4. Jump Back In (grid of hub cards for quick navigation)
  */
 function HomePage() {
   return (
@@ -129,6 +278,7 @@ function HomePage() {
       <DecorativeHeader />
       <GreetingSection />
       <StatsBar />
+      <JumpBackIn />
     </div>
   );
 }

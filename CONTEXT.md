@@ -65,7 +65,23 @@ Folders are **containers, not content.** They have no Detail panel, no Workspace
 
 ### User
 
-A person with an account. Has a username, email, password. Belongs to one or more Groups. Owns the entries and entities they create.
+A person with an account. Has a username, email, password. Belongs to one or more Groups. Owns the entries and entities they create. The **username** is the user's display name (e.g. "Dr. Mira Kato") — it serves both as the login credential and the public identity. There is no separate `full_name` field.
+
+### User Profile
+
+A JSON blob (`profile`) on the User record holding extended professional identity fields: `title`, `position`, `pronouns`, `location`, `bio`, and `orcid`. All fields are optional — if absent from the JSON, the UI shows nothing. These fields are edited inline on the profile page through the About section. The **profile header** derives its affiliation line from the most recent entry in the Affiliations list.
+
+### Affiliation
+
+A structured entry in a User's career timeline. Has an `institution`, `role`, `department`, `start_date`, `end_date` (null = present), and an `order` for manual sorting. Owned by exactly one User. The profile header displays the most recent affiliation.
+
+### Publication
+
+A structured entry in a User's publication list. Has a `title`, `journal`, `year`, `role` (e.g. "First author"), an optional `url` (rendered as a clickable link icon in view mode), and an `order`. Owned by exactly one User.
+
+### Recognition
+
+A structured entry in a User's honors and awards list. Has a `title`, `issuer` (e.g. "EMBO"), `date` (free-text string, e.g. "2024" or "Q2 2026"), and an `order`. Owned by exactly one User.
 
 ### Group
 
@@ -417,6 +433,11 @@ User ──▶ NotebookEntry (1:N — author of entries)
 User ──▶ Action (1:N — performer of actions)
 User ──▶ Entity (1:N — creator of entities)
 User ──▶ PinnedWorkspace (1:N — user bookmarks workspaces)
+User ──▶ Affiliation (1:N — user has career timeline entries)
+User ──▶ Publication (1:N — user has publications)
+User ──▶ Recognition (1:N — user has honors and awards)
+
+User.profile (JSON blob on User record: title, position, pronouns, location, bio, orcid)
 
 NotebookEntry.status ──cascades to──▶ Entity.status (only via source_entry FK)
 

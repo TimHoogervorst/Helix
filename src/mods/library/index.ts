@@ -19,6 +19,8 @@ export function register() {
     route: "/library",
     component: LibraryHub,
     order: 10,
+    description:
+      "Browse, search, and organize your lab's entries, protocols, and folder structure.",
   });
 
   // ── Slot: Library Sidebar ──────────────────────────────────────────

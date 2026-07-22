@@ -5,7 +5,9 @@ export function fetchMe(): Promise<CurrentUser> {
   return get<CurrentUser>("/core/me/");
 }
 
-export function updateMe(data: Partial<Pick<CurrentUser, "username">>): Promise<CurrentUser> {
+export function updateMe(
+  data: Partial<Pick<CurrentUser, "username" | "email" | "profile">>,
+): Promise<CurrentUser> {
   return patch<CurrentUser>("/core/me/", data);
 }
 
@@ -29,6 +31,10 @@ export function logout(): Promise<{ detail: string }> {
   return post<{ detail: string }>("/core/logout/", {});
 }
 
-export function register(username: string, password: string): Promise<CurrentUser> {
-  return post<CurrentUser>("/core/register/", { username, password });
+export function register(
+  username: string,
+  email: string,
+  password: string,
+): Promise<CurrentUser> {
+  return post<CurrentUser>("/core/register/", { username, email, password });
 }

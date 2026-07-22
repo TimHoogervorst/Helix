@@ -2,5 +2,6 @@
   "id": "library",
   "displayName": "Library",
   "version": "0.1.0",
-  "dependsOn": ["tags", "eln"]
+  "dependsOn": ["tags", "eln"],
+  "description": "Browse, search, and organize your lab's entries, protocols, and folder structure."
 }

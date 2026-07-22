@@ -1,10 +1,68 @@
 /**
- * Tests for HomePage — the blank placeholder page for the Home hub.
+ * Tests for HomePage — the Home hub dashboard.
+ *
+ * Verifies:
+ *  - Decorative header bar renders
+ *  - Greeting section shows user's username from useCurrentUser
+ *  - Greeting section includes the placeholder subtitle
+ *  - Stats bar renders all four hardcoded metric tiles
+ *  - Jump Back In section heading with hub count
+ *  - Hub cards for non-home hubs with labels, descriptions, and link targets
+ *  - Home hub is excluded from cards
+ *  - Empty state when no non-home hubs exist
+ *  - Recent Activity panel with heading, live chip, five activity items
+ *  - Today in the Lab panel with heading, trending icon, four timeline entries
+ *  - Both panels render side by side, no inspirational quote
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { BookOpen } from "lucide-react";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import type { HubConfig } from "../../../shell/src/mod-system/types";
+
+// Mock useCurrentUser so the greeting renders with a known username
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
+  CurrentUserProvider: ({ children }: { children: React.ReactNode }) => children,
+  useCurrentUser: () => ({
+    user: {
+      id: 1,
+      username: "mkato",
+      first_name: "Mira",
+      last_name: "Kato",
+      color: "#4A90D9",
+      is_active: true,
+      date_joined: "2025-01-15T00:00:00Z",
+    },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
 import HomePage from "../HomePage";
+
+// ── Registry helpers ──────────────────────────────────────────────────────
+
+/** Dummy component for use in test hub configs. */
+function DummyComponent() {
+  return null;
+}
+
+/** Register a hub in the real ModRegistry singleton (assumes caller resets via beforeEach). */
+function registerHub(config: HubConfig): void {
+  ModRegistry.getInstance().registerHub(config);
+}
+
+/** Clean slate before each test. */
+beforeEach(() => {
+  ModRegistry._reset();
+});
+
+/** Clean up after each test so singletons don't leak. */
+afterEach(() => {
+  ModRegistry._reset();
+});
 
 function renderHomePage() {
   return render(
@@ -15,15 +73,405 @@ function renderHomePage() {
 }
 
 describe("HomePage", () => {
-  it("renders the Home heading", () => {
+  // ── Decorative header ─────────────────────────────────────────────────
+
+  it("does not render the decorative header bar (removed during profile redesign)", () => {
     renderHomePage();
-    expect(screen.getByText("Home")).toBeInTheDocument();
+    // The decorative header was intentionally removed — verify no element
+    // with both border-b-1 and border-border classes exists
+    const decorativeHeader = document.querySelector(".border-b-1.border-border");
+    expect(decorativeHeader).not.toBeInTheDocument();
   });
 
-  it("renders placeholder text", () => {
+  // ── Greeting section ───────────────────────────────────────────────────
+
+  it("renders a greeting with the user's username", () => {
+    renderHomePage();
+    expect(screen.getByText(/Good morning,/i)).toBeInTheDocument();
+    expect(screen.getByText("mkato")).toBeInTheDocument();
+  });
+
+  it("styles the username in italic primary color", () => {
+    renderHomePage();
+    const userName = screen.getByText("mkato");
+    expect(userName).toHaveClass("italic");
+    expect(userName).toHaveClass("text-primary");
+  });
+
+  it("renders 'Your bench is warm.' below the greeting", () => {
+    renderHomePage();
+    expect(screen.getByText(/Your bench is warm\./)).toBeInTheDocument();
+  });
+
+  it("renders the placeholder subtitle below the greeting", () => {
     renderHomePage();
     expect(
-      screen.getByText(/Welcome to Helix/i),
+      screen.getByText(/Here's what's happening in your lab today/i),
     ).toBeInTheDocument();
+  });
+
+  it("applies the grid-paper background to the greeting section", () => {
+    renderHomePage();
+    const greetingSection = document.querySelector("section.grid-paper");
+    expect(greetingSection).toBeInTheDocument();
+  });
+
+  // ── Stats bar ──────────────────────────────────────────────────────────
+
+  it("renders all four stat tiles", () => {
+    renderHomePage();
+    expect(screen.getByText("Experiments running")).toBeInTheDocument();
+    expect(screen.getByText("Entries this week")).toBeInTheDocument();
+    expect(screen.getByText("Freezer")).toBeInTheDocument();
+    expect(screen.getByText("Reagents low")).toBeInTheDocument();
+  });
+
+  it("renders the hardcoded stat values", () => {
+    renderHomePage();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("-79.4 °C")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("renders the stat subtitles in mono font", () => {
+    renderHomePage();
+    const subtitles = [
+      screen.getByText("Across 2 labs"),
+      screen.getByText("Last 7 days"),
+      screen.getByText("All systems normal"),
+      screen.getByText("Reorder soon"),
+    ];
+    for (const subtitle of subtitles) {
+      expect(subtitle).toBeInTheDocument();
+      expect(subtitle).toHaveClass("font-mono");
+    }
+  });
+
+  // ── No leftover placeholder assertions ─────────────────────────────────
+
+  it("does not render the old 'Welcome to Helix' placeholder", () => {
+    renderHomePage();
+    expect(
+      screen.queryByText(/Welcome to Helix/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render a plain 'Home' heading", () => {
+    renderHomePage();
+    expect(screen.queryByRole("heading", { name: "Home" })).not.toBeInTheDocument();
+  });
+
+  // ── Jump Back In section ───────────────────────────────────────────────
+
+  describe("Jump Back In", () => {
+    it("renders the section heading with hub count (home excluded)", () => {
+      // Register home + library hub
+      registerHub({
+        id: "home",
+        label: "Home",
+        icon: DummyComponent,
+        route: "/home",
+        component: DummyComponent,
+        order: 0,
+        description: "The home hub.",
+      });
+      registerHub({
+        id: "library",
+        label: "Library",
+        icon: BookOpen,
+        route: "/library",
+        component: DummyComponent,
+        order: 10,
+        description: "Browse the library.",
+      });
+
+      renderHomePage();
+
+      expect(screen.getByText("Jump back in")).toBeInTheDocument();
+      // Hub count: only the non-home hub (library) counts
+      expect(screen.getByText("1 workspace")).toBeInTheDocument();
+    });
+
+    it("renders one card per non-home hub with label and description", () => {
+      registerHub({
+        id: "home",
+        label: "Home",
+        icon: DummyComponent,
+        route: "/home",
+        component: DummyComponent,
+        order: 0,
+      });
+      registerHub({
+        id: "library",
+        label: "Library",
+        icon: BookOpen,
+        route: "/library",
+        component: DummyComponent,
+        order: 10,
+        description: "Browse, search, and organize your lab's entries.",
+      });
+      registerHub({
+        id: "eln",
+        label: "ELN Notebook",
+        icon: DummyComponent,
+        route: "/eln",
+        component: DummyComponent,
+        order: 20,
+        description: "Daily electronic lab notebook entries.",
+      });
+
+      renderHomePage();
+
+      // Non-home hubs should be rendered
+      expect(screen.getByText("Library")).toBeInTheDocument();
+      expect(
+        screen.getByText("Browse, search, and organize your lab's entries."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("ELN Notebook")).toBeInTheDocument();
+      expect(
+        screen.getByText("Daily electronic lab notebook entries."),
+      ).toBeInTheDocument();
+
+      // Hub count
+      expect(screen.getByText("2 workspaces")).toBeInTheDocument();
+    });
+
+    it("excludes the home hub from the card grid", () => {
+      registerHub({
+        id: "home",
+        label: "Home",
+        icon: DummyComponent,
+        route: "/home",
+        component: DummyComponent,
+        order: 0,
+      });
+      registerHub({
+        id: "library",
+        label: "Library",
+        icon: BookOpen,
+        route: "/library",
+        component: DummyComponent,
+        order: 10,
+        description: "Browse the library.",
+      });
+
+      renderHomePage();
+
+      // "Home" label should not appear as a card heading (only as greeting)
+      const cardHeadings = screen.getAllByRole("heading", { level: 3 });
+      const homeCards = cardHeadings.filter((h) => h.textContent === "Home");
+      expect(homeCards).toHaveLength(0);
+    });
+
+    it("links each card to the hub's route", () => {
+      registerHub({
+        id: "home",
+        label: "Home",
+        icon: DummyComponent,
+        route: "/home",
+        component: DummyComponent,
+        order: 0,
+      });
+      registerHub({
+        id: "library",
+        label: "Library",
+        icon: BookOpen,
+        route: "/library",
+        component: DummyComponent,
+        order: 10,
+        description: "The library.",
+      });
+
+      renderHomePage();
+
+      const libraryLink = screen.getByRole("link", { name: /Library/i });
+      expect(libraryLink).toHaveAttribute("href", "/library");
+    });
+
+    it("shows an empty state message when no non-home hubs exist", () => {
+      // Only the home hub registered — no non-home hubs
+      registerHub({
+        id: "home",
+        label: "Home",
+        icon: DummyComponent,
+        route: "/home",
+        component: DummyComponent,
+        order: 0,
+      });
+
+      renderHomePage();
+
+      expect(screen.getByText(/No other workspaces available/i)).toBeInTheDocument();
+      expect(screen.getByText("0 workspaces")).toBeInTheDocument();
+    });
+
+    it("renders the hardcoded placeholder stats line and footer on each card", () => {
+      registerHub({
+        id: "home",
+        label: "Home",
+        icon: DummyComponent,
+        route: "/home",
+        component: DummyComponent,
+        order: 0,
+      });
+      registerHub({
+        id: "library",
+        label: "Library",
+        icon: BookOpen,
+        route: "/library",
+        component: DummyComponent,
+        order: 10,
+        description: "The library.",
+      });
+
+      renderHomePage();
+
+      // Placeholder stats line
+      expect(screen.getByText("2 active · 14 entries")).toBeInTheDocument();
+
+      // Footer with chip and timestamp
+      expect(screen.getByText("open")).toBeInTheDocument();
+      expect(screen.getByText("edited 8 min ago")).toBeInTheDocument();
+    });
+  });
+
+  // ── Recent Activity panel ─────────────────────────────────────────────
+
+  describe("Recent Activity", () => {
+    it("renders the panel heading and live chip", () => {
+      renderHomePage();
+      expect(
+        screen.getByRole("heading", { name: "Recent activity" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("live")).toBeInTheDocument();
+      // The live chip includes a green pulsing dot
+      const liveChip = screen.getByText("live").closest(".chip");
+      expect(liveChip).toBeInTheDocument();
+      expect(liveChip!.querySelector(".bg-green-500")).toBeInTheDocument();
+    });
+
+    it("renders all five activity items with person names", () => {
+      renderHomePage();
+      expect(screen.getByText(/Mira Kato/)).toBeInTheDocument();
+      expect(screen.getByText(/James Chen/)).toBeInTheDocument();
+      expect(screen.getByText(/Priya Sharma/)).toBeInTheDocument();
+      expect(screen.getByText(/Alex Müller/)).toBeInTheDocument();
+      expect(screen.getByText(/Sarah Okafor/)).toBeInTheDocument();
+    });
+
+    it("renders activity actions and targets", () => {
+      renderHomePage();
+      expect(screen.getByText(/PCR run #142/)).toBeInTheDocument();
+      expect(screen.getByText(/Buffer prep SOP/)).toBeInTheDocument();
+      expect(screen.getByText(/Cell culture passage/)).toBeInTheDocument();
+      expect(screen.getByText(/Incubator temperature/)).toBeInTheDocument();
+      expect(screen.getByText(/Western blot results/)).toBeInTheDocument();
+    });
+
+    it("renders monospaced timestamps with file paths", () => {
+      renderHomePage();
+      // Each activity row has a timestamp + file path in mono font
+      expect(screen.getByText(/2 min ago/)).toBeInTheDocument();
+      expect(screen.getByText(/18 min ago/)).toBeInTheDocument();
+      expect(screen.getByText(/47 min ago/)).toBeInTheDocument();
+      expect(screen.getByText(/1 hour ago/)).toBeInTheDocument();
+      expect(screen.getByText(/2 hours ago/)).toBeInTheDocument();
+    });
+
+    it("renders the panel inside a bordered card", () => {
+      renderHomePage();
+      const heading = screen.getByRole("heading", {
+        name: "Recent activity",
+      });
+      const section = heading.closest("section");
+      expect(section).toBeInTheDocument();
+      expect(section).toHaveClass("rounded-lg");
+      expect(section).toHaveClass("border");
+      expect(section).toHaveClass("border-border");
+      expect(section).toHaveClass("bg-panel");
+    });
+  });
+
+  // ── Today in the Lab panel ────────────────────────────────────────────
+
+  describe("Today in the Lab", () => {
+    it("renders the panel heading and trending icon", () => {
+      renderHomePage();
+      expect(
+        screen.getByRole("heading", { name: "Today in the lab" }),
+      ).toBeInTheDocument();
+      // The trending icon (TrendingUp) is an SVG with aria-hidden in the heading row
+      const heading = screen.getByRole("heading", {
+        name: "Today in the lab",
+      });
+      const headingRow = heading.closest("div");
+      expect(headingRow).toBeInTheDocument();
+      expect(
+        headingRow!.querySelector("svg[aria-hidden='true']"),
+      ).toBeInTheDocument();
+    });
+
+    it("renders all four timeline entries with time labels", () => {
+      renderHomePage();
+      expect(screen.getByText("09:15")).toBeInTheDocument();
+      expect(screen.getByText("10:30")).toBeInTheDocument();
+      expect(screen.getByText("13:45")).toBeInTheDocument();
+      expect(screen.getByText("15:00")).toBeInTheDocument();
+    });
+
+    it("renders timeline descriptions", () => {
+      renderHomePage();
+      expect(
+        screen.getByText(/Daily instrument calibration completed/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/New reagent batch QC passed/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Safety inspection walkthrough starting/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Freezer −80 °C defrost cycle/),
+      ).toBeInTheDocument();
+    });
+
+    it("renders the panel inside a bordered card", () => {
+      renderHomePage();
+      const heading = screen.getByRole("heading", {
+        name: "Today in the lab",
+      });
+      const section = heading.closest("section");
+      expect(section).toBeInTheDocument();
+      expect(section).toHaveClass("rounded-lg");
+      expect(section).toHaveClass("border");
+      expect(section).toHaveClass("border-border");
+      expect(section).toHaveClass("bg-panel");
+    });
+  });
+
+  // ── Panel layout ──────────────────────────────────────────────────────
+
+  describe("panel layout", () => {
+    it("renders Recent Activity and Today in the Lab side by side", () => {
+      renderHomePage();
+      // Both panels should be present
+      expect(
+        screen.getByRole("heading", { name: "Recent activity" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Today in the lab" }),
+      ).toBeInTheDocument();
+    });
+
+    it("does not render an inspirational quote", () => {
+      renderHomePage();
+      expect(
+        screen.queryByText(/Asimov/i),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/inspiration/i),
+      ).not.toBeInTheDocument();
+    });
   });
 });

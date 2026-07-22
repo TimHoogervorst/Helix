@@ -5,6 +5,7 @@ import { register } from "../../../shell/src/user/api";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -15,7 +16,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      await register(username, password);
+      await register(username, email, password);
       // Hard redirect so CurrentUserProvider re-mounts and fetches the user
       window.location.href = "/library";
     } catch (err: unknown) {
@@ -73,6 +74,18 @@ export default function RegisterPage() {
               required
               autoFocus
               minLength={3}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-medium">Email</span>
+            <input
+              type="email"
+              className="input rounded-md"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
             />
           </label>
 

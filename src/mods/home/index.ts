@@ -9,5 +9,6 @@ export function register() {
     route: "/home",
     component: HomePage,
     order: 0,
+    description: "Your lab dashboard — greeting, activity feed, and quick navigation to all hubs.",
   });
 }

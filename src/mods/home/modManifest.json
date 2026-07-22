@@ -2,5 +2,6 @@
   "id": "home",
   "displayName": "Home",
   "version": "0.1.0",
-  "dependsOn": []
+  "dependsOn": [],
+  "description": "Your lab dashboard — greeting, activity feed, and quick navigation to all hubs."
 }

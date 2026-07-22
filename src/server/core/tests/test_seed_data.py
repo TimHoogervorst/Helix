@@ -8,6 +8,7 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from core.models import CoreSetting, User
+from mods.users.models import Affiliation, Publication, Recognition
 
 
 class SeedDataTests(TestCase):
@@ -85,3 +86,70 @@ class SeedDataTests(TestCase):
         # Existing value preserved, not overwritten
         self.assertTrue(setting.value)
         self.assertIn("already exists", out)
+
+    # ── Profile data seeding ─────────────────────────────────────────────────
+
+    def test_seeds_profile_json_on_new_user(self):
+        """Seed populates profile JSON on a newly created superuser."""
+        self.call_seed({
+            "SEED_USERNAME": "prof_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="prof_test")
+        self.assertIsInstance(user.profile, dict)
+        self.assertEqual(user.profile["title"], "")
+        self.assertEqual(user.profile["position"], "System Administrator")
+        self.assertIn("Platform administrator", user.profile["bio"])
+
+    def test_seeds_affiliations_on_new_user(self):
+        """Seed creates two affiliations for the new user."""
+        self.call_seed({
+            "SEED_USERNAME": "aff_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="aff_test")
+        affiliations = Affiliation.objects.filter(user=user)
+        self.assertEqual(affiliations.count(), 2)
+        institutions = {a.institution for a in affiliations}
+        self.assertIn("Helix Platform", institutions)
+        self.assertIn("OpenScience Initiative", institutions)
+
+    def test_seeds_publications_on_new_user(self):
+        """Seed creates two publications for the new user."""
+        self.call_seed({
+            "SEED_USERNAME": "pub_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="pub_test")
+        publications = Publication.objects.filter(user=user)
+        self.assertEqual(publications.count(), 2)
+        titles = {p.title for p in publications}
+        self.assertIn("Helix: An open-science platform for collaborative research", titles)
+
+    def test_seeds_recognitions_on_new_user(self):
+        """Seed creates two recognitions for the new user."""
+        self.call_seed({
+            "SEED_USERNAME": "rec_test",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="rec_test")
+        recognitions = Recognition.objects.filter(user=user)
+        self.assertEqual(recognitions.count(), 2)
+        titles = {r.title for r in recognitions}
+        self.assertIn("Best Open-Source Tool", titles)
+
+    def test_profile_data_is_idempotent(self):
+        """Running seed twice does not duplicate profile lists."""
+        env = {"SEED_USERNAME": "idem_profile", "SEED_PASSWORD": "pass"}
+        self.call_seed(env)
+        out = self.call_seed(env)
+
+        user = User.objects.get(username="idem_profile")
+        self.assertEqual(Affiliation.objects.filter(user=user).count(), 2)
+        self.assertEqual(Publication.objects.filter(user=user).count(), 2)
+        self.assertEqual(Recognition.objects.filter(user=user).count(), 2)
+        self.assertIn("Profile already populated", out)

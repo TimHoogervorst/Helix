@@ -23,13 +23,14 @@ export function getInitials(user: {
 interface AvatarProps {
   initials: string;
   color: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }
 
 const sizeClasses = {
   sm: "h-5 w-5 text-[8px]",
   md: "h-7 w-7 text-[10px]",
   lg: "h-9 w-9 text-[13px]",
+  xl: "h-20 w-20 text-[24px]",
 };
 
 export function Avatar({ initials, color, size = "md" }: AvatarProps) {

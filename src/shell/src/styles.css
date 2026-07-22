@@ -4,6 +4,13 @@
 
 @source "../../mods";
 
+@utility grid-paper {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-hairline) 60%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-hairline) 60%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 @theme {
   /* ── Radius scale ── */
   --radius: 0.5rem;
@@ -27,6 +34,7 @@
   --color-hairline: oklch(0.93 0.008 90);
   --color-surface: oklch(0.975 0.008 95);
   --color-panel: oklch(1 0 0);
+  --color-card: oklch(1 0 0);
   --color-muted: oklch(0.955 0.008 95);
   --color-muted-foreground: oklch(0.48 0.02 260);
 
@@ -261,11 +269,13 @@ label {
 }
 
 /* Headings */
-h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-foreground);
-  margin: 0 0 1rem;
+@layer base {
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-foreground);
+    margin: 0 0 1rem;
+  }
 }
 
 /* Error / empty states */

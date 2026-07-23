@@ -110,6 +110,66 @@ class BackendModRegistry:
 
     # ── registration methods ─────────────────────────────────────────────
 
+    def register_schema_type(
+        self,
+        *,
+        display_name: str,
+        workspace_id: str,
+        model: str,
+        columns: list[dict[str, Any]] | None = None,
+        prefix: str,
+        schema_name: str = "Default",
+    ) -> None:
+        """Create-or-ensure a SchemaType row and a default Schema row.
+
+        Idempotent across boots — safe to call on every ``AppConfig.ready()``.
+        Uses ``update_or_create`` so repeated calls with the same identity
+        don't create duplicates, and changed fields (columns, display_name)
+        are updated in-place.
+
+        Parameters:
+            display_name: Human-readable label for the SchemaType.
+            workspace_id: The workspace that owns this schema type
+                          (e.g. ``"lims"``).
+            model: Dotted Python path to the model class
+                   (e.g. ``"mods.lims.models.Entity"``).
+            columns: Optional list of column definition dicts.
+            prefix: Uppercase prefix for the default Schema's display-ID
+                    generation (e.g. ``"E"``).
+            schema_name: Name for the default Schema row (default ``"Default"``).
+        """
+        from django.db import OperationalError, ProgrammingError
+
+        from helix_core.models import Schema, SchemaType
+
+        if columns is None:
+            columns = []
+
+        try:
+            schema_type, _ = SchemaType.objects.update_or_create(
+                model=model,
+                defaults={
+                    "display_name": display_name,
+                    "workspace_id": workspace_id,
+                    "columns": columns,
+                },
+            )
+
+            Schema.objects.update_or_create(
+                schema_type=schema_type,
+                is_default=True,
+                defaults={
+                    "name": schema_name,
+                    "prefix": prefix,
+                    "columns": columns,
+                },
+            )
+        except (OperationalError, ProgrammingError):
+            # DB not available (e.g. during makemigrations) — skip.
+            # The schema type will be created on next boot when the DB
+            # is available and AppConfig.ready() runs again.
+            pass
+
     def register_action_model(self, mod_id: str, model_class: type) -> None:
         """Register a concrete action model class for *mod_id*.
 

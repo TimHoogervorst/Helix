@@ -55,6 +55,24 @@ class CoreSetting(models.Model):
         return f"{self.key} = {self.value}"
 
 
+class Project(models.Model):
+    """Placeholder project model — groups folders, entries, and entities.
+
+    This is a minimal placeholder.  Full project membership and permission
+    logic will be added in a future iteration (see issue #297).
+    """
+
+    name = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_project"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Folder(models.Model):
     """Hierarchical folder for organizing entries and entities."""
 

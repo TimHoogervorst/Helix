@@ -4,6 +4,10 @@ BrowsableItem provides the auto-generated display_id and created_at
 fields used by any model that appears in the console Master Panel
 (NotebookEntry, Entity, etc.).
 
+AbstractEntity extends BrowsableItem with the common fields shared by
+all entity-like models across mods — name, author, status, folder,
+schema, properties, etc.
+
 This is the canonical location — mods import from ``helix_core``.
 ``core/abstracts.py`` is a thin re-export for backward compatibility.
 """
@@ -67,3 +71,66 @@ class BrowsableItem(models.Model):
             prefix = self._get_display_id_prefix()
             self.display_id = self.generate_display_id(prefix)
         super().save(*args, **kwargs)
+
+
+class AbstractEntity(BrowsableItem):
+    """Abstract base for entity-like models across all mods.
+
+    Extends :class:`BrowsableItem` with the common fields every entity
+    needs — name, author, status, folder, schema, properties — so mods
+    don't duplicate them.
+
+    Subclasses **must** override ``_get_display_id_prefix()``.  The default
+    implementation reads from ``self.schema.prefix``.
+    """
+
+    name = models.CharField(max_length=500)
+    author = models.ForeignKey(
+        "core.User",
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+    last_editor = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("in_progress", "In Progress"),
+            ("finished", "Finished"),
+        ],
+        default="in_progress",
+    )
+    folder = models.ForeignKey(
+        "core.Folder",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    project = models.ForeignKey(
+        "core.Project",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Placeholder FK — the Project model is not yet implemented.",
+    )
+    schema = models.ForeignKey(
+        "helix_core.Schema",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    properties = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def _get_display_id_prefix(self) -> str:
+        """Read the display-ID prefix from the linked Schema."""
+        return self.schema.prefix

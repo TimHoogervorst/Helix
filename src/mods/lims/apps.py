@@ -29,3 +29,11 @@ class LimsConfig(AppConfig):
         registry.register_service(
             "lims.getWorkspaceMap", get_workspace_map
         )
+
+        # Register LIMS schema type identity.
+        registry.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="E",
+        )

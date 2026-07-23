@@ -975,6 +975,138 @@ class TestSetModOrder:
         assert reg._manifests == manifests
 
 
+# ── register_schema_type ──────────────────────────────────────────────────────
+
+
+@pytest.mark.django_db
+class TestRegisterSchemaType:
+    """Tests for register_schema_type — DB upsert of SchemaType + Schema."""
+
+    def test_creates_schema_type_and_default_schema(self):
+        """register_schema_type creates a SchemaType and a default Schema."""
+        from helix_core.models import Schema, SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="E",
+        )
+
+        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        assert st.display_name == "Entity"
+        assert st.workspace_id == "lims"
+        assert st.is_active is True
+
+        schema = Schema.objects.get(schema_type=st, is_default=True)
+        assert schema.name == "Default"
+        assert schema.prefix == "E"
+
+    def test_idempotent_across_calls(self):
+        """Calling register_schema_type twice does not create duplicate rows."""
+        from helix_core.models import Schema, SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="E",
+        )
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="E",
+        )
+
+        # Only one SchemaType and one Schema should exist.
+        assert SchemaType.objects.filter(model="mods.lims.models.Entity").count() == 1
+        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        assert Schema.objects.filter(schema_type=st, is_default=True).count() == 1
+
+    def test_updates_existing_schema_type_on_repeat_call(self):
+        """Repeated call with changed fields updates the existing rows."""
+        from helix_core.models import Schema, SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="E",
+        )
+
+        # Call again with updated display_name and columns.
+        reg.register_schema_type(
+            display_name="LIMS Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            columns=[{"name": "volume", "type": "Number"}],
+            prefix="E",
+        )
+
+        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        assert st.display_name == "LIMS Entity"
+        assert len(st.columns) == 1
+        assert st.columns[0]["name"] == "volume"
+
+    def test_custom_schema_name(self):
+        """The schema_name parameter controls the default Schema's name."""
+        from helix_core.models import Schema, SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Sample",
+            workspace_id="lims",
+            model="m.S",
+            prefix="SAMP",
+            schema_name="Standard Sample",
+        )
+
+        st = SchemaType.objects.get(model="m.S")
+        schema = Schema.objects.get(schema_type=st, is_default=True)
+        assert schema.name == "Standard Sample"
+
+    def test_columns_default_to_empty_list(self):
+        """When columns is not provided, it defaults to an empty list."""
+        from helix_core.models import SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Minimal",
+            workspace_id="test",
+            model="m.Min",
+            prefix="MIN",
+        )
+
+        st = SchemaType.objects.get(model="m.Min")
+        assert st.columns == []
+
+    def test_different_models_are_independent(self):
+        """Each unique model string gets its own SchemaType row."""
+        from helix_core.models import SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="E",
+        )
+        reg.register_schema_type(
+            display_name="Entry",
+            workspace_id="eln",
+            model="mods.eln.models.NotebookEntry",
+            prefix="NB",
+        )
+
+        assert SchemaType.objects.count() == 2
+        assert SchemaType.objects.filter(model="mods.lims.models.Entity").exists()
+        assert SchemaType.objects.filter(model="mods.eln.models.NotebookEntry").exists()
+
+
 # ── singleton ────────────────────────────────────────────────────────────────
 
 

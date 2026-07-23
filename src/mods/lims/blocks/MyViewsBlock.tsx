@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Save, EllipsisVertical, Trash2, Pencil, Globe, Lock } from "lucide-react";
+import { Save, Trash2, Pencil, Globe, Lock } from "lucide-react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import type { LimsViewItem, ViewFilterState } from "../types";
 import {
@@ -100,6 +101,7 @@ export function MyViewsBlock(_props: BlockComponentProps) {
 
   // ── Three-dot menu open state ────────────────────────────────────────
   const [menuViewId, setMenuViewId] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // ── Fetch views on mount ─────────────────────────────────────────────
@@ -139,6 +141,7 @@ export function MyViewsBlock(_props: BlockComponentProps) {
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuViewId(null);
+        setMenuPosition(null);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -279,7 +282,10 @@ export function MyViewsBlock(_props: BlockComponentProps) {
   );
 
   // ── Render ───────────────────────────────────────────────────────────
+  const openView = menuViewId !== null ? views.find((v) => v.id === menuViewId) : null;
+
   return (
+    <>
     <div className="entities-views-block">
       {/* ── Save button ──────────────────────────────────────────────── */}
       <div className="entities-views-save-row">
@@ -401,59 +407,18 @@ export function MyViewsBlock(_props: BlockComponentProps) {
                       title="View actions"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setMenuViewId(
-                          menuViewId === view.id ? null : view.id,
-                        );
+                        if (menuViewId === view.id) {
+                          setMenuViewId(null);
+                          setMenuPosition(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPosition({ top: rect.bottom + 2, left: rect.right });
+                          setMenuViewId(view.id);
+                        }
                       }}
                     >
-                      <EllipsisVertical size={14} />
+                      <span className="entities-views-menu-dots">⋮</span>
                     </button>
-
-                    {menuViewId === view.id && (
-                      <div className="entities-views-menu-dropdown">
-                        <button
-                          className="entities-views-menu-item"
-                          type="button"
-                          onClick={() => handleOverwrite(view)}
-                        >
-                          <Save size={13} />
-                          Update
-                        </button>
-                        <button
-                          className="entities-views-menu-item"
-                          type="button"
-                          onClick={() => handleStartRename(view)}
-                        >
-                          <Pencil size={13} />
-                          Rename
-                        </button>
-                        <button
-                          className="entities-views-menu-item"
-                          type="button"
-                          onClick={() => handleTogglePublic(view)}
-                        >
-                          {view.is_public ? (
-                            <>
-                              <Lock size={13} />
-                              Make Private
-                            </>
-                          ) : (
-                            <>
-                              <Globe size={13} />
-                              Make Public
-                            </>
-                          )}
-                        </button>
-                        <button
-                          className="entities-views-menu-item is-destructive"
-                          type="button"
-                          onClick={() => handleDelete(view)}
-                        >
-                          <Trash2 size={13} />
-                          Delete
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </>
               )}
@@ -462,5 +427,63 @@ export function MyViewsBlock(_props: BlockComponentProps) {
         </ul>
       )}
     </div>
+
+      {/* ── Portal dropdown — rendered outside sidebar to avoid overflow clipping ── */}
+      {openView && menuPosition && createPortal(
+        <div
+          ref={menuRef}
+          className="entities-views-menu-dropdown"
+          style={{
+            position: "fixed",
+            top: menuPosition.top,
+            left: menuPosition.left,
+            transform: "translateX(-100%)",
+          }}
+        >
+          <button
+            className="entities-views-menu-item"
+            type="button"
+            onClick={() => handleOverwrite(openView)}
+          >
+            <Save size={13} />
+            Update
+          </button>
+          <button
+            className="entities-views-menu-item"
+            type="button"
+            onClick={() => handleStartRename(openView)}
+          >
+            <Pencil size={13} />
+            Rename
+          </button>
+          <button
+            className="entities-views-menu-item"
+            type="button"
+            onClick={() => handleTogglePublic(openView)}
+          >
+            {openView.is_public ? (
+              <>
+                <Lock size={13} />
+                Make Private
+              </>
+            ) : (
+              <>
+                <Globe size={13} />
+                Make Public
+              </>
+            )}
+          </button>
+          <button
+            className="entities-views-menu-item is-destructive"
+            type="button"
+            onClick={() => handleDelete(openView)}
+          >
+            <Trash2 size={13} />
+            Delete
+          </button>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

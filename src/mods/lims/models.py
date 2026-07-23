@@ -41,7 +41,7 @@ class LimsView(models.Model):
 
 
 class Entity(AbstractEntity):
-    """A structured LIMS entity representing a physical sample or item.
+    """A structured entity representing a physical sample or item.
 
     Inherits name, author, status, folder, project, schema, properties,
     updated_at, display_id, and created_at from :class:`AbstractEntity`.

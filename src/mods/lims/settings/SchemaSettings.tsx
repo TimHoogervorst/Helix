@@ -244,7 +244,7 @@ function SettingsPage() {
   const handleDeleteAllEntities = async () => {
     if (
       !window.confirm(
-        "DELETE ALL ENTITIES? This will permanently delete every LIMS entity. This cannot be undone.",
+        "DELETE ALL ENTITIES? This will permanently delete every entity. This cannot be undone.",
       )
     )
       return;

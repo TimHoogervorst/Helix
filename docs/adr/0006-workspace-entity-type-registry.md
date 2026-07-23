@@ -1,4 +1,4 @@
-# ADR-0006: Workspace-Based Mention Resolution via LIMS Entity Type Registry
+# ADR-0006: Workspace-Based Mention Resolution via Entity Type Registry
 
 > Date: 2026-07-09
 > Status: Accepted

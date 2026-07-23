@@ -28,7 +28,7 @@ import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 
 /** A single row in the registry table, extending GridRow with registration state. */
 export interface RegistryTableRow {
-  /** LIMS entity ID — null for unregistered rows. */
+  /** Entity ID — null for unregistered rows. */
   entityId: number | null;
   /** Display ID like "BLOOD1", assigned by server on registration. */
   displayId: string;

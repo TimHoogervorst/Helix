@@ -24,7 +24,7 @@ export const meta: ModManifest = {
 };
 
 export function register() {
-  // ── Workspace: LIMS entity workspace ───────────────────────────────────
+  // ── Workspace: entity workspace ────────────────────────────────────────
   // schemaType carries entity type identity so no separate service call is needed.
   registerWorkspace({
     id: "lims",
@@ -32,7 +32,7 @@ export function register() {
     icon: FlaskConical,
     schemaType: {
       id: "lims.entity",
-      displayName: "LIMS Entity",
+      displayName: "Entity",
       defaultPrefix: "E",
     },
   });

@@ -7,7 +7,7 @@ import EntityDetailFields from "../components/EntityDetailFields";
 import LimsWorkspacePanel from "./LimsWorkspace";
 
 /**
- * Full-page LIMS entity workspace (route: /lims/:displayId).
+ * Full-page entity workspace (route: /lims/:displayId).
  *
  * Thin fetcher wrapping the canonical {@link LimsWorkspacePanel} from
  * workspaces/lims.  Fetches the entity by displayId and renders an entity

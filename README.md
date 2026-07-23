@@ -59,7 +59,7 @@ The **Folder** hierarchy is the primary organisational structure. The Library hu
 ### Cross-Cutting Concepts
 
 - **Display IDs** — human-readable `<PREFIX><N>` identifiers (e.g. `E1`, `DNA42`) with gap-tolerant auto-generation and prefix-based routing
-- **Mentions** — cross-cutting resolution layer; `#BLOOD1` in an entry resolves to the entity, clickable via **MentionBadge**; workspace-aware via the LIMS entity type registry (ADR-0006)
+- **Mentions** — cross-cutting resolution layer; `#BLOOD1` in an entry resolves to the entity, clickable via **MentionBadge**; workspace-aware via the entity type registry (ADR-0006)
 - **Hub Architecture** — free-form browsing pages (Home, Library, Settings) registered via `registerHub()`; each hub owns its layout, and workspaces are plain routes at `/{workspaceId}/{displayId}`
 
 See [CONTEXT.md](CONTEXT.md) for the full domain glossary and [UBIQUITOUS_LANGUAGE.md](UBIQUITOUS_LANGUAGE.md) for canonical terminology.
@@ -92,7 +92,7 @@ Each mod calls imperative registration functions to declare its contributions:
 | `registerButton()` | A fire-only button rendered in toolbar slots (e.g. Export, Lock) | Slot |
 | `declareSlot()` | A named placeholder in a workspace that owns how bound content is rendered | Slot |
 | `registerIntoSlot()` | Binds a block or button into a declared slot, with optional per-binding overrides | Slot |
-| `registerSettingsSection()` | A panel in the Settings shell (e.g. LIMS entity schemas) | App |
+| `registerSettingsSection()` | A panel in the Settings shell (e.g. entity schemas) | App |
 | `registerRoute()` | A standalone route (e.g. `/settings`, workspace pages like `/eln/:displayId`) | App |
 | `registerPublicRoute()` | A route outside the Layout shell — no sidebar, no app chrome (e.g. `/login`) | App |
 | `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) | App |

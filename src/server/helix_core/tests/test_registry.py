@@ -989,7 +989,7 @@ class TestRegisterSchemaType:
 
         # Call again with updated display_name and columns.
         reg.register_schema_type(
-            display_name="LIMS Entity",
+            display_name="Entity",
             workspace_id="lims",
             model="mods.lims.models.Entity",
             columns=[{"name": "volume", "type": "Number"}],
@@ -997,7 +997,7 @@ class TestRegisterSchemaType:
         )
 
         st = SchemaType.objects.get(model="mods.lims.models.Entity")
-        assert st.display_name == "LIMS Entity"
+        assert st.display_name == "Entity"
         assert len(st.columns) == 1
         assert st.columns[0]["name"] == "volume"
 

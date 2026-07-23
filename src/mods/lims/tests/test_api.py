@@ -323,7 +323,7 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Regression — existing LIMS Entity Actions (user-recorded) untouched
+# Regression — existing Entity Actions (user-recorded) untouched
 # ═══════════════════════════════════════════════════════════════════════
 
 

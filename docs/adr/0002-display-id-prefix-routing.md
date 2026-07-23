@@ -59,7 +59,7 @@ The `resolve_display_id("BLOOD1")` function:
 
 ### Why not integer PKs
 
-- **No model hint.** `GET /api/resolve/42` — is 42 an ELN entry, a LIMS entity, or something else? Requires N queries (one per model) or a central registry table.
+- **No model hint.** `GET /api/resolve/42` — is 42 an ELN entry, an entity, or something else? Requires N queries (one per model) or a central registry table.
 - **Poor UX.** Lab members don't say "entry forty-two" — they say "E42." The prefix gives immediate context.
 - **Leaks sequential creation order** across all entities, which is meaningless. Per-prefix sequences are meaningful (the 5th DNA sample, the 12th blood sample).
 

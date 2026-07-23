@@ -94,7 +94,7 @@ const MOCK_SCHEMA_TYPES: SchemaTypeItem[] = [
   },
   {
     id: 2,
-    display_name: "LIMS Entity",
+    display_name: "Entity",
     workspace_id: "lims",
     is_active: true,
     schema_type_id: "lims.entity",
@@ -121,7 +121,7 @@ const MOCK_SCHEMAS: Schema[] = [
     name: "Blood",
     prefix: "BLOOD",
     schema_type: 2,
-    schema_type_display: "LIMS Entity",
+    schema_type_display: "Entity",
     columns: [
       { id: "col-3", name: "blood_type", type: "Text" },
     ],
@@ -320,7 +320,7 @@ describe("EntitiesHub", () => {
         display_id: "BLOOD1",
         name: "Blood Sample",
         schema_type_id: "lims.entity",
-        schema_type_display: "LIMS Entity",
+        schema_type_display: "Entity",
         workspace_id: "lims",
       }),
     ];
@@ -340,14 +340,14 @@ describe("EntitiesHub", () => {
       makeEntityHubItem({
         id: 2,
         schema_type_id: "lims.entity",
-        schema_type_display: "LIMS Entity",
+        schema_type_display: "Entity",
       }),
     ];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("Entry")).toBeInTheDocument();
-      expect(screen.getByText("LIMS Entity")).toBeInTheDocument();
+      expect(screen.getByText("Entity")).toBeInTheDocument();
     });
   });
 
@@ -435,7 +435,7 @@ describe("EntitiesHub", () => {
         display_id: "BLOOD1",
         workspace_id: "lims",
         schema_type_id: "lims.entity",
-        schema_type_display: "LIMS Entity",
+        schema_type_display: "Entity",
       }),
     ];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));

@@ -259,6 +259,7 @@ class LimsViewViewSet(viewsets.ModelViewSet):
 
     serializer_class = LimsViewSerializer
     permission_classes = []
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user

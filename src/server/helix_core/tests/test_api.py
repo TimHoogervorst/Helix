@@ -13,7 +13,7 @@ class SchemaTypeApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         SchemaType.objects.create(
-            display_name="LIMS Entity", workspace_id="lims",
+            display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
         )
         SchemaType.objects.create(
@@ -27,7 +27,7 @@ class SchemaTypeApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         # Only active types are returned
         names = {st["display_name"] for st in response.data}
-        self.assertIn("LIMS Entity", names)
+        self.assertIn("Entity", names)
         self.assertNotIn("ELN Entry", names)
 
 
@@ -37,7 +37,7 @@ class SchemaCrudTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.schema_type = SchemaType.objects.create(
-            display_name="LIMS Entity", workspace_id="lims",
+            display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
         )
 
@@ -60,7 +60,7 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(response.data["name"], "Blood Sample")
         self.assertEqual(response.data["prefix"], "BLOOD")
         self.assertEqual(response.data["schema_type"], self.schema_type.id)
-        self.assertEqual(response.data["schema_type_display"], "LIMS Entity")
+        self.assertEqual(response.data["schema_type_display"], "Entity")
         self.assertEqual(len(response.data["columns"]), 2)
         self.assertTrue(response.data["is_active"])
         self.assertFalse(response.data["is_default"])
@@ -86,7 +86,7 @@ class SchemaCrudTests(TestCase):
         self.assertIn("Chemical", names)
         # Each schema should have schema_type_display
         for s in response.data:
-            self.assertEqual(s["schema_type_display"], "LIMS Entity")
+            self.assertEqual(s["schema_type_display"], "Entity")
 
     def test_retrieve_schema(self):
         """GET returns a single schema."""
@@ -96,7 +96,7 @@ class SchemaCrudTests(TestCase):
         response = self.client.get(f"/api/schemas/{s.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["name"], "DNA")
-        self.assertEqual(response.data["schema_type_display"], "LIMS Entity")
+        self.assertEqual(response.data["schema_type_display"], "Entity")
 
     def test_update_schema(self):
         """PUT updates an existing schema."""
@@ -184,7 +184,7 @@ class SchemaColumnValidationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.schema_type = SchemaType.objects.create(
-            display_name="LIMS Entity", workspace_id="lims",
+            display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
         )
 
@@ -237,7 +237,7 @@ class SchemaDefaultDeactivationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.schema_type = SchemaType.objects.create(
-            display_name="LIMS Entity", workspace_id="lims",
+            display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
         )
 
@@ -275,7 +275,7 @@ class SchemaDeleteAllTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.schema_type = SchemaType.objects.create(
-            display_name="LIMS Entity", workspace_id="lims",
+            display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
         )
 

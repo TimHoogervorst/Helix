@@ -172,7 +172,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
         """Human-readable label for the schema_type_id."""
         mapping = {
             "eln.notebookentry": "Entry",
-            "lims.entity": "LIMS Entity",
+            "lims.entity": "Entity",
         }
         return mapping.get(obj.schema_type_id, obj.schema_type_id)
 

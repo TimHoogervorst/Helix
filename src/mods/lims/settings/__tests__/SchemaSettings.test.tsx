@@ -41,7 +41,7 @@ describe("SchemaSettings", () => {
           name: "Blood Sample",
           prefix: "BLOOD",
           schema_type: 1,
-          schema_type_display: "LIMS Entity",
+          schema_type_display: "Entity",
           columns: [
             { name: "Volume", type: "Number" as const },
           ],
@@ -54,7 +54,7 @@ describe("SchemaSettings", () => {
           name: "Patient",
           prefix: "PAT",
           schema_type: 1,
-          schema_type_display: "LIMS Entity",
+          schema_type_display: "Entity",
           columns: [],
           is_default: false,
           is_active: true,
@@ -62,7 +62,7 @@ describe("SchemaSettings", () => {
         },
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "LIMS Entity", workspace_id: "lims", is_active: true },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -87,7 +87,7 @@ describe("SchemaSettings", () => {
           name: "Default",
           prefix: "E",
           schema_type: 1,
-          schema_type_display: "LIMS Entity",
+          schema_type_display: "Entity",
           columns: [],
           is_default: true,
           is_active: true,
@@ -95,7 +95,7 @@ describe("SchemaSettings", () => {
         },
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "LIMS Entity", workspace_id: "lims", is_active: true },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {

@@ -22,7 +22,7 @@ def _setup_schema_types():
         model="mods.eln.models.NotebookEntry",
     )
     lims_type = SchemaType.objects.create(
-        display_name="LIMS Entity",
+        display_name="Entity",
         workspace_id="lims",
         model="mods.lims.models.Entity",
     )
@@ -418,3 +418,96 @@ class EntityHubAPITests(APITestCase):
         # Should still include common columns
         self.assertIn("display_id", keys)
         self.assertIn("name", keys)
+
+    def test_available_columns_with_schema_uses_column_name_as_key(self):
+        """available_columns keys use column name (not UUID) to match properties."""
+        from helix_core.models import Schema, SchemaType
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Blood Schema",
+            prefix="BLOOD2",
+            schema_type=lims_type,
+            is_default=False,
+            columns=[
+                {"name": "sample_type", "type": "Text"},
+                {"name": "concentration", "type": "Number"},
+            ],
+        )
+        response = self.client.get(f"{self.url}?schema={schema.id}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        schema_keys = {
+            c["key"] for c in data["available_columns"] if c["source"] == "schema"
+        }
+        self.assertEqual(schema_keys, {"sample_type", "concentration"})
+
+    # ── _expanded population ────────────────────────────────────────────
+
+    def test_expanded_populated_when_schema_selected(self):
+        """_expanded is populated with column values when ?schema= is set."""
+        from helix_core.models import Schema, SchemaType
+        from mods.lims.models import Entity
+
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Blood Schema",
+            prefix="BLOOD3",
+            schema_type=lims_type,
+            is_default=False,
+            columns=[
+                {"name": "sample_type", "type": "Text"},
+                {"name": "concentration", "type": "Number"},
+            ],
+        )
+        Entity.objects.create(
+            name="Blood Sample X",
+            author=self.user,
+            schema=schema,
+            properties={"sample_type": "Whole Blood", "concentration": 42},
+        )
+
+        response = self.client.get(f"{self.url}?schema={schema.id}")
+        self.assertEqual(response.status_code, 200)
+        row = response.json()["results"][0]
+        self.assertEqual(row["schema_id"], schema.id)
+        self.assertIsNotNone(row["_expanded"])
+        self.assertEqual(row["_expanded"]["sample_type"], "Whole Blood")
+        self.assertEqual(row["_expanded"]["concentration"], 42)
+
+    def test_expanded_null_when_no_schema_selected(self):
+        """_expanded is null when no schema filter is active."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        for row in response.json()["results"]:
+            self.assertIsNone(row["_expanded"])
+
+    def test_expanded_partial_when_some_properties_missing(self):
+        """_expanded only includes keys present in properties."""
+        from helix_core.models import Schema, SchemaType
+        from mods.lims.models import Entity
+
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Partial Schema",
+            prefix="PART",
+            schema_type=lims_type,
+            is_default=False,
+            columns=[
+                {"name": "known_field", "type": "Text"},
+                {"name": "unknown_field", "type": "Text"},
+            ],
+        )
+        Entity.objects.create(
+            name="Partial Entity",
+            author=self.user,
+            schema=schema,
+            properties={"known_field": "present"},
+        )
+
+        response = self.client.get(f"{self.url}?schema={schema.id}")
+        self.assertEqual(response.status_code, 200)
+        row = response.json()["results"][0]
+        self.assertIsNotNone(row["_expanded"])
+        self.assertEqual(row["_expanded"]["known_field"], "present")
+        # unknown_field was not set on the entity, so it should be absent
+        self.assertNotIn("unknown_field", row["_expanded"])

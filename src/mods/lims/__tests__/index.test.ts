@@ -36,7 +36,7 @@ describe("lims mod registration", () => {
     expect(ws?.displayName).toBe("LIMS");
     expect(ws?.schemaType).toEqual({
       id: "lims.entity",
-      displayName: "LIMS Entity",
+      displayName: "Entity",
       defaultPrefix: "E",
     });
   });

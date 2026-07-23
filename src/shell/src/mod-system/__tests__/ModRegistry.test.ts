@@ -334,7 +334,7 @@ describe("ModRegistry", () => {
       icon: Box,
       schemaType: {
         id: "lims.entity",
-        displayName: "LIMS Entity",
+        displayName: "Entity",
         defaultPrefix: "E",
       },
     });
@@ -342,7 +342,7 @@ describe("ModRegistry", () => {
     expect(ws).toBeDefined();
     expect(ws?.schemaType).toEqual({
       id: "lims.entity",
-      displayName: "LIMS Entity",
+      displayName: "Entity",
       defaultPrefix: "E",
     });
   });
@@ -353,7 +353,7 @@ describe("ModRegistry", () => {
       displayName: "LIMS",
       schemaType: {
         id: "lims.entity",
-        displayName: "LIMS Entity",
+        displayName: "Entity",
         defaultPrefix: "E",
         columns: [
           { name: "Name", type: "Text", required: true },

@@ -142,7 +142,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                     pk=int(params["schema"]), is_active=True
                 )
                 context["schema_columns"] = [
-                    col.get("id", col.get("name", ""))
+                    col.get("name", "")
                     for col in schema_obj.columns
                 ]
             except (Schema.DoesNotExist, ValueError):
@@ -163,7 +163,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                 )
                 for col in schema_obj.columns:
                     columns.append({
-                        "key": col.get("id", col.get("name", "")),
+                        "key": col.get("name", ""),
                         "label": col.get("name", ""),
                         "source": "schema",
                     })
@@ -178,7 +178,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                 )
                 for col in schema_type_obj.columns:
                     columns.append({
-                        "key": col.get("id", col.get("name", "")),
+                        "key": col.get("name", ""),
                         "label": col.get("name", ""),
                         "source": "schema_type",
                     })

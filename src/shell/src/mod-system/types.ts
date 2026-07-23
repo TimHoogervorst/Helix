@@ -137,7 +137,7 @@ export interface SchemaColumnDef {
 export interface SchemaTypeConfig {
   /** Unique schema type identifier, e.g. "lims.entity", "eln.entry". */
   id: string;
-  /** Human-readable name, e.g. "LIMS Entity", "ELN Entry". */
+  /** Human-readable name, e.g. "Entity", "ELN Entry". */
   displayName: string;
   /** Default prefix for display IDs, e.g. "E" → "E1". */
   defaultPrefix: string;

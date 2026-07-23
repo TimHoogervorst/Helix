@@ -164,7 +164,7 @@ const _schemaDefaults: Schema = {
   name: "Blood Sample",
   prefix: "BLOOD",
   schema_type: 1,
-  schema_type_display: "LIMS Entity",
+  schema_type_display: "Entity",
   is_default: false,
   is_active: true,
   columns: [],
@@ -180,7 +180,7 @@ export function makeSchema(
 
 const _schemaTypeDefaults: SchemaTypeItem = {
   id: 1,
-  display_name: "LIMS Entity",
+  display_name: "Entity",
   workspace_id: "lims",
   is_active: true,
   schema_type_id: "lims.entity",

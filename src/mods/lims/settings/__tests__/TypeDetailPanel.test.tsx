@@ -10,7 +10,7 @@ vi.mock("../../../../shared/components/MentionBadge", () => ({
 }));
 
 const liveSchema: Schema = makeSchema({
-  schema_type_display: "LIMS Entity",
+  schema_type_display: "Entity",
   columns: [
     makeColumnDef({ required: true }),
     makeColumnDef({ name: "hemolyzed", type: "Boolean" }),
@@ -51,7 +51,7 @@ describe("TypeDetailPanel", () => {
 
   it("renders schema type display", () => {
     render(<TypeDetailPanel {...defaultProps} />);
-    expect(screen.getByText("LIMS Entity")).toBeInTheDocument();
+    expect(screen.getByText("Entity")).toBeInTheDocument();
   });
 
   it("renders status field", () => {

@@ -105,7 +105,7 @@ const _libraryEntryDefaults: LibraryEntryItem = {
   type: "entry",
   id: 1,
   display_id: "E1",
-  name: "PCR Results",
+  title: "PCR Results",
   folder: null,
   folder_name: null,
   author_username: null,

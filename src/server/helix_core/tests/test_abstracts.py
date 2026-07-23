@@ -34,11 +34,11 @@ class AbstractEntityFieldTests(TransactionTestCase):
         super().setUpClass()
         # The conftest.py session fixture may have already created this
         # table.  Only create it if it doesn't exist yet.
-        from django.db.utils import OperationalError
+        from django.db.utils import OperationalError, ProgrammingError
         try:
             with connection.schema_editor() as schema_editor:
                 schema_editor.create_model(ConcreteTestEntity)
-        except OperationalError:
+        except (OperationalError, ProgrammingError):
             pass  # table already exists
 
     @classmethod

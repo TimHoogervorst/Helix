@@ -1,4 +1,4 @@
-/** A column definition within an entity type schema. */
+/** A column definition within a schema. */
 export interface ColumnDef {
   id?: string;
   name: string;
@@ -9,7 +9,7 @@ export interface ColumnDef {
   description?: string;
 }
 
-/** An entity type (schema) as returned by the API. */
+/** An entity type (legacy, from the old EntityType model). */
 export interface EntityType {
   id: number;
   name: string;
@@ -20,12 +20,43 @@ export interface EntityType {
   content_hash: string;
 }
 
-/** Payload for creating/updating an entity type. */
+/** Payload for creating/updating an entity type (legacy). */
 export interface EntityTypePayload {
   name: string;
   prefix: string;
   icon?: string;
   columns: ColumnDef[];
+}
+
+// ── Schema (new shared model) ───────────────────────────────────────────
+
+/** A Schema row as returned by the API. */
+export interface Schema {
+  id: number;
+  name: string;
+  prefix: string;
+  schema_type: number;
+  schema_type_display: string;
+  columns: ColumnDef[];
+  is_default: boolean;
+  is_active: boolean;
+  content_hash: string;
+}
+
+/** Payload for creating/updating a Schema. */
+export interface SchemaPayload {
+  name: string;
+  prefix: string;
+  schema_type: number;
+  columns: ColumnDef[];
+}
+
+/** A SchemaType as returned by the list endpoint. */
+export interface SchemaTypeItem {
+  id: number;
+  display_name: string;
+  workspace_id: string;
+  is_active: boolean;
 }
 
 /** An entity as returned by the list endpoint. */

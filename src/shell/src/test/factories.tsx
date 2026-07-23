@@ -21,6 +21,8 @@ import type {
   PaginatedResponse,
   EntityType,
   ColumnDef,
+  Schema,
+  SchemaTypeItem,
 } from "../../../mods/lims/types";
 import type {
   LibraryEntryItem,
@@ -173,6 +175,41 @@ export function makeColumnDef(
   overrides?: Partial<ColumnDef>,
 ): ColumnDef {
   return { ..._columnDefDefaults, ...overrides };
+}
+
+// ── Schema (new shared model) ──────────────────────────────────────────────
+
+const _schemaDefaults: Schema = {
+  id: 1,
+  name: "Blood Sample",
+  prefix: "BLOOD",
+  schema_type: 1,
+  schema_type_display: "LIMS Entity",
+  is_default: false,
+  is_active: true,
+  columns: [],
+  content_hash: "",
+};
+
+/** A single Schema row. */
+export function makeSchema(
+  overrides?: Partial<Schema>,
+): Schema {
+  return { ..._schemaDefaults, ...overrides };
+}
+
+const _schemaTypeDefaults: SchemaTypeItem = {
+  id: 1,
+  display_name: "LIMS Entity",
+  workspace_id: "lims",
+  is_active: true,
+};
+
+/** A single SchemaType item. */
+export function makeSchemaType(
+  overrides?: Partial<SchemaTypeItem>,
+): SchemaTypeItem {
+  return { ..._schemaTypeDefaults, ...overrides };
 }
 
 // ── TipTap editor (for extension tests) ─────────────────────────────────────

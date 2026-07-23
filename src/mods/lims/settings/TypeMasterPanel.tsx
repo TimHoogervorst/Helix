@@ -1,12 +1,12 @@
-import type { EntityType } from "../types";
+import type { Schema, SchemaTypeItem } from "../types";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 
 export interface TypeMasterPanelProps {
-  /** Entity types to display (already filtered per showArchived). */
-  types: EntityType[];
-  /** Currently selected type ID, or null. */
+  /** Schemas to display (already filtered per showArchived). */
+  schemas: Schema[];
+  /** Currently selected schema ID, or null. */
   selectedId: number | null;
-  onSelect: (et: EntityType) => void;
+  onSelect: (s: Schema) => void;
   showArchived: boolean;
   onToggleArchived: () => void;
   showNew: boolean;
@@ -15,10 +15,13 @@ export interface TypeMasterPanelProps {
   onNewNameChange: (name: string) => void;
   newPrefix: string;
   onNewPrefixChange: (prefix: string) => void;
+  newSchemaType: number | null;
+  onNewSchemaTypeChange: (id: number) => void;
+  schemaTypes: SchemaTypeItem[];
   onCreate: () => void;
   saving: boolean;
-  /** Set of entity types with unsaved edits. */
-  dirtyEdits: Map<number, EntityType>;
+  /** Set of schemas with unsaved edits. */
+  dirtyEdits: Map<number, Schema>;
 }
 
 /**
@@ -28,7 +31,7 @@ export interface TypeMasterPanelProps {
  * parent SettingsPage orchestrator.
  */
 function TypeMasterPanel({
-  types,
+  schemas,
   selectedId,
   onSelect,
   showArchived,
@@ -39,6 +42,9 @@ function TypeMasterPanel({
   onNewNameChange,
   newPrefix,
   onNewPrefixChange,
+  newSchemaType,
+  onNewSchemaTypeChange,
+  schemaTypes,
   onCreate,
   saving,
   dirtyEdits,
@@ -93,9 +99,33 @@ function TypeMasterPanel({
                 />
               </label>
             </div>
+            {schemaTypes.length > 0 && (
+              <div className="form-row">
+                <label>
+                  Schema Type
+                  <select
+                    value={newSchemaType ?? ""}
+                    onChange={(e) =>
+                      onNewSchemaTypeChange(Number(e.target.value))
+                    }
+                  >
+                    {schemaTypes.map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {st.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
             <button
               onClick={onCreate}
-              disabled={saving || !newName.trim() || !newPrefix.trim()}
+              disabled={
+                saving ||
+                !newName.trim() ||
+                !newPrefix.trim() ||
+                newSchemaType === null
+              }
             >
               {saving ? "Creating…" : "Create"}
             </button>
@@ -103,36 +133,41 @@ function TypeMasterPanel({
         )}
 
         {/* Schema list */}
-        {types.map((et) => (
+        {schemas.map((s) => (
           <div
-            key={et.id}
-            className={`card schema-card${!et.is_active ? " is-inactive" : ""}${selectedId === et.id ? " is-selected" : ""}`}
+            key={s.id}
+            className={`card schema-card${!s.is_active ? " is-inactive" : ""}${selectedId === s.id ? " is-selected" : ""}`}
           >
             <div
               className="schema-header"
-              onClick={() => onSelect(et)}
+              onClick={() => onSelect(s)}
             >
               <div className="schema-info">
-                <span className="schema-name">{et.name}</span>
-                <MentionBadge
-                  displayId={`${et.prefix}…`}
-                  clickable={false}
-                />
+                <span className="schema-name">{s.name}</span>
+                {/* Default schemas get a "System" badge; others show prefix */}
+                {s.is_default ? (
+                  <span className="system-badge">System</span>
+                ) : (
+                  <MentionBadge
+                    displayId={`${s.prefix}…`}
+                    clickable={false}
+                  />
+                )}
                 <span className="schema-meta">
-                  {et.columns.length} column
-                  {et.columns.length !== 1 ? "s" : ""}
+                  {s.columns.length} column
+                  {s.columns.length !== 1 ? "s" : ""}
                 </span>
-                {!et.is_active && (
+                {!s.is_active && (
                   <span className="inactive-tag">Inactive</span>
                 )}
-                {dirtyEdits.has(et.id) && (
+                {dirtyEdits.has(s.id) && (
                   <span className="dirty-tag">Edited</span>
                 )}
               </div>
             </div>
           </div>
         ))}
-        {types.length === 0 && (
+        {schemas.length === 0 && (
           <p className="empty">No schemas found.</p>
         )}
       </section>

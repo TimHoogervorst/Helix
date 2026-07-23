@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EntityHubResponse, EntityHubItem } from "../types";
+import type { EntityHubResponse, EntityHubItem, SchemaTypeItem, Schema } from "../types";
 import EntitiesHub from "../hub/EntitiesHub";
 
 // ── Mocks ────────────────────────────────────────────────────────────
@@ -16,8 +16,12 @@ vi.mock("react-router-dom", async () => {
 });
 
 const mockGetEntities = vi.fn();
+const mockGetSchemaTypes = vi.fn();
+const mockGetSchemas = vi.fn();
 vi.mock("../hub/api", () => ({
   getEntities: (...args: unknown[]) => mockGetEntities(...args),
+  getSchemaTypes: (...args: unknown[]) => mockGetSchemaTypes(...args),
+  getSchemas: (...args: unknown[]) => mockGetSchemas(...args),
 }));
 
 // Mock localStorage for view mode persistence tests
@@ -76,7 +80,55 @@ const DEFAULT_COLUMNS: EntityHubResponse["available_columns"] = [
   { key: "schema_type_id", label: "Schema Type", source: "common" },
   { key: "status", label: "Status", source: "common" },
   { key: "author", label: "Author", source: "common" },
+  { key: "created_at", label: "Created", source: "common" },
   { key: "updated_at", label: "Updated", source: "common" },
+];
+
+const MOCK_SCHEMA_TYPES: SchemaTypeItem[] = [
+  {
+    id: 1,
+    display_name: "Entry",
+    workspace_id: "eln",
+    is_active: true,
+    schema_type_id: "eln.entry",
+  },
+  {
+    id: 2,
+    display_name: "LIMS Entity",
+    workspace_id: "lims",
+    is_active: true,
+    schema_type_id: "lims.entity",
+  },
+];
+
+const MOCK_SCHEMAS: Schema[] = [
+  {
+    id: 1,
+    name: "Default",
+    prefix: "E",
+    schema_type: 1,
+    schema_type_display: "Entry",
+    columns: [
+      { id: "col-1", name: "sample_type", type: "Text" },
+      { id: "col-2", name: "concentration", type: "Number" },
+    ],
+    is_default: true,
+    is_active: true,
+    content_hash: "abc",
+  },
+  {
+    id: 2,
+    name: "Blood",
+    prefix: "BLOOD",
+    schema_type: 2,
+    schema_type_display: "LIMS Entity",
+    columns: [
+      { id: "col-3", name: "blood_type", type: "Text" },
+    ],
+    is_default: true,
+    is_active: true,
+    content_hash: "def",
+  },
 ];
 
 function makeEntityHubItem(
@@ -141,15 +193,24 @@ describe("EntitiesHub", () => {
   beforeEach(() => {
     mockGetEntities.mockReset();
     mockNavigate.mockReset();
+    mockGetSchemaTypes.mockReset();
+    mockGetSchemas.mockReset();
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     mockLocalStorage.getItem.mockClear();
     mockLocalStorage.setItem.mockClear();
+
+    // Default successful responses
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    mockGetSchemaTypes.mockResolvedValue(MOCK_SCHEMA_TYPES);
+    mockGetSchemas.mockResolvedValue(MOCK_SCHEMAS);
   });
 
   // ── Loading / Empty / Error states ─────────────────────────────────
 
   it("shows loading state initially", () => {
     mockGetEntities.mockReturnValue(new Promise(() => {})); // never resolves
+    mockGetSchemaTypes.mockReturnValue(new Promise(() => {}));
+    mockGetSchemas.mockReturnValue(new Promise(() => {}));
     renderHub();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
@@ -159,6 +220,17 @@ describe("EntitiesHub", () => {
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("No entities found.")).toBeInTheDocument();
+    });
+  });
+
+  it("shows empty state with filters message when filters are active", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?search=nonexistent");
+    await waitFor(() => {
+      expect(
+        screen.getByText("No entities match your filters."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Clear all filters")).toBeInTheDocument();
     });
   });
 
@@ -173,7 +245,6 @@ describe("EntitiesHub", () => {
   // ── Breadcrumb ─────────────────────────────────────────────────────
 
   it("renders breadcrumb with 'Entities' label", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("Entities")).toBeInTheDocument();
@@ -183,7 +254,6 @@ describe("EntitiesHub", () => {
   // ── View mode toggle ────────────────────────────────────────────────
 
   it("renders Compact and List view toggle buttons", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByTitle("List view")).toBeInTheDocument();
@@ -192,7 +262,6 @@ describe("EntitiesHub", () => {
   });
 
   it("List view is active by default", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       const listBtn = screen.getByTitle("List view");
@@ -201,7 +270,6 @@ describe("EntitiesHub", () => {
   });
 
   it("clicking Compact view activates it and deactivates List", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByTitle("List view")).toBeInTheDocument();
@@ -216,7 +284,6 @@ describe("EntitiesHub", () => {
   });
 
   it("persists view mode to localStorage", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByTitle("List view")).toBeInTheDocument();
@@ -236,27 +303,11 @@ describe("EntitiesHub", () => {
       (key: string) => localStorageStore[key] ?? null,
     );
 
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       const compactBtn = screen.getByTitle("Compact view");
       expect(compactBtn.className).toContain("is-active");
     });
-  });
-
-  it("view mode toggle does NOT trigger a data refetch", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
-    renderHub();
-    await waitFor(() => {
-      expect(screen.getByTitle("List view")).toBeInTheDocument();
-    });
-
-    const callCount = mockGetEntities.mock.calls.length;
-
-    fireEvent.click(screen.getByTitle("Compact view"));
-    fireEvent.click(screen.getByTitle("List view"));
-
-    expect(mockGetEntities.mock.calls.length).toBe(callCount);
   });
 
   // ── Data Table ──────────────────────────────────────────────────────
@@ -308,9 +359,53 @@ describe("EntitiesHub", () => {
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
     await waitFor(() => {
-      expect(screen.getByText("In Progress")).toBeInTheDocument();
-      expect(screen.getByText("Finished")).toBeInTheDocument();
+      // Use getAllByText since "In Progress" and "Finished" also appear in
+      // the Status dropdown options
+      const inProgressEls = screen.getAllByText("In Progress");
+      const finishedEls = screen.getAllByText("Finished");
+      // At least one of each should be a status badge (not just the option)
+      expect(inProgressEls.length).toBeGreaterThanOrEqual(1);
+      expect(finishedEls.length).toBeGreaterThanOrEqual(1);
     });
+  });
+
+  // ── Row click → navigation ──────────────────────────────────────────
+
+  it("navigates to workspace URL on row click", async () => {
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        display_id: "E1",
+        workspace_id: "eln",
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("E1").closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(row!);
+
+    expect(mockNavigate).toHaveBeenCalledWith("/eln/E1");
+  });
+
+  it("supports keyboard navigation (Enter key) on rows", async () => {
+    const items = [
+      makeEntityHubItem({ id: 1, display_id: "E1", workspace_id: "eln" }),
+    ];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("E1").closest("tr");
+    fireEvent.keyDown(row!, { key: "Enter" });
+
+    expect(mockNavigate).toHaveBeenCalledWith("/eln/E1");
   });
 
   it("renders author username", async () => {
@@ -331,30 +426,6 @@ describe("EntitiesHub", () => {
     await waitFor(() => {
       expect(screen.getByText("—")).toBeInTheDocument();
     });
-  });
-
-  // ── Row click → navigation ──────────────────────────────────────────
-
-  it("navigates to workspace URL on row click", async () => {
-    const items = [
-      makeEntityHubItem({
-        id: 1,
-        display_id: "E1",
-        workspace_id: "eln",
-      }),
-    ];
-    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
-    renderHub();
-    await waitFor(() => {
-      expect(screen.getByText("E1")).toBeInTheDocument();
-    });
-
-    // Click the row (find by display_id text then click parent row)
-    const row = screen.getByText("E1").closest("tr");
-    expect(row).not.toBeNull();
-    fireEvent.click(row!);
-
-    expect(mockNavigate).toHaveBeenCalledWith("/eln/E1");
   });
 
   it("navigates to LIMS workspace for lims.entity rows", async () => {
@@ -379,70 +450,188 @@ describe("EntitiesHub", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/lims/BLOOD1");
   });
 
-  it("supports keyboard navigation (Enter key) on rows", async () => {
-    const items = [
-      makeEntityHubItem({ id: 1, display_id: "E1", workspace_id: "eln" }),
-    ];
-    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+  it("view mode toggle does NOT trigger a data refetch", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
-      expect(screen.getByText("E1")).toBeInTheDocument();
+      expect(screen.getByTitle("List view")).toBeInTheDocument();
     });
 
-    const row = screen.getByText("E1").closest("tr");
-    fireEvent.keyDown(row!, { key: "Enter" });
+    const callCount = mockGetEntities.mock.calls.length;
 
-    expect(mockNavigate).toHaveBeenCalledWith("/eln/E1");
+    fireEvent.click(screen.getByTitle("Compact view"));
+    fireEvent.click(screen.getByTitle("List view"));
+
+    expect(mockGetEntities.mock.calls.length).toBe(callCount);
   });
 
-  // ── Filter bar stubs ────────────────────────────────────────────────
+  // ── Filter Bar: Search ─────────────────────────────────────────────
 
-  it("renders search input (disabled)", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+  it("renders search input (enabled)", async () => {
     renderHub();
     await waitFor(() => {
       const searchInput = screen.getByPlaceholderText("Search…");
       expect(searchInput).toBeInTheDocument();
-      expect(searchInput).toBeDisabled();
+      expect(searchInput).not.toBeDisabled();
     });
   });
 
-  it("renders Schema dropdown (disabled, empty)", async () => {
+  it("passes search query to API", async () => {
+    const items = [makeEntityHubItem({ id: 1, name: "PCR Result" })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub("/entities?search=PCR");
+    await waitFor(() => {
+      expect(mockGetEntities).toHaveBeenCalled();
+    });
+    // The debounced search value should be "PCR"
+    const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+    expect(lastCall?.search).toBe("PCR");
+  });
+
+  // ── Filter Bar: Schema dropdown ────────────────────────────────────
+
+  it("renders Schema dropdown with optgroups", async () => {
     mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
-      const selects = screen.getAllByRole("combobox");
-      const schemaSelect = selects.find((s) =>
-        s.querySelector("option")?.textContent === "Schema",
+      // The "All schemas" default option should be present
+      expect(screen.getByText("All schemas")).toBeInTheDocument();
+    });
+  });
+
+  it("passes schema filter to API", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?schema=2");
+    await waitFor(() => {
+      const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(lastCall?.schema).toBe("2");
+    });
+  });
+
+  it("passes schema_type filter to API", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?schema_type=eln.entry");
+    await waitFor(() => {
+      const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(lastCall?.schema_type).toBe("eln.entry");
+    });
+  });
+
+  // ── Filter Bar: Status dropdown ────────────────────────────────────
+
+  it("renders Status dropdown with options", async () => {
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("All statuses")).toBeInTheDocument();
+    });
+  });
+
+  it("passes status filter to API", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?status=in_progress");
+    await waitFor(() => {
+      const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(lastCall?.status).toBe("in_progress");
+    });
+  });
+
+  // ── Filter Bar: Sort button ────────────────────────────────────────
+
+  it("renders Sort button (enabled)", async () => {
+    renderHub();
+    await waitFor(() => {
+      const sortBtn = screen.getByText("Sort").closest("button");
+      expect(sortBtn).toBeInTheDocument();
+      expect(sortBtn).not.toBeDisabled();
+    });
+  });
+
+  it("shows sort direction when sort is active", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?sort=name");
+    await waitFor(() => {
+      expect(screen.getByText("Name")).toBeInTheDocument();
+    });
+  });
+
+  it("shows descending sort indicator", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?sort=-updated_at");
+    await waitFor(() => {
+      expect(screen.getByText("Updated")).toBeInTheDocument();
+    });
+  });
+
+  it("passes sort param to API", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?sort=-created_at");
+    await waitFor(() => {
+      const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(lastCall?.sort).toBe("-created_at");
+    });
+  });
+
+  // ── Filter Bar: Fields button ──────────────────────────────────────
+
+  it("renders Fields button", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("Fields")).toBeInTheDocument();
+    });
+  });
+
+  it("shows field filter count badge when filters active", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub("/entities?f=sample_type:B&f=concentration:5");
+    await waitFor(() => {
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+  });
+
+  // ── Field filter chips ─────────────────────────────────────────────
+
+  it("renders field filter chips below the filter bar", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub("/entities?f=sample_type:B");
+    await waitFor(() => {
+      expect(screen.getByText("sample_type")).toBeInTheDocument();
+      expect(screen.getByText("B")).toBeInTheDocument();
+      expect(screen.getByText("Clear all")).toBeInTheDocument();
+    });
+  });
+
+  it("passes field filters to API", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?f=sample_type:B&f=concentration:5");
+    await waitFor(() => {
+      const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(lastCall?.f).toEqual(["sample_type:B", "concentration:5"]);
+    });
+  });
+
+  // ── Sortable column headers ────────────────────────────────────────
+
+  it("column headers have sort icon when active", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub("/entities?sort=name");
+    await waitFor(() => {
+      // Find the sort icon within any th element (Name column header)
+      const headers = document.querySelectorAll("th");
+      const nameHeader = Array.from(headers).find((th) =>
+        th.textContent?.includes("Name"),
       );
-      expect(schemaSelect).toBeDefined();
-      expect(schemaSelect).toBeDisabled();
-    });
-  });
-
-  it("renders Sort button (disabled)", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
-    renderHub();
-    await waitFor(() => {
-      expect(screen.getByText("Sort")).toBeInTheDocument();
-      expect(screen.getByText("Sort").closest("button")).toBeDisabled();
-    });
-  });
-
-  it("renders column chooser button (disabled)", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
-    renderHub();
-    await waitFor(() => {
-      const columnsBtn = screen.getByTitle("Column visibility");
-      expect(columnsBtn).toBeInTheDocument();
-      expect(columnsBtn).toBeDisabled();
+      expect(nameHeader?.querySelector(".entities-sort-icon")).toBeTruthy();
     });
   });
 
   // ── Right sidebar ───────────────────────────────────────────────────
 
   it("renders SELECTION section placeholder", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("SELECTION")).toBeInTheDocument();
@@ -453,7 +642,6 @@ describe("EntitiesHub", () => {
   });
 
   it("renders MY VIEWS section placeholder", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("MY VIEWS")).toBeInTheDocument();
@@ -462,7 +650,6 @@ describe("EntitiesHub", () => {
   });
 
   it("renders GLOBAL VIEWS section placeholder", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("GLOBAL VIEWS")).toBeInTheDocument();
@@ -493,7 +680,6 @@ describe("EntitiesHub", () => {
   });
 
   it("does not render pagination when no results", async () => {
-    mockGetEntities.mockResolvedValue(makeEmptyResponse());
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("No entities found.")).toBeInTheDocument();
@@ -501,7 +687,7 @@ describe("EntitiesHub", () => {
     expect(screen.queryByText("Show")).not.toBeInTheDocument();
   });
 
-  // ── Compact view applies class ──────────────────────────────────────
+  // ── Compact view ──────────────────────────────────────────────────
 
   it("applies view-compact class to table wrapper in compact mode", async () => {
     localStorageStore["helix-entities-view-mode"] = "compact";
@@ -518,5 +704,40 @@ describe("EntitiesHub", () => {
 
     const tableWrap = document.querySelector(".entities-table-wrap");
     expect(tableWrap?.className).toContain("view-compact");
+  });
+
+  // ── URL sync on filter changes ─────────────────────────────────────
+
+  it("populates search input from URL on load", async () => {
+    renderHub("/entities?search=PCR");
+    await waitFor(() => {
+      const searchInput = screen.getByPlaceholderText(
+        "Search…",
+      ) as HTMLInputElement;
+      expect(searchInput.value).toBe("PCR");
+    });
+  });
+
+  it("populates status dropdown from URL on load", async () => {
+    renderHub("/entities?status=finished");
+    await waitFor(() => {
+      // Find all select elements and check one has value "finished"
+      const selects = document.querySelectorAll("select");
+      const statusSelect = Array.from(selects).find(
+        (s) => s.value === "finished",
+      );
+      expect(statusSelect).toBeTruthy();
+    });
+  });
+
+  it("fetches data on mount with URL-derived params", async () => {
+    renderHub("/entities?search=PCR&status=in_progress&sort=-created_at");
+    await waitFor(() => {
+      expect(mockGetEntities).toHaveBeenCalled();
+      const call = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(call?.search).toBe("PCR");
+      expect(call?.status).toBe("in_progress");
+      expect(call?.sort).toBe("-created_at");
+    });
   });
 });

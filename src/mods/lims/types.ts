@@ -38,6 +38,7 @@ export interface SchemaTypeItem {
   display_name: string;
   workspace_id: string;
   is_active: boolean;
+  schema_type_id: string;
 }
 
 /** An entity as returned by the list endpoint. */

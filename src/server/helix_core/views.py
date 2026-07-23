@@ -7,6 +7,7 @@ read-only list for populating the Schema Type selector dropdown.
 
 import logging
 
+from django.db.models import Q
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -33,6 +34,8 @@ AVAILABLE_COLUMNS = [
     {"key": "updated_at", "label": "Updated", "source": "common"},
 ]
 
+SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})
+
 
 class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     """Read-only list of all entities from the entity_hub_view VIEW.
@@ -42,19 +45,130 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     Each row carries a ``workspace_id`` for building workspace URLs on the
     frontend.
 
-    Only the list endpoint is exposed — there is no detail/retrieve for
-    the VIEW.
+    Query Parameters
+    ----------------
+    search : str
+        Case-insensitive search across ``name`` and ``display_id``.
+    schema_type : str
+        Filter by schema_type_id (e.g. ``eln.entry``, ``lims.entity``).
+    schema : int
+        Filter by specific schema ID.
+    status : str
+        Filter by status: ``in_progress`` or ``finished``.
+    sort : str
+        Sort by field. Prefix with ``-`` for descending order.
+        Supported fields: name, status, created_at, updated_at.
+    f : str (repeatable)
+        Field filters in ``key:value`` format, applied against the
+        ``properties`` JSON column.
     """
-    queryset = EntityHubView.objects.select_related(
-        "author", "schema"
-    ).all()
+
     serializer_class = EntityHubSerializer
     pagination_class = EntityHubPaginator
     permission_classes = []
 
+    def get_queryset(self):
+        qs = EntityHubView.objects.select_related("author", "schema").all()
+        return self._apply_filters(qs)
+
+    def _parse_filter_params(self):
+        """Return a dict of parsed filter params, cached on the viewset."""
+        if hasattr(self, "_filter_params"):
+            return self._filter_params
+        request = self.request
+        self._filter_params = {
+            "search": request.query_params.get("search", "").strip(),
+            "schema_type": request.query_params.get("schema_type", "").strip(),
+            "schema": request.query_params.get("schema", "").strip(),
+            "status": request.query_params.get("status", "").strip(),
+            "field_filters": request.query_params.getlist("f"),
+            "sort": request.query_params.get("sort", "").strip(),
+        }
+        return self._filter_params
+
+    def _apply_filters(self, qs):
+        params = self._parse_filter_params()
+
+        # ── Search: name + display_id ──────────────────────────────────
+        if params["search"]:
+            qs = qs.filter(
+                Q(name__icontains=params["search"])
+                | Q(display_id__icontains=params["search"])
+            )
+
+        # ── Schema type filter ─────────────────────────────────────────
+        if params["schema_type"]:
+            qs = qs.filter(schema_type_id=params["schema_type"])
+
+        # ── Schema filter ──────────────────────────────────────────────
+        if params["schema"]:
+            qs = qs.filter(schema_id=params["schema"])
+
+        # ── Status filter ──────────────────────────────────────────────
+        if params["status"] in ("in_progress", "finished"):
+            qs = qs.filter(status=params["status"])
+
+        # ── Field filters (repeatable ?f=key:value) ────────────────────
+        for ff in params["field_filters"]:
+            if ":" in ff:
+                key, value = ff.split(":", 1)
+                qs = qs.filter(
+                    Q(properties__has_key=key)
+                    & Q(properties__contains={key: value})
+                )
+
+        # ── Sort ───────────────────────────────────────────────────────
+        sort = params["sort"]
+        if sort:
+            descending = False
+            if sort.startswith("-"):
+                descending = True
+                sort = sort[1:]
+            if sort in SORTABLE_FIELDS:
+                ordering = f"-{sort}" if descending else sort
+                qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("-updated_at")
+
+        return qs
+
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        response.data["available_columns"] = AVAILABLE_COLUMNS
+
+        # ── Compute available_columns dynamically ──────────────────────
+        params = self._parse_filter_params()
+        columns = list(AVAILABLE_COLUMNS)
+
+        if params["schema"]:
+            try:
+                schema_obj = Schema.objects.get(
+                    pk=int(params["schema"]), is_active=True
+                )
+                for col in schema_obj.columns:
+                    columns.append({
+                        "key": col.get("id", col.get("name", "")),
+                        "label": col.get("name", ""),
+                        "source": "schema",
+                    })
+            except (Schema.DoesNotExist, ValueError):
+                pass
+        elif params["schema_type"]:
+            try:
+                # Derive workspace_id from schema_type_id (format: "mod.entity")
+                workspace_id = params["schema_type"].split(".")[0]
+                schema_type_obj = SchemaType.objects.get(
+                    workspace_id=workspace_id, is_active=True
+                )
+                for col in schema_type_obj.columns:
+                    columns.append({
+                        "key": col.get("id", col.get("name", "")),
+                        "label": col.get("name", ""),
+                        "source": "schema_type",
+                    })
+            except (SchemaType.DoesNotExist, IndexError):
+                pass
+
+        response.data["available_columns"] = columns
         return response
 
 

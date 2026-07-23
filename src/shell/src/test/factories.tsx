@@ -183,6 +183,7 @@ const _schemaTypeDefaults: SchemaTypeItem = {
   display_name: "LIMS Entity",
   workspace_id: "lims",
   is_active: true,
+  schema_type_id: "lims.entity",
 };
 
 /** A single SchemaType item. */

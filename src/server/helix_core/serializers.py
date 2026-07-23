@@ -52,9 +52,23 @@ def validate_columns(value):
 class SchemaTypeListSerializer(serializers.ModelSerializer):
     """Minimal serializer for listing SchemaTypes (used in dropdowns)."""
 
+    schema_type_id = serializers.SerializerMethodField()
+
     class Meta:
         model = SchemaType
-        fields = ["id", "display_name", "workspace_id", "is_active"]
+        fields = ["id", "display_name", "workspace_id", "is_active", "schema_type_id"]
+
+    def get_schema_type_id(self, obj):
+        """Derive the schema_type_id used by the entity_hub_view VIEW.
+
+        Convention: ``{mod_name}.{model_name_lower}`` parsed from the
+        dotted Python model path (e.g. ``mods.lims.models.Entity`` →
+        ``lims.entity``).
+        """
+        parts = obj.model.split(".")
+        if len(parts) >= 4:
+            return f"{parts[1]}.{parts[-1].lower()}"
+        return obj.workspace_id
 
 
 class SchemaListSerializer(serializers.ModelSerializer):

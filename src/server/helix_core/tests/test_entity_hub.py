@@ -257,3 +257,164 @@ class EntityHubAPITests(APITestCase):
         data = response.json()
         self.assertEqual(data["total"], 0)
         self.assertEqual(len(data["results"]), 0)
+
+    # ── Search filter ────────────────────────────────────────────────────
+
+    def test_search_by_name(self):
+        """?search= filters by name (case-insensitive)."""
+        response = self.client.get(f"{self.url}?search=ELN Test")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreaterEqual(data["total"], 1)
+        names = [r["name"] for r in data["results"]]
+        self.assertIn("ELN Test Entry", names)
+
+    def test_search_by_display_id(self):
+        """?search= filters by display_id (case-insensitive)."""
+        response = self.client.get(
+            f"{self.url}?search={self.eln_entry.display_id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreaterEqual(data["total"], 1)
+
+    # ── Schema type filter ───────────────────────────────────────────────
+
+    def test_filter_by_schema_type(self):
+        """?schema_type= filters to entities of that type."""
+        response = self.client.get(f"{self.url}?schema_type=eln.entry")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for row in data["results"]:
+            self.assertEqual(row["schema_type_id"], "eln.entry")
+
+    def test_filter_by_schema_type_lims(self):
+        """?schema_type=lims.entity returns only LIMS entities."""
+        response = self.client.get(f"{self.url}?schema_type=lims.entity")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for row in data["results"]:
+            self.assertEqual(row["schema_type_id"], "lims.entity")
+
+    # ── Schema filter ────────────────────────────────────────────────────
+
+    def test_filter_by_schema_id(self):
+        """?schema= filters to entities with that specific schema."""
+        from helix_core.models import Schema
+        eln_schema = Schema.objects.get(prefix="E")
+        response = self.client.get(f"{self.url}?schema={eln_schema.id}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for row in data["results"]:
+            self.assertEqual(row["schema_id"], eln_schema.id)
+
+    # ── Status filter ────────────────────────────────────────────────────
+
+    def test_filter_by_status_in_progress(self):
+        """?status=in_progress returns only in-progress entities."""
+        response = self.client.get(f"{self.url}?status=in_progress")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for row in data["results"]:
+            self.assertEqual(row["status"], "in_progress")
+
+    def test_filter_by_status_finished(self):
+        """?status=finished returns only finished entities."""
+        # Create a finished entity
+        from mods.lims.models import Entity
+        from helix_core.models import Schema
+        lims_schema = Schema.objects.get(prefix="LIMS")
+        Entity.objects.create(
+            name="Finished Entity",
+            author=self.user,
+            schema=lims_schema,
+            status="finished",
+        )
+        response = self.client.get(f"{self.url}?status=finished")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for row in data["results"]:
+            self.assertEqual(row["status"], "finished")
+
+    # ── Sort ─────────────────────────────────────────────────────────────
+
+    def test_sort_by_name_ascending(self):
+        """?sort=name sorts results by name ascending."""
+        response = self.client.get(f"{self.url}?sort=name")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        names = [r["name"] for r in data["results"]]
+        self.assertEqual(names, sorted(names))
+
+    def test_sort_by_updated_at_descending(self):
+        """?sort=-updated_at sorts by most recently updated first."""
+        response = self.client.get(f"{self.url}?sort=-updated_at")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        if len(data["results"]) >= 2:
+            dates = [r["updated_at"] for r in data["results"]]
+            self.assertEqual(dates, sorted(dates, reverse=True))
+
+    # ── Field filters ────────────────────────────────────────────────────
+
+    def test_field_filter(self):
+        """?f=key:value filters on properties JSON column."""
+        from mods.lims.models import Entity
+        from helix_core.models import Schema
+        lims_schema = Schema.objects.get(prefix="LIMS")
+        Entity.objects.create(
+            name="Blood Sample A",
+            author=self.user,
+            schema=lims_schema,
+            properties={"sample_type": "A"},
+        )
+        Entity.objects.create(
+            name="Blood Sample B",
+            author=self.user,
+            schema=lims_schema,
+            properties={"sample_type": "B"},
+        )
+        response = self.client.get(f"{self.url}?f=sample_type:B")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["results"][0]["name"], "Blood Sample B")
+
+    # ── Combined filters ─────────────────────────────────────────────────
+
+    def test_combined_search_and_status(self):
+        """Multiple filters combine with AND logic."""
+        response = self.client.get(
+            f"{self.url}?search=ELN&status=in_progress"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for row in data["results"]:
+            self.assertEqual(row["status"], "in_progress")
+            self.assertIn("ELN", row["name"].upper())
+
+    def test_combined_schema_type_and_sort(self):
+        """Schema type filter + sort can be combined."""
+        response = self.client.get(
+            f"{self.url}?schema_type=eln.entry&sort=name"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        names = [r["name"] for r in data["results"]]
+        self.assertEqual(names, sorted(names))
+        for row in data["results"]:
+            self.assertEqual(row["schema_type_id"], "eln.entry")
+
+    # ── available_columns dynamic expansion ──────────────────────────────
+
+    def test_available_columns_with_schema_includes_schema_columns(self):
+        """When ?schema= is set, available_columns includes schema columns."""
+        from helix_core.models import Schema
+        eln_schema = Schema.objects.get(prefix="E")
+        response = self.client.get(f"{self.url}?schema={eln_schema.id}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        keys = {c["key"] for c in data["available_columns"]}
+        # Should still include common columns
+        self.assertIn("display_id", keys)
+        self.assertIn("name", keys)

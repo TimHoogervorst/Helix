@@ -109,8 +109,8 @@ class EntitySerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
 
     def validate(self, data):
-        """Resolve the default Schema when none is provided."""
-        if "schema" not in data or data["schema"] is None:
+        """Resolve the default Schema when none is provided on create."""
+        if self.instance is None and ("schema" not in data or data["schema"] is None):
             from helix_core.models import SchemaType
             try:
                 schema_type = SchemaType.objects.get(

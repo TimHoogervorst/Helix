@@ -517,6 +517,38 @@ describe("EntitiesHub", () => {
     });
   });
 
+  it("schema dropdown shows correct value for specific schema", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    // Load with a specific schema filter in the URL
+    renderHub("/entities?schema=2");
+    await waitFor(() => {
+      expect(screen.getByText("All schemas")).toBeInTheDocument();
+    });
+
+    const selects = document.querySelectorAll("select");
+    const schemaSelect = Array.from(selects).find((s) =>
+      s.querySelector("optgroup"),
+    );
+    // The select value must match the option with value "2" (Blood schema)
+    expect((schemaSelect as HTMLSelectElement).value).toBe("2");
+  });
+
+  it("schema dropdown shows correct value for schema_type", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    // Load with a schema_type filter in the URL
+    renderHub("/entities?schema_type=eln.entry");
+    await waitFor(() => {
+      expect(screen.getByText("All schemas")).toBeInTheDocument();
+    });
+
+    const selects = document.querySelectorAll("select");
+    const schemaSelect = Array.from(selects).find((s) =>
+      s.querySelector("optgroup"),
+    );
+    // The select value must match the option with value "type:eln.entry"
+    expect((schemaSelect as HTMLSelectElement).value).toBe("type:eln.entry");
+  });
+
   // ── Filter Bar: Status dropdown ────────────────────────────────────
 
   it("renders Status dropdown with options", async () => {
@@ -739,5 +771,291 @@ describe("EntitiesHub", () => {
       expect(call?.status).toBe("in_progress");
       expect(call?.sort).toBe("-created_at");
     });
+  });
+
+  // ── Column visibility: default visible columns ──────────────────────
+
+  it("renders all default visible columns as table headers", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+    // Default visible: ID, Name, Schema Type, Status, Author, Updated
+    expect(screen.getByText("ID")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Schema Type")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("Author")).toBeInTheDocument();
+    expect(screen.getByText("Updated")).toBeInTheDocument();
+  });
+
+  it("does NOT show created_at column header by default", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Created")).not.toBeInTheDocument();
+  });
+
+  it("display_id column header is always present", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("ID")).toBeInTheDocument();
+    });
+  });
+
+  // ── Column visibility: column chooser popover ────────────────────────
+
+  it("column chooser button is enabled", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      const btn = screen.getByTitle("Column visibility");
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toBeDisabled();
+    });
+  });
+
+  it("column chooser opens on click and lists available columns", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByTitle("Column visibility")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle("Column visibility"));
+
+    // The chooser should show available columns (look for chooser labels)
+    await waitFor(() => {
+      const chooserLabels = document.querySelectorAll(
+        ".entities-column-chooser-name",
+      );
+      const labelTexts = Array.from(chooserLabels).map((el) => el.textContent);
+      expect(labelTexts).toContain("Name");
+      expect(labelTexts).toContain("Status");
+    });
+  });
+
+  // ── Column visibility: toggle ────────────────────────────────────────
+
+  it("toggling a column off removes it from the table", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // "Author" should be visible as a table header initially
+    const authorHeaders = screen.getAllByText("Author");
+    const authorInTable = authorHeaders.find(
+      (el) => el.closest("th") !== null,
+    );
+    expect(authorInTable).toBeTruthy();
+
+    // Open column chooser
+    fireEvent.click(screen.getByTitle("Column visibility"));
+
+    // Uncheck "Author" column in the chooser
+    await waitFor(() => {
+      const authorLabel = Array.from(
+        document.querySelectorAll(".entities-column-chooser-label"),
+      ).find((el) => el.textContent?.includes("Author"));
+      const checkbox = authorLabel?.querySelector("input");
+      if (checkbox) fireEvent.click(checkbox);
+    });
+
+    // Author should no longer be in table headers
+    await waitFor(() => {
+      const thElements = document.querySelectorAll("th");
+      const thTexts = Array.from(thElements).map(
+        (th) => th.textContent?.trim() || "",
+      );
+      expect(thTexts).not.toContain("Author");
+    });
+  });
+
+  // ── Schema properties columns ────────────────────────────────────────
+
+  it("renders schema properties columns from available_columns", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      { key: "display_id", label: "ID", source: "common" },
+      { key: "name", label: "Name", source: "common" },
+      { key: "schema_type_id", label: "Schema Type", source: "common" },
+      { key: "status", label: "Status", source: "common" },
+      { key: "author", label: "Author", source: "common" },
+      { key: "created_at", label: "Created", source: "common" },
+      { key: "updated_at", label: "Updated", source: "common" },
+      { key: "sample_type", label: "Sample Type", source: "schema" },
+      { key: "concentration", label: "Concentration", source: "schema" },
+    ];
+
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        _expanded: { sample_type: "Blood", concentration: "50" },
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // Schema columns are in available_columns but NOT visible by default
+    // (they need to be toggled on)
+    expect(screen.queryByText("Sample Type")).not.toBeInTheDocument();
+  });
+
+  it("schema properties columns appear when toggled on", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      { key: "display_id", label: "ID", source: "common" },
+      { key: "name", label: "Name", source: "common" },
+      { key: "schema_type_id", label: "Schema Type", source: "common" },
+      { key: "status", label: "Status", source: "common" },
+      { key: "author", label: "Author", source: "common" },
+      { key: "created_at", label: "Created", source: "common" },
+      { key: "updated_at", label: "Updated", source: "common" },
+      { key: "sample_type", label: "Sample Type", source: "schema" },
+    ];
+
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        _expanded: { sample_type: "Blood" },
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+
+    // Load with columns param that includes sample_type
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,sample_type");
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // Now Sample Type should be visible as a header
+    expect(screen.getByText("Sample Type")).toBeInTheDocument();
+  });
+
+  it("renders _expanded values in schema property cells", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      { key: "display_id", label: "ID", source: "common" },
+      { key: "name", label: "Name", source: "common" },
+      { key: "schema_type_id", label: "Schema Type", source: "common" },
+      { key: "status", label: "Status", source: "common" },
+      { key: "author", label: "Author", source: "common" },
+      { key: "created_at", label: "Created", source: "common" },
+      { key: "updated_at", label: "Updated", source: "common" },
+      { key: "sample_type", label: "Sample Type", source: "schema" },
+    ];
+
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        _expanded: { sample_type: "Blood" },
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,sample_type");
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // The _expanded value should be rendered in a cell
+    // "Blood" is in the schema dropdown AND the table cell, so use getAllByText
+    const bloodElements = screen.getAllByText("Blood");
+    const bloodInCell = bloodElements.find(
+      (el) => el.closest("td") !== null,
+    );
+    expect(bloodInCell).toBeTruthy();
+  });
+
+  // ── Column lock toggle (via chooser) ──────────────────────────────────
+
+  it("lock icon appears in column chooser rows", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByTitle("Column visibility")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle("Column visibility"));
+
+    // Lock buttons should exist in the chooser
+    await waitFor(() => {
+      const lockBtns = document.querySelectorAll(
+        ".entities-column-chooser-lock",
+      );
+      expect(lockBtns.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── Column visibility restores from URL ──────────────────────────────
+
+  it("restores visible columns from URL columns param", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub("/entities?columns=display_id,name,status,author");
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // Only the columns in the URL should be visible
+    expect(screen.getByText("ID")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("Author")).toBeInTheDocument();
+    // These should be hidden
+    expect(screen.queryByText("Schema Type")).not.toBeInTheDocument();
+    expect(screen.queryByText("Updated")).not.toBeInTheDocument();
+  });
+
+  // ── Empty/null _expanded values ──────────────────────────────────────
+
+  it("renders em dash for missing _expanded values", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      { key: "display_id", label: "ID", source: "common" },
+      { key: "name", label: "Name", source: "common" },
+      { key: "schema_type_id", label: "Schema Type", source: "common" },
+      { key: "status", label: "Status", source: "common" },
+      { key: "author", label: "Author", source: "common" },
+      { key: "created_at", label: "Created", source: "common" },
+      { key: "updated_at", label: "Updated", source: "common" },
+      { key: "sample_type", label: "Sample Type", source: "schema" },
+    ];
+
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        _expanded: null, // No expanded data
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,sample_type");
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // Should render em dash for missing value
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

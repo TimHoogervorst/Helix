@@ -3916,6 +3916,152 @@ input.library-new-folder-input:focus {
   white-space: nowrap;
 }
 
+/* ── Column Chooser Popover ──────────────────────────────────────────────────── */
+
+.entities-filter-columns-wrap {
+  position: relative;
+}
+
+.entities-filter-columns-btn.is-active {
+  background: var(--color-accent);
+  color: var(--color-accent-foreground);
+  border-color: var(--color-accent);
+}
+
+.entities-column-chooser-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  min-width: 240px;
+  max-height: 360px;
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.entities-column-chooser-header {
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-muted-foreground);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.entities-column-chooser-body {
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.entities-column-chooser-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.entities-column-chooser-row:hover {
+  background: var(--gray-50);
+}
+
+.entities-column-chooser-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  flex: 1;
+  user-select: none;
+}
+
+.entities-column-chooser-checkbox {
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+
+.entities-column-chooser-name {
+  color: var(--color-foreground);
+}
+
+.entities-column-chooser-lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.entities-column-chooser-row:hover .entities-column-chooser-lock {
+  opacity: 1;
+}
+
+.entities-column-chooser-lock:hover {
+  color: var(--color-foreground);
+  background: var(--gray-100);
+}
+
+.entities-column-chooser-lock.is-locked {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+/* ── Lock button on column headers ───────────────────────────────────────────── */
+
+.entities-lock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  margin-left: 0.25rem;
+}
+
+.entities-th:hover .entities-lock-btn {
+  opacity: 1;
+}
+
+.entities-lock-btn:hover {
+  color: var(--color-foreground);
+  background: var(--gray-100);
+}
+
+.entities-lock-btn.is-locked {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+/* ── Locked (sticky) column styling ──────────────────────────────────────────── */
+
+.entities-th.is-locked {
+  border-right: 1px solid var(--gray-300);
+  background: var(--gray-50);
+}
+
+.entities-td.is-locked {
+  border-right: 1px solid var(--color-hairline);
+  background: var(--gray-25, #fafbfc);
+}
+
 /* ── Sidebar placeholders ───────────────────────────────────────────────────── */
 
 .entities-sidebar-placeholder {

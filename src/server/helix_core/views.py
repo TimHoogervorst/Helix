@@ -132,6 +132,23 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         return qs
 
+    def get_serializer_context(self):
+        """Add schema_columns to context so _expanded can be populated."""
+        context = super().get_serializer_context()
+        params = self._parse_filter_params()
+        if params["schema"]:
+            try:
+                schema_obj = Schema.objects.get(
+                    pk=int(params["schema"]), is_active=True
+                )
+                context["schema_columns"] = [
+                    col.get("id", col.get("name", ""))
+                    for col in schema_obj.columns
+                ]
+            except (Schema.DoesNotExist, ValueError):
+                pass
+        return context
+
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
 

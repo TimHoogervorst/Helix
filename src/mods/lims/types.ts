@@ -86,6 +86,9 @@ export interface EntityHubItem {
   created_at: string;
   updated_at: string;
   workspace_id: string;
+  /** Schema properties columns extracted from the properties JSON.
+   * Only populated when a specific Schema is selected. */
+  _expanded: Record<string, unknown> | null;
 }
 
 /** Available column descriptor returned by the API. */

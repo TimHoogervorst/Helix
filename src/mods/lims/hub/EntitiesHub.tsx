@@ -14,7 +14,7 @@ import {
   ArrowDown,
   LayoutList,
   AlignJustify,
-  Columns2,
+  Lock,
   X,
   Filter,
   Plus,
@@ -33,6 +33,17 @@ import type {
   Schema,
   AvailableColumn,
 } from "../types";
+import {
+  ColumnChooser,
+  buildColumns,
+  DEFAULT_VISIBLE_COLUMNS,
+} from "./ColumnChooser";
+import type { HubColumn } from "./ColumnChooser";
+import {
+  applyLockCascade,
+  isColumnLocked,
+  getLockedCount,
+} from "./columnLock";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -141,6 +152,72 @@ function EntitiesHub() {
   const search = useDebounce(searchRaw, 250);
 
   const sort = useMemo(() => sortFromParam(sortParam), [sortParam]);
+
+  // ── Column visibility state (from URL, defaults to common visible set) ──
+
+  const columnsParam = searchParams.get("columns") || "";
+  const [columnVisibility, setColumnVisibility] = useState<Set<string>>(() => {
+    if (columnsParam) {
+      const keys = columnsParam.split(",").filter(Boolean);
+      if (keys.length > 0) return new Set(keys);
+    }
+    return new Set(DEFAULT_VISIBLE_COLUMNS);
+  });
+
+  // Sync column visibility to URL (called after state updates)
+  const syncColumnsToURL = useCallback(
+    (visible: Set<string>) => {
+      setSearchParams((sp) => {
+        const nextSp = new URLSearchParams(sp);
+        // Only store non-default visibility in URL
+        const keys = Array.from(visible).sort();
+        const defaults = Array.from(DEFAULT_VISIBLE_COLUMNS).sort();
+        if (
+          keys.length === defaults.length &&
+          keys.every((k, i) => k === defaults[i])
+        ) {
+          nextSp.delete("columns");
+        } else {
+          nextSp.set("columns", keys.join(","));
+        }
+        return nextSp;
+      });
+    },
+    [setSearchParams],
+  );
+
+  const handleToggleColumn = useCallback(
+    (key: string) => {
+      setColumnVisibility((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        // Sync after state update via microtask
+        queueMicrotask(() => syncColumnsToURL(next));
+        return next;
+      });
+    },
+    [syncColumnsToURL],
+  );
+
+  // ── Column lock state (local state, not in URL) ─────────────────────
+
+  const [lockedColumns, setLockedColumns] = useState<Set<number>>(() => {
+    // display_id (index 0) is always locked
+    return new Set([0]);
+  });
+
+  const handleToggleLock = useCallback(
+    (index: number) => {
+      // display_id (index 0) must always stay locked
+      if (index === 0) return;
+      setLockedColumns((prev) => applyLockCascade(prev, index));
+    },
+    [],
+  );
 
   // ── Data state ──────────────────────────────────────────────────────────
 
@@ -405,9 +482,85 @@ function EntitiesHub() {
     return null;
   }
 
+  // ── Column width map (shared with CSS and sticky offset calc) ───────────
+
+  const COL_WIDTHS: Record<string, number> = {
+    display_id: 110,
+    name: 0, // flex / auto — not used for sticky offset
+    schema_type_id: 120,
+    status: 110,
+    author: 100,
+    created_at: 90,
+    updated_at: 90,
+  };
+  const DEFAULT_COL_WIDTH = 120;
+
+  /** Compute the sticky `left` offset for a locked column at the given index. */
+  function stickyLeftOffset(
+    colIndex: number,
+    columns: HubColumn[],
+  ): number {
+    let offset = 0;
+    for (let i = 0; i < colIndex; i++) {
+      offset += COL_WIDTHS[columns[i]?.key] ?? DEFAULT_COL_WIDTH;
+    }
+    return offset;
+  }
+
+  // ── Cell renderer ────────────────────────────────────────────────────────
+
+  function renderCell(item: EntityHubItem, col: HubColumn) {
+    switch (col.key) {
+      case "display_id":
+        return (
+          <span className="entities-display-id">{item.display_id}</span>
+        );
+      case "name":
+        return item.name;
+      case "schema_type_id":
+        return (
+          <span
+            className={`entities-schema-type-badge ${schemaTypeClass(item.schema_type_id)}`}
+          >
+            {item.schema_type_display}
+          </span>
+        );
+      case "status":
+        return <StatusBadge status={item.status} />;
+      case "author":
+        return item.author_username ?? "—";
+      case "created_at":
+        return relativeTime(item.created_at);
+      case "updated_at":
+        return relativeTime(item.updated_at);
+      default: {
+        // Schema or schema_type properties column — read from _expanded
+        const value = item._expanded?.[col.key];
+        if (value === null || value === undefined) return "—";
+        if (typeof value === "boolean") return value ? "Yes" : "No";
+        return String(value);
+      }
+    }
+  }
+
   // ── Available columns from response (for Fields popover) ─────────────────
 
   const availableColumns: AvailableColumn[] = data?.available_columns || [];
+
+  // ── Build merged columns (common + schema_type + schema) ──────────────────
+
+  const allColumns = useMemo<HubColumn[]>(
+    () => buildColumns(availableColumns),
+    [availableColumns],
+  );
+
+  // Filter column visibility to only include currently available columns
+  const validVisibleColumns = useMemo<HubColumn[]>(() => {
+    const validKeys = new Set(allColumns.map((c) => c.key));
+    return allColumns.filter(
+      (c) => columnVisibility.has(c.key) || !c.hideable,
+    );
+  }, [allColumns, columnVisibility]);
 
   // Parse existing field filters into {key, value} pairs for chips
   const parsedFieldFilters = useMemo(() => {
@@ -505,22 +658,30 @@ function EntitiesHub() {
               />
               <select
                 className="entities-filter-select"
-                value={schemaParam || schemaTypeParam || ""}
+                value={
+                  schemaParam
+                    ? schemaParam
+                    : schemaTypeParam
+                      ? `type:${schemaTypeParam}`
+                      : ""
+                }
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (!val) {
-                    // Clear both schema and schema_type
-                    updateParam("schema", null);
-                    updateParam("schema_type", null);
-                  } else if (val.startsWith("type:")) {
-                    // SchemaType optgroup header selected
-                    updateParam("schema_type", val.slice(5));
-                    updateParam("schema", null);
-                  } else {
-                    // Specific schema selected
-                    updateParam("schema", val);
-                    updateParam("schema_type", null);
-                  }
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    if (!val) {
+                      next.delete("schema");
+                      next.delete("schema_type");
+                    } else if (val.startsWith("type:")) {
+                      next.set("schema_type", val.slice(5));
+                      next.delete("schema");
+                    } else {
+                      next.set("schema", val);
+                      next.delete("schema_type");
+                    }
+                    next.set("page", "1");
+                    return next;
+                  });
                 }}
               >
                 <option value="">All schemas</option>
@@ -712,15 +873,14 @@ function EntitiesHub() {
               )}
             </button>
 
-            {/* Column visibility button (placeholder for future) */}
-            <button
-              className="entities-filter-columns-btn"
-              type="button"
-              disabled
-              title="Column visibility"
-            >
-              <Columns2 size={14} />
-            </button>
+            {/* Column visibility chooser */}
+            <ColumnChooser
+              columns={allColumns}
+              visibleKeys={columnVisibility}
+              lockedKeys={lockedColumns}
+              onToggleColumn={handleToggleColumn}
+              onToggleLock={handleToggleLock}
+            />
           </div>
         </div>
 
@@ -799,47 +959,44 @@ function EntitiesHub() {
               <table className="entities-table">
                 <thead>
                   <tr>
-                    <th className="entities-th entities-col-id">ID</th>
-                    <th
-                      className="entities-th entities-col-name is-sortable"
-                      onClick={() => handleColumnSort("name")}
-                    >
-                      <span className="entities-th-content">
-                        Name
-                        {renderSortIcon("name")}
-                      </span>
-                    </th>
-                    <th className="entities-th entities-col-schema-type">
-                      Schema Type
-                    </th>
-                    <th
-                      className="entities-th entities-col-status is-sortable"
-                      onClick={() => handleColumnSort("status")}
-                    >
-                      <span className="entities-th-content">
-                        Status
-                        {renderSortIcon("status")}
-                      </span>
-                    </th>
-                    <th className="entities-th entities-col-author">Author</th>
-                    <th
-                      className="entities-th entities-col-created is-sortable"
-                      onClick={() => handleColumnSort("created_at")}
-                    >
-                      <span className="entities-th-content">
-                        Created
-                        {renderSortIcon("created_at")}
-                      </span>
-                    </th>
-                    <th
-                      className="entities-th entities-col-updated is-sortable"
-                      onClick={() => handleColumnSort("updated_at")}
-                    >
-                      <span className="entities-th-content">
-                        Updated
-                        {renderSortIcon("updated_at")}
-                      </span>
-                    </th>
+                    {validVisibleColumns.map((col, idx) => {
+                      const isLocked = isColumnLocked(lockedColumns, idx);
+                      const lockCount = getLockedCount(lockedColumns);
+                      const style: React.CSSProperties = {};
+                      if (isLocked) {
+                        style.position = "sticky";
+                        style.left = `${stickyLeftOffset(idx, validVisibleColumns)}px`;
+                        style.zIndex = 2;
+                      }
+                      return (
+                        <th
+                          key={col.key}
+                          className={`entities-th entities-col-${col.key}${col.sortable ? " is-sortable" : ""}${isLocked ? " is-locked" : ""}`}
+                          style={style}
+                          onClick={() =>
+                            col.sortable && handleColumnSort(col.key)
+                          }
+                        >
+                          <span className="entities-th-content">
+                            {col.label}
+                            {renderSortIcon(col.key)}
+                            {col.hideable && (
+                              <button
+                                className={`entities-lock-btn${isLocked ? " is-locked" : ""}`}
+                                type="button"
+                                title={isLocked ? "Unlock column" : "Lock column"}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleLock(idx);
+                                }}
+                              >
+                                <Lock size={11} />
+                              </button>
+                            )}
+                          </span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -856,33 +1013,24 @@ function EntitiesHub() {
                         }
                       }}
                     >
-                      <td className="entities-td entities-col-id">
-                        <span className="entities-display-id">
-                          {item.display_id}
-                        </span>
-                      </td>
-                      <td className="entities-td entities-col-name">
-                        {item.name}
-                      </td>
-                      <td className="entities-td entities-col-schema-type">
-                        <span
-                          className={`entities-schema-type-badge ${schemaTypeClass(item.schema_type_id)}`}
-                        >
-                          {item.schema_type_display}
-                        </span>
-                      </td>
-                      <td className="entities-td entities-col-status">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      <td className="entities-td entities-col-author">
-                        {item.author_username ?? "—"}
-                      </td>
-                      <td className="entities-td entities-col-created">
-                        {relativeTime(item.created_at)}
-                      </td>
-                      <td className="entities-td entities-col-updated">
-                        {relativeTime(item.updated_at)}
-                      </td>
+                      {validVisibleColumns.map((col, idx) => {
+                        const isLocked = isColumnLocked(lockedColumns, idx);
+                        const style: React.CSSProperties = {};
+                        if (isLocked) {
+                          style.position = "sticky";
+                          style.left = `${stickyLeftOffset(idx, validVisibleColumns)}px`;
+                          style.zIndex = 1;
+                        }
+                        return (
+                          <td
+                            key={col.key}
+                            className={`entities-td entities-col-${col.key}${isLocked ? " is-locked" : ""}`}
+                            style={style}
+                          >
+                            {renderCell(item, col)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

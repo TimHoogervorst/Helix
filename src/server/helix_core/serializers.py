@@ -145,6 +145,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
         source="schema.prefix", read_only=True
     )
     schema_type_display = serializers.SerializerMethodField()
+    _expanded = serializers.SerializerMethodField()
 
     class Meta:
         model = EntityHubView
@@ -163,16 +164,34 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "workspace_id",
+            "_expanded",
         ]
         read_only_fields = fields
 
     def get_schema_type_display(self, obj):
         """Human-readable label for the schema_type_id."""
         mapping = {
-            "eln.entry": "Entry",
+            "eln.notebookentry": "Entry",
             "lims.entity": "LIMS Entity",
         }
         return mapping.get(obj.schema_type_id, obj.schema_type_id)
+
+    def get__expanded(self, obj):
+        """Extract schema column values from properties JSON.
+
+        Only populated when ``schema_columns`` is passed via serializer
+        context (i.e., when a specific Schema is selected).  Returns a dict
+        of ``{column_key: value}`` for each column defined on the Schema.
+        """
+        column_keys = self.context.get("schema_columns")
+        if not column_keys:
+            return None
+        properties = obj.properties or {}
+        return {
+            key: properties.get(key)
+            for key in column_keys
+            if key in properties
+        }
 
 
 class EntityHubPaginator(PageNumberPagination):

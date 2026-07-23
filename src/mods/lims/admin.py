@@ -1,19 +1,6 @@
 from django.contrib import admin
 
-from .models import Entity, EntityType, Action, RegisteredEntityType
-
-
-@admin.register(EntityType)
-class EntityTypeAdmin(admin.ModelAdmin):
-    list_display = ["name", "prefix", "is_active"]
-    search_fields = ["name", "prefix"]
-
-
-@admin.register(RegisteredEntityType)
-class RegisteredEntityTypeAdmin(admin.ModelAdmin):
-    list_display = ["prefix", "display_name", "workspace_id", "content_type"]
-    search_fields = ["prefix", "display_name", "workspace_id"]
-    list_filter = ["workspace_id"]
+from .models import Entity, Action
 
 
 @admin.register(Entity)

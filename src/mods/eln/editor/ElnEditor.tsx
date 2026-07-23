@@ -209,7 +209,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     // Use body (document minus first paragraph) for initialContent so the
     // dirty-tracking comparison is apples-to-apples with contentRef.current
     // (which also holds only the body after initial setContent).
-    return { title: saved.title, description: d, content: body, status: saved.status || "in_progress" };
+    return { title: saved.name, description: d, content: body, status: saved.status || "in_progress" };
   }, [crud.entry]);
 
   const { isDirty } = useDirtyTracking({

@@ -42,12 +42,7 @@ def delete_everything(request):
     c, _ = Entity.objects.all().delete()
     counts["entities"] = c
 
-    # 5. Entity types (legacy — may already be empty)
-    from mods.lims.models import EntityType
-    c, _ = EntityType.objects.all().delete()
-    counts["entity_types"] = c
-
-    # 6. Schemas (new shared model — delete after entities)
+    # 5. Schemas (shared model — delete after entities)
     from helix_core.models import Schema
     c, _ = Schema.objects.all().delete()
     counts["schemas"] = c

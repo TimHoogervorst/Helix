@@ -13,8 +13,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import Reference from "./Reference";
-import MentionSuggestion from "./MentionSuggestion";
-import SlashCommands from "./SlashCommands";
+import UnifiedSuggestion from "./UnifiedSuggestion";
 import { ModRegistry } from "../../../../shell/src/mod-system";
 import type { SlotContext } from "../../../../shell/src/mod-system/types";
 import type { WorkspaceBus } from "../../../../shell/src/workspace/WorkspaceBus";
@@ -51,8 +50,7 @@ export function createElnExtensions(
       placeholder: "Start writing…",
     }),
     Reference,
-    MentionSuggestion,
-    SlashCommands,
+    UnifiedSuggestion,
     TableKit,
     ...tiptapNodes,
   ];

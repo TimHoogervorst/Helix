@@ -81,6 +81,9 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
     """Serializer for Schema create/update — validates prefix and columns."""
     prefix = serializers.CharField(validators=[validate_prefix])
     columns = serializers.JSONField(validators=[validate_columns])
+    schema_type_display = serializers.CharField(
+        source="schema_type.display_name", read_only=True
+    )
 
     class Meta:
         model = Schema
@@ -89,12 +92,13 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "name",
             "prefix",
             "schema_type",
+            "schema_type_display",
             "columns",
             "is_default",
             "is_active",
             "content_hash",
         ]
-        read_only_fields = ["id", "is_default", "content_hash"]
+        read_only_fields = ["id", "is_default", "content_hash", "schema_type_display"]
 
     def validate_prefix(self, value):
         """Validate prefix format and uniqueness across ALL schemas."""

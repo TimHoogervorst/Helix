@@ -112,7 +112,7 @@ class LibraryContentsView(APIView):
             )
         for e in entries_qs:
             if search_q:
-                title_match = search_q.lower() in e.title.lower()
+                title_match = search_q.lower() in e.name.lower()
                 did_match = search_q.lower() in (e.display_id or "").lower()
                 if not title_match and not did_match:
                     continue
@@ -121,7 +121,7 @@ class LibraryContentsView(APIView):
                     "type": "entry",
                     "id": e.id,
                     "display_id": e.display_id,
-                    "title": e.title,
+                    "title": e.name,
                     "folder": e.folder_id,
                     "folder_name": e.folder.name if e.folder else None,
                     "author_username": e.author.username if e.author else None,

@@ -8,10 +8,8 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
 
-from .models import EntityType, Entity, Action
+from .models import Entity, Action
 from .serializers import (
-    EntityTypeSerializer,
-    EntityTypeDetailSerializer,
     EntitySerializer,
     EntityBatchSerializer,
     EntityBatchRegisterSerializer,
@@ -19,56 +17,6 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-class EntityTypeViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
-    """
-    API endpoint for LIMS entity types (schemas).
-
-    list: GET /api/lims/entity-types/
-    create: POST /api/lims/entity-types/
-    retrieve: GET /api/lims/entity-types/{id}/
-    update: PUT /api/lims/entity-types/{id}/
-    partial_update: PATCH /api/lims/entity-types/{id}/
-    destroy: DELETE /api/lims/entity-types/{id}/ — soft-deletes (sets is_active=False)
-    delete_all: DELETE /api/lims/entity-types/delete_all/ — hard-deletes all schemas
-    """
-
-    queryset = EntityType.objects.all()
-    permission_classes = []
-    pagination_class = None
-
-    action_log_config = {
-        "create": {"action_type": "lims.entity_type.created"},
-        "update": {"action_type": "lims.entity_type.edited"},
-        "partial_update": {"action_type": "lims.entity_type.edited"},
-        "destroy": {"action_type": "lims.entity_type.deleted"},
-    }
-
-    def get_serializer_class(self):
-        if self.action in ("list", "retrieve"):
-            return EntityTypeDetailSerializer
-        return EntityTypeSerializer
-
-    def perform_destroy(self, instance):
-        """Soft-delete: set is_active=False instead of removing the row."""
-        instance._pre_delete_pk = instance.pk
-        instance.is_active = False
-        instance.save(update_fields=["is_active"])
-        self._maybe_log("destroy", instance=instance)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=False, methods=["delete"], url_path="delete_all")
-    def delete_all(self, request):
-        """Hard-delete ALL entity types (schemas). Danger zone endpoint for testing."""
-        # Delete entities first to avoid FK constraint issues
-        Entity.objects.all().delete()
-        count, _ = EntityType.objects.all().delete()
-        return Response({"deleted": count})
 
 
 class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):

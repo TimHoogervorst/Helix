@@ -2,10 +2,13 @@
 Prefix-based display-ID resolution, icon lookup, and cached prefix maps.
 
 Splits out of the old ``references.services`` god module.  Caches the
-prefix→model map via Django's cache framework.  Cross-mod queries use
-the service registry (``registry.call(...)``) instead of direct model
-imports for behavioural queries.
+prefix→model map via Django's cache framework.  Dynamic prefix queries
+read from the shared :class:`~helix_core.models.Schema` and
+:class:`~helix_core.models.SchemaType` models directly instead of the
+legacy LIMS-owned ``EntityType`` / ``RegisteredEntityType`` models.
 """
+import importlib
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Model
@@ -25,45 +28,42 @@ WORKSPACE_CACHE_KEY = "mentions:workspace_map"
 CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 
 
-# ── Entity model access ─────────────────────────────────────────────────────
-
-
-def _get_entity_model() -> type[Model]:
-    """Lazy-import to avoid circular imports at module level."""
-    from mods.lims.models import Entity
-
-    return Entity
-
-
 # ── Cache-aware prefix / model-type map builders ─────────────────────────────
 
 
 def _build_prefix_map() -> dict[str, type[Model]]:
     """Build the merged static+dynamic prefix→model map (no caching).
 
-    Uses ``registry.call("lims.getEntityPrefixes")`` for the cross-mod
-    EntityType prefix query instead of a direct import of
-    ``mods.lims.models.EntityType``.
+    Reads from :class:`~helix_core.models.Schema` and
+    :class:`~helix_core.models.SchemaType` to discover dynamic prefixes
+    and their backing model classes, replacing the old
+    ``lims.getEntityPrefixes`` registry-call approach.
     """
-    from helix_core.mod_system.registry import registry
+    from helix_core.models import Schema
 
     from mods.eln.models import NotebookEntry
 
     #: Map display_id prefix letter to the model it identifies.
-    #: Entity prefixes are loaded dynamically from the EntityType table.
+    #: Dynamic prefixes are loaded from the Schema table.
     pmap: dict[str, type[Model]] = {
         "E": NotebookEntry,
     }
     try:
-        entity_prefixes = registry.call("lims.getEntityPrefixes")
-    except ValueError:
-        # Service not registered — fall back to empty dynamic prefixes.
-        # This path is exercised during test runs where the real LIMS app
-        # is not installed.
-        entity_prefixes = []
-    entity_model = _get_entity_model()
-    for prefix in entity_prefixes:
-        pmap[prefix] = entity_model
+        for schema in Schema.objects.filter(is_active=True).select_related(
+            "schema_type"
+        ):
+            model_path = schema.schema_type.model
+            try:
+                module_path, class_name = model_path.rsplit(".", 1)
+                module = importlib.import_module(module_path)
+                model_class = getattr(module, class_name)
+                pmap[schema.prefix] = model_class
+            except (ImportError, AttributeError, ValueError):
+                continue
+    except Exception:
+        # DB not available (e.g. during test setup without db) — fall back
+        # to static entries only.
+        pass
     return pmap
 
 
@@ -71,11 +71,13 @@ def _build_model_type_map() -> dict[type[Model], str]:
     """Build the model→type-string map including entity (no caching)."""
     from mods.eln.models import NotebookEntry
 
+    from mods.lims.models import Entity
+
     #: Map model class to the short type string used in API responses.
     mmap: dict[type[Model], str] = {
         NotebookEntry: "entry",
     }
-    mmap[_get_entity_model()] = "entity"
+    mmap[Entity] = "entity"
     return mmap
 
 
@@ -108,28 +110,31 @@ def invalidate_prefix_cache(sender, **kwargs) -> None:
 
 
 def _build_workspace_map() -> dict[str, str]:
-    """Build prefix→workspace_id map from RegisteredEntityType rows.
+    """Build prefix→workspace_id map from Schema + SchemaType rows.
 
-    Uses ``registry.call("lims.getWorkspaceMap")`` for the cross-mod
-    query instead of a direct import of
-    ``mods.lims.models.RegisteredEntityType``.
+    Reads ``Schema.prefix → SchemaType.workspace_id`` via a JOIN instead
+    of the old ``lims.getWorkspaceMap`` registry-call approach.
     """
-    from helix_core.mod_system.registry import registry
+    from helix_core.models import Schema
 
     try:
-        return registry.call("lims.getWorkspaceMap")
-    except ValueError:
-        # Service not registered — fall back to empty map.
-        # This path is hit during test runs where the real LIMS app
-        # is not installed.
+        return {
+            schema.prefix: schema.schema_type.workspace_id
+            for schema in Schema.objects.select_related("schema_type").filter(
+                is_active=True
+            )
+        }
+    except Exception:
+        # DB not available — fall back to empty map.
         return {}
 
 
 def get_workspace_id(prefix: str) -> str | None:
     """Return the workspace_id for *prefix* (cached), or ``None`` if unknown.
 
-    The workspace map is built from :class:`RegisteredEntityType` rows and
-    cached with the same TTL as the prefix and model-type maps.
+    The workspace map is built from :class:`~helix_core.models.Schema` and
+    :class:`~helix_core.models.SchemaType` rows and cached with the same TTL
+    as the prefix and model-type maps.
     """
     wmap = cache.get(WORKSPACE_CACHE_KEY)
     if wmap is None:
@@ -181,15 +186,18 @@ def get_icon(instance, model_type: str) -> str:
     Return the emoji icon for a resolved reference.
 
     - ELN entries: hardcoded ``"📄"``
-    - LIMS entities: the entity type's configured icon, or ``"🧪"`` if none set
+    - Other model types: schema's icon via ``instance.schema`` (if available),
+      falling back to ``"🧪"``
     """
     if model_type == "entry":
         return "📄"
-    # Entity
+    # Entity / other schema-backed models — check for icon on the instance's
+    # Schema.  Schema rows don't carry an icon yet, so this acts as a
+    # forward-compatible hook; if no icon is found the test-tube default is used.
     try:
-        entity_type = instance.entity_type
-        if entity_type and getattr(entity_type, "icon", None):
-            return entity_type.icon
+        schema = instance.schema
+        if schema and getattr(schema, "icon", None):
+            return schema.icon
     except AttributeError:
         pass
     return "🧪"

@@ -32,13 +32,20 @@ class AbstractEntityFieldTests(TransactionTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        with connection.schema_editor() as schema_editor:
-            schema_editor.create_model(ConcreteTestEntity)
+        # The conftest.py session fixture may have already created this
+        # table.  Only create it if it doesn't exist yet.
+        from django.db.utils import OperationalError
+        try:
+            with connection.schema_editor() as schema_editor:
+                schema_editor.create_model(ConcreteTestEntity)
+        except OperationalError:
+            pass  # table already exists
 
     @classmethod
     def tearDownClass(cls):
-        with connection.schema_editor() as schema_editor:
-            schema_editor.delete_model(ConcreteTestEntity)
+        # Don't drop the table: leaving it in place avoids cascade-
+        # collector failures in later tests that discover this model
+        # through Django's app registry.
         super().tearDownClass()
 
     def setUp(self):

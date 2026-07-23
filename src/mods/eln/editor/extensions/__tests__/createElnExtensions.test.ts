@@ -23,9 +23,9 @@ describe("createElnExtensions", () => {
 
   // ── Base extensions (no blocks registered) ─────────────────────────────
 
-  it("returns 6 extensions when no additional blocks are registered (6 base, no legacy nodes)", () => {
+  it("returns 5 extensions when no additional blocks are registered (5 base, no legacy nodes)", () => {
     const extensions = createElnExtensions();
-    expect(extensions).toHaveLength(6);
+    expect(extensions).toHaveLength(5);
   });
 
   it("configures StarterKit with heading levels [1, 2, 3]", () => {
@@ -52,22 +52,13 @@ describe("createElnExtensions", () => {
     expect(ref).toBeDefined();
   });
 
-  it("includes MentionSuggestion", () => {
+  it("includes UnifiedSuggestion (replaces separate MentionSuggestion + SlashCommands)", () => {
     const extensions = createElnExtensions();
-    const refSuggestion = extensions.find(
+    const unified = extensions.find(
       (e: unknown) =>
-        (e as Record<string, unknown>).name === "mentionSuggestion",
+        (e as Record<string, unknown>).name === "unifiedSuggestion",
     );
-    expect(refSuggestion).toBeDefined();
-  });
-
-  it("includes SlashCommands", () => {
-    const extensions = createElnExtensions();
-    const slash = extensions.find(
-      (e: unknown) =>
-        (e as Record<string, unknown>).name === "slashCommands",
-    );
-    expect(slash).toBeDefined();
+    expect(unified).toBeDefined();
   });
 
   it("includes TableKit", () => {

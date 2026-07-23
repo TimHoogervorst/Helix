@@ -90,7 +90,7 @@ function makeEntry(overrides?: Partial<Record<string, unknown>>) {
   return {
     id: 1,
     display_id: "E1",
-    title: "Test Entry",
+    name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] },
     folder: null,
     folder_name: "",

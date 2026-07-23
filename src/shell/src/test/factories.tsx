@@ -19,7 +19,6 @@ import { vi } from "vitest";
 import type {
   EntityListItem,
   PaginatedResponse,
-  EntityType,
   ColumnDef,
   Schema,
   SchemaTypeItem,
@@ -106,7 +105,7 @@ const _libraryEntryDefaults: LibraryEntryItem = {
   type: "entry",
   id: 1,
   display_id: "E1",
-  title: "PCR Results",
+  name: "PCR Results",
   folder: null,
   folder_name: null,
   author_username: null,
@@ -144,25 +143,6 @@ export function makeLibraryContents(
     current_folder_id: null,
     ...overrides,
   };
-}
-
-// ── EntityType / Settings ───────────────────────────────────────────────────
-
-const _entityTypeDefaults: EntityType = {
-  id: 1,
-  name: "Blood Sample",
-  prefix: "BLOOD",
-  icon: "🩸",
-  is_active: true,
-  columns: [],
-  content_hash: "",
-};
-
-/** A single EntityType. */
-export function makeEntityType(
-  overrides?: Partial<EntityType>,
-): EntityType {
-  return { ..._entityTypeDefaults, ...overrides };
 }
 
 const _columnDefDefaults: ColumnDef = {

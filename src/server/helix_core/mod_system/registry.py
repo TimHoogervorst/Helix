@@ -11,7 +11,6 @@ Usage::
     # In AppConfig.ready():
     registry.register_action_model("eln", ElnAction)
     registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
-    registry.register_entity_type({"prefix": "BLOOD", "name": "Blood Sample", "mod_id": "lims"})
     registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
     registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
     registry.register_service("lims.cascadeEntryStatus", cascade_handler)
@@ -47,7 +46,6 @@ class BackendModRegistry:
         # ── storage ──────────────────────────────────────────────────────
         self._action_models: dict[str, type] = {}
         self._url_patterns: dict[str, list] = defaultdict(list)
-        self._entity_types: dict[str, dict[str, Any]] = {}
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
         self._services: dict[str, Callable[..., Any]] = {}
@@ -187,22 +185,6 @@ class BackendModRegistry:
         *mod_id* overwrite the previous patterns.
         """
         self._url_patterns[mod_id] = list(url_patterns)
-
-    def register_entity_type(self, config: dict[str, Any]) -> None:
-        """Register an entity type configuration.
-
-        *config* must include a ``"prefix"`` key — the value is used as the
-        registration key.  Typical keys: ``prefix``, ``name``, ``icon``,
-        ``mod_id``, ``workspace_id``.
-
-        Duplicate registrations for the same prefix silently overwrite.
-        """
-        prefix = config.get("prefix")
-        if not prefix:
-            raise ValueError(
-                "register_entity_type: config must include a non-empty 'prefix' key."
-            )
-        self._entity_types[prefix] = dict(config)
 
     def register_setting(self, mod_id: str, key: str, default: Any) -> None:
         """Declare ownership of a setting key for *mod_id*.
@@ -424,10 +406,6 @@ class BackendModRegistry:
             key=_sort_key,
         )
         return dict(sorted_items)
-
-    def get_entity_types(self) -> dict[str, dict[str, Any]]:
-        """Return all registered entity type configs as ``{prefix: config}``."""
-        return dict(self._entity_types)
 
     def get_settings(self, mod_id: str) -> dict[str, Any]:
         """Return all registered settings for *mod_id*.

@@ -98,7 +98,7 @@ export function useEntryCrud({
     (saved: EntryDetail) => {
       const { description: desc } = splitFirstParagraph(saved.content);
       setEntry(saved);
-      setTitle(saved.title);
+      setTitle(saved.name);
       setDescriptionState(desc);
       setStatus(saved.status || "in_progress");
 
@@ -119,7 +119,7 @@ export function useEntryCrud({
       const fullContent = prependDescription(contentRef.current, description);
 
       const payload: Record<string, unknown> = {
-        title: title.trim(),
+        name: title.trim(),
         content: fullContent,
         folder: folderId,
         status,
@@ -149,7 +149,7 @@ export function useEntryCrud({
       const fullContent = prependDescription(contentRef.current, description);
 
       const payload: Record<string, unknown> = {
-        title: title.trim(),
+        name: title.trim(),
         content: fullContent,
         folder: folderId,
         status,
@@ -203,7 +203,7 @@ export function useEntryCrud({
         if (controller.signal.aborted) return;
         const { description: desc } = splitFirstParagraph(data.content);
         setEntry(data);
-        setTitle(data.title);
+        setTitle(data.name);
         setDescriptionState(desc);
         setStatus(data.status || "in_progress");
 

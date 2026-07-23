@@ -84,7 +84,7 @@ function makeEntry(overrides?: Record<string, unknown>) {
   return {
     id: 1,
     display_id: "E1",
-    title: "Test Entry",
+    name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] },
     folder: null,
     folder_name: "",
@@ -255,7 +255,7 @@ describe("useEntryCrud", () => {
     });
 
     // entry state is NOT updated by auto-save — only manual save does that.
-    expect(result.current.entry?.title).toBe("Original");
+    expect(result.current.entry?.name).toBe("Original");
   });
 
   it("autoSave skips when title is empty", () => {
@@ -346,7 +346,7 @@ describe("useEntryCrud", () => {
       result.current.applySavedEntry(saved as unknown as import("../types").EntryDetail);
     });
 
-    expect(result.current.entry?.title).toBe("Server Title");
+    expect(result.current.entry?.name).toBe("Server Title");
     expect(result.current.title).toBe("Server Title");
     expect(result.current.description).toBe("Server desc");
     expect(result.current.status).toBe("completed");

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from helix_core.models import Schema
-from .models import EntityType, Entity, Action
+from .models import Entity, Action
 
 ALLOWED_COLUMN_TYPES = {"Text", "Number", "Date", "Boolean", "Reference"}
 
@@ -42,36 +42,6 @@ def validate_columns(value):
                 f"on every schema and cannot be added as a user-defined column."
             )
     return value
-
-
-class EntityTypeSerializer(serializers.ModelSerializer):
-    prefix = serializers.CharField(validators=[validate_prefix])
-    columns = serializers.JSONField(validators=[validate_columns])
-
-    class Meta:
-        model = EntityType
-        fields = ["id", "name", "prefix", "icon", "columns", "is_active", "content_hash"]
-        read_only_fields = ["id", "is_active", "content_hash"]
-
-    def validate_prefix(self, value):
-        """Validate prefix format and uniqueness."""
-        value = validate_prefix(value)
-        # Check uniqueness (exclude self on update)
-        qs = EntityType.objects.filter(prefix=value)
-        if self.instance is not None:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError(
-                f"An entity type with prefix '{value}' already exists."
-            )
-        return value
-
-
-class EntityTypeDetailSerializer(serializers.ModelSerializer):
-    """Read serializer that includes is_active (used for list/retrieve)."""
-    class Meta:
-        model = EntityType
-        fields = ["id", "name", "prefix", "icon", "columns", "is_active", "content_hash"]
 
 
 class EntitySerializer(serializers.ModelSerializer):

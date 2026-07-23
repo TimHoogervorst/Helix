@@ -9,25 +9,6 @@ export interface ColumnDef {
   description?: string;
 }
 
-/** An entity type (legacy, from the old EntityType model). */
-export interface EntityType {
-  id: number;
-  name: string;
-  prefix: string;
-  icon: string;
-  columns: ColumnDef[];
-  is_active: boolean;
-  content_hash: string;
-}
-
-/** Payload for creating/updating an entity type (legacy). */
-export interface EntityTypePayload {
-  name: string;
-  prefix: string;
-  icon?: string;
-  columns: ColumnDef[];
-}
-
 // ── Schema (new shared model) ───────────────────────────────────────────
 
 /** A Schema row as returned by the API. */

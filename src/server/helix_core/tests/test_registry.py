@@ -170,57 +170,6 @@ class TestURLRegistration:
         assert list(result.keys()) == ["tags", "core", "mentions"]
 
 
-# ── register_entity_type / get_entity_types ──────────────────────────────────
-
-
-class TestEntityTypeRegistration:
-    """Tests for register_entity_type and get_entity_types."""
-
-    def test_register_and_retrieve(self):
-        reg = _fresh_registry()
-        config = {
-            "prefix": "BLOOD",
-            "name": "Blood Sample",
-            "icon": "🩸",
-            "mod_id": "lims",
-        }
-        reg.register_entity_type(config)
-        result = reg.get_entity_types()
-        assert "BLOOD" in result
-        assert result["BLOOD"]["name"] == "Blood Sample"
-        assert result["BLOOD"]["icon"] == "🩸"
-
-    def test_duplicate_prefix_overwrites(self):
-        reg = _fresh_registry()
-        first = {"prefix": "X", "name": "First"}
-        second = {"prefix": "X", "name": "Second"}
-        reg.register_entity_type(first)
-        reg.register_entity_type(second)
-        assert reg.get_entity_types()["X"]["name"] == "Second"
-
-    def test_missing_prefix_raises(self):
-        reg = _fresh_registry()
-        with pytest.raises(ValueError, match="prefix"):
-            reg.register_entity_type({"name": "No Prefix"})
-
-    def test_empty_prefix_raises(self):
-        reg = _fresh_registry()
-        with pytest.raises(ValueError, match="prefix"):
-            reg.register_entity_type({"prefix": "", "name": "Empty"})
-
-    def test_multiple_entity_types(self):
-        reg = _fresh_registry()
-        reg.register_entity_type({"prefix": "A", "name": "Alpha"})
-        reg.register_entity_type({"prefix": "B", "name": "Beta"})
-        result = reg.get_entity_types()
-        assert set(result.keys()) == {"A", "B"}
-
-    def test_get_entity_types_returns_copy(self):
-        reg = _fresh_registry()
-        reg.register_entity_type({"prefix": "X", "name": "X"})
-        result = reg.get_entity_types()
-        result["Y"] = {"prefix": "Y", "name": "Y"}
-        assert "Y" not in reg.get_entity_types()
 
 
 # ── register_setting / get_settings ──────────────────────────────────────────

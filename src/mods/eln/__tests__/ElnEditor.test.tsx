@@ -76,7 +76,7 @@ vi.mock("../hooks/useSaveQueue", () => ({
     enqueue: vi.fn().mockResolvedValue({
       id: 1,
       display_id: "E1",
-      title: "Saved Entry",
+      name: "Saved Entry",
       content: { type: "doc", content: [{ type: "paragraph" }] },
       folder: null,
       folder_name: "",
@@ -127,7 +127,7 @@ function makeEntry(overrides?: Record<string, unknown>) {
   return {
     id: 1,
     display_id: "E1",
-    title: "Test Entry",
+    name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph" }] },
     folder: null,
     folder_name: "",

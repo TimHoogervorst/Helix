@@ -9,19 +9,59 @@ from core.tests.factories import EMPTY_DOC
 from mods.eln.models import NotebookEntry
 
 
+def _create_eln_schema():
+    """Create the ELN SchemaType + Schema (idempotent)."""
+    from helix_core.models import Schema, SchemaType
+    schema_type, _ = SchemaType.objects.get_or_create(
+        model="mods.eln.models.NotebookEntry",
+        defaults={
+            "display_name": "ELN Entry",
+            "workspace_id": "eln",
+            "columns": [],
+        },
+    )
+    schema, _ = Schema.objects.get_or_create(
+        schema_type=schema_type,
+        is_default=True,
+        defaults={
+            "name": "Default",
+            "prefix": "E",
+            "columns": [],
+        },
+    )
+    return schema
+
+
+def _create_lims_schema_type():
+    """Create the LIMS SchemaType (idempotent)."""
+    from helix_core.models import SchemaType
+    schema_type, _ = SchemaType.objects.get_or_create(
+        model="mods.lims.models.Entity",
+        defaults={
+            "display_name": "Entity",
+            "workspace_id": "lims",
+            "columns": [],
+        },
+    )
+    return schema_type
+
+
 class ResolveApiTests(BaseTestCase):
     """POST /api/mentions/resolve/"""
 
     def setUp(self):
         super().setUp()
+        self.eln_schema = _create_eln_schema()
 
     def test_resolve_valid_ids(self):
         """Valid display IDs resolve to target details."""
         e1 = NotebookEntry.objects.create(
-            title="PCR Protocol", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="PCR Protocol", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
         e2 = NotebookEntry.objects.create(
-            title="Gel Results", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="Gel Results", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
 
         response = self.client.post(
@@ -55,7 +95,8 @@ class ResolveApiTests(BaseTestCase):
     def test_resolve_mixed_ids(self):
         """Mix of valid and invalid IDs — each gets its own result."""
         e1 = NotebookEntry.objects.create(
-            title="PCR Protocol", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="PCR Protocol", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
 
         response = self.client.post(
@@ -93,12 +134,15 @@ class SearchApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        eln_schema = _create_eln_schema()
 
         self.e1 = NotebookEntry.objects.create(
-            title="PCR Protocol", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="PCR Protocol", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=eln_schema,
         )
         self.e2 = NotebookEntry.objects.create(
-            title="Gel Results", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="Gel Results", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=eln_schema,
         )
 
     def test_search_returns_matching_entries(self):
@@ -145,25 +189,30 @@ class EntityReferenceTests(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        from django.contrib.contenttypes.models import ContentType
-        from mods.lims.models import EntityType, Entity, RegisteredEntityType
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
 
-        self.blood_type = EntityType.objects.create(
-            name="Blood Sample", prefix="BLOOD", columns=[]
+        schema_type, _ = SchemaType.objects.get_or_create(
+            model="mods.lims.models.Entity",
+            defaults={
+                "display_name": "Entity",
+                "workspace_id": "lims",
+                "columns": [],
+            },
         )
-        # Register the entity type so workspace-aware resolution works.
-        entity_ct = ContentType.objects.get_for_model(Entity)
-        RegisteredEntityType.objects.create(
+        self.blood_schema = Schema.objects.create(
+            name="Default",
             prefix="BLOOD",
-            content_type=entity_ct,
-            workspace_id="lims",
-            display_name="Blood Sample",
+            schema_type=schema_type,
+            columns=[],
+            is_default=True,
         )
+        self.eln_schema = _create_eln_schema()
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
-            entity_type=self.blood_type,
+            schema=self.blood_schema,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
 
     def test_resolve_entity_display_id(self):
@@ -185,8 +234,9 @@ class EntityReferenceTests(BaseTestCase):
     def test_resolve_mixed_entry_and_entity_ids(self):
         """Both entry (E#) and entity (prefix#) IDs resolve."""
         entry = NotebookEntry.objects.create(
-            title="An Entry", content=EMPTY_DOC,
+            name="An Entry", properties=EMPTY_DOC,
             folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
 
         response = self.client.post(
@@ -230,28 +280,35 @@ class IconInMentionsTests(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        from django.contrib.contenttypes.models import ContentType
-        from mods.lims.models import EntityType, Entity, RegisteredEntityType
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
 
-        self.blood_type = EntityType.objects.create(
-            name="Blood", prefix="BLOOD", icon="🩸", columns=[]
+        schema_type, _ = SchemaType.objects.get_or_create(
+            model="mods.lims.models.Entity",
+            defaults={
+                "display_name": "Entity",
+                "workspace_id": "lims",
+                "columns": [],
+            },
         )
-        entity_ct = ContentType.objects.get_for_model(Entity)
-        RegisteredEntityType.objects.create(
+        self.blood_schema = Schema.objects.create(
+            name="Default",
             prefix="BLOOD",
-            content_type=entity_ct,
-            workspace_id="lims",
-            display_name="Blood",
+            schema_type=schema_type,
+            columns=[],
+            is_default=True,
         )
+        self.eln_schema = _create_eln_schema()
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
-            entity_type=self.blood_type,
+            schema=self.blood_schema,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
         self.entry = NotebookEntry.objects.create(
-            title="A Note", content=EMPTY_DOC,
+            name="A Note", properties=EMPTY_DOC,
             folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
 
     def test_resolve_entry_includes_icon(self):
@@ -268,7 +325,7 @@ class IconInMentionsTests(BaseTestCase):
         self.assertEqual(result["workspaceId"], "eln")
 
     def test_resolve_entity_includes_icon(self):
-        """Resolving an entity returns the entity type's icon."""
+        """Resolving an entity returns the default test-tube icon."""
         response = self.client.post(
             "/api/mentions/resolve/",
             {"ids": [self.entity.display_id]},
@@ -276,39 +333,6 @@ class IconInMentionsTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         result = response.data[self.entity.display_id]
-        self.assertIsNotNone(result)
-        self.assertEqual(result["icon"], "🩸")
-        self.assertEqual(result["workspaceId"], "lims")
-
-    def test_resolve_entity_default_icon(self):
-        """Entity with entity type having default icon resolves with '🧪'."""
-        from django.contrib.contenttypes.models import ContentType
-        from mods.lims.models import EntityType, Entity, RegisteredEntityType
-
-        default_type = EntityType.objects.create(
-            name="Default", prefix="DEF", columns=[]
-        )
-        entity_ct = ContentType.objects.get_for_model(Entity)
-        RegisteredEntityType.objects.create(
-            prefix="DEF",
-            content_type=entity_ct,
-            workspace_id="lims",
-            display_name="Default",
-        )
-        entity = Entity.objects.create(
-            name="Default Entity",
-            entity_type=default_type,
-            folder=self.folder,
-            created_by=self.user,
-        )
-
-        response = self.client.post(
-            "/api/mentions/resolve/",
-            {"ids": [entity.display_id]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        result = response.data[entity.display_id]
         self.assertIsNotNone(result)
         self.assertEqual(result["icon"], "🧪")
         self.assertEqual(result["workspaceId"], "lims")
@@ -332,7 +356,7 @@ class IconInMentionsTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["icon"], "🩸")
+        self.assertEqual(results[0]["icon"], "🧪")
         self.assertEqual(results[0]["workspaceId"], "lims")
 
     def test_mixed_resolve_includes_icons(self):
@@ -345,5 +369,5 @@ class IconInMentionsTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[self.entry.display_id]["icon"], "📄")
         self.assertEqual(response.data[self.entry.display_id]["workspaceId"], "eln")
-        self.assertEqual(response.data[self.entity.display_id]["icon"], "🩸")
+        self.assertEqual(response.data[self.entity.display_id]["icon"], "🧪")
         self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")

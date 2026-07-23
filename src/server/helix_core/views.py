@@ -70,6 +70,8 @@ class SchemaViewSet(viewsets.ModelViewSet):
 
         Order matters — delete child entities first to respect FK constraints.
         """
+        from django.db.utils import OperationalError
+
         from mods.lims.models import Entity
         from mods.eln.models import NotebookEntry
 
@@ -77,5 +79,17 @@ class SchemaViewSet(viewsets.ModelViewSet):
         Entity.objects.all().delete()
         NotebookEntry.objects.all().delete()
 
-        count, _ = Schema.objects.all().delete()
+        try:
+            count, _ = Schema.objects.all().delete()
+        except OperationalError:
+            # If a test-only model (e.g. ConcreteTestEntity) has registered
+            # an FK to Schema but its table hasn't been created yet, the
+            # cascade collector will fail.  Fall back to a raw delete since
+            # all real referencing rows were already removed above.
+            from django.db import connection
+            count = Schema.objects.count()
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM {}".format(Schema._meta.db_table)
+                )
         return Response({"deleted": count})

@@ -46,10 +46,9 @@ export function createElnExtensions(
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
     }),
-    // TEMPORARY: Placeholder removed to test DecorationGroup crash
-    // Placeholder.configure({
-    //   placeholder: "Start writing…",
-    // }),
+    Placeholder.configure({
+      placeholder: "Start writing…",
+    }),
     Reference,
     UnifiedSuggestion,
     TableKit,

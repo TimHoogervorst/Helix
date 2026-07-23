@@ -202,7 +202,7 @@ describe("ElnEditor integration", () => {
   // ── Always-editable: title ─────────────────────────────────────────────────
 
   it("shows 'Untitled' as fallback title", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "" }));
+    mockGet.mockResolvedValue(makeEntry({ name: "" }));
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
       expect(screen.getByText("Untitled")).toBeDefined();
@@ -369,7 +369,7 @@ describe("ElnEditor integration", () => {
   // ── New entry mode (?new=true) ────────────────────────────────────────────
 
   it("renders title as contentEditable H1 for ?new=true entries", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "Untitled" }));
+    mockGet.mockResolvedValue(makeEntry({ name: "Untitled" }));
     renderEditor({
       entryId: "E-NEW",
       initialEntries: ["/eln/E-NEW?new=true"],

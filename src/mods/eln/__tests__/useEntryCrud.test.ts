@@ -148,7 +148,7 @@ describe("useEntryCrud", () => {
   // ── Entry fetch ──────────────────────────────────────────────────────────
 
   it("fetches entry and populates state", async () => {
-    const entry = makeEntry({ title: "Loaded", status: "completed" });
+    const entry = makeEntry({ name: "Loaded", status: "completed" });
     mockGet.mockResolvedValue(entry);
 
     const { result } = renderHook(() =>
@@ -212,7 +212,7 @@ describe("useEntryCrud", () => {
       useEntryCrud(makeOptions({ isNew: true })),
     );
 
-    const updated = makeEntry({ title: "Updated Externally" }) as unknown as import("../types").EntryDetail;
+    const updated = makeEntry({ name: "Updated Externally" }) as unknown as import("../types").EntryDetail;
     act(() => result.current.setEntry(updated));
     expect(result.current.entry).toEqual(updated);
   });
@@ -220,9 +220,9 @@ describe("useEntryCrud", () => {
   // ── autoSave (fire-and-forget) ────────────────────────────────────────────
 
   it("autoSave enqueues with autosave saveMode and resolves reference IDs from response", async () => {
-    const saved = makeEntry({ title: "Auto Saved", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Saved desc" }] }] } });
+    const saved = makeEntry({ name: "Auto Saved", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Saved desc" }] }] } });
     mockEnqueue.mockResolvedValue(saved);
-    mockGet.mockResolvedValue(makeEntry({ title: "Original" }));
+    mockGet.mockResolvedValue(makeEntry({ name: "Original" }));
 
     const { result } = renderHook(() =>
       useEntryCrud(makeOptions({ entryId: "E1" })),
@@ -242,7 +242,7 @@ describe("useEntryCrud", () => {
 
     // Verify enqueue was called with autosave mode
     expect(mockEnqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Auto Saved" }),
+      expect.objectContaining({ name: "Auto Saved" }),
       "autosave",
       undefined,
     );
@@ -273,9 +273,9 @@ describe("useEntryCrud", () => {
   // ── save (manual) ────────────────────────────────────────────────────────
 
   it("save enqueues with manual saveMode", async () => {
-    const saved = makeEntry({ title: "Manual Saved", content: { type: "doc", content: [] } });
+    const saved = makeEntry({ name: "Manual Saved", content: { type: "doc", content: [] } });
     mockEnqueue.mockResolvedValue(saved);
-    mockGet.mockResolvedValue(makeEntry({ title: "Original" }));
+    mockGet.mockResolvedValue(makeEntry({ name: "Original" }));
 
     const { result } = renderHook(() =>
       useEntryCrud(makeOptions({ entryId: "E1" })),
@@ -294,16 +294,16 @@ describe("useEntryCrud", () => {
     });
 
     expect(mockEnqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Manual Saved", folder: 5 }),
+      expect.objectContaining({ name: "Manual Saved", folder: 5 }),
       "manual",
       undefined,
     );
   });
 
   it("save for isNew attaches deferred tags after save", async () => {
-    const saved = makeEntry({ title: "Tagged", content: { type: "doc", content: [] } });
+    const saved = makeEntry({ name: "Tagged", content: { type: "doc", content: [] } });
     mockEnqueue.mockResolvedValue(saved);
-    const withTags = makeEntry({ title: "Tagged", tags: [{ id: 1, name: "tag1", icon: null }] });
+    const withTags = makeEntry({ name: "Tagged", tags: [{ id: 1, name: "tag1", icon: null }] });
     mockAttachTags.mockResolvedValue(withTags);
 
     const { result } = renderHook(() =>
@@ -336,7 +336,7 @@ describe("useEntryCrud", () => {
   // ── applySavedEntry ──────────────────────────────────────────────────────
 
   it("applySavedEntry updates local state from server response", () => {
-    const saved = makeEntry({ title: "Server Title", status: "completed", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Server desc" }] }] } });
+    const saved = makeEntry({ name: "Server Title", status: "completed", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Server desc" }] }] } });
 
     const { result } = renderHook(() =>
       useEntryCrud(makeOptions({ isNew: true })),

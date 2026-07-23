@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
                     properties,
                     created_at,
                     updated_at,
-                    'eln.entry' AS schema_type_id,
+                    'eln.notebookentry' AS schema_type_id,
                     'eln' AS workspace_id
                 FROM eln_entry
                 UNION ALL

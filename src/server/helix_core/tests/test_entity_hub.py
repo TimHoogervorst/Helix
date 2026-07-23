@@ -77,7 +77,7 @@ class EntityHubViewTests(TestCase):
         self.assertGreaterEqual(len(rows), 2)
 
         schema_type_ids = {r.schema_type_id for r in rows}
-        self.assertIn("eln.entry", schema_type_ids)
+        self.assertIn("eln.notebookentry", schema_type_ids)
         self.assertIn("lims.entity", schema_type_ids)
 
     def test_view_includes_workspace_id_column(self):
@@ -94,7 +94,7 @@ class EntityHubViewTests(TestCase):
         from helix_core.models import EntityHubView
 
         row = EntityHubView.objects.filter(
-            schema_type_id="eln.entry"
+            schema_type_id="eln.notebookentry"
         ).first()
         self.assertIsNotNone(row)
         self.assertEqual(row.name, "ELN Test Entry")
@@ -123,7 +123,7 @@ class EntityHubViewTests(TestCase):
                 display_id="X1",
                 author=self.user,
                 status="in_progress",
-                schema_type_id="eln.entry",
+                schema_type_id="eln.notebookentry",
                 workspace_id="eln",
             )
 
@@ -282,11 +282,11 @@ class EntityHubAPITests(APITestCase):
 
     def test_filter_by_schema_type(self):
         """?schema_type= filters to entities of that type."""
-        response = self.client.get(f"{self.url}?schema_type=eln.entry")
+        response = self.client.get(f"{self.url}?schema_type=eln.notebookentry")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         for row in data["results"]:
-            self.assertEqual(row["schema_type_id"], "eln.entry")
+            self.assertEqual(row["schema_type_id"], "eln.notebookentry")
 
     def test_filter_by_schema_type_lims(self):
         """?schema_type=lims.entity returns only LIMS entities."""
@@ -396,14 +396,14 @@ class EntityHubAPITests(APITestCase):
     def test_combined_schema_type_and_sort(self):
         """Schema type filter + sort can be combined."""
         response = self.client.get(
-            f"{self.url}?schema_type=eln.entry&sort=name"
+            f"{self.url}?schema_type=eln.notebookentry&sort=name"
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         names = [r["name"] for r in data["results"]]
         self.assertEqual(names, sorted(names))
         for row in data["results"]:
-            self.assertEqual(row["schema_type_id"], "eln.entry")
+            self.assertEqual(row["schema_type_id"], "eln.notebookentry")
 
     # ── available_columns dynamic expansion ──────────────────────────────
 

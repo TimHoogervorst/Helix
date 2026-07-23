@@ -166,3 +166,67 @@ class Schema(ContentHashedModel):
 
     def __str__(self):
         return f"{self.name} [{self.prefix}]"
+
+
+# ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────
+
+
+class EntityHubView(models.Model):
+    """Unmanaged model mapping to the ``entity_hub_view`` PostgreSQL VIEW.
+
+    Provides a read-only UNION ALL across all AbstractEntity tables
+    (eln_entry, lims_entity, and any future entity tables).  Each row
+    includes ``schema_type_id`` and ``workspace_id`` computed columns
+    populated by the VIEW definition.
+
+    Used by the Entities Hub API endpoint to list all entities across
+    the system in a single paginated response.
+    """
+
+    name = models.CharField(max_length=500)
+    display_id = models.CharField(max_length=50)
+    author = models.ForeignKey(
+        "core.User",
+        on_delete=models.DO_NOTHING,
+        related_name="+",
+        db_column="author_id",
+    )
+    last_editor = models.ForeignKey(
+        "core.User",
+        on_delete=models.DO_NOTHING,
+        null=True,
+        related_name="+",
+        db_column="last_editor_id",
+    )
+    status = models.CharField(max_length=20)
+    folder = models.ForeignKey(
+        "core.Folder",
+        on_delete=models.DO_NOTHING,
+        null=True,
+        related_name="+",
+        db_column="folder_id",
+    )
+    project = models.ForeignKey(
+        "core.Project",
+        on_delete=models.DO_NOTHING,
+        null=True,
+        related_name="+",
+        db_column="project_id",
+    )
+    schema = models.ForeignKey(
+        Schema,
+        on_delete=models.DO_NOTHING,
+        related_name="+",
+        db_column="schema_id",
+    )
+    properties = models.JSONField(default=dict)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+    # Computed columns from the VIEW's UNION ALL branches
+    schema_type_id = models.CharField(max_length=50)
+    workspace_id = models.CharField(max_length=50)
+
+    class Meta:
+        managed = False
+        db_table = "entity_hub_view"
+        ordering = ["-updated_at"]

@@ -1,8 +1,10 @@
 """Serializers for Schema and SchemaType API endpoints."""
 
 from rest_framework import serializers
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
 
-from helix_core.models import Schema, SchemaType
+from helix_core.models import Schema, SchemaType, EntityHubView
 
 ALLOWED_COLUMN_TYPES = {"Text", "Number", "Date", "Boolean", "Reference"}
 
@@ -111,3 +113,68 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
                 f"A schema with prefix '{value}' already exists."
             )
         return value
+
+
+# ── Entity Hub ────────────────────────────────────────────────────────────
+
+
+class EntityHubSerializer(serializers.ModelSerializer):
+    """Serializer for rows from the entity_hub_view — read-only UNION ALL view."""
+
+    author_username = serializers.CharField(
+        source="author.username", read_only=True
+    )
+    schema_name = serializers.CharField(
+        source="schema.name", read_only=True
+    )
+    schema_prefix = serializers.CharField(
+        source="schema.prefix", read_only=True
+    )
+    schema_type_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EntityHubView
+        fields = [
+            "id",
+            "display_id",
+            "name",
+            "schema_type_id",
+            "schema_type_display",
+            "schema_id",
+            "schema_name",
+            "schema_prefix",
+            "status",
+            "author",
+            "author_username",
+            "created_at",
+            "updated_at",
+            "workspace_id",
+        ]
+        read_only_fields = fields
+
+    def get_schema_type_display(self, obj):
+        """Human-readable label for the schema_type_id."""
+        mapping = {
+            "eln.entry": "Entry",
+            "lims.entity": "LIMS Entity",
+        }
+        return mapping.get(obj.schema_type_id, obj.schema_type_id)
+
+
+class EntityHubPaginator(PageNumberPagination):
+    """Custom paginator for the Entities Hub endpoint.
+
+    Returns ``results``, ``total``, ``page``, and ``size`` in the
+    response envelope — matching the front-end's expected shape.
+    """
+    page_size = 50
+    page_size_query_param = "size"
+    max_page_size = 200
+
+    def get_paginated_response(self, data):
+        return Response({
+            "results": data,
+            "total": self.page.paginator.count,
+            "page": self.page.number,
+            "size": self.get_page_size(self.request),
+        })

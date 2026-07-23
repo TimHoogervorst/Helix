@@ -7,7 +7,7 @@ read-only list for populating the Schema Type selector dropdown.
 
 import logging
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -18,7 +18,44 @@ from helix_core.serializers import (
     SchemaTypeListSerializer,
 )
 
+from helix_core.models import EntityHubView
+from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
+
 logger = logging.getLogger(__name__)
+
+AVAILABLE_COLUMNS = [
+    {"key": "display_id", "label": "ID", "source": "common"},
+    {"key": "name", "label": "Name", "source": "common"},
+    {"key": "schema_type_id", "label": "Schema Type", "source": "common"},
+    {"key": "status", "label": "Status", "source": "common"},
+    {"key": "author", "label": "Author", "source": "common"},
+    {"key": "created_at", "label": "Created", "source": "common"},
+    {"key": "updated_at", "label": "Updated", "source": "common"},
+]
+
+
+class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """Read-only list of all entities from the entity_hub_view VIEW.
+
+    GET /api/registry/entities/ — returns paginated entity rows with
+    ``results``, ``total``, ``page``, ``size``, and ``available_columns``.
+    Each row carries a ``workspace_id`` for building workspace URLs on the
+    frontend.
+
+    Only the list endpoint is exposed — there is no detail/retrieve for
+    the VIEW.
+    """
+    queryset = EntityHubView.objects.select_related(
+        "author", "schema"
+    ).all()
+    serializer_class = EntityHubSerializer
+    pagination_class = EntityHubPaginator
+    permission_classes = []
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        response.data["available_columns"] = AVAILABLE_COLUMNS
+        return response
 
 
 class SchemaTypeViewSet(viewsets.ReadOnlyModelViewSet):

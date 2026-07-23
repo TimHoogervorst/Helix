@@ -67,6 +67,42 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+// ── Entities Hub ─────────────────────────────────────────────────────────
+
+/** A row from the entity_hub_view as returned by GET /api/registry/entities. */
+export interface EntityHubItem {
+  id: number;
+  display_id: string;
+  name: string;
+  schema_type_id: string;
+  schema_type_display: string;
+  schema_id: number;
+  schema_name: string;
+  schema_prefix: string;
+  status: string;
+  author: number | null;
+  author_username: string | null;
+  created_at: string;
+  updated_at: string;
+  workspace_id: string;
+}
+
+/** Available column descriptor returned by the API. */
+export interface AvailableColumn {
+  key: string;
+  label: string;
+  source: "common" | "schema_type" | "schema";
+}
+
+/** Paginated response from GET /api/registry/entities. */
+export interface EntityHubResponse {
+  results: EntityHubItem[];
+  total: number;
+  page: number;
+  size: number;
+  available_columns: AvailableColumn[];
+}
+
 // ── ELN Table v2 (AG Grid) types ──────────────────────────────────────
 //
 // Moved to shared/types/types.ts — re-exported here so existing consumers

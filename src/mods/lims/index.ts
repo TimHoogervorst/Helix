@@ -3,11 +3,8 @@ import {
   registerRoute,
   registerSettingsSection,
   registerWorkspace,
-  ModRegistry,
 } from "../../shell/src/mod-system";
-import type { RegisteredEntityType, ModManifest } from "../../shell/src/mod-system";
-import { get } from "../../shell/src/api/client";
-import type { EntityType } from "./types";
+import type { ModManifest } from "../../shell/src/mod-system";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
 
@@ -19,62 +16,17 @@ export const meta: ModManifest = {
 
 export function register() {
   // ── Workspace: LIMS entity workspace ───────────────────────────────────
-  registerWorkspace({ id: "lims", displayName: "LIMS", icon: FlaskConical });
-
-  // ── Service: entity type registry ──────────────────────────────────────
-  // LIMS is the central registry for all mentionable entity types.
-  // Mods call registry.call("lims.registerEntityType", config) at boot
-  // to declare which entity types they own.
-  const entityTypes = new Map<string, RegisteredEntityType>();
-
-  ModRegistry.getInstance().registerService({
-    id: "lims.registerEntityType",
-    handler: async (config: unknown) => {
-      const typed = config as RegisteredEntityType;
-      if (!typed || typeof typed.prefix !== "string") {
-        throw new Error(
-          "lims.registerEntityType: config must have a 'prefix' property.",
-        );
-      }
-      if (entityTypes.has(typed.prefix)) {
-        const existing = entityTypes.get(typed.prefix)!;
-        throw new Error(
-          `Duplicate entity type prefix '${typed.prefix}': ` +
-            `'${existing.entityType}' is already registered ` +
-            `(attempted: '${typed.entityType}').`,
-        );
-      }
-      entityTypes.set(typed.prefix, typed);
+  // schemaType carries entity type identity so no separate service call is needed.
+  registerWorkspace({
+    id: "lims",
+    displayName: "LIMS",
+    icon: FlaskConical,
+    schemaType: {
+      id: "lims.entity",
+      displayName: "LIMS Entity",
+      defaultPrefix: "E",
     },
   });
-
-  // ── Register LIMS entity types from the backend ────────────────────────
-  // Fetch active entity types and register each as a mentionable type.
-  // Fire-and-forget: the boot sequence continues without waiting;
-  // entity types are registered before any mention resolution happens.
-  get<EntityType[]>("/lims/entity-types/")
-    .then((types) => {
-      for (const et of types) {
-        if (!et.is_active) continue;
-        ModRegistry.getInstance()
-          .call("lims.registerEntityType", {
-            prefix: et.prefix,
-            entityType: `lims.entity.${et.id}`,
-            workspaceId: "lims",
-            displayName: et.name,
-          })
-          .catch((err: Error) => {
-            console.warn(
-              `[lims] Failed to register entity type '${et.name}': ${err.message}`,
-            );
-          });
-      }
-    })
-    .catch((err: Error) => {
-      console.warn(
-        `[lims] Failed to fetch entity types from backend: ${err.message}`,
-      );
-    });
 
   // ── Standalone route: full entity workspace page ──────────────────────
   registerRoute({

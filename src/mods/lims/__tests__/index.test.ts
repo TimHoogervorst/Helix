@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-// RegisteredEntityType type is imported only as a type reference in test assertions
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -24,7 +23,7 @@ describe("lims mod registration", () => {
     expect(mod.meta.dependsOn).toEqual([]);
   });
 
-  it("registers a workspace for LIMS", async () => {
+  it("registers a workspace for LIMS with schemaType", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -33,64 +32,13 @@ describe("lims mod registration", () => {
 
     const workspaces = registry.getWorkspaces();
     expect(workspaces.has("lims")).toBe(true);
-    expect(workspaces.get("lims")?.displayName).toBe("LIMS");
-  });
-
-  it("registers the lims.registerEntityType service", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    // Service should be registered
-    const result = await registry.call("lims.registerEntityType", {
-      prefix: "DNA",
-      entityType: "dna_sequence",
-      workspaceId: "molBio",
-      displayName: "DNA Sequence",
+    const ws = workspaces.get("lims");
+    expect(ws?.displayName).toBe("LIMS");
+    expect(ws?.schemaType).toEqual({
+      id: "lims.entity",
+      displayName: "LIMS Entity",
+      defaultPrefix: "E",
     });
-    expect(result).toBeUndefined();
-  });
-
-  it("lims.registerEntityType throws on duplicate prefix", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    await registry.call("lims.registerEntityType", {
-      prefix: "DNA",
-      entityType: "dna_sequence",
-      workspaceId: "molBio",
-      displayName: "DNA Sequence",
-    });
-
-    await expect(
-      registry.call("lims.registerEntityType", {
-        prefix: "DNA",
-        entityType: "plasmid",
-        workspaceId: "molBio",
-        displayName: "Plasmid",
-      }),
-    ).rejects.toThrow(
-      "Duplicate entity type prefix 'DNA': 'dna_sequence' is already registered",
-    );
-  });
-
-  it("lims.registerEntityType throws on missing prefix", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
-    mod.register();
-
-    await expect(
-      registry.call("lims.registerEntityType", { foo: "bar" }),
-    ).rejects.toThrow(
-      "lims.registerEntityType: config must have a 'prefix' property.",
-    );
   });
 
   it("registers route for /lims/:displayId", async () => {

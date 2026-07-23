@@ -116,6 +116,35 @@ export interface ServiceConfig {
 
 // ── Workspace ──────────────────────────────────────────────────────────────
 
+/** A column definition within a schema type. */
+export interface SchemaColumnDef {
+  id?: string;
+  name: string;
+  type: "Text" | "Number" | "Date" | "Boolean" | "Reference";
+  required?: boolean;
+  default?: string;
+  units?: string;
+  description?: string;
+}
+
+/**
+ * Schema type identity carried by a workspace.
+ *
+ * When a mod passes `schemaType` to `registerWorkspace()`, the registry
+ * stores it alongside the workspace config so that workspace registration
+ * carries everything needed for entity type identity.
+ */
+export interface SchemaTypeConfig {
+  /** Unique schema type identifier, e.g. "lims.entity", "eln.entry". */
+  id: string;
+  /** Human-readable name, e.g. "LIMS Entity", "ELN Entry". */
+  displayName: string;
+  /** Default prefix for display IDs, e.g. "E" → "E1". */
+  defaultPrefix: string;
+  /** Optional column definitions. */
+  columns?: SchemaColumnDef[];
+}
+
 /**
  * Configuration for a workspace registered by a mod.
  *
@@ -129,28 +158,13 @@ export interface WorkspaceConfig {
   displayName: string;
   /** Optional Lucide icon. Falls back to a generic default when absent. */
   icon?: LucideIcon;
-}
-
-// ── Entity Type (client-side type for lims.registerEntityType service) ─────
-
-/**
- * A mentionable entity type registered with LIMS.
- *
- * Mods call `registry.call("lims.registerEntityType", config)` at boot to
- * declare which entity types they own. LIMS validates prefix uniqueness.
- *
- * This is the client-side contract — the backend mirrors it with a
- * `RegisteredEntityType` model in `lims/models.py`.
- */
-export interface RegisteredEntityType {
-  /** Prefix extracted from display IDs, e.g. "E" → "E1", "DNA" → "DNA34". */
-  prefix: string;
-  /** The entity type identifier, e.g. "eln_entry", "sample". */
-  entityType: string;
-  /** The workspace that owns this entity type. */
-  workspaceId: string;
-  /** Human-readable name shown in search results, e.g. "Entry", "Sample". */
-  displayName: string;
+  /**
+   * Optional schema type identity.
+   *
+   * When provided, workspace registration carries everything needed for
+   * entity type identity — no separate service call is required.
+   */
+  schemaType?: SchemaTypeConfig;
 }
 
 // ── Current Workspace ───────────────────────────────────────────────────────

@@ -87,7 +87,7 @@ function LimsWorkspacePage() {
                 title: entity.name,
                 type: "entity",
                 id: entity.id,
-                icon: entity.entity_type_icon || "🧪",
+                icon: "🧪",
               }}
             />
             {entity.name}

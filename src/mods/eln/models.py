@@ -5,31 +5,22 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from helix_core.abstracts import BrowsableItem
+from helix_core.abstracts import AbstractEntity
 from helix_core.actions.base import AbstractBaseAction
-from core.constants import STATUS_CHOICES
 
 # Re-export for backward compatibility — these are canonical in mods.tags.
 from mods.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
 
 
-class NotebookEntry(BrowsableItem):
-    """An ELN notebook entry containing narrative text."""
+class NotebookEntry(AbstractEntity):
+    """An ELN notebook entry containing narrative text.
 
-    title = models.CharField(max_length=500)
+    Inherits from :class:`AbstractEntity`, which provides ``name``,
+    ``author``, ``status``, ``folder``, ``schema``, ``properties``,
+    ``updated_at``, ``display_id``, and ``created_at``.
+    """
+
     content = models.JSONField(blank=True, default=dict)
-    folder = models.ForeignKey(
-        "core.Folder", on_delete=models.CASCADE, related_name="entries", null=True, blank=True
-    )
-    author = models.ForeignKey(
-        "core.User", on_delete=models.CASCADE, related_name="entries", null=True, blank=True
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default="in_progress",
-    )
-    updated_at = models.DateTimeField(auto_now=True)
 
     # M2M to tags.Tag — defined on the consumer side (Tag stays pure).
     tags = models.ManyToManyField(
@@ -46,10 +37,7 @@ class NotebookEntry(BrowsableItem):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.display_id} — {self.title}" if self.display_id else self.title
-
-    def _get_display_id_prefix(self) -> str:
-        return "E"
+        return f"{self.display_id} — {self.name}" if self.display_id else self.name
 
 
 class ElnAction(AbstractBaseAction):

@@ -9,6 +9,7 @@ from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from core.mentions.models import Mention
 from mods.eln.models import NotebookEntry, ElnAction
+from mods.eln.tests.factories import get_or_create_default_eln_schema
 
 TEXT_DOC = {
     "type": "doc",
@@ -24,6 +25,7 @@ TEXT_DOC = {
 class ElnApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
 
     def test_list_entries_empty(self):
@@ -36,11 +38,11 @@ class ElnApiTests(BaseTestCase):
         """POST returns 201, entry appears in DB."""
         response = self.client.post(
             "/api/eln/entries/",
-            {"title": "Test Entry", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Test Entry", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["title"], "Test Entry")
+        self.assertEqual(response.data["name"], "Test Entry")
         self.assertEqual(response.data["author_username"], self.USERNAME)
         self.assertEqual(response.data["content"], TEXT_DOC)
         self.assertEqual(NotebookEntry.objects.count(), 1)
@@ -49,7 +51,7 @@ class ElnApiTests(BaseTestCase):
         """POST with non-document content returns 400."""
         response = self.client.post(
             "/api/eln/entries/",
-            {"title": "Bad", "content": "not a dict", "folder": self.folder.id},
+            {"name": "Bad", "content": "not a dict", "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
@@ -57,17 +59,19 @@ class ElnApiTests(BaseTestCase):
     def test_retrieve_entry(self):
         """GET by ID returns full entry including content."""
         entry = NotebookEntry.objects.create(
-            title="My Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="My Entry", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         response = self.client.get(f"/api/eln/entries/{entry.display_id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["title"], "My Entry")
+        self.assertEqual(response.data["name"], "My Entry")
         self.assertEqual(response.data["content"], TEXT_DOC)
 
     def test_update_entry(self):
         """PUT updates title and content, returns 200."""
         entry = NotebookEntry.objects.create(
-            title="Old Title", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="Old Title", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         new_doc = {
             "type": "doc",
@@ -80,20 +84,21 @@ class ElnApiTests(BaseTestCase):
         }
         response = self.client.put(
             f"/api/eln/entries/{entry.display_id}/",
-            {"title": "New Title", "content": new_doc, "folder": self.folder.id},
+            {"name": "New Title", "content": new_doc, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["title"], "New Title")
+        self.assertEqual(response.data["name"], "New Title")
         self.assertEqual(response.data["content"], new_doc)
         entry.refresh_from_db()
-        self.assertEqual(entry.title, "New Title")
+        self.assertEqual(entry.name, "New Title")
         self.assertEqual(entry.content, new_doc)
 
     def test_delete_entry(self):
         """DELETE removes entry, subsequent GET returns 404."""
         entry = NotebookEntry.objects.create(
-            title="To Delete", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="To Delete", content=EMPTY_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         response = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
         self.assertEqual(response.status_code, 204)
@@ -103,10 +108,11 @@ class ElnApiTests(BaseTestCase):
         """50 entries, GET with page_size=20 returns 20 + next link."""
         for i in range(50):
             NotebookEntry.objects.create(
-                title=f"Entry {i}",
+                name=f"Entry {i}",
                 content=EMPTY_DOC,
                 folder=self.folder,
                 author=self.user,
+                schema=self.schema,
             )
         response = self.client.get("/api/eln/entries/?page_size=20")
         self.assertEqual(response.status_code, 200)
@@ -119,11 +125,13 @@ class MentionSyncOnSaveTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
 
         # Create a target entry that will be referenced.
         self.target = NotebookEntry.objects.create(
-            title="Target Entry", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="Target Entry", content=EMPTY_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
 
     def test_create_entry_with_reference_creates_mention(self):
@@ -131,7 +139,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
         doc = make_doc_with_ref(self.target.display_id)
         response = self.client.post(
             "/api/eln/entries/",
-            {"title": "Ref Entry", "content": doc, "folder": self.folder.id},
+            {"name": "Ref Entry", "content": doc, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -143,14 +151,15 @@ class MentionSyncOnSaveTests(BaseTestCase):
     def test_update_entry_add_reference_creates_mention(self):
         """PUT with a new reference node → Mention created."""
         entry = NotebookEntry.objects.create(
-            title="No Refs Yet", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="No Refs Yet", content=EMPTY_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         self.assertEqual(Mention.objects.count(), 0)
 
         doc = make_doc_with_ref(self.target.display_id)
         response = self.client.put(
             f"/api/eln/entries/{entry.display_id}/",
-            {"title": "Now With Ref", "content": doc, "folder": self.folder.id},
+            {"name": "Now With Ref", "content": doc, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -163,7 +172,8 @@ class MentionSyncOnSaveTests(BaseTestCase):
         """PUT that removes a reference node → Mention deleted."""
         doc_with_ref = make_doc_with_ref(self.target.display_id)
         entry = NotebookEntry.objects.create(
-            title="Has Ref", content=doc_with_ref, folder=self.folder, author=self.user
+            name="Has Ref", content=doc_with_ref, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         # Manually sync since the creation through ORM doesn't go through the view.
         from core.mentions.sync import sync_mentions
@@ -173,7 +183,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
         # Now update via API to remove the reference.
         response = self.client.put(
             f"/api/eln/entries/{entry.display_id}/",
-            {"title": "No Ref Now", "content": EMPTY_DOC, "folder": self.folder.id},
+            {"name": "No Ref Now", "content": EMPTY_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -200,6 +210,7 @@ class EntryActionLoggingTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
@@ -211,7 +222,7 @@ class EntryActionLoggingTests(BaseTestCase):
         """POST calls log_action with action_type='eln.entry.created'."""
         response = self.client.post(
             "/api/eln/entries/",
-            {"title": "Logged Create", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Logged Create", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -225,11 +236,12 @@ class EntryActionLoggingTests(BaseTestCase):
     def test_update_entry_logs_action(self):
         """PUT calls log_action with action_type='eln.entry.edited'."""
         entry = NotebookEntry.objects.create(
-            title="Before Edit", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="Before Edit", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         response = self.client.put(
             f"/api/eln/entries/{entry.display_id}/",
-            {"title": "After Edit", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "After Edit", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -243,7 +255,8 @@ class EntryActionLoggingTests(BaseTestCase):
     def test_destroy_entry_logs_action(self):
         """DELETE calls log_action with action_type='eln.entry.deleted'."""
         entry = NotebookEntry.objects.create(
-            title="To Delete", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="To Delete", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         response = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
         self.assertEqual(response.status_code, 204)
@@ -260,7 +273,7 @@ class EntryActionLoggingTests(BaseTestCase):
         anon_client = APIClient()
         response = anon_client.post(
             "/api/eln/entries/",
-            {"title": "Anon Entry", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Anon Entry", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -270,13 +283,14 @@ class EntryActionLoggingTests(BaseTestCase):
     def test_update_entry_unauthenticated_returns_403(self):
         """When no user is authenticated, PUT returns 403."""
         entry = NotebookEntry.objects.create(
-            title="Anon Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="Anon Entry", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         from rest_framework.test import APIClient
         anon_client = APIClient()
         response = anon_client.put(
             f"/api/eln/entries/{entry.display_id}/",
-            {"title": "Anon Edit", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Anon Edit", "content": TEXT_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -289,9 +303,11 @@ class EntryActionsEndpointTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
         self.entry = NotebookEntry.objects.create(
-            title="Actions Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="Actions Entry", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         # Create several actions via the logger so they exist before tests
         from helix_core.actions.logger import log_action
@@ -419,7 +435,8 @@ class EntryActionsEndpointTests(BaseTestCase):
     def test_actions_are_scoped_to_entry(self):
         """Different entries have independent action lists."""
         other = NotebookEntry.objects.create(
-            title="Other Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="Other Entry", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         response = self.client.get(
             f"/api/eln/entries/{other.display_id}/actions/"
@@ -433,9 +450,11 @@ class EntryTagActionsLoggingTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
         self.entry = NotebookEntry.objects.create(
-            title="Tag Test Entry", content=TEXT_DOC, folder=self.folder, author=self.user
+            name="Tag Test Entry", content=TEXT_DOC, folder=self.folder, author=self.user,
+                schema=self.schema
         )
         from mods.tags.models import Tag
         self.tag1 = Tag.objects.create(name="Important", color="enzyme", icon="dna")

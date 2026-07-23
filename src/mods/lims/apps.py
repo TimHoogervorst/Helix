@@ -35,5 +35,5 @@ class LimsConfig(AppConfig):
             display_name="Entity",
             workspace_id="lims",
             model="mods.lims.models.Entity",
-            prefix="E",
+            prefix="BLOOD",
         )

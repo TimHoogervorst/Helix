@@ -5,9 +5,8 @@ import uuid
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from helix_core.abstracts import BrowsableItem
+from helix_core.abstracts import AbstractEntity
 from helix_core.actions.base import AbstractBaseAction
-from core.constants import STATUS_CHOICES
 
 
 class EntityType(models.Model):
@@ -136,43 +135,21 @@ class RegisteredEntityType(models.Model):
         return f"{self.prefix} → {self.display_name} ({self.workspace_id})"
 
 
-class Entity(BrowsableItem):
+class Entity(AbstractEntity):
     """A structured LIMS entity representing a physical sample or item.
 
-    display_id is auto-generated from the EntityType prefix on first save
-    (same pattern as NotebookEntry.display_id).
+    Inherits name, author, status, folder, project, schema, properties,
+    updated_at, display_id, and created_at from :class:`AbstractEntity`.
+
+    display_id is auto-generated from the Schema prefix on first save.
     """
 
-    name = models.CharField(max_length=500)
-    entity_type = models.ForeignKey(
-        EntityType, on_delete=models.CASCADE, related_name="entities"
-    )
-    properties = models.JSONField(default=dict, blank=True)
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default="in_progress",
-    )
     source_entry = models.ForeignKey(
         "eln.NotebookEntry",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="lims_entities",
-    )
-    folder = models.ForeignKey(
-        "core.Folder",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="entities",
-    )
-    created_by = models.ForeignKey(
-        "core.User",
-        on_delete=models.CASCADE,
-        related_name="entities",
-        null=True,
-        blank=True,
     )
 
     class Meta:
@@ -183,10 +160,7 @@ class Entity(BrowsableItem):
     def __str__(self):
         if self.display_id:
             return f"{self.display_id} — {self.name}"
-        return f"{self.name} ({self.entity_type.name})"
-
-    def _get_display_id_prefix(self) -> str:
-        return self.entity_type.prefix
+        return f"{self.name} ({self.schema.name})"
 
 
 class Action(AbstractBaseAction):

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from helix_core.models import Schema
 from .models import EntityType, Entity, Action
 
 ALLOWED_COLUMN_TYPES = {"Text", "Number", "Date", "Boolean", "Reference"}
@@ -74,10 +75,14 @@ class EntityTypeDetailSerializer(serializers.ModelSerializer):
 
 
 class EntitySerializer(serializers.ModelSerializer):
-    entity_type_name = serializers.CharField(source="entity_type.name", read_only=True)
-    entity_type_prefix = serializers.CharField(source="entity_type.prefix", read_only=True)
-    entity_type_icon = serializers.CharField(source="entity_type.icon", read_only=True, default="🧪")
-    created_by_username = serializers.CharField(source="created_by.username", read_only=True)
+    schema = serializers.PrimaryKeyRelatedField(
+        queryset=Schema.objects.all(),
+        required=False,
+        allow_null=False,
+    )
+    schema_name = serializers.CharField(source="schema.name", read_only=True)
+    schema_prefix = serializers.CharField(source="schema.prefix", read_only=True)
+    author_username = serializers.CharField(source="author.username", read_only=True)
     source_entry_display_id = serializers.CharField(
         source="source_entry.display_id", read_only=True, default=None
     )
@@ -88,19 +93,38 @@ class EntitySerializer(serializers.ModelSerializer):
             "id",
             "display_id",
             "name",
-            "entity_type",
-            "entity_type_name",
-            "entity_type_prefix",
-            "entity_type_icon",
+            "schema",
+            "schema_name",
+            "schema_prefix",
             "properties",
             "source_entry",
             "source_entry_display_id",
             "folder",
-            "created_by",
-            "created_by_username",
+            "author",
+            "author_username",
+            "status",
+            "updated_at",
             "created_at",
         ]
-        read_only_fields = ["id", "display_id", "created_by", "created_at"]
+        read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
+
+    def validate(self, data):
+        """Resolve the default Schema when none is provided."""
+        if "schema" not in data or data["schema"] is None:
+            from helix_core.models import SchemaType
+            try:
+                schema_type = SchemaType.objects.get(
+                    workspace_id="lims", model="mods.lims.models.Entity",
+                )
+                data["schema"] = Schema.objects.get(
+                    schema_type=schema_type, is_default=True,
+                )
+            except (SchemaType.DoesNotExist, Schema.DoesNotExist):
+                raise serializers.ValidationError({
+                    "schema": "No schema provided and no default schema exists. "
+                              "Please provide a schema."
+                })
+        return data
 
 
 class EntityBatchSerializer(serializers.Serializer):
@@ -119,7 +143,7 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
 
 class EntityBatchRegisterSerializer(serializers.Serializer):
     """Serializer for the batch-register endpoint payload."""
-    entity_type_id = serializers.IntegerField(required=True)
+    schema_id = serializers.IntegerField(required=True)
     rows = serializers.ListField(
         child=EntityBatchRegisterRowSerializer(),
         allow_empty=False,

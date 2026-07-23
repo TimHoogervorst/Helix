@@ -15,6 +15,12 @@ class ElnConfig(AppConfig):
         from mods.eln.models import ElnAction, NotebookEntry
 
         registry.register_action_model("eln", ElnAction)
+        registry.register_schema_type(
+            display_name="ELN Entry",
+            workspace_id="eln",
+            model="mods.eln.models.NotebookEntry",
+            prefix="E",
+        )
         registry.register_signal(
             "eln", post_save, update_entity_status_from_entry, sender=NotebookEntry
         )

@@ -18,9 +18,9 @@ class RegisteredEntityTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ["display_id", "name", "entity_type", "folder", "created_by", "created_at"]
+    list_display = ["display_id", "name", "schema", "folder", "author", "created_at"]
     search_fields = ["display_id", "name"]
-    list_filter = ["entity_type", "created_at"]
+    list_filter = ["schema", "created_at"]
 
 
 @admin.register(Action)

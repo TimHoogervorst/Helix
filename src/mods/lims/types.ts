@@ -33,16 +33,17 @@ export interface EntityListItem {
   id: number;
   display_id: string;
   name: string;
-  entity_type: number;
-  entity_type_name: string;
-  entity_type_prefix: string;
-  entity_type_icon: string;
+  schema: number;
+  schema_name: string;
+  schema_prefix: string;
   properties: Record<string, unknown>;
   source_entry: number | null;
   source_entry_display_id: string | null;
   folder: number | null;
-  created_by: number | null;
-  created_by_username: string | null;
+  author: number | null;
+  author_username: string | null;
+  status: string;
+  updated_at: string;
   created_at: string;
 }
 

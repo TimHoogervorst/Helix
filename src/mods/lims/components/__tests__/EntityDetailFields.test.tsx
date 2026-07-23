@@ -18,7 +18,7 @@ const entity: EntityListItem = makeEntityListItem({
   },
   source_entry: 10,
   source_entry_display_id: "E42",
-  created_by_username: "jdoe",
+  author_username: "jdoe",
   created_at: "2025-06-01T12:00:00Z",
 });
 
@@ -44,7 +44,7 @@ describe("EntityDetailFields", () => {
   });
 
   it("renders '—' fallback when username is null", () => {
-    const noUser = { ...entity, created_by_username: null };
+    const noUser = { ...entity, author_username: null };
     render(<EntityDetailFields entity={noUser} />);
     expect(screen.getByText("—")).toBeInTheDocument();
   });

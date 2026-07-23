@@ -85,11 +85,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     delete_all: DELETE /api/lims/entities/delete_all/ — delete all entities
     """
 
-    queryset = Entity.objects.select_related("entity_type", "created_by", "folder")
+    queryset = Entity.objects.select_related("schema", "author", "folder")
     serializer_class = EntitySerializer
     permission_classes = []
     lookup_field = "display_id"
-    filterset_fields = ["entity_type"]
+    filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
 
     action_log_config = {
@@ -100,8 +100,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     }
 
     def perform_create(self, serializer):
-        author = self.request.user if self.request.user.is_authenticated else None
-        instance = serializer.save(created_by=author)
+        if not self.request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+            raise NotAuthenticated("Authentication is required to create entities.")
+        # Schema is always resolved by EntitySerializer.validate() — if the
+        # client omitted it, the default Schema for the LIMS SchemaType is
+        # assigned automatically.
+        instance = serializer.save(author=self.request.user)
         self._maybe_log(
             "create",
             instance=instance,
@@ -109,10 +114,10 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         )
 
     def filter_queryset(self, queryset):
-        # Support ?type= as an alias for ?entity_type=
+        # Support ?type= as an alias for ?schema=
         type_id = self.request.query_params.get("type")
         if type_id:
-            queryset = queryset.filter(entity_type_id=type_id)
+            queryset = queryset.filter(schema_id=type_id)
         return super().filter_queryset(queryset)
 
     @action(detail=False, methods=["post"])
@@ -128,7 +133,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         ids = input_serializer.validated_data["ids"]
 
         result = {}
-        entities = Entity.objects.filter(display_id__in=ids).select_related("entity_type")
+        entities = Entity.objects.filter(display_id__in=ids).select_related("schema")
         entity_map = {e.display_id: e for e in entities}
 
         for display_id in ids:
@@ -140,8 +145,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "id": entity.pk,
                     "display_id": entity.display_id,
                     "name": entity.name,
-                    "entity_type_id": entity.entity_type_id,
-                    "entity_type_name": entity.entity_type.name,
+                    "schema_id": entity.schema_id,
+                    "schema_name": entity.schema.name,
                     "properties": entity.properties,
                     "folder_id": entity.folder_id,
                     "created_at": entity.created_at.isoformat(),
@@ -160,29 +165,36 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         """Batch-register (create or update) LIMS entities.
 
         POST /api/lims/entities/batch-register/
-        Body: {"entity_type_id": 1, "rows": [{"entity_id": null, "name": "...", "values": {...}}]}
+        Body: {"schema_id": 1, "rows": [{"entity_id": null, "name": "...", "values": {...}}]}
 
         - ``entity_id: null`` → create new entity.
         - ``entity_id`` provided → update existing entity.
-        - Idempotent: re-registering the same (name, entity_type) does not duplicate.
+        - Idempotent: re-registering the same (name, schema) does not duplicate.
         - Partial success: errors in some rows don't block valid rows.
         """
+        from helix_core.models import Schema
+
         input_serializer = EntityBatchRegisterSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
 
-        entity_type_id = input_serializer.validated_data["entity_type_id"]
+        schema_id = input_serializer.validated_data["schema_id"]
         rows = input_serializer.validated_data["rows"]
 
-        # Validate entity_type exists
+        # Validate schema exists
         try:
-            entity_type = EntityType.objects.get(pk=entity_type_id)
-        except EntityType.DoesNotExist:
+            schema = Schema.objects.get(pk=schema_id)
+        except Schema.DoesNotExist:
             return Response(
-                {"detail": f"EntityType with id {entity_type_id} not found."},
+                {"detail": f"Schema with id {schema_id} not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         author = request.user if request.user.is_authenticated else None
+        if author is None:
+            from rest_framework.exceptions import NotAuthenticated
+            raise NotAuthenticated(
+                "Authentication is required to batch-register entities."
+            )
 
         results = []
         errors = []
@@ -221,9 +233,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "message": f"Entity with id {entity_id} not found.",
                     })
             else:
-                # Idempotent create: check for existing entity with same name + type
+                # Idempotent create: check for existing entity with same name + schema
                 existing = Entity.objects.filter(
-                    name=name, entity_type=entity_type
+                    name=name, schema=schema
                 ).first()
                 if existing:
                     # Idempotency — update instead of duplicate
@@ -238,9 +250,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 else:
                     entity = Entity.objects.create(
                         name=name,
-                        entity_type=entity_type,
+                        schema=schema,
                         properties=values,
-                        created_by=author,
+                        author=author,
                     )
                     results.append({
                         "row_index": row_index,
@@ -257,9 +269,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         user=author,
                         action_type="eln.entities.registered",
                         target_type="lims.entities",
-                        target_id=entity_type_id,
+                        target_id=schema_id,
                         metadata={
-                            "entity_type_id": entity_type_id,
+                            "schema_id": schema_id,
                             "count": len(results),
                             "entity_ids": [r["entity_id"] for r in results],
                         },

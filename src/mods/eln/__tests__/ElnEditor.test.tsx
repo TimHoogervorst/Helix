@@ -520,11 +520,16 @@ describe("ElnEditor integration", () => {
 
     await screen.findByTestId("locked-banner");
 
-    // Find the last call with isLockedByOther=true
-    const lockedCalls = onStateChange.mock.calls.filter(
-      (call) => (call[0] as ElnEditorState).isLockedByOther,
-    );
-    expect(lockedCalls.length).toBeGreaterThan(0);
-    expect(lockedCalls[0][0].lockHeldBy).toBe("bob");
+    // isLockedByOther triggers a synchronous React commit (banner appears)
+    // but the useEffect that fires onStateChange runs asynchronously on a
+    // deferred schedule.  Use waitFor to retry until the effect fires so
+    // this doesn't flake on slower CI machines.
+    await waitFor(() => {
+      const lockedCalls = onStateChange.mock.calls.filter(
+        (call) => (call[0] as ElnEditorState).isLockedByOther,
+      );
+      expect(lockedCalls.length).toBeGreaterThan(0);
+      expect(lockedCalls[0][0].lockHeldBy).toBe("bob");
+    });
   });
 });

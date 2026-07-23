@@ -4122,11 +4122,10 @@ input.library-new-folder-input:focus {
   padding: 0.35rem 0.5rem;
   cursor: pointer;
   width: 100%;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .entities-views-save-btn:hover:not(:disabled) {
-  color: var(--color-accent);
   border-color: var(--color-accent);
   background: var(--color-accent-subtle, rgba(59, 130, 246, 0.06));
 }
@@ -4203,6 +4202,7 @@ input.library-new-folder-input:focus {
 .entities-views-item-name {
   flex: 1;
   text-align: left;
+  justify-content: flex-start;
   font-size: 0.82rem;
   color: var(--gray-600);
   background: none;
@@ -4218,9 +4218,8 @@ input.library-new-folder-input:focus {
   min-width: 0;
 }
 
-.entities-views-item-name:hover {
-  color: var(--color-accent);
-}
+/* .entities-views-item-name:hover — no color change needed;
+   the parent row background already provides hover feedback */
 
 /* Public icon (globe) */
 .entities-views-public-icon {

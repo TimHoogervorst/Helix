@@ -214,6 +214,23 @@ export function MyViewsBlock(_props: BlockComponentProps) {
     [],
   );
 
+  // ── Overwrite filters ────────────────────────────────────────────────
+  const handleOverwrite = useCallback(
+    async (view: LimsViewItem) => {
+      setMenuViewId(null);
+      try {
+        const filterState = readFilterState(searchParams);
+        const updated = await updateView(view.id, { filter_state: filterState });
+        setViews((prev) =>
+          prev.map((v) => (v.id === updated.id ? updated : v)),
+        );
+      } catch {
+        // Silently fail
+      }
+    },
+    [searchParams],
+  );
+
   // ── Toggle public / private ──────────────────────────────────────────
   const handleTogglePublic = useCallback(async (view: LimsViewItem) => {
     setMenuViewId(null);
@@ -394,6 +411,14 @@ export function MyViewsBlock(_props: BlockComponentProps) {
 
                     {menuViewId === view.id && (
                       <div className="entities-views-menu-dropdown">
+                        <button
+                          className="entities-views-menu-item"
+                          type="button"
+                          onClick={() => handleOverwrite(view)}
+                        >
+                          <Save size={13} />
+                          Update
+                        </button>
                         <button
                           className="entities-views-menu-item"
                           type="button"

@@ -203,6 +203,24 @@ function EntitiesHub() {
     [syncColumnsToURL],
   );
 
+  // Sync columnVisibility from URL params on subsequent navigations
+  // (e.g. when loading a saved view).  The useState initialiser handles
+  // the first mount; a ref lets us skip that so we don't double-render.
+  const prevColumnsParam = useRef(columnsParam);
+  useEffect(() => {
+    if (prevColumnsParam.current === columnsParam) return;
+    prevColumnsParam.current = columnsParam;
+
+    if (columnsParam) {
+      const keys = columnsParam.split(",").filter(Boolean);
+      if (keys.length > 0) {
+        setColumnVisibility(new Set(keys));
+        return;
+      }
+    }
+    setColumnVisibility(new Set(DEFAULT_VISIBLE_COLUMNS));
+  }, [columnsParam]);
+
   // ── Column lock state (local state, not in URL) ─────────────────────
 
   const [lockedColumns, setLockedColumns] = useState<Set<number>>(() => {
@@ -488,7 +506,7 @@ function EntitiesHub() {
     display_id: 110,
     name: 0, // flex / auto — not used for sticky offset
     schema_type_id: 120,
-    status: 110,
+    status: 130,
     author: 100,
     created_at: 90,
     updated_at: 90,

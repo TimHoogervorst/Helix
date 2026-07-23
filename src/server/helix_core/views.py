@@ -114,7 +114,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                 key, value = ff.split(":", 1)
                 qs = qs.filter(
                     Q(properties__has_key=key)
-                    & Q(properties__contains={key: value})
+                    & Q(**{f"properties__{key}": value})
                 )
 
         # ── Sort ───────────────────────────────────────────────────────

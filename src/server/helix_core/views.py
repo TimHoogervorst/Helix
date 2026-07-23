@@ -45,7 +45,7 @@ class SchemaViewSet(viewsets.ModelViewSet):
     delete_all: DELETE /api/schemas/delete_all/ — hard-deletes all schemas
     """
 
-    queryset = Schema.objects.select_related("schema_type").all()
+    queryset = Schema.objects.select_related("schema_type").filter(is_active=True)
     permission_classes = []
     pagination_class = None
 

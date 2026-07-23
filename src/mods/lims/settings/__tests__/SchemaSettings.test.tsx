@@ -79,7 +79,7 @@ describe("SchemaSettings", () => {
     });
   });
 
-  it("shows system badge for default schemas", async () => {
+  it("hides default schemas from the list", async () => {
     mockGet
       .mockResolvedValueOnce([
         {
@@ -99,7 +99,8 @@ describe("SchemaSettings", () => {
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
-      expect(screen.getByText("System")).toBeInTheDocument();
+      expect(screen.getByText("No schemas found.")).toBeInTheDocument();
     });
+    expect(screen.queryByText("Default")).not.toBeInTheDocument();
   });
 });

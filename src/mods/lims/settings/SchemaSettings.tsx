@@ -316,9 +316,10 @@ function SettingsPage() {
   const editingSchema = selectedId
     ? dirtyEdits.get(selectedId)
     : undefined;
-  const visibleSchemas = showArchived
+  const visibleSchemas = (showArchived
     ? schemas
-    : schemas.filter((s) => s.is_active);
+    : schemas.filter((s) => s.is_active)
+  ).filter((s) => !s.is_default);
   const dirtyCount = dirtyEdits.size;
 
   return (

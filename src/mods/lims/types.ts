@@ -113,3 +113,43 @@ export interface EntityHubResponse {
 // don't break.  New code should import from "shared/types/types".
 
 export type { GridColumn, GridRow } from "../../shell/src/shared/types/types";
+
+// ── Saved Views ────────────────────────────────────────────────────────────
+
+/** Filter state stored in a saved View, mirroring URL params. */
+export interface ViewFilterState {
+  search: string;
+  schema_type: string;
+  schema: string;
+  status: string;
+  sort: string;
+  fields: string[];
+  columns: string[];
+  viewMode: "list" | "compact";
+}
+
+/** A saved Entity Hub View (from GET /api/lims/views/). */
+export interface LimsViewItem {
+  id: number;
+  owner: number;
+  owner_username: string;
+  name: string;
+  filter_state: ViewFilterState;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload for creating a new View. */
+export interface LimsViewCreatePayload {
+  name: string;
+  filter_state: ViewFilterState;
+  is_public?: boolean;
+}
+
+/** Payload for updating a View. */
+export interface LimsViewUpdatePayload {
+  name?: string;
+  filter_state?: ViewFilterState;
+  is_public?: boolean;
+}

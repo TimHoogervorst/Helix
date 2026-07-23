@@ -8,12 +8,13 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
 
-from .models import Entity, Action
+from .models import Entity, Action, LimsView
 from .serializers import (
     EntitySerializer,
     EntityBatchSerializer,
     EntityBatchRegisterSerializer,
     ActionSerializer,
+    LimsViewSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -243,3 +244,50 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ActionSerializer
     permission_classes = []
     filterset_fields = ["entity", "action_type"]
+
+
+class LimsViewViewSet(viewsets.ModelViewSet):
+    """API endpoint for saved Entity Hub Views.
+
+    list: GET /api/lims/views/ — list own views (default) or public (?public=true)
+    create: POST /api/lims/views/
+    retrieve: GET /api/lims/views/{id}/
+    update: PUT /api/lims/views/{id}/
+    partial_update: PATCH /api/lims/views/{id}/
+    destroy: DELETE /api/lims/views/{id}/
+    """
+
+    serializer_class = LimsViewSerializer
+    permission_classes = []
+
+    def get_queryset(self):
+        user = self.request.user
+        public_only = self.request.query_params.get("public") == "true"
+
+        if public_only:
+            qs = LimsView.objects.filter(is_public=True).select_related("owner")
+            if user.is_authenticated:
+                qs = qs.exclude(owner=user)
+            return qs
+
+        if user.is_authenticated:
+            return LimsView.objects.filter(owner=user).select_related("owner")
+        return LimsView.objects.none()
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+
+            raise NotAuthenticated("Authentication is required to save views.")
+        serializer.save(owner=self.request.user)
+
+    def check_object_permissions(self, request, obj):
+        """Only the owner can update, delete, or toggle is_public."""
+        if request.method in ("PUT", "PATCH", "DELETE"):
+            if not request.user.is_authenticated or obj.owner != request.user:
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied(
+                    "You do not have permission to modify this view."
+                )
+        return super().check_object_permissions(request, obj)

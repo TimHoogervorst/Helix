@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Entity, Action
+from .models import Entity, Action, LimsView
 
 
 @admin.register(Entity)
@@ -14,3 +14,10 @@ class EntityAdmin(admin.ModelAdmin):
 class ActionAdmin(admin.ModelAdmin):
     list_display = ["entity", "action_type", "performed_by", "created_at"]
     list_filter = ["action_type", "created_at"]
+
+
+@admin.register(LimsView)
+class LimsViewAdmin(admin.ModelAdmin):
+    list_display = ["name", "owner", "is_public", "created_at", "updated_at"]
+    search_fields = ["name", "owner__username"]
+    list_filter = ["is_public", "created_at"]

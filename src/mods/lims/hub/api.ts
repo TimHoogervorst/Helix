@@ -1,5 +1,12 @@
-import { get } from "../../../shell/src/api/client";
-import type { EntityHubResponse, Schema, SchemaTypeItem } from "../types";
+import { get, post, patch, del } from "../../../shell/src/api/client";
+import type {
+  EntityHubResponse,
+  Schema,
+  SchemaTypeItem,
+  LimsViewItem,
+  LimsViewCreatePayload,
+  LimsViewUpdatePayload,
+} from "../types";
 
 // ── Query params accepted by GET /api/registry/entities/ ──────────────────
 
@@ -48,4 +55,36 @@ export function getSchemaTypes(): Promise<SchemaTypeItem[]> {
 /** Fetch all active Schemas (for the dropdown options). */
 export function getSchemas(): Promise<Schema[]> {
   return get("/schemas/");
+}
+
+// ── Saved Views ──────────────────────────────────────────────────────────────
+
+/** Fetch the current user's saved Views. */
+export function getMyViews(): Promise<LimsViewItem[]> {
+  return get<LimsViewItem[]>("/lims/views/");
+}
+
+/** Fetch public Views from all users (excluding own). */
+export function getPublicViews(): Promise<LimsViewItem[]> {
+  return get<LimsViewItem[]>("/lims/views/?public=true");
+}
+
+/** Create a new saved View. */
+export function createView(
+  payload: LimsViewCreatePayload,
+): Promise<LimsViewItem> {
+  return post<LimsViewItem>("/lims/views/", payload);
+}
+
+/** Update a saved View (rename, change filters, toggle public). */
+export function updateView(
+  viewId: number,
+  payload: LimsViewUpdatePayload,
+): Promise<LimsViewItem> {
+  return patch<LimsViewItem>(`/lims/views/${viewId}/`, payload);
+}
+
+/** Delete a saved View. */
+export function deleteView(viewId: number): Promise<void> {
+  return del<void>(`/lims/views/${viewId}/`);
 }

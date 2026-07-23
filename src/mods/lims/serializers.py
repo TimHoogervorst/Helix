@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from helix_core.models import Schema
-from .models import Entity, Action
+from .models import Entity, Action, LimsView
 
 ALLOWED_COLUMN_TYPES = {"Text", "Number", "Date", "Boolean", "Reference"}
 
@@ -118,6 +118,26 @@ class EntityBatchRegisterSerializer(serializers.Serializer):
         child=EntityBatchRegisterRowSerializer(),
         allow_empty=False,
     )
+
+
+class LimsViewSerializer(serializers.ModelSerializer):
+    """Serializer for saved Views (LimsView)."""
+
+    owner_username = serializers.CharField(source="owner.username", read_only=True)
+
+    class Meta:
+        model = LimsView
+        fields = [
+            "id",
+            "owner",
+            "owner_username",
+            "name",
+            "filter_state",
+            "is_public",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "owner", "created_at", "updated_at"]
 
 
 class ActionSerializer(serializers.ModelSerializer):

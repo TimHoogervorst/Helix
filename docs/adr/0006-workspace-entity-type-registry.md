@@ -126,6 +126,10 @@ Entity type registration during mod boot is a synchronous operation — it store
 - **Workspace IDs must be valid URL segments.** Since the workspace `id` is used directly in URLs (`/{workspaceId}/...`), it must be a valid URL path segment. The existing mod ID convention (lowercase alphanumeric) already satisfies this.
 - **LIMS must load before mods that register entity types.** The `dependsOn: ["lims"]` declaration in mod manifests ensures this. Mods that register entity types declare LIMS as a dependency.
 
+### Note: Design evolution toward backend-owned registration
+
+Since this ADR was accepted, [ADR-0008](0008-single-source-registration.md) (Single Source Registration) has shifted the registration model. Entity type registration is moving from frontend `registry.call("lims.registerEntityType", ...)` to backend `mod.py` → `register_schema_type()`. The frontend discovers entity types via `GET /api/mod-registry/` at boot rather than calling a frontend service. The resolution chain and URL convention `/{workspaceId}/{displayId}` remain the same — only the registration mechanism changes from frontend service call to backend-owned declaration. The `RegisteredEntityType` model, prefix uniqueness constraint, and LIMS-as-registry architecture are unaffected.
+
 ### Future considerations
 
 - **Custom entity type behaviors.** The `RegisteredEntityType` table can gain columns for custom renderers, action sets, or validation rules — without changing the resolution architecture.

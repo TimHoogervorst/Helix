@@ -11,8 +11,9 @@ schema types, and action catalogs) at ``GET /api/mod-registry/``.
 import logging
 
 from django.db.models import Q
-from rest_framework import viewsets, mixins, status
+from rest_framework import serializers, viewsets, mixins, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -265,6 +266,155 @@ class SchemaViewSet(viewsets.ModelViewSet):
                     "DELETE FROM {}".format(Schema._meta.db_table)
                 )
         return Response({"deleted": count})
+
+
+class ActionCreateView(APIView):
+    """Unified endpoint for all action logging.
+
+    ``POST /api/actions/`` accepts:
+
+    * ``action_type`` — triple-dotted action type (e.g. ``"eln.entry.created"``)
+      or core verb (``"created"``, ``"edited"``, ``"deleted"``).
+    * ``target_type`` — namespaced target, e.g. ``"eln.entry"``.
+    * ``target_id`` — primary key of the target record.
+    * ``workspace_id`` — the owning mod / workspace identifier.
+    * ``metadata`` — optional JSON payload.
+    * ``timestamp`` — optional ISO 8601 datetime (accepted, currently ignored).
+
+    The backend:
+
+    1. Resolves ``workspace_id`` to the owning mod.
+    2. Validates ``action_type`` against that mod's registered action catalog.
+    3. Routes to the correct mod action table.
+    4. Logs the core action row.
+    5. If the action is a custom action, also logs the custom action row.
+    6. Returns ``201 Created`` with the created action rows as a JSON array.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from helix_core.actions.serializers import ActionCreateSerializer
+        from helix_core.actions.registry import (
+            get_action_catalog,
+            get_action_model,
+        )
+
+        # ── validate input ──────────────────────────────────────────────
+        serializer = ActionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        action_type: str = validated["action_type"]
+        target_type: str = validated["target_type"]
+        target_id: int = validated["target_id"]
+        workspace_id: str = validated["workspace_id"]
+        metadata: dict = validated.get("metadata", {})
+
+        # ── validate action_type against the workspace's catalog ─────────
+        catalog = get_action_catalog(workspace_id)
+        if not catalog:
+            raise serializers.ValidationError(
+                f"No action model registered for workspace "
+                f"'{workspace_id}'. Did you forget to call "
+                f"register_action_model()?"
+            )
+
+        catalog_action_types = {entry["action_type"] for entry in catalog}
+        if action_type not in catalog_action_types:
+            available = ", ".join(sorted(catalog_action_types))
+            raise serializers.ValidationError(
+                f"Unknown action_type '{action_type}' for workspace "
+                f"'{workspace_id}'. Available action types: {available}"
+            )
+
+        # ── route to the correct mod action model ────────────────────────
+        model_class = get_action_model(workspace_id)
+        if model_class is None:
+            raise serializers.ValidationError(
+                f"No action model registered for workspace '{workspace_id}'."
+            )
+
+        # ── resolve core / custom ─────────────────────────────────────────
+        catalog_entry = next(
+            (e for e in catalog if e["action_type"] == action_type), None
+        )
+
+        is_custom = (
+            catalog_entry is not None
+            and catalog_entry.get("core")
+            and catalog_entry["core"] != catalog_entry["action_type"]
+        )
+
+        created_rows: list = []
+
+        if is_custom:
+            # Custom action: log both the core row *and* the custom row.
+            core_verb: str = catalog_entry["core"]
+            core_row = model_class.objects.create(
+                performed_by=request.user,
+                action_type=core_verb,
+                target_type=target_type,
+                target_id=target_id,
+                metadata=metadata,
+            )
+            created_rows.append(core_row)
+
+            custom_row = model_class.objects.create(
+                performed_by=request.user,
+                action_type=action_type,
+                target_type=target_type,
+                target_id=target_id,
+                metadata=metadata,
+            )
+            created_rows.append(custom_row)
+        else:
+            # Core action: log a single row.
+            row = model_class.objects.create(
+                performed_by=request.user,
+                action_type=action_type,
+                target_type=target_type,
+                target_id=target_id,
+                metadata=metadata,
+            )
+            created_rows.append(row)
+
+        # ── serialize response ───────────────────────────────────────────
+        response_data = [
+            _serialize_action_row(row)
+            for row in created_rows
+        ]
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+def _serialize_action_row(row) -> dict:
+    """Serialize a single action row into the deterministic response shape.
+
+    Produces the same shape as ``ActionResponseSerializer`` — a dict
+    with keys ``id``, ``action_type``, ``target_type``, ``target_id``,
+    ``metadata``, ``created_at``, and ``performed_by`` (nested user dict).
+    """
+    performed_by = None
+    if row.performed_by is not None:
+        performed_by = {
+            "id": row.performed_by.pk,
+            "username": row.performed_by.username,
+        }
+
+    created_at = None
+    if row.created_at is not None:
+        created_at = row.created_at.isoformat().replace("+00:00", "Z")
+
+    return {
+        "id": row.pk,
+        "action_type": row.action_type,
+        "target_type": row.target_type,
+        "target_id": row.target_id,
+        "metadata": row.metadata or {},
+        "created_at": created_at,
+        "performed_by": performed_by,
+    }
 
 
 class ModRegistryView(APIView):

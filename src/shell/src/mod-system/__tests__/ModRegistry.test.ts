@@ -676,7 +676,7 @@ describe("ModRegistry", () => {
             },
           ],
           actions: [
-            { id: "created", label: "Created", core: true },
+            { id: "created", label: "Created", action_type: "created" },
           ],
         },
       };
@@ -919,9 +919,9 @@ describe("ModRegistry", () => {
           workspaceId: "lims",
           schemaTypes: [],
           actions: [
-            { id: "created", label: "Created", core: true },
-            { id: "edited", label: "Edited", core: true },
-            { id: "deleted", label: "Deleted", core: true },
+            { id: "created", label: "Created", action_type: "created" },
+            { id: "edited", label: "Edited", action_type: "edited" },
+            { id: "deleted", label: "Deleted", action_type: "deleted" },
           ],
         },
       };
@@ -930,9 +930,9 @@ describe("ModRegistry", () => {
 
       const actions = registry.getActions("lims");
       expect(actions).toHaveLength(3);
-      expect(actions[0]).toEqual({ id: "created", label: "Created", core: true });
-      expect(actions[1]).toEqual({ id: "edited", label: "Edited", core: true });
-      expect(actions[2]).toEqual({ id: "deleted", label: "Deleted", core: true });
+      expect(actions[0]).toEqual({ id: "created", label: "Created", action_type: "created" });
+      expect(actions[1]).toEqual({ id: "edited", label: "Edited", action_type: "edited" });
+      expect(actions[2]).toEqual({ id: "deleted", label: "Deleted", action_type: "deleted" });
     });
 
     it("stores both core and custom actions from backend payload", () => {
@@ -941,8 +941,8 @@ describe("ModRegistry", () => {
           workspaceId: "eln",
           schemaTypes: [],
           actions: [
-            { id: "created", label: "Created", core: true },
-            { id: "eln.entry.status-changed", label: "Status Changed", core: false },
+            { id: "created", label: "Created", action_type: "created" },
+            { id: "eln.entry.status-changed", label: "Status Changed", action_type: "edited" },
           ],
         },
       };
@@ -954,11 +954,11 @@ describe("ModRegistry", () => {
 
       const coreAction = actions.find((a) => a.id === "created");
       expect(coreAction).toBeDefined();
-      expect(coreAction!.core).toBe(true);
+      expect(coreAction!.action_type).toBe("created");
 
       const customAction = actions.find((a) => a.id === "eln.entry.status-changed");
       expect(customAction).toBeDefined();
-      expect(customAction!.core).toBe(false);
+      expect(customAction!.action_type).toBe("edited");
       expect(customAction!.label).toBe("Status Changed");
     });
 
@@ -967,12 +967,12 @@ describe("ModRegistry", () => {
         lims: {
           workspaceId: "lims",
           schemaTypes: [],
-          actions: [{ id: "created", label: "Created", core: true }],
+          actions: [{ id: "created", label: "Created", action_type: "created" }],
         },
         eln: {
           workspaceId: "eln",
           schemaTypes: [],
-          actions: [{ id: "created", label: "Created", core: true }],
+          actions: [{ id: "created", label: "Created", action_type: "created" }],
         },
       };
 
@@ -1005,7 +1005,7 @@ describe("ModRegistry", () => {
           lims: {
             workspaceId: "lims",
             schemaTypes: [],
-            actions: [{ id: "created", label: "Created", core: true }],
+            actions: [{ id: "created", label: "Created", action_type: "created" }],
           },
         },
         new Map([["lims", makeManifest()]]),
@@ -1035,7 +1035,7 @@ describe("ModRegistry", () => {
           lims: {
             workspaceId: "lims",
             schemaTypes: [],
-            actions: [{ id: "created", label: "Created", core: true }],
+            actions: [{ id: "created", label: "Created", action_type: "created" }],
           },
         },
         new Map([["lims", makeManifest()]]),
@@ -1050,8 +1050,8 @@ describe("ModRegistry", () => {
             workspaceId: "lims",
             schemaTypes: [],
             actions: [
-              { id: "created", label: "Created", core: true },
-              { id: "lims.sample.registered", label: "Sample Registered", core: false },
+              { id: "created", label: "Created", action_type: "created" },
+              { id: "lims.sample.registered", label: "Sample Registered", action_type: "edited" },
             ],
           },
         },
@@ -1077,9 +1077,9 @@ describe("ModRegistry", () => {
           workspaceId: "lims",
           schemaTypes: [],
           actions: [
-            { id: "created", label: "Created", core: true },
-            { id: "edited", label: "Edited", core: true },
-            { id: "deleted", label: "Deleted", core: true },
+            { id: "created", label: "Created", action_type: "created" },
+            { id: "edited", label: "Edited", action_type: "edited" },
+            { id: "deleted", label: "Deleted", action_type: "deleted" },
           ],
         },
       };

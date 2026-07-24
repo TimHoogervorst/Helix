@@ -67,7 +67,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     lookup_field = "display_id"
 
     _entry_edited_config = {
-        "action_type": "eln.entry.edited",
+        "action": "eln.entry.edited",
         # _version_metadata is set as a transient attr in perform_update
         # before _maybe_log fires.  The lambda reads it back so version
         # metadata flows from the save pipeline into the action log without
@@ -78,10 +78,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     }
 
     action_log_config = {
-        "create": {"action_type": "eln.entry.created"},
+        "create": {"action": "eln.entry.created"},
         "update": _entry_edited_config,
         "partial_update": _entry_edited_config,
-        "destroy": {"action_type": "eln.entry.deleted"},
+        "destroy": {"action": "eln.entry.deleted"},
     }
 
     def get_serializer_class(self):
@@ -271,7 +271,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         GET /api/eln/entries/{display_id}/actions/?action_type=edited&since=2026-06-30T00:00:00Z
 
         POST /api/eln/entries/{display_id}/actions/
-        Body: {"action_type": "commented", "metadata": {"text": "..."}}
+        Body: {"action": "eln.entry.custom_action", "action_type": "edited", "metadata": {"text": "..."}}
         """
         if request.method == "POST":
             return self._create_action(request, display_id)
@@ -315,7 +315,8 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         action = log_action(
             user=request.user,
-            action_type=serializer.validated_data["action_type"],
+            action=serializer.validated_data["action"],
+            action_type=serializer.validated_data.get("action_type"),
             target_type="eln.entry",
             target_id=entry.id,
             metadata=serializer.validated_data.get("metadata") or {},
@@ -334,8 +335,8 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Body:
             {
                 "actions": [
-                    {"action_type": "eln.table.edited", "metadata": {...}},
-                    {"action_type": "eln.comment.created", "metadata": {...}},
+                    {"action": "eln.table.edited", "metadata": {...}},
+                    {"action": "eln.comment.created", "metadata": {...}},
                 ]
             }
 
@@ -547,10 +548,10 @@ class ProtocolViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     permission_classes = []
 
     action_log_config = {
-        "create": {"action_type": "eln.protocol.created"},
-        "update": {"action_type": "eln.protocol.edited"},
-        "partial_update": {"action_type": "eln.protocol.edited"},
-        "destroy": {"action_type": "eln.protocol.deleted"},
+        "create": {"action": "eln.protocol.created"},
+        "update": {"action": "eln.protocol.edited"},
+        "partial_update": {"action": "eln.protocol.edited"},
+        "destroy": {"action": "eln.protocol.deleted"},
     }
 
     def get_queryset(self):

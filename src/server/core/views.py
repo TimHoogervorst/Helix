@@ -38,10 +38,10 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     pagination_class = None
 
     action_log_config = {
-        "create": {"action_type": "core.folder.created"},
-        "update": {"action_type": "core.folder.edited"},
-        "partial_update": {"action_type": "core.folder.edited"},
-        "destroy": {"action_type": "core.folder.deleted"},
+        "create": {"action": "core.folder.created"},
+        "update": {"action": "core.folder.edited"},
+        "partial_update": {"action": "core.folder.edited"},
+        "destroy": {"action": "core.folder.deleted"},
     }
 
 
@@ -64,7 +64,7 @@ class CoreSettingViewSet(ActionLoggingMixin, viewsets.ReadOnlyModelViewSet):
     lookup_field = "key"
 
     action_log_config = {
-        "partial_update": {"action_type": "core.setting.edited"},
+        "partial_update": {"action": "core.setting.edited"},
     }
 
     def partial_update(self, request, key=None):

@@ -152,6 +152,7 @@ class ElnActionSerializer(serializers.ModelSerializer):
         model = ElnAction
         fields = [
             "id",
+            "action",
             "action_type",
             "target_type",
             "target_id",
@@ -168,15 +169,15 @@ class ElnActionCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ElnAction
-        fields = ["action_type", "metadata"]
+        fields = ["action", "action_type", "metadata"]
         # target_type, target_id, and performed_by are set by the view
 
 
 class ElnActionBatchSerializer(serializers.Serializer):
     """Serializer for batched block-level action log entries.
 
-    Accepts a list of ``{action_type, metadata}`` entries.  The view
-    derives ``performed_by``, ``target_type``, ``target_id``, and
+    Accepts a list of ``{action, action_type?, metadata}`` entries.  The
+    view derives ``performed_by``, ``target_type``, ``target_id``, and
     ``request_id`` from the request context.
     """
 
@@ -187,21 +188,21 @@ class ElnActionBatchSerializer(serializers.Serializer):
     )
 
     def validate_actions(self, value):
-        """Validate that each action entry has a valid triple-dotted action_type."""
+        """Validate that each action entry has a valid triple-dotted action."""
         for i, entry in enumerate(value):
-            action_type = entry.get("action_type", "")
-            if not action_type or not str(action_type).strip():
+            action = entry.get("action", "")
+            if not action or not str(action).strip():
                 raise serializers.ValidationError(
-                    f"actions[{i}]: 'action_type' is required and must "
+                    f"actions[{i}]: 'action' is required and must "
                     f"not be blank."
                 )
             # Enforce triple-dotted convention: "{mod}.{target}.{verb_past}"
-            if str(action_type).count(".") < 2:
+            if str(action).count(".") < 2:
                 raise serializers.ValidationError(
-                    f"actions[{i}]: 'action_type' must follow the "
+                    f"actions[{i}]: 'action' must follow the "
                     f"triple-dotted convention "
                     f"('{{mod}}.{{target}}.{{verb_past}}'), "
-                    f"got '{action_type}'."
+                    f"got '{action}'."
                 )
         return value
 

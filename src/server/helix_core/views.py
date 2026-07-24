@@ -9,6 +9,7 @@ schema types, and action catalogs) at ``GET /api/mod-registry/``.
 """
 
 import logging
+import uuid
 
 from django.db.models import Q
 from rest_framework import serializers, viewsets, mixins, status
@@ -273,23 +274,26 @@ class ActionCreateView(APIView):
 
     ``POST /api/actions/`` accepts:
 
-    * ``action_type`` — triple-dotted action type (e.g. ``"eln.entry.created"``)
-      or core verb (``"created"``, ``"edited"``, ``"deleted"``).
+    * ``action`` — triple-dotted action identifier (e.g.
+      ``"eln.entry.created"``).
+    * ``action_type`` — core CRUD verb (``"created"``, ``"edited"``, or
+      ``"deleted"``).
     * ``target_type`` — namespaced target, e.g. ``"eln.entry"``.
     * ``target_id`` — primary key of the target record.
     * ``workspace_id`` — the owning mod / workspace identifier.
     * ``metadata`` — optional JSON payload.
-    * ``timestamp`` — optional ISO 8601 datetime (accepted, currently ignored).
+    * ``timestamp`` — optional ISO 8601 datetime (accepted, currently
+      ignored).
 
     The backend:
 
     1. Resolves ``workspace_id`` to the owning mod.
-    2. Validates ``action_type`` against that mod's registered action catalog.
+    2. Validates ``action`` against that mod's registered action catalog.
     3. Routes to the correct mod action table.
-    4. Creates a single action row. For custom actions (e.g.
-       ``"eln.entry.registered"``) only the custom action row is logged;
-       consumers that need the core verb can derive it from the catalog.
-    5. Returns ``201 Created`` with the created action row as a JSON array.
+    4. Creates a single action row with both ``action`` and
+       ``action_type`` populated.
+    5. Returns ``201 Created`` with the created action row as a JSON
+       array.
     """
 
     permission_classes = [IsAuthenticated]
@@ -306,13 +310,14 @@ class ActionCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         validated = serializer.validated_data
 
+        action: str = validated["action"]
         action_type: str = validated["action_type"]
         target_type: str = validated["target_type"]
         target_id: int = validated["target_id"]
         workspace_id: str = validated["workspace_id"]
         metadata: dict = validated.get("metadata", {})
 
-        # ── validate action_type against the workspace's catalog ─────────
+        # ── validate action against the workspace's catalog ─────────────
         catalog = get_action_catalog(workspace_id)
         if not catalog:
             raise serializers.ValidationError(
@@ -321,11 +326,11 @@ class ActionCreateView(APIView):
                 f"register_action_model()?"
             )
 
-        catalog_action_types = {entry["action_type"] for entry in catalog}
-        if action_type not in catalog_action_types:
-            available = ", ".join(sorted(catalog_action_types))
+        catalog_action_ids = {entry["id"] for entry in catalog}
+        if action not in catalog_action_ids:
+            available = ", ".join(sorted(catalog_action_ids))
             raise serializers.ValidationError(
-                f"Unknown action_type '{action_type}' for workspace "
+                f"Unknown action '{action}' for workspace "
                 f"'{workspace_id}'. Available action types: {available}"
             )
 
@@ -339,14 +344,19 @@ class ActionCreateView(APIView):
         # ── capture client IP ────────────────────────────────────────────
         client_ip = request.META.get("REMOTE_ADDR", "") or None
 
+        # ── resolve request_id (client-provided or server-generated) ─────
+        request_id = validated.get("request_id", uuid.uuid4())
+
         # ── create the action row ────────────────────────────────────────
         row = model_class.objects.create(
             performed_by=request.user,
+            action=action,
             action_type=action_type,
             target_type=target_type,
             target_id=target_id,
             metadata=metadata,
             client_ip=client_ip,
+            request_id=request_id,
         )
 
         # ── serialize response ───────────────────────────────────────────
@@ -359,9 +369,9 @@ class ActionCreateView(APIView):
 def _serialize_action_row(row) -> dict:
     """Serialize a single action row into the deterministic response shape.
 
-    Produces the same shape as ``ActionResponseSerializer`` — a dict
-    with keys ``id``, ``action_type``, ``target_type``, ``target_id``,
-    ``metadata``, ``created_at``, and ``performed_by`` (nested user dict).
+    Produces a dict with keys ``id``, ``action``, ``action_type``,
+    ``target_type``, ``target_id``, ``metadata``, ``created_at``, and
+    ``performed_by`` (nested user dict).
     """
     performed_by = None
     if row.performed_by is not None:
@@ -376,6 +386,7 @@ def _serialize_action_row(row) -> dict:
 
     return {
         "id": row.pk,
+        "action": row.action,
         "action_type": row.action_type,
         "target_type": row.target_type,
         "target_id": row.target_id,

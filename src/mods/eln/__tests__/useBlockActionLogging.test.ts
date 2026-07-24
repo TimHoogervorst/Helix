@@ -165,13 +165,19 @@ describe("useBlockActionLogging", () => {
       "eln.entry",
       42,
       { message: "Table Created" },
+      expect.any(String),
     );
     expect(mockSendAction).toHaveBeenCalledWith(
       "eln.comment-block.created",
       "eln.entry",
       42,
       { message: "Comment Created" },
+      expect.any(String),
     );
+    // Both calls share the same requestId.
+    const firstRequestId = mockSendAction.mock.calls[0][4];
+    const secondRequestId = mockSendAction.mock.calls[1][4];
+    expect(firstRequestId).toBe(secondRequestId);
   });
 
   // ── Dedup: same (blockInstanceId, verb) ────────────────────────────────
@@ -195,6 +201,7 @@ describe("useBlockActionLogging", () => {
       "eln.entry",
       42,
       { message: "Table Edited" },
+      expect.any(String),
     );
   });
 
@@ -341,6 +348,7 @@ describe("useBlockActionLogging", () => {
       "eln.entry",
       99,
       { message: "Table Deleted" },
+      expect.any(String),
     );
   });
 
@@ -407,14 +415,13 @@ describe("useBlockActionLogging", () => {
 
   // ── eln.actions.flushed event is emitted on success ───────────────────
 
-  it("emits eln.actions.flushed with flushed keys on successful flush", async () => {
+  it("emits eln.actions.flushed with flushed keys and requestId on successful flush", async () => {
     const mockSendAction = vi.fn().mockResolvedValue(undefined);
     const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
-    const flushedKeys: string[] = [];
+    let flushedPayload: { keys: string[]; requestId?: string } | null = null;
     bus.on("eln.actions.flushed", (payload: unknown) => {
-      const { keys } = payload as { keys: string[] };
-      flushedKeys.push(...keys);
+      flushedPayload = payload as { keys: string[]; requestId?: string };
     });
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
@@ -425,10 +432,16 @@ describe("useBlockActionLogging", () => {
       expect(mockSendAction).toHaveBeenCalledTimes(2);
     });
 
-    // Should contain both keys
-    expect(flushedKeys).toHaveLength(2);
-    expect(flushedKeys).toContain("inst-1:created");
-    expect(flushedKeys).toContain("inst-2:edited");
+    // Should contain both keys and a shared requestId.
+    expect(flushedPayload).not.toBeNull();
+    expect(flushedPayload!.keys).toHaveLength(2);
+    expect(flushedPayload!.keys).toContain("inst-1:created");
+    expect(flushedPayload!.keys).toContain("inst-2:edited");
+    expect(flushedPayload!.requestId).toEqual(expect.any(String));
+    // requestId should be a valid UUID
+    expect(flushedPayload!.requestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 
   // ── eln.actions.flushed is NOT emitted on partial failure ──────────────

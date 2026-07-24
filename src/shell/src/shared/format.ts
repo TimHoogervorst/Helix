@@ -39,7 +39,7 @@ export function relativeTime(isoString: string): string {
 }
 
 /**
- * Humanize a triple-dotted action type string for display.
+ * Humanize a triple-dotted action identifier for display.
  *
  * Mechanical, zero-registration: splits on ".", takes the last segment
  * as the verb, replaces underscores with spaces, and capitalises each word.
@@ -49,8 +49,8 @@ export function relativeTime(isoString: string): string {
  * - "eln.table.edited"           → "Edited"
  * - "lims.entity.status_changed" → "Status Changed"
  */
-export function humanizeActionType(actionType: string): string {
-  const parts = actionType.split(".");
+export function humanizeActionType(action: string): string {
+  const parts = action.split(".");
   const verb = parts[parts.length - 1];
   return verb
     .replace(/_/g, " ")

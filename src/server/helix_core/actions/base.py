@@ -27,7 +27,14 @@ class AbstractBaseAction(models.Model):
         blank=True,
         related_name="%(class)s_actions",
     )
-    action_type = models.CharField(max_length=100)
+    action = models.CharField(
+        max_length=128,
+        help_text="Triple-dotted action identifier, e.g. 'eln.entry.created'.",
+    )
+    action_type = models.CharField(
+        max_length=16,
+        help_text="Core CRUD verb: 'created', 'edited', or 'deleted'.",
+    )
     target_type = models.CharField(
         max_length=100,
         help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.",
@@ -61,4 +68,4 @@ class AbstractBaseAction(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.action_type} on {self.target_type}.{self.target_id}"
+        return f"{self.action} on {self.target_type}.{self.target_id}"

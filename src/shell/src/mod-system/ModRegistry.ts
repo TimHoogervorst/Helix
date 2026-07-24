@@ -27,7 +27,7 @@ interface BackendSchemaType {
 interface BackendModRegistryEntry {
   workspaceId: string;
   schemaTypes: BackendSchemaType[];
-  actions: Array<{ id: string; label: string; core: boolean }>;
+  actions: Array<{ id: string; label: string; action_type: string }>;
 }
 
 /**
@@ -167,7 +167,7 @@ export class ModRegistry {
           entry.actions.map((a) => ({
             id: a.id,
             label: a.label,
-            core: a.core,
+            action_type: a.action_type,
           })),
         );
       }

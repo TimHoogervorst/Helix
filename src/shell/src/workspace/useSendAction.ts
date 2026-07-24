@@ -4,9 +4,13 @@
  *
  * Used by all renderers (TipTap, Panel, Tab, Sidebar) to pass
  * ``sendAction`` to blocks via ``BlockComponentProps``.
+ *
+ * Looks up the action catalog from ``ModRegistry`` so ``sendAction`` can
+ * resolve the core ``action_type`` for each action.
  */
 import { useMemo } from "react";
 import { createSendAction } from "./sendAction";
+import { ModRegistry } from "../mod-system/ModRegistry";
 
 /**
  * Return a memoized ``sendAction`` function for the given workspace.
@@ -17,10 +21,14 @@ import { createSendAction } from "./sendAction";
 export function useSendAction(
   workspaceId: string,
 ): (
-  actionType: string,
+  action: string,
   targetType: string,
   targetId: number,
   metadata?: Record<string, unknown>,
+  requestId?: string,
 ) => Promise<void> {
-  return useMemo(() => createSendAction(workspaceId), [workspaceId]);
+  return useMemo(() => {
+    const catalog = ModRegistry.getInstance().getActions(workspaceId);
+    return createSendAction(workspaceId, catalog);
+  }, [workspaceId]);
 }

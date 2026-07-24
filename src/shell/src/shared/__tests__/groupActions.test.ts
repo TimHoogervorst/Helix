@@ -23,7 +23,8 @@ function makeItem(overrides: Partial<DisplayActionItem> = {}): DisplayActionItem
   return {
     id: 1,
     performedBy: makeUser(),
-    actionType: "eln.entry.edited",
+    action: "eln.entry.edited",
+    actionType: "edited",
     targetType: "eln.entry",
     targetId: 42,
     metadata: {},
@@ -111,13 +112,15 @@ describe("groupConfirmedActions", () => {
     const a = makeItem({
       id: 1,
       requestId: "req-2",
-      actionType: "eln.entry.created",
+      action: "eln.entry.created",
+      actionType: "created",
       metadata: {},
     });
     const b = makeItem({
       id: 2,
       requestId: "req-2",
-      actionType: "eln.table.edited",
+      action: "eln.table.edited",
+      actionType: "edited",
       metadata: {},
       createdAt: "2026-07-16T12:01:00Z",
     });

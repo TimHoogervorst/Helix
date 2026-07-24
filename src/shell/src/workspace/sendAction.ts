@@ -5,7 +5,13 @@
  * ``BlockComponentProps.sendAction``.  It calls ``POST /api/actions/``
  * with the current workspace context so blocks don't need to know about
  * the HTTP layer or the workspace ID.
+ *
+ * When an action catalog is provided, ``action_type`` (the core CRUD
+ * verb) is resolved from the catalog.  Otherwise it is derived
+ * mechanically from the last dot-segment of the action identifier.
  */
+
+import type { ActionCatalogEntry } from "../mod-system/types";
 
 // ── CSRF token helper (Django expects X-CSRFToken on unsafe methods) ──────
 
@@ -16,6 +22,9 @@ function getCookie(name: string): string | null {
   return null;
 }
 
+/** Core CRUD verbs. */
+const CORE_VERBS = new Set(["created", "edited", "deleted"]);
+
 // ── sendAction factory ─────────────────────────────────────────────────────
 
 /**
@@ -24,22 +33,30 @@ function getCookie(name: string): string | null {
  * The returned function matches the
  * ``BlockComponentProps.sendAction`` signature::
  *
- *   sendAction(actionType, targetType, targetId, metadata?)
+ *   sendAction(action, targetType, targetId, metadata?)
  *
  * It calls ``POST /api/actions/`` with ``workspace_id`` automatically
- * set from *workspaceId*.
+ * set from *workspaceId*.  The ``action_type`` field (core CRUD verb)
+ * is resolved from *catalog* when provided, or derived from the last
+ * dot-segment of the action identifier.
  */
 export function createSendAction(
   workspaceId: string,
+  catalog?: ActionCatalogEntry[],
 ): (
-  actionType: string,
+  action: string,
   targetType: string,
   targetId: number,
   metadata?: Record<string, unknown>,
+  requestId?: string,
 ) => Promise<void> {
-  return async (actionType, targetType, targetId, metadata) => {
+  return async (action, targetType, targetId, metadata, requestId) => {
+    // Resolve the core CRUD verb.
+    const resolvedActionType = resolveActionType(action, catalog);
+
     const body: Record<string, unknown> = {
-      action_type: actionType,
+      action,
+      action_type: resolvedActionType,
       target_type: targetType,
       target_id: targetId,
       workspace_id: workspaceId,
@@ -47,6 +64,10 @@ export function createSendAction(
 
     if (metadata !== undefined) {
       body.metadata = metadata;
+    }
+
+    if (requestId !== undefined) {
+      body.request_id = requestId;
     }
 
     const headers: Record<string, string> = {
@@ -72,4 +93,31 @@ export function createSendAction(
       );
     }
   };
+}
+
+// ── Resolution helper ──────────────────────────────────────────────────────
+
+/**
+ * Resolve the core CRUD verb for *action*.
+ *
+ * When *catalog* is provided, looks up the matching entry.  Falls back
+ * to extracting the last dot-segment of *action* when it is a known
+ * core verb.
+ */
+function resolveActionType(
+  action: string,
+  catalog?: ActionCatalogEntry[],
+): string {
+  // Check the catalog first.
+  if (catalog) {
+    const entry = catalog.find((a) => a.id === action);
+    if (entry) return entry.action_type;
+  }
+
+  // Fall back to extracting the last segment.
+  const verb = action.split(".").pop() ?? "";
+  if (CORE_VERBS.has(verb)) return verb;
+
+  // Default — should not happen for properly registered actions.
+  return "edited";
 }

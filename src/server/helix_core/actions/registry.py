@@ -63,8 +63,8 @@ def get_action_catalog(mod_id: str) -> list[dict[str, Any]]:
     """Return the full action catalog for *mod_id*.
 
     Returns all actions — core (``created``, ``edited``, ``deleted``)
-    and custom — as a list of dicts with keys ``action_type``, ``label``,
-    ``core``, and ``target_model``.
+    and custom — as a list of dicts with keys ``id``, ``label``,
+    ``action_type``, and ``target_model``.
 
     Delegates to the unified ``BackendModRegistry`` singleton.
     """
@@ -73,8 +73,8 @@ def get_action_catalog(mod_id: str) -> list[dict[str, Any]]:
     return registry.get_action_catalog(mod_id)
 
 
-def validate_action(action_type: str) -> bool:
-    """Return ``True`` if *action_type* is a registered action.
+def validate_action(action: str) -> bool:
+    """Return ``True`` if *action* is a registered action.
 
     Checks core action verbs (``created``, ``edited``, ``deleted``)
     across all registered mods, plus custom actions by exact match.
@@ -83,4 +83,4 @@ def validate_action(action_type: str) -> bool:
     """
     from helix_core.mod_system.registry import registry
 
-    return registry.validate_action(action_type)
+    return registry.validate_action(action)

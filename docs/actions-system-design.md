@@ -37,10 +37,10 @@ Action logging was manual and incomplete. Mod authors had to call `log_action()`
 |------|-----------|
 | **Action Log** | A framework-logged record of any mutating operation in the system. Created automatically — not manually by users. |
 | **AbstractBaseAction** | The abstract Django model that all mod action tables inherit from. Provides `performed_by`, `action_type`, `target_type`, `target_id`, `created_at`, and `metadata` JSON. |
-| **Action Type** | A triple-dotted string identifying what happened: `"{mod}.{target}.{verb_past}"`. |
+| **Action** | A triple-dotted string identifying what happened: `"{mod}.{target}.{verb_past}"`. Stored in the `action` column. |
 | **Core Action** | One of `created`, `edited`, `deleted` — auto-derived for every model registered via `register_action_model()`. |
 | **Custom Action** | A domain-specific action (e.g. `"lims.sample.registered"`) explicitly registered via `register_custom_action()`. Maps to a core action; logs both custom + core rows. |
-| **Action Catalog** | The full list of registered actions (core + custom) for a mod. Frontend discovers via `GET /api/mod-registry/` at boot. |
+| **Action Catalog** | The full list of registered actions (core + custom) for a mod, returned as `{id, label, action_type}` entries. Frontend discovers via `GET /api/mod-registry/` at boot. |
 | **Unified Action Endpoint** | `POST /api/actions/` — the single endpoint for all action logging. HTTP endpoints and blocks both use it. |
 | **ActionLoggingMixin** | A DRF viewset mixin that intercepts successful mutating responses and writes action rows automatically. |
 | **`@logs_action`** | A decorator for non-viewset mutating operations (e.g., service-layer functions). |
@@ -75,13 +75,13 @@ Every model/viewset registered via `register_action_model()` automatically gets 
 
 ## Custom Action Registration
 
-Custom domain actions are explicitly registered in `mod.py` via `register_custom_action(mod_id, action_id, label, core, target_model)`. The `core` parameter must be `"created"`, `"edited"`, or `"deleted"`. When a custom action fires, the backend logs both the core action row and the custom action row. The ActivityFeed shows the custom label; the audit trail retains the core CRUD record.
+Custom domain actions are explicitly registered in `mod.py` via `register_custom_action(mod_id, action_id, label, core, target_model)`. The `core` parameter must be `"created"`, `"edited"`, or `"deleted"`. When a custom action fires, the backend logs a single row with both `action` (the custom identifier, e.g. `"lims.sample.registered"`) and `action_type` (the mapped core verb, e.g. `"edited"`). The ActivityFeed shows the custom label; the audit trail retains the core CRUD record without duplicating rows.
 
 ---
 
 ## Unified Action Endpoint
 
-`POST /api/actions/` is the single entry point for all action logging. Accepts: `action_type`, `target_type`, `target_id`, `metadata`, `workspace_id`, `timestamp`, `performed_by` (from auth). The backend validates `action_type` against the registered catalog, routes to the correct mod action table, and returns `201 Created`. This replaces per-mod batch endpoints and dual pipelines.
+`POST /api/actions/` is the single entry point for all action logging. Accepts: `action`, `action_type`, `target_type`, `target_id`, `metadata`, `workspace_id`, `timestamp`, `performed_by` (from auth). The backend validates `action` against the registered catalog, routes to the correct mod action table, and returns `201 Created` with both `action` and `action_type` in the response. This replaces per-mod batch endpoints and dual pipelines.
 
 ---
 
@@ -94,12 +94,13 @@ class AbstractBaseAction(models.Model):
     """Abstract base for all mod action log tables."""
 
     performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    action_type = models.CharField(max_length=128)       # "eln.entry.created"
-    target_type = models.CharField(max_length=64)         # ContentType app_label.model
+    action = models.CharField(max_length=128)              # "eln.entry.created"
+    action_type = models.CharField(max_length=16)          # "created" | "edited" | "deleted"
+    target_type = models.CharField(max_length=64)          # ContentType app_label.model
     target_id = models.PositiveIntegerField()
     target = GenericForeignKey("target_type", "target_id")
     created_at = models.DateTimeField(auto_now_add=True)
-    metadata = models.JSONField(default=dict)             # What changed, snapshot, context
+    metadata = models.JSONField(default=dict)              # What changed, snapshot, context
 
     class Meta:
         abstract = True
@@ -115,7 +116,8 @@ class AbstractBaseAction(models.Model):
 | Field | Purpose |
 |-------|---------|
 | `performed_by` | The User who performed the action. Nullable — SET_NULL on user deletion preserves the audit record. |
-| `action_type` | Triple-dotted action identifier. Indexed for filtering. |
+| `action` | Triple-dotted action identifier (e.g. `"eln.entry.created"`). Indexed for filtering. |
+| `action_type` | Core CRUD verb: `"created"`, `"edited"`, or `"deleted"`. Always populated — both core and custom actions have a core verb. |
 | `target_type` / `target_id` | Generic FK to the affected record. Indexed together. |
 | `created_at` | When the action occurred. Auto-set. |
 | `metadata` | JSON blob for what changed: old values, new values, snapshot data, request context. |
@@ -250,7 +252,7 @@ The action logging system is designed to meet FDA 21 CFR Part 11 audit trail req
 | Each mod owns its own action table | Concrete table inheriting `AbstractBaseAction` | Mod isolation; no cross-mod coupling; each mod manages its own schema |
 | Action endpoint | Single unified `POST /api/actions/` | One audit trail path; HTTP endpoints and blocks use the same API |
 | Core actions | Auto-derived from every model/viewset | Zero boilerplate; CFR Part 11 compliance by default |
-| Custom actions | `register_custom_action()` with core mapping | Domain expressiveness without losing audit trail clarity |
+| Custom actions | `register_custom_action()` with core mapping; single row with both `action` and `action_type` | Domain expressiveness without losing audit trail clarity; no duplicate rows |
 | Viewset logging | `ActionLoggingMixin` | DRF-native; intercepts standard hooks; zero boilerplate for mod authors |
 | Non-viewset logging | `@logs_action` decorator | Covers service-layer operations; same declarative pattern |
 | Block actions | Runtime via `sendAction()` from `BlockComponentProps` | Blocks send domain actions based on what the user did; no static `messages` field |

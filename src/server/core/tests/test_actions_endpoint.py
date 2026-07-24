@@ -508,3 +508,58 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ── request_id ────────────────────────────────────────────────────────
+
+    def test_request_id_is_populated_on_created_row(self):
+        """The request_id field is populated even when the client doesn't supply one."""
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+
+        response = self.client.post(
+            "/api/actions/",
+            {
+                "action": "eln.entry.created",
+                "action_type": "created",
+                "target_type": "eln.entry",
+                "target_id": 42,
+                "workspace_id": "eln",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ElnAction.objects.count(), 1)
+
+        row = ElnAction.objects.first()
+        self.assertIsNotNone(row.request_id)
+        self.assertEqual(len(str(row.request_id)), 36)  # UUID format
+
+    def test_request_id_uses_client_provided_value(self):
+        """When the client provides a request_id, the server stores it as-is."""
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+
+        response = self.client.post(
+            "/api/actions/",
+            {
+                "action": "eln.entry.created",
+                "action_type": "created",
+                "target_type": "eln.entry",
+                "target_id": 42,
+                "workspace_id": "eln",
+                "request_id": "550e8400-e29b-41d4-a716-446655440000",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ElnAction.objects.count(), 1)
+
+        row = ElnAction.objects.first()
+        self.assertEqual(
+            str(row.request_id),
+            "550e8400-e29b-41d4-a716-446655440000",
+        )

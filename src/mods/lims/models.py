@@ -73,8 +73,8 @@ class Action(AbstractBaseAction):
 
     Extends :class:`AbstractBaseAction` to add LIMS-specific fields
     (``entity``, ``source_entry``) while inheriting the shared action
-    columns (``performed_by``, ``action_type``, ``target_type``,
-    ``target_id``, ``metadata``, ``created_at``).
+    columns (``performed_by``, ``action``, ``action_type``,
+    ``target_type``, ``target_id``, ``metadata``, ``created_at``).
     """
 
     ACTION_CHOICES = [

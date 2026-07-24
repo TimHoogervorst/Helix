@@ -50,6 +50,7 @@ type Verb = (typeof VERBS)[number];
 
 /** Accumulated action row, ready for flush. */
 interface AccumulatedAction {
+  action: string;
   action_type: string;
   metadata: Record<string, unknown>;
 }
@@ -60,6 +61,7 @@ type SendActionFn = (
   targetType: string,
   targetId: number,
   metadata?: Record<string, unknown>,
+  requestId?: string,
 ) => Promise<void>;
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -143,12 +145,14 @@ export function useBlockActionLogging(
           const p = payload as BlockLifecyclePayload;
           const key = `${p.blockInstanceId}:${verb}`;
 
-          // Derive display label from the backend action catalog.
-          // Falls back to the action type string (e.g. "eln.table-block.created")
+          // Derive display label and core action_type from the backend
+          // action catalog.  Falls back to the action string and verb
           // when no catalog entry exists for this action.
-          const actionType = event; // `${blockId}.${verb}`
+          const action = event; // `${blockId}.${verb}`
           const catalog = ModRegistry.getInstance().getActions("eln");
-          const message = ModRegistry.resolveActionLabel(actionType, catalog);
+          const catalogEntry = catalog.find((a) => a.id === action);
+          const message = catalogEntry?.label ?? action;
+          const coreVerb = catalogEntry?.action_type ?? verb;
 
           // Keep the accumulator state-consistent for a given block
           // instance: when a "created" event arrives, remove any stale
@@ -165,7 +169,8 @@ export function useBlockActionLogging(
           }
 
           pending.set(key, {
-            action_type: actionType,
+            action,
+            action_type: coreVerb,
             metadata: { message },
           });
           if (hasPendingRef) hasPendingRef.current = true;
@@ -190,6 +195,10 @@ export function useBlockActionLogging(
         return;
       }
 
+      // Generate a shared request ID so that all block actions flushed in
+      // this save cycle can be grouped in the ActivityFeed.
+      const sharedRequestId = crypto.randomUUID();
+
       // Capture keys before clearing so we can emit them after
       // successful sendAction calls for exact pending-item reconciliation.
       const flushedKeys = Array.from(pending.keys());
@@ -202,10 +211,11 @@ export function useBlockActionLogging(
       for (const action of actions) {
         try {
           await send(
-            action.action_type,
+            action.action,
             "eln.entry",
             numericId,
             action.metadata,
+            sharedRequestId,
           );
         } catch (err) {
           // Fail-open: logging failure never breaks the UI.
@@ -215,7 +225,7 @@ export function useBlockActionLogging(
           allSucceeded = false;
           console.warn(
             '[eln] Failed to send block action "%s" for entry %s:',
-            action.action_type,
+            action.action,
             displayId,
             err,
           );
@@ -226,7 +236,7 @@ export function useBlockActionLogging(
         // Notify listeners which keys were flushed so they can reconcile
         // optimistic pending items by exact blockInstanceId:verb match
         // (no fragile timestamp window).
-        bus.emit("eln.actions.flushed", { keys: flushedKeys });
+        bus.emit("eln.actions.flushed", { keys: flushedKeys, requestId: sharedRequestId });
       }
     });
     unsubs.push(saveUnsub);

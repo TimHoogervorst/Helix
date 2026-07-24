@@ -12,7 +12,7 @@ class EntityAdmin(admin.ModelAdmin):
 
 @admin.register(Action)
 class ActionAdmin(admin.ModelAdmin):
-    list_display = ["entity", "action_type", "performed_by", "created_at"]
+    list_display = ["entity", "action", "action_type", "performed_by", "created_at"]
     list_filter = ["action_type", "created_at"]
 
 

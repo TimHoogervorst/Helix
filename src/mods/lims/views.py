@@ -42,10 +42,10 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     search_fields = ["name", "display_id"]
 
     action_log_config = {
-        "create": {"action_type": "lims.entity.created"},
-        "update": {"action_type": "lims.entity.edited"},
-        "partial_update": {"action_type": "lims.entity.edited"},
-        "destroy": {"action_type": "lims.entity.deleted"},
+        "create": {"action": "lims.entity.created"},
+        "update": {"action": "lims.entity.edited"},
+        "partial_update": {"action": "lims.entity.edited"},
+        "destroy": {"action": "lims.entity.deleted"},
     }
 
     def perform_create(self, serializer):

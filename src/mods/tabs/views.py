@@ -24,8 +24,8 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     action_log_config = {
-        "create": {"action_type": "core.tab.created"},
-        "destroy": {"action_type": "core.tab.deleted"},
+        "create": {"action": "core.tab.created"},
+        "destroy": {"action": "core.tab.deleted"},
     }
 
     def get_queryset(self):

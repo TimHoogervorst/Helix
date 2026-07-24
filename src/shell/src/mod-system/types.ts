@@ -146,7 +146,7 @@ export interface CurrentWorkspace {
 export interface ActionCatalogEntry {
   id: string;
   label: string;
-  core: boolean;
+  action_type: string;
 }
 
 /**
@@ -206,6 +206,7 @@ export interface BlockComponentProps {
     targetType: string,
     targetId: number,
     metadata?: Record<string, unknown>,
+    requestId?: string,
   ) => Promise<void>;
 }
 

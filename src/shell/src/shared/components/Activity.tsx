@@ -31,7 +31,7 @@ function actionMessage(item: DisplayActionItem): string {
   if (typeof msg === "string" && msg.length > 0) {
     return msg;
   }
-  return humanizeActionType(item.actionType);
+  return humanizeActionType(item.action);
 }
 
 export interface ActivityProps {

@@ -19,7 +19,9 @@ export interface ActionUser {
 export interface ActionItem {
   id: number;
   performedBy: ActionUser;
-  /** Triple-dotted action type, e.g. "eln.entry.created", "eln.table.edited". */
+  /** Triple-dotted action identifier, e.g. "eln.entry.created", "eln.table.edited". */
+  action: string;
+  /** Core CRUD verb: "created", "edited", or "deleted". */
   actionType: string;
   targetType: string;
   targetId: number;

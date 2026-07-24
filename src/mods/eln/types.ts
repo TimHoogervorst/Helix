@@ -104,6 +104,7 @@ export interface ActionUser {
 /** An action log entry returned by the actions endpoint. */
 export interface ElnAction {
   id: number;
+  action: string;
   action_type: string;
   target_type: string;
   target_id: number;

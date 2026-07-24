@@ -209,9 +209,9 @@ class BackendModRegistry:
         target_path = self._derive_target_model_path(model_class)
         self._core_actions[mod_id] = {
             verb: {
-                "action_type": verb,
+                "id": verb,
                 "label": CORE_ACTION_LABELS[verb],
-                "core": verb,
+                "action_type": verb,
                 "target_model": target_path,
             }
             for verb in CORE_ACTION_VERBS
@@ -274,9 +274,9 @@ class BackendModRegistry:
             )
 
         self._custom_actions[mod_id][action_id] = {
-            "action_type": action_id,
+            "id": action_id,
             "label": label,
-            "core": core,
+            "action_type": core,
             "target_model": target_model,
         }
 
@@ -285,7 +285,7 @@ class BackendModRegistry:
 
         Returns all actions — core (``created``, ``edited``,
         ``deleted``) and custom — as a list of dicts with keys
-        ``action_type``, ``label``, ``core``, and ``target_model``.
+        ``id``, ``label``, ``action_type``, and ``target_model``.
 
         Returns an empty list when no action model has been registered
         for *mod_id*.
@@ -302,8 +302,8 @@ class BackendModRegistry:
 
         return result
 
-    def validate_action(self, action_type: str) -> bool:
-        """Return ``True`` if *action_type* is a registered action.
+    def validate_action(self, action: str) -> bool:
+        """Return ``True`` if *action* is a registered action.
 
         Checks core action verbs (``created``, ``edited``, ``deleted``)
         across all registered mods, plus custom actions by exact match.
@@ -312,12 +312,12 @@ class BackendModRegistry:
         an action model — the verb itself is enough to validate.
         """
         # Core verbs: valid if any mod has registered an action model.
-        if action_type in CORE_ACTION_VERBS:
+        if action in CORE_ACTION_VERBS:
             return len(self._action_models) > 0
 
         # Custom actions: check exact match across all mods.
         for mod_actions in self._custom_actions.values():
-            if action_type in mod_actions:
+            if action in mod_actions:
                 return True
 
         return False
@@ -596,11 +596,11 @@ class BackendModRegistry:
                 core = self._core_actions.get(workspace_id, {})
                 for entry in core.values():
                     actions.append({
-                        "id": entry["action_type"],
+                        "id": entry["id"],
                         "label": entry["label"],
-                        "core": True,
+                        "action_type": entry["action_type"],
                     })
-                    seen_ids.add(entry["action_type"])
+                    seen_ids.add(entry["id"])
 
                 # 2. ACTION_CHOICES from the model class (backward compat).
                 # Entries already covered by core actions are skipped.
@@ -613,29 +613,29 @@ class BackendModRegistry:
                             actions.append({
                                 "id": choice_id,
                                 "label": choice_label,
-                                "core": True,
+                                "action_type": choice_id,
                             })
                             seen_ids.add(choice_id)
 
                 # 3. Custom actions registered via register_custom_action().
                 custom = self._custom_actions.get(workspace_id, {})
                 for entry in custom.values():
-                    if entry["action_type"] not in seen_ids:
+                    if entry["id"] not in seen_ids:
                         actions.append({
-                            "id": entry["action_type"],
+                            "id": entry["id"],
                             "label": entry["label"],
-                            "core": False,
+                            "action_type": entry["action_type"],
                         })
-                        seen_ids.add(entry["action_type"])
+                        seen_ids.add(entry["id"])
 
                 # 4. Fallback: default core set when nothing else is
                 #    registered (no register_action_model call, no
                 #    ACTION_CHOICES, no custom actions).
                 if not actions:
                     actions = [
-                        {"id": "created", "label": "Created", "core": True},
-                        {"id": "updated", "label": "Updated", "core": True},
-                        {"id": "deleted", "label": "Deleted", "core": True},
+                        {"id": "created", "label": "Created", "action_type": "created"},
+                        {"id": "updated", "label": "Updated", "action_type": "edited"},
+                        {"id": "deleted", "label": "Deleted", "action_type": "deleted"},
                     ]
 
             payload[workspace_id] = {

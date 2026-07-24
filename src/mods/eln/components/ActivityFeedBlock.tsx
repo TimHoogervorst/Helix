@@ -52,6 +52,7 @@ export function mapElnAction(a: ElnAction): DisplayActionItem {
   return {
     id: a.id,
     performedBy: mapActionUser(a.performed_by),
+    action: a.action,
     actionType: a.action_type,
     targetType: a.target_type,
     targetId: a.target_id,
@@ -69,6 +70,7 @@ let _pendingIdCounter = 0;
 function createPendingItem(
   eventName: string,
   message: string,
+  actionType: string,
   blockInstanceId: string,
 ): DisplayActionItem {
   const now = new Date().toISOString();
@@ -81,7 +83,8 @@ function createPendingItem(
       lastName: "",
       color: "",
     },
-    actionType: eventName,
+    action: eventName,
+    actionType,
     targetType: "",
     targetId: 0,
     metadata: { message, blockInstanceId },
@@ -176,13 +179,14 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
 
           const p = payload as BlockLifecyclePayload;
 
-          // Derive display label from the action catalog.
+          // Derive display label and core action_type from the catalog.
           // Falls back to the action type string when no catalog entry exists.
           const actionType = eventName; // `${blockId}.${verb}`
-          const message = ModRegistry.resolveActionLabel(
-            actionType,
-            context.actions ?? [],
+          const catalogEntry = (context.actions ?? []).find(
+            (a) => a.id === actionType,
           );
+          const message = catalogEntry?.label ?? actionType;
+          const coreVerb = catalogEntry?.action_type ?? verb;
 
           // Dedup: replace any existing pending item for the same
           // (blockInstanceId, actionType) so repeated edits don't stack.
@@ -193,13 +197,14 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
                 !(
                   item.state === "pending" &&
                   item.metadata?.blockInstanceId &&
-                  `${item.metadata.blockInstanceId}:${item.actionType}` ===
+                  `${item.metadata.blockInstanceId}:${item.action}` ===
                     dedupKey
                 ),
             );
             const pending = createPendingItem(
               eventName,
               message,
+              coreVerb,
               p.blockInstanceId,
             );
             return [pending, ...filtered];

@@ -36,7 +36,8 @@ describe("createSendAction", () => {
     expect(capturedBody).not.toBeNull();
     const parsed = JSON.parse(capturedBody!);
     expect(parsed).toEqual({
-      action_type: "eln.entry.created",
+      action: "eln.entry.created",
+      action_type: "created",
       target_type: "eln.entry",
       target_id: 42,
       workspace_id: "eln",
@@ -176,5 +177,41 @@ describe("createSendAction", () => {
     });
 
     expect(capturedWorkspaceIds).toEqual(["eln", "lims"]);
+  });
+
+  it("includes request_id in body when requestId is passed", async () => {
+    let capturedBody: string | null = null;
+
+    await withFetch(async (_input, init) => {
+      capturedBody = init?.body as string;
+      return new Response("[]", { status: 201 });
+    }, async () => {
+      const sendAction = createSendAction("eln");
+      await sendAction(
+        "eln.table.edited",
+        "eln.entry",
+        42,
+        { message: "Edited a table" },
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+    });
+
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.request_id).toBe("550e8400-e29b-41d4-a716-446655440000");
+  });
+
+  it("omits request_id from body when requestId is not provided", async () => {
+    let capturedBody: string | null = null;
+
+    await withFetch(async (_input, init) => {
+      capturedBody = init?.body as string;
+      return new Response("[]", { status: 201 });
+    }, async () => {
+      const sendAction = createSendAction("eln");
+      await sendAction("eln.entry.created", "eln.entry", 42);
+    });
+
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed).not.toHaveProperty("request_id");
   });
 });

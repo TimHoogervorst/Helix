@@ -152,6 +152,7 @@ class ActionSerializer(serializers.ModelSerializer):
             "id",
             "entity",
             "entity_name",
+            "action",
             "action_type",
             "performed_by",
             "performed_by_username",

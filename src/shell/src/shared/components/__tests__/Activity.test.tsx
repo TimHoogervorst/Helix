@@ -28,7 +28,8 @@ function makeItem(overrides: Partial<DisplayActionItem> = {}): DisplayActionItem
   return {
     id: 1,
     performedBy: makeUser(),
-    actionType: "eln.entry.edited",
+    action: "eln.entry.edited",
+    actionType: "edited",
     targetType: "eln.entry",
     targetId: 42,
     metadata: {},
@@ -153,7 +154,8 @@ describe("Activity", () => {
 
   it("falls back to humanized action type when metadata.message is absent", () => {
     const item = makeItem({
-      actionType: "eln.entry.created",
+      action: "eln.entry.created",
+      actionType: "created",
       metadata: {},
     });
     render(<Activity actions={[item]} />);

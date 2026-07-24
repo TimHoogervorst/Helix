@@ -5,7 +5,8 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const shellNodeModules = path.resolve(import.meta.dirname, "node_modules");
+const repoRoot = path.resolve(import.meta.dirname, "../..");
+const nodeModules = path.resolve(repoRoot, "node_modules");
 const shellRequire = createRequire(import.meta.url);
 
 /**
@@ -38,6 +39,39 @@ const VITE_PREBUNDLED = new Set([
 ]);
 
 /**
+ * Rewrite ``use-sync-external-store/shim/*`` imports in @tiptap/react
+ * to load local ESM shims.  The upstream CJS files use ``module.exports =
+ * require(...)`` which Vite's runtime CJS interop cannot extract named
+ * exports from — and ``resolveId`` hooks don't fire reliably for imports
+ * inside excluded node_modules packages.  A ``transform`` hook on the
+ * @tiptap/react source replaces the specifiers before import analysis runs.
+ */
+function useSyncExternalStorePlugin() {
+  const shimDir = path.resolve(import.meta.dirname, "src/shims");
+  const shimIndex = path.resolve(shimDir, "use-sync-external-store-shim.js");
+  const shimWithSelector = path.resolve(shimDir, "use-sync-external-store-with-selector.js");
+  return {
+    name: "transform-use-sync-external-store",
+    enforce: "pre" as const,
+    transform(code: string, id: string) {
+      if (!id.includes("@tiptap/react")) return null;
+      let changed = false;
+      // Replace both import specifiers with absolute paths to our shims.
+      code = code.replace(
+        /"use-sync-external-store\/shim\/index\.js"/g,
+        () => { changed = true; return JSON.stringify(shimIndex); },
+      );
+      code = code.replace(
+        /"use-sync-external-store\/shim\/with-selector\.js"/g,
+        () => { changed = true; return JSON.stringify(shimWithSelector); },
+      );
+      if (!changed) return null;
+      return { code, map: null };
+    },
+  };
+}
+
+/**
  * Vite plugin that redirects bare-specifier imports from mod files
  * (``src/mods/*``) to the shell's ``node_modules`` as a **last resort**.
  *
@@ -66,7 +100,7 @@ function modResolutionPlugin() {
       if (VITE_PREBUNDLED.has(id)) return null;
       try {
         const resolved = shellRequire.resolve(id, {
-          paths: [shellNodeModules],
+          paths: [nodeModules],
         });
         // Only intercept when the resolved package lives inside the
         // shell's own node_modules — otherwise Vite's native ESM
@@ -74,7 +108,7 @@ function modResolutionPlugin() {
         // "import" condition in package.json exports).  Returning a
         // CJS path from an ancestor node_modules would break default
         // imports (e.g. @tiptap/extension-placeholder).
-        if (!resolved.startsWith(shellNodeModules)) return null;
+        if (!resolved.startsWith(nodeModules)) return null;
         return resolved;
       } catch {
         return null;
@@ -84,7 +118,7 @@ function modResolutionPlugin() {
 }
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), modResolutionPlugin()],
+  plugins: [tailwindcss(), react(), useSyncExternalStorePlugin(), modResolutionPlugin()],
   resolve: {
     // Prevent duplicate React instances when modules are resolved via
     // different paths (e.g. shell vs mod directory resolution).
@@ -103,18 +137,28 @@ export default defineConfig({
     // copies, corrupting DecorationGroup.from() members and causing the
     // localsInner crash (issue #329).
     alias: {
-      "prosemirror-view": path.resolve(shellNodeModules, "prosemirror-view"),
-      "prosemirror-state": path.resolve(shellNodeModules, "prosemirror-state"),
-      "prosemirror-model": path.resolve(shellNodeModules, "prosemirror-model"),
-      "prosemirror-transform": path.resolve(shellNodeModules, "prosemirror-transform"),
-      "prosemirror-commands": path.resolve(shellNodeModules, "prosemirror-commands"),
-      "prosemirror-dropcursor": path.resolve(shellNodeModules, "prosemirror-dropcursor"),
-      "prosemirror-gapcursor": path.resolve(shellNodeModules, "prosemirror-gapcursor"),
-      "prosemirror-history": path.resolve(shellNodeModules, "prosemirror-history"),
-      "prosemirror-inputrules": path.resolve(shellNodeModules, "prosemirror-inputrules"),
-      "prosemirror-keymap": path.resolve(shellNodeModules, "prosemirror-keymap"),
-      "prosemirror-changeset": path.resolve(shellNodeModules, "prosemirror-changeset"),
-      "prosemirror-tables": path.resolve(shellNodeModules, "prosemirror-tables"),
+      "prosemirror-view": path.resolve(nodeModules, "prosemirror-view"),
+      "prosemirror-state": path.resolve(nodeModules, "prosemirror-state"),
+      "prosemirror-model": path.resolve(nodeModules, "prosemirror-model"),
+      "prosemirror-transform": path.resolve(nodeModules, "prosemirror-transform"),
+      "prosemirror-commands": path.resolve(nodeModules, "prosemirror-commands"),
+      "prosemirror-dropcursor": path.resolve(nodeModules, "prosemirror-dropcursor"),
+      "prosemirror-gapcursor": path.resolve(nodeModules, "prosemirror-gapcursor"),
+      "prosemirror-history": path.resolve(nodeModules, "prosemirror-history"),
+      "prosemirror-inputrules": path.resolve(nodeModules, "prosemirror-inputrules"),
+      "prosemirror-keymap": path.resolve(nodeModules, "prosemirror-keymap"),
+      "prosemirror-changeset": path.resolve(nodeModules, "prosemirror-changeset"),
+      "prosemirror-tables": path.resolve(nodeModules, "prosemirror-tables"),
+      // React 19 bundles useSyncExternalStore natively.  @tiptap/react
+      // still imports it from the CJS shim (for React 16-18 compat).
+      // Aliasing to local ESM shims avoids Vite's CJS interop failures
+      // when node_modules is served from outside the project root via /@fs/.
+      "use-sync-external-store/shim/index.js":
+        path.resolve(import.meta.dirname, "src/shims/use-sync-external-store-shim.js"),
+      "use-sync-external-store/shim":
+        path.resolve(import.meta.dirname, "src/shims/use-sync-external-store-shim.js"),
+      "use-sync-external-store/shim/with-selector.js":
+        path.resolve(import.meta.dirname, "src/shims/use-sync-external-store-with-selector.js"),
     },
   },
   optimizeDeps: {
@@ -149,6 +193,13 @@ export default defineConfig({
       "@tiptap/extension-bubble-menu",
       "@tiptap/extension-mention",
     ],
+    // Ensure CJS packages imported by excluded tiptap/react are
+    // pre-bundled to ESM.  @tiptap/react depends on
+    // ``use-sync-external-store/shim`` which is pure CJS
+    // (``module.exports = require(...)``).  Without pre-bundling,
+    // Vite's runtime CJS interop cannot extract named exports,
+    // causing "does not provide an export named useSyncExternalStore".
+    include: ["use-sync-external-store"],
   },
   server: {
     host: true,

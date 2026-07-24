@@ -1,17 +1,48 @@
 {
   "name": "openscience",
   "private": true,
-  "workspaces": [
-    "src/shell",
-    "src/mods/*"
-  ],
+  "type": "module",
   "scripts": {
-    "dev": "npm run dev -w src/shell",
-    "build": "npm run build -w src/shell",
-    "test": "npm test -w src/shell",
-    "test:e2e": "npm run test:e2e -w src/shell"
+    "dev": "cd src/shell && vite",
+    "build": "cd src/shell && tsc && vite build",
+    "preview": "cd src/shell && vite preview",
+    "test": "cd src/shell && vitest run",
+    "test:watch": "cd src/shell && vitest",
+    "test:coverage": "cd src/shell && vitest run --coverage",
+    "test:e2e": "cd src/shell && playwright test"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.2.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "@tiptap/extension-bubble-menu": "^3.28.0",
+    "@tiptap/extension-mention": "^3.28.0",
+    "@tiptap/extension-placeholder": "^3.28.0",
+    "@tiptap/extension-table": "^3.28.0",
+    "@tiptap/pm": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
+    "@tiptap/suggestion": "^3.28.0",
+    "ag-grid-community": "^36.0.0",
+    "ag-grid-react": "^36.0.0",
+    "lucide-react": "^1.22.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0",
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
-    "playwright": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.61.1",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.9"
   }
 }

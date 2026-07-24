@@ -2,3 +2,4 @@
 coverage>=7.0
 pytest>=8.0
 pytest-django>=4.0
+jsonschema>=4.20

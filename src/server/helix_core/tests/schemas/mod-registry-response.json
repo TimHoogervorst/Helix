@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helix.example.com/schemas/mod-registry-response.json",
+  "title": "Mod Registry Response",
+  "description": "Response shape for GET /api/mod-registry/. Each top-level key is a mod/workspace ID, and each value carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns}), and actions (array of {id, label, core}).",
+  "type": "object",
+  "patternProperties": {
+    "^[a-z][a-z0-9_-]*$": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The workspace identifier, e.g. 'lims' or 'eln'."
+        },
+        "schemaTypes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Stable schema-type identifier, e.g. 'lims.entity' or 'eln.notebookentry'."
+              },
+              "displayName": {
+                "type": "string",
+                "description": "Human-readable label."
+              },
+              "prefix": {
+                "type": "string",
+                "description": "Default display-ID prefix for new entities of this type."
+              },
+              "columns": {
+                "type": "array",
+                "description": "Column definitions for this schema type."
+              }
+            },
+            "required": ["id", "displayName", "prefix", "columns"]
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "core": { "type": "boolean" }
+            },
+            "required": ["id", "label", "core"]
+          }
+        }
+      },
+      "required": ["workspaceId", "schemaTypes", "actions"]
+    }
+  },
+  "additionalProperties": false
+}

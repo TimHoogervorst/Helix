@@ -1,8 +1,11 @@
-"""API views for Schema and SchemaType.
+"""API views for Schema, SchemaType, and Mod Registry.
 
 SchemaViewSet replaces the LIMS-owned EntityTypeViewSet with endpoints
 that manage the shared ``Schema`` model.  SchemaTypeViewSet provides a
 read-only list for populating the Schema Type selector dropdown.
+
+ModRegistryView exposes the backend-owned mod data (workspace IDs,
+schema types, and action catalogs) at ``GET /api/mod-registry/``.
 """
 
 import logging
@@ -11,6 +14,7 @@ from django.db.models import Q
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from helix_core.models import Schema, SchemaType
 from helix_core.serializers import (
@@ -65,7 +69,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     serializer_class = EntityHubSerializer
     pagination_class = EntityHubPaginator
-    permission_classes = []
+    permission_classes: list = []
 
     def get_queryset(self):
         qs = EntityHubView.objects.select_related("author", "schema").all()
@@ -197,7 +201,7 @@ class SchemaTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = SchemaType.objects.filter(is_active=True)
     serializer_class = SchemaTypeListSerializer
-    permission_classes = []
+    permission_classes: list = []
     pagination_class = None
 
 
@@ -214,7 +218,7 @@ class SchemaViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Schema.objects.select_related("schema_type").filter(is_active=True)
-    permission_classes = []
+    permission_classes: list = []
     pagination_class = None
 
     def get_serializer_class(self):
@@ -261,3 +265,25 @@ class SchemaViewSet(viewsets.ModelViewSet):
                     "DELETE FROM {}".format(Schema._meta.db_table)
                 )
         return Response({"deleted": count})
+
+
+class ModRegistryView(APIView):
+    """Expose all backend-owned mod data.
+
+    ``GET /api/mod-registry/`` returns a JSON object keyed by workspace
+    ID.  Each entry contains ``workspaceId``, ``schemaTypes``, and
+    ``actions`` — the data the frontend needs to bootstrap its mod
+    registry without hard-coding per-mod metadata.
+
+    The response is built from already-populated ``SchemaType`` rows
+    (created by ``register_schema_type()`` in each mod's ``AppConfig``)
+    and registered action models.
+    """
+
+    permission_classes: list = []
+
+    def get(self, request):
+        from helix_core.mod_system.registry import registry
+
+        payload = registry.get_registry_payload()
+        return Response(payload)

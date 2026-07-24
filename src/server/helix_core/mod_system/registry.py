@@ -375,6 +375,101 @@ class BackendModRegistry:
             else:
                 self._services[service_id] = original
 
+    # ── mod registry payload ─────────────────────────────────────────────
+
+    def get_registry_payload(self) -> dict[str, Any]:
+        """Return all backend-owned mod data keyed by workspace ID.
+
+        Each entry contains:
+
+        * ``workspaceId`` — the workspace identifier (e.g. ``"lims"``).
+        * ``schemaTypes`` — array of ``{id, displayName, prefix, columns}``
+          objects, one per active SchemaType in this workspace.
+        * ``actions`` — array of ``{id, label, core}`` objects describing
+          the action catalog for this mod.
+
+        The payload is built from already-populated ``SchemaType`` rows
+        (created by ``register_schema_type()`` calls in each mod's
+        ``AppConfig.ready()``) and registered action models.
+        """
+        from django.db import OperationalError, ProgrammingError
+
+        from helix_core.models import SchemaType
+
+        try:
+            schema_types = SchemaType.objects.filter(is_active=True).prefetch_related(
+                "schemas"
+            )
+        except (OperationalError, ProgrammingError):
+            # DB not available (e.g. during makemigrations).
+            return {}
+
+        # Group schema types by workspace_id.
+        grouped: dict[str, list[SchemaType]] = {}
+        for st in schema_types:
+            grouped.setdefault(st.workspace_id, []).append(st)
+
+        payload: dict[str, dict[str, Any]] = {}
+
+        for workspace_id, st_list in sorted(grouped.items()):
+            schema_type_entries: list[dict[str, Any]] = []
+
+            for st in st_list:
+                # Derive schema_type_id using the same convention as the
+                # SchemaTypeListSerializer: {mod}.{model_name_lower}.
+                parts = st.model.split(".")
+                if len(parts) >= 4:
+                    st_id = f"{parts[1]}.{parts[-1].lower()}"
+                else:
+                    # Short model path (e.g. test-only "m.S") — use the
+                    # last segment as the type name.
+                    st_id = f"{workspace_id}.{parts[-1].lower()}"
+
+                # Find the default schema for this SchemaType to get the
+                # prefix and columns.
+                default_schema = None
+                for schema in st.schemas.all():
+                    if schema.is_default and schema.is_active:
+                        default_schema = schema
+                        break
+
+                entry: dict[str, Any] = {
+                    "id": st_id,
+                    "displayName": st.display_name,
+                    "prefix": default_schema.prefix if default_schema else "",
+                    "columns": st.columns or [],
+                }
+                schema_type_entries.append(entry)
+
+            # ── action catalog ──────────────────────────────────────────
+            actions: list[dict[str, Any]] = []
+            action_model = self._action_models.get(workspace_id)
+            if action_model is not None:
+                action_choices = getattr(action_model, "ACTION_CHOICES", None)
+                if action_choices:
+                    for choice_id, choice_label in action_choices:
+                        actions.append({
+                            "id": choice_id,
+                            "label": choice_label,
+                            "core": True,
+                        })
+                else:
+                    # Default core actions for mods without explicit
+                    # ACTION_CHOICES on their model.
+                    actions = [
+                        {"id": "created", "label": "Created", "core": True},
+                        {"id": "updated", "label": "Updated", "core": True},
+                        {"id": "deleted", "label": "Deleted", "core": True},
+                    ]
+
+            payload[workspace_id] = {
+                "workspaceId": workspace_id,
+                "schemaTypes": schema_type_entries,
+                "actions": actions,
+            }
+
+        return payload
+
     # ── query methods ────────────────────────────────────────────────────
 
     def get_action_model(self, mod_id: str) -> Optional[type]:
@@ -395,7 +490,7 @@ class BackendModRegistry:
             mod_id: i for i, mod_id in enumerate(self._mod_order)
         }
 
-        def _sort_key(item: tuple[str, list]) -> tuple[int, str]:
+        def _sort_key(item: tuple[str, list]) -> tuple[int, int, str]:
             mod_id = item[0]
             if mod_id in known_order:
                 return (0, known_order[mod_id], mod_id)

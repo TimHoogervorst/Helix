@@ -1,15 +1,13 @@
 FROM node:22-alpine
 
-# Mirror the host's src/ directory structure so that relative imports
-# from mod files (../../shell/src/…) resolve identically in the container.
-WORKDIR /repo/src/shell
+WORKDIR /repo
 
-COPY src/shell/package.json src/shell/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm install
 
-COPY src/shell/ .
-COPY src/mods/ ../mods/
+COPY src/shell/ src/shell/
+COPY src/mods/ src/mods/
 
 EXPOSE 5173
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "dev"]

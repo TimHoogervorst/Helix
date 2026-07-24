@@ -44,7 +44,7 @@ services:
     volumes:
       - ./src/shell:/repo/src/shell
       - ./src/mods:/repo/src/mods
-      - /repo/src/shell/node_modules
+      - /repo/node_modules
     environment:
       VITE_API_URL: http://backend:8000
     depends_on:

@@ -201,10 +201,40 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data[0]["metadata"], {})
 
+    def test_client_ip_is_populated(self):
+        """The client_ip field is captured from REMOTE_ADDR (#342)."""
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+
+        response = self.client.post(
+            "/api/actions/",
+            {
+                "action_type": "created",
+                "target_type": "eln.entry",
+                "target_id": 42,
+                "workspace_id": "eln",
+            },
+            format="json",
+            REMOTE_ADDR="10.0.0.42",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ElnAction.objects.count(), 1)
+
+        row = ElnAction.objects.first()
+        self.assertEqual(row.client_ip, "10.0.0.42")
+
     # ── valid action types (custom → dual-row) ───────────────────────────
 
-    def test_custom_action_creates_both_core_and_custom_rows(self):
-        """A custom action logs both the core row and the custom row."""
+    def test_custom_action_creates_single_row(self):
+        """A custom action logs a single row (the custom action_type only).
+
+        Previously custom actions logged both a core row and the custom
+        row.  After #342 the doubling was removed — only the custom
+        action_type row is created.  Consumers that need the core verb
+        can derive it from the catalog mapping.
+        """
         from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
@@ -230,35 +260,26 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        # Response should be a list of two rows.
+        # Response should be a list with a single row.
         data = response.data
         self.assertIsInstance(data, list)
-        self.assertEqual(len(data), 2)
+        self.assertEqual(len(data), 1)
 
-        # One row should be the core action, the other the custom action.
-        action_types = {item["action_type"] for item in data}
-        self.assertIn("edited", action_types)
-        self.assertIn("eln.entry.registered", action_types)
+        # The single row should be the custom action_type.
+        self.assertEqual(data[0]["action_type"], "eln.entry.registered")
 
-        # Both rows should be in the database.
-        self.assertEqual(ElnAction.objects.count(), 2)
+        # Exactly one row in the database.
+        self.assertEqual(ElnAction.objects.count(), 1)
 
-        # Core row has the core action_type.
-        core_row = ElnAction.objects.get(action_type="edited")
-        self.assertEqual(core_row.performed_by, self.user)
-        self.assertEqual(core_row.target_type, "eln.entry")
-        self.assertEqual(core_row.target_id, 42)
-        self.assertEqual(core_row.metadata, {"reg_id": "REG-001"})
-
-        # Custom row has the custom action_type.
-        custom_row = ElnAction.objects.get(action_type="eln.entry.registered")
-        self.assertEqual(custom_row.performed_by, self.user)
-        self.assertEqual(custom_row.target_type, "eln.entry")
-        self.assertEqual(custom_row.target_id, 42)
-        self.assertEqual(custom_row.metadata, {"reg_id": "REG-001"})
+        row = ElnAction.objects.first()
+        self.assertEqual(row.action_type, "eln.entry.registered")
+        self.assertEqual(row.performed_by, self.user)
+        self.assertEqual(row.target_type, "eln.entry")
+        self.assertEqual(row.target_id, 42)
+        self.assertEqual(row.metadata, {"reg_id": "REG-001"})
 
     def test_custom_action_with_different_core_mapping(self):
-        """Custom actions can map to different core verbs."""
+        """Custom actions can map to different core verbs; only custom row stored."""
         from mods.tags.models import TagsAction
 
         register_action_model("tags", TagsAction)
@@ -282,13 +303,12 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data), 1)
 
-        action_types = {item["action_type"] for item in response.data}
-        self.assertIn("created", action_types)
-        self.assertIn("tags.tag.attached", action_types)
+        self.assertEqual(response.data[0]["action_type"], "tags.tag.attached")
 
-        self.assertEqual(TagsAction.objects.count(), 2)
+        self.assertEqual(TagsAction.objects.count(), 1)
+        self.assertEqual(TagsAction.objects.first().action_type, "tags.tag.attached")
 
     # ── unregistered action types → 400 ─────────────────────────────────
 
@@ -400,7 +420,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self.assertEqual(keys1, keys2)
 
     def test_custom_action_response_shape_is_deterministic(self):
-        """Custom action dual-row response has a deterministic shape."""
+        """Custom action single-row response has a deterministic shape."""
         from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
@@ -428,14 +448,11 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(len(response1.data), 2)
-        self.assertEqual(len(response2.data), 2)
+        self.assertEqual(len(response1.data), 1)
+        self.assertEqual(len(response2.data), 1)
 
-        # Both lists have the same shape for each item.
-        for item in response1.data:
-            _assert_action_shape(self, item)
-        for item in response2.data:
-            _assert_action_shape(self, item)
+        _assert_action_shape(self, response1.data[0])
+        _assert_action_shape(self, response2.data[0])
 
     # ── authentication ───────────────────────────────────────────────────
 

@@ -150,6 +150,20 @@ export function useBlockActionLogging(
           const catalog = ModRegistry.getInstance().getActions("eln");
           const message = ModRegistry.resolveActionLabel(actionType, catalog);
 
+          // Keep the accumulator state-consistent for a given block
+          // instance: when a "created" event arrives, remove any stale
+          // "deleted" entry from the same instance (TipTap NodeView churn
+          // can fire a spurious "deleted" between two "created" mounts for
+          // the same ProseMirror node position).  Likewise, when "deleted"
+          // arrives, remove any "created"/"edited" entries so a block that
+          // was genuinely removed doesn't leave leftover rows.
+          if (verb === "created") {
+            pending.delete(`${p.blockInstanceId}:deleted`);
+          } else if (verb === "deleted") {
+            pending.delete(`${p.blockInstanceId}:created`);
+            pending.delete(`${p.blockInstanceId}:edited`);
+          }
+
           pending.set(key, {
             action_type: actionType,
             metadata: { message },

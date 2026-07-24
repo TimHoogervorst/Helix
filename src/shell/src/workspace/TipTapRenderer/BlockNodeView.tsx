@@ -47,14 +47,32 @@ export interface BlockNodeViewProps extends NodeViewProps {
  * There is no `bus` prop; blocks respond to events declaratively via `onEvent`.
  */
 export function BlockNodeView(props: BlockNodeViewProps) {
-  const { node, updateAttributes, binding, bus, slotId, context } = props;
+  const { node, updateAttributes, getPos, binding, bus, slotId, context } = props;
 
   // ── Instance (stable identity) ────────────────────────────────────────
+
+  // Derive instance ID from the ProseMirror node position so that TipTap
+  // NodeView churn during a single transaction (destroy + recreate of
+  // ReactNodeView at the same position) produces the same blockInstanceId.
+  // Without this, each new NodeView gets a fresh crypto.randomUUID() and
+  // the accumulator in useBlockActionLogging treats spurious lifecycle
+  // events as separate entries, causing duplicate action rows.
+  const instanceId = (() => {
+    try {
+      const pos = getPos();
+      if (typeof pos === "number" && pos >= 0) {
+        return `${binding.id}::${pos}`;
+      }
+    } catch {
+      // getPos() may throw during unmount/disposal — fall through
+    }
+    return `${binding.id}::${crypto.randomUUID()}`;
+  })();
 
   // Create instance once with current (possibly default) content.
   // Use ref so onEvent handlers always read the latest attrs.
   const instanceRef = useRef<BlockInstance>({
-    id: `${binding.id}::${crypto.randomUUID()}`,
+    id: instanceId,
     blockId: binding.id,
     slotId,
     attrs: binding.deserialize(node.attrs.content as string),

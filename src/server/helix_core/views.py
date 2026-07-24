@@ -286,9 +286,10 @@ class ActionCreateView(APIView):
     1. Resolves ``workspace_id`` to the owning mod.
     2. Validates ``action_type`` against that mod's registered action catalog.
     3. Routes to the correct mod action table.
-    4. Logs the core action row.
-    5. If the action is a custom action, also logs the custom action row.
-    6. Returns ``201 Created`` with the created action rows as a JSON array.
+    4. Creates a single action row. For custom actions (e.g.
+       ``"eln.entry.registered"``) only the custom action row is logged;
+       consumers that need the core verb can derive it from the catalog.
+    5. Returns ``201 Created`` with the created action row as a JSON array.
     """
 
     permission_classes = [IsAuthenticated]
@@ -335,57 +336,24 @@ class ActionCreateView(APIView):
                 f"No action model registered for workspace '{workspace_id}'."
             )
 
-        # ── resolve core / custom ─────────────────────────────────────────
-        catalog_entry = next(
-            (e for e in catalog if e["action_type"] == action_type), None
+        # ── capture client IP ────────────────────────────────────────────
+        client_ip = request.META.get("REMOTE_ADDR", "") or None
+
+        # ── create the action row ────────────────────────────────────────
+        row = model_class.objects.create(
+            performed_by=request.user,
+            action_type=action_type,
+            target_type=target_type,
+            target_id=target_id,
+            metadata=metadata,
+            client_ip=client_ip,
         )
-
-        is_custom = (
-            catalog_entry is not None
-            and catalog_entry.get("core")
-            and catalog_entry["core"] != catalog_entry["action_type"]
-        )
-
-        created_rows: list = []
-
-        if is_custom:
-            # Custom action: log both the core row *and* the custom row.
-            core_verb: str = catalog_entry["core"]
-            core_row = model_class.objects.create(
-                performed_by=request.user,
-                action_type=core_verb,
-                target_type=target_type,
-                target_id=target_id,
-                metadata=metadata,
-            )
-            created_rows.append(core_row)
-
-            custom_row = model_class.objects.create(
-                performed_by=request.user,
-                action_type=action_type,
-                target_type=target_type,
-                target_id=target_id,
-                metadata=metadata,
-            )
-            created_rows.append(custom_row)
-        else:
-            # Core action: log a single row.
-            row = model_class.objects.create(
-                performed_by=request.user,
-                action_type=action_type,
-                target_type=target_type,
-                target_id=target_id,
-                metadata=metadata,
-            )
-            created_rows.append(row)
 
         # ── serialize response ───────────────────────────────────────────
-        response_data = [
-            _serialize_action_row(row)
-            for row in created_rows
-        ]
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        return Response(
+            [_serialize_action_row(row)],
+            status=status.HTTP_201_CREATED,
+        )
 
 
 def _serialize_action_row(row) -> dict:

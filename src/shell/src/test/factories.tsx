@@ -104,6 +104,7 @@ export function makeLibraryFolder(
 const _libraryEntryDefaults: LibraryEntryItem = {
   type: "entry",
   id: 1,
+  workspace_id: "eln",
   display_id: "E1",
   title: "PCR Results",
   folder: null,

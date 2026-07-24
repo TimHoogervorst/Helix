@@ -4,7 +4,6 @@ import type {
   RouteConfig,
   SidebarActionConfig,
   ServiceConfig,
-  LibraryItemConfig,
   WorkspaceConfig,
   BlockRegistration,
   ButtonRegistration,
@@ -66,7 +65,6 @@ export class ModRegistry {
   private routes = new Map<string, RouteConfig>();
   private sidebarActions = new Map<string, SidebarActionConfig>();
   private services = new Map<string, ServiceConfig>();
-  private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private blocks = new Map<string, BlockRegistration>();
   private slots = new Map<string, SlotDeclaration>();
@@ -130,15 +128,6 @@ export class ModRegistry {
       );
     }
     this.services.set(config.id, config);
-  }
-
-  registerLibraryItem(config: LibraryItemConfig): void {
-    if (this.libraryItems.has(config.id)) {
-      throw new Error(
-        `Duplicate library item registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.libraryItems.set(config.id, config);
   }
 
   registerWorkspace(config: WorkspaceConfig): void {
@@ -237,14 +226,6 @@ export class ModRegistry {
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
-
-  /**
-   * Resolve the registered LibraryItemConfig for a given item type ID.
-   * Returns undefined if no registration matches.
-   */
-  resolveLibraryItem(itemTypeId: string): LibraryItemConfig | undefined {
-    return this.libraryItems.get(itemTypeId);
-  }
 
   /**
    * Resolve a slot into its renderer-ready bindings.
@@ -456,11 +437,6 @@ export class ModRegistry {
   /** Returns a read-only view of all registered sidebar actions. */
   getSidebarActions(): ReadonlyMap<string, SidebarActionConfig> {
     return this.sidebarActions;
-  }
-
-  /** Returns a read-only view of all registered library items. */
-  getLibraryItems(): ReadonlyMap<string, LibraryItemConfig> {
-    return this.libraryItems;
   }
 
   /** Returns a read-only view of all registered workspaces. */

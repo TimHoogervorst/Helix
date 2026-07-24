@@ -120,6 +120,7 @@ class LibraryContentsView(APIView):
                 {
                     "type": "entry",
                     "id": e.id,
+                    "workspace_id": "eln",
                     "display_id": e.display_id,
                     "title": e.name,
                     "folder": e.folder_id,

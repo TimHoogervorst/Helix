@@ -2,7 +2,6 @@ import { lazy } from "react";
 import { FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
 import {
   registerRoute,
-  registerLibraryItem,
   registerBlock,
   registerSettingsSection,
   declareSlot,
@@ -12,7 +11,6 @@ import {
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
-import ElnLibraryCard from "./library/ElnLibraryCard";
 import { TableBlockComponent } from "./blocks/TableNodeView";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
@@ -41,16 +39,6 @@ export function register() {
     component: lazy(() => import("./workspace/ElnWorkspacePage")),
   });
 
-  // ── Library: ELN entry card ──────────────────────────────────────────
-  registerLibraryItem({
-    id: "eln.entry",
-    icon: FlaskConical,
-    listCard: ElnLibraryCard,
-    property_fields: [
-      { key: "samples_count" },
-      { key: "attachments_count" },
-    ],
-  });
   // ── Slot: ELN Editor ────────────────────────────────────
   declareSlot({
     id: "eln.editor",

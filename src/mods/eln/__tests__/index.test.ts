@@ -57,17 +57,19 @@ describe("eln mod registration", () => {
     expect(detailRoute!.component).toBeTruthy();
   });
 
-  it("registers a library item for eln.entry", async () => {
+  it("no longer registers a library item — card rendering is generic now", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
     registry.registerMod("eln");
     mod.register();
 
-    const items = registry.getLibraryItems();
-    const item = items.get("eln.entry");
-
-    expect(item).toBeDefined();
+    // registerLibraryItem() has been removed.  The Library hub now renders
+    // entity cards generically from workspace schema columns (hydrated from
+    // the backend).  There is no getLibraryItems() — the registry only holds
+    // workspaces.
+    const workspaces = registry.getWorkspaces();
+    expect(workspaces.has("eln")).toBe(false);
   });
 
   it("no longer registers a settings section — tags moved to tags mod", async () => {

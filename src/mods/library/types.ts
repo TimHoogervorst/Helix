@@ -22,6 +22,8 @@ export interface LibraryFolderItem {
 export interface LibraryEntryItem {
   type: "entry";
   id: number;
+  /** The workspace this entry belongs to, e.g. "eln". */
+  workspace_id: string;
   display_id: string;
   title: string;
   folder: number | null;

@@ -29,7 +29,7 @@ export function register(): void {
 | Function | Purpose |
 |---|---|
 | `registerHub(config)` | Register a hub browsing surface — adds sidebar nav item + route |
-| `registerLibraryItem(config)` | Register a library item type with card renderers and metadata |
+| ~~`registerLibraryItem(config)`~~ | (Removed) Library hub now renders entity cards generically from schema columns |
 | `registerSettingsSection(config)` | Register a settings panel in the Settings shell |
 | `registerRoute(config)` | Register a standalone route |
 | `registerSidebarAction(config)` | Register a button/badge on sidebar rows |
@@ -58,7 +58,6 @@ export function register(): void {
 - **No direct imports between mods** — use `registry.call()` for mod-to-mod communication
 - **Hub IDs are globally unique** — use mod prefix, e.g. `library`, `home`
 - **Workspace components fetch their own data** — `WorkspacePage` passes the route param as a prop
-- **Each hub defines its own item registration** — e.g. Library has `registerLibraryItem()`
 
 ## Boot Sequence
 

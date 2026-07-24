@@ -1,17 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { BaseCard } from "../BaseCard";
+import { BaseCard, type PropertyField } from "../BaseCard";
 import { makeLibraryEntry } from "../../../test/factories";
-import type { PropertyField, LibraryCardProps } from "../../../mod-system/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function DummyIcon() {
   return <span data-testid="dummy-icon">🔬</span>;
-}
-
-function DummyListCard() {
-  return <div data-testid="dummy-list-card">Mod-specific content</div>;
 }
 
 const defaultPropertyFields: PropertyField[] = [
@@ -32,7 +27,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("base-library-card").className).toContain(
@@ -48,7 +42,6 @@ describe("BaseCard", () => {
         viewMode="grid"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("base-library-card").className).toContain(
@@ -64,7 +57,6 @@ describe("BaseCard", () => {
         viewMode="compact"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("base-library-card").className).toContain(
@@ -82,7 +74,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={true}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("base-library-card").className).toContain(
@@ -98,7 +89,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("base-library-card").className).not.toContain(
@@ -116,7 +106,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("star-button")).toBeInTheDocument();
@@ -130,7 +119,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     // It renders but has no accessible role beyond being present
@@ -147,7 +135,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByTestId("dummy-icon")).toBeInTheDocument();
@@ -163,7 +150,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByText("EXP-0284")).toBeInTheDocument();
@@ -177,7 +163,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByText("gRNA screen v3")).toBeInTheDocument();
@@ -200,7 +185,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.getByText("m.kato")).toBeInTheDocument();
@@ -216,7 +200,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
@@ -230,7 +213,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     const chip = screen.getByText("In Progress");
@@ -246,7 +228,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
       />,
     );
     const chip = screen.getByText("Finished");
@@ -266,7 +247,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showDescription={true}
       />,
     );
@@ -283,7 +263,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showDescription={true}
       />,
     );
@@ -300,7 +279,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showDescription={false}
       />,
     );
@@ -322,7 +300,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showTags={true}
       />,
     );
@@ -343,7 +320,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showTags={false}
       />,
     );
@@ -360,7 +336,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showUpdatedAt={true}
       />,
     );
@@ -377,7 +352,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         showUpdatedAt={false}
       />,
     );
@@ -396,7 +370,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         propertyFields={defaultPropertyFields}
       />,
     );
@@ -415,7 +388,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         propertyFields={defaultPropertyFields}
       />,
     );
@@ -423,51 +395,6 @@ describe("BaseCard", () => {
     // Both null → "— · —"
     const dashes = metadata.textContent?.match(/—/g);
     expect(dashes?.length).toBe(2);
-  });
-
-  // ── Mod-specific listCard delegation ──────────────────────────────────
-
-  it("renders the mod-provided listCard component", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        listCard={DummyListCard}
-      />,
-    );
-    expect(screen.getByTestId("dummy-list-card")).toBeInTheDocument();
-  });
-
-  it("passes item, viewMode, and isSelected to listCard", () => {
-    const entry = makeLibraryEntry({ display_id: "EXP-042" });
-    function AssertiveListCard(props: LibraryCardProps) {
-      return (
-        <div data-testid="assertive-card">
-          <span data-testid="card-viewmode">{props.viewMode}</span>
-          <span data-testid="card-displayid">
-            {props.item.display_id as string}
-          </span>
-          <span data-testid="card-selected">
-            {String(props.isSelected)}
-          </span>
-        </div>
-      );
-    }
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="grid"
-        isSelected={true}
-        icon={DummyIcon}
-        listCard={AssertiveListCard}
-      />,
-    );
-    expect(screen.getByTestId("card-viewmode").textContent).toBe("grid");
-    expect(screen.getByTestId("card-displayid").textContent).toBe("EXP-042");
-    expect(screen.getByTestId("card-selected").textContent).toBe("true");
   });
 
   // ── onClick ───────────────────────────────────────────────────────────
@@ -481,7 +408,6 @@ describe("BaseCard", () => {
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        listCard={DummyListCard}
         onClick={() => {
           clicked = true;
         }}

@@ -6,7 +6,6 @@ import type {
   SettingsSectionConfig,
   RouteConfig,
   SidebarActionConfig,
-  LibraryItemConfig,
   SlotDeclaration,
   ButtonRegistration,
   BlockRegistration,
@@ -72,17 +71,6 @@ function makeSidebarAction(
     workspaceId: "*",
     component: DummyComponent,
     position: "inline",
-    ...overrides,
-  };
-}
-
-function makeLibraryItem(
-  overrides?: Partial<LibraryItemConfig>,
-): LibraryItemConfig {
-  return {
-    id: "test.item",
-    icon: DummyComponent,
-    listCard: DummyComponent,
     ...overrides,
   };
 }
@@ -266,40 +254,6 @@ describe("ModRegistry", () => {
   it("getRoutes returns a read-only view", () => {
     registry.registerRoute(makeRoute({ id: "r1" }));
     expect(registry.getRoutes().has("r1")).toBe(true);
-  });
-
-  // ── registerLibraryItem ────────────────────────────────────────────────
-
-  it("registerLibraryItem stores a library item config", () => {
-    const config = makeLibraryItem({ id: "eln.entry" });
-    registry.registerLibraryItem(config);
-    expect(registry.getLibraryItems().get("eln.entry")).toBe(config);
-  });
-
-  it("registerLibraryItem throws on duplicate ID", () => {
-    registry.registerLibraryItem(makeLibraryItem({ id: "eln.entry" }));
-    expect(() =>
-      registry.registerLibraryItem(makeLibraryItem({ id: "eln.entry" })),
-    ).toThrow("Duplicate library item registration");
-  });
-
-  it("getLibraryItems returns a read-only view", () => {
-    registry.registerLibraryItem(makeLibraryItem({ id: "eln.entry" }));
-    const items = registry.getLibraryItems();
-    expect(items.has("eln.entry")).toBe(true);
-    expect(items.get("eln.entry")?.id).toBe("eln.entry");
-  });
-
-  it("resolveLibraryItem returns the registered config for a given ID", () => {
-    const config = makeLibraryItem({ id: "eln.entry" });
-    registry.registerLibraryItem(config);
-    const resolved = registry.resolveLibraryItem("eln.entry");
-    expect(resolved).toBe(config);
-  });
-
-  it("resolveLibraryItem returns undefined for unregistered ID", () => {
-    const resolved = registry.resolveLibraryItem("nonexistent");
-    expect(resolved).toBeUndefined();
   });
 
   // ── registerWorkspace ──────────────────────────────────────────────────

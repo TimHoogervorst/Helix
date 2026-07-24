@@ -38,19 +38,27 @@ Object.defineProperty(window, "localStorage", {
   writable: true,
 });
 
-// Mock ModRegistry — LibraryHub resolves library item configs
+// Mock ModRegistry — LibraryHub reads workspaces (hydrated from backend)
 vi.mock("../../../shell/src/mod-system/ModRegistry", () => ({
   ModRegistry: {
     getInstance: () => ({
-      resolveLibraryItem: () => ({
-        id: "eln.entry",
-        icon: () => null,
-        listCard: () => null,
-        property_fields: [
-          { key: "samples_count" },
-          { key: "attachments_count" },
-        ],
-      }),
+      getWorkspaces: () =>
+        new Map([
+          [
+            "eln",
+            {
+              id: "eln",
+              displayName: "ELN",
+              icon: undefined,
+              schemaType: {
+                id: "eln.entry",
+                displayName: "ELN Entry",
+                defaultPrefix: "E",
+                columns: [],
+              },
+            },
+          ],
+        ]),
     }),
   },
 }));
@@ -125,6 +133,7 @@ const populatedResponse = makeLibraryContents(
   [
     makeLibraryEntry({
       id: 10,
+      workspace_id: "eln",
       display_id: "EXP-0284",
       title: "PCR Results",
       folder: 1,
@@ -276,7 +285,7 @@ describe("LibraryHub", () => {
 
   // ── Navigation ──────────────────────────────────────────────────────
 
-  it("navigates to ELN workspace when clicking an entry card", async () => {
+  it("navigates to workspace page using entry workspace_id when clicking an entry", async () => {
     mockGetLibraryContents.mockResolvedValue(populatedResponse);
     renderLibrary();
     await waitFor(() => {
@@ -289,6 +298,7 @@ describe("LibraryHub", () => {
       card.textContent?.includes("EXP-0284"),
     )!;
     fireEvent.click(entryCard);
+    // Navigation uses workspace_id from the entry
     expect(mockNavigate).toHaveBeenCalledWith("/eln/EXP-0284");
   });
 
@@ -573,7 +583,7 @@ describe("LibraryHub", () => {
   it("renders Load More button when there are more results", async () => {
     const withMore = makeLibraryContents(
       [makeLibraryFolder({ id: 1 })],
-      [makeLibraryEntry({ id: 10 })],
+      [makeLibraryEntry({ id: 10, workspace_id: "eln" })],
       { next: "/library/contents/?path=&page=2" },
     );
     mockGetLibraryContents.mockResolvedValue(withMore);

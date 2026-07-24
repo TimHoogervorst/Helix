@@ -5,7 +5,6 @@ export { registerSettingsSection } from "./registerSettingsSection";
 export { registerRoute } from "./registerRoute";
 export { registerPublicRoute } from "./registerPublicRoute";
 export { registerSidebarAction } from "./registerSidebarAction";
-export { registerLibraryItem } from "./registerLibraryItem";
 export { registerWorkspace } from "./registerWorkspace";
 export { registerBlock } from "./registerBlock";
 export { declareSlot } from "./declareSlot";
@@ -19,9 +18,6 @@ export type {
   RouteConfig,
   SidebarActionConfig,
   ServiceConfig,
-  LibraryItemConfig,
-  LibraryCardProps,
-  PropertyField,
   WorkspaceConfig,
   SchemaTypeConfig,
   SchemaColumnDef,

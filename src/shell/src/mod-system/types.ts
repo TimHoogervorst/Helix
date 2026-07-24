@@ -75,38 +75,6 @@ export interface SidebarActionConfig {
 
 // ── Block ──────────────────────────────────────────────────────────────────
 
-// ── Library Item ──────────────────────────────────────────────────────────
-
-/** Flexible metadata field for a library item card. */
-export interface PropertyField {
-  /** Value accessor on the data item, e.g. "samples_count". */
-  key: string;
-  /** Optional display label. */
-  label?: string;
-}
-
-/** Props contract between BaseCard and mod-provided card components. */
-export interface LibraryCardProps {
-  /** The data item to render. */
-  item: Record<string, unknown>;
-  /** Which view mode is currently active. */
-  viewMode: "list" | "grid" | "compact";
-  /** Whether this card is currently selected. */
-  isSelected: boolean;
-}
-
-/** Configuration for a library item type registered by a mod. */
-export interface LibraryItemConfig {
-  /** Globally unique identifier, e.g. "eln.entry". */
-  id: string;
-  /** Icon component for the card. */
-  icon: ComponentType<any>;
-  /** The full list-row card component provided by the mod. */
-  listCard: ComponentType<LibraryCardProps>;
-  /** Flexible metadata fields rendered inline as · value1 · value2 · value3. */
-  property_fields?: PropertyField[];
-}
-
 // ── Service (shape only — implementation deferred) ────────────────────────
 
 export interface ServiceConfig {

@@ -19,6 +19,22 @@ const VITE_PREBUNDLED = new Set([
   "react-dom",
   "react/jsx-runtime",
   "react/jsx-dev-runtime",
+  // prosemirror packages must be handled by Vite's native pre-bundling,
+  // NOT by the modResolutionPlugin.  The plugin resolves to CJS paths
+  // while Vite resolves to ESM — two copies break instanceof checks in
+  // DecorationGroup.from(), causing the localsInner crash (issue #329).
+  "prosemirror-view",
+  "prosemirror-state",
+  "prosemirror-model",
+  "prosemirror-transform",
+  "prosemirror-commands",
+  "prosemirror-dropcursor",
+  "prosemirror-gapcursor",
+  "prosemirror-history",
+  "prosemirror-inputrules",
+  "prosemirror-keymap",
+  "prosemirror-changeset",
+  "prosemirror-tables",
 ]);
 
 /**
@@ -72,7 +88,67 @@ export default defineConfig({
   resolve: {
     // Prevent duplicate React instances when modules are resolved via
     // different paths (e.g. shell vs mod directory resolution).
-    dedupe: ["react", "react-dom"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "prosemirror-view",
+      "prosemirror-state",
+      "prosemirror-model",
+      "prosemirror-transform",
+    ],
+    // Force all prosemirror imports to a single path.  Without this,
+    // Vite's pre-bundler inlines prosemirror code into each tiptap
+    // dependency chunk (@tiptap/pm, @tiptap/suggestion, etc.), creating
+    // multiple copies of DecorationSet.  instanceof checks fail across
+    // copies, corrupting DecorationGroup.from() members and causing the
+    // localsInner crash (issue #329).
+    alias: {
+      "prosemirror-view": path.resolve(shellNodeModules, "prosemirror-view"),
+      "prosemirror-state": path.resolve(shellNodeModules, "prosemirror-state"),
+      "prosemirror-model": path.resolve(shellNodeModules, "prosemirror-model"),
+      "prosemirror-transform": path.resolve(shellNodeModules, "prosemirror-transform"),
+      "prosemirror-commands": path.resolve(shellNodeModules, "prosemirror-commands"),
+      "prosemirror-dropcursor": path.resolve(shellNodeModules, "prosemirror-dropcursor"),
+      "prosemirror-gapcursor": path.resolve(shellNodeModules, "prosemirror-gapcursor"),
+      "prosemirror-history": path.resolve(shellNodeModules, "prosemirror-history"),
+      "prosemirror-inputrules": path.resolve(shellNodeModules, "prosemirror-inputrules"),
+      "prosemirror-keymap": path.resolve(shellNodeModules, "prosemirror-keymap"),
+      "prosemirror-changeset": path.resolve(shellNodeModules, "prosemirror-changeset"),
+      "prosemirror-tables": path.resolve(shellNodeModules, "prosemirror-tables"),
+    },
+  },
+  optimizeDeps: {
+    // Prevent Vite from pre-bundling prosemirror & tiptap packages.
+    // When pre-bundled, esbuild inlines prosemirror code into each tiptap
+    // chunk (@tiptap/pm, @tiptap/suggestion, etc.), creating separate
+    // copies of DecorationSet.  instanceof checks fail across copies,
+    // corrupting DecorationGroup.from() members and causing the
+    // localsInner crash (issue #329).
+    // Excluding them forces native ESM import chains so all re-exports
+    // resolve to a single prosemirror-view module instance.
+    exclude: [
+      "prosemirror-view",
+      "prosemirror-state",
+      "prosemirror-model",
+      "prosemirror-transform",
+      "prosemirror-commands",
+      "prosemirror-dropcursor",
+      "prosemirror-gapcursor",
+      "prosemirror-history",
+      "prosemirror-inputrules",
+      "prosemirror-keymap",
+      "prosemirror-changeset",
+      "prosemirror-tables",
+      "@tiptap/pm",
+      "@tiptap/core",
+      "@tiptap/suggestion",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-placeholder",
+      "@tiptap/extension-table",
+      "@tiptap/extension-bubble-menu",
+      "@tiptap/extension-mention",
+    ],
   },
   server: {
     host: true,

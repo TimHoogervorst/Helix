@@ -101,12 +101,11 @@ function createPendingItem(
  * programmatic content loads (e.g. initial server payload) via the
  * `eln.editor.content-loading` bus event.
  *
- * Pending items are cleared when `useBlockActionLogging` flushes accumulated
- * actions to the backend on save. The flushed keys are emitted on the bus as
- * `eln.actions.flushed` — we match by `blockInstanceId:actionType` for
- * reliable reconciliation without fragile timestamp windows.
- *
- * Refetches confirmed actions from the API on `{modId}.entry.saved`.
+ * Pending items are cleared when `useBlockActionLogging` finishes the
+ * save cycle and emits `eln.actions.flushed` on the bus.  This is the
+ * single signal for "save complete — the server is now the source of
+ * truth."  We clear *all* pending items and refetch confirmed actions
+ * from the API.
  */
 export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
   const entryId = context.entryId;
@@ -212,45 +211,18 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
       }
     }
 
-    // ── Actions flushed: clear matching pending items ──────────────────
-    // useBlockActionLogging emits this after a successful batch POST,
-    // carrying the `${blockInstanceId}:${verb}` keys that were flushed.
-    // We match on `metadata.blockInstanceId + ":" + actionType` —
-    // exact matching, no fragile timestamp window.
-    const flushedUnsub = bus.on(
-      "eln.actions.flushed",
-      (payload: unknown) => {
-        const { keys } = payload as { keys: string[] };
-        const keySet = new Set(keys);
-        setPendingItems((prev) =>
-          prev.filter(
-            (item) =>
-              !(
-                item.state === "pending" &&
-                item.metadata?.blockInstanceId &&
-                keySet.has(
-                  `${item.metadata.blockInstanceId}:${item.actionType}`,
-                )
-              ),
-          ),
-        );
-        // Refetch so the newly flushed actions appear as confirmed rows.
-        refetchRef.current();
-      },
-    );
-    unsubs.push(flushedUnsub);
-
-    // ── Refetch + clear on entry save ─────────────────────────────────
-    // When the entry saves, all accumulated actions are flushed to the
-    // backend. Clear all pending items and refetch to get the confirmed
-    // server rows. This is a safety net: even if content-loading
-    // suppression misses a page-load event, or reconciliation timing is
-    // off, the save event guarantees pending items don't stick forever.
-    const saveUnsub = bus.on(`${workspaceId}.entry.saved`, () => {
+    // ── Actions flushed: clear all pending + refetch ───────────────────
+    // useBlockActionLogging emits this after every save cycle — with
+    // flushed keys when actions were POSTed, or `keys: []` when there
+    // was nothing to flush (non-block saves like title / plain text).
+    // We clear *all* pending items here because the server is now the
+    // single source of truth; any pending item that wasn't flushed was
+    // either a duplicate or from a stale event and shouldn't linger.
+    const flushedUnsub = bus.on("eln.actions.flushed", () => {
       setPendingItems([]);
       refetchRef.current();
     });
-    unsubs.push(saveUnsub);
+    unsubs.push(flushedUnsub);
 
     return () => {
       for (const unsub of unsubs) {

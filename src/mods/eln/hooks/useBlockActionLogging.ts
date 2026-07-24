@@ -20,9 +20,15 @@
  *   (dedup within a save cycle).
  * - On `"eln.entry.saved"` event: if the map is non-empty and
  *   `numericEntryId` is truthy, calls ``sendAction()`` for each accumulated
- *   action via ``POST /api/actions/`` (the unified endpoint, #327).
+ *   action via ``POST /api/actions/`` (the unified endpoint, #327) and
+ *   emits ``eln.actions.flushed`` with the flushed keys on success.  If the
+ *   map is empty, still emits ``eln.actions.flushed`` with ``keys: []`` so
+ *   listeners (ActivityFeedBlock) receive a reliable save-cycle-complete
+ *   signal even for non-block saves (title, plain text).
  * - Fail-open: ``sendAction()`` failures are caught and logged; logging
- *   failure never breaks the UI.
+ *   failure never breaks the UI.  ``eln.actions.flushed`` is suppressed
+ *   when any ``sendAction`` call fails (stale pending items are better than
+ *   silently lost actions).
  * - No `numericEntryId` → skip flush (new entry, not yet created).
  * - On unmount: unsubscribes all bus listeners. Accumulated actions are
  *   discarded (no save → no action rows).
@@ -161,7 +167,14 @@ export function useBlockActionLogging(
       if (!numericId || !displayId) return; // new entry, not yet created
 
       const actions = Array.from(pending.values());
-      if (actions.length === 0) return;
+      if (actions.length === 0) {
+        // Empty accumulator — still emit so listeners (ActivityFeedBlock)
+        // know the save cycle is complete and can refetch.  This covers
+        // non-block saves (title, plain text) where no lifecycle events
+        // fired but the feed should still refresh.
+        bus.emit("eln.actions.flushed", { keys: [] });
+        return;
+      }
 
       // Capture keys before clearing so we can emit them after
       // successful sendAction calls for exact pending-item reconciliation.

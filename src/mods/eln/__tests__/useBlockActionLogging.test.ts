@@ -14,6 +14,7 @@
  * - No sendAction calls when numericEntryId is undefined (new entry)
  * - Map is cleared after successful flush
  * - eln.actions.flushed is emitted with flushed keys on success
+ * - eln.actions.flushed is emitted with keys:[] when accumulator is empty on save
  * - Partial failure: actions after a failed sendAction are still attempted
  * - eln.actions.flushed is NOT emitted when any sendAction fails
  * - Fail-open: sendAction rejection is caught, does not throw
@@ -231,16 +232,24 @@ describe("useBlockActionLogging", () => {
     expect(mockSendAction).not.toHaveBeenCalled();
   });
 
-  // ── No-op on empty accumulator ─────────────────────────────────────────
+  // ── Emit eln.actions.flushed with empty keys when no actions accumulated
 
-  it("does not call sendAction when the accumulator is empty on save", () => {
+  it("emits eln.actions.flushed with keys:[] when accumulator is empty on save", () => {
     const mockSendAction = vi.fn().mockResolvedValue(undefined);
     const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
+    let flushedPayload: { keys: string[] } | null = null;
+    bus.on("eln.actions.flushed", (payload: unknown) => {
+      flushedPayload = payload as { keys: string[] };
+    });
+
     emitSave(bus, "E-001");
 
-    // No lifecycle events were emitted — should be a no-op
+    // sendAction should NOT be called — there were no lifecycle events
     expect(mockSendAction).not.toHaveBeenCalled();
+    // eln.actions.flushed should be emitted with empty keys so
+    // ActivityFeedBlock knows the save cycle is complete and can refetch.
+    expect(flushedPayload).toEqual({ keys: [] });
   });
 
   // ── No-op on missing numericEntryId ────────────────────────────────────

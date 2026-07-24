@@ -187,7 +187,9 @@ export function useBlockActionLogging(
           // silently lost actions).
           allSucceeded = false;
           console.warn(
-            `[eln] Failed to send block action "${action.action_type}" for entry ${displayId}:`,
+            '[eln] Failed to send block action "%s" for entry %s:',
+            action.action_type,
+            displayId,
             err,
           );
         }

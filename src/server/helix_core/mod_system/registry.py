@@ -31,6 +31,18 @@ from typing import Any, Callable, Generator, Optional
 
 from helix_core.mod_system.manifest import ModManifest
 
+# ── constants ────────────────────────────────────────────────────────────────
+
+# The three core CRUD action verbs that every mod gets automatically.
+CORE_ACTION_VERBS = ("created", "edited", "deleted")
+
+# Human-readable labels matching the core verbs.
+CORE_ACTION_LABELS = {
+    "created": "Created",
+    "edited": "Edited",
+    "deleted": "Deleted",
+}
+
 
 class BackendModRegistry:
     """Singleton registry for backend mod registrations.
@@ -57,6 +69,17 @@ class BackendModRegistry:
 
         # Mod manifests keyed by mod ID.  Set via set_mod_order().
         self._manifests: dict[str, ModManifest] = {}
+
+        # ── action catalog ───────────────────────────────────────────────
+        # Custom actions keyed by (mod_id, action_id).
+        # Each entry: {"action_type": str, "label": str, "core": str,
+        #               "target_model": str}
+        self._custom_actions: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+
+        # Core action verbs per mod.  Populated automatically when
+        # register_action_model() is called.
+        # Each entry: {"created": {...}, "edited": {...}, "deleted": {...}}
+        self._core_actions: dict[str, dict[str, dict[str, Any]]] = {}
 
     # ── mod order ────────────────────────────────────────────────────────
 
@@ -174,8 +197,130 @@ class BackendModRegistry:
         Called from each mod's ``mod.py.register()``.  If *mod_id* is
         already registered the previous registration is silently replaced
         (last write wins).
+
+        Also auto-derives the three core CRUD actions (``created``,
+        ``edited``, ``deleted``) for *mod_id*.  No manual registration
+        is needed for these — every mod with an action model gets them
+        automatically.
         """
         self._action_models[mod_id] = model_class
+
+        # Auto-derive core CRUD actions.
+        target_path = self._derive_target_model_path(model_class)
+        self._core_actions[mod_id] = {
+            verb: {
+                "action_type": verb,
+                "label": CORE_ACTION_LABELS[verb],
+                "core": verb,
+                "target_model": target_path,
+            }
+            for verb in CORE_ACTION_VERBS
+        }
+
+    @staticmethod
+    def _derive_target_model_path(model_class: type) -> str | None:
+        """Derive a dotted Python path from *model_class*.
+
+        Uses ``__module__`` and ``__qualname__``.  Returns ``None`` for
+        non-Django models where the module can't be resolved.
+        """
+        module = getattr(model_class, "__module__", None)
+        qualname = getattr(model_class, "__qualname__", None)
+        if module and qualname:
+            return f"{module}.{qualname}"
+        return None
+
+    def register_custom_action(
+        self,
+        mod_id: str,
+        action_id: str,
+        label: str,
+        core: str,
+        target_model: str,
+    ) -> None:
+        """Register a custom action for *mod_id*.
+
+        Custom actions map to a core CRUD verb (``created``, ``edited``,
+        or ``deleted``).  They appear in the action catalog alongside
+        the auto-derived core actions.
+
+        Parameters:
+            mod_id: The mod that owns this action.
+            action_id: Triple-dotted action type (e.g.
+                ``"lims.sample.registered"``).
+            label: Human-readable label (e.g. ``"Sample Registered"``).
+            core: The core CRUD verb this action maps to — must be one of
+                ``"created"``, ``"edited"``, ``"deleted"``.
+            target_model: Dotted Python path to the target model class
+                (e.g. ``"mods.lims.models.Entity"``).
+
+        Raises:
+            ValueError: If *mod_id* has not called
+                :meth:`register_action_model` yet, or if *core* is not
+                one of the three valid core verbs.
+        """
+        if core not in CORE_ACTION_VERBS:
+            raise ValueError(
+                f"Invalid core verb '{core}' for custom action "
+                f"'{action_id}'. Must be one of: "
+                f"{', '.join(CORE_ACTION_VERBS)}."
+            )
+
+        if mod_id not in self._action_models:
+            raise ValueError(
+                f"Cannot register custom action '{action_id}' for mod "
+                f"'{mod_id}' — no action model registered. Call "
+                f"register_action_model() before register_custom_action()."
+            )
+
+        self._custom_actions[mod_id][action_id] = {
+            "action_type": action_id,
+            "label": label,
+            "core": core,
+            "target_model": target_model,
+        }
+
+    def get_action_catalog(self, mod_id: str) -> list[dict[str, Any]]:
+        """Return the full action catalog for *mod_id*.
+
+        Returns all actions — core (``created``, ``edited``,
+        ``deleted``) and custom — as a list of dicts with keys
+        ``action_type``, ``label``, ``core``, and ``target_model``.
+
+        Returns an empty list when no action model has been registered
+        for *mod_id*.
+        """
+        result: list[dict[str, Any]] = []
+
+        # Core actions first.
+        core = self._core_actions.get(mod_id, {})
+        result.extend(core.values())
+
+        # Then custom actions.
+        custom = self._custom_actions.get(mod_id, {})
+        result.extend(custom.values())
+
+        return result
+
+    def validate_action(self, action_type: str) -> bool:
+        """Return ``True`` if *action_type* is a registered action.
+
+        Checks core action verbs (``created``, ``edited``, ``deleted``)
+        across all registered mods, plus custom actions by exact match.
+
+        Core verbs are valid as long as at least one mod has registered
+        an action model — the verb itself is enough to validate.
+        """
+        # Core verbs: valid if any mod has registered an action model.
+        if action_type in CORE_ACTION_VERBS:
+            return len(self._action_models) > 0
+
+        # Custom actions: check exact match across all mods.
+        for mod_actions in self._custom_actions.values():
+            if action_type in mod_actions:
+                return True
+
+        return False
 
     def register_urls(self, mod_id: str, url_patterns: list) -> None:
         """Register URL patterns for *mod_id*.
@@ -445,17 +590,48 @@ class BackendModRegistry:
             actions: list[dict[str, Any]] = []
             action_model = self._action_models.get(workspace_id)
             if action_model is not None:
-                action_choices = getattr(action_model, "ACTION_CHOICES", None)
+                seen_ids: set[str] = set()
+
+                # 1. Core actions auto-derived by register_action_model().
+                core = self._core_actions.get(workspace_id, {})
+                for entry in core.values():
+                    actions.append({
+                        "id": entry["action_type"],
+                        "label": entry["label"],
+                        "core": True,
+                    })
+                    seen_ids.add(entry["action_type"])
+
+                # 2. ACTION_CHOICES from the model class (backward compat).
+                # Entries already covered by core actions are skipped.
+                action_choices = getattr(
+                    action_model, "ACTION_CHOICES", None
+                )
                 if action_choices:
                     for choice_id, choice_label in action_choices:
+                        if choice_id not in seen_ids:
+                            actions.append({
+                                "id": choice_id,
+                                "label": choice_label,
+                                "core": True,
+                            })
+                            seen_ids.add(choice_id)
+
+                # 3. Custom actions registered via register_custom_action().
+                custom = self._custom_actions.get(workspace_id, {})
+                for entry in custom.values():
+                    if entry["action_type"] not in seen_ids:
                         actions.append({
-                            "id": choice_id,
-                            "label": choice_label,
-                            "core": True,
+                            "id": entry["action_type"],
+                            "label": entry["label"],
+                            "core": False,
                         })
-                else:
-                    # Default core actions for mods without explicit
-                    # ACTION_CHOICES on their model.
+                        seen_ids.add(entry["action_type"])
+
+                # 4. Fallback: default core set when nothing else is
+                #    registered (no register_action_model call, no
+                #    ACTION_CHOICES, no custom actions).
+                if not actions:
                     actions = [
                         {"id": "created", "label": "Created", "core": True},
                         {"id": "updated", "label": "Updated", "core": True},
@@ -478,6 +654,19 @@ class BackendModRegistry:
         Returns ``None`` when no model has been registered for *mod_id*.
         """
         return self._action_models.get(mod_id)
+
+    def has_action_model(self, mod_id: str) -> bool:
+        """Return ``True`` if *mod_id* has registered an action model."""
+        return mod_id in self._action_models
+
+    def is_mod_known(self, mod_id: str) -> bool:
+        """Return ``True`` if *mod_id* is in the known mod order.
+
+        A mod is "known" when it was part of the topological sort
+        produced by ``HelixCoreConfig.ready()``.  Test mods and ad-hoc
+        modules are never known.
+        """
+        return mod_id in self._mod_order
 
     def get_url_patterns(self) -> dict[str, list]:
         """Return all registered URL patterns in dependency order.

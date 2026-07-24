@@ -44,10 +44,19 @@ class ModRegistryContractTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-        # Store the original action models to restore after each test.
+        # Store the original registry state to restore after each test.
         from helix_core.mod_system.registry import registry
 
         self._original_action_models = dict(registry._action_models)
+        self._original_core_actions = dict(registry._core_actions)
+        self._original_custom_actions = {
+            k: dict(v) for k, v in registry._custom_actions.items()
+        }
+
+        # Clear registry state for isolated test.
+        registry._action_models.clear()
+        registry._core_actions.clear()
+        registry._custom_actions.clear()
 
         # Create LIMS schema type + default schema.
         self.lims_st = SchemaType.objects.create(
@@ -80,6 +89,7 @@ class ModRegistryContractTests(TestCase):
         )
 
         # Register LIMS-style action model (has ACTION_CHOICES).
+        # Use register_action_model so core actions are auto-derived.
         class LimsAction:
             ACTION_CHOICES = [
                 ("created", "Created"),
@@ -91,14 +101,18 @@ class ModRegistryContractTests(TestCase):
         class ElnAction:
             pass
 
-        registry._action_models["lims"] = LimsAction
-        registry._action_models["eln"] = ElnAction
+        registry.register_action_model("lims", LimsAction)
+        registry.register_action_model("eln", ElnAction)
 
     def tearDown(self):
         from helix_core.mod_system.registry import registry
 
         registry._action_models.clear()
         registry._action_models.update(self._original_action_models)
+        registry._core_actions.clear()
+        registry._core_actions.update(self._original_core_actions)
+        registry._custom_actions.clear()
+        registry._custom_actions.update(self._original_custom_actions)
 
     # ── JSON Schema validation ───────────────────────────────────────────
 
@@ -143,24 +157,28 @@ class ModRegistryContractTests(TestCase):
     # ── Action catalog ───────────────────────────────────────────────────
 
     def test_lims_actions_from_choices(self):
-        """LIMS actions are derived from ACTION_CHOICES."""
+        """LIMS actions merge core actions with ACTION_CHOICES."""
         response = self.client.get("/api/mod-registry/")
         actions = response.data["lims"]["actions"]
         action_ids = {a["id"] for a in actions}
+        # Core actions are always present.
         self.assertIn("created", action_ids)
+        self.assertIn("edited", action_ids)
+        self.assertIn("deleted", action_ids)
+        # ACTION_CHOICES entries are included (backward compat).
         self.assertIn("used", action_ids)
         self.assertIn("measured", action_ids)
-        # All LIMS actions should be core.
+        # All legacy actions should be core.
         for a in actions:
             self.assertTrue(a["core"])
 
     def test_eln_actions_default_set(self):
-        """ELN actions use the default core set (no ACTION_CHOICES)."""
+        """ELN actions use the auto-derived core set (no ACTION_CHOICES)."""
         response = self.client.get("/api/mod-registry/")
         actions = response.data["eln"]["actions"]
         action_ids = {a["id"] for a in actions}
         self.assertIn("created", action_ids)
-        self.assertIn("updated", action_ids)
+        self.assertIn("edited", action_ids)
         self.assertIn("deleted", action_ids)
         for a in actions:
             self.assertTrue(a["core"])

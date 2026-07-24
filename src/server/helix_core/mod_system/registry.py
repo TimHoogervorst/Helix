@@ -1,14 +1,14 @@
 """BackendModRegistry — unified registration API for backend mods.
 
 One import, one object for all backend registrations.  Mods call
-``registry.register_*()`` in their ``AppConfig.ready()`` and query
-methods return the collected data.
+``registry.register_*()`` in their ``mod.py.register()`` function and
+query methods return the collected data.
 
 Usage::
 
     from helix_core.mod_system.registry import registry
 
-    # In AppConfig.ready():
+    # In mod.py register():
     registry.register_action_model("eln", ElnAction)
     registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
     registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
@@ -120,7 +120,7 @@ class BackendModRegistry:
     ) -> None:
         """Create-or-ensure a SchemaType row and a default Schema row.
 
-        Idempotent across boots — safe to call on every ``AppConfig.ready()``.
+        Idempotent across boots — safe to call on every ``mod.py.register()``.
         Uses ``update_or_create`` so repeated calls with the same identity
         don't create duplicates, and changed fields (columns, display_name)
         are updated in-place.
@@ -165,13 +165,13 @@ class BackendModRegistry:
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations) — skip.
             # The schema type will be created on next boot when the DB
-            # is available and AppConfig.ready() runs again.
+            # is available and mod.py.register() runs again.
             pass
 
     def register_action_model(self, mod_id: str, model_class: type) -> None:
         """Register a concrete action model class for *mod_id*.
 
-        Called from each mod's ``AppConfig.ready()``.  If *mod_id* is
+        Called from each mod's ``mod.py.register()``.  If *mod_id* is
         already registered the previous registration is silently replaced
         (last write wins).
         """
@@ -390,7 +390,7 @@ class BackendModRegistry:
 
         The payload is built from already-populated ``SchemaType`` rows
         (created by ``register_schema_type()`` calls in each mod's
-        ``AppConfig.ready()``) and registered action models.
+        ``mod.py.register()``) and registered action models.
         """
         from django.db import OperationalError, ProgrammingError
 

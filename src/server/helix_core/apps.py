@@ -1,3 +1,5 @@
+import importlib
+
 from django.apps import AppConfig
 from django.conf import settings
 
@@ -29,3 +31,20 @@ class HelixCoreConfig(AppConfig):
         # build_urlpatterns() can return patterns in dependency order
         # and register_signal() can validate cross-mod dependencies.
         registry.set_mod_order(sorted_paths, manifests)
+
+        # Call each mod's mod.py.register() in topological order.
+        # This replaces the individual AppConfig.ready() methods on each
+        # mod's apps.py — registration now happens here, after the
+        # topological sort and before Django app ready.
+        for dotted_path in sorted_paths:
+            try:
+                mod_module = importlib.import_module(
+                    f"{dotted_path}.mod"
+                )
+                register_fn = getattr(mod_module, "register", None)
+                if register_fn is not None:
+                    register_fn()
+            except ModuleNotFoundError:
+                # Mod has no mod.py — skip (non-backend mods like home,
+                # settings).
+                pass

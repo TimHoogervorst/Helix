@@ -276,7 +276,7 @@ class ModRegistryView(APIView):
     registry without hard-coding per-mod metadata.
 
     The response is built from already-populated ``SchemaType`` rows
-    (created by ``register_schema_type()`` in each mod's ``AppConfig``)
+    (created by ``register_schema_type()`` in each mod's ``mod.py``)
     and registered action models.
     """
 

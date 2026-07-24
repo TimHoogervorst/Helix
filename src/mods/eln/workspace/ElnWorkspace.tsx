@@ -26,6 +26,7 @@ import MoreActions from "../components/MoreActions";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { SlotContext } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "../blocks/sidebarData";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
@@ -171,6 +172,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       viewMode: "edit",
       entryId,
       displayId: entryDisplayId,
+      actions: ModRegistry.getInstance().getActions("eln"),
       entry: {
         entry,
         lastEditor,

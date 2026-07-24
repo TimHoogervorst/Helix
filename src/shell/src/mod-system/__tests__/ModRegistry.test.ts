@@ -104,6 +104,15 @@ function makeBlockRegistration(
   };
 }
 
+function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
+  return {
+    id: "lims",
+    displayName: "LIMS",
+    dependsOn: [],
+    ...overrides,
+  };
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────
 
 describe("ModRegistry", () => {
@@ -656,15 +665,6 @@ describe("ModRegistry", () => {
       registry = resetRegistry();
     });
 
-    function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
-      return {
-        id: "lims",
-        displayName: "LIMS",
-        dependsOn: [],
-        ...overrides,
-      };
-    }
-
     it("populates workspaces from backend payload", () => {
       const payload = {
         lims: {
@@ -903,6 +903,255 @@ describe("ModRegistry", () => {
 
       // Hydration overwrites (last write wins)
       expect(registry.getWorkspaces().get("lims")?.displayName).toBe("LIMS");
+    });
+  });
+
+  // ── Action catalog hydration ────────────────────────────────────────
+
+  describe("action catalog hydration", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("stores actions from backend payload", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [
+            { id: "created", label: "Created", core: true },
+            { id: "edited", label: "Edited", core: true },
+            { id: "deleted", label: "Deleted", core: true },
+          ],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const actions = registry.getActions("lims");
+      expect(actions).toHaveLength(3);
+      expect(actions[0]).toEqual({ id: "created", label: "Created", core: true });
+      expect(actions[1]).toEqual({ id: "edited", label: "Edited", core: true });
+      expect(actions[2]).toEqual({ id: "deleted", label: "Deleted", core: true });
+    });
+
+    it("stores both core and custom actions from backend payload", () => {
+      const payload = {
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [],
+          actions: [
+            { id: "created", label: "Created", core: true },
+            { id: "eln.entry.status-changed", label: "Status Changed", core: false },
+          ],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["eln", makeManifest({ id: "eln" })]]));
+
+      const actions = registry.getActions("eln");
+      expect(actions).toHaveLength(2);
+
+      const coreAction = actions.find((a) => a.id === "created");
+      expect(coreAction).toBeDefined();
+      expect(coreAction!.core).toBe(true);
+
+      const customAction = actions.find((a) => a.id === "eln.entry.status-changed");
+      expect(customAction).toBeDefined();
+      expect(customAction!.core).toBe(false);
+      expect(customAction!.label).toBe("Status Changed");
+    });
+
+    it("stores actions for multiple workspaces", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [{ id: "created", label: "Created", core: true }],
+        },
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [],
+          actions: [{ id: "created", label: "Created", core: true }],
+        },
+      };
+
+      registry.hydrateFromBackend(
+        payload,
+        new Map([
+          ["lims", makeManifest()],
+          ["eln", makeManifest({ id: "eln" })],
+        ]),
+      );
+
+      expect(registry.getActions("lims")).toHaveLength(1);
+      expect(registry.getActions("eln")).toHaveLength(1);
+    });
+
+    it("getActions returns empty array for unknown workspace", () => {
+      const actions = registry.getActions("nonexistent");
+      expect(actions).toEqual([]);
+    });
+
+    it("getActions returns empty array before hydration", () => {
+      const actions = registry.getActions("lims");
+      expect(actions).toEqual([]);
+    });
+
+    it("clears actions when backend returns empty actions array", () => {
+      // First hydration with actions.
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [{ id: "created", label: "Created", core: true }],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+      expect(registry.getActions("lims")).toHaveLength(1);
+
+      // Second hydration with empty actions — must clear stale data.
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      const actions = registry.getActions("lims");
+      expect(actions).toEqual([]);
+    });
+
+    it("overwrites actions on subsequent hydration calls (last write wins)", () => {
+      // First hydration
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [{ id: "created", label: "Created", core: true }],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      expect(registry.getActions("lims")).toHaveLength(1);
+
+      // Second hydration with different actions
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [
+              { id: "created", label: "Created", core: true },
+              { id: "lims.sample.registered", label: "Sample Registered", core: false },
+            ],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      expect(registry.getActions("lims")).toHaveLength(2);
+    });
+  });
+
+  // ── loadFromBackend ──────────────────────────────────────────────────
+
+  describe("loadFromBackend", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("fetches and hydrates the registry from the API", async () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [
+            { id: "created", label: "Created", core: true },
+            { id: "edited", label: "Edited", core: true },
+            { id: "deleted", label: "Deleted", core: true },
+          ],
+        },
+      };
+
+      // Mock fetch to return the payload.
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(payload),
+      });
+
+      try {
+        const manifests = new Map([["lims", makeManifest()]]);
+        await ModRegistry.loadFromBackend(manifests);
+
+        // Workspaces are hydrated.
+        expect(registry.getWorkspaces().has("lims")).toBe(true);
+
+        // Actions are hydrated.
+        const actions = registry.getActions("lims");
+        expect(actions).toHaveLength(3);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles non-ok response gracefully", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      try {
+        const manifests = new Map([["lims", makeManifest()]]);
+        await ModRegistry.loadFromBackend(manifests);
+
+        // Workspaces are NOT hydrated on failure.
+        expect(registry.getWorkspaces().size).toBe(0);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Failed to fetch /api/mod-registry/"),
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("handles network error gracefully", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+
+      try {
+        const manifests = new Map([["lims", makeManifest()]]);
+        await ModRegistry.loadFromBackend(manifests);
+
+        // Workspaces are NOT hydrated on error.
+        expect(registry.getWorkspaces().size).toBe(0);
+        expect(warnSpy).toHaveBeenCalledWith(
+          "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
+          expect.any(Error),
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+        warnSpy.mockRestore();
+      }
     });
   });
 });

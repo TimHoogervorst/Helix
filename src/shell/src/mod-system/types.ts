@@ -142,6 +142,13 @@ export interface CurrentWorkspace {
 
 // ── Slot System — Forward-Declaring Interfaces ────────────────────────────────
 
+/** Single action catalog entry hydrated from the backend. */
+export interface ActionCatalogEntry {
+  id: string;
+  label: string;
+  core: boolean;
+}
+
 /**
  * Flat bag of metadata available to every block and button in a workspace slot.
  */
@@ -154,6 +161,8 @@ export interface SlotContext {
   displayId?: string;
   /** Arbitrary entry-specific data passed from workspace to sidebar blocks. */
   entry?: unknown;
+  /** Action catalog for this workspace, hydrated from ``GET /api/mod-registry/``. */
+  actions?: ActionCatalogEntry[];
 }
 
 /**
@@ -185,6 +194,19 @@ export interface BlockComponentProps {
   bus?: WorkspaceBus;
   /** Binding-level overrides merged from slot defaults and per-binding config. */
   overrides: Record<string, unknown>;
+  /**
+   * Send an action to the backend via ``POST /api/actions/``.
+   *
+   * The workspace context (``workspaceId``) is included automatically.
+   * Blocks call this at runtime based on user interactions — they do not
+   * declare static ``messages`` in their registration.
+   */
+  sendAction: (
+    actionType: string,
+    targetType: string,
+    targetId: number,
+    metadata?: Record<string, unknown>,
+  ) => Promise<void>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

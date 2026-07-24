@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RendererProps, BlockBinding } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
+import { useSendAction } from "./useSendAction";
 
 /**
  * Renders blocks as tabs in a tabbed interface.
@@ -92,9 +93,16 @@ function TabContent({
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
+  const sendAction = useSendAction(context.workspaceId);
+
   return (
     <div className="p-4" style={{ display: hidden ? "none" : undefined }}>
-      <Component context={context} instance={instance} overrides={binding.overrides} />
+      <Component
+        context={context}
+        instance={instance}
+        overrides={binding.overrides}
+        sendAction={sendAction}
+      />
     </div>
   );
 }

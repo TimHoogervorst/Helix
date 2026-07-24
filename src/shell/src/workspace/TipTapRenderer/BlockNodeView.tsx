@@ -19,6 +19,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
+import { useSendAction } from "../useSendAction";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,8 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const BlockComponent = binding.component;
 
+  const sendAction = useSendAction(context.workspaceId);
+
   // Per-block centering: max-w-3xl mx-auto by default.
   // When overrides.stretch is true, the block reads its runtime stretchMode
   // from attrs to decide layout:
@@ -219,7 +222,12 @@ export function BlockNodeView(props: BlockNodeViewProps) {
       data-block-type={binding.id}
       contentEditable={false}
     >
-      <BlockComponent context={context} instance={instanceRef.current} overrides={binding.overrides} />
+      <BlockComponent
+        context={context}
+        instance={instanceRef.current}
+        overrides={binding.overrides}
+        sendAction={sendAction}
+      />
     </NodeViewWrapper>
   );
 }

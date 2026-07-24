@@ -23,6 +23,7 @@ export type {
   BlockComponentProps,
   BlockInstance,
   SlotContext,
+  ActionCatalogEntry,
   RendererProps,
   BaseBinding,
   BlockBinding,

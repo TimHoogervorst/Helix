@@ -70,7 +70,7 @@ export function ModLoader({ children }: ModLoaderProps) {
     // Phase 2: Async hydration — fetch backend mod-registry data.
     // Non-blocking; errors are caught and logged. Workspace icons may
     // briefly show the Box fallback until hydration completes.
-    void hydrateFromApi(modModules, jsonManifestModules);
+    void hydrateRegistryFromApi(modModules, jsonManifestModules);
   }, []);
 
   // When mods exist, block children until sync boot completes.  This
@@ -162,19 +162,20 @@ function bootModSystem(
 // ── Async hydration ────────────────────────────────────────────────────
 
 /**
- * Fetch ``GET /api/mod-registry/`` and hydrate workspace data into the
- * registry.
+ * Fetch ``GET /api/mod-registry/`` and hydrate workspace + action catalog
+ * data into the registry.
+ *
+ * Delegates to {@link ModRegistry.loadFromBackend} so the registry is the
+ * single owner of its hydration strategy.
  *
  * Runs asynchronously after synchronous boot so it doesn't block
  * rendering.  Errors are non-fatal — the app boots without hydrated
  * workspaces (sidebar falls back to the Box icon).
  */
-async function hydrateFromApi(
+async function hydrateRegistryFromApi(
   modules: Record<string, ModModule>,
   jsonModules: Record<string, { default: Record<string, unknown> }>,
 ): Promise<void> {
-  const registry = ModRegistry.getInstance();
-
   const jsonManifestMap = buildJsonManifestMap(jsonModules);
   const mods = collectMods(modules, jsonManifestMap);
 
@@ -182,24 +183,7 @@ async function hydrateFromApi(
 
   const manifests = new Map(mods.map((m) => [m.meta.id, m.meta]));
 
-  try {
-    const response = await fetch("/api/mod-registry/");
-    if (response.ok) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const payload = (await response.json()) as any;
-      registry.hydrateFromBackend(payload, manifests);
-    } else {
-      console.warn(
-        `Failed to fetch /api/mod-registry/ (status ${response.status}). ` +
-          `Workspaces won't be hydrated from backend.`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
-      err,
-    );
-  }
+  await ModRegistry.loadFromBackend(manifests);
 }
 
 // ── JSON manifest helpers ───────────────────────────────────────────────

@@ -12,6 +12,7 @@ import type {
   ButtonBinding,
   SchemaColumnDef,
   ModManifest,
+  ActionCatalogEntry,
 } from "./types";
 
 /** Schema type entry from the backend mod-registry payload. */
@@ -69,6 +70,9 @@ export class ModRegistry {
   private buttons = new Map<string, ButtonRegistration>();
   /** Bindings keyed by slotId. Each slot can have multiple bindings. */
   private bindings = new Map<string, SlotBinding[]>();
+
+  /** Action catalogs keyed by workspace ID, hydrated from the backend. */
+  private actions = new Map<string, ActionCatalogEntry[]>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -153,6 +157,20 @@ export class ModRegistry {
             }
           : undefined,
       });
+
+      // Hydrate action catalog for this workspace.
+      // Always replace — an empty actions array clears the catalog so
+      // stale entries from a previous hydration call are not retained.
+      if (entry.actions) {
+        this.actions.set(
+          workspaceId,
+          entry.actions.map((a) => ({
+            id: a.id,
+            label: a.label,
+            core: a.core,
+          })),
+        );
+      }
     }
   }
 
@@ -437,5 +455,55 @@ export class ModRegistry {
   /** Returns a read-only view of all slot bindings, keyed by slotId. */
   getBindings(): ReadonlyMap<string, SlotBinding[]> {
     return this.bindings;
+  }
+
+  /**
+   * Return the action catalog for a workspace, hydrated from the backend.
+   *
+   * Returns an empty array when no actions have been hydrated for the
+   * given workspace (e.g. before hydration completes or when the backend
+   * has no action model registered for this workspace).
+   */
+  getActions(workspaceId: string): ActionCatalogEntry[] {
+    return this.actions.get(workspaceId) ?? [];
+  }
+
+  // ── Backend hydration ─────────────────────────────────────────────────
+
+  /**
+   * Fetch ``GET /api/mod-registry/`` and hydrate the registry.
+   *
+   * Called by ModLoader during async boot.  In production this replaces
+   * the inline fetch logic in ModLoader so the registry is the single
+   * owner of its hydration strategy.
+   *
+   * @param manifests - Mod manifests already collected from JSON globs.
+   *   Used to supply ``displayName`` for each workspace.
+   * @returns A promise that resolves when hydration completes.  Errors
+   *   are caught and logged — hydration failure does not block boot.
+   */
+  static async loadFromBackend(
+    manifests: ReadonlyMap<string, ModManifest>,
+  ): Promise<void> {
+    const registry = ModRegistry.getInstance();
+
+    try {
+      const response = await fetch("/api/mod-registry/");
+      if (response.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const payload = (await response.json()) as any;
+        registry.hydrateFromBackend(payload, manifests);
+      } else {
+        console.warn(
+          `Failed to fetch /api/mod-registry/ (status ${response.status}). ` +
+            `Workspaces won't be hydrated from backend.`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
+        err,
+      );
+    }
   }
 }

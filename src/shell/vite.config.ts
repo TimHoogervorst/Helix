@@ -10,35 +10,6 @@ const nodeModules = path.resolve(repoRoot, "node_modules");
 const shellRequire = createRequire(import.meta.url);
 
 /**
- * Packages that Vite pre-bundles internally.  We must let Vite handle
- * resolution for these so the optimized ESM builds are used (otherwise
- * named exports like ``Fragment`` from ``react/jsx-dev-runtime`` are
- * missing, causing white-screen crashes on pages that use JSX fragments).
- */
-const VITE_PREBUNDLED = new Set([
-  "react",
-  "react-dom",
-  "react/jsx-runtime",
-  "react/jsx-dev-runtime",
-  // prosemirror packages must be handled by Vite's native pre-bundling,
-  // NOT by the modResolutionPlugin.  The plugin resolves to CJS paths
-  // while Vite resolves to ESM — two copies break instanceof checks in
-  // DecorationGroup.from(), causing the localsInner crash (issue #329).
-  "prosemirror-view",
-  "prosemirror-state",
-  "prosemirror-model",
-  "prosemirror-transform",
-  "prosemirror-commands",
-  "prosemirror-dropcursor",
-  "prosemirror-gapcursor",
-  "prosemirror-history",
-  "prosemirror-inputrules",
-  "prosemirror-keymap",
-  "prosemirror-changeset",
-  "prosemirror-tables",
-]);
-
-/**
  * Rewrite ``use-sync-external-store/shim/*`` imports in @tiptap/react
  * to load local ESM shims.  The upstream CJS files use ``module.exports =
  * require(...)`` which Vite's runtime CJS interop cannot extract named
@@ -96,8 +67,6 @@ function modResolutionPlugin() {
       if (!normalized.includes("/mods/")) return null;
       // Only redirect bare specifiers, not relative imports.
       if (id.startsWith(".") || id.startsWith("/") || id.startsWith("\0")) return null;
-      // Let Vite handle pre-bundled packages so optimized ESM is used.
-      if (VITE_PREBUNDLED.has(id)) return null;
       try {
         const resolved = shellRequire.resolve(id, {
           paths: [nodeModules],
@@ -120,8 +89,11 @@ function modResolutionPlugin() {
 export default defineConfig({
   plugins: [tailwindcss(), react(), useSyncExternalStorePlugin(), modResolutionPlugin()],
   resolve: {
-    // Prevent duplicate React instances when modules are resolved via
-    // different paths (e.g. shell vs mod directory resolution).
+    // Prevent duplicate instances when modules are resolved via
+    // different paths.  React dedupe avoids double React trees;
+    // prosemirror dedupe prevents multiple copies of DecorationSet /
+    // EditorState / etc. that would break instanceof checks and cause
+    // the localsInner crash (issue #329).
     dedupe: [
       "react",
       "react-dom",
@@ -130,76 +102,6 @@ export default defineConfig({
       "prosemirror-model",
       "prosemirror-transform",
     ],
-    // Force all prosemirror imports to a single path.  Without this,
-    // Vite's pre-bundler inlines prosemirror code into each tiptap
-    // dependency chunk (@tiptap/pm, @tiptap/suggestion, etc.), creating
-    // multiple copies of DecorationSet.  instanceof checks fail across
-    // copies, corrupting DecorationGroup.from() members and causing the
-    // localsInner crash (issue #329).
-    alias: {
-      "prosemirror-view": path.resolve(nodeModules, "prosemirror-view"),
-      "prosemirror-state": path.resolve(nodeModules, "prosemirror-state"),
-      "prosemirror-model": path.resolve(nodeModules, "prosemirror-model"),
-      "prosemirror-transform": path.resolve(nodeModules, "prosemirror-transform"),
-      "prosemirror-commands": path.resolve(nodeModules, "prosemirror-commands"),
-      "prosemirror-dropcursor": path.resolve(nodeModules, "prosemirror-dropcursor"),
-      "prosemirror-gapcursor": path.resolve(nodeModules, "prosemirror-gapcursor"),
-      "prosemirror-history": path.resolve(nodeModules, "prosemirror-history"),
-      "prosemirror-inputrules": path.resolve(nodeModules, "prosemirror-inputrules"),
-      "prosemirror-keymap": path.resolve(nodeModules, "prosemirror-keymap"),
-      "prosemirror-changeset": path.resolve(nodeModules, "prosemirror-changeset"),
-      "prosemirror-tables": path.resolve(nodeModules, "prosemirror-tables"),
-      // React 19 bundles useSyncExternalStore natively.  @tiptap/react
-      // still imports it from the CJS shim (for React 16-18 compat).
-      // Aliasing to local ESM shims avoids Vite's CJS interop failures
-      // when node_modules is served from outside the project root via /@fs/.
-      "use-sync-external-store/shim/index.js":
-        path.resolve(import.meta.dirname, "src/shims/use-sync-external-store-shim.js"),
-      "use-sync-external-store/shim":
-        path.resolve(import.meta.dirname, "src/shims/use-sync-external-store-shim.js"),
-      "use-sync-external-store/shim/with-selector.js":
-        path.resolve(import.meta.dirname, "src/shims/use-sync-external-store-with-selector.js"),
-    },
-  },
-  optimizeDeps: {
-    // Prevent Vite from pre-bundling prosemirror & tiptap packages.
-    // When pre-bundled, esbuild inlines prosemirror code into each tiptap
-    // chunk (@tiptap/pm, @tiptap/suggestion, etc.), creating separate
-    // copies of DecorationSet.  instanceof checks fail across copies,
-    // corrupting DecorationGroup.from() members and causing the
-    // localsInner crash (issue #329).
-    // Excluding them forces native ESM import chains so all re-exports
-    // resolve to a single prosemirror-view module instance.
-    exclude: [
-      "prosemirror-view",
-      "prosemirror-state",
-      "prosemirror-model",
-      "prosemirror-transform",
-      "prosemirror-commands",
-      "prosemirror-dropcursor",
-      "prosemirror-gapcursor",
-      "prosemirror-history",
-      "prosemirror-inputrules",
-      "prosemirror-keymap",
-      "prosemirror-changeset",
-      "prosemirror-tables",
-      "@tiptap/pm",
-      "@tiptap/core",
-      "@tiptap/suggestion",
-      "@tiptap/react",
-      "@tiptap/starter-kit",
-      "@tiptap/extension-placeholder",
-      "@tiptap/extension-table",
-      "@tiptap/extension-bubble-menu",
-      "@tiptap/extension-mention",
-    ],
-    // Ensure CJS packages imported by excluded tiptap/react are
-    // pre-bundled to ESM.  @tiptap/react depends on
-    // ``use-sync-external-store/shim`` which is pure CJS
-    // (``module.exports = require(...)``).  Without pre-bundling,
-    // Vite's runtime CJS interop cannot extract named exports,
-    // causing "does not provide an export named useSyncExternalStore".
-    include: ["use-sync-external-store"],
   },
   server: {
     host: true,

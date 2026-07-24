@@ -106,6 +106,8 @@ describe("Issue #329: / crash with production extension set", () => {
   it("insertContent: typing /Table does not crash", () => {
     const editor = createProductionEditor();
     expect(() => editor.commands.insertContent("/Table")).not.toThrow();
+    const text = editor.getText();
+    expect(text).toContain("/Table");
     editor.destroy();
   });
 
@@ -260,8 +262,12 @@ describe("Issue #329: / crash with production extension set", () => {
       }
     }).not.toThrow();
 
-    const text = editor.getText();
-    expect(text).toContain("/Table");
+    // DOM-level InputEvents don't update ProseMirror state (ProseMirror
+    // uses MutationObserver + beforeinput for DOM reconciliation).  They
+    // still exercise the decoration collision path (Placeholder removal +
+    // suggestion decoration creation) that originally caused issue #329.
+    // Text-content assertions for the full extension set live in the
+    // insertContent tests above.
     editor.destroy();
   });
 });

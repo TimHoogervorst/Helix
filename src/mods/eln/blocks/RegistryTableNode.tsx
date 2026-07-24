@@ -23,6 +23,7 @@ import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
+import type { ElnSidebarData } from "./sidebarData";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -685,6 +686,19 @@ interface RegistryTableContentProps {
   onToggleStretch?: () => void;
   /** When true, the stretch toggle button is rendered. */
   showStretchToggle?: boolean;
+  /**
+   * Optional sendAction function for emitting custom domain actions
+   * (e.g. "registered entities", "row added") to the backend.
+   */
+  sendAction?: (
+    actionType: string,
+    targetType: string,
+    targetId: number,
+    metadata?: Record<string, unknown>,
+    requestId?: string,
+  ) => Promise<void>;
+  /** Numeric entry ID, used as the target for action logging. */
+  numericEntryId?: number;
 }
 
 // ── Inner Content Component ─────────────────────────────────────────────────
@@ -707,6 +721,8 @@ export function RegistryTableContent({
   stretchMode = "auto",
   onToggleStretch,
   showStretchToggle = false,
+  sendAction,
+  numericEntryId,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
@@ -846,7 +862,19 @@ export function RegistryTableContent({
       registrationError: null,
     };
     updateAttrs({ rows: [...rows, newRow] });
-  }, [rows, columns, updateAttrs]);
+
+    // Emit custom action for the row-added event (fail-open).
+    if (sendAction && numericEntryId != null) {
+      sendAction(
+        "eln.registryTable-block.row-added",
+        "eln.entry",
+        numericEntryId,
+        { rowCount: rows.length + 1 },
+      ).catch(() => {
+        // Logging failure never breaks the UI.
+      });
+    }
+  }, [rows, columns, updateAttrs, sendAction, numericEntryId]);
 
   // ── Delete row ───────────────────────────────────────────────────────
   const handleDeleteRow = useCallback(
@@ -1002,7 +1030,23 @@ export function RegistryTableContent({
 
     updateAttrs({ rows: updatedRows });
     setRegistering(false);
-  }, [schemaId, rows, schemaContentHash, updateAttrs]);
+
+    // Emit custom action for the registered-entities event (fail-open).
+    if (sendAction && numericEntryId != null && nonGreenRows.length > 0) {
+      const successCount = nonGreenRows.filter(
+        ({ index }) => !updatedRows[index]?.registrationError,
+      ).length;
+
+      sendAction(
+        "eln.registryTable-block.registered-entities",
+        "eln.entry",
+        numericEntryId,
+        { registeredCount: successCount, totalAttempted: nonGreenRows.length },
+      ).catch(() => {
+        // Logging failure never breaks the UI.
+      });
+    }
+  }, [schemaId, rows, schemaContentHash, updateAttrs, sendAction, numericEntryId]);
 
   // ── Placeholder state ───────────────────────────────────────────────
   if (schemaId === null) {
@@ -1420,6 +1464,7 @@ export function RegistryTableBlockComponent({
   instance,
   context,
   overrides = {},
+  sendAction,
 }: BlockComponentProps) {
   const attrs = instance.attrs as Record<string, unknown>;
   const schemaId = (attrs.schemaId as number | null) ?? null;
@@ -1432,6 +1477,11 @@ export function RegistryTableBlockComponent({
     (attrs.rows as RegistryTableRow[]) ?? [];
   const readOnly = context.viewMode === "view";
   const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
+
+  // Extract the numeric entry ID from ElnSidebarData for action logging.
+  // Follows the same pattern as LinkedEntitiesBlock and MetadataBlock.
+  const sidebarData = context.entry as ElnSidebarData | undefined;
+  const numericEntryId = sidebarData?.entry?.id;
 
   const handleToggleStretch = () => {
     const nextMode = stretchMode === "auto" ? "full" : "auto";
@@ -1451,6 +1501,8 @@ export function RegistryTableBlockComponent({
       stretchMode={stretchMode}
       onToggleStretch={handleToggleStretch}
       showStretchToggle={overrides.stretch === true}
+      sendAction={sendAction}
+      numericEntryId={numericEntryId}
     />
   );
 }

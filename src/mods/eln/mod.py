@@ -55,6 +55,26 @@ def register():
         target_model="mods.eln.models.NotebookEntry",
     )
 
+    # ── Registry-table custom actions ────────────────────────────────────
+    # Actions triggered by user interactions in the Registry Table block
+    # (register entities, add new row).  Both map to the "edited" core
+    # verb because they modify the entry's registry data, not create or
+    # delete the entry itself.
+    registry.register_custom_action(
+        mod_id="eln",
+        action_id="eln.registryTable-block.registered-entities",
+        label="Registered Entities",
+        core="edited",
+        target_model="mods.eln.models.NotebookEntry",
+    )
+    registry.register_custom_action(
+        mod_id="eln",
+        action_id="eln.registryTable-block.row-added",
+        label="Row Added",
+        core="edited",
+        target_model="mods.eln.models.NotebookEntry",
+    )
+
     registry.register_schema_type(
         display_name="ELN Entry",
         workspace_id="eln",

@@ -5,29 +5,44 @@ The signal (in ``eln/cascade.py``) fires on ``post_save`` for
 NotebookEntry and updates the status of all linked Entities to match.
 """
 from core.tests.base import BaseServiceTestCase
+from helix_core.models import SchemaType, Schema
 from mods.eln.models import NotebookEntry
-from mods.lims.models import EntityType, Entity
+from mods.lims.models import Entity
 
 
 class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
     """Tests for cascade_entry_status_to_entities signal handler."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.lims_schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+        cls.eln_schema_type = SchemaType.objects.create(
+            display_name="ELN Entry", workspace_id="eln", model="mods.eln.models.NotebookEntry",
+        )
+
     def setUp(self):
         super().setUp()
+        self.eln_schema = Schema.objects.create(
+            name="Default", prefix="E", schema_type=self.eln_schema_type,
+        )
         self.entry = NotebookEntry.objects.create(
-            title="Test Entry",
+            name="Test Entry",
             folder=self.folder,
             author=self.user,
+            schema=self.eln_schema,
         )
-        self.entity_type = EntityType.objects.create(
-            name="Blood", prefix="BLOOD",
+        self.schema = Schema.objects.create(
+            name="Blood", prefix="BLOOD", schema_type=self.lims_schema_type,
         )
         self.entity = Entity.objects.create(
             name="Sample A",
-            entity_type=self.entity_type,
+            schema=self.schema,
             source_entry=self.entry,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
 
     # ── Cascade on status change ───────────────────────────────────────
@@ -44,10 +59,10 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         """All entities linked to the same entry get their status updated."""
         entity2 = Entity.objects.create(
             name="Sample B",
-            entity_type=self.entity_type,
+            schema=self.schema,
             source_entry=self.entry,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
 
         self.entry.status = "finished"
@@ -70,17 +85,18 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         entry's status at creation time does not force entity status.
         """
         entry2 = NotebookEntry.objects.create(
-            title="Another Entry",
+            name="Another Entry",
             folder=self.folder,
             author=self.user,
+            schema=self.eln_schema,
             status="finished",
         )
         entity2 = Entity.objects.create(
             name="Sample B",
-            entity_type=self.entity_type,
+            schema=self.schema,
             source_entry=entry2,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
         self.assertEqual(entity2.status, "in_progress")
 
@@ -90,10 +106,10 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         """Entities without source_entry are not updated."""
         orphan = Entity.objects.create(
             name="Orphan",
-            entity_type=self.entity_type,
+            schema=self.schema,
             source_entry=None,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
 
         self.entry.status = "finished"
@@ -105,16 +121,17 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
     def test_entities_linked_to_other_entries_unaffected(self):
         """Entities linked to a different entry keep their status."""
         other_entry = NotebookEntry.objects.create(
-            title="Other Entry",
+            name="Other Entry",
             folder=self.folder,
             author=self.user,
+            schema=self.eln_schema,
         )
         other_entity = Entity.objects.create(
             name="Other Sample",
-            entity_type=self.entity_type,
+            schema=self.schema,
             source_entry=other_entry,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
 
         self.entry.status = "finished"
@@ -142,8 +159,8 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
 
         # Save the entry with only a title change.  The cascade syncs
         # entity status back to match the entry.
-        self.entry.title = "Updated Title"
-        self.entry.save(update_fields=["title"])
+        self.entry.name = "Updated Title"
+        self.entry.save(update_fields=["name"])
 
         self.entity.refresh_from_db()
         self.assertEqual(self.entity.status, "finished")

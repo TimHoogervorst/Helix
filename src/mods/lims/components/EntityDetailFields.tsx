@@ -23,7 +23,7 @@ function EntityDetailFields({
         <div className="detail-field">
           <span className="detail-label">Type</span>
           <span>
-            {entity.entity_type_name} ({entity.entity_type_prefix})
+            {entity.schema_name} ({entity.schema_prefix})
           </span>
         </div>
         <div className="detail-field">
@@ -32,7 +32,7 @@ function EntityDetailFields({
         </div>
         <div className="detail-field">
           <span className="detail-label">By</span>
-          <span>{entity.created_by_username || "—"}</span>
+          <span>{entity.author_username || "—"}</span>
         </div>
         {entity.source_entry_display_id && (
           <div className="detail-field">

@@ -202,7 +202,7 @@ Every mod declares what it provides by calling `register*()` functions in its `i
 | `registerButton()` | A fire-only button rendered in toolbar slots | Slot |
 | `declareSlot()` | A named placeholder in a workspace that owns how bound content is rendered | Slot |
 | `registerIntoSlot()` | Binds a block or button into a declared slot, with optional per-binding overrides | Slot |
-| `registerSettingsSection()` | A panel in the Settings shell (e.g. LIMS entity schemas) | App |
+| `registerSettingsSection()` | A panel in the Settings shell (e.g. entity schemas) | App |
 | `registerRoute()` | A standalone route (e.g. `/settings`, workspace pages like `/eln/:displayId`) | App |
 | `registerPublicRoute()` | A route outside the Layout shell — no sidebar, no app chrome (e.g. `/login`) | App |
 | `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) | App |

@@ -10,11 +10,7 @@ class LimsConfig(AppConfig):
 
     def ready(self):
         from mods.lims.models import Action
-        from mods.lims.services import (
-            cascade_entry_status,
-            get_entity_prefixes,
-            get_workspace_map,
-        )
+        from mods.lims.services import cascade_entry_status
 
         registry.register_action_model("lims", Action)
         registry.register_urls(
@@ -23,9 +19,11 @@ class LimsConfig(AppConfig):
         registry.register_service(
             "lims.cascadeEntryStatus", cascade_entry_status
         )
-        registry.register_service(
-            "lims.getEntityPrefixes", get_entity_prefixes
-        )
-        registry.register_service(
-            "lims.getWorkspaceMap", get_workspace_map
+
+        # Register LIMS schema type identity.
+        registry.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            prefix="BLOOD",
         )

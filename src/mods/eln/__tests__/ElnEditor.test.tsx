@@ -76,7 +76,7 @@ vi.mock("../hooks/useSaveQueue", () => ({
     enqueue: vi.fn().mockResolvedValue({
       id: 1,
       display_id: "E1",
-      title: "Saved Entry",
+      name: "Saved Entry",
       content: { type: "doc", content: [{ type: "paragraph" }] },
       folder: null,
       folder_name: "",
@@ -127,7 +127,7 @@ function makeEntry(overrides?: Record<string, unknown>) {
   return {
     id: 1,
     display_id: "E1",
-    title: "Test Entry",
+    name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph" }] },
     folder: null,
     folder_name: "",
@@ -202,7 +202,7 @@ describe("ElnEditor integration", () => {
   // ── Always-editable: title ─────────────────────────────────────────────────
 
   it("shows 'Untitled' as fallback title", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "" }));
+    mockGet.mockResolvedValue(makeEntry({ name: "" }));
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
       expect(screen.getByText("Untitled")).toBeDefined();
@@ -369,7 +369,7 @@ describe("ElnEditor integration", () => {
   // ── New entry mode (?new=true) ────────────────────────────────────────────
 
   it("renders title as contentEditable H1 for ?new=true entries", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "Untitled" }));
+    mockGet.mockResolvedValue(makeEntry({ name: "Untitled" }));
     renderEditor({
       entryId: "E-NEW",
       initialEntries: ["/eln/E-NEW?new=true"],

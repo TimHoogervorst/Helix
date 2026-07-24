@@ -10,19 +10,12 @@ class MentionsConfig(AppConfig):
 
         from core.mentions.prefix_resolver import invalidate_prefix_cache
 
-        # Connect prefix-cache invalidation signals for LIMS models.
-        # These imports are guarded because the LIMS mod may not be
-        # installed in all environments.
-        try:
-            from mods.lims.models import EntityType, RegisteredEntityType
-        except ImportError:
-            pass
-        else:
-            post_save.connect(invalidate_prefix_cache, sender=EntityType)
-            post_delete.connect(invalidate_prefix_cache, sender=EntityType)
-            post_save.connect(
-                invalidate_prefix_cache, sender=RegisteredEntityType
-            )
-            post_delete.connect(
-                invalidate_prefix_cache, sender=RegisteredEntityType
-            )
+        # Connect prefix-cache invalidation signals for Schema and
+        # SchemaType — the shared models that replaced the legacy
+        # EntityType / RegisteredEntityType models.
+        from helix_core.models import Schema, SchemaType
+
+        post_save.connect(invalidate_prefix_cache, sender=Schema)
+        post_delete.connect(invalidate_prefix_cache, sender=Schema)
+        post_save.connect(invalidate_prefix_cache, sender=SchemaType)
+        post_delete.connect(invalidate_prefix_cache, sender=SchemaType)

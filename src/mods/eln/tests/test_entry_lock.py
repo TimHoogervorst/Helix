@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from core.tests.base import BaseTestCase
 from mods.eln.models import NotebookEntry, EntryLock
+from mods.eln.tests.factories import get_or_create_default_eln_schema
 
 from .factories import TEXT_DOC, ALT_DOC, _CreateEntryMixin
 
@@ -199,7 +200,7 @@ class LockEnforcementTests(_CreateEntryMixin, BaseTestCase):
     def _put_content(self, doc=None):
         return self.client.put(
             self.entry_url,
-            {"title": "Updated", "content": doc or ALT_DOC, "folder": self.folder.id},
+            {"name": "Updated", "content": doc or ALT_DOC, "folder": self.folder.id},
             format="json",
         )
 
@@ -245,7 +246,7 @@ class LockEnforcementTests(_CreateEntryMixin, BaseTestCase):
         self.client.force_authenticate(user=other)
         response = self.client.patch(
             self.entry_url,
-            {"title": "Sneaky edit"},
+            {"name": "Sneaky edit"},
             format="json",
         )
         self.assertEqual(response.status_code, 423)
@@ -259,13 +260,15 @@ class StaleLockTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
 
         # Create entry and lock directly via ORM.
         self.entry = NotebookEntry.objects.create(
-            title="Test",
+            name="Test",
             content=TEXT_DOC,
             author=self.user,
+            schema=self.schema,
         )
         self.lock = EntryLock.objects.create(
             entry=self.entry,

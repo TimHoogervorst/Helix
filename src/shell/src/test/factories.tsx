@@ -19,8 +19,9 @@ import { vi } from "vitest";
 import type {
   EntityListItem,
   PaginatedResponse,
-  EntityType,
   ColumnDef,
+  Schema,
+  SchemaTypeItem,
 } from "../../../mods/lims/types";
 import type {
   LibraryEntryItem,
@@ -61,16 +62,17 @@ const _entityListItemDefaults: EntityListItem = {
   id: 1,
   display_id: "BLOOD1",
   name: "Sample A",
-  entity_type: 1,
-  entity_type_name: "Blood Sample",
-  entity_type_prefix: "BLOOD",
-  entity_type_icon: "🩸",
+  schema: 1,
+  schema_name: "Blood Sample",
+  schema_prefix: "BLOOD",
   properties: {},
   source_entry: null,
   source_entry_display_id: null,
   folder: null,
-  created_by: null,
-  created_by_username: null,
+  author: null,
+  author_username: null,
+  status: "in_progress",
+  updated_at: "2025-01-01T00:00:00Z",
   created_at: "2025-01-01T00:00:00Z",
 };
 
@@ -143,25 +145,6 @@ export function makeLibraryContents(
   };
 }
 
-// ── EntityType / Settings ───────────────────────────────────────────────────
-
-const _entityTypeDefaults: EntityType = {
-  id: 1,
-  name: "Blood Sample",
-  prefix: "BLOOD",
-  icon: "🩸",
-  is_active: true,
-  columns: [],
-  content_hash: "",
-};
-
-/** A single EntityType. */
-export function makeEntityType(
-  overrides?: Partial<EntityType>,
-): EntityType {
-  return { ..._entityTypeDefaults, ...overrides };
-}
-
 const _columnDefDefaults: ColumnDef = {
   name: "volume",
   type: "Number",
@@ -172,6 +155,42 @@ export function makeColumnDef(
   overrides?: Partial<ColumnDef>,
 ): ColumnDef {
   return { ..._columnDefDefaults, ...overrides };
+}
+
+// ── Schema (new shared model) ──────────────────────────────────────────────
+
+const _schemaDefaults: Schema = {
+  id: 1,
+  name: "Blood Sample",
+  prefix: "BLOOD",
+  schema_type: 1,
+  schema_type_display: "Entity",
+  is_default: false,
+  is_active: true,
+  columns: [],
+  content_hash: "",
+};
+
+/** A single Schema row. */
+export function makeSchema(
+  overrides?: Partial<Schema>,
+): Schema {
+  return { ..._schemaDefaults, ...overrides };
+}
+
+const _schemaTypeDefaults: SchemaTypeItem = {
+  id: 1,
+  display_name: "Entity",
+  workspace_id: "lims",
+  is_active: true,
+  schema_type_id: "lims.entity",
+};
+
+/** A single SchemaType item. */
+export function makeSchemaType(
+  overrides?: Partial<SchemaTypeItem>,
+): SchemaTypeItem {
+  return { ..._schemaTypeDefaults, ...overrides };
 }
 
 // ── TipTap editor (for extension tests) ─────────────────────────────────────

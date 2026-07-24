@@ -9,7 +9,6 @@ import {
   declareSlot,
   registerButton,
   registerIntoSlot,
-  ModRegistry,
 } from "../../shell/src/mod-system";
 import type { ModManifest } from "../../shell/src/mod-system/types";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
@@ -34,7 +33,17 @@ export const meta: ModManifest = {
 
 export function register() {
   // ── Workspace: ELN notebook workspace ───────────────────────────────────
-  registerWorkspace({ id: "eln", displayName: "ELN", icon: BookOpen });
+  // schemaType carries entity type identity so no separate service call is needed.
+  registerWorkspace({
+    id: "eln",
+    displayName: "ELN",
+    icon: BookOpen,
+    schemaType: {
+      id: "eln.entry",
+      displayName: "ELN Entry",
+      defaultPrefix: "E",
+    },
+  });
 
   // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
   declareSlot({
@@ -45,21 +54,6 @@ export function register() {
     order: 0,
     defaults: {},
   });
-
-  // ── Entity type: register ELN entries with the LIMS registry ────────────
-  // Depends on "lims" to ensure lims.registerEntityType service is available.
-  ModRegistry.getInstance()
-    .call("lims.registerEntityType", {
-      prefix: "E",
-      entityType: "eln_entry",
-      workspaceId: "eln",
-      displayName: "Entry",
-    })
-    .catch((err: Error) => {
-      console.warn(
-        `[eln] Failed to register entity type with LIMS: ${err.message}`,
-      );
-    });
 
   // ── Standalone route: entry detail page (full workspace) ──────────────
   registerRoute({

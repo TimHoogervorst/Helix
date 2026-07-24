@@ -215,7 +215,7 @@ export function useEntryEditor({
       return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
     }
     const { description: d, body } = splitFirstParagraph(saved.content);
-    return { title: saved.title, description: d, content: body, status: saved.status || "in_progress" };
+    return { title: saved.name, description: d, content: body, status: saved.status || "in_progress" };
   }, [crud.entry]);
 
   const { isDirty } = useDirtyTracking({

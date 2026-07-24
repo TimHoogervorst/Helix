@@ -90,7 +90,7 @@ function makeEntry(overrides?: Partial<Record<string, unknown>>) {
   return {
     id: 1,
     display_id: "E1",
-    title: "Test Entry",
+    name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] },
     folder: null,
     folder_name: "",
@@ -152,7 +152,7 @@ describe("useEntryEditor", () => {
   // ── Fetch entry ────────────────────────────────────────────────────────────
 
   it("fetches an existing entry and transitions to view", async () => {
-    const entry = makeEntry({ title: "Loaded Entry" });
+    const entry = makeEntry({ name: "Loaded Entry" });
     mockGet.mockResolvedValue(entry);
     const contentRef = { current: EMPTY_DOC };
 
@@ -264,7 +264,7 @@ describe("useEntryEditor", () => {
   // ── Dirty tracking ─────────────────────────────────────────────────────────
 
   it("isDirty is true when title differs from initialTitle", async () => {
-    const entry = makeEntry({ title: "Original" });
+    const entry = makeEntry({ name: "Original" });
     mockGet.mockResolvedValue(entry);
     const contentRef = { current: EMPTY_DOC };
 
@@ -300,7 +300,7 @@ describe("useEntryEditor", () => {
   });
 
   it("isDirty is false when title and content match initial", async () => {
-    const entry = makeEntry({ title: "Same" });
+    const entry = makeEntry({ name: "Same" });
     mockGet.mockResolvedValue(entry);
     // The contentRef reflects the editor body (first paragraph extracted as description)
     const body = { type: "doc", content: [] };
@@ -341,7 +341,7 @@ describe("useEntryEditor", () => {
     // Description is prepended as the first paragraph
     expect(mockEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "My New Entry",
+        name: "My New Entry",
         folder: null,
         status: "in_progress",
       }),
@@ -392,8 +392,8 @@ describe("useEntryEditor", () => {
   });
 
   it("saves an existing entry and stays in edit-existing mode", async () => {
-    mockGet.mockResolvedValue(makeEntry({ title: "Existing" }));
-    const updatedResponse = makeEntry({ title: "Updated Title", content: { type: "doc", content: [] } });
+    mockGet.mockResolvedValue(makeEntry({ name: "Existing" }));
+    const updatedResponse = makeEntry({ name: "Updated Title", content: { type: "doc", content: [] } });
     mockEnqueue.mockResolvedValue(updatedResponse);
     const contentRef = { current: EMPTY_DOC };
 
@@ -418,7 +418,7 @@ describe("useEntryEditor", () => {
     // Description should be prepended and enqueued
     expect(mockEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Updated Title",
+        name: "Updated Title",
         folder: null,
         status: "in_progress",
       }),
@@ -447,7 +447,7 @@ describe("useEntryEditor", () => {
   });
 
   it("cancel is a no-op for existing entries", async () => {
-    const entry = makeEntry({ title: "Original", folder: 5 });
+    const entry = makeEntry({ name: "Original", folder: 5 });
     mockGet.mockResolvedValue(entry);
     const contentRef = { current: entry.content };
 

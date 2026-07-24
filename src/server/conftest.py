@@ -1,41 +1,22 @@
-"""Shared pytest fixtures for backend tests.
+"""Session-level setup for helix_core tests.
 
-Add fixtures here as the test suite grows.  All test files import from
-this module automatically — no explicit import needed in each test file.
-
-Usage::
-
-    def test_something(api_client, user):
-        api_client.force_authenticate(user)
-        ...
+Ensures the ConcreteTestEntity table from test_abstracts.py exists before
+*any* test runs.  The model class is registered in Django's app registry
+at import time (module-level), so every Schema.objects.delete() cascade
+collector discovers it.  Without this table, tests that run before
+AbstractEntityFieldTests fail with "no such table".
 """
 
 import pytest
-from rest_framework.test import APIClient
-from core.models import Folder, User
+from django.db import connection
 
 
-@pytest.fixture
-def api_client():
-    """Unauthenticated DRF test client."""
-    return APIClient()
+@pytest.fixture(autouse=True, scope="session")
+def _ensure_concrete_test_entity_table(django_db_setup, django_db_blocker):
+    """Create the helix_test_concrete_entity table once for the session."""
+    from helix_core.tests.test_abstracts import ConcreteTestEntity
 
-
-@pytest.fixture
-def user():
-    """Plain User instance (no permissions)."""
-    return User.objects.create_user(
-        username="testuser",
-        password="testpass123",
-    )
-
-
-@pytest.fixture
-def folder():
-    """Top-level Folder instance."""
-    return Folder.objects.create(name="Default")
-
-
-# Apply django_db marker at module level so test modules that import
-# from this conftest get database access automatically.
-pytestmark = pytest.mark.django_db
+    with django_db_blocker.unblock():
+        with connection.schema_editor() as schema_editor:
+            schema_editor.create_model(ConcreteTestEntity)
+    yield

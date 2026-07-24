@@ -84,6 +84,7 @@ const sampleEntityTypes = [
       { id: "uuid-blood-2", name: "Collection Date", type: "Date" as const },
     ],
     is_active: true,
+    is_default: false,
     content_hash: "abc123def456",
   },
   {
@@ -95,6 +96,7 @@ const sampleEntityTypes = [
       { id: "uuid-chem-2", name: "Purity", type: "Text" as const },
     ],
     is_active: true,
+    is_default: false,
     content_hash: "xyz789ghi012",
   },
   {
@@ -103,7 +105,17 @@ const sampleEntityTypes = [
     prefix: "INACT",
     columns: [],
     is_active: false,
+    is_default: false,
     content_hash: "deadbeef",
+  },
+  {
+    id: 4,
+    name: "System Default",
+    prefix: "E",
+    columns: [],
+    is_active: true,
+    is_default: true,
+    content_hash: "sysdefault",
   },
 ];
 
@@ -227,6 +239,7 @@ describe("RegistryTableBlockComponent — picker dropdown", () => {
     expect(bloodSample).toBeInTheDocument();
     expect(screen.getByText("Chemical Reagent")).toBeInTheDocument();
     expect(screen.queryByText("Inactive Type")).not.toBeInTheDocument();
+    expect(screen.queryByText("System Default")).not.toBeInTheDocument();
   });
 
   it("shows prefix next to each entity type name", async () => {
@@ -1040,7 +1053,7 @@ describe("RegistryTableContent — refresh schema", () => {
     };
   }
 
-  it("calls GET /lims/entity-types/{schemaId}/ with the current schemaId", async () => {
+  it("calls GET /schemas/{schemaId}/ with the current schemaId", async () => {
     mockGet.mockResolvedValue({
       id: 1,
       name: "Blood Sample",
@@ -1058,7 +1071,7 @@ describe("RegistryTableContent — refresh schema", () => {
     fireEvent.click(screen.getByTestId("refresh-schema-btn"));
 
     await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith("/lims/entity-types/1/");
+      expect(mockGet).toHaveBeenCalledWith("/schemas/1/");
     });
   });
 
@@ -1657,7 +1670,7 @@ describe("RegistryTableContent — Register Entities button", () => {
     // Green row should be skipped — only 3 rows sent
     const postCall = mockPost.mock.calls[0];
     expect(postCall[0]).toBe("/lims/entities/batch-register/");
-    expect(postCall[1].entity_type_id).toBe(1);
+    expect(postCall[1].schema_id).toBe(1);
     expect(postCall[1].rows).toHaveLength(3);
     // Verify sent rows (in order: blue, orange, red)
     expect(postCall[1].rows[0]).toEqual({

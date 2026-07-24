@@ -58,11 +58,31 @@ class SyncMentionsTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
+        from helix_core.models import Schema, SchemaType
+        eln_type, _ = SchemaType.objects.get_or_create(
+            model="mods.eln.models.NotebookEntry",
+            defaults={
+                "display_name": "ELN Entry",
+                "workspace_id": "eln",
+                "columns": [],
+            },
+        )
+        self.eln_schema, _ = Schema.objects.get_or_create(
+            schema_type=eln_type,
+            is_default=True,
+            defaults={
+                "name": "Default",
+                "prefix": "E",
+                "columns": [],
+            },
+        )
         self.source = NotebookEntry.objects.create(
-            title="Source Entry", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="Source Entry", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
         self.target = NotebookEntry.objects.create(
-            title="Target Entry", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="Target Entry", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
         # We need the display_id to match what the reference node points to.
         # display_id is auto-generated (E1, E2, …). The source is E1, target is E2.
@@ -155,7 +175,8 @@ class SyncMentionsTests(BaseServiceTestCase):
         from core.mentions.sync import sync_mentions
 
         target2 = NotebookEntry.objects.create(
-            title="Second Target", content=EMPTY_DOC, folder=self.folder, author=self.user
+            name="Second Target", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            schema=self.eln_schema,
         )
 
         doc = {

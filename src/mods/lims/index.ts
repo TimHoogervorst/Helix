@@ -1,15 +1,21 @@
-import { Cog, FlaskConical } from "lucide-react";
+import { Cog, FlaskConical, Info, LayoutList, Microscope, Users } from "lucide-react";
 import {
   registerRoute,
   registerSettingsSection,
   registerWorkspace,
-  ModRegistry,
+  registerHub,
+  declareSlot,
+  registerBlock,
+  registerIntoSlot,
 } from "../../shell/src/mod-system";
-import type { RegisteredEntityType, ModManifest } from "../../shell/src/mod-system";
-import { get } from "../../shell/src/api/client";
-import type { EntityType } from "./types";
+import type { ModManifest } from "../../shell/src/mod-system";
+import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
+import EntitiesHub from "./hub/EntitiesHub";
+import { SelectionBlock } from "./blocks/SelectionBlock";
+import { MyViewsBlock } from "./blocks/MyViewsBlock";
+import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
 
 export const meta: ModManifest = {
   id: "lims",
@@ -18,63 +24,18 @@ export const meta: ModManifest = {
 };
 
 export function register() {
-  // ── Workspace: LIMS entity workspace ───────────────────────────────────
-  registerWorkspace({ id: "lims", displayName: "LIMS", icon: FlaskConical });
-
-  // ── Service: entity type registry ──────────────────────────────────────
-  // LIMS is the central registry for all mentionable entity types.
-  // Mods call registry.call("lims.registerEntityType", config) at boot
-  // to declare which entity types they own.
-  const entityTypes = new Map<string, RegisteredEntityType>();
-
-  ModRegistry.getInstance().registerService({
-    id: "lims.registerEntityType",
-    handler: async (config: unknown) => {
-      const typed = config as RegisteredEntityType;
-      if (!typed || typeof typed.prefix !== "string") {
-        throw new Error(
-          "lims.registerEntityType: config must have a 'prefix' property.",
-        );
-      }
-      if (entityTypes.has(typed.prefix)) {
-        const existing = entityTypes.get(typed.prefix)!;
-        throw new Error(
-          `Duplicate entity type prefix '${typed.prefix}': ` +
-            `'${existing.entityType}' is already registered ` +
-            `(attempted: '${typed.entityType}').`,
-        );
-      }
-      entityTypes.set(typed.prefix, typed);
+  // ── Workspace: entity workspace ────────────────────────────────────────
+  // schemaType carries entity type identity so no separate service call is needed.
+  registerWorkspace({
+    id: "lims",
+    displayName: "LIMS",
+    icon: FlaskConical,
+    schemaType: {
+      id: "lims.entity",
+      displayName: "Entity",
+      defaultPrefix: "E",
     },
   });
-
-  // ── Register LIMS entity types from the backend ────────────────────────
-  // Fetch active entity types and register each as a mentionable type.
-  // Fire-and-forget: the boot sequence continues without waiting;
-  // entity types are registered before any mention resolution happens.
-  get<EntityType[]>("/lims/entity-types/")
-    .then((types) => {
-      for (const et of types) {
-        if (!et.is_active) continue;
-        ModRegistry.getInstance()
-          .call("lims.registerEntityType", {
-            prefix: et.prefix,
-            entityType: `lims.entity.${et.id}`,
-            workspaceId: "lims",
-            displayName: et.name,
-          })
-          .catch((err: Error) => {
-            console.warn(
-              `[lims] Failed to register entity type '${et.name}': ${err.message}`,
-            );
-          });
-      }
-    })
-    .catch((err: Error) => {
-      console.warn(
-        `[lims] Failed to fetch entity types from backend: ${err.message}`,
-      );
-    });
 
   // ── Standalone route: full entity workspace page ──────────────────────
   registerRoute({
@@ -93,4 +54,70 @@ export function register() {
     component: SchemaSettings,
     order: 10,
   });
+
+  // ── Hub: Entities Hub — cross-mod entity browsing surface ─────────────
+  registerHub({
+    id: "entities",
+    label: "Entities",
+    icon: Microscope,
+    route: "/entities",
+    component: EntitiesHub,
+    order: 20,
+    description:
+      "Browse, search, and filter all entities across every workspace.",
+  });
+
+  // ── Slot: Entities Hub Sidebar ────────────────────────────────────────
+  declareSlot({
+    id: "entities.sidebar",
+    accepts: "block",
+    renderer: SlotSidebar,
+    layout: "vertical",
+    order: 0,
+    defaults: {},
+  });
+
+  // ── Block: Selection placeholder ──────────────────────────────────────
+  registerBlock({
+    id: "entities.selection-block",
+    label: "Selection",
+    icon: Info,
+    component: SelectionBlock,
+    listensTo: [],
+    onEvent: {},
+    serialize: () => "{}",
+    deserialize: () => ({}),
+    defaultState: {},
+  });
+
+  // ── Block: My Views placeholder ───────────────────────────────────────
+  registerBlock({
+    id: "entities.my-views-block",
+    label: "My Views",
+    icon: LayoutList,
+    component: MyViewsBlock,
+    listensTo: [],
+    onEvent: {},
+    serialize: () => "{}",
+    deserialize: () => ({}),
+    defaultState: {},
+  });
+
+  // ── Block: Global Views placeholder ───────────────────────────────────
+  registerBlock({
+    id: "entities.global-views-block",
+    label: "Global Views",
+    icon: Users,
+    component: GlobalViewsBlock,
+    listensTo: [],
+    onEvent: {},
+    serialize: () => "{}",
+    deserialize: () => ({}),
+    defaultState: {},
+  });
+
+  // ── Bind blocks into the sidebar slot ─────────────────────────────────
+  registerIntoSlot("entities.sidebar", "entities.selection-block", {}, 0);
+  registerIntoSlot("entities.sidebar", "entities.my-views-block", {}, 1);
+  registerIntoSlot("entities.sidebar", "entities.global-views-block", {}, 2);
 }

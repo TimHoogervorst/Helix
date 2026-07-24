@@ -5,7 +5,7 @@ export type TipTapDoc = Record<string, unknown>;
 export interface EntryListItem {
   id: number;
   display_id: string;
-  title: string;
+  name: string;
   author_username: string | null;
   created_at: string;
   updated_at: string;
@@ -32,7 +32,7 @@ export interface Mention {
 export interface EntryDetail {
   id: number;
   display_id: string;
-  title: string;
+  name: string;
   content: TipTapDoc;
   folder: number | null;
   folder_name: string;

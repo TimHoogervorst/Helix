@@ -27,7 +27,7 @@ describe("eln mod registration", () => {
     expect(mod.meta.dependsOn).toEqual(["lims", "tags"]);
   });
 
-  it("registers a workspace for ELN", async () => {
+  it("registers a workspace for ELN with schemaType", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -36,7 +36,13 @@ describe("eln mod registration", () => {
 
     const workspaces = registry.getWorkspaces();
     expect(workspaces.has("eln")).toBe(true);
-    expect(workspaces.get("eln")?.displayName).toBe("ELN");
+    const ws = workspaces.get("eln");
+    expect(ws?.displayName).toBe("ELN");
+    expect(ws?.schemaType).toEqual({
+      id: "eln.entry",
+      displayName: "ELN Entry",
+      defaultPrefix: "E",
+    });
   });
 
   it("registers route for /eln/:id (no longer registers /eln/new)", async () => {

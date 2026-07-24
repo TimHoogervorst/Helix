@@ -77,7 +77,7 @@ describe("LibraryNewDropdown", () => {
     mockCreateEntry.mockResolvedValue({
       display_id: "E-0042",
       id: 42,
-      title: "Untitled",
+      name: "Untitled",
       content: { type: "doc", content: [{ type: "paragraph" }] },
     });
 
@@ -87,7 +87,7 @@ describe("LibraryNewDropdown", () => {
 
     await waitFor(() => {
       expect(mockCreateEntry).toHaveBeenCalledWith({
-        title: "Untitled",
+        name: "Untitled",
         content: { type: "doc", content: [{ type: "paragraph" }] },
         folder: 7,
       });
@@ -128,7 +128,7 @@ describe("LibraryNewDropdown", () => {
     mockCreateEntry.mockResolvedValue({
       display_id: "E-0042",
       id: 42,
-      title: "Untitled",
+      name: "Untitled",
       content: { type: "doc", content: [{ type: "paragraph" }] },
     });
 

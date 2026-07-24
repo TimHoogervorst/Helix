@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put, del } from "../../../shell/src/api/client";
-import type { EntityType, EntityTypePayload, ColumnDef } from "../types";
+import { get, post, put, patch, del } from "../../../shell/src/api/client";
+import type { Schema, SchemaPayload, SchemaTypeItem, ColumnDef } from "../types";
 import TypeMasterPanel from "./TypeMasterPanel";
 import TypeDetailPanel from "./TypeDetailPanel";
 import DangerZone from "./DangerZone";
 
 function SettingsPage() {
-  const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
+  const [schemas, setSchemas] = useState<Schema[]>([]);
+  const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [dirtyEdits, setDirtyEdits] = useState<Map<number, EntityType>>(
+  const [dirtyEdits, setDirtyEdits] = useState<Map<number, Schema>>(
     new Map(),
   );
   const [saving, setSaving] = useState(false);
@@ -18,15 +19,16 @@ function SettingsPage() {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPrefix, setNewPrefix] = useState("");
+  const [newSchemaType, setNewSchemaType] = useState<number | null>(null);
 
   // Danger zone
   const [dangerLoading, setDangerLoading] = useState<string | null>(null);
   const [dangerResult, setDangerResult] = useState<string | null>(null);
 
-  const fetchTypes = useCallback(async () => {
+  const fetchSchemas = useCallback(async () => {
     try {
-      const data = await get<EntityType[]>("/lims/entity-types/");
-      setEntityTypes(data);
+      const data = await get<Schema[]>("/schemas/");
+      setSchemas(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -34,26 +36,41 @@ function SettingsPage() {
     }
   }, []);
 
+  const fetchSchemaTypes = useCallback(async () => {
+    try {
+      const data = await get<SchemaTypeItem[]>("/schema-types/");
+      setSchemaTypes(data);
+      // Default to first schema type if available
+      if (data.length > 0 && newSchemaType === null) {
+        setNewSchemaType(data[0].id);
+      }
+    } catch {
+      // Schema types are optional for display — don't block on failure
+    }
+  }, []);
+
   useEffect(() => {
-    fetchTypes();
-  }, [fetchTypes]);
+    fetchSchemas();
+    fetchSchemaTypes();
+  }, [fetchSchemas, fetchSchemaTypes]);
 
   // ── Create ──
   const handleCreate = async () => {
-    if (!newName.trim() || !newPrefix.trim()) return;
+    if (!newName.trim() || !newPrefix.trim() || newSchemaType === null) return;
     setSaving(true);
     setError(null);
     try {
-      const payload: EntityTypePayload = {
+      const payload: SchemaPayload = {
         name: newName.trim(),
         prefix: newPrefix.trim().toUpperCase(),
+        schema_type: newSchemaType,
         columns: [],
       };
-      await post("/lims/entity-types/", payload);
+      await post("/schemas/", payload);
       setShowNew(false);
       setNewName("");
       setNewPrefix("");
-      await fetchTypes();
+      await fetchSchemas();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create");
     } finally {
@@ -62,35 +79,44 @@ function SettingsPage() {
   };
 
   // ── Delete (soft / deactivate) ──
-  const handleDelete = async (et: EntityType) => {
-    if (!window.confirm(`Deactivate schema "${et.name}"?`)) return;
+  const handleDelete = async (schema: Schema) => {
+    if (!window.confirm(`Deactivate schema "${schema.name}"?`)) return;
     try {
-      await del(`/lims/entity-types/${et.id}/`);
+      await del(`/schemas/${schema.id}/`);
       setDirtyEdits((prev) => {
         const next = new Map(prev);
-        next.delete(et.id);
+        next.delete(schema.id);
         return next;
       });
-      if (selectedId === et.id) setSelectedId(null);
-      await fetchTypes();
+      if (selectedId === schema.id) setSelectedId(null);
+      await fetchSchemas();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
     }
   };
 
+  // ── Reactivate ──
+  const handleReactivate = async (schema: Schema) => {
+    try {
+      await patch(`/schemas/${schema.id}/`, { is_active: true });
+      await fetchSchemas();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reactivate");
+    }
+  };
+
   // ── Select a schema → open in detail panel & start editing ──
-  const handleSelect = (et: EntityType) => {
-    if (selectedId === et.id) {
+  const handleSelect = (schema: Schema) => {
+    if (selectedId === schema.id) {
       setSelectedId(null);
     } else {
-      setSelectedId(et.id);
+      setSelectedId(schema.id);
       setDirtyEdits((prev) => {
-        if (prev.has(et.id)) return prev;
+        if (prev.has(schema.id)) return prev;
         const next = new Map(prev);
-        next.set(et.id, {
-          ...et,
-          icon: et.icon || "🧪",
-          columns: et.columns.map((c) => ({ ...c })),
+        next.set(schema.id, {
+          ...schema,
+          columns: schema.columns.map((c) => ({ ...c })),
         });
         return next;
       });
@@ -102,11 +128,11 @@ function SettingsPage() {
   const addColumn = (id: number) => {
     setDirtyEdits((prev) => {
       const next = new Map(prev);
-      const et = next.get(id);
-      if (!et) return prev;
+      const s = next.get(id);
+      if (!s) return prev;
       next.set(id, {
-        ...et,
-        columns: [...et.columns, { name: "", type: "Text" as const }],
+        ...s,
+        columns: [...s.columns, { name: "", type: "Text" as const }],
       });
       return next;
     });
@@ -120,11 +146,11 @@ function SettingsPage() {
   ) => {
     setDirtyEdits((prev) => {
       const next = new Map(prev);
-      const et = next.get(id);
-      if (!et) return prev;
-      const cols = [...et.columns];
+      const s = next.get(id);
+      if (!s) return prev;
+      const cols = [...s.columns];
       cols[index] = { ...cols[index], [field]: value };
-      next.set(id, { ...et, columns: cols });
+      next.set(id, { ...s, columns: cols });
       return next;
     });
   };
@@ -132,11 +158,11 @@ function SettingsPage() {
   const removeColumn = (id: number, index: number) => {
     setDirtyEdits((prev) => {
       const next = new Map(prev);
-      const et = next.get(id);
-      if (!et) return prev;
+      const s = next.get(id);
+      if (!s) return prev;
       next.set(id, {
-        ...et,
-        columns: et.columns.filter((_, i) => i !== index),
+        ...s,
+        columns: s.columns.filter((_, i) => i !== index),
       });
       return next;
     });
@@ -145,23 +171,13 @@ function SettingsPage() {
   const moveColumn = (id: number, index: number, direction: "up" | "down") => {
     setDirtyEdits((prev) => {
       const next = new Map(prev);
-      const et = next.get(id);
-      if (!et) return prev;
-      const cols = [...et.columns];
+      const s = next.get(id);
+      if (!s) return prev;
+      const cols = [...s.columns];
       const target = direction === "up" ? index - 1 : index + 1;
       if (target < 0 || target >= cols.length) return prev;
       [cols[index], cols[target]] = [cols[target], cols[index]];
-      next.set(id, { ...et, columns: cols });
-      return next;
-    });
-  };
-
-  const setEntityTypeEmoji = (id: number, emoji: string) => {
-    setDirtyEdits((prev) => {
-      const next = new Map(prev);
-      const et = next.get(id);
-      if (!et) return prev;
-      next.set(id, { ...et, icon: emoji });
+      next.set(id, { ...s, columns: cols });
       return next;
     });
   };
@@ -172,21 +188,21 @@ function SettingsPage() {
     setSaving(true);
     setError(null);
     let failed = 0;
-    for (const [, et] of dirtyEdits) {
+    for (const [, s] of dirtyEdits) {
       try {
-        const payload: EntityTypePayload = {
-          name: et.name,
-          prefix: et.prefix,
-          icon: et.icon,
-          columns: et.columns,
+        const payload: SchemaPayload = {
+          name: s.name,
+          prefix: s.prefix,
+          schema_type: s.schema_type,
+          columns: s.columns,
         };
-        await put(`/lims/entity-types/${et.id}/`, payload);
+        await put(`/schemas/${s.id}/`, payload);
       } catch {
         failed++;
       }
     }
     setDirtyEdits(new Map());
-    await fetchTypes();
+    await fetchSchemas();
     if (failed > 0) {
       setError(`Failed to save ${failed} schema${failed > 1 ? "s" : ""}`);
     }
@@ -228,7 +244,7 @@ function SettingsPage() {
   const handleDeleteAllEntities = async () => {
     if (
       !window.confirm(
-        "DELETE ALL ENTITIES? This will permanently delete every LIMS entity. This cannot be undone.",
+        "DELETE ALL ENTITIES? This will permanently delete every entity. This cannot be undone.",
       )
     )
       return;
@@ -237,6 +253,28 @@ function SettingsPage() {
     try {
       await del("/lims/entities/delete_all/");
       setDangerResult("All entities deleted.");
+    } catch (err) {
+      setDangerResult(
+        `Failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setDangerLoading(null);
+    }
+  };
+
+  const handleDeleteAllSchemas = async () => {
+    if (
+      !window.confirm(
+        "DELETE ALL SCHEMAS? This will permanently delete every schema. This cannot be undone.",
+      )
+    )
+      return;
+    setDangerLoading("schemas");
+    setDangerResult(null);
+    try {
+      await del("/schemas/delete_all/");
+      setDangerResult("All schemas deleted.");
+      await fetchSchemas();
     } catch (err) {
       setDangerResult(
         `Failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -260,7 +298,7 @@ function SettingsPage() {
       setDangerResult(
         "Everything deleted — all ELN entries, entities, and schemas cleared.",
       );
-      await fetchTypes();
+      await fetchSchemas();
     } catch (err) {
       setDangerResult(
         `Failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -272,20 +310,21 @@ function SettingsPage() {
 
   if (loading) return <p className="empty">Loading…</p>;
 
-  const selectedEntity = selectedId
-    ? entityTypes.find((et) => et.id === selectedId) ?? null
+  const selectedSchema = selectedId
+    ? schemas.find((s) => s.id === selectedId) ?? null
     : null;
-  const editingEntity = selectedId
+  const editingSchema = selectedId
     ? dirtyEdits.get(selectedId)
     : undefined;
-  const visibleTypes = showArchived
-    ? entityTypes
-    : entityTypes.filter((et) => et.is_active);
+  const visibleSchemas = (showArchived
+    ? schemas
+    : schemas.filter((s) => s.is_active)
+  ).filter((s) => !s.is_default);
   const dirtyCount = dirtyEdits.size;
 
   return (
     <div
-      className={`page settings-page${selectedEntity ? " has-detail" : ""}`}
+      className={`page settings-page${selectedSchema ? " has-detail" : ""}`}
     >
       {error && <div className="error">{error}</div>}
 
@@ -302,10 +341,10 @@ function SettingsPage() {
 
       {/* Master–Detail Layout */}
       <div
-        className={`settings-master-detail ${selectedEntity ? "has-detail" : ""}`}
+        className={`settings-master-detail ${selectedSchema ? "has-detail" : ""}`}
       >
         <TypeMasterPanel
-          types={visibleTypes}
+          schemas={visibleSchemas}
           selectedId={selectedId}
           onSelect={handleSelect}
           showArchived={showArchived}
@@ -316,29 +355,30 @@ function SettingsPage() {
           onNewNameChange={setNewName}
           newPrefix={newPrefix}
           onNewPrefixChange={setNewPrefix}
+          newSchemaType={newSchemaType}
+          onNewSchemaTypeChange={setNewSchemaType}
+          schemaTypes={schemaTypes}
           onCreate={handleCreate}
           saving={saving}
           dirtyEdits={dirtyEdits}
         />
 
-        {selectedEntity && editingEntity && (
+        {selectedSchema && editingSchema && (
           <TypeDetailPanel
-            liveEntity={selectedEntity}
-            editingEntity={editingEntity}
-            isDirty={dirtyEdits.has(selectedEntity.id)}
+            liveSchema={selectedSchema}
+            editingSchema={editingSchema}
+            isDirty={dirtyEdits.has(selectedSchema.id)}
             onClose={() => setSelectedId(null)}
             onDeactivate={handleDelete}
-            onSetEmoji={(emoji) =>
-              setEntityTypeEmoji(selectedEntity.id, emoji)
-            }
+            onReactivate={handleReactivate}
             columnProps={{
-              columns: editingEntity.columns,
-              onAdd: () => addColumn(selectedEntity.id),
+              columns: editingSchema.columns,
+              onAdd: () => addColumn(selectedSchema.id),
               onUpdate: (i, field, value) =>
-                updateColumn(selectedEntity.id, i, field, value),
-              onRemove: (i) => removeColumn(selectedEntity.id, i),
-              onMove: (i, dir) => moveColumn(selectedEntity.id, i, dir),
-              onDiscard: () => discardEdits(selectedEntity.id),
+                updateColumn(selectedSchema.id, i, field, value),
+              onRemove: (i) => removeColumn(selectedSchema.id, i),
+              onMove: (i, dir) => moveColumn(selectedSchema.id, i, dir),
+              onDiscard: () => discardEdits(selectedSchema.id),
             }}
           />
         )}
@@ -349,6 +389,7 @@ function SettingsPage() {
         dangerResult={dangerResult}
         onDeleteAllElms={handleDeleteAllElms}
         onDeleteAllEntities={handleDeleteAllEntities}
+        onDeleteAllSchemas={handleDeleteAllSchemas}
         onDeleteEverything={handleDeleteEverything}
       />
     </div>

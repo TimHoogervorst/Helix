@@ -28,7 +28,7 @@ import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 
 /** A single row in the registry table, extending GridRow with registration state. */
 export interface RegistryTableRow {
-  /** LIMS entity ID — null for unregistered rows. */
+  /** Entity ID — null for unregistered rows. */
   entityId: number | null;
   /** Display ID like "BLOOD1", assigned by server on registration. */
   displayId: string;
@@ -728,8 +728,8 @@ export function RegistryTableContent({
     if (entityTypes.length === 0) {
       setLoading(true);
       try {
-        const data = await get<EntityTypeSummary[]>("/lims/entity-types/");
-        setEntityTypes(data.filter((t) => t.is_active));
+        const data = await get<EntityTypeSummary[]>("/schemas/");
+        setEntityTypes(data.filter((t) => t.is_active && !t.is_default));
       } catch {
         // silently leave list empty
       } finally {
@@ -875,7 +875,7 @@ export function RegistryTableContent({
     setRefreshing(true);
     try {
       const entityType = await get<EntityTypeSummary>(
-        `/lims/entity-types/${schemaId}/`,
+        `/schemas/${schemaId}/`,
       );
 
       const newColumns = toGridColumns(entityType);
@@ -950,7 +950,7 @@ export function RegistryTableContent({
     if (nonGreenRows.length > 0) {
       try {
         const payload = {
-          entity_type_id: schemaId,
+          schema_id: schemaId,
           rows: nonGreenRows.map(({ row }) => ({
             entity_id: row.entityId,
             name: row.__name,

@@ -91,7 +91,7 @@ export function createAction(
 
 /** Payload for creating a new entry. */
 export interface CreateEntryPayload {
-  title: string;
+  name: string;
   content: TipTapDoc;
   folder?: number | null;
   status?: string;

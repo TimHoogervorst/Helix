@@ -27,7 +27,7 @@ export interface GridColumn {
 
 /** A single row of data in the ELN table grid. */
 export interface GridRow {
-  /** LIMS entity ID — null for unsaved rows and plain tables. */
+  /** Entity ID — null for unsaved rows and plain tables. */
   entityId: number | null;
   /** Display ID like BLOOD1, or placeholder like "#new". */
   displayId: string;

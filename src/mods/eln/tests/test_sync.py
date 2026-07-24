@@ -11,6 +11,7 @@ from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from core.mentions.models import Mention
 from mods.eln.models import NotebookEntry
 from mods.eln.sync import sync_entry_content
+from mods.eln.tests.factories import get_or_create_default_eln_schema
 
 
 class SyncEntryContentTests(BaseServiceTestCase):
@@ -18,13 +19,14 @@ class SyncEntryContentTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.entry = NotebookEntry.objects.create(
-            title="Test Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
+            name="Test Entry", content=EMPTY_DOC,
+            folder=self.folder, author=self.user, schema=self.schema,
         )
         self.target = NotebookEntry.objects.create(
-            title="Target Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
+            name="Target Entry", content=EMPTY_DOC,
+            folder=self.folder, author=self.user, schema=self.schema,
         )
 
     # ── No-op ──────────────────────────────────────────────────────────
@@ -123,13 +125,14 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
+        self.schema = get_or_create_default_eln_schema()
         self.entry = NotebookEntry.objects.create(
-            title="Test Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
+            name="Test Entry", content=EMPTY_DOC,
+            folder=self.folder, author=self.user, schema=self.schema,
         )
         self.target = NotebookEntry.objects.create(
-            title="Target Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
+            name="Target Entry", content=EMPTY_DOC,
+            folder=self.folder, author=self.user, schema=self.schema,
         )
 
     # ── Text-only edit → pipeline skipped ────────────────────────────────
@@ -288,7 +291,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         # Create entry
         resp = client.post(
             "/api/eln/entries/",
-            {"title": "E2E Test", "content": EMPTY_DOC, "folder": self.folder.id},
+            {"name": "E2E Test", "content": EMPTY_DOC, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(resp.status_code, 201)
@@ -301,7 +304,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         }
         resp = client.put(
             f"/api/eln/entries/{display_id}/",
-            {"title": "E2E Test", "content": text_doc, "folder": self.folder.id},
+            {"name": "E2E Test", "content": text_doc, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(resp.status_code, 200)
@@ -319,7 +322,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         ) as mock_mentions:
             resp = client.put(
                 f"/api/eln/entries/{display_id}/",
-                {"title": "E2E Test", "content": text_doc2, "folder": self.folder.id},
+                {"name": "E2E Test", "content": text_doc2, "folder": self.folder.id},
                 format="json",
             )
             self.assertEqual(resp.status_code, 200)

@@ -71,6 +71,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     folder_name = serializers.CharField(source="folder.name", read_only=True)
     folder_path = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    schema_prefix = serializers.CharField(source="schema.prefix", read_only=True)
     mentions = MentionSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
 
@@ -79,7 +80,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "display_id",
-            "title",
+            "name",
             "content",
             "folder",
             "folder_name",
@@ -91,10 +92,12 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "updated_at",
             "status",
             "status_display",
+            "schema",
+            "schema_prefix",
             "mentions",
             "tags",
         ]
-        read_only_fields = ["id", "display_id", "author", "created_at", "updated_at"]
+        read_only_fields = ["id", "display_id", "author", "created_at", "updated_at", "schema"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
@@ -119,7 +122,7 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NotebookEntry
-        fields = ["title", "content", "folder", "status", "tag_ids"]
+        fields = ["name", "content", "folder", "status", "tag_ids"]
 
     def create(self, validated_data):
         tag_ids = validated_data.pop("tag_ids", [])

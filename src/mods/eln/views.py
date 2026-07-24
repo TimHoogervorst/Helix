@@ -15,6 +15,8 @@ from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
 from mods.tags.models import Tag
 
+from helix_core.models import Schema
+
 from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock, Protocol
 from .serializers import (
     NotebookEntrySerializer,
@@ -87,9 +89,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             return NotebookEntryCreateSerializer
         return NotebookEntrySerializer
 
+    @staticmethod
+    def _get_default_schema():
+        """Return the default Schema for ELN notebook entries."""
+        return Schema.objects.get(
+            schema_type__model="mods.eln.models.NotebookEntry",
+            is_default=True,
+        )
+
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None
-        instance = serializer.save(author=author)
+        schema = self._get_default_schema()
+        instance = serializer.save(author=author, schema=schema)
         sync_entry_content(instance)
         self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
 

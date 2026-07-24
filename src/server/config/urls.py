@@ -42,10 +42,10 @@ def delete_everything(request):
     c, _ = Entity.objects.all().delete()
     counts["entities"] = c
 
-    # 5. Entity types (schemas)
-    from mods.lims.models import EntityType
-    c, _ = EntityType.objects.all().delete()
-    counts["entity_types"] = c
+    # 5. Schemas (shared model — delete after entities)
+    from helix_core.models import Schema
+    c, _ = Schema.objects.all().delete()
+    counts["schemas"] = c
 
     total = sum(counts.values())
     return JsonResponse({"deleted": total, "breakdown": counts})
@@ -59,6 +59,8 @@ urlpatterns = [
     path("api/core/", include("core.urls")),
     # Mentions (cross-cutting concern)
     path("api/mentions/", include("core.mentions.urls")),
+    # Schema API (helix_core shared models)
+    path("api/", include("helix_core.urls")),
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),
     # OpenAPI schema

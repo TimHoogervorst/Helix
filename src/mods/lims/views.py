@@ -8,67 +8,16 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
 
-from .models import EntityType, Entity, Action
+from .models import Entity, Action, LimsView
 from .serializers import (
-    EntityTypeSerializer,
-    EntityTypeDetailSerializer,
     EntitySerializer,
     EntityBatchSerializer,
     EntityBatchRegisterSerializer,
     ActionSerializer,
+    LimsViewSerializer,
 )
 
 logger = logging.getLogger(__name__)
-
-
-class EntityTypeViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
-    """
-    API endpoint for LIMS entity types (schemas).
-
-    list: GET /api/lims/entity-types/
-    create: POST /api/lims/entity-types/
-    retrieve: GET /api/lims/entity-types/{id}/
-    update: PUT /api/lims/entity-types/{id}/
-    partial_update: PATCH /api/lims/entity-types/{id}/
-    destroy: DELETE /api/lims/entity-types/{id}/ — soft-deletes (sets is_active=False)
-    delete_all: DELETE /api/lims/entity-types/delete_all/ — hard-deletes all schemas
-    """
-
-    queryset = EntityType.objects.all()
-    permission_classes = []
-    pagination_class = None
-
-    action_log_config = {
-        "create": {"action_type": "lims.entity_type.created"},
-        "update": {"action_type": "lims.entity_type.edited"},
-        "partial_update": {"action_type": "lims.entity_type.edited"},
-        "destroy": {"action_type": "lims.entity_type.deleted"},
-    }
-
-    def get_serializer_class(self):
-        if self.action in ("list", "retrieve"):
-            return EntityTypeDetailSerializer
-        return EntityTypeSerializer
-
-    def perform_destroy(self, instance):
-        """Soft-delete: set is_active=False instead of removing the row."""
-        instance._pre_delete_pk = instance.pk
-        instance.is_active = False
-        instance.save(update_fields=["is_active"])
-        self._maybe_log("destroy", instance=instance)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=False, methods=["delete"], url_path="delete_all")
-    def delete_all(self, request):
-        """Hard-delete ALL entity types (schemas). Danger zone endpoint for testing."""
-        # Delete entities first to avoid FK constraint issues
-        Entity.objects.all().delete()
-        count, _ = EntityType.objects.all().delete()
-        return Response({"deleted": count})
 
 
 class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
@@ -85,11 +34,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     delete_all: DELETE /api/lims/entities/delete_all/ — delete all entities
     """
 
-    queryset = Entity.objects.select_related("entity_type", "created_by", "folder")
+    queryset = Entity.objects.select_related("schema", "author", "folder")
     serializer_class = EntitySerializer
     permission_classes = []
     lookup_field = "display_id"
-    filterset_fields = ["entity_type"]
+    filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
 
     action_log_config = {
@@ -100,8 +49,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     }
 
     def perform_create(self, serializer):
-        author = self.request.user if self.request.user.is_authenticated else None
-        instance = serializer.save(created_by=author)
+        if not self.request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+            raise NotAuthenticated("Authentication is required to create entities.")
+        # Schema is always resolved by EntitySerializer.validate() — if the
+        # client omitted it, the default Schema for the LIMS SchemaType is
+        # assigned automatically.
+        instance = serializer.save(author=self.request.user)
         self._maybe_log(
             "create",
             instance=instance,
@@ -109,10 +63,10 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         )
 
     def filter_queryset(self, queryset):
-        # Support ?type= as an alias for ?entity_type=
+        # Support ?type= as an alias for ?schema=
         type_id = self.request.query_params.get("type")
         if type_id:
-            queryset = queryset.filter(entity_type_id=type_id)
+            queryset = queryset.filter(schema_id=type_id)
         return super().filter_queryset(queryset)
 
     @action(detail=False, methods=["post"])
@@ -128,7 +82,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         ids = input_serializer.validated_data["ids"]
 
         result = {}
-        entities = Entity.objects.filter(display_id__in=ids).select_related("entity_type")
+        entities = Entity.objects.filter(display_id__in=ids).select_related("schema")
         entity_map = {e.display_id: e for e in entities}
 
         for display_id in ids:
@@ -140,8 +94,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "id": entity.pk,
                     "display_id": entity.display_id,
                     "name": entity.name,
-                    "entity_type_id": entity.entity_type_id,
-                    "entity_type_name": entity.entity_type.name,
+                    "schema_id": entity.schema_id,
+                    "schema_name": entity.schema.name,
                     "properties": entity.properties,
                     "folder_id": entity.folder_id,
                     "created_at": entity.created_at.isoformat(),
@@ -160,29 +114,36 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         """Batch-register (create or update) LIMS entities.
 
         POST /api/lims/entities/batch-register/
-        Body: {"entity_type_id": 1, "rows": [{"entity_id": null, "name": "...", "values": {...}}]}
+        Body: {"schema_id": 1, "rows": [{"entity_id": null, "name": "...", "values": {...}}]}
 
         - ``entity_id: null`` → create new entity.
         - ``entity_id`` provided → update existing entity.
-        - Idempotent: re-registering the same (name, entity_type) does not duplicate.
+        - Idempotent: re-registering the same (name, schema) does not duplicate.
         - Partial success: errors in some rows don't block valid rows.
         """
+        from helix_core.models import Schema
+
         input_serializer = EntityBatchRegisterSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
 
-        entity_type_id = input_serializer.validated_data["entity_type_id"]
+        schema_id = input_serializer.validated_data["schema_id"]
         rows = input_serializer.validated_data["rows"]
 
-        # Validate entity_type exists
+        # Validate schema exists
         try:
-            entity_type = EntityType.objects.get(pk=entity_type_id)
-        except EntityType.DoesNotExist:
+            schema = Schema.objects.get(pk=schema_id)
+        except Schema.DoesNotExist:
             return Response(
-                {"detail": f"EntityType with id {entity_type_id} not found."},
+                {"detail": f"Schema with id {schema_id} not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         author = request.user if request.user.is_authenticated else None
+        if author is None:
+            from rest_framework.exceptions import NotAuthenticated
+            raise NotAuthenticated(
+                "Authentication is required to batch-register entities."
+            )
 
         results = []
         errors = []
@@ -221,9 +182,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "message": f"Entity with id {entity_id} not found.",
                     })
             else:
-                # Idempotent create: check for existing entity with same name + type
+                # Idempotent create: check for existing entity with same name + schema
                 existing = Entity.objects.filter(
-                    name=name, entity_type=entity_type
+                    name=name, schema=schema
                 ).first()
                 if existing:
                     # Idempotency — update instead of duplicate
@@ -238,9 +199,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 else:
                     entity = Entity.objects.create(
                         name=name,
-                        entity_type=entity_type,
+                        schema=schema,
                         properties=values,
-                        created_by=author,
+                        author=author,
                     )
                     results.append({
                         "row_index": row_index,
@@ -257,9 +218,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         user=author,
                         action_type="eln.entities.registered",
                         target_type="lims.entities",
-                        target_id=entity_type_id,
+                        target_id=schema_id,
                         metadata={
-                            "entity_type_id": entity_type_id,
+                            "schema_id": schema_id,
                             "count": len(results),
                             "entity_ids": [r["entity_id"] for r in results],
                         },
@@ -283,3 +244,51 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ActionSerializer
     permission_classes = []
     filterset_fields = ["entity", "action_type"]
+
+
+class LimsViewViewSet(viewsets.ModelViewSet):
+    """API endpoint for saved Entity Hub Views.
+
+    list: GET /api/lims/views/ — list own views (default) or public (?public=true)
+    create: POST /api/lims/views/
+    retrieve: GET /api/lims/views/{id}/
+    update: PUT /api/lims/views/{id}/
+    partial_update: PATCH /api/lims/views/{id}/
+    destroy: DELETE /api/lims/views/{id}/
+    """
+
+    serializer_class = LimsViewSerializer
+    permission_classes = []
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        public_only = self.request.query_params.get("public") == "true"
+
+        if public_only:
+            qs = LimsView.objects.filter(is_public=True).select_related("owner")
+            if user.is_authenticated:
+                qs = qs.exclude(owner=user)
+            return qs
+
+        if user.is_authenticated:
+            return LimsView.objects.filter(owner=user).select_related("owner")
+        return LimsView.objects.none()
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+
+            raise NotAuthenticated("Authentication is required to save views.")
+        serializer.save(owner=self.request.user)
+
+    def check_object_permissions(self, request, obj):
+        """Only the owner can update, delete, or toggle is_public."""
+        if request.method in ("PUT", "PATCH", "DELETE"):
+            if not request.user.is_authenticated or obj.owner != request.user:
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied(
+                    "You do not have permission to modify this view."
+                )
+        return super().check_object_permissions(request, obj)

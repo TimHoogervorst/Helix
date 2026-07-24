@@ -11,7 +11,6 @@ Usage::
     # In AppConfig.ready():
     registry.register_action_model("eln", ElnAction)
     registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
-    registry.register_entity_type({"prefix": "BLOOD", "name": "Blood Sample", "mod_id": "lims"})
     registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
     registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
     registry.register_service("lims.cascadeEntryStatus", cascade_handler)
@@ -47,7 +46,6 @@ class BackendModRegistry:
         # ── storage ──────────────────────────────────────────────────────
         self._action_models: dict[str, type] = {}
         self._url_patterns: dict[str, list] = defaultdict(list)
-        self._entity_types: dict[str, dict[str, Any]] = {}
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
         self._services: dict[str, Callable[..., Any]] = {}
@@ -110,6 +108,66 @@ class BackendModRegistry:
 
     # ── registration methods ─────────────────────────────────────────────
 
+    def register_schema_type(
+        self,
+        *,
+        display_name: str,
+        workspace_id: str,
+        model: str,
+        columns: list[dict[str, Any]] | None = None,
+        prefix: str,
+        schema_name: str = "Default",
+    ) -> None:
+        """Create-or-ensure a SchemaType row and a default Schema row.
+
+        Idempotent across boots — safe to call on every ``AppConfig.ready()``.
+        Uses ``update_or_create`` so repeated calls with the same identity
+        don't create duplicates, and changed fields (columns, display_name)
+        are updated in-place.
+
+        Parameters:
+            display_name: Human-readable label for the SchemaType.
+            workspace_id: The workspace that owns this schema type
+                          (e.g. ``"lims"``).
+            model: Dotted Python path to the model class
+                   (e.g. ``"mods.lims.models.Entity"``).
+            columns: Optional list of column definition dicts.
+            prefix: Uppercase prefix for the default Schema's display-ID
+                    generation (e.g. ``"E"``).
+            schema_name: Name for the default Schema row (default ``"Default"``).
+        """
+        from django.db import OperationalError, ProgrammingError
+
+        from helix_core.models import Schema, SchemaType
+
+        if columns is None:
+            columns = []
+
+        try:
+            schema_type, _ = SchemaType.objects.update_or_create(
+                model=model,
+                defaults={
+                    "display_name": display_name,
+                    "workspace_id": workspace_id,
+                    "columns": columns,
+                },
+            )
+
+            Schema.objects.update_or_create(
+                schema_type=schema_type,
+                is_default=True,
+                defaults={
+                    "name": schema_name,
+                    "prefix": prefix,
+                    "columns": columns,
+                },
+            )
+        except (OperationalError, ProgrammingError):
+            # DB not available (e.g. during makemigrations) — skip.
+            # The schema type will be created on next boot when the DB
+            # is available and AppConfig.ready() runs again.
+            pass
+
     def register_action_model(self, mod_id: str, model_class: type) -> None:
         """Register a concrete action model class for *mod_id*.
 
@@ -127,22 +185,6 @@ class BackendModRegistry:
         *mod_id* overwrite the previous patterns.
         """
         self._url_patterns[mod_id] = list(url_patterns)
-
-    def register_entity_type(self, config: dict[str, Any]) -> None:
-        """Register an entity type configuration.
-
-        *config* must include a ``"prefix"`` key — the value is used as the
-        registration key.  Typical keys: ``prefix``, ``name``, ``icon``,
-        ``mod_id``, ``workspace_id``.
-
-        Duplicate registrations for the same prefix silently overwrite.
-        """
-        prefix = config.get("prefix")
-        if not prefix:
-            raise ValueError(
-                "register_entity_type: config must include a non-empty 'prefix' key."
-            )
-        self._entity_types[prefix] = dict(config)
 
     def register_setting(self, mod_id: str, key: str, default: Any) -> None:
         """Declare ownership of a setting key for *mod_id*.
@@ -364,10 +406,6 @@ class BackendModRegistry:
             key=_sort_key,
         )
         return dict(sorted_items)
-
-    def get_entity_types(self) -> dict[str, dict[str, Any]]:
-        """Return all registered entity type configs as ``{prefix: config}``."""
-        return dict(self._entity_types)
 
     def get_settings(self, mod_id: str) -> dict[str, Any]:
         """Return all registered settings for *mod_id*.

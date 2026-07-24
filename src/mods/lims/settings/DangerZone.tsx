@@ -5,6 +5,7 @@ export interface DangerZoneProps {
   dangerResult: string | null;
   onDeleteAllElms: () => void;
   onDeleteAllEntities: () => void;
+  onDeleteAllSchemas: () => void;
   onDeleteEverything: () => void;
 }
 
@@ -19,6 +20,7 @@ function DangerZone({
   dangerResult,
   onDeleteAllElms,
   onDeleteAllEntities,
+  onDeleteAllSchemas,
   onDeleteEverything,
 }: DangerZoneProps) {
   return (
@@ -52,6 +54,13 @@ function DangerZone({
           disabled={dangerLoading !== null}
         >
           {dangerLoading === "entities" ? "Deleting…" : "🗑️ DELETE ALL ENTITIES"}
+        </button>
+        <button
+          className="danger-btn danger-btn-schemas"
+          onClick={onDeleteAllSchemas}
+          disabled={dangerLoading !== null}
+        >
+          {dangerLoading === "schemas" ? "Deleting…" : "🗑️ DELETE ALL SCHEMAS"}
         </button>
         <button
           className="danger-btn danger-btn-everything"

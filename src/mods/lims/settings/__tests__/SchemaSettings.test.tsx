@@ -22,35 +22,48 @@ describe("SchemaSettings", () => {
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("renders empty state when no entity types exist", async () => {
-    mockGet.mockResolvedValue([]);
+  it("renders empty state when no schemas exist", async () => {
+    // First call = schemas, second call = schema types
+    mockGet
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
     render(<SchemaSettings />);
     await waitFor(() => {
       expect(screen.getByText("No schemas found.")).toBeInTheDocument();
     });
   });
 
-  it("renders entity types in the master panel", async () => {
-    mockGet.mockResolvedValue([
-      {
-        id: 1,
-        name: "Blood Sample",
-        prefix: "BLOOD",
-        icon: "🩸",
-        columns: [
-          { name: "Volume", type: "Number" as const },
-        ],
-        is_active: true,
-      },
-      {
-        id: 2,
-        name: "Patient",
-        prefix: "PAT",
-        icon: "👤",
-        columns: [],
-        is_active: true,
-      },
-    ]);
+  it("renders schemas in the master panel", async () => {
+    mockGet
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          name: "Blood Sample",
+          prefix: "BLOOD",
+          schema_type: 1,
+          schema_type_display: "Entity",
+          columns: [
+            { name: "Volume", type: "Number" as const },
+          ],
+          is_default: false,
+          is_active: true,
+          content_hash: "abc123",
+        },
+        {
+          id: 2,
+          name: "Patient",
+          prefix: "PAT",
+          schema_type: 1,
+          schema_type_display: "Entity",
+          columns: [],
+          is_default: false,
+          is_active: true,
+          content_hash: "def456",
+        },
+      ])
+      .mockResolvedValueOnce([
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true },
+      ]);
     render(<SchemaSettings />);
     await waitFor(() => {
       expect(screen.getByText("Blood Sample")).toBeInTheDocument();
@@ -64,5 +77,30 @@ describe("SchemaSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("Network error")).toBeInTheDocument();
     });
+  });
+
+  it("hides default schemas from the list", async () => {
+    mockGet
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          name: "Default",
+          prefix: "E",
+          schema_type: 1,
+          schema_type_display: "Entity",
+          columns: [],
+          is_default: true,
+          is_active: true,
+          content_hash: "abc123",
+        },
+      ])
+      .mockResolvedValueOnce([
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true },
+      ]);
+    render(<SchemaSettings />);
+    await waitFor(() => {
+      expect(screen.getByText("No schemas found.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Default")).not.toBeInTheDocument();
   });
 });

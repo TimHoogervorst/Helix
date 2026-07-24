@@ -49,7 +49,17 @@ function modResolutionPlugin() {
       // Let Vite handle pre-bundled packages so optimized ESM is used.
       if (VITE_PREBUNDLED.has(id)) return null;
       try {
-        return shellRequire.resolve(id, { paths: [shellNodeModules] });
+        const resolved = shellRequire.resolve(id, {
+          paths: [shellNodeModules],
+        });
+        // Only intercept when the resolved package lives inside the
+        // shell's own node_modules — otherwise Vite's native ESM
+        // resolution already handles it correctly (including the
+        // "import" condition in package.json exports).  Returning a
+        // CJS path from an ancestor node_modules would break default
+        // imports (e.g. @tiptap/extension-placeholder).
+        if (!resolved.startsWith(shellNodeModules)) return null;
+        return resolved;
       } catch {
         return null;
       }

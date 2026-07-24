@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { EntityType } from "../../types";
-import { makeEntityType, makeColumnDef, makeMockMentionBadge } from "../../../../shell/src/test/factories";
+import type { Schema } from "../../types";
+import { makeSchema, makeColumnDef, makeSchemaType, makeMockMentionBadge } from "../../../../shell/src/test/factories";
 import TypeMasterPanel from "../TypeMasterPanel";
 
 // Mock MentionBadge
@@ -9,30 +9,41 @@ vi.mock("../../../../shared/components/MentionBadge", () => ({
   default: makeMockMentionBadge(),
 }));
 
-const types = [
-  makeEntityType({
+const schemaTypes = [
+  makeSchemaType(),
+  makeSchemaType({ id: 2, display_name: "ELN Entry", workspace_id: "eln" }),
+];
+
+const schemas: Schema[] = [
+  makeSchema({
     columns: [
       makeColumnDef(),
       makeColumnDef({ name: "hemolyzed", type: "Boolean" }),
     ],
   }),
-  makeEntityType({
+  makeSchema({
     id: 2,
     name: "Mice",
     prefix: "MICE",
-    icon: "🐁",
     is_active: false,
     columns: [makeColumnDef({ name: "strain", type: "Text" })],
   }),
+  makeSchema({
+    id: 3,
+    name: "Default",
+    prefix: "E",
+    is_default: true,
+    columns: [],
+  }),
 ];
 
-const dirtyEdits = new Map<number, EntityType>();
+const dirtyEdits = new Map<number, Schema>();
 
 describe("TypeMasterPanel", () => {
   it("renders schemas heading", () => {
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -43,6 +54,9 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
@@ -54,7 +68,7 @@ describe("TypeMasterPanel", () => {
   it("renders active types by default", () => {
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -65,20 +79,23 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
       />,
     );
-    // Both should appear since we pass all types
     expect(screen.getByText("Blood Sample")).toBeInTheDocument();
     expect(screen.getByText("Mice")).toBeInTheDocument();
+    expect(screen.getByText("Default")).toBeInTheDocument();
   });
 
   it("shows empty message when there are no types", () => {
     render(
       <TypeMasterPanel
-        types={[]}
+        schemas={[]}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -89,6 +106,9 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={[]}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
@@ -101,7 +121,7 @@ describe("TypeMasterPanel", () => {
     const onSelect = vi.fn();
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={onSelect}
         showArchived={false}
@@ -112,19 +132,22 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
       />,
     );
     fireEvent.click(screen.getByText("Blood Sample"));
-    expect(onSelect).toHaveBeenCalledWith(types[0]);
+    expect(onSelect).toHaveBeenCalledWith(schemas[0]);
   });
 
   it("applies is-selected class to selected type", () => {
     const { container } = render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={1}
         onSelect={vi.fn()}
         showArchived={false}
@@ -135,6 +158,9 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
@@ -146,7 +172,7 @@ describe("TypeMasterPanel", () => {
   it("shows inactive tag for inactive types", () => {
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -157,6 +183,9 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
@@ -166,11 +195,11 @@ describe("TypeMasterPanel", () => {
   });
 
   it("shows 'Edited' tag for dirty types", () => {
-    const dirty = new Map<number, EntityType>();
-    dirty.set(1, { ...types[0] });
+    const dirty = new Map<number, Schema>();
+    dirty.set(1, { ...schemas[0] });
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -181,6 +210,9 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirty}
@@ -189,34 +221,10 @@ describe("TypeMasterPanel", () => {
     expect(screen.getByText("Edited")).toBeInTheDocument();
   });
 
-  it("shows new schema form when showNew is true", () => {
+  it("shows System badge for default schemas", () => {
     render(
       <TypeMasterPanel
-        types={types}
-        selectedId={null}
-        onSelect={vi.fn()}
-        showArchived={false}
-        onToggleArchived={vi.fn()}
-        showNew={true}
-        onToggleNew={vi.fn()}
-        newName=""
-        onNewNameChange={vi.fn()}
-        newPrefix=""
-        onNewPrefixChange={vi.fn()}
-        onCreate={vi.fn()}
-        saving={false}
-        dirtyEdits={dirtyEdits}
-      />,
-    );
-    expect(screen.getByPlaceholderText("e.g., Blood Sample")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("e.g., BLOOD")).toBeInTheDocument();
-    expect(screen.getByText("Create")).toBeInTheDocument();
-  });
-
-  it("does not show new schema form when showNew is false", () => {
-    render(
-      <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -227,18 +235,22 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
       />,
     );
-    expect(screen.queryByPlaceholderText("e.g., Blood Sample")).not.toBeInTheDocument();
+    // The default schema (id=3) should show a "System" badge
+    expect(screen.getByText("System")).toBeInTheDocument();
   });
 
-  it("disables Create button when name or prefix is empty", () => {
+  it("shows new schema form with schema type dropdown", () => {
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -249,19 +261,24 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={1}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}
       />,
     );
-    expect(screen.getByText("Create")).toBeDisabled();
+    expect(screen.getByPlaceholderText("e.g., Blood Sample")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g., BLOOD")).toBeInTheDocument();
+    expect(screen.getByText("Schema Type")).toBeInTheDocument();
+    expect(screen.getByText("Create")).toBeInTheDocument();
   });
 
-  it("calls onCreate when Create button is clicked", () => {
-    const onCreate = vi.fn();
+  it("disables Create button when schema type is not selected", () => {
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -272,6 +289,60 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix="TS"
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
+        onCreate={vi.fn()}
+        saving={false}
+        dirtyEdits={dirtyEdits}
+      />,
+    );
+    expect(screen.getByText("Create")).toBeDisabled();
+  });
+
+  it("does not show new schema form when showNew is false", () => {
+    render(
+      <TypeMasterPanel
+        schemas={schemas}
+        selectedId={null}
+        onSelect={vi.fn()}
+        showArchived={false}
+        onToggleArchived={vi.fn()}
+        showNew={false}
+        onToggleNew={vi.fn()}
+        newName=""
+        onNewNameChange={vi.fn()}
+        newPrefix=""
+        onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
+        onCreate={vi.fn()}
+        saving={false}
+        dirtyEdits={dirtyEdits}
+      />,
+    );
+    expect(screen.queryByPlaceholderText("e.g., Blood Sample")).not.toBeInTheDocument();
+  });
+
+  it("calls onCreate when Create button is clicked", () => {
+    const onCreate = vi.fn();
+    render(
+      <TypeMasterPanel
+        schemas={schemas}
+        selectedId={null}
+        onSelect={vi.fn()}
+        showArchived={false}
+        onToggleArchived={vi.fn()}
+        showNew={true}
+        onToggleNew={vi.fn()}
+        newName="Test"
+        onNewNameChange={vi.fn()}
+        newPrefix="TS"
+        onNewPrefixChange={vi.fn()}
+        newSchemaType={1}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={onCreate}
         saving={false}
         dirtyEdits={dirtyEdits}
@@ -285,7 +356,7 @@ describe("TypeMasterPanel", () => {
     const onToggleNew = vi.fn();
     render(
       <TypeMasterPanel
-        types={types}
+        schemas={schemas}
         selectedId={null}
         onSelect={vi.fn()}
         showArchived={false}
@@ -296,6 +367,9 @@ describe("TypeMasterPanel", () => {
         onNewNameChange={vi.fn()}
         newPrefix=""
         onNewPrefixChange={vi.fn()}
+        newSchemaType={null}
+        onNewSchemaTypeChange={vi.fn()}
+        schemaTypes={schemaTypes}
         onCreate={vi.fn()}
         saving={false}
         dirtyEdits={dirtyEdits}

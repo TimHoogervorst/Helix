@@ -82,7 +82,7 @@ function LibraryNewDropdown({
     setError(null);
     try {
       const entry = await createEntry({
-        title: "Untitled",
+        name: "Untitled",
         content: EMPTY_DOC,
         folder: currentFolderId,
       });

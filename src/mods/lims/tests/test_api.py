@@ -7,22 +7,22 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.tests.base import BaseTestCase
-from mods.lims.models import Action as LimsAction, EntityType, Entity
+from helix_core.models import SchemaType, Schema
+from mods.lims.models import Action as LimsAction, Entity
 
 
 class LimsApiTests(BaseTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
-        EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
-        EntityType.objects.create(name="Chemical", prefix="CHEM", columns=[])
-
-    def test_list_entity_types(self):
-        """GET returns the seeded types."""
-        response = self.client.get("/api/lims/entity-types/")
-        self.assertEqual(response.status_code, 200)
-        names = {et["name"] for et in response.data}
-        self.assertIn("DNA", names)
-        self.assertIn("Chemical", names)
+        Schema.objects.create(name="DNA", prefix="DNA", schema_type=self.schema_type)
+        Schema.objects.create(name="Chemical", prefix="CHEM", schema_type=self.schema_type)
 
     def test_list_entities_empty(self):
         """GET returns empty list."""
@@ -33,10 +33,10 @@ class LimsApiTests(BaseTestCase):
     def test_create_entity_succeeds(self):
         """POST creates an entity with auto-generated display_id."""
         self.client.force_authenticate(user=self.user)
-        dna_type = EntityType.objects.get(name="DNA")
+        dna_schema = Schema.objects.get(name="DNA")
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample A", "entity_type": dna_type.id},
+            {"name": "Sample A", "schema": dna_schema.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -44,263 +44,44 @@ class LimsApiTests(BaseTestCase):
         self.assertTrue(response.data["display_id"].startswith("DNA"))
 
 
-# ── Slice 1: EntityType CRUD ──
-
-class EntityTypeCrudTests(TestCase):
-    """Full CRUD for EntityType: create, update, soft-delete."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-    def test_create_entity_type(self):
-        """POST creates a schema with name, prefix, and columns."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Blood Sample",
-                "prefix": "BLOOD",
-                "columns": [
-                    {"name": "volume", "type": "Number", "required": True},
-                    {"name": "patient", "type": "Text", "required": False},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["name"], "Blood Sample")
-        self.assertEqual(response.data["prefix"], "BLOOD")
-        self.assertEqual(len(response.data["columns"]), 2)
-        self.assertTrue(response.data["is_active"])
-
-        # Verify it's persisted
-        et = EntityType.objects.get(pk=response.data["id"])
-        self.assertEqual(et.prefix, "BLOOD")
-        self.assertEqual(len(et.columns), 2)
-
-    def test_create_entity_type_without_prefix_fails(self):
-        """POST without prefix returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {"name": "No Prefix", "columns": []},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_create_entity_type_duplicate_prefix_fails(self):
-        """POST with a prefix already in use returns 400."""
-        EntityType.objects.create(name="First", prefix="UNIQ", columns=[])
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {"name": "Second", "prefix": "UNIQ", "columns": []},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_update_entity_type(self):
-        """PUT updates a schema's name, columns, and reorder."""
-        et = EntityType.objects.create(name="DNA", prefix="DNA", columns=[
-            {"name": "vol", "type": "Number"},
-        ])
-        response = self.client.put(
-            f"/api/lims/entity-types/{et.id}/",
-            {
-                "name": "DNA Updated",
-                "prefix": "DNA",  # unchanged
-                "columns": [
-                    {"name": "conc", "type": "Number"},
-                    {"name": "vol", "type": "Number"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["name"], "DNA Updated")
-        self.assertEqual(len(response.data["columns"]), 2)
-        self.assertEqual(response.data["columns"][0]["name"], "conc")
-
-        et.refresh_from_db()
-        self.assertEqual(et.name, "DNA Updated")
-        self.assertEqual(len(et.columns), 2)
-
-    def test_soft_delete_entity_type(self):
-        """DELETE sets is_active=False instead of hard-deleting."""
-        et = EntityType.objects.create(name="Temp", prefix="TEMP", columns=[])
-        self.assertTrue(et.is_active)
-
-        response = self.client.delete(f"/api/lims/entity-types/{et.id}/")
-        self.assertEqual(response.status_code, 204)
-
-        et.refresh_from_db()
-        self.assertFalse(et.is_active)
-
-        # Still exists in DB
-        self.assertTrue(EntityType.objects.filter(pk=et.id).exists())
-
-
-class EntityTypeColumnValidationTests(TestCase):
-    """Column schema validation on EntityType create/update."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-    def test_rejects_invalid_column_type(self):
-        """POST with a column type outside allowed set returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Bad Schema",
-                "prefix": "BAD",
-                "columns": [
-                    {"name": "foo", "type": "InvalidType"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("columns", response.data)
-
-    def test_rejects_prefix_with_lowercase(self):
-        """POST with lowercase prefix returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Bad Prefix",
-                "prefix": "blood",  # lowercase
-                "columns": [],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    # ── Name pseudo-column rejection ─────────────────────────────────
-
-    def test_rejects_column_named_name(self):
-        """POST with a column named 'name' returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Test Schema",
-                "prefix": "TEST",
-                "columns": [
-                    {"name": "name", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("columns", response.data)
-
-    def test_rejects_column_named_NAME_uppercase(self):
-        """POST with a column named 'NAME' (uppercase) returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Test Schema",
-                "prefix": "TEST",
-                "columns": [
-                    {"name": "NAME", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_rejects_column_named_name_with_whitespace(self):
-        """POST with a column named ' Name ' (whitespace) returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Test Schema",
-                "prefix": "TEST",
-                "columns": [
-                    {"name": " Name ", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_rejects_column_named_name_mixed_case(self):
-        """POST with a column named 'nAmE' (mixed case) returns 400."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Test Schema",
-                "prefix": "TEST",
-                "columns": [
-                    {"name": "nAmE", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_allows_columns_not_named_name(self):
-        """POST with columns not named 'name' succeeds."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "Valid Schema",
-                "prefix": "VALID",
-                "columns": [
-                    {"name": "volume", "type": "Number"},
-                    {"name": "description", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-
-    def test_put_rejects_column_named_name_on_update(self):
-        """PUT with a column named 'Name' on update returns 400."""
-        et = EntityType.objects.create(
-            name="DNA", prefix="DNA",
-            columns=[{"name": "vol", "type": "Number"}],
-        )
-        response = self.client.put(
-            f"/api/lims/entity-types/{et.id}/",
-            {
-                "name": "DNA",
-                "prefix": "DNA",
-                "columns": [
-                    {"name": "vol", "type": "Number"},
-                    {"name": "Name", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-
-# ── Slice 2: Entity API ──
+# ── Entity API ──
 
 class EntityApiTests(BaseTestCase):
     """Entity listing, detail (by display_id), and batch resolve."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
-        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[
-            {"name": "concentration", "type": "Number"},
-        ])
-        self.chem_type = EntityType.objects.create(name="Chemical", prefix="CHEM", columns=[
-            {"name": "purity", "type": "Text"},
-        ])
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+            columns=[{"name": "concentration", "type": "Number"}],
+        )
+        self.chem_schema = Schema.objects.create(
+            name="Chemical", prefix="CHEM", schema_type=self.schema_type,
+            columns=[{"name": "purity", "type": "Text"}],
+        )
 
     def test_list_entities_with_filters(self):
         """GET /api/lims/entities/ supports ?search= and ?type= filters."""
         e1 = Entity.objects.create(
-            name="Sample Alpha", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Sample Alpha", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
             properties={"concentration": 42},
         )
         e2 = Entity.objects.create(
-            name="Reagent Beta", entity_type=self.chem_type,
-            folder=self.folder, created_by=self.user,
+            name="Reagent Beta", schema=self.chem_schema,
+            folder=self.folder, author=self.user,
             properties={"purity": "High"},
         )
 
         # Filter by type
-        response = self.client.get(f"/api/lims/entities/?type={self.dna_type.id}")
+        response = self.client.get(f"/api/lims/entities/?type={self.dna_schema.id}")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(response.data["results"][0]["display_id"], e1.display_id)
@@ -319,8 +100,8 @@ class EntityApiTests(BaseTestCase):
     def test_retrieve_entity_by_display_id(self):
         """GET /api/lims/entities/{display_id}/ looks up by display_id, not pk."""
         entity = Entity.objects.create(
-            name="Retrieve Me", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Retrieve Me", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
         self.assertEqual(response.status_code, 200)
@@ -330,8 +111,8 @@ class EntityApiTests(BaseTestCase):
     def test_retrieve_by_numeric_pk_returns_404(self):
         """GET by numeric pk returns 404 (lookup is by display_id, not pk)."""
         entity = Entity.objects.create(
-            name="By PK", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="By PK", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         response = self.client.get(f"/api/lims/entities/{entity.pk}/")
         self.assertEqual(response.status_code, 404)
@@ -339,13 +120,13 @@ class EntityApiTests(BaseTestCase):
     def test_batch_resolve_entities(self):
         """POST /api/lims/entities/batch/ resolves display IDs to properties."""
         e1 = Entity.objects.create(
-            name="Batch One", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Batch One", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
             properties={"concentration": 99},
         )
         e2 = Entity.objects.create(
-            name="Batch Two", entity_type=self.chem_type,
-            folder=self.folder, created_by=self.user,
+            name="Batch Two", schema=self.chem_schema,
+            folder=self.folder, author=self.user,
             properties={"purity": "Low"},
         )
 
@@ -362,10 +143,6 @@ class EntityApiTests(BaseTestCase):
         self.assertIsNone(response.data["NONEXIST1"])
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# Action logging tests — EntityType CRUD
-# ═══════════════════════════════════════════════════════════════════════
-
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
 
@@ -376,89 +153,6 @@ def _log_kwargs(mock):
     return mock.call_args[1]
 
 
-class EntityTypeActionLoggingTests(BaseTestCase):
-    """Test that EntityType CRUD operations log actions via ActionLoggingMixin."""
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
-        self.mock_log = self._patcher.start()
-
-    def tearDown(self):
-        self._patcher.stop()
-
-    def test_create_entity_type_logs_action(self):
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {"name": "Blood Sample", "prefix": "BLOOD", "columns": []},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity_type.created")
-        self.assertEqual(kwargs["target_type"], "lims.entity_type")
-        self.assertEqual(kwargs["target_id"], response.data["id"])
-        self.assertEqual(kwargs["user"], self.user)
-
-    def test_update_entity_type_logs_action(self):
-        et = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
-        response = self.client.put(
-            f"/api/lims/entity-types/{et.id}/",
-            {"name": "DNA Updated", "prefix": "DNA", "columns": []},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity_type.edited")
-        self.assertEqual(kwargs["target_type"], "lims.entity_type")
-        self.assertEqual(kwargs["target_id"], et.id)
-
-    def test_partial_update_entity_type_logs_action(self):
-        et = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
-        response = self.client.patch(
-            f"/api/lims/entity-types/{et.id}/",
-            {"name": "DNA Patched"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity_type.edited")
-        self.assertEqual(kwargs["target_type"], "lims.entity_type")
-
-    def test_soft_delete_entity_type_logs_action(self):
-        et = EntityType.objects.create(name="Temp", prefix="TEMP", columns=[])
-        response = self.client.delete(f"/api/lims/entity-types/{et.id}/")
-        self.assertEqual(response.status_code, 204)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity_type.deleted")
-        self.assertEqual(kwargs["target_type"], "lims.entity_type")
-        self.assertEqual(kwargs["target_id"], et.id)
-
-    def test_create_entity_type_captures_request_id(self):
-        self.client.post(
-            "/api/lims/entity-types/",
-            {"name": "Blood", "prefix": "BLOOD", "columns": []},
-            format="json",
-        )
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertIsNotNone(kwargs["request_id"])
-        self.assertEqual(len(str(kwargs["request_id"])), 36)
-
-    def test_create_entity_type_captures_client_ip(self):
-        self.client.post(
-            "/api/lims/entity-types/",
-            {"name": "Blood", "prefix": "BLOOD", "columns": []},
-            format="json",
-        )
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # Action logging tests — Entity CRUD
 # ═══════════════════════════════════════════════════════════════════════
@@ -467,10 +161,19 @@ class EntityTypeActionLoggingTests(BaseTestCase):
 class EntityActionLoggingTests(BaseTestCase):
     """Test that Entity CRUD operations log actions via ActionLoggingMixin."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+        )
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
 
@@ -480,7 +183,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_create_entity_logs_action(self):
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample A", "entity_type": self.dna_type.id},
+            {"name": "Sample A", "schema": self.dna_schema.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -493,12 +196,12 @@ class EntityActionLoggingTests(BaseTestCase):
 
     def test_update_entity_logs_action(self):
         entity = Entity.objects.create(
-            name="Sample A", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Sample A", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
-            {"name": "Sample A Updated", "entity_type": self.dna_type.id},
+            {"name": "Sample A Updated", "schema": self.dna_schema.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -510,8 +213,8 @@ class EntityActionLoggingTests(BaseTestCase):
 
     def test_partial_update_entity_logs_action(self):
         entity = Entity.objects.create(
-            name="Sample B", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Sample B", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         response = self.client.patch(
             f"/api/lims/entities/{entity.display_id}/",
@@ -526,8 +229,8 @@ class EntityActionLoggingTests(BaseTestCase):
 
     def test_delete_entity_logs_action(self):
         entity = Entity.objects.create(
-            name="Delete Me", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Delete Me", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         response = self.client.delete(
             f"/api/lims/entities/{entity.display_id}/"
@@ -542,7 +245,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_create_entity_captures_request_id_and_client_ip(self):
         self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample C", "entity_type": self.dna_type.id},
+            {"name": "Sample C", "schema": self.dna_schema.id},
             format="json",
         )
         kwargs = _log_kwargs(self.mock_log)
@@ -556,8 +259,8 @@ class EntityActionLoggingTests(BaseTestCase):
 
     def test_retrieve_entity_does_not_log(self):
         entity = Entity.objects.create(
-            name="Read Only", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Read Only", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         response = self.client.get(
             f"/api/lims/entities/{entity.display_id}/"
@@ -583,32 +286,25 @@ class EntityActionLoggingTests(BaseTestCase):
 class LimsActionLoggingFailOpenTests(BaseTestCase):
     """Test that action logging failure never breaks LIMS responses."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
-
-    def test_log_exception_does_not_break_entity_type_create(self):
-        with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
-            response = self.client.post(
-                "/api/lims/entity-types/",
-                {"name": "Survivor", "prefix": "SURV", "columns": []},
-                format="json",
-            )
-        self.assertEqual(response.status_code, 201)
-        self.assertIn("id", response.data)
-
-    def test_log_exception_does_not_break_entity_type_delete(self):
-        et = EntityType.objects.create(name="Temp", prefix="TEMP", columns=[])
-        with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
-            response = self.client.delete(f"/api/lims/entity-types/{et.id}/")
-        self.assertEqual(response.status_code, 204)
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+        )
 
     def test_log_exception_does_not_break_entity_create(self):
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.post(
                 "/api/lims/entities/",
-                {"name": "Survivor", "entity_type": self.dna_type.id},
+                {"name": "Survivor", "schema": self.dna_schema.id},
                 format="json",
             )
         self.assertEqual(response.status_code, 201)
@@ -616,8 +312,8 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
 
     def test_log_exception_does_not_break_entity_delete(self):
         entity = Entity.objects.create(
-            name="Delete Me", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Delete Me", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.delete(
@@ -627,7 +323,7 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Regression — existing LIMS Entity Actions (user-recorded) untouched
+# Regression — existing Entity Actions (user-recorded) untouched
 # ═══════════════════════════════════════════════════════════════════════
 
 
@@ -635,9 +331,18 @@ class ActionViewSetRegressionTests(BaseTestCase):
     """Verify ActionViewSet (user-recorded LIMS actions) still works after
     ActionLoggingMixin is added to the other LIMS viewsets."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
-        self.dna_type = EntityType.objects.create(name="DNA", prefix="DNA", columns=[])
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+        )
 
     def test_list_actions_returns_200(self):
         """GET /api/lims/actions/ still responds correctly."""
@@ -648,8 +353,8 @@ class ActionViewSetRegressionTests(BaseTestCase):
     def test_action_model_still_creates_rows(self):
         """LimsAction.objects.create() still works directly."""
         entity = Entity.objects.create(
-            name="Test Entity", entity_type=self.dna_type,
-            folder=self.folder, created_by=self.user,
+            name="Test Entity", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
         )
         action = LimsAction.objects.create(
             performed_by=self.user,
@@ -668,146 +373,6 @@ class ActionViewSetRegressionTests(BaseTestCase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class EntityTypeColumnIdApiTests(TestCase):
-    """Column UUID ids are returned by the API and generated server-side."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-    def test_get_entity_type_includes_column_ids(self):
-        """GET response includes column IDs in the columns array."""
-        et = EntityType.objects.create(
-            name="Test Type",
-            prefix="TEST",
-            columns=[{"name": "volume", "type": "Number"}],
-        )
-        response = self.client.get(f"/api/lims/entity-types/{et.id}/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("id", response.data["columns"][0])
-        self.assertEqual(len(response.data["columns"][0]["id"]), 36)
-
-    def test_create_entity_type_generates_column_ids(self):
-        """POST creates entity type with auto-generated column IDs."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "New Type",
-                "prefix": "NEWT",
-                "columns": [
-                    {"name": "volume", "type": "Number"},
-                    {"name": "colour", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(len(response.data["columns"]), 2)
-        for col in response.data["columns"]:
-            self.assertIn("id", col)
-            self.assertEqual(len(col["id"]), 36)
-
-    def test_update_preserves_existing_column_ids(self):
-        """PUT preserves column IDs for existing columns."""
-        et = EntityType.objects.create(
-            name="Test Type",
-            prefix="TEST",
-            columns=[{"name": "volume", "type": "Number"}],
-        )
-        original_id = et.columns[0]["id"]
-
-        response = self.client.put(
-            f"/api/lims/entity-types/{et.id}/",
-            {
-                "name": "Updated Type",
-                "prefix": "TEST",
-                "columns": [
-                    {"name": "volume", "type": "Number"},  # no id — server should preserve
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        # When columns are sent without ids, new ids are generated
-        # (This tests the re-generation path)
-        self.assertIn("id", response.data["columns"][0])
-
-
-class EntityTypeContentHashApiTests(TestCase):
-    """content_hash is returned by the API and updates on column changes."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-    def test_get_entity_type_includes_content_hash(self):
-        """GET response includes content_hash."""
-        et = EntityType.objects.create(
-            name="Test Type",
-            prefix="TEST",
-            columns=[{"name": "volume", "type": "Number"}],
-        )
-        response = self.client.get(f"/api/lims/entity-types/{et.id}/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("content_hash", response.data)
-        self.assertEqual(len(response.data["content_hash"]), 64)
-
-    def test_list_entity_types_includes_content_hash(self):
-        """GET list response includes content_hash for each entity type."""
-        EntityType.objects.create(
-            name="Type A", prefix="TYPEA",
-            columns=[{"name": "vol", "type": "Number"}],
-        )
-        EntityType.objects.create(
-            name="Type B", prefix="TYPEB",
-            columns=[{"name": "mass", "type": "Number"}],
-        )
-        response = self.client.get("/api/lims/entity-types/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 2)
-        for et_data in response.data:
-            self.assertIn("content_hash", et_data)
-            self.assertEqual(len(et_data["content_hash"]), 64)
-
-    def test_content_hash_changes_after_column_update(self):
-        """content_hash in API response changes when columns are modified."""
-        et = EntityType.objects.create(
-            name="Test Type",
-            prefix="TEST",
-            columns=[{"name": "volume", "type": "Number"}],
-        )
-        response = self.client.get(f"/api/lims/entity-types/{et.id}/")
-        original_hash = response.data["content_hash"]
-
-        response = self.client.put(
-            f"/api/lims/entity-types/{et.id}/",
-            {
-                "name": "Test Type",
-                "prefix": "TEST",
-                "columns": [
-                    {"name": "volume", "type": "Number"},
-                    {"name": "colour", "type": "Text"},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertNotEqual(response.data["content_hash"], original_hash)
-
-    def test_create_entity_type_returns_content_hash(self):
-        """POST response includes content_hash."""
-        response = self.client.post(
-            "/api/lims/entity-types/",
-            {
-                "name": "New Type",
-                "prefix": "NEWT",
-                "columns": [{"name": "volume", "type": "Number"}],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 201)
-        self.assertIn("content_hash", response.data)
-        self.assertEqual(len(response.data["content_hash"]), 64)
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # Batch register endpoint — issue #253
 # ═══════════════════════════════════════════════════════════════════════
@@ -819,11 +384,18 @@ BATCH_LOG_ACTION_PATH = "mods.lims.views.log_action"
 class BatchRegisterCreateTests(BaseTestCase):
     """Test batch-register creates new entities when entity_id is null."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(
-            name="DNA", prefix="DNA",
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "Number"}],
         )
 
@@ -832,7 +404,7 @@ class BatchRegisterCreateTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}},
                 ],
@@ -852,7 +424,7 @@ class BatchRegisterCreateTests(BaseTestCase):
         # Verify entity was persisted
         entity = Entity.objects.get(pk=result["entity_id"])
         self.assertEqual(entity.name, "Sample A")
-        self.assertEqual(entity.entity_type, self.dna_type)
+        self.assertEqual(entity.schema, self.dna_schema)
         self.assertEqual(entity.properties, {"concentration": 42})
 
     def test_create_multiple_entities(self):
@@ -860,7 +432,7 @@ class BatchRegisterCreateTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": None, "name": "Sample A", "values": {}},
                     {"entity_id": None, "name": "Sample B", "values": {}},
@@ -877,24 +449,31 @@ class BatchRegisterCreateTests(BaseTestCase):
             self.assertEqual(result["row_index"], i)
             self.assertEqual(result["status"], "created")
 
-        self.assertEqual(Entity.objects.filter(entity_type=self.dna_type).count(), 3)
+        self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 3)
 
 
 class BatchRegisterUpdateTests(BaseTestCase):
     """Test batch-register updates existing entities when entity_id is provided."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(
-            name="DNA", prefix="DNA",
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "Number"}],
         )
         self.entity = Entity.objects.create(
             name="Original Name",
-            entity_type=self.dna_type,
+            schema=self.dna_schema,
             properties={"concentration": 10},
-            created_by=self.user,
+            author=self.user,
         )
 
     def test_update_existing_entity(self):
@@ -902,7 +481,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {
                         "entity_id": self.entity.id,
@@ -933,7 +512,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": 99999, "name": "Ghost", "values": {}},
                 ],
@@ -950,11 +529,18 @@ class BatchRegisterUpdateTests(BaseTestCase):
 class BatchRegisterValidationTests(BaseTestCase):
     """Test validation errors in batch-register."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(
-            name="DNA", prefix="DNA",
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "Number"}],
         )
 
@@ -963,7 +549,7 @@ class BatchRegisterValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": None, "name": "", "values": {}},
                 ],
@@ -982,7 +568,7 @@ class BatchRegisterValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": None, "name": "   ", "values": {}},
                 ],
@@ -997,11 +583,18 @@ class BatchRegisterValidationTests(BaseTestCase):
 class BatchRegisterPartialSuccessTests(BaseTestCase):
     """Test that valid rows succeed even when other rows fail validation."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(
-            name="DNA", prefix="DNA",
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "Number"}],
         )
 
@@ -1010,7 +603,7 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": None, "name": "Valid A", "values": {}},
                     {"entity_id": None, "name": "", "values": {}},         # missing name
@@ -1035,18 +628,18 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         self.assertEqual(response.data["errors"][1]["field"], "name")
 
         # Verify only the valid entities were created
-        self.assertEqual(Entity.objects.filter(entity_type=self.dna_type).count(), 2)
+        self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 2)
 
     def test_partial_success_update_and_create(self):
         """Mix of updates and creates with an error in between."""
         existing = Entity.objects.create(
-            name="Existing", entity_type=self.dna_type,
-            created_by=self.user,
+            name="Existing", schema=self.dna_schema,
+            author=self.user,
         )
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": existing.id, "name": "Existing Updated", "values": {}},
                     {"entity_id": None, "name": "", "values": {}},                      # error
@@ -1070,18 +663,25 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
 class BatchRegisterIdempotencyTests(BaseTestCase):
     """Test that batch-register is idempotent — no duplicates on re-registration."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(
-            name="DNA", prefix="DNA",
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "Number"}],
         )
 
-    def test_create_is_idempotent_by_name_and_type(self):
+    def test_create_is_idempotent_by_name_and_schema(self):
         """Registering the same (null entity_id, name) twice does not create a duplicate."""
         payload = {
-            "entity_type_id": self.dna_type.id,
+            "schema_id": self.dna_schema.id,
             "rows": [
                 {"entity_id": None, "name": "Idempotent Sample", "values": {"concentration": 42}},
             ],
@@ -1101,18 +701,18 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
 
         # Only one entity exists
         self.assertEqual(
-            Entity.objects.filter(name="Idempotent Sample", entity_type=self.dna_type).count(),
+            Entity.objects.filter(name="Idempotent Sample", schema=self.dna_schema).count(),
             1,
         )
 
     def test_update_is_idempotent(self):
         """Updating an entity with the same data twice produces the same result."""
         entity = Entity.objects.create(
-            name="Update Me", entity_type=self.dna_type,
-            properties={"concentration": 10}, created_by=self.user,
+            name="Update Me", schema=self.dna_schema,
+            properties={"concentration": 10}, author=self.user,
         )
         payload = {
-            "entity_type_id": self.dna_type.id,
+            "schema_id": self.dna_schema.id,
             "rows": [
                 {"entity_id": entity.id, "name": "Update Me", "values": {"concentration": 99}},
             ],
@@ -1130,17 +730,24 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         self.assertEqual(response2.data["results"][0]["entity_id"], entity.id)
 
         # Only one entity exists
-        self.assertEqual(Entity.objects.filter(entity_type=self.dna_type).count(), 1)
+        self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 1)
 
 
 class BatchRegisterActionLoggingTests(BaseTestCase):
     """Test that batch-register logs an action with correct metadata."""
 
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.dna_type = EntityType.objects.create(
-            name="DNA", prefix="DNA",
+        self.dna_schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "Number"}],
         )
         self._patcher = patch(BATCH_LOG_ACTION_PATH)
@@ -1154,7 +761,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": None, "name": "Sample A", "values": {}},
                     {"entity_id": None, "name": "Sample B", "values": {}},
@@ -1169,11 +776,11 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         kwargs = self.mock_log.call_args[1]
         self.assertEqual(kwargs["action_type"], "eln.entities.registered")
         self.assertEqual(kwargs["target_type"], "lims.entities")
-        self.assertEqual(kwargs["target_id"], self.dna_type.id)
+        self.assertEqual(kwargs["target_id"], self.dna_schema.id)
         self.assertEqual(kwargs["user"], self.user)
 
         metadata = kwargs["metadata"]
-        self.assertEqual(metadata["entity_type_id"], self.dna_type.id)
+        self.assertEqual(metadata["schema_id"], self.dna_schema.id)
         self.assertEqual(metadata["count"], 2)
         self.assertEqual(len(metadata["entity_ids"]), 2)
 
@@ -1182,7 +789,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
             },
             format="json",
@@ -1195,7 +802,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": self.dna_type.id,
+                "schema_id": self.dna_schema.id,
                 "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
             },
             format="json",
@@ -1204,19 +811,19 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["client_ip"], "127.0.0.1")
 
 
-class BatchRegisterEntityTypeNotFoundTests(BaseTestCase):
-    """Test behaviour when entity_type_id does not exist."""
+class BatchRegisterSchemaNotFoundTests(BaseTestCase):
+    """Test behaviour when schema_id does not exist."""
 
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
-    def test_nonexistent_entity_type_returns_404(self):
-        """POST with a non-existent entity_type_id returns 404."""
+    def test_nonexistent_schema_returns_404(self):
+        """POST with a non-existent schema_id returns 404."""
         response = self.client.post(
             BATCH_REGISTER_URL,
             {
-                "entity_type_id": 99999,
+                "schema_id": 99999,
                 "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
             },
             format="json",
@@ -1230,8 +837,8 @@ class BatchRegisterSerializerValidationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def test_missing_entity_type_id_returns_400(self):
-        """POST without entity_type_id returns 400."""
+    def test_missing_schema_id_returns_400(self):
+        """POST without schema_id returns 400."""
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"rows": [{"entity_id": None, "name": "Sample", "values": {}}]},
@@ -1243,7 +850,7 @@ class BatchRegisterSerializerValidationTests(TestCase):
         """POST without rows returns 400."""
         response = self.client.post(
             BATCH_REGISTER_URL,
-            {"entity_type_id": 1},
+            {"schema_id": 1},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
@@ -1252,7 +859,112 @@ class BatchRegisterSerializerValidationTests(TestCase):
         """POST with empty rows array returns 400."""
         response = self.client.post(
             BATCH_REGISTER_URL,
-            {"entity_type_id": 1, "rows": []},
+            {"schema_id": 1, "rows": []},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Default schema fallback — issue #302
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class EntityDefaultSchemaTests(BaseTestCase):
+    """When no schema is provided, the default Schema for the LIMS
+    SchemaType is assigned automatically."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.default_schema = Schema.objects.create(
+            name="Default", prefix="E", schema_type=self.schema_type, is_default=True,
+        )
+        Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type, is_default=False,
+        )
+
+    def test_create_entity_without_schema_uses_default(self):
+        """POST without 'schema' assigns the is_default Schema."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {"name": "No Schema Provided"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["schema"], self.default_schema.id)
+        self.assertEqual(response.data["schema_name"], "Default")
+        self.assertEqual(response.data["schema_prefix"], "E")
+        self.assertTrue(response.data["display_id"].startswith("E"))
+
+    def test_create_entity_with_explicit_schema_overrides_default(self):
+        """POST with explicit 'schema' uses the provided schema, not the default."""
+        dna_schema = Schema.objects.get(name="DNA")
+        response = self.client.post(
+            "/api/lims/entities/",
+            {"name": "Explicit Schema", "schema": dna_schema.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["schema"], dna_schema.id)
+        self.assertTrue(response.data["display_id"].startswith("DNA"))
+
+    def test_create_entity_without_schema_when_no_default_schema(self):
+        """POST without 'schema' when no default Schema exists raises an error."""
+        # Delete the default schema so there's no fallback
+        self.default_schema.delete()
+        response = self.client.post(
+            "/api/lims/entities/",
+            {"name": "No Default Available"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("schema", response.data)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Authentication required for mutations — issue #302
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class EntityAuthRequiredTests(BaseTestCase):
+    """Entity create/update/delete requires authentication because
+    ``author`` is non-nullable on AbstractEntity."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+        )
+
+    def test_create_entity_unauthenticated_returns_403(self):
+        """POST without auth returns 403 — author is required and non-nullable."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {"name": "No Auth", "schema": self.schema.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_batch_register_unauthenticated_returns_403(self):
+        """POST batch-register without auth returns 403 — author is required."""
+        response = self.client.post(
+            "/api/lims/entities/batch-register/",
+            {"schema_id": self.schema.id, "rows": [{"entity_id": None, "name": "X", "values": {}}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)

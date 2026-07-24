@@ -5,7 +5,6 @@ from django.core.cache import cache
 from django.test import TestCase
 
 from core.tests.base import BaseServiceTestCase
-from core.tests.factories import EMPTY_DOC
 from core.mentions.prefix_resolver import (
     get_icon,
     get_model_type_map,
@@ -19,6 +18,70 @@ from core.mentions.prefix_resolver import (
 from mods.eln.models import NotebookEntry
 
 
+# ── Helpers ─────────────────────────────────────────────────────────────────
+
+# Standard TipTap doc used as the "content" property for NotebookEntry.
+_SIMPLE_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
+
+
+def _create_eln_schema_type():
+    """Create the ELN SchemaType + Schema (idempotent)."""
+    from helix_core.models import Schema, SchemaType
+    schema_type, _ = SchemaType.objects.get_or_create(
+        model="mods.eln.models.NotebookEntry",
+        defaults={
+            "display_name": "ELN Entry",
+            "workspace_id": "eln",
+            "columns": [],
+        },
+    )
+    Schema.objects.get_or_create(
+        schema_type=schema_type,
+        is_default=True,
+        defaults={
+            "name": "Default",
+            "prefix": "E",
+            "columns": [],
+        },
+    )
+    return schema_type
+
+
+def _create_lims_schema(*, prefix: str = "BLOOD", name: str = "Default"):
+    """Create a SchemaType + Schema pair for LIMS tests."""
+    from helix_core.models import Schema, SchemaType
+    schema_type, _ = SchemaType.objects.get_or_create(
+        model="mods.lims.models.Entity",
+        defaults={
+            "display_name": "Entity",
+            "workspace_id": "lims",
+            "columns": [],
+        },
+    )
+    schema = Schema.objects.create(
+        name=name,
+        prefix=prefix,
+        schema_type=schema_type,
+        columns=[],
+        is_default=True,
+    )
+    return schema
+
+
+def _make_entry(**kwargs):
+    """Create a NotebookEntry with required defaults."""
+    defaults = dict(
+        name="Test Entry",
+        properties=_SIMPLE_DOC,
+        status="in_progress",
+    )
+    defaults.update(kwargs)
+    if "schema" not in defaults:
+        from helix_core.models import Schema
+        defaults["schema"] = Schema.objects.filter(prefix="E").first()
+    return NotebookEntry.objects.create(**defaults)
+
+
 # ── Resolution tests ────────────────────────────────────────────────────────
 
 class ResolveDisplayIdTests(BaseServiceTestCase):
@@ -26,14 +89,12 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
+        _create_eln_schema_type()
         cache.clear()
 
     def test_resolves_entry_by_static_prefix(self):
         """``E1`` resolves to a NotebookEntry."""
-        entry = NotebookEntry.objects.create(
-            title="Test Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
-        )
+        entry = _make_entry(folder=self.folder, author=self.user)
         result = resolve_display_id(entry.display_id)
         self.assertIsNotNone(result)
         instance, ct = result
@@ -42,20 +103,19 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
         self.assertEqual(ct.model, "notebookentry")
 
     def test_resolves_entity_by_dynamic_prefix(self):
-        """``BLOOD1`` resolves to an Entity after creating the EntityType."""
-        from mods.lims.models import Entity, EntityType
+        """``BLOOD1`` resolves to an Entity after creating the Schema."""
+        from mods.lims.models import Entity
 
-        blood_type = EntityType.objects.create(
-            name="Blood Sample", prefix="BLOOD", columns=[]
-        )
+        blood_schema = _create_lims_schema(prefix="BLOOD")
         entity = Entity.objects.create(
             name="Patient Blood #1",
-            entity_type=blood_type,
+            schema=blood_schema,
             folder=self.folder,
-            created_by=self.user,
+            author=self.user,
         )
         # Invalidate cache so new prefix is picked up
-        invalidate_prefix_cache(sender=EntityType)
+        from helix_core.models import Schema
+        invalidate_prefix_cache(sender=Schema)
 
         result = resolve_display_id(entity.display_id)
         self.assertIsNotNone(result)
@@ -73,31 +133,22 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_prefix_extraction_case_insensitive(self):
         """``e1`` resolves the same as ``E1`` (prefix uppercased)."""
-        entry = NotebookEntry.objects.create(
-            title="Test Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
-        )
+        entry = _make_entry(folder=self.folder, author=self.user)
         self.assertIsNotNone(resolve_display_id(entry.display_id.lower()))
 
     def test_prefix_extraction_mixed_case(self):
         """``Blood1`` → prefix extracted as ``BLOOD``."""
-        from mods.lims.models import Entity, EntityType
+        from mods.lims.models import Entity
 
-        blood_type = EntityType.objects.create(
-            name="Blood", prefix="BLOOD", columns=[]
-        )
+        blood_schema = _create_lims_schema(prefix="BLOOD")
         entity = Entity.objects.create(
-            name="Sample", entity_type=blood_type,
-            folder=self.folder, created_by=self.user,
+            name="Sample", schema=blood_schema,
+            folder=self.folder, author=self.user,
         )
-        invalidate_prefix_cache(sender=EntityType)
+        from helix_core.models import Schema
+        invalidate_prefix_cache(sender=Schema)
 
-        # Use the actual display_id (e.g. "BLOOD1") but with mixed-case
-        # prefix, to test case-insensitive prefix extraction.  We derive
-        # the numeric suffix from the real display_id so this works even
-        # when PK sequences have been consumed by prior tests (PostgreSQL
-        # does not reset sequences on transaction rollback).
-        numeric_suffix = entity.display_id[len(blood_type.prefix):]
+        numeric_suffix = entity.display_id[len(blood_schema.prefix):]
         result = resolve_display_id("Blood" + numeric_suffix)
         self.assertIsNotNone(result)
         instance, _ = result
@@ -109,37 +160,23 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 class GetIconTests(BaseServiceTestCase):
     """get_icon() returns the correct emoji for each model type."""
 
+    def setUp(self):
+        super().setUp()
+        _create_eln_schema_type()
+
     def test_entry_icon_is_page(self):
         """ELN entries get the ``📄`` icon."""
-        entry = NotebookEntry.objects.create(
-            title="Note", content=EMPTY_DOC,
-            folder=self.folder, author=self.user,
-        )
+        entry = _make_entry(folder=self.folder, author=self.user)
         self.assertEqual(get_icon(entry, "entry"), "📄")
 
-    def test_entity_icon_from_entity_type(self):
-        """Entities use the icon configured on their EntityType."""
-        from mods.lims.models import Entity, EntityType
-
-        blood_type = EntityType.objects.create(
-            name="Blood", prefix="BLOOD", icon="🩸", columns=[]
-        )
-        entity = Entity.objects.create(
-            name="Sample", entity_type=blood_type,
-            folder=self.folder, created_by=self.user,
-        )
-        self.assertEqual(get_icon(entity, "entity"), "🩸")
-
     def test_entity_default_icon(self):
-        """Entities without a configured icon get ``🧪``."""
-        from mods.lims.models import Entity, EntityType
+        """Entities get the default ``🧪`` icon (Schema has no icon field)."""
+        from mods.lims.models import Entity
 
-        plain_type = EntityType.objects.create(
-            name="Plain", prefix="PLAIN", columns=[]
-        )
+        schema = _create_lims_schema(prefix="TEST")
         entity = Entity.objects.create(
-            name="Sample", entity_type=plain_type,
-            folder=self.folder, created_by=self.user,
+            name="Sample", schema=schema,
+            folder=self.folder, author=self.user,
         )
         self.assertEqual(get_icon(entity, "entity"), "🧪")
 
@@ -151,6 +188,7 @@ class PrefixMapTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
+        _create_eln_schema_type()
         cache.clear()
 
     def test_includes_static_entries(self):
@@ -160,23 +198,18 @@ class PrefixMapTests(BaseServiceTestCase):
         self.assertEqual(pmap["E"], NotebookEntry)
 
     def test_includes_dynamic_entity_prefixes(self):
-        """EntityType-created prefixes appear in the map."""
-        from mods.lims.models import EntityType
-
-        EntityType.objects.create(
-            name="Blood", prefix="BLOOD", columns=[]
-        )
-        invalidate_prefix_cache(sender=EntityType)
+        """Schema-created prefixes appear in the map."""
+        _create_lims_schema(prefix="BLOOD")
+        from helix_core.models import Schema
+        invalidate_prefix_cache(sender=Schema)
 
         pmap = get_prefix_map()
         self.assertIn("BLOOD", pmap)
 
     def test_build_prefix_map_is_uncached(self):
         """``_build_prefix_map()`` always hits the database."""
-        from mods.lims.models import EntityType
-
         pmap1 = _build_prefix_map()
-        EntityType.objects.create(name="New", prefix="NEW", columns=[])
+        _create_lims_schema(prefix="NEW")
         pmap2 = _build_prefix_map()
         self.assertNotIn("NEW", pmap1)
         self.assertIn("NEW", pmap2)
@@ -189,12 +222,12 @@ class PrefixCacheTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
+        _create_eln_schema_type()
         cache.clear()
 
     def test_prefix_map_is_cached(self):
         """Second call to get_prefix_map() uses cache, not DB."""
         get_prefix_map()  # prime cache
-        # Second call must not hit the database — it returns cached data
         from django.test.utils import CaptureQueriesContext
         from django.db import connection
 
@@ -202,31 +235,28 @@ class PrefixCacheTests(BaseServiceTestCase):
             get_prefix_map()
         self.assertEqual(len(ctx), 0, "get_prefix_map() hit DB on second call")
 
-    def test_cache_invalidates_on_entity_type_save(self):
-        """Creating an EntityType invalidates the cache."""
-        from mods.lims.models import EntityType
+    def test_cache_invalidates_on_schema_save(self):
+        """Creating a Schema invalidates the cache."""
+        from helix_core.models import Schema
 
-        # Create initial map (populates cache)
         get_prefix_map()
-
-        # Simulate signal
-        EntityType.objects.create(name="Blood", prefix="BLOOD", columns=[])
-        invalidate_prefix_cache(sender=EntityType)
+        _create_lims_schema(prefix="BLOOD")
+        invalidate_prefix_cache(sender=Schema)
 
         pmap = get_prefix_map()
         self.assertIn("BLOOD", pmap)
 
-    def test_cache_invalidates_on_entity_type_delete(self):
-        """Deleting an EntityType invalidates the cache."""
-        from mods.lims.models import EntityType
+    def test_cache_invalidates_on_schema_delete(self):
+        """Deleting a Schema invalidates the cache."""
+        from helix_core.models import Schema
 
-        et = EntityType.objects.create(name="Blood", prefix="BLOOD", columns=[])
-        invalidate_prefix_cache(sender=EntityType)
-        get_prefix_map()  # re-populate with BLOOD
+        schema = _create_lims_schema(prefix="BLOOD")
+        invalidate_prefix_cache(sender=Schema)
+        get_prefix_map()
         self.assertIn("BLOOD", get_prefix_map())
 
-        et.delete()
-        invalidate_prefix_cache(sender=EntityType)
+        schema.delete()
+        invalidate_prefix_cache(sender=Schema)
 
         pmap = get_prefix_map()
         self.assertNotIn("BLOOD", pmap)
@@ -235,7 +265,6 @@ class PrefixCacheTests(BaseServiceTestCase):
         """Second call to get_model_type_map() returns same data from cache."""
         mmap1 = get_model_type_map()
         mmap2 = get_model_type_map()
-        # LocMemCache deep-copies on get, so use assertEqual, not assertIs
         self.assertEqual(mmap1, mmap2)
 
     def test_model_type_map_includes_entry_and_entity(self):
@@ -256,11 +285,11 @@ class WorkspaceLookupTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        from django.core.cache import cache
+        _create_eln_schema_type()
         cache.clear()
 
     def test_returns_eln_for_e_prefix(self):
-        """The 'E' prefix maps to workspace 'eln' (from migration backfill)."""
+        """The 'E' prefix maps to workspace 'eln' (from ELN Schema)."""
         self.assertEqual(get_workspace_id("E"), "eln")
 
     def test_returns_none_for_unknown_prefix(self):
@@ -271,22 +300,11 @@ class WorkspaceLookupTests(BaseServiceTestCase):
         """`e` resolves the same as `E`."""
         self.assertEqual(get_workspace_id("e"), "eln")
 
-    def test_entity_type_prefix_returns_lims(self):
-        """A dynamic entity type prefix returns workspace 'lims'."""
-        from mods.lims.models import EntityType, RegisteredEntityType
-        from django.contrib.contenttypes.models import ContentType
-
-        # Create the EntityType and a RegisteredEntityType (mimicking registration).
-        EntityType.objects.create(name="Blood", prefix="BLOOD", columns=[])
-        entity_ct = ContentType.objects.get(app_label="lims", model="entity")
-        RegisteredEntityType.objects.create(
-            prefix="BLOOD",
-            content_type=entity_ct,
-            workspace_id="lims",
-            display_name="Blood",
-        )
-        # Signal should have invalidated cache; but manually invalidate for safety.
-        invalidate_prefix_cache(sender=RegisteredEntityType)
+    def test_schema_prefix_returns_lims(self):
+        """A Schema prefix returns its SchemaType's workspace_id."""
+        _create_lims_schema(prefix="BLOOD")
+        from helix_core.models import Schema
+        invalidate_prefix_cache(sender=Schema)
 
         self.assertEqual(get_workspace_id("BLOOD"), "lims")
 
@@ -296,7 +314,7 @@ class WorkspaceMapCacheTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        from django.core.cache import cache
+        _create_eln_schema_type()
         cache.clear()
 
     def test_workspace_map_is_cached(self):
@@ -310,42 +328,26 @@ class WorkspaceMapCacheTests(BaseServiceTestCase):
             get_workspace_id("E")
         self.assertEqual(len(ctx), 0, "get_workspace_id() hit DB on second call")
 
-    def test_cache_invalidates_on_registered_entity_type_save(self):
-        """Creating a RegisteredEntityType invalidates the workspace cache."""
-        from mods.lims.models import RegisteredEntityType
-        from django.contrib.contenttypes.models import ContentType
+    def test_cache_invalidates_on_schema_save(self):
+        """Creating a Schema invalidates the workspace cache."""
+        from helix_core.models import Schema
 
-        # Prime cache
         get_workspace_id("E")
-
-        # Create a new registration
-        entity_ct = ContentType.objects.get(app_label="lims", model="entity")
-        RegisteredEntityType.objects.create(
-            prefix="DNA",
-            content_type=entity_ct,
-            workspace_id="lims",
-            display_name="DNA",
-        )
+        _create_lims_schema(prefix="DNA")
+        invalidate_prefix_cache(sender=Schema)
 
         self.assertEqual(get_workspace_id("DNA"), "lims")
 
-    def test_cache_invalidates_on_registered_entity_type_delete(self):
-        """Deleting a RegisteredEntityType invalidates the workspace cache."""
-        from mods.lims.models import RegisteredEntityType
-        from django.contrib.contenttypes.models import ContentType
+    def test_cache_invalidates_on_schema_delete(self):
+        """Deleting a Schema invalidates the workspace cache."""
+        from helix_core.models import Schema
 
-        entity_ct = ContentType.objects.get(app_label="lims", model="entity")
-        ret = RegisteredEntityType.objects.create(
-            prefix="DNA",
-            content_type=entity_ct,
-            workspace_id="lims",
-            display_name="DNA",
-        )
-        invalidate_prefix_cache(sender=RegisteredEntityType)
-        get_workspace_id("DNA")  # populate cache
+        schema = _create_lims_schema(prefix="DNA")
+        invalidate_prefix_cache(sender=Schema)
+        get_workspace_id("DNA")
         self.assertEqual(get_workspace_id("DNA"), "lims")
 
-        ret.delete()
-        # The post_delete signal should invalidate the cache.
+        schema.delete()
+        invalidate_prefix_cache(sender=Schema)
 
         self.assertIsNone(get_workspace_id("DNA"))

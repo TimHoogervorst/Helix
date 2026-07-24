@@ -327,6 +327,55 @@ describe("ModRegistry", () => {
     expect(ws?.icon).toBeUndefined();
   });
 
+  it("registerWorkspace stores workspace + schemaType from a single call", () => {
+    registry.registerWorkspace({
+      id: "lims",
+      displayName: "LIMS",
+      icon: Box,
+      schemaType: {
+        id: "lims.entity",
+        displayName: "Entity",
+        defaultPrefix: "E",
+      },
+    });
+    const ws = registry.getWorkspaces().get("lims");
+    expect(ws).toBeDefined();
+    expect(ws?.schemaType).toEqual({
+      id: "lims.entity",
+      displayName: "Entity",
+      defaultPrefix: "E",
+    });
+  });
+
+  it("registerWorkspace stores schemaType with optional columns", () => {
+    registry.registerWorkspace({
+      id: "lims",
+      displayName: "LIMS",
+      schemaType: {
+        id: "lims.entity",
+        displayName: "Entity",
+        defaultPrefix: "E",
+        columns: [
+          { name: "Name", type: "Text", required: true },
+          { name: "Quantity", type: "Number", units: "mL" },
+        ],
+      },
+    });
+    const ws = registry.getWorkspaces().get("lims");
+    expect(ws?.schemaType?.columns).toHaveLength(2);
+    expect(ws?.schemaType?.columns?.[0]).toEqual({
+      name: "Name",
+      type: "Text",
+      required: true,
+    });
+  });
+
+  it("registerWorkspace schemaType is undefined when not provided (backward-compatible)", () => {
+    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
+    const ws = registry.getWorkspaces().get("lims");
+    expect(ws?.schemaType).toBeUndefined();
+  });
+
   it("registerWorkspace throws on duplicate ID", () => {
     registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
     expect(() =>

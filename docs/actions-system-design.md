@@ -49,7 +49,7 @@ All action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`.
 | Pattern | Example | Meaning |
 |---------|---------|---------|
 | `{mod}.{target}.created` | `eln.entry.created` | An ELN entry was created |
-| `{mod}.{target}.updated` | `lims.entity.updated` | A LIMS entity was updated |
+| `{mod}.{target}.updated` | `lims.entity.updated` | An entity was updated |
 | `{mod}.{target}.deleted` | `tags.tag.deleted` | A tag was deleted |
 | `{mod}.{target}.{custom}` | `eln.entry.status-changed` | An entry's status was changed |
 | `{mod}.block.created` | `eln.block.created` | A block instance was created in the editor |

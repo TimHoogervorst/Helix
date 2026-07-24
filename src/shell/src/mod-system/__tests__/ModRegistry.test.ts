@@ -10,6 +10,7 @@ import type {
   SlotDeclaration,
   ButtonRegistration,
   BlockRegistration,
+  ModManifest,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -814,5 +815,251 @@ describe("ModRegistry", () => {
       expect(binding.deserialize).toBeDefined();
       expect(binding.defaultState).toEqual({});
     }
+  });
+
+  // ── hydrateFromBackend ─────────────────────────────────────────────
+
+  describe("hydrateFromBackend", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
+      return {
+        id: "lims",
+        displayName: "LIMS",
+        dependsOn: [],
+        ...overrides,
+      };
+    }
+
+    it("populates workspaces from backend payload", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [{ name: "Name", type: "Text" as const }],
+            },
+          ],
+          actions: [
+            { id: "created", label: "Created", core: true },
+          ],
+        },
+      };
+
+      const manifests = new Map([["lims", makeManifest()]]);
+
+      registry.hydrateFromBackend(payload, manifests);
+
+      const workspaces = registry.getWorkspaces();
+      expect(workspaces.has("lims")).toBe(true);
+
+      const ws = workspaces.get("lims")!;
+      expect(ws.id).toBe("lims");
+      expect(ws.displayName).toBe("LIMS");
+      expect(ws.icon).toBeUndefined();
+      expect(ws.schemaType).toEqual({
+        id: "lims.entity",
+        displayName: "Entity",
+        defaultPrefix: "BLOOD",
+        columns: [{ name: "Name", type: "Text" }],
+      });
+    });
+
+    it("hydrates multiple workspaces from backend payload", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [
+            {
+              id: "eln.entry",
+              displayName: "ELN Entry",
+              prefix: "E",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      const manifests = new Map([
+        ["lims", makeManifest({ id: "lims", displayName: "LIMS" })],
+        ["eln", makeManifest({ id: "eln", displayName: "ELN" })],
+      ]);
+
+      registry.hydrateFromBackend(payload, manifests);
+
+      const workspaces = registry.getWorkspaces();
+      expect(workspaces.size).toBe(2);
+      expect(workspaces.get("lims")?.displayName).toBe("LIMS");
+      expect(workspaces.get("eln")?.displayName).toBe("ELN");
+    });
+
+    it("falls back to workspaceId as displayName when manifest is missing", () => {
+      const payload = {
+        external: {
+          workspaceId: "external",
+          schemaTypes: [
+            {
+              id: "external.thing",
+              displayName: "Thing",
+              prefix: "X",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map());
+
+      const ws = registry.getWorkspaces().get("external")!;
+      expect(ws.displayName).toBe("external");
+    });
+
+    it("uses the first schemaType from the array", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "E",
+              columns: [{ name: "Col1", type: "Number" as const }],
+            },
+            {
+              id: "lims.sample",
+              displayName: "Sample",
+              prefix: "S",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType?.id).toBe("lims.entity");
+      expect(ws.schemaType?.defaultPrefix).toBe("E");
+    });
+
+    it("handles empty schemaTypes array gracefully", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType).toBeUndefined();
+    });
+
+    it("handles empty payload gracefully", () => {
+      registry.hydrateFromBackend({}, new Map());
+
+      const workspaces = registry.getWorkspaces();
+      expect(workspaces.size).toBe(0);
+    });
+
+    it("correctly maps backend 'prefix' to SchemaTypeConfig 'defaultPrefix'", () => {
+      // Regression: verify the backend prefix → frontend defaultPrefix
+      // mapping so the LIMS prefix drift ("E" vs "BLOOD") is structurally
+      // eliminated.
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType?.defaultPrefix).toBe("BLOOD");
+    });
+
+    it("passes columns through from backend to schemaType", () => {
+      const columns = [
+        { id: "c1", name: "Patient ID", type: "Text" as const, required: true },
+        { name: "Hemoglobin", type: "Number" as const, units: "g/dL" },
+      ];
+
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns,
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType?.columns).toEqual(columns);
+    });
+
+    it("overwrites workspaces previously set by registerWorkspace (last write wins)", () => {
+      registry.registerWorkspace({ id: "lims", displayName: "Old LIMS" });
+
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      // Hydration overwrites (last write wins)
+      expect(registry.getWorkspaces().get("lims")?.displayName).toBe("LIMS");
+    });
   });
 });

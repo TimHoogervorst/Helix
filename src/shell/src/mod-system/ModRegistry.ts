@@ -12,7 +12,24 @@ import type {
   SlotBinding,
   BlockBinding,
   ButtonBinding,
+  SchemaColumnDef,
+  ModManifest,
 } from "./types";
+
+/** Schema type entry from the backend mod-registry payload. */
+interface BackendSchemaType {
+  id: string;
+  displayName: string;
+  prefix: string;
+  columns?: Record<string, unknown>[];
+}
+
+/** Single workspace entry in the backend mod-registry response. */
+interface BackendModRegistryEntry {
+  workspaceId: string;
+  schemaTypes: BackendSchemaType[];
+  actions: Array<{ id: string; label: string; core: boolean }>;
+}
 
 /**
  * Central registry for all mod registrations.
@@ -131,6 +148,43 @@ export class ModRegistry {
       );
     }
     this.workspaces.set(config.id, config);
+  }
+
+  /**
+   * Hydrate workspace data from the backend mod-registry API response.
+   *
+   * Called by ModLoader after manifest globbing and mod registration.
+   * Populates the workspaces map so that ``getWorkspaces()`` returns
+   * backend-sourced data — consumers like ``resolveCurrentWorkspace()`` and
+   * ``PinnedWorkspacesSidebar`` work unchanged because the data shape is the same.
+   *
+   * @param payload - The parsed JSON body from ``GET /api/mod-registry/``,
+   *   keyed by workspace ID.
+   * @param manifests - Mod manifests already collected from JSON globs.
+   *   Used to supply ``displayName`` for each workspace.
+   */
+  hydrateFromBackend(
+    payload: Record<string, BackendModRegistryEntry>,
+    manifests: ReadonlyMap<string, ModManifest>,
+  ): void {
+    for (const [workspaceId, entry] of Object.entries(payload)) {
+      const manifest = manifests.get(workspaceId);
+      const schemaType = entry.schemaTypes?.[0];
+
+      this.workspaces.set(workspaceId, {
+        id: workspaceId,
+        displayName: manifest?.displayName ?? workspaceId,
+        icon: undefined,
+        schemaType: schemaType
+          ? {
+              id: schemaType.id,
+              displayName: schemaType.displayName,
+              defaultPrefix: schemaType.prefix,
+              columns: schemaType.columns as SchemaColumnDef[] | undefined,
+            }
+          : undefined,
+      });
+    }
   }
 
   /**

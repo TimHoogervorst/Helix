@@ -113,7 +113,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     // and the ActivityFeedBlock.
     ModRegistry._reset();
     const registry = ModRegistry.getInstance();
-    registry.registerMod(elnMod.meta.id);
+    registry.registerMod("eln");
     elnMod.register();
   });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────

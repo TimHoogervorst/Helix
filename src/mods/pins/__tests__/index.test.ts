@@ -19,7 +19,7 @@ describe("pins mod registration", () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
+    registry.registerMod("pins");
     mod.register();
 
     const actions = registry.getSidebarActions();
@@ -31,19 +31,16 @@ describe("pins mod registration", () => {
     expect(typeof action!.component).toBe("function");
   });
 
-  it("has correct meta", async () => {
+  it("does not export inline meta", async () => {
     const mod = await import("../index");
-
-    expect(mod.meta.id).toBe("pins");
-    expect(mod.meta.displayName).toBe("Pinned Workspaces");
-    expect(mod.meta.dependsOn).toEqual([]);
+    expect((mod as Record<string, unknown>).meta).toBeUndefined();
   });
 
   it("passes registry validation after registration", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
+    registry.registerMod("pins");
     mod.register();
 
     // Wildcard sidebar actions should validate without registered workspaces

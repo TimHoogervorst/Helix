@@ -1,16 +1,14 @@
 import { lazy } from "react";
-import { BookOpen, FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
+import { FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
 import {
   registerRoute,
   registerLibraryItem,
-  registerWorkspace,
   registerBlock,
   registerSettingsSection,
   declareSlot,
   registerButton,
   registerIntoSlot,
 } from "../../shell/src/mod-system";
-import type { ModManifest } from "../../shell/src/mod-system/types";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
@@ -24,27 +22,7 @@ import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
 
-export const meta: ModManifest = {
-  id: "eln",
-  displayName: "Electronic Lab Notebook",
-  version: "0.1.0",
-  dependsOn: ["lims", "tags"],
-};
-
 export function register() {
-  // ── Workspace: ELN notebook workspace ───────────────────────────────────
-  // schemaType carries entity type identity so no separate service call is needed.
-  registerWorkspace({
-    id: "eln",
-    displayName: "ELN",
-    icon: BookOpen,
-    schemaType: {
-      id: "eln.entry",
-      displayName: "ELN Entry",
-      defaultPrefix: "E",
-    },
-  });
-
   // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
   declareSlot({
     id: "eln.header.actions",

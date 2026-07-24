@@ -7,6 +7,17 @@
  * the HTTP layer or the workspace ID.
  */
 
+// ── CSRF token helper (Django expects X-CSRFToken on unsafe methods) ──────
+
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(";").shift() ?? null;
+  return null;
+}
+
+// ── sendAction factory ─────────────────────────────────────────────────────
+
 /**
  * Create a ``sendAction`` function bound to a specific workspace.
  *
@@ -38,9 +49,19 @@ export function createSendAction(
       body.metadata = metadata;
     }
 
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    // Attach Django CSRF token for POST requests
+    const csrfToken = getCookie("csrftoken");
+    if (csrfToken) {
+      headers["X-CSRFToken"] = csrfToken;
+    }
+
     const response = await fetch("/api/actions/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
 

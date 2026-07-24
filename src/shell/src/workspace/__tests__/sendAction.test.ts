@@ -97,6 +97,58 @@ describe("createSendAction", () => {
     expect(capturedHeaders["Content-Type"]).toBe("application/json");
   });
 
+  it("attaches X-CSRFToken header when csrftoken cookie is present", async () => {
+    // Set a fake csrftoken cookie
+    Object.defineProperty(document, "cookie", {
+      writable: true,
+      value: "csrftoken=fake-csrf-token-123; other=value",
+    });
+
+    let capturedHeaders: Record<string, string> = {};
+
+    await withFetch(async (_input, init) => {
+      const h = init?.headers;
+      if (h && typeof h === "object" && !Array.isArray(h)) {
+        capturedHeaders = { ...h } as Record<string, string>;
+      }
+      return new Response("[]", { status: 201 });
+    }, async () => {
+      const sendAction = createSendAction("eln");
+      await sendAction("eln.entry.created", "eln.entry", 42);
+    });
+
+    expect(capturedHeaders["X-CSRFToken"]).toBe("fake-csrf-token-123");
+
+    // Clean up
+    Object.defineProperty(document, "cookie", { writable: true, value: "" });
+  });
+
+  it("omits X-CSRFToken header when csrftoken cookie is absent", async () => {
+    // Ensure no csrftoken cookie is set
+    Object.defineProperty(document, "cookie", {
+      writable: true,
+      value: "other=value",
+    });
+
+    let capturedHeaders: Record<string, string> = {};
+
+    await withFetch(async (_input, init) => {
+      const h = init?.headers;
+      if (h && typeof h === "object" && !Array.isArray(h)) {
+        capturedHeaders = { ...h } as Record<string, string>;
+      }
+      return new Response("[]", { status: 201 });
+    }, async () => {
+      const sendAction = createSendAction("eln");
+      await sendAction("eln.entry.created", "eln.entry", 42);
+    });
+
+    expect(capturedHeaders).not.toHaveProperty("X-CSRFToken");
+
+    // Clean up
+    Object.defineProperty(document, "cookie", { writable: true, value: "" });
+  });
+
   it("throws on non-2xx response", async () => {
     await withFetch(async () => {
       return new Response("Unknown action type", { status: 400 });

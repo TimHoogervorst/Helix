@@ -11,6 +11,50 @@ def register():
     from mods.eln.models import ElnAction, NotebookEntry
 
     registry.register_action_model("eln", ElnAction)
+
+    # ── Block-level action types ──────────────────────────────────────────
+    # Register each block type × verb as a custom action so that
+    # POST /api/actions/ validates block-level action types sent via
+    # sendAction() (see #327 — Migrate ELN Block Pipeline to sendAction).
+    _BLOCK_ACTION_VERBS = {
+        "created": "Created",
+        "edited": "Edited",
+        "deleted": "Deleted",
+    }
+    _BLOCK_IDS = [
+        "table-block",
+        "comment-block",
+        "protocol-block",
+        "registryTable-block",
+    ]
+    for block_id in _BLOCK_IDS:
+        for verb, label in _BLOCK_ACTION_VERBS.items():
+            registry.register_custom_action(
+                mod_id="eln",
+                action_id=f"eln.{block_id}.{verb}",
+                label=f"{block_id.replace('-', ' ').title()} {label}",
+                core=verb,
+                target_model="mods.eln.models.NotebookEntry",
+            )
+
+    # ── Entry-level custom actions ───────────────────────────────────────
+    # Actions used by @logs_action decorators in views.py.  Must be
+    # registered before the views are imported.
+    registry.register_custom_action(
+        mod_id="eln",
+        action_id="eln.entry.tags_attached",
+        label="Tags Attached",
+        core="edited",
+        target_model="mods.eln.models.NotebookEntry",
+    )
+    registry.register_custom_action(
+        mod_id="eln",
+        action_id="eln.entry.tag_detached",
+        label="Tag Detached",
+        core="edited",
+        target_model="mods.eln.models.NotebookEntry",
+    )
+
     registry.register_schema_type(
         display_name="ELN Entry",
         workspace_id="eln",

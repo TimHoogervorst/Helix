@@ -198,8 +198,8 @@ export interface BlockComponentProps {
    * Send an action to the backend via ``POST /api/actions/``.
    *
    * The workspace context (``workspaceId``) is included automatically.
-   * Blocks call this at runtime based on user interactions — they do not
-   * declare static ``messages`` in their registration.
+   * Blocks call this at runtime based on user interactions — action labels
+   * are derived from the backend action catalog, not from static block config.
    */
   sendAction: (
     actionType: string,
@@ -234,12 +234,6 @@ export interface BlockRegistration {
   listensTo: string[];
   /** Map of event name → handler. Called by the renderer when a listened-to event fires. */
   onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  /** Optional activity feed message overrides for lifecycle events. */
-  messages?: {
-    created?: string;
-    edited?: string;
-    deleted?: string;
-  };
   /** Extract a display name from block attributes for human-readable action log messages. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker / slash menu filtering. */
@@ -340,8 +334,6 @@ export interface BlockBinding extends BaseBinding {
   listensTo: string[];
   /** Map of event name → handler. */
   onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  /** Optional activity feed message overrides. */
-  messages?: { created?: string; edited?: string; deleted?: string };
   /** Extract a display name from block attributes. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker filtering. */

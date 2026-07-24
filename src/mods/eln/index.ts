@@ -59,11 +59,6 @@ export function register() {
     onEvent: {},
     tags: ["data", "spreadsheet"],
     getDisplayName: (attrs) => (attrs.title as string) || "Table",
-    messages: {
-      created: "Table '{name}' created",
-      edited: "Table '{name}' edited",
-      deleted: "Table '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -94,11 +89,6 @@ export function register() {
       const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
       return thread?.[0]?.authorName || "Comment";
     },
-    messages: {
-      created: "Comment by '{name}' created",
-      edited: "Comment by '{name}' edited",
-      deleted: "Comment by '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -119,11 +109,6 @@ export function register() {
     onEvent: {},
     tags: ["procedure", "workflow"],
     getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
-    messages: {
-      created: "Protocol '{name}' created",
-      edited: "Protocol '{name}' edited",
-      deleted: "Protocol '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -148,11 +133,6 @@ export function register() {
     tags: ["table", "registry", "lims"],
     getDisplayName: (attrs) =>
       (attrs.schemaName || attrs.title) as string || "Registry Table",
-    messages: {
-      created: "Registry Table '{name}' created",
-      edited: "Registry Table '{name}' edited",
-      deleted: "Registry Table '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -192,7 +172,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Metadata",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},
@@ -207,7 +186,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Linked Entities",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},
@@ -222,7 +200,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Attachments",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},
@@ -242,7 +219,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Activity Feed",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},

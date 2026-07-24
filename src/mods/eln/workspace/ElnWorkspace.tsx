@@ -30,6 +30,7 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { SlotContext } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "../blocks/sidebarData";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
+import { useSendAction } from "../../../shell/src/workspace/useSendAction";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -110,9 +111,16 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }
   const bus = busRef.current;
 
+  // ── sendAction bound to "eln" workspace — used by useBlockActionLogging
+  //     to post block actions to the unified POST /api/actions/ endpoint (#327).
+  const sendAction = useSendAction("eln");
+
   // ── Block action logging: accumulate lifecycle events, flush on save ──
   const hasBlockActionsRef = useRef<boolean>(false);
-  useBlockActionLogging(bus, entryId, EDITOR_BLOCK_IDS, hasBlockActionsRef);
+  // Numeric entry ID — only available after the entry is loaded.  The hook
+  // skips the flush when this is undefined (new entry, not yet created).
+  const numericEntryId = editorState.entry?.id;
+  useBlockActionLogging(bus, entryId, numericEntryId, EDITOR_BLOCK_IDS, sendAction, hasBlockActionsRef);
 
   // ── Emit "eln.entry.saved" on the bus whenever a save completes ───────
   const prevLastSavedAtRef = useRef<Date | null>(null);

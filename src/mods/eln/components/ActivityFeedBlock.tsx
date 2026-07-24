@@ -7,7 +7,12 @@
  * updates.
  *
  * Receives `bus` from PanelRenderer (imperative subscriptions) and
- * `context.entryId` from the slot context (API target).
+ * `context.entryId` / `context.actions` from the slot context.
+ *
+ * Display labels are derived from the backend action catalog
+ * (``context.actions``) — the catalog is the single source of truth for
+ * action labels (#328). Falls back to the ``action_type`` string when no
+ * catalog entry exists.
  *
  * Mod-agnostic design: each mod registers its own ActivityFeedBlock wrapper
  * that points at its own API endpoint. The shared Activity component is pure
@@ -172,13 +177,13 @@ export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
 
           const p = payload as BlockLifecyclePayload;
 
-          // Derive human-readable message from block registration
-          const attrs = verb === "edited" ? p.changedAttrs : p.attrs;
-          const displayName = block.getDisplayName?.(attrs ?? {}) ?? block.label;
-          const template = block.messages?.[verb];
-          const message = template
-            ? template.replace(/\{name\}/g, displayName)
-            : `${block.label} was ${verb}`;
+          // Derive display label from the action catalog.
+          // Falls back to the action type string when no catalog entry exists.
+          const actionType = eventName; // `${blockId}.${verb}`
+          const message = ModRegistry.resolveActionLabel(
+            actionType,
+            context.actions ?? [],
+          );
 
           // Dedup: replace any existing pending item for the same
           // (blockInstanceId, actionType) so repeated edits don't stack.

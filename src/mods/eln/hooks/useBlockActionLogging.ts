@@ -1,35 +1,40 @@
 /**
  * useBlockActionLogging — accumulates block lifecycle events and flushes
- * batched block-declared actions to the backend on entry save.
+ * block-declared actions to the backend on entry save via ``sendAction()``.
  *
  * Owns: subscription to block lifecycle events, in-memory accumulation map,
  * dedup by (blockInstanceId, verb), human-readable message derivation from
- * block registrations, and the flush-to-API on save.
+ * the action catalog (``ModRegistry.getActions()``), and the flush-to-API on
+ * save.
  * Does NOT own: save detection (the caller emits "eln.entry.saved" on the bus),
  * block registration, or the action message format.
  *
  * Key behaviours:
  * - Subscribes to `{blockId}.created`, `{blockId}.edited`, `{blockId}.deleted`
  *   for each ID in `blockIds`.
- * - Derives human-readable messages from each block's `messages` config and
- *   `getDisplayName`, falling back to `"{label} was {verb}"`.
+ * - Derives display labels from the backend action catalog (hydrated via
+ *   ``GET /api/mod-registry/``), falling back to the action type string when
+ *   no catalog entry exists.
  * - Accumulates events in a Map keyed by `${blockInstanceId}:${verb}`.
  *   Same key overwrites — only the latest state per block per verb survives
  *   (dedup within a save cycle).
- * - On `"eln.entry.saved"` event: if the map is non-empty and `entryId` is
- *   truthy, POSTs accumulated actions to the batch endpoint and clears the map.
- * - Fail-open: POST failures are caught and logged; logging failure never
- *   breaks the UI.
- * - No `entryId` → skip flush (new entry, not yet created).
+ * - On `"eln.entry.saved"` event: if the map is non-empty and
+ *   `numericEntryId` is truthy, calls ``sendAction()`` for each accumulated
+ *   action via ``POST /api/actions/`` (the unified endpoint, #327).
+ * - Fail-open: ``sendAction()`` failures are caught and logged; logging
+ *   failure never breaks the UI.
+ * - No `numericEntryId` → skip flush (new entry, not yet created).
  * - On unmount: unsubscribes all bus listeners. Accumulated actions are
  *   discarded (no save → no action rows).
+ *
+ * Backward compat: ``POST /api/eln/entries/{id}/actions/batch/`` is still
+ * served by the backend but is no longer called from this hook.  It remains
+ * available for any external callers during the transition window.
  */
 import { useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import type { WorkspaceBus, BlockLifecyclePayload } from "../../../shell/src/workspace/WorkspaceBus";
-import type { BlockRegistration } from "../../../shell/src/mod-system/types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import { post } from "../../../shell/src/api/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -37,67 +42,51 @@ import { post } from "../../../shell/src/api/client";
 const VERBS = ["created", "edited", "deleted"] as const;
 type Verb = (typeof VERBS)[number];
 
-/** Accumulated action row, ready for batch flush. */
+/** Accumulated action row, ready for flush. */
 interface AccumulatedAction {
   action_type: string;
   metadata: Record<string, unknown>;
 }
 
-/** Shape of the batch endpoint request body. */
-interface BatchActionsRequest {
-  actions: AccumulatedAction[];
-}
-
-/** Shape of the batch endpoint response. */
-interface BatchActionsResponse {
-  count: number;
-  request_id: string;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Derive a human-readable action message from a block's registration.
- *
- * Uses the block's `messages` config as a template (e.g. "Table '{name}' edited"),
- * substituting `{name}` with the result of `getDisplayName`. Falls back to
- * `"{label} was {verb}"` when no message template is configured.
- */
-function deriveMessage(
-  block: BlockRegistration,
-  verb: Verb,
-  attrs: Record<string, unknown> | undefined,
-): string {
-  const template = block.messages?.[verb];
-  if (template) {
-    const displayName = block.getDisplayName?.(attrs ?? {}) ?? block.label;
-    return template.replace(/\{name\}/g, displayName);
-  }
-  // Default template
-  return `${block.label} was ${verb}`;
-}
+/** Signature of the ``sendAction`` function passed by the caller. */
+type SendActionFn = (
+  actionType: string,
+  targetType: string,
+  targetId: number,
+  metadata?: Record<string, unknown>,
+) => Promise<void>;
 
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 /**
  * Subscribe to block lifecycle events on the workspace bus, accumulate them
- * with human-readable messages, and flush as a batched API call when the
- * entry saves.
+ * with human-readable messages, and flush each action individually via
+ * ``sendAction()`` → ``POST /api/actions/`` when the entry saves.
  *
- * @param bus            Workspace-scoped event bus.
- * @param entryId        Current entry display ID (e.g. "E-001"). Flush is skipped
- *                       when undefined (new entry, not yet created).
- * @param blockIds       Block IDs whose lifecycle events to listen for
- *                       (e.g. `["eln.table-block", "eln.comment-block"]`).
- * @param hasPendingRef  Optional mutable ref that the hook updates to `true` when
- *                       the accumulation map is non-empty, and `false` when empty.
- *                       Callers (ElnWorkspace) read this ref at save time to
- *                       decide whether to set the X-Block-Actions header.
+ * @param bus             Workspace-scoped event bus.
+ * @param entryId         Current entry display ID (e.g. "E-001").  Used only
+ *                        for the ``eln.actions.flushed`` event payload and
+ *                        as a gate — flush is skipped when undefined.
+ * @param numericEntryId  Numeric primary key of the entry (e.g. 42).  Used
+ *                        as the ``targetId`` for ``sendAction()`` calls.
+ *                        Flush is skipped when undefined (new entry).
+ * @param blockIds        Block IDs whose lifecycle events to listen for
+ *                        (e.g. `["eln.table-block", "eln.comment-block"]`).
+ * @param sendAction      Bound ``sendAction`` function (from
+ *                        ``createSendAction``) that posts to the unified
+ *                        ``POST /api/actions/`` endpoint.
+ * @param hasPendingRef   Optional mutable ref that the hook updates to
+ *                        ``true`` when the accumulation map is non-empty,
+ *                        and ``false`` when empty.  Callers (ElnWorkspace)
+ *                        read this ref at save time to decide whether to
+ *                        set the X-Block-Actions header.
  */
 export function useBlockActionLogging(
   bus: WorkspaceBus,
   entryId: string | undefined,
+  numericEntryId: number | undefined,
   blockIds: string[],
+  sendAction: SendActionFn,
   hasPendingRef?: MutableRefObject<boolean>,
 ): void {
   // ── Accumulation map: `${blockInstanceId}:${verb}` → AccumulatedAction ──
@@ -105,6 +94,14 @@ export function useBlockActionLogging(
   // Latest entryId, kept in a ref so the save handler reads the current value
   const entryIdRef = useRef<string | undefined>(entryId);
   entryIdRef.current = entryId;
+  // Latest numericEntryId, likewise kept in a ref
+  const numericEntryIdRef = useRef<number | undefined>(numericEntryId);
+  numericEntryIdRef.current = numericEntryId;
+  // Latest sendAction, kept in a ref so the save handler always calls the
+  // current instance (stable across renders via useSendAction, but kept in
+  // a ref for defensive correctness).
+  const sendActionRef = useRef<SendActionFn>(sendAction);
+  sendActionRef.current = sendAction;
 
   // Suppression flag — set to true during programmatic content loads
   // (e.g. initial fetch, setContent) so we don't accumulate spurious
@@ -140,20 +137,15 @@ export function useBlockActionLogging(
           const p = payload as BlockLifecyclePayload;
           const key = `${p.blockInstanceId}:${verb}`;
 
-          // Derive human-readable message from block registration
-          const registry = ModRegistry.getInstance();
-          const block = registry.getBlocks().get(blockId);
-          let message = "";
-          if (block) {
-            const attrs = verb === "edited" ? p.changedAttrs : p.attrs;
-            message = deriveMessage(block, verb, attrs);
-          } else {
-            // Unknown block — use blockId as fallback label
-            message = `${blockId} was ${verb}`;
-          }
+          // Derive display label from the backend action catalog.
+          // Falls back to the action type string (e.g. "eln.table-block.created")
+          // when no catalog entry exists for this action.
+          const actionType = event; // `${blockId}.${verb}`
+          const catalog = ModRegistry.getInstance().getActions("eln");
+          const message = ModRegistry.resolveActionLabel(actionType, catalog);
 
           pending.set(key, {
-            action_type: event,
+            action_type: actionType,
             metadata: { message },
           });
           if (hasPendingRef) hasPendingRef.current = true;
@@ -164,33 +156,48 @@ export function useBlockActionLogging(
 
     // ── Subscribe to save event ─────────────────────────────────────────
     const saveUnsub = bus.on("eln.entry.saved", async () => {
-      const id = entryIdRef.current;
-      if (!id) return; // new entry, not yet created
+      const displayId = entryIdRef.current;
+      const numericId = numericEntryIdRef.current;
+      if (!numericId || !displayId) return; // new entry, not yet created
 
       const actions = Array.from(pending.values());
       if (actions.length === 0) return;
 
-      // Capture keys before clearing so we can emit them after a
-      // successful POST for exact pending-item reconciliation.
+      // Capture keys before clearing so we can emit them after
+      // successful sendAction calls for exact pending-item reconciliation.
       const flushedKeys = Array.from(pending.keys());
       pending.clear();
       if (hasPendingRef) hasPendingRef.current = false;
 
-      try {
-        await post<BatchActionsResponse>(
-          `/eln/entries/${id}/actions/batch/`,
-          { actions } satisfies BatchActionsRequest,
-        );
+      const send = sendActionRef.current;
+      let allSucceeded = true;
+
+      for (const action of actions) {
+        try {
+          await send(
+            action.action_type,
+            "eln.entry",
+            numericId,
+            action.metadata,
+          );
+        } catch (err) {
+          // Fail-open: logging failure never breaks the UI.
+          // Track failure so we can skip the flushed event if any
+          // action failed (stale pending items are better than
+          // silently lost actions).
+          allSucceeded = false;
+          console.warn(
+            `[eln] Failed to send block action "${action.action_type}" for entry ${displayId}:`,
+            err,
+          );
+        }
+      }
+
+      if (allSucceeded) {
         // Notify listeners which keys were flushed so they can reconcile
         // optimistic pending items by exact blockInstanceId:verb match
         // (no fragile timestamp window).
         bus.emit("eln.actions.flushed", { keys: flushedKeys });
-      } catch (err) {
-        // Fail-open: logging failure never breaks the UI.
-        console.warn(
-          `[eln] Failed to flush block action log for entry ${id}:`,
-          err,
-        );
       }
     });
     unsubs.push(saveUnsub);
@@ -204,8 +211,8 @@ export function useBlockActionLogging(
       unsubsRef.current = [];
     };
     // Only re-subscribe when the bus or blockIds change (not on every render).
-    // entryId is read from a ref inside the handler, so it doesn't need to
-    // trigger re-subscription.
+    // entryId, numericEntryId, and sendAction are read from refs inside the
+    // handler, so they don't need to trigger re-subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bus, ...blockIds]);
 }

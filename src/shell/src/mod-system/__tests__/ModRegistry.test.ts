@@ -634,7 +634,6 @@ describe("ModRegistry", () => {
         label: "Table",
         listensTo: ["data.export"],
         onEvent: { "data.export": () => "exported" },
-        messages: { edited: "spreadsheet updated" },
         getDisplayName: (attrs) => String(attrs.name ?? ""),
         tags: ["data", "table"],
       }),
@@ -647,7 +646,6 @@ describe("ModRegistry", () => {
       expect(binding.listensTo).toEqual(["data.export"]);
       expect(binding.onEvent).toBeDefined();
       expect(binding.onEvent["data.export"]).toBeDefined();
-      expect(binding.messages).toEqual({ edited: "spreadsheet updated" });
       expect(binding.getDisplayName).toBeDefined();
       expect(binding.tags).toEqual(["data", "table"]);
       expect(binding.serialize).toBeDefined();

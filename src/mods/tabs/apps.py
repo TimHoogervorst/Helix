@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class PinsConfig(AppConfig):
+class TabsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "mods.pins"
+    name = "mods.tabs"

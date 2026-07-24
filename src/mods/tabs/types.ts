@@ -7,5 +7,5 @@ export interface PinnedWorkspace {
   created_at: string;
 }
 
-/** Re-exported from core/mod-system/types so both pins and mentions share it. */
+/** Re-exported from core/mod-system/types so both tabs and mentions share it. */
 export type { CurrentWorkspace } from "../../shell/src/mod-system/types";

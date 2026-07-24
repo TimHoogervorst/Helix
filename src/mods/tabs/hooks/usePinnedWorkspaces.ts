@@ -1,7 +1,7 @@
 /**
  * usePinnedWorkspaces — manages the sidebar's pinned workspace bookmarks.
  *
- * Fetches pins from GET /api/core/pins/ on mount, exposes pin() and unpin()
+ * Fetches tabs from GET /api/core/tabs/ on mount, exposes pin() and unpin()
  * with optimistic updates, and derives the current workspace from the URL.
  *
  * Only the sidebar consumes this hook. If future components need it, the
@@ -9,7 +9,7 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { getPins, createPin, deletePin } from "../api";
+import { getTabs, createTab, deleteTab } from "../api";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 
@@ -30,10 +30,10 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
 
   const current = resolveCurrentWorkspace(location.pathname);
 
-  // ── Fetch pins on mount ────────────────────────────────────────────────
+  // ── Fetch tabs on mount ────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    getPins()
+    getTabs()
       .then((data) => {
         if (!cancelled) {
           setPins(data);
@@ -72,7 +72,7 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     setPins((prev) => [optimistic, ...prev]);
 
     try {
-      const created = await createPin({
+      const created = await createTab({
         display_id: current.displayId,
         label,
         url: current.url,
@@ -93,7 +93,7 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     setPins((prev) => prev.filter((p) => p.id !== id));
 
     try {
-      await deletePin(id);
+      await deleteTab(id);
     } catch {
       // Rollback on error
       setPins((prev) => {

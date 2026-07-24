@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import PinnedWorkspaceViewSet
 
 router = DefaultRouter()
-router.register(r"", PinnedWorkspaceViewSet, basename="pinnedworkspace")
+router.register(r"", PinnedWorkspaceViewSet, basename="tabs")
 
 urlpatterns = [
     path("", include(router.urls)),

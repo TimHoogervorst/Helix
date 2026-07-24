@@ -187,17 +187,11 @@ describe("Layout sidebar", () => {
   });
 });
 
-// ── Sidebar actions ───────────────────────────────────────────────────────
+// ── Workspace section (Tabs) ───────────────────────────────────────────────
 
-describe("Sidebar actions", () => {
-  function DummySidebarAction() {
-    return <div data-testid="sidebar-action">Sidebar action content</div>;
-  }
-
+describe("Workspace section", () => {
   beforeEach(() => {
     ModRegistry._reset();
-    // Re-register hubs (needed by the "Layout sidebar" tests but we
-    // also need them here so the full Layout renders without error).
     ModRegistry.getInstance().registerHub({
       id: "home",
       label: "Home",
@@ -217,64 +211,17 @@ describe("Sidebar actions", () => {
     mockGet.mockResolvedValue([]);
   });
 
-  it("renders sidebar actions registered with position 'inline'", () => {
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("test-mod");
-    registry.registerSidebarAction({
-      id: "test.action",
-      workspaceId: "*",
-      component: DummySidebarAction,
-      position: "inline",
-    });
-
+  it("renders the Workspace section with Tabs component", () => {
     renderLayout();
-    expect(screen.getByTestId("sidebar-action")).toBeInTheDocument();
-    expect(screen.getByText("Sidebar action content")).toBeInTheDocument();
+    // Workspace section header is always rendered
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 
-  it("does not render sidebar actions registered with position 'hover'", () => {
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("test-mod");
-    registry.registerSidebarAction({
-      id: "test.action",
-      workspaceId: "*",
-      component: DummySidebarAction,
-      position: "hover",
-    });
-
-    renderLayout();
-    expect(screen.queryByTestId("sidebar-action")).not.toBeInTheDocument();
-  });
-
-  it("renders multiple sidebar actions", () => {
-    function SecondAction() {
-      return <div data-testid="second-action">Second</div>;
-    }
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("test-mod");
-    registry.registerSidebarAction({
-      id: "test.action1",
-      workspaceId: "*",
-      component: DummySidebarAction,
-      position: "inline",
-    });
-    registry.registerSidebarAction({
-      id: "test.action2",
-      workspaceId: "*",
-      component: SecondAction,
-      position: "inline",
-    });
-
-    renderLayout();
-    expect(screen.getByTestId("sidebar-action")).toBeInTheDocument();
-    expect(screen.getByTestId("second-action")).toBeInTheDocument();
-  });
-
-  it("renders nothing when no sidebar actions are registered", () => {
+  it("does not crash when rendering with no pinned tabs and no current workspace", () => {
     renderLayout();
     // Layout should render normally — just verify no crash
     expect(screen.getByText("Helix")).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 });
 
@@ -287,10 +234,6 @@ describe("Layout settings sidebar", () => {
 
   function AltSettingsComponent() {
     return <div data-testid="alt-settings-comp">Alt Settings Content</div>;
-  }
-
-  function SidebarAction() {
-    return <div data-testid="ws-action">Workspace Action</div>;
   }
 
   beforeEach(() => {
@@ -329,14 +272,6 @@ describe("Layout settings sidebar", () => {
       label: "Schemas",
       component: AltSettingsComponent,
       order: 10,
-    });
-    // Register a sidebar action (workspace)
-    registry.registerMod("test-mod");
-    registry.registerSidebarAction({
-      id: "test.action",
-      workspaceId: "*",
-      component: SidebarAction,
-      position: "inline",
     });
     mockGet.mockResolvedValue([]);
   });
@@ -409,14 +344,14 @@ describe("Layout settings sidebar", () => {
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
   });
 
-  it("hides sidebar actions (workspace) when on /settings", () => {
+  it("hides Workspace section when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <Layout />
       </MemoryRouter>,
     );
 
-    expect(screen.queryByTestId("ws-action")).not.toBeInTheDocument();
+    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
   });
 
   it("still shows brand and user menu on /settings", () => {
@@ -443,10 +378,10 @@ describe("Layout settings sidebar", () => {
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
   });
 
-  it("shows sidebar actions when NOT on /settings", () => {
+  it("shows Workspace section when NOT on /settings", () => {
     renderLayout("/library");
 
-    expect(screen.getByTestId("ws-action")).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 });
 
@@ -470,14 +405,6 @@ describe("CollapsibleSidebar integration", () => {
       route: "/library",
       component: () => null,
       order: 10,
-    });
-    // Register a mock sidebar action so the Workspace section renders
-    ModRegistry.getInstance().registerMod("test-mod");
-    ModRegistry.getInstance().registerSidebarAction({
-      id: "test.action",
-      workspaceId: "*",
-      component: () => <div data-testid="sidebar-action">Sidebar action content</div>,
-      position: "inline",
     });
     mockGet.mockResolvedValue([]);
   });
@@ -534,8 +461,8 @@ describe("CollapsibleSidebar integration", () => {
     expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
   });
 
-  it("hides Workspace section when no inline sidebar actions are registered", () => {
-    // Reset and only register hubs (no sidebar actions)
+  it("always renders Workspace section (Tabs component is always mounted)", () => {
+    // Reset and only register hubs
     ModRegistry._reset();
     ModRegistry.getInstance().registerHub({
       id: "home",
@@ -550,7 +477,7 @@ describe("CollapsibleSidebar integration", () => {
 
     // Navigation still shows
     expect(screen.getByText("Navigation")).toBeInTheDocument();
-    // Workspace section is absent when no inline actions exist
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+    // Workspace section is always rendered (Tabs component is directly mounted)
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 });

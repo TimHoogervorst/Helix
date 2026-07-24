@@ -12,9 +12,9 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for pinned workspaces.
 
-    list:    GET    /api/core/pins/       — list current user's pins
-    create:  POST   /api/core/pins/       — create a pin
-    destroy: DELETE /api/core/pins/{id}/  — delete a pin
+    list:    GET    /api/core/tabs/       — list current user's tabs
+    create:  POST   /api/core/tabs/       — create a tab
+    destroy: DELETE /api/core/tabs/{id}/  — delete a tab
     """
 
     queryset = PinnedWorkspace.objects.all()
@@ -24,8 +24,8 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     action_log_config = {
-        "create": {"action_type": "core.pin.created"},
-        "destroy": {"action_type": "core.pin.deleted"},
+        "create": {"action_type": "core.tab.created"},
+        "destroy": {"action_type": "core.tab.deleted"},
     }
 
     def get_queryset(self):

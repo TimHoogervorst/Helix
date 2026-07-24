@@ -827,7 +827,7 @@ class TestBuildURLPatterns:
             "mods.lims",
             "mods.eln",
             "mods.library",
-            "mods.pins",
+            "mods.tabs",
             "mods.core",
         ])
 

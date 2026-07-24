@@ -4,7 +4,7 @@
  * Uses ModRegistry.getWorkspaces() to match the pathname against registered
  * workspace URL namespaces. The convention is `/{workspaceId}/{displayId}`.
  *
- * Lifted from mods/pins/ so both pins and mentions can share it.
+ * Lifted from mods/tabs/ so both tabs and mentions can share it.
  */
 import { ModRegistry } from "./ModRegistry";
 import type { CurrentWorkspace } from "./types";
@@ -15,7 +15,7 @@ import type { CurrentWorkspace } from "./types";
  *
  * Works for both full paths (`/lims/BLOOD1`) and bare workspace paths
  * (`/lims`), so it serves both `resolveCurrentWorkspace` and sidebar
- * icon derivation from pinned URLs.
+ * icon derivation from tab URLs.
  */
 export function extractWorkspaceId(url: string): string | null {
   const workspaces = ModRegistry.getInstance().getWorkspaces();

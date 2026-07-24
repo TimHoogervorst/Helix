@@ -10,25 +10,19 @@ function resetRegistry(): void {
 
 // ── Tests ────────────────────────────────────────────────────────────────
 
-describe("pins mod registration", () => {
+describe("tabs mod registration", () => {
   beforeEach(() => {
     resetRegistry();
   });
 
-  it("registers a sidebar action with workspaceId '*' and inline position", async () => {
+  it("registers without side effects (no-op registration)", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod("pins");
-    mod.register();
+    registry.registerMod("tabs");
 
-    const actions = registry.getSidebarActions();
-    const action = actions.get("pins.sidebar");
-
-    expect(action).toBeDefined();
-    expect(action!.workspaceId).toBe("*");
-    expect(action!.position).toBe("inline");
-    expect(typeof action!.component).toBe("function");
+    // Should not throw — registration is a no-op
+    expect(() => mod.register()).not.toThrow();
   });
 
   it("does not export inline meta", async () => {
@@ -40,10 +34,10 @@ describe("pins mod registration", () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod("pins");
+    registry.registerMod("tabs");
     mod.register();
 
-    // Wildcard sidebar actions should validate without registered workspaces
+    // No-op registration should validate without issues
     expect(() => registry.validate()).not.toThrow();
   });
 });

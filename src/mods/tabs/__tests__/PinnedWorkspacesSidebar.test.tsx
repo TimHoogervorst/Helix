@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import type { ModManifest } from "../../../shell/src/mod-system/types";
 
 // ── ModRegistry setup ────────────────────────────────────────────────────
 
@@ -12,8 +13,16 @@ function setupWorkspaces(): void {
   const registry = ModRegistry.getInstance();
   registry.registerMod("lims");
   registry.registerMod("eln");
-  registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-  registry.registerWorkspace({ id: "eln", displayName: "ELN" });
+  registry.hydrateFromBackend(
+    {
+      lims: { workspaceId: "lims", schemaTypes: [], actions: [] },
+      eln: { workspaceId: "eln", schemaTypes: [], actions: [] },
+    },
+    new Map<string, ModManifest>([
+      ["lims", { id: "lims", displayName: "LIMS", dependsOn: [] }],
+      ["eln", { id: "eln", displayName: "ELN", dependsOn: [] }],
+    ]),
+  );
 }
 
 // ── Mock the hook ────────────────────────────────────────────────────────

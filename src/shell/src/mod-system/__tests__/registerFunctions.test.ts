@@ -3,7 +3,6 @@ import { ModRegistry } from "../ModRegistry";
 import { registerHub } from "../registerHub";
 import { registerSettingsSection } from "../registerSettingsSection";
 import { registerRoute } from "../registerRoute";
-import { registerSidebarAction } from "../registerSidebarAction";
 import { registerBlock } from "../registerBlock";
 import { declareSlot } from "../declareSlot";
 import { registerButton } from "../registerButton";
@@ -66,18 +65,6 @@ describe("register functions", () => {
     expect(spy).toHaveBeenCalledWith(config);
   });
 
-  it("registerSidebarAction delegates to ModRegistry.registerSidebarAction", () => {
-    const spy = vi.spyOn(registry, "registerSidebarAction");
-    const config = {
-      id: "test.action",
-      workspaceId: "*",
-      component: DummyComponent,
-      position: "inline" as const,
-    };
-    registerSidebarAction(config);
-    expect(spy).toHaveBeenCalledWith(config);
-  });
-
   it("registerBlock delegates to ModRegistry.registerBlock", () => {
     const spy = vi.spyOn(registry, "registerBlock");
     const config = {
@@ -130,5 +117,22 @@ describe("register functions", () => {
     const spy = vi.spyOn(registry, "registerIntoSlot");
     registerIntoSlot("eln.editor", "eln.table", { nodeType: "inline" }, 5);
     expect(spy).toHaveBeenCalledWith("eln.editor", "eln.table", { nodeType: "inline" }, 5);
+  });
+
+  // ── Removal tests: eliminated APIs are not importable ─────────────────
+
+  it("registerWorkspace is not exported from the barrel", async () => {
+    const barrel = await import("../index");
+    expect((barrel as Record<string, unknown>).registerWorkspace).toBeUndefined();
+  });
+
+  it("registerLibraryItem is not exported from the barrel", async () => {
+    const barrel = await import("../index");
+    expect((barrel as Record<string, unknown>).registerLibraryItem).toBeUndefined();
+  });
+
+  it("registerSidebarAction is not exported from the barrel", async () => {
+    const barrel = await import("../index");
+    expect((barrel as Record<string, unknown>).registerSidebarAction).toBeUndefined();
   });
 });

@@ -32,9 +32,9 @@ export function register(): void {
 | ~~`registerLibraryItem(config)`~~ | (Removed) Library hub now renders entity cards generically from schema columns |
 | `registerSettingsSection(config)` | Register a settings panel in the Settings shell |
 | `registerRoute(config)` | Register a standalone route |
-| `registerSidebarAction(config)` | Register a button/badge on sidebar rows |
+| ~~`registerSidebarAction(config)`~~ | (Removed) Sidebar actions now use event-driven tabs pattern |
+| ~~`registerWorkspace(config)`~~ | (Removed) Workspaces are now hydrated from the backend API |
 | `registerBlock(config)` | Register a content block (e.g., table, image) for the ELN editor |
-| `registerService(config)` | Register a callable service for mod-to-mod communication |
 
 ## Mod Directory Contract
 

@@ -64,15 +64,6 @@ export interface RouteConfig {
   public?: boolean;
 }
 
-// ── Sidebar Action ────────────────────────────────────────────────────────
-
-export interface SidebarActionConfig {
-  id: string;
-  workspaceId: string;
-  component: ComponentType<any>;
-  position: "inline" | "hover";
-}
-
 // ── Block ──────────────────────────────────────────────────────────────────
 
 // ── Service (shape only — implementation deferred) ────────────────────────
@@ -98,9 +89,8 @@ export interface SchemaColumnDef {
 /**
  * Schema type identity carried by a workspace.
  *
- * When a mod passes `schemaType` to `registerWorkspace()`, the registry
- * stores it alongside the workspace config so that workspace registration
- * carries everything needed for entity type identity.
+ * Workspace + schemaType metadata is hydrated from the backend via
+ * ``GET /api/mod-registry/`` — no separate service call is required.
  */
 export interface SchemaTypeConfig {
   /** Unique schema type identifier, e.g. "lims.entity", "eln.entry". */
@@ -114,7 +104,7 @@ export interface SchemaTypeConfig {
 }
 
 /**
- * Configuration for a workspace registered by a mod.
+ * Workspace metadata hydrated from the backend via ``GET /api/mod-registry/``.
  *
  * The workspace `id` doubles as the URL namespace: `/{workspaceId}/{displayId}`.
  * Must be a valid URL path segment (lowercase alphanumeric by convention).
@@ -140,7 +130,7 @@ export interface WorkspaceConfig {
 /**
  * Resolved metadata for the currently active workspace, derived from the URL.
  *
- * Defined in core/ so both pins and mentions modules can share it without
+ * Defined in core/ so both tabs and mentions modules can share it without
  * creating an inverted dependency (core importing from a mods package).
  */
 export interface CurrentWorkspace {

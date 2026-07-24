@@ -4,16 +4,17 @@ import { MemoryRouter } from "react-router-dom";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import type { PinnedWorkspace } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import type { ModManifest } from "../../../shell/src/mod-system/types";
 
 // ── Mock API module ──────────────────────────────────────────────────────
 
 vi.mock("../api", () => ({
-  getPins: vi.fn(),
-  createPin: vi.fn(),
-  deletePin: vi.fn(),
+  getTabs: vi.fn(),
+  createTab: vi.fn(),
+  deleteTab: vi.fn(),
 }));
 
-import { getPins, createPin, deletePin } from "../api";
+import { getTabs, createTab, deleteTab } from "../api";
 
 // ── ModRegistry setup ──────────────────────────────────────────────────────
 
@@ -23,8 +24,16 @@ function setupWorkspaces(): void {
   const registry = ModRegistry.getInstance();
   registry.registerMod("lims");
   registry.registerMod("eln");
-  registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-  registry.registerWorkspace({ id: "eln", displayName: "ELN" });
+  registry.hydrateFromBackend(
+    {
+      lims: { workspaceId: "lims", schemaTypes: [], actions: [] },
+      eln: { workspaceId: "eln", schemaTypes: [], actions: [] },
+    },
+    new Map<string, ModManifest>([
+      ["lims", { id: "lims", displayName: "LIMS", dependsOn: [] }],
+      ["eln", { id: "eln", displayName: "ELN", dependsOn: [] }],
+    ]),
+  );
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -63,7 +72,7 @@ describe("usePinnedWorkspaces", () => {
   // ── Initial load ──────────────────────────────────────────────────────
 
   it("fetches pins on mount and exposes them", async () => {
-    vi.mocked(getPins).mockResolvedValue(mockPins);
+    vi.mocked(getTabs).mockResolvedValue(mockPins);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(),
@@ -78,11 +87,11 @@ describe("usePinnedWorkspaces", () => {
     });
 
     expect(result.current.pins).toEqual(mockPins);
-    expect(getPins).toHaveBeenCalledTimes(1);
+    expect(getTabs).toHaveBeenCalledTimes(1);
   });
 
   it("handles fetch error gracefully", async () => {
-    vi.mocked(getPins).mockRejectedValue(new Error("Network error"));
+    vi.mocked(getTabs).mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(),
@@ -98,7 +107,7 @@ describe("usePinnedWorkspaces", () => {
   // ── Current workspace resolution ──────────────────────────────────────
 
   it("resolves current workspace from /lims/:displayId URL", async () => {
-    vi.mocked(getPins).mockResolvedValue([]);
+    vi.mocked(getTabs).mockResolvedValue([]);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/lims/BLOOD1"]),
@@ -116,7 +125,7 @@ describe("usePinnedWorkspaces", () => {
   });
 
   it("resolves current workspace from /eln/:displayId URL", async () => {
-    vi.mocked(getPins).mockResolvedValue([]);
+    vi.mocked(getTabs).mockResolvedValue([]);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/eln/E1"]),
@@ -134,7 +143,7 @@ describe("usePinnedWorkspaces", () => {
   });
 
   it("returns null current for non-workspace URLs", async () => {
-    vi.mocked(getPins).mockResolvedValue([]);
+    vi.mocked(getTabs).mockResolvedValue([]);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/settings"]),
@@ -150,14 +159,14 @@ describe("usePinnedWorkspaces", () => {
   // ── Pin (optimistic) ──────────────────────────────────────────────────
 
   it("optimistically pins the current workspace", async () => {
-    vi.mocked(getPins).mockResolvedValue([]);
+    vi.mocked(getTabs).mockResolvedValue([]);
 
     // Deferred promise so we can observe the optimistic state before resolution
     let resolveCreate: (value: PinnedWorkspace) => void = () => {};
     const createPromise = new Promise<PinnedWorkspace>((resolve) => {
       resolveCreate = resolve;
     });
-    vi.mocked(createPin).mockReturnValue(createPromise);
+    vi.mocked(createTab).mockReturnValue(createPromise);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/lims/BLOOD1"]),
@@ -190,8 +199,8 @@ describe("usePinnedWorkspaces", () => {
   });
 
   it("rolls back optimistic pin on API error", async () => {
-    vi.mocked(getPins).mockResolvedValue([]);
-    vi.mocked(createPin).mockRejectedValue(new Error("Server error"));
+    vi.mocked(getTabs).mockResolvedValue([]);
+    vi.mocked(createTab).mockRejectedValue(new Error("Server error"));
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/lims/BLOOD1"]),
@@ -210,7 +219,7 @@ describe("usePinnedWorkspaces", () => {
   });
 
   it("does nothing when pin is called but there is no current workspace", async () => {
-    vi.mocked(getPins).mockResolvedValue([]);
+    vi.mocked(getTabs).mockResolvedValue([]);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/settings"]),
@@ -224,12 +233,12 @@ describe("usePinnedWorkspaces", () => {
       await result.current.pin();
     });
 
-    expect(createPin).not.toHaveBeenCalled();
+    expect(createTab).not.toHaveBeenCalled();
     expect(result.current.pins).toEqual([]);
   });
 
   it("does not pin if current workspace is already pinned", async () => {
-    vi.mocked(getPins).mockResolvedValue([
+    vi.mocked(getTabs).mockResolvedValue([
       makePin({ id: 1, url: "/lims/BLOOD1" }),
     ]);
 
@@ -245,14 +254,14 @@ describe("usePinnedWorkspaces", () => {
       await result.current.pin();
     });
 
-    expect(createPin).not.toHaveBeenCalled();
+    expect(createTab).not.toHaveBeenCalled();
   });
 
   // ── Unpin (optimistic) ────────────────────────────────────────────────
 
   it("optimistically unpins a workspace", async () => {
-    vi.mocked(getPins).mockResolvedValue(mockPins);
-    vi.mocked(deletePin).mockResolvedValue(undefined);
+    vi.mocked(getTabs).mockResolvedValue(mockPins);
+    vi.mocked(deleteTab).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/lims/BLOOD1"]),
@@ -270,12 +279,12 @@ describe("usePinnedWorkspaces", () => {
 
     expect(result.current.pins).toHaveLength(1);
     expect(result.current.pins[0].id).toBe(2);
-    expect(deletePin).toHaveBeenCalledWith(1);
+    expect(deleteTab).toHaveBeenCalledWith(1);
   });
 
   it("rolls back optimistic unpin on API error", async () => {
-    vi.mocked(getPins).mockResolvedValue(mockPins);
-    vi.mocked(deletePin).mockRejectedValue(new Error("Server error"));
+    vi.mocked(getTabs).mockResolvedValue(mockPins);
+    vi.mocked(deleteTab).mockRejectedValue(new Error("Server error"));
 
     const { result } = renderHook(() => usePinnedWorkspaces(), {
       wrapper: wrapper(["/lims/BLOOD1"]),

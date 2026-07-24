@@ -2,7 +2,6 @@ import type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
-  SidebarActionConfig,
   ServiceConfig,
   WorkspaceConfig,
   BlockRegistration,
@@ -63,7 +62,6 @@ export class ModRegistry {
   private hubs = new Map<string, HubConfig>();
   private settingsSections = new Map<string, SettingsSectionConfig>();
   private routes = new Map<string, RouteConfig>();
-  private sidebarActions = new Map<string, SidebarActionConfig>();
   private services = new Map<string, ServiceConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private blocks = new Map<string, BlockRegistration>();
@@ -112,15 +110,6 @@ export class ModRegistry {
     this.routes.set(config.id, config);
   }
 
-  registerSidebarAction(config: SidebarActionConfig): void {
-    if (this.sidebarActions.has(config.id)) {
-      throw new Error(
-        `Duplicate sidebar action registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.sidebarActions.set(config.id, config);
-  }
-
   registerService(config: ServiceConfig): void {
     if (this.services.has(config.id)) {
       throw new Error(
@@ -128,15 +117,6 @@ export class ModRegistry {
       );
     }
     this.services.set(config.id, config);
-  }
-
-  registerWorkspace(config: WorkspaceConfig): void {
-    if (this.workspaces.has(config.id)) {
-      throw new Error(
-        `Duplicate workspace registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.workspaces.set(config.id, config);
   }
 
   /**
@@ -432,11 +412,6 @@ export class ModRegistry {
   /** Returns only routes that render inside the Layout shell. */
   getLayoutRoutes(): RouteConfig[] {
     return [...this.routes.values()].filter((r) => !r.public);
-  }
-
-  /** Returns a read-only view of all registered sidebar actions. */
-  getSidebarActions(): ReadonlyMap<string, SidebarActionConfig> {
-    return this.sidebarActions;
   }
 
   /** Returns a read-only view of all registered workspaces. */

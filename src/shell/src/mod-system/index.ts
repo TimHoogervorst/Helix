@@ -4,8 +4,6 @@ export { registerHub } from "./registerHub";
 export { registerSettingsSection } from "./registerSettingsSection";
 export { registerRoute } from "./registerRoute";
 export { registerPublicRoute } from "./registerPublicRoute";
-export { registerSidebarAction } from "./registerSidebarAction";
-export { registerWorkspace } from "./registerWorkspace";
 export { registerBlock } from "./registerBlock";
 export { declareSlot } from "./declareSlot";
 export { registerButton } from "./registerButton";
@@ -16,11 +14,7 @@ export type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
-  SidebarActionConfig,
   ServiceConfig,
-  WorkspaceConfig,
-  SchemaTypeConfig,
-  SchemaColumnDef,
   CurrentWorkspace,
   BlockRegistration,
   ButtonRegistration,

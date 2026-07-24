@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Box } from "lucide-react";
+
 import { ModRegistry } from "../ModRegistry";
 import type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
-  SidebarActionConfig,
   SlotDeclaration,
   ButtonRegistration,
   BlockRegistration,
@@ -59,18 +58,6 @@ function makeRoute(overrides?: Partial<RouteConfig>): RouteConfig {
     modId: "test-mod",
     path: "/test-route",
     component: DummyComponent,
-    ...overrides,
-  };
-}
-
-function makeSidebarAction(
-  overrides?: Partial<SidebarActionConfig>,
-): SidebarActionConfig {
-  return {
-    id: "test.action",
-    workspaceId: "*",
-    component: DummyComponent,
-    position: "inline",
     ...overrides,
   };
 }
@@ -197,21 +184,6 @@ describe("ModRegistry", () => {
     );
   });
 
-  // ── registerSidebarAction ────────────────────────────────────────────
-
-  it("registerSidebarAction stores a sidebar action config", () => {
-    const config = makeSidebarAction({ id: "a1" });
-    registry.registerSidebarAction(config);
-    expect(registry.getSidebarActions().get("a1")).toBe(config);
-  });
-
-  it("registerSidebarAction throws on duplicate ID", () => {
-    registry.registerSidebarAction(makeSidebarAction({ id: "a1" }));
-    expect(() =>
-      registry.registerSidebarAction(makeSidebarAction({ id: "a1" })),
-    ).toThrow("Duplicate sidebar action registration");
-  });
-
   // ── validate ─────────────────────────────────────────────────────────
 
   it("passes when all cross-references resolve", () => {
@@ -254,102 +226,6 @@ describe("ModRegistry", () => {
   it("getRoutes returns a read-only view", () => {
     registry.registerRoute(makeRoute({ id: "r1" }));
     expect(registry.getRoutes().has("r1")).toBe(true);
-  });
-
-  // ── registerWorkspace ──────────────────────────────────────────────────
-
-  it("registerWorkspace stores a workspace config", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    expect(registry.getWorkspaces().get("lims")).toEqual({
-      id: "lims",
-      displayName: "LIMS",
-    });
-  });
-
-  it("registerWorkspace stores an optional icon", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS", icon: Box });
-    expect(registry.getWorkspaces().get("lims")).toEqual({
-      id: "lims",
-      displayName: "LIMS",
-      icon: Box,
-    });
-  });
-
-  it("registerWorkspace works without providing an icon (backward-compatible)", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws).toBeDefined();
-    expect(ws?.icon).toBeUndefined();
-  });
-
-  it("registerWorkspace stores workspace + schemaType from a single call", () => {
-    registry.registerWorkspace({
-      id: "lims",
-      displayName: "LIMS",
-      icon: Box,
-      schemaType: {
-        id: "lims.entity",
-        displayName: "Entity",
-        defaultPrefix: "E",
-      },
-    });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws).toBeDefined();
-    expect(ws?.schemaType).toEqual({
-      id: "lims.entity",
-      displayName: "Entity",
-      defaultPrefix: "E",
-    });
-  });
-
-  it("registerWorkspace stores schemaType with optional columns", () => {
-    registry.registerWorkspace({
-      id: "lims",
-      displayName: "LIMS",
-      schemaType: {
-        id: "lims.entity",
-        displayName: "Entity",
-        defaultPrefix: "E",
-        columns: [
-          { name: "Name", type: "Text", required: true },
-          { name: "Quantity", type: "Number", units: "mL" },
-        ],
-      },
-    });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws?.schemaType?.columns).toHaveLength(2);
-    expect(ws?.schemaType?.columns?.[0]).toEqual({
-      name: "Name",
-      type: "Text",
-      required: true,
-    });
-  });
-
-  it("registerWorkspace schemaType is undefined when not provided (backward-compatible)", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws?.schemaType).toBeUndefined();
-  });
-
-  it("registerWorkspace throws on duplicate ID", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    expect(() =>
-      registry.registerWorkspace({ id: "lims", displayName: "LIMS v2" }),
-    ).toThrow("Duplicate workspace registration");
-  });
-
-  it("getWorkspaces returns a read-only view", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    registry.registerWorkspace({ id: "eln", displayName: "ELN" });
-    const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("lims")).toBe(true);
-    expect(workspaces.has("eln")).toBe(true);
-    expect(workspaces.get("lims")?.displayName).toBe("LIMS");
-  });
-
-  it("getWorkspaces returns empty map when no workspaces registered", () => {
-    const workspaces = registry.getWorkspaces();
-    expect(workspaces.size).toBe(0);
   });
 
   // ── registerBlock ────────────────────────────────────────────────────────
@@ -992,9 +868,22 @@ describe("ModRegistry", () => {
       expect(ws.schemaType?.columns).toEqual(columns);
     });
 
-    it("overwrites workspaces previously set by registerWorkspace (last write wins)", () => {
-      registry.registerWorkspace({ id: "lims", displayName: "Old LIMS" });
+    it("overwrites workspaces on subsequent hydration calls (last write wins)", () => {
+      // First hydration
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [],
+          },
+        },
+        new Map([["lims", makeManifest({ displayName: "Old LIMS" })]]),
+      );
 
+      expect(registry.getWorkspaces().get("lims")?.displayName).toBe("Old LIMS");
+
+      // Second hydration with updated display name
       const payload = {
         lims: {
           workspaceId: "lims",

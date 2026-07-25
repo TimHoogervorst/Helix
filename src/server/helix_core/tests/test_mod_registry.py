@@ -168,9 +168,9 @@ class ModRegistryContractTests(TestCase):
         # ACTION_CHOICES entries are included (backward compat).
         self.assertIn("used", action_ids)
         self.assertIn("measured", action_ids)
-        # All legacy actions should be core.
+        # All legacy actions should have a valid action_type.
         for a in actions:
-            self.assertTrue(a["core"])
+            self.assertIn("action_type", a)
 
     def test_eln_actions_default_set(self):
         """ELN actions use the auto-derived core set (no ACTION_CHOICES)."""
@@ -181,7 +181,7 @@ class ModRegistryContractTests(TestCase):
         self.assertIn("edited", action_ids)
         self.assertIn("deleted", action_ids)
         for a in actions:
-            self.assertTrue(a["core"])
+            self.assertIn(a["action_type"], ("created", "edited", "deleted"))
 
     # ── Edge cases ───────────────────────────────────────────────────────
 
@@ -189,6 +189,9 @@ class ModRegistryContractTests(TestCase):
         """Each mod entry includes its workspaceId."""
         response = self.client.get("/api/mod-registry/")
         for ws_id, entry in response.data.items():
+            # Skip the top-level columnTypes key — it's not a workspace entry.
+            if ws_id == "columnTypes":
+                continue
             self.assertEqual(entry["workspaceId"], ws_id)
 
 
@@ -207,11 +210,14 @@ class ModRegistryEmptyTests(TestCase):
         registry._action_models.clear()
         registry._action_models.update(self._original_action_models)
 
-    def test_empty_registry_returns_empty_dict(self):
-        """When no SchemaTypes exist, the endpoint returns an empty dict."""
+    def test_empty_registry_returns_column_types_only(self):
+        """When no SchemaTypes exist, the endpoint returns only columnTypes."""
         response = self.client.get("/api/mod-registry/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {})
+        self.assertIn("columnTypes", response.data)
+        # No workspace entries should be present.
+        workspace_keys = [k for k in response.data if k != "columnTypes"]
+        self.assertEqual(workspace_keys, [])
 
 
 class ModRegistrySchemaFileTests(TestCase):

@@ -1062,6 +1062,166 @@ describe("ModRegistry", () => {
     });
   });
 
+  // ── Column type hydration ────────────────────────────────────────────
+
+  describe("column type hydration", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("stores column types from backend payload", () => {
+      const columnTypes = [
+        {
+          id: "text",
+          displayName: "Text",
+          icon: "type",
+          operators: [
+            { id: "eq", label: "Equals", operandShape: "text", djangoLookupName: "exact" },
+            { id: "contains", label: "Contains", operandShape: "text", djangoLookupName: "icontains" },
+          ],
+        },
+        {
+          id: "number",
+          displayName: "Number",
+          icon: "hash",
+          operators: [
+            { id: "eq", label: "Equals", operandShape: "number", djangoLookupName: "exact" },
+          ],
+        },
+      ];
+
+      const payload = {
+        columnTypes,
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      // Column types are stored.
+      expect(registry.getColumnTypes().size).toBe(2);
+      expect(registry.getColumnType("text")).toEqual(columnTypes[0]);
+      expect(registry.getColumnType("number")).toEqual(columnTypes[1]);
+    });
+
+    it("getColumnType returns undefined for unknown type", () => {
+      expect(registry.getColumnType("nonexistent")).toBeUndefined();
+    });
+
+    it("getColumnType returns undefined before hydration", () => {
+      expect(registry.getColumnType("text")).toBeUndefined();
+    });
+
+    it("getColumnTypes returns empty map before hydration", () => {
+      expect(registry.getColumnTypes().size).toBe(0);
+    });
+
+    it("column types are looked up by type ID (lowercase)", () => {
+      const columnTypes = [
+        {
+          id: "boolean",
+          displayName: "Boolean",
+          icon: "toggle-left",
+          operators: [],
+        },
+      ];
+
+      const payload = {
+        columnTypes,
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ct = registry.getColumnType("boolean");
+      expect(ct).toBeDefined();
+      expect(ct!.id).toBe("boolean");
+      expect(ct!.displayName).toBe("Boolean");
+    });
+
+    it("column types do not interfere with workspace hydration", () => {
+      const columnTypes = [
+        { id: "text", displayName: "Text", icon: "type", operators: [] },
+      ];
+
+      const payload = {
+        columnTypes,
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      // Workspaces still hydrated correctly.
+      expect(registry.getWorkspaces().has("lims")).toBe(true);
+      expect(registry.getWorkspaces().get("lims")?.displayName).toBe("LIMS");
+
+      // Column types hydrated.
+      expect(registry.getColumnTypes().size).toBe(1);
+    });
+
+    it("clears column types on subsequent hydration", () => {
+      const firstTypes = [
+        { id: "text", displayName: "Text", icon: "type", operators: [] },
+      ];
+
+      registry.hydrateFromBackend(
+        { columnTypes: firstTypes, lims: { workspaceId: "lims", schemaTypes: [], actions: [] } },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      expect(registry.getColumnTypes().size).toBe(1);
+
+      const secondTypes = [
+        { id: "number", displayName: "Number", icon: "hash", operators: [] },
+        { id: "date", displayName: "Date", icon: "calendar", operators: [] },
+      ];
+
+      registry.hydrateFromBackend(
+        { columnTypes: secondTypes },
+        new Map(),
+      );
+
+      // Old types are cleared, new types are stored.
+      expect(registry.getColumnTypes().size).toBe(2);
+      expect(registry.getColumnType("text")).toBeUndefined();
+      expect(registry.getColumnType("number")).toBeDefined();
+      expect(registry.getColumnType("date")).toBeDefined();
+    });
+
+    it("payload with only columnTypes and no workspaces works", () => {
+      const columnTypes = [
+        { id: "text", displayName: "Text", icon: "type", operators: [] },
+      ];
+
+      registry.hydrateFromBackend({ columnTypes }, new Map());
+
+      expect(registry.getColumnTypes().size).toBe(1);
+      expect(registry.getColumnType("text")).toBeDefined();
+      // Workspaces remain empty.
+      expect(registry.getWorkspaces().size).toBe(0);
+    });
+  });
+
   // ── loadFromBackend ──────────────────────────────────────────────────
 
   describe("loadFromBackend", () => {

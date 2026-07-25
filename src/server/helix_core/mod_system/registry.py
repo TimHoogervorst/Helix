@@ -533,12 +533,16 @@ class BackendModRegistry:
         * ``actions`` — array of ``{id, label, core}`` objects describing
           the action catalog for this mod.
 
+        The top-level response also includes a ``columnTypes`` key with the
+        full column type registry payload.
+
         The payload is built from already-populated ``SchemaType`` rows
         (created by ``register_schema_type()`` calls in each mod's
         ``mod.py.register()``) and registered action models.
         """
         from django.db import OperationalError, ProgrammingError
 
+        from helix_core.column_types import registry as column_type_registry
         from helix_core.models import SchemaType
 
         try:
@@ -547,7 +551,7 @@ class BackendModRegistry:
             )
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations).
-            return {}
+            return {"columnTypes": column_type_registry.get_registry_payload()}
 
         # Group schema types by workspace_id.
         grouped: dict[str, list[SchemaType]] = {}
@@ -643,6 +647,9 @@ class BackendModRegistry:
                 "schemaTypes": schema_type_entries,
                 "actions": actions,
             }
+
+        # Insert columnTypes at the top level.
+        payload["columnTypes"] = column_type_registry.get_registry_payload()
 
         return payload
 

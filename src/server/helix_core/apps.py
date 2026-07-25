@@ -9,11 +9,19 @@ class HelixCoreConfig(AppConfig):
     name = "helix_core"
 
     def ready(self):
+        from helix_core.column_types import (
+            get_builtin_column_types,
+            registry as column_type_registry,
+        )
         from helix_core.mod_system.loader import (
             _get_all_manifests,
             get_helix_mods,
         )
         from helix_core.mod_system.registry import registry
+
+        # ── Register built-in column types ───────────────────────────────
+        for ct in get_builtin_column_types():
+            column_type_registry.register_column_type(ct)
 
         # Discover all manifests (core + external) for signal validation.
         manifests, _ = _get_all_manifests(

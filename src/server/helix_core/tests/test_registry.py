@@ -1120,12 +1120,14 @@ class TestRegisterCustomAction:
         )
 
         catalog = reg.get_action_catalog("lims")
-        custom_actions = [a for a in catalog if a["core"] != a["action_type"]]
+        # Custom actions have id != action_type (id is the full action ID,
+        # action_type is the core verb).
+        custom_actions = [a for a in catalog if a["id"] != a["action_type"]]
         assert len(custom_actions) == 1
         action = custom_actions[0]
-        assert action["action_type"] == "lims.sample.registered"
+        assert action["id"] == "lims.sample.registered"
         assert action["label"] == "Sample Registered"
-        assert action["core"] == "edited"
+        assert action["action_type"] == "edited"
         assert action["target_model"] == "mods.lims.models.Entity"
 
     def test_register_custom_action_multiple_actions(self):
@@ -1149,7 +1151,8 @@ class TestRegisterCustomAction:
         )
 
         catalog = reg.get_action_catalog("lims")
-        custom_actions = [a for a in catalog if a["action_type"] not in ("created", "edited", "deleted")]
+        # Custom actions: id not in the three core verb names.
+        custom_actions = [a for a in catalog if a["id"] not in ("created", "edited", "deleted")]
         assert len(custom_actions) == 2
 
     def test_register_custom_action_different_mods(self):
@@ -1175,12 +1178,13 @@ class TestRegisterCustomAction:
 
         eln_catalog = reg.get_action_catalog("eln")
         lims_catalog = reg.get_action_catalog("lims")
-        eln_custom = [a for a in eln_catalog if a["action_type"] not in ("created", "edited", "deleted")]
-        lims_custom = [a for a in lims_catalog if a["action_type"] not in ("created", "edited", "deleted")]
+        # Custom actions have id != action_type.
+        eln_custom = [a for a in eln_catalog if a["id"] not in ("created", "edited", "deleted")]
+        lims_custom = [a for a in lims_catalog if a["id"] not in ("created", "edited", "deleted")]
         assert len(eln_custom) == 1
         assert len(lims_custom) == 1
-        assert eln_custom[0]["action_type"] == "eln.entry.exported"
-        assert lims_custom[0]["action_type"] == "lims.sample.registered"
+        assert eln_custom[0]["id"] == "eln.entry.exported"
+        assert lims_custom[0]["id"] == "lims.sample.registered"
 
 
 class TestCoreActionAutoDerivation:
@@ -1197,7 +1201,8 @@ class TestCoreActionAutoDerivation:
         reg.register_action_model("eln", FakeAction)
 
         catalog = reg.get_action_catalog("eln")
-        core_action_types = {a["action_type"] for a in catalog if a["core"] == a["action_type"]}
+        # Core actions have id == action_type (self-referential — both are the verb).
+        core_action_types = {a["action_type"] for a in catalog if a["id"] == a["action_type"]}
         assert core_action_types == {"created", "edited", "deleted"}
 
     def test_core_actions_have_correct_labels(self):
@@ -1206,7 +1211,7 @@ class TestCoreActionAutoDerivation:
         reg.register_action_model("eln", type("FakeAction", (), {}))
 
         catalog = reg.get_action_catalog("eln")
-        core_actions = {a["action_type"]: a for a in catalog if a["core"] == a["action_type"]}
+        core_actions = {a["action_type"]: a for a in catalog if a["id"] == a["action_type"]}
         assert core_actions["created"]["label"] == "Created"
         assert core_actions["edited"]["label"] == "Edited"
         assert core_actions["deleted"]["label"] == "Deleted"
@@ -1221,22 +1226,22 @@ class TestCoreActionAutoDerivation:
         reg.register_action_model("eln", FakeAction)
 
         catalog = reg.get_action_catalog("eln")
-        core_actions = {a["action_type"]: a for a in catalog if a["core"] == a["action_type"]}
+        core_actions = {a["action_type"]: a for a in catalog if a["id"] == a["action_type"]}
         for verb in ("created", "edited", "deleted"):
             assert core_actions[verb]["target_model"] is not None, \
                 f"Core action '{verb}' should have a target_model"
 
     def test_core_actions_marked_as_core(self):
-        """Core actions have core field equal to action_type (self-referential)."""
+        """Core actions have id equal to action_type (self-referential)."""
         reg = _fresh_registry()
         reg.register_action_model("eln", type("FakeAction", (), {}))
 
         catalog = reg.get_action_catalog("eln")
         for action in catalog:
             if action["action_type"] in ("created", "edited", "deleted"):
-                # Core actions: core == action_type
-                assert action["core"] == action["action_type"], \
-                    f"Core action {action['action_type']} should have core == action_type"
+                # Core actions: id == action_type (both are the verb).
+                assert action["id"] == action["action_type"], \
+                    f"Core action {action['action_type']} should have id == action_type"
 
     def test_no_core_actions_without_action_model(self):
         """get_action_catalog returns empty list when no action model registered."""
@@ -1265,14 +1270,14 @@ class TestGetActionCatalog:
         catalog = reg.get_action_catalog("lims")
         # 3 core + 1 custom = 4 actions
         assert len(catalog) == 4
-        action_types = {a["action_type"] for a in catalog}
-        assert "created" in action_types
-        assert "edited" in action_types
-        assert "deleted" in action_types
-        assert "lims.sample.registered" in action_types
+        action_ids = {a["id"] for a in catalog}
+        assert "created" in action_ids
+        assert "edited" in action_ids
+        assert "deleted" in action_ids
+        assert "lims.sample.registered" in action_ids
 
     def test_custom_action_core_field_points_to_core_verb(self):
-        """Custom actions have a 'core' field pointing to the base core verb."""
+        """Custom actions have action_type pointing to the base core verb."""
         reg = _fresh_registry()
         reg.register_action_model("lims", type("FakeAction", (), {}))
 
@@ -1285,9 +1290,11 @@ class TestGetActionCatalog:
         )
 
         catalog = reg.get_action_catalog("lims")
-        custom = [a for a in catalog if a["action_type"] == "lims.sample.aliquoted"]
+        # Custom actions have the full ID in the "id" field.
+        custom = [a for a in catalog if a["id"] == "lims.sample.aliquoted"]
         assert len(custom) == 1
-        assert custom[0]["core"] == "edited"
+        # The action_type for custom actions is the core verb.
+        assert custom[0]["action_type"] == "edited"
         assert custom[0]["label"] == "Sample Aliquoted"
 
     def test_returns_copy_not_reference(self):
@@ -1296,7 +1303,7 @@ class TestGetActionCatalog:
         reg.register_action_model("eln", type("FakeAction", (), {}))
 
         catalog = reg.get_action_catalog("eln")
-        catalog.append({"action_type": "fake", "label": "Fake", "core": "created", "target_model": None})
+        catalog.append({"id": "fake", "label": "Fake", "action_type": "created", "target_model": None})
 
         catalog2 = reg.get_action_catalog("eln")
         assert len(catalog2) == 3  # Only the 3 core actions

@@ -2,8 +2,45 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://helix.example.com/schemas/mod-registry-response.json",
   "title": "Mod Registry Response",
-  "description": "Response shape for GET /api/mod-registry/. Each top-level key is a mod/workspace ID, and each value carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns}), and actions (array of {id, label, core}).",
+  "description": "Response shape for GET /api/mod-registry/. Includes a top-level columnTypes key plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns}), and actions (array of {id, label, action_type}).",
   "type": "object",
+  "properties": {
+    "columnTypes": {
+      "type": "array",
+      "description": "Registered column type definitions with their operators.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Lowercase column type identifier, e.g. 'text', 'number'."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable label, e.g. 'Text', 'Number'."
+          },
+          "icon": {
+            "type": "string",
+            "description": "Lucide icon token for this column type."
+          },
+          "operators": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "operandShape": { "type": "string" },
+                "djangoLookupName": { "type": "string" }
+              },
+              "required": ["id", "label", "operandShape", "djangoLookupName"]
+            }
+          }
+        },
+        "required": ["id", "displayName", "icon", "operators"]
+      }
+    }
+  },
   "patternProperties": {
     "^[a-z][a-z0-9_-]*$": {
       "type": "object",
@@ -44,9 +81,9 @@
             "properties": {
               "id": { "type": "string" },
               "label": { "type": "string" },
-              "core": { "type": "boolean" }
+              "action_type": { "type": "string" }
             },
-            "required": ["id", "label", "core"]
+            "required": ["id", "label", "action_type"]
           }
         }
       },

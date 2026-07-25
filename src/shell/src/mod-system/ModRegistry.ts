@@ -23,11 +23,34 @@ interface BackendSchemaType {
   columns?: Record<string, unknown>[];
 }
 
+/** Operator definition from the backend column type registry. */
+export interface BackendOperator {
+  id: string;
+  label: string;
+  operandShape: string;
+  djangoLookupName: string;
+}
+
+/** Column type entry from the backend mod-registry payload. */
+export interface BackendColumnType {
+  id: string;
+  displayName: string;
+  icon: string;
+  operators: BackendOperator[];
+}
+
 /** Single workspace entry in the backend mod-registry response. */
 interface BackendModRegistryEntry {
   workspaceId: string;
   schemaTypes: BackendSchemaType[];
   actions: Array<{ id: string; label: string; action_type: string }>;
+}
+
+/** Type guard: structural check that a value is a workspace entry. */
+function isWorkspaceEntry(
+  value: BackendModRegistryEntry | BackendColumnType[],
+): value is BackendModRegistryEntry {
+  return !Array.isArray(value) && typeof value === "object" && "workspaceId" in value;
 }
 
 /**
@@ -73,6 +96,9 @@ export class ModRegistry {
 
   /** Action catalogs keyed by workspace ID, hydrated from the backend. */
   private actions = new Map<string, ActionCatalogEntry[]>();
+
+  /** Column type definitions keyed by type ID, hydrated from the backend. */
+  private columnTypes = new Map<string, BackendColumnType>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -137,16 +163,33 @@ export class ModRegistry {
    *   Used to supply ``displayName`` for each workspace.
    */
   hydrateFromBackend(
-    payload: Record<string, BackendModRegistryEntry>,
+    payload: Record<string, BackendModRegistryEntry | BackendColumnType[]>,
     manifests: ReadonlyMap<string, ModManifest>,
   ): void {
-    for (const [workspaceId, entry] of Object.entries(payload)) {
-      const manifest = manifests.get(workspaceId);
-      const schemaType = entry.schemaTypes?.[0];
+    for (const [key, value] of Object.entries(payload)) {
+      // The "columnTypes" key holds the column type registry array.
+      // Use structural check (Array.isArray) alongside the key name so the
+      // type guard does not depend on a magic string alone.
+      if (key === "columnTypes" && Array.isArray(value)) {
+        this.columnTypes.clear();
+        for (const ct of value) {
+          this.columnTypes.set(ct.id, ct);
+        }
+        continue;
+      }
 
-      this.workspaces.set(workspaceId, {
-        id: workspaceId,
-        displayName: manifest?.displayName ?? workspaceId,
+      // Structural guard: workspace entries have a workspaceId property.
+      if (!isWorkspaceEntry(value)) {
+        continue;
+      }
+
+      const wsEntry = value;
+      const manifest = manifests.get(key);
+      const schemaType = wsEntry.schemaTypes?.[0];
+
+      this.workspaces.set(key, {
+        id: key,
+        displayName: manifest?.displayName ?? key,
         icon: undefined,
         schemaType: schemaType
           ? {
@@ -161,10 +204,10 @@ export class ModRegistry {
       // Hydrate action catalog for this workspace.
       // Always replace — an empty actions array clears the catalog so
       // stale entries from a previous hydration call are not retained.
-      if (entry.actions) {
+      if (wsEntry.actions) {
         this.actions.set(
-          workspaceId,
-          entry.actions.map((a) => ({
+          key,
+          wsEntry.actions.map((a) => ({
             id: a.id,
             label: a.label,
             action_type: a.action_type,
@@ -465,6 +508,25 @@ export class ModRegistry {
    */
   getActions(workspaceId: string): ActionCatalogEntry[] {
     return this.actions.get(workspaceId) ?? [];
+  }
+
+  /**
+   * Look up a registered column type by its ID.
+   *
+   * Returns ``undefined`` when no column type with the given ID has been
+   * hydrated from the backend.
+   */
+  getColumnType(typeId: string): BackendColumnType | undefined {
+    return this.columnTypes.get(typeId);
+  }
+
+  /**
+   * Return all registered column types as a read-only map.
+   *
+   * Returns an empty map before hydration completes.
+   */
+  getColumnTypes(): ReadonlyMap<string, BackendColumnType> {
+    return this.columnTypes;
   }
 
   /**

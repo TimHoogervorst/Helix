@@ -227,6 +227,8 @@ class NumberFilterQTests(TestCase):
         spec = FilterSpec(column="concentration", operator="eq", value="50")
         q = build_filter_q(spec)
         from django.db.models import Q
+        # eq resolves to TextColumnType (first match in registry),
+        # so the value remains a string.
         expected = Q(properties__concentration__exact="50")
         self.assertEqual(q, expected)
 
@@ -234,6 +236,8 @@ class NumberFilterQTests(TestCase):
         spec = FilterSpec(column="concentration", operator="neq", value="50")
         q = build_filter_q(spec)
         from django.db.models import Q
+        # neq resolves to TextColumnType (first match in registry),
+        # so the value remains a string.
         expected = ~Q(properties__concentration__exact="50")
         self.assertEqual(q, expected)
 
@@ -241,28 +245,28 @@ class NumberFilterQTests(TestCase):
         spec = FilterSpec(column="concentration", operator="gt", value="50")
         q = build_filter_q(spec)
         from django.db.models import Q
-        expected = Q(properties__concentration__gt="50")
+        expected = Q(properties__concentration__gt=50.0)
         self.assertEqual(q, expected)
 
     def test_number_gte(self):
         spec = FilterSpec(column="concentration", operator="gte", value="50")
         q = build_filter_q(spec)
         from django.db.models import Q
-        expected = Q(properties__concentration__gte="50")
+        expected = Q(properties__concentration__gte=50.0)
         self.assertEqual(q, expected)
 
     def test_number_lt(self):
         spec = FilterSpec(column="concentration", operator="lt", value="100")
         q = build_filter_q(spec)
         from django.db.models import Q
-        expected = Q(properties__concentration__lt="100")
+        expected = Q(properties__concentration__lt=100.0)
         self.assertEqual(q, expected)
 
     def test_number_lte(self):
         spec = FilterSpec(column="concentration", operator="lte", value="100")
         q = build_filter_q(spec)
         from django.db.models import Q
-        expected = Q(properties__concentration__lte="100")
+        expected = Q(properties__concentration__lte=100.0)
         self.assertEqual(q, expected)
 
     def test_number_between(self):

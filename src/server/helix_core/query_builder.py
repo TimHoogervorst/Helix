@@ -166,7 +166,9 @@ def build_filter_q(spec: FilterSpec) -> Q:
     lookup_name = operator_meta.django_lookup_name
 
     # ── Build the Q object based on the operator ───────────────────────
-    return _build_q_from_lookup(field_path, lookup_name, spec.operator, spec.value)
+    return _build_q_from_lookup(
+        field_path, lookup_name, spec.operator, spec.value, column_type
+    )
 
 
 def _build_q_from_lookup(
@@ -174,6 +176,7 @@ def _build_q_from_lookup(
     lookup_name: str,
     operator_id: str,
     value: str,
+    column_type=None,
 ) -> Q:
     """Build a Q object from a resolved field path and lookup name.
 
@@ -184,7 +187,8 @@ def _build_q_from_lookup(
     * ``in`` / ``is_any_of`` → ``Q(field__in=[...])`` (comma-separated values)
     """
     if operator_id == "neq":
-        return ~Q(**{f"{field_path}__exact": value})
+        coerced = _coerce_numeric_value(value, column_type)
+        return ~Q(**{f"{field_path}__exact": coerced})
 
     if operator_id in ("between",):
         # Range operator: value is "min,max"
@@ -212,7 +216,32 @@ def _build_q_from_lookup(
 
     # Standard lookup: eq, contains, gt, gte, lt, lte, startswith, etc.
     lookup = f"{field_path}__{lookup_name}"
-    return Q(**{lookup: value})
+    coerced = _coerce_numeric_value(value, column_type, lookup_name)
+    return Q(**{lookup: coerced})
+
+
+def _coerce_numeric_value(value: str, column_type=None, lookup_name: str = "exact"):
+    """Coerce *value* to float when the column type is numeric and the lookup
+    is a comparison operator.
+
+    JSON fields on SQLite store values as text, so ``properties__concentration__gt="60"``
+    does string comparison.  PostgreSQL JSONB also compares text-to-text when
+    the right-hand side is a string.  Coercing to ``float`` ensures proper
+    numeric semantics on all backends.
+
+    Returns the original string when the column type is not numeric, the
+    lookup is not a comparison, or the value cannot be parsed as a number.
+    """
+    if (
+        column_type is not None
+        and column_type.operand_shape == "number"
+        and lookup_name in ("exact", "gt", "gte", "lt", "lte")
+    ):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            pass
+    return value
 
 
 # ── Column type resolution ──────────────────────────────────────────────────

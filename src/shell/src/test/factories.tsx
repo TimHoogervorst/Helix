@@ -148,7 +148,7 @@ export function makeLibraryContents(
 
 const _columnDefDefaults: ColumnDef = {
   name: "volume",
-  type: "Number",
+  type: "number",
 };
 
 /** A single ColumnDef. */

@@ -132,7 +132,7 @@ function SettingsPage() {
       if (!s) return prev;
       next.set(id, {
         ...s,
-        columns: [...s.columns, { name: "", type: "Text" as const }],
+        columns: [...s.columns, { name: "", type: "text" }],
       });
       return next;
     });

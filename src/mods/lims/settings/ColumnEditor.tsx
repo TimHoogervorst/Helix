@@ -1,6 +1,5 @@
 import type { ColumnDef } from "../types";
-
-const ALLOWED_TYPES = ["Text", "Number", "Date", "Boolean", "Reference"];
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 export interface ColumnEditorProps {
   columns: ColumnDef[];
@@ -36,6 +35,9 @@ function ColumnEditor({
   onMove,
   onDiscard,
 }: ColumnEditorProps) {
+  const columnTypes = ModRegistry.getInstance().getColumnTypes();
+  const textType = columnTypes.get("text");
+
   const handleNameChange = (
     index: number,
     field: keyof ColumnDef,
@@ -47,6 +49,16 @@ function ColumnEditor({
     }
     onUpdate(index, field, value);
   };
+
+  /** Render a type option with its display name from the registry. */
+  const renderTypeOption = (ct: {
+    id: string;
+    displayName: string;
+  }) => (
+    <option key={ct.id} value={ct.id}>
+      {ct.displayName}
+    </option>
+  );
 
   return (
     <div className="column-editor">
@@ -80,7 +92,9 @@ function ColumnEditor({
             title="Name is an implicit column on every schema — it cannot be edited or removed."
           />
           <select disabled className="col-type col-type--system">
-            <option>Text</option>
+            <option value="text">
+              {textType?.displayName ?? "Text"}
+            </option>
           </select>
           <div className="col-required" />
           <div className="col-remove" />
@@ -121,11 +135,7 @@ function ColumnEditor({
               onChange={(e) => onUpdate(i, "type", e.target.value)}
               className="col-type"
             >
-              {ALLOWED_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+              {[...columnTypes.values()].map(renderTypeOption)}
             </select>
             <label className="col-required">
               <input

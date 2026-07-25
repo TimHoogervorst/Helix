@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useEffect,
+  type ReactNode,
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -23,7 +24,10 @@ import type { SlotContext } from "../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { StatusBadge } from "../../../shell/src/shared/components/StatusBadge";
-import { relativeTime } from "../../../shell/src/shared/format";
+import { relativeTime, formatDate } from "../../../shell/src/shared/format";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { deriveDropdownColor } from "../../dropdowns/colourUtils";
 import { getEntities, getSchemaTypes, getSchemas } from "./api";
 import type { EntityHubFilters } from "./api";
 import type {
@@ -525,9 +529,126 @@ function EntitiesHub() {
     return offset;
   }
 
+  // ── Column type icon resolver ─────────────────────────────────────────
+
+  /** Look up the Lucide icon for a column type from the registry. */
+  function resolveColumnIcon(col: HubColumn): ReactNode {
+    const iconName =
+      col.icon ?? ModRegistry.getInstance().getColumnType(col.type)?.icon;
+    if (!iconName) return null;
+    const IconComponent = getColumnTypeIcon(iconName);
+    if (!IconComponent) return null;
+    return (
+      <IconComponent
+        className="entities-th-type-icon"
+        size={13}
+        aria-hidden="true"
+      />
+    );
+  }
+
   // ── Cell renderer ────────────────────────────────────────────────────────
 
+  /** Format a value as a locale-aware date-only string. */
+  function formatDateOnly(value: unknown): string {
+    if (typeof value !== "string") return String(value);
+    try {
+      // Extract the date portion (YYYY-MM-DD) in case the value is a full
+      // ISO datetime string like "2025-03-15T14:30:00Z".
+      const datePart = value.slice(0, 10);
+      const date = new Date(datePart + "T00:00:00");
+      if (isNaN(date.getTime())) return value;
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return value;
+    }
+  }
+
+  /** Format a value as a locale-aware date+time string. */
+  function formatDateTime(value: unknown): string {
+    if (typeof value !== "string") return String(value);
+    try {
+      return formatDate(value);
+    } catch {
+      return value;
+    }
+  }
+
+  /** Render a select-type value as a coloured badge using hash-based colour. */
+  function renderSelectBadge(value: string): ReactNode {
+    const color = deriveDropdownColor(value);
+    return (
+      <span
+        className="entities-select-badge"
+        style={{
+          backgroundColor: color.bg,
+          color: color.fg,
+        }}
+      >
+        {value}
+      </span>
+    );
+  }
+
+  /** Render a schema property cell based on the column type from the registry. */
+  function renderTypedCell(item: EntityHubItem, col: HubColumn): ReactNode {
+    const value = item._expanded?.[col.key];
+    if (value === null || value === undefined) return "—";
+
+    switch (col.type) {
+      case "text":
+        return String(value);
+      case "number": {
+        if (typeof value === "number") return value.toLocaleString("en-US");
+        const num = Number(value);
+        if (Number.isNaN(num)) return String(value);
+        return num.toLocaleString("en-US");
+      }
+      case "date":
+        return formatDateOnly(value);
+      case "datetime":
+        return formatDateTime(value);
+      case "boolean":
+        return value ? "Yes" : "No";
+      case "select":
+        return renderSelectBadge(String(value));
+      case "reference":
+        return (
+          <a
+            className="entities-ref-link"
+            href={`/${item.workspace_id}/${String(value)}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/${item.workspace_id}/${String(value)}`);
+            }}
+          >
+            {String(value)}
+          </a>
+        );
+      case "user":
+        return (
+          <a
+            className="entities-user-link"
+            href="/profile"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate("/profile");
+            }}
+          >
+            {String(value)}
+          </a>
+        );
+      default:
+        return String(value);
+    }
+  }
+
   function renderCell(item: EntityHubItem, col: HubColumn) {
+    // System columns retain specialized (non-generic) rendering
     switch (col.key) {
       case "display_id":
         return (
@@ -551,13 +672,9 @@ function EntitiesHub() {
         return relativeTime(item.created_at);
       case "updated_at":
         return relativeTime(item.updated_at);
-      default: {
-        // Schema or schema_type properties column — read from _expanded
-        const value = item._expanded?.[col.key];
-        if (value === null || value === undefined) return "—";
-        if (typeof value === "boolean") return value ? "Yes" : "No";
-        return String(value);
-      }
+      default:
+        // Schema property columns — dispatch on column type from registry
+        return renderTypedCell(item, col);
     }
   }
 
@@ -996,7 +1113,10 @@ function EntitiesHub() {
                           }
                         >
                           <span className="entities-th-content">
-                            {col.label}
+                            <span className="entities-th-label">
+                              {resolveColumnIcon(col)}
+                              {col.label}
+                            </span>
                             {renderSortIcon(col.key)}
                             {col.hideable && (
                               <button

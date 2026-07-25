@@ -1058,4 +1058,252 @@ describe("EntitiesHub", () => {
     // Should render em dash for missing value
     expect(screen.getByText("—")).toBeInTheDocument();
   });
+
+  // ── Type-aware cell rendering ──────────────────────────────────────
+
+  it("renders text-type schema property as plain string", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "notes", label: "Notes", source: "schema", type: "text", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { notes: "Hello world" } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,notes");
+    await waitFor(() => {
+      expect(screen.getByText("Hello world")).toBeInTheDocument();
+    });
+  });
+
+  it("renders number-type schema property with locale formatting", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "concentration", label: "Concentration", source: "schema", type: "number", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { concentration: 1234.5 } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,concentration");
+    await waitFor(() => {
+      expect(screen.getByText("1,234.5")).toBeInTheDocument();
+    });
+  });
+
+  it("renders number-type as-is when value is not numeric", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "concentration", label: "Concentration", source: "schema", type: "number", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { concentration: "N/A" } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,concentration");
+    await waitFor(() => {
+      expect(screen.getByText("N/A")).toBeInTheDocument();
+    });
+  });
+
+  it("renders date-type schema property with locale formatting", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "collection_date", label: "Collection Date", source: "schema", type: "date", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { collection_date: "2025-03-15" } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,collection_date");
+    await waitFor(() => {
+      // Locale-formatted date (en-US: "Mar 15, 2025")
+      expect(screen.getByText("Mar 15, 2025")).toBeInTheDocument();
+    });
+  });
+
+  it("renders datetime-type schema property with locale formatting", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "processed_at", label: "Processed At", source: "schema", type: "datetime", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { processed_at: "2025-03-15T14:30:00Z" } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,processed_at");
+    await waitFor(() => {
+      // Should show locale-formatted date+time, not raw ISO
+      const cell = document.querySelector(".entities-col-processed_at");
+      expect(cell).toBeTruthy();
+      expect(cell?.textContent).not.toBe("2025-03-15T14:30:00Z");
+      expect(cell?.textContent?.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("renders boolean true as 'Yes' and false as 'No'", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "is_sterile", label: "Sterile", source: "schema", type: "boolean", filterable: true, width: null },
+      { key: "is_archived", label: "Archived", source: "schema", type: "boolean", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { is_sterile: true, is_archived: false } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,is_sterile,is_archived");
+    await waitFor(() => {
+      expect(screen.getByText("Yes")).toBeInTheDocument();
+      expect(screen.getByText("No")).toBeInTheDocument();
+    });
+  });
+
+  it("renders select-type as coloured badge", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "blood_type", label: "Blood Type", source: "schema", type: "select", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { blood_type: "A+" } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,blood_type");
+    await waitFor(() => {
+      const badge = document.querySelector(".entities-select-badge");
+      expect(badge).toBeTruthy();
+      expect(badge?.textContent).toBe("A+");
+      // Should have inline background colour from the hash-based palette
+      expect((badge as HTMLElement).style.backgroundColor).toBeTruthy();
+      expect((badge as HTMLElement).style.color).toBeTruthy();
+    });
+  });
+
+  it("renders reference-type as clickable entity link", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "parent_sample", label: "Parent Sample", source: "schema", type: "reference", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        workspace_id: "lims",
+        _expanded: { parent_sample: "BLOOD1" },
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,parent_sample");
+    await waitFor(() => {
+      const link = screen.getByText("BLOOD1");
+      expect(link).toBeInTheDocument();
+      expect(link.closest("a")).toBeTruthy();
+      expect(link.closest("a")?.getAttribute("href")).toBe("/lims/BLOOD1");
+    });
+  });
+
+  it("renders user-type as clickable link", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "assigned_to", label: "Assigned To", source: "schema", type: "user", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { assigned_to: "janedoe" } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,assigned_to");
+    await waitFor(() => {
+      expect(screen.getByText("janedoe")).toBeInTheDocument();
+      const userEl = screen.getByText("janedoe");
+      expect(userEl.closest("a")).toBeTruthy();
+      expect(userEl.closest("a")?.classList.contains("entities-user-link")).toBeTruthy();
+    });
+  });
+
+  it("renders unknown-type as String(value) fallback", async () => {
+    const schemaColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      { key: "legacy_field", label: "Legacy", source: "schema", type: "unknown_custom_type", filterable: true, width: null },
+    ];
+    const items = [
+      makeEntityHubItem({ id: 1, _expanded: { legacy_field: 42 } }),
+    ];
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse(items, { available_columns: schemaColumns }),
+    );
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,updated_at,legacy_field");
+    await waitFor(() => {
+      expect(screen.getByText("42")).toBeInTheDocument();
+    });
+  });
+
+  // ── System column specialized rendering ──────────────────────────────
+
+  it("system columns retain specialized rendering (not generic type dispatch)", async () => {
+    const items = [
+      makeEntityHubItem({
+        id: 1,
+        display_id: "E1",
+        name: "Test Entry",
+        status: "in_progress",
+        author_username: "testuser",
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2025-01-03T00:00:00Z",
+      }),
+    ];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    // Include created_at in visible columns since it's not visible by default
+    renderHub("/entities?columns=display_id,name,schema_type_id,status,author,created_at,updated_at");
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // display_id: specialized span (not just String(value))
+    const displayIdEl = screen.getByText("E1");
+    expect(displayIdEl.className).toContain("entities-display-id");
+
+    // created_at / updated_at: relativeTime (not formatted date)
+    const createdCell = document.querySelector(".entities-col-created_at");
+    expect(createdCell).toBeTruthy();
+    expect(createdCell?.textContent).not.toBe("2025-01-01T00:00:00Z");
+
+    // author: should show username (not the stringified author id)
+    const authorCell = document.querySelector("td.entities-col-author");
+    expect(authorCell?.textContent).toBe("testuser");
+  });
+
+  // ── Column header type icons ────────────────────────────────────────
+
+  it("renders column header with type icon span structure", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("E1")).toBeInTheDocument();
+    });
+
+    // Column headers should contain the label wrapper with label text
+    const thLabels = document.querySelectorAll(".entities-th-label");
+    expect(thLabels.length).toBeGreaterThan(0);
+    // Each label wrapper should contain the column label text
+    const labelTexts = Array.from(thLabels).map((el) => el.textContent?.trim());
+    expect(labelTexts).toContain("ID");
+    expect(labelTexts).toContain("Name");
+  });
 });

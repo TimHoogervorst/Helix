@@ -157,8 +157,13 @@ class ColumnType:
             f"{self.__class__.__name__} must implement get_operators()"
         )
 
-    def validate(self, value) -> bool | str:
+    def validate(self, value, **context) -> bool | str:
         """Validate a value against this column type.
+
+        Parameters:
+            value: The value to validate.
+            **context: Additional context (e.g. ``dropdown_options`` for
+                select types, ``required`` flag).
 
         Returns:
             ``True`` if the value is valid, or a string error message if
@@ -178,8 +183,8 @@ class TextColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_text_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
             return True
         return isinstance(value, str) or f"Expected a string, got {type(value).__name__}"
 
@@ -192,13 +197,19 @@ class NumberColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_number_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
             return True
         if isinstance(value, bool):
-            return f"Expected a number, got bool"
+            return "Expected a number, got bool"
         if isinstance(value, (int, float)):
             return True
+        if isinstance(value, str):
+            try:
+                float(value)
+                return True
+            except (ValueError, TypeError):
+                return f"'{value}' is not a valid number"
         return f"Expected a number, got {type(value).__name__}"
 
 
@@ -210,14 +221,23 @@ class DateColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_date_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
             return True
-        from datetime import date
+        from datetime import date, datetime
 
+        if isinstance(value, datetime):
+            return True
         if isinstance(value, date):
             return True
-        return isinstance(value, str) or f"Expected a date string, got {type(value).__name__}"
+        if isinstance(value, str):
+            # ISO 8601 date: YYYY-MM-DD
+            try:
+                date.fromisoformat(value)
+                return True
+            except (ValueError, TypeError):
+                return f"'{value}' is not a valid ISO 8601 date (expected YYYY-MM-DD)"
+        return f"Expected a date, got {type(value).__name__}"
 
 
 class DatetimeColumnType(ColumnType):
@@ -228,14 +248,24 @@ class DatetimeColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_datetime_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
             return True
         from datetime import datetime
 
         if isinstance(value, datetime):
             return True
-        return isinstance(value, str) or f"Expected a datetime string, got {type(value).__name__}"
+        if isinstance(value, str):
+            # ISO 8601 datetime
+            try:
+                datetime.fromisoformat(value)
+                return True
+            except (ValueError, TypeError):
+                return (
+                    f"'{value}' is not a valid ISO 8601 datetime "
+                    f"(expected e.g. 2025-01-15T14:30:00)"
+                )
+        return f"Expected a datetime, got {type(value).__name__}"
 
 
 class BooleanColumnType(ColumnType):
@@ -246,10 +276,17 @@ class BooleanColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_boolean_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
             return True
-        return isinstance(value, bool) or f"Expected a boolean, got {type(value).__name__}"
+        if isinstance(value, bool):
+            return True
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in ("true", "false"):
+                return True
+            return f"'{value}' is not a valid boolean (expected true/false)"
+        return f"Expected a boolean, got {type(value).__name__}"
 
 
 class SelectColumnType(ColumnType):
@@ -260,10 +297,16 @@ class SelectColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_select_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
             return True
-        return isinstance(value, str) or f"Expected a string, got {type(value).__name__}"
+        if not isinstance(value, str):
+            return f"Expected a string, got {type(value).__name__}"
+        # If dropdown_options are provided, validate the value is in the list.
+        dropdown_options: list[str] | None = context.get("dropdown_options")
+        if dropdown_options is not None and value not in dropdown_options:
+            return f"'{value}' is not a valid option"
+        return True
 
 
 class ReferenceColumnType(ColumnType):
@@ -274,12 +317,20 @@ class ReferenceColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_reference_operators()
 
-    def validate(self, value) -> bool | str:
-        if value is None:
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
+            return True
+        if isinstance(value, int):
+            return True
+        if not isinstance(value, str):
+            return f"Expected a string or int, got {type(value).__name__}"
+        # Validate prefix+DIGITS format, e.g. "DNA42".
+        import re
+        if re.match(r"^[A-Z]+\d+$", value):
             return True
         return (
-            isinstance(value, (str, int))
-            or f"Expected a string or int, got {type(value).__name__}"
+            f"'{value}' is not a valid reference (expected format: "
+            f"uppercase prefix followed by digits, e.g. DNA42)"
         )
 
 
@@ -292,6 +343,20 @@ class UserColumnType(ReferenceColumnType):
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_user_operators()
+
+    def validate(self, value, **context) -> bool | str:
+        """Validate a user reference value.
+
+        Accepts strings, ints, and None/empty values.  More permissive than
+        the base reference type because usernames don't always follow the
+        prefix+DIGITS format.
+        """
+        if value is None or value == "":
+            return True
+        return (
+            isinstance(value, (str, int))
+            or f"Expected a username (string or int), got {type(value).__name__}"
+        )
 
 
 # ── Built-in type registry (for quick lookup) ────────────────────────────────

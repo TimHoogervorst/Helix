@@ -20,6 +20,18 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 
+def _get_dropdown_options(dropdown_id: str) -> list[str] | None:
+    """Return the list of option values for a dropdown, or *None* if the
+    dropdown cannot be found.
+
+    This is a placeholder — the full dropdown system will be implemented in
+    a future PR.  Returns ``None`` for unknown dropdown IDs so that callers
+    fall back to basic string validation.
+    """
+    # TODO: replace with a real dropdown lookup once the Dropdown model exists.
+    return None
+
+
 class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for LIMS entities.
@@ -122,6 +134,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         - Partial success: errors in some rows don't block valid rows.
         """
         from helix_core.models import Schema
+        from helix_core.column_types import registry as column_type_registry
 
         input_serializer = EntityBatchRegisterSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
@@ -145,6 +158,19 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "Authentication is required to batch-register entities."
             )
 
+        # Build a lookup from column name → column definition.
+        # SchemaType columns provide system-level defaults; Schema columns
+        # override them for the same name.
+        _column_defs: dict[str, dict] = {}
+        for col in schema.schema_type.columns:
+            col_name = col.get("name")
+            if col_name:
+                _column_defs[col_name] = col
+        for col in schema.columns:
+            col_name = col.get("name")
+            if col_name:
+                _column_defs[col_name] = col
+
         results = []
         errors = []
 
@@ -160,6 +186,45 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "field": "name",
                     "message": "Name is required.",
                 })
+                continue
+
+            # ── Column-type validation for each property value ──────────
+            row_has_errors = False
+            for key, value in values.items():
+                col_def = _column_defs.get(key)
+                if col_def is None:
+                    # Unknown column — no type to validate against.
+                    continue
+
+                type_id = (col_def.get("type") or "").lower()
+                if not type_id:
+                    continue
+
+                ct = column_type_registry.get_column_type(type_id)
+                if ct is None:
+                    # Unknown column type — skip validation.
+                    continue
+
+                # Gather context for validation.
+                context: dict = {}
+                if type_id == "select":
+                    # Look up dropdown options if a dropdownId is present.
+                    dropdown_id = col_def.get("dropdownId")
+                    if dropdown_id:
+                        dropdown_options = _get_dropdown_options(dropdown_id)
+                        if dropdown_options is not None:
+                            context["dropdown_options"] = dropdown_options
+
+                result = ct.validate(value, **context)
+                if result is not True:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": key,
+                        "message": result,
+                    })
+                    row_has_errors = True
+
+            if row_has_errors:
                 continue
 
             if entity_id is not None:

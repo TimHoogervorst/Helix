@@ -161,13 +161,26 @@ class NumberColumnTypeTests(TestCase):
     def test_validate_none(self):
         self.assertTrue(self.ct.validate(None))
 
+    def test_validate_empty_string(self):
+        """Empty string is acceptable (not required field)."""
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_numeric_string(self):
+        """Numeric strings like '42' or '3.14' are accepted."""
+        self.assertTrue(self.ct.validate("42"))
+        self.assertTrue(self.ct.validate("3.14"))
+        self.assertTrue(self.ct.validate("-5"))
+        self.assertTrue(self.ct.validate("1e10"))
+
     def test_validate_rejects_bool(self):
         result = self.ct.validate(True)
         self.assertIsInstance(result, str)
 
-    def test_validate_rejects_string(self):
-        result = self.ct.validate("42")
+    def test_validate_rejects_non_numeric_string(self):
+        """Non-numeric strings like 'abc' are rejected with a clear message."""
+        result = self.ct.validate("abc")
         self.assertIsInstance(result, str)
+        self.assertIn("not a valid number", result)
 
 
 # ── Built-in type: Date ──────────────────────────────────────────────────────
@@ -195,11 +208,27 @@ class DateColumnTypeTests(TestCase):
     def test_validate_date_object(self):
         self.assertTrue(self.ct.validate(date(2025, 1, 15)))
 
-    def test_validate_string(self):
+    def test_validate_datetime_object(self):
+        """datetime objects are also accepted (they are dates too)."""
+        self.assertTrue(self.ct.validate(datetime(2025, 1, 15, 14, 30)))
+
+    def test_validate_valid_iso_date_string(self):
+        """ISO 8601 date strings (YYYY-MM-DD) are accepted."""
         self.assertTrue(self.ct.validate("2025-01-15"))
+        self.assertTrue(self.ct.validate("2025-12-31"))
 
     def test_validate_none(self):
         self.assertTrue(self.ct.validate(None))
+
+    def test_validate_empty_string(self):
+        """Empty string is acceptable (not required field)."""
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_rejects_invalid_date_string(self):
+        """Invalid ISO 8601 date strings are rejected."""
+        result = self.ct.validate("not-a-date")
+        self.assertIsInstance(result, str)
+        self.assertIn("not a valid ISO 8601 date", result)
 
     def test_validate_rejects_number(self):
         result = self.ct.validate(42)
@@ -225,11 +254,24 @@ class DatetimeColumnTypeTests(TestCase):
     def test_validate_datetime_object(self):
         self.assertTrue(self.ct.validate(datetime(2025, 1, 15, 14, 30)))
 
-    def test_validate_string(self):
+    def test_validate_valid_iso_datetime_string(self):
+        """ISO 8601 datetime strings are accepted."""
         self.assertTrue(self.ct.validate("2025-01-15T14:30:00"))
+        self.assertTrue(self.ct.validate("2025-01-15T14:30:00+00:00"))
+        self.assertTrue(self.ct.validate("2025-01-15"))
 
     def test_validate_none(self):
         self.assertTrue(self.ct.validate(None))
+
+    def test_validate_empty_string(self):
+        """Empty string is acceptable (not required field)."""
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_rejects_invalid_datetime_string(self):
+        """Invalid ISO 8601 datetime strings are rejected."""
+        result = self.ct.validate("not-a-datetime")
+        self.assertIsInstance(result, str)
+        self.assertIn("not a valid ISO 8601 datetime", result)
 
 
 # ── Built-in type: Boolean ───────────────────────────────────────────────────
@@ -262,8 +304,30 @@ class BooleanColumnTypeTests(TestCase):
     def test_validate_none(self):
         self.assertTrue(self.ct.validate(None))
 
-    def test_validate_rejects_string(self):
-        result = self.ct.validate("true")
+    def test_validate_empty_string(self):
+        """Empty string is acceptable (not required field)."""
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_true_string(self):
+        """String 'true' (case-insensitive) is accepted."""
+        self.assertTrue(self.ct.validate("true"))
+        self.assertTrue(self.ct.validate("True"))
+        self.assertTrue(self.ct.validate("TRUE"))
+
+    def test_validate_false_string(self):
+        """String 'false' (case-insensitive) is accepted."""
+        self.assertTrue(self.ct.validate("false"))
+        self.assertTrue(self.ct.validate("False"))
+        self.assertTrue(self.ct.validate("FALSE"))
+
+    def test_validate_rejects_invalid_string(self):
+        """Non-boolean strings are rejected."""
+        result = self.ct.validate("yes")
+        self.assertIsInstance(result, str)
+        self.assertIn("not a valid boolean", result)
+
+    def test_validate_rejects_number(self):
+        result = self.ct.validate(1)
         self.assertIsInstance(result, str)
 
 
@@ -295,9 +359,26 @@ class SelectColumnTypeTests(TestCase):
     def test_validate_none(self):
         self.assertTrue(self.ct.validate(None))
 
+    def test_validate_empty_string(self):
+        """Empty string is acceptable (not required field)."""
+        self.assertTrue(self.ct.validate(""))
+
     def test_validate_rejects_number(self):
         result = self.ct.validate(42)
         self.assertIsInstance(result, str)
+
+    def test_validate_with_dropdown_options(self):
+        """When dropdown_options are provided, validates value is in the list."""
+        # Valid option
+        self.assertTrue(self.ct.validate("a", dropdown_options=["a", "b", "c"]))
+        # Invalid option
+        result = self.ct.validate("z", dropdown_options=["a", "b", "c"])
+        self.assertIsInstance(result, str)
+        self.assertIn("not a valid option", result)
+
+    def test_validate_without_dropdown_options(self):
+        """When dropdown_options are not provided, any string is accepted."""
+        self.assertTrue(self.ct.validate("anything-goes"))
 
 
 # ── Built-in type: Reference ─────────────────────────────────────────────────
@@ -322,14 +403,33 @@ class ReferenceColumnTypeTests(TestCase):
         self.assertEqual(shapes["is_any_of"], "entity-picker")
         self.assertEqual(shapes["is_empty"], "none")
 
-    def test_validate_string(self):
-        self.assertTrue(self.ct.validate("ref-123"))
+    def test_validate_valid_reference(self):
+        """Valid prefix+DIGITS format is accepted."""
+        self.assertTrue(self.ct.validate("DNA42"))
+        self.assertTrue(self.ct.validate("BLOOD1"))
+        self.assertTrue(self.ct.validate("CHEM999"))
 
     def test_validate_int(self):
         self.assertTrue(self.ct.validate(42))
 
     def test_validate_none(self):
         self.assertTrue(self.ct.validate(None))
+
+    def test_validate_empty_string(self):
+        """Empty string is acceptable (not required field)."""
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_rejects_invalid_format(self):
+        """Strings without prefix+DIGITS format are rejected."""
+        result = self.ct.validate("ref-123")
+        self.assertIsInstance(result, str)
+        self.assertIn("not a valid reference", result)
+
+        result = self.ct.validate("dna42")  # lowercase
+        self.assertIsInstance(result, str)
+
+        result = self.ct.validate("12345")  # digits only
+        self.assertIsInstance(result, str)
 
     def test_validate_rejects_list(self):
         result = self.ct.validate([1, 2, 3])
@@ -361,11 +461,18 @@ class UserColumnTypeTests(TestCase):
         self.assertEqual(shapes["eq"], "entity-picker")
         self.assertEqual(shapes["is_in_group"], "select")
 
-    def test_validate_inherits_from_reference(self):
-        """User inherits validate() from ReferenceColumnType."""
+    def test_validate_accepts_strings_and_ints(self):
+        """User validate() accepts strings, ints, and None."""
         self.assertTrue(self.ct.validate("user-1"))
+        self.assertTrue(self.ct.validate("timhoogervorst"))
         self.assertTrue(self.ct.validate(42))
         self.assertTrue(self.ct.validate(None))
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_rejects_list(self):
+        """User validate() rejects non-string/int types."""
+        result = self.ct.validate([1, 2, 3])
+        self.assertIsInstance(result, str)
 
 
 # ── ColumnTypeRegistry tests ─────────────────────────────────────────────────

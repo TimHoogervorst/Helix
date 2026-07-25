@@ -48,7 +48,7 @@ class LoggerDispatchTests(TestCase):
 
         action = log_action(
             user=self.user,
-            action_type="created",
+            action="eln.entry.created",
             target_type="eln.entry",
             target_id=42,
             metadata={"key": "val"},
@@ -73,7 +73,7 @@ class LoggerDispatchTests(TestCase):
 
         action = log_action(
             user=self.user,
-            action_type="edited",
+            action="eln.entry.edited",
             target_type="eln.entry",
             target_id=7,
         )
@@ -84,7 +84,7 @@ class LoggerDispatchTests(TestCase):
         with self.assertRaises(ValueError) as ctx:
             log_action(
                 user=self.user,
-                action_type="created",
+                action="unknownmod.thing.created",
                 target_type="unknownmod.thing",
                 target_id=1,
             )
@@ -99,7 +99,7 @@ class LoggerDispatchTests(TestCase):
         # "eln.entry.foo" should parse to mod_id = "eln"
         action = log_action(
             user=self.user,
-            action_type="created",
+            action="eln.entry.foo.created",
             target_type="eln.entry.foo",
             target_id=99,
         )
@@ -148,9 +148,9 @@ class BulkLogActionsTests(TestCase):
         register_action_model("eln", ElnAction)
 
         actions = [
-            {"action_type": "eln.table.edited", "metadata": {"name": "Samples"}},
-            {"action_type": "eln.comment.created", "metadata": {"text": "Looks good"}},
-            {"action_type": "eln.image.deleted", "metadata": {}},
+            {"action": "eln.table.edited", "metadata": {"name": "Samples"}},
+            {"action": "eln.comment.created", "metadata": {"text": "Looks good"}},
+            {"action": "eln.image.deleted", "metadata": {}},
         ]
 
         results = bulk_log_actions(
@@ -164,7 +164,7 @@ class BulkLogActionsTests(TestCase):
         self.assertEqual(ElnAction.objects.count(), 3)
 
         # Verify first row
-        row = ElnAction.objects.get(action_type="eln.table.edited")
+        row = ElnAction.objects.get(action="eln.table.edited")
         self.assertEqual(row.performed_by, self.user)
         self.assertEqual(row.target_type, "eln.entry")
         self.assertEqual(row.target_id, 42)
@@ -178,8 +178,8 @@ class BulkLogActionsTests(TestCase):
 
         request_id = uuid.uuid4()
         actions = [
-            {"action_type": "eln.table.edited", "metadata": {}},
-            {"action_type": "eln.comment.created", "metadata": {}},
+            {"action": "eln.table.edited", "metadata": {}},
+            {"action": "eln.comment.created", "metadata": {}},
         ]
 
         bulk_log_actions(
@@ -201,7 +201,7 @@ class BulkLogActionsTests(TestCase):
 
         register_action_model("eln", ElnAction)
 
-        actions = [{"action_type": "eln.table.edited", "metadata": {}}]
+        actions = [{"action": "eln.table.edited", "metadata": {}}]
 
         bulk_log_actions(
             user=self.user,
@@ -220,7 +220,7 @@ class BulkLogActionsTests(TestCase):
 
         register_action_model("eln", ElnAction)
 
-        actions = [{"action_type": "eln.table.edited"}]
+        actions = [{"action": "eln.table.edited"}]
 
         results = bulk_log_actions(
             user=self.user,
@@ -250,7 +250,7 @@ class BulkLogActionsTests(TestCase):
 
     def test_bulk_log_actions_raises_for_unregistered_mod(self):
         """bulk_log_actions raises ValueError for an unregistered mod."""
-        actions = [{"action_type": "unknownmod.widget.edited", "metadata": {}}]
+        actions = [{"action": "unknownmod.widget.edited", "metadata": {}}]
 
         with self.assertRaises(ValueError) as ctx:
             bulk_log_actions(
@@ -270,8 +270,8 @@ class BulkLogActionsTests(TestCase):
         register_action_model("tags", TagsAction)
 
         actions = [
-            {"action_type": "eln.table.edited", "metadata": {"name": "Samples"}},
-            {"action_type": "tags.tag.created", "metadata": {"label": "Urgent"}},
+            {"action": "eln.table.edited", "metadata": {"name": "Samples"}},
+            {"action": "tags.tag.created", "metadata": {"label": "Urgent"}},
         ]
 
         results = bulk_log_actions(
@@ -289,7 +289,7 @@ class BulkLogActionsTests(TestCase):
         self.assertEqual(TagsAction.objects.count(), 1)
 
         eln_row = ElnAction.objects.first()
-        self.assertEqual(eln_row.action_type, "eln.table.edited")
+        self.assertEqual(eln_row.action, "eln.table.edited")
 
         tags_row = TagsAction.objects.first()
-        self.assertEqual(tags_row.action_type, "tags.tag.created")
+        self.assertEqual(tags_row.action, "tags.tag.created")

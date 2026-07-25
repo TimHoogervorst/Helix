@@ -50,6 +50,7 @@ export function relativeTime(isoString: string): string {
  * - "lims.entity.status_changed" → "Status Changed"
  */
 export function humanizeActionType(action: string): string {
+  if (!action) return "Unknown action";
   const parts = action.split(".");
   const verb = parts[parts.length - 1];
   return verb

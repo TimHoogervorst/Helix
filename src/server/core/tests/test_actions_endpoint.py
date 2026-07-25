@@ -29,6 +29,8 @@ def _assert_action_shape(testcase, item: dict[str, Any]) -> None:
     """Assert that an action response item has the deterministic shape."""
     testcase.assertIn("id", item)
     testcase.assertIsInstance(item["id"], int)
+    testcase.assertIn("action", item)
+    testcase.assertIsInstance(item["action"], str)
     testcase.assertIn("action_type", item)
     testcase.assertIsInstance(item["action_type"], str)
     testcase.assertIn("target_type", item)
@@ -119,6 +121,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 42,
@@ -154,6 +157,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "edited",
                 "action_type": "edited",
                 "target_type": "eln.entry",
                 "target_id": 7,
@@ -172,6 +176,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "deleted",
                 "action_type": "deleted",
                 "target_type": "eln.entry",
                 "target_id": 99,
@@ -190,6 +195,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 1,
@@ -210,6 +216,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 42,
@@ -249,7 +256,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
-                "action_type": "eln.entry.registered",
+                "action": "eln.entry.registered",
+                "action_type": "edited",
                 "target_type": "eln.entry",
                 "target_id": 42,
                 "workspace_id": "eln",
@@ -265,14 +273,14 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 1)
 
-        # The single row should be the custom action_type.
-        self.assertEqual(data[0]["action_type"], "eln.entry.registered")
+        # The single row should have the custom action identifier.
+        self.assertEqual(data[0]["action"], "eln.entry.registered")
 
         # Exactly one row in the database.
         self.assertEqual(ElnAction.objects.count(), 1)
 
         row = ElnAction.objects.first()
-        self.assertEqual(row.action_type, "eln.entry.registered")
+        self.assertEqual(row.action, "eln.entry.registered")
         self.assertEqual(row.performed_by, self.user)
         self.assertEqual(row.target_type, "eln.entry")
         self.assertEqual(row.target_id, 42)
@@ -294,7 +302,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
-                "action_type": "tags.tag.attached",
+                "action": "tags.tag.attached",
+                "action_type": "created",
                 "target_type": "tags.tag",
                 "target_id": 10,
                 "workspace_id": "tags",
@@ -305,10 +314,10 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data), 1)
 
-        self.assertEqual(response.data[0]["action_type"], "tags.tag.attached")
+        self.assertEqual(response.data[0]["action"], "tags.tag.attached")
 
         self.assertEqual(TagsAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.first().action_type, "tags.tag.attached")
+        self.assertEqual(TagsAction.objects.first().action, "tags.tag.attached")
 
     # ── unregistered action types → 400 ─────────────────────────────────
 
@@ -319,7 +328,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
-                "action_type": "eln.entry.nonexistent_action",
+                "action": "eln.entry.nonexistent_action",
+                "action_type": "edited",
                 "target_type": "eln.entry",
                 "target_id": 1,
                 "workspace_id": "eln",
@@ -328,13 +338,14 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("action_type", str(response.data).lower())
+        self.assertIn("action", str(response.data).lower())
 
     def test_action_type_for_unregistered_mod_returns_400(self):
         """An action_type for a mod that has no action model returns 400."""
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "nonexistent.thing",
                 "target_id": 1,
@@ -359,6 +370,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         resp_eln = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 1,
@@ -374,6 +386,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         resp_tags = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "tags.tag",
                 "target_id": 1,
@@ -392,6 +405,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self._setup_action_models()
 
         payload = {
+            "action": "created",
             "action_type": "created",
             "target_type": "eln.entry",
             "target_id": 42,
@@ -433,7 +447,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         payload = {
-            "action_type": "eln.entry.registered",
+            "action": "eln.entry.registered",
+            "action_type": "edited",
             "target_type": "eln.entry",
             "target_id": 42,
             "workspace_id": "eln",
@@ -463,6 +478,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 1,
@@ -487,6 +503,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         errors = response.data
+        self.assertIn("action", errors)
         self.assertIn("action_type", errors)
         self.assertIn("target_type", errors)
         self.assertIn("target_id", errors)
@@ -499,6 +516,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": "not-an-integer",
@@ -520,7 +538,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
-                "action": "eln.entry.created",
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 42,
@@ -545,7 +563,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         response = self.client.post(
             "/api/actions/",
             {
-                "action": "eln.entry.created",
+                "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
                 "target_id": 42,

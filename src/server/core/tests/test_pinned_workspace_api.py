@@ -162,7 +162,7 @@ class TabsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.tab.created")
+        self.assertEqual(kwargs["action"], "core.tab.created")
         self.assertEqual(kwargs["target_type"], "core.tab")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -181,7 +181,7 @@ class TabsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.tab.deleted")
+        self.assertEqual(kwargs["action"], "core.tab.deleted")
         self.assertEqual(kwargs["target_type"], "core.tab")
         self.assertEqual(kwargs["target_id"], pin_id)
 

@@ -684,10 +684,10 @@ class ColumnTypesContractTests(TestCase):
             self.fail(f"Response does not match JSON schema: {exc.message}")
 
     def test_all_eight_builtin_types_present(self):
-        """All 8 built-in column types are present in the response."""
+        """All built-in column types plus mod-registered types are present."""
         response = self.client.get("/api/mod-registry/")
         type_ids = {ct["id"] for ct in response.data["columnTypes"]}
-        expected = {"text", "number", "date", "datetime", "boolean", "select", "reference", "user"}
+        expected = {"text", "number", "date", "datetime", "boolean", "select", "reference", "user", "tiptap_content"}
         self.assertEqual(type_ids, expected)
 
     def test_builtin_operators_have_correct_shape(self):

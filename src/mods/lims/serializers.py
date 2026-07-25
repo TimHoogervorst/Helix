@@ -3,7 +3,7 @@ from rest_framework import serializers
 from helix_core.models import Schema
 from .models import Entity, Action, LimsView
 
-ALLOWED_COLUMN_TYPES = {"Text", "Number", "Date", "Boolean", "Reference"}
+ALLOWED_COLUMN_TYPES = {"text", "number", "date", "boolean", "reference"}
 
 
 def validate_prefix(value):

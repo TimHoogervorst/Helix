@@ -63,14 +63,14 @@ class ModRegistryContractTests(TestCase):
             display_name="Entity",
             workspace_id="lims",
             model="mods.lims.models.Entity",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         Schema.objects.create(
             name="Default",
             prefix="BLOOD",
             schema_type=self.lims_st,
             is_default=True,
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
 
         # Create ELN schema type + default schema.

@@ -992,7 +992,7 @@ class TestRegisterSchemaType:
             display_name="Entity",
             workspace_id="lims",
             model="mods.lims.models.Entity",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
             prefix="E",
         )
 

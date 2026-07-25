@@ -27,18 +27,71 @@ from helix_core.serializers import (
 
 from helix_core.models import EntityHubView
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
+from helix_core.column_types import registry as column_type_registry
 
 logger = logging.getLogger(__name__)
 
-AVAILABLE_COLUMNS = [
-    {"key": "display_id", "label": "ID", "source": "common"},
-    {"key": "name", "label": "Name", "source": "common"},
-    {"key": "schema_type_id", "label": "Schema Type", "source": "common"},
-    {"key": "status", "label": "Status", "source": "common"},
-    {"key": "author", "label": "Author", "source": "common"},
-    {"key": "created_at", "label": "Created", "source": "common"},
-    {"key": "updated_at", "label": "Updated", "source": "common"},
+# ── Common column descriptors ─────────────────────────────────────────────
+#
+# Each common column carries a ``type`` ID from the column type registry,
+# ``filterable`` (derived from whether the type has filter operators), and
+# ``width`` (null for now — rendering is wired in a follow-up).
+
+_COMMON_COLUMN_DEFS: list[dict] = [
+    {"key": "display_id",    "label": "ID",          "type": "text"},
+    {"key": "name",          "label": "Name",        "type": "text"},
+    {"key": "schema_type_id","label": "Schema Type",  "type": "text"},
+    {"key": "status",        "label": "Status",      "type": "select"},
+    {"key": "author",        "label": "Author",      "type": "user"},
+    {"key": "created_at",    "label": "Created",     "type": "datetime"},
+    {"key": "updated_at",    "label": "Updated",     "type": "datetime"},
 ]
+
+
+def _resolve_column_meta(col_type: str) -> dict:
+    """Return ``filterable`` and ``width`` for a column type ID.
+
+    Looks up *col_type* in the column type registry.  ``filterable`` is
+    ``True`` when the type has at least one filter operator.  ``width`` is
+    always ``None`` for now — rendering is wired in a follow-up.
+    """
+    ct = column_type_registry.get_column_type(col_type)
+    return {
+        "filterable": bool(ct.get_operators()) if ct else False,
+        "width": None,
+    }
+
+
+def _build_common_column(col_def: dict) -> dict:
+    """Resolve a common-column descriptor into a full available_columns entry."""
+    return {
+        "key": col_def["key"],
+        "label": col_def["label"],
+        "source": "common",
+        "type": col_def["type"],
+        **_resolve_column_meta(col_def["type"]),
+    }
+
+
+def _build_available_columns() -> list[dict]:
+    """Return the full list of common available columns."""
+    return [_build_common_column(c) for c in _COMMON_COLUMN_DEFS]
+
+
+def _enrich_schema_column(col: dict, source: str) -> dict:
+    """Return an available_columns entry for a schema/schema_type column.
+
+    Derives ``type`` from the column definition and ``filterable``/``width``
+    from the column type registry.
+    """
+    col_type = col.get("type", "text")
+    return {
+        "key": col.get("name", ""),
+        "label": col.get("name", ""),
+        "source": source,
+        "type": col_type,
+        **_resolve_column_meta(col_type),
+    }
 
 SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})
 
@@ -160,7 +213,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         # ── Compute available_columns dynamically ──────────────────────
         params = self._parse_filter_params()
-        columns = list(AVAILABLE_COLUMNS)
+        columns = _build_available_columns()
 
         if params["schema"]:
             try:
@@ -168,11 +221,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                     pk=int(params["schema"]), is_active=True
                 )
                 for col in schema_obj.columns:
-                    columns.append({
-                        "key": col.get("name", ""),
-                        "label": col.get("name", ""),
-                        "source": "schema",
-                    })
+                    columns.append(_enrich_schema_column(col, "schema"))
             except (Schema.DoesNotExist, ValueError):
                 pass
         elif params["schema_type"]:
@@ -183,11 +232,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                     workspace_id=workspace_id, is_active=True
                 )
                 for col in schema_type_obj.columns:
-                    columns.append({
-                        "key": col.get("name", ""),
-                        "label": col.get("name", ""),
-                        "source": "schema_type",
-                    })
+                    columns.append(_enrich_schema_column(col, "schema_type"))
             except (SchemaType.DoesNotExist, IndexError):
                 pass
 

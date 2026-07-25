@@ -60,11 +60,11 @@ class EntityApiTests(BaseTestCase):
         super().setUp()
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
         self.chem_schema = Schema.objects.create(
             name="Chemical", prefix="CHEM", schema_type=self.schema_type,
-            columns=[{"name": "purity", "type": "Text"}],
+            columns=[{"name": "purity", "type": "text"}],
         )
 
     def test_list_entities_with_filters(self):
@@ -396,7 +396,7 @@ class BatchRegisterCreateTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_create_single_entity(self):
@@ -467,7 +467,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
         self.entity = Entity.objects.create(
             name="Original Name",
@@ -541,7 +541,7 @@ class BatchRegisterValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_missing_name_returns_error(self):
@@ -595,7 +595,7 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_partial_success_mixed_valid_invalid(self):
@@ -675,7 +675,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_create_is_idempotent_by_name_and_schema(self):
@@ -748,7 +748,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
         self._patcher = patch(BATCH_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
@@ -990,7 +990,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_valid_number_accepted(self):
@@ -1077,7 +1077,7 @@ class BatchRegisterDateValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "sample_date", "type": "Date"}],
+            columns=[{"name": "sample_date", "type": "date"}],
         )
 
     def test_valid_iso_date_accepted(self):
@@ -1171,7 +1171,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "is_active", "type": "Boolean"}],
+            columns=[{"name": "is_active", "type": "boolean"}],
         )
 
     def test_json_boolean_accepted(self):
@@ -1288,7 +1288,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "source", "type": "Reference"}],
+            columns=[{"name": "source", "type": "reference"}],
         )
 
     def test_valid_reference_accepted(self):
@@ -1347,7 +1347,7 @@ class BatchRegisterTextValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "notes", "type": "Text"}],
+            columns=[{"name": "notes", "type": "text"}],
         )
 
     def test_any_string_accepted(self):
@@ -1393,8 +1393,8 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
             columns=[
-                {"name": "concentration", "type": "Number"},
-                {"name": "sample_date", "type": "Date"},
+                {"name": "concentration", "type": "number"},
+                {"name": "sample_date", "type": "date"},
             ],
         )
 
@@ -1496,7 +1496,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
 
 
 class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
-    """Column type IDs are normalized to lowercase for registry lookup."""
+    """Column type IDs are accepted in lowercase for column type registry lookup."""
 
     @classmethod
     def setUpTestData(cls):
@@ -1508,15 +1508,14 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        # Uses capitalized "Number" (old format) — should be normalized to
-        # lowercase "number" for the registry lookup.
+        # Lowercase type IDs match the column type registry convention.
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "count", "type": "Number"}],
+            columns=[{"name": "count", "type": "number"}],
         )
 
-    def test_capitalized_type_id_is_normalized(self):
-        """Capitalized type IDs like 'Number' are normalized to 'number'."""
+    def test_lowercase_type_id_is_validated(self):
+        """Lowercase type IDs like 'number' are validated via the registry."""
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
@@ -1528,8 +1527,8 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(len(response.data["errors"]), 0)
 
-    def test_capitalized_type_id_rejects_invalid_value(self):
-        """Validation works even with capitalized type IDs."""
+    def test_lowercase_type_id_rejects_invalid_value(self):
+        """Validation works with lowercase type IDs."""
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [

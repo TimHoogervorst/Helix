@@ -13,18 +13,24 @@ export interface HubColumn {
   hideable: boolean;
   /** Whether this column is sortable by clicking its header. */
   sortable: boolean;
+  /** Column type ID from the column type registry (e.g. "text", "number"). */
+  type: string;
+  /** Whether this column can be filtered by its type's operators. */
+  filterable: boolean;
+  /** Default pixel width for the column header, or null for auto-size. */
+  width: number | null;
 }
 
 // ── Default common columns in display order ─────────────────────────────
 
 export const COMMON_COLUMNS: HubColumn[] = [
-  { key: "display_id", label: "ID", source: "common", hideable: false, sortable: false },
-  { key: "name", label: "Name", source: "common", hideable: true, sortable: true },
-  { key: "schema_type_id", label: "Schema Type", source: "common", hideable: true, sortable: false },
-  { key: "status", label: "Status", source: "common", hideable: true, sortable: true },
-  { key: "author", label: "Author", source: "common", hideable: true, sortable: false },
-  { key: "created_at", label: "Created", source: "common", hideable: true, sortable: true },
-  { key: "updated_at", label: "Updated", source: "common", hideable: true, sortable: true },
+  { key: "display_id", label: "ID", source: "common", hideable: false, sortable: false, type: "text", filterable: true, width: null },
+  { key: "name", label: "Name", source: "common", hideable: true, sortable: true, type: "text", filterable: true, width: null },
+  { key: "schema_type_id", label: "Schema Type", source: "common", hideable: true, sortable: false, type: "text", filterable: true, width: null },
+  { key: "status", label: "Status", source: "common", hideable: true, sortable: true, type: "select", filterable: true, width: null },
+  { key: "author", label: "Author", source: "common", hideable: true, sortable: false, type: "user", filterable: true, width: null },
+  { key: "created_at", label: "Created", source: "common", hideable: true, sortable: true, type: "datetime", filterable: true, width: null },
+  { key: "updated_at", label: "Updated", source: "common", hideable: true, sortable: true, type: "datetime", filterable: true, width: null },
 ];
 
 /** Keys of columns visible by default. */
@@ -64,6 +70,9 @@ export function buildColumns(
       source: col.source,
       hideable: true,
       sortable: false, // Properties columns not sortable in v1
+      type: col.type,
+      filterable: col.filterable,
+      width: col.width,
     };
     if (col.source === "schema_type") {
       typeColumns.push(hubCol);

@@ -2,7 +2,7 @@
 export interface ColumnDef {
   id?: string;
   name: string;
-  type: "Text" | "Number" | "Date" | "Boolean" | "Reference";
+  type: string;
   required?: boolean;
   default?: string;
   units?: string;
@@ -96,6 +96,12 @@ export interface AvailableColumn {
   key: string;
   label: string;
   source: "common" | "schema_type" | "schema";
+  /** Column type ID from the column type registry (e.g. "text", "number"). */
+  type: string;
+  /** Whether this column can be filtered by its type's operators. */
+  filterable: boolean;
+  /** Default pixel width for the column header, or null for auto-size. */
+  width: number | null;
 }
 
 /** Paginated response from GET /api/registry/entities. */

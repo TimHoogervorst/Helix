@@ -75,13 +75,13 @@ vi.mock(
 // ── Fixtures ─────────────────────────────────────────────────────────
 
 const DEFAULT_COLUMNS: EntityHubResponse["available_columns"] = [
-  { key: "display_id", label: "ID", source: "common" },
-  { key: "name", label: "Name", source: "common" },
-  { key: "schema_type_id", label: "Schema Type", source: "common" },
-  { key: "status", label: "Status", source: "common" },
-  { key: "author", label: "Author", source: "common" },
-  { key: "created_at", label: "Created", source: "common" },
-  { key: "updated_at", label: "Updated", source: "common" },
+  { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
+  { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
+  { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
+  { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+  { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
+  { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
+  { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
 ];
 
 const MOCK_SCHEMA_TYPES: SchemaTypeItem[] = [
@@ -887,15 +887,15 @@ describe("EntitiesHub", () => {
 
   it("renders schema properties columns from available_columns", async () => {
     const schemaColumns: EntityHubResponse["available_columns"] = [
-      { key: "display_id", label: "ID", source: "common" },
-      { key: "name", label: "Name", source: "common" },
-      { key: "schema_type_id", label: "Schema Type", source: "common" },
-      { key: "status", label: "Status", source: "common" },
-      { key: "author", label: "Author", source: "common" },
-      { key: "created_at", label: "Created", source: "common" },
-      { key: "updated_at", label: "Updated", source: "common" },
-      { key: "sample_type", label: "Sample Type", source: "schema" },
-      { key: "concentration", label: "Concentration", source: "schema" },
+      { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
+      { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
+      { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
+      { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "sample_type", label: "Sample Type", source: "schema", type: "text", filterable: true, width: null },
+      { key: "concentration", label: "Concentration", source: "schema", type: "number", filterable: true, width: null },
     ];
 
     const items = [
@@ -919,14 +919,14 @@ describe("EntitiesHub", () => {
 
   it("schema properties columns appear when toggled on", async () => {
     const schemaColumns: EntityHubResponse["available_columns"] = [
-      { key: "display_id", label: "ID", source: "common" },
-      { key: "name", label: "Name", source: "common" },
-      { key: "schema_type_id", label: "Schema Type", source: "common" },
-      { key: "status", label: "Status", source: "common" },
-      { key: "author", label: "Author", source: "common" },
-      { key: "created_at", label: "Created", source: "common" },
-      { key: "updated_at", label: "Updated", source: "common" },
-      { key: "sample_type", label: "Sample Type", source: "schema" },
+      { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
+      { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
+      { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
+      { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "sample_type", label: "Sample Type", source: "schema", type: "text", filterable: true, width: null },
     ];
 
     const items = [
@@ -951,14 +951,14 @@ describe("EntitiesHub", () => {
 
   it("renders _expanded values in schema property cells", async () => {
     const schemaColumns: EntityHubResponse["available_columns"] = [
-      { key: "display_id", label: "ID", source: "common" },
-      { key: "name", label: "Name", source: "common" },
-      { key: "schema_type_id", label: "Schema Type", source: "common" },
-      { key: "status", label: "Status", source: "common" },
-      { key: "author", label: "Author", source: "common" },
-      { key: "created_at", label: "Created", source: "common" },
-      { key: "updated_at", label: "Updated", source: "common" },
-      { key: "sample_type", label: "Sample Type", source: "schema" },
+      { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
+      { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
+      { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
+      { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "sample_type", label: "Sample Type", source: "schema", type: "text", filterable: true, width: null },
     ];
 
     const items = [
@@ -1030,14 +1030,14 @@ describe("EntitiesHub", () => {
 
   it("renders em dash for missing _expanded values", async () => {
     const schemaColumns: EntityHubResponse["available_columns"] = [
-      { key: "display_id", label: "ID", source: "common" },
-      { key: "name", label: "Name", source: "common" },
-      { key: "schema_type_id", label: "Schema Type", source: "common" },
-      { key: "status", label: "Status", source: "common" },
-      { key: "author", label: "Author", source: "common" },
-      { key: "created_at", label: "Created", source: "common" },
-      { key: "updated_at", label: "Updated", source: "common" },
-      { key: "sample_type", label: "Sample Type", source: "schema" },
+      { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
+      { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
+      { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
+      { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
+      { key: "sample_type", label: "Sample Type", source: "schema", type: "text", filterable: true, width: null },
     ];
 
     const items = [

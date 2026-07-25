@@ -245,6 +245,31 @@ class EntityHubAPITests(APITestCase):
                      "author", "created_at", "updated_at"}
         self.assertTrue(expected.issubset(keys))
 
+    def test_available_columns_have_type_filterable_width(self):
+        """Every available_column entry carries type, filterable, and width."""
+        response = self.client.get(self.url)
+        data = response.json()
+        for col in data["available_columns"]:
+            self.assertIn("type", col)
+            self.assertIn("filterable", col)
+            self.assertIn("width", col)
+            self.assertIsInstance(col["type"], str)
+            self.assertIsInstance(col["filterable"], bool)
+            # width is None until rendering is wired
+            self.assertIsNone(col["width"])
+
+    def test_available_columns_type_ids_are_lowercase(self):
+        """Common columns use lowercase type IDs from the registry."""
+        response = self.client.get(self.url)
+        data = response.json()
+        type_by_key = {c["key"]: c["type"] for c in data["available_columns"]}
+        self.assertEqual(type_by_key.get("display_id"), "text")
+        self.assertEqual(type_by_key.get("name"), "text")
+        self.assertEqual(type_by_key.get("status"), "select")
+        self.assertEqual(type_by_key.get("author"), "user")
+        self.assertEqual(type_by_key.get("created_at"), "datetime")
+        self.assertEqual(type_by_key.get("updated_at"), "datetime")
+
     def test_empty_database_returns_empty_results(self):
         """When no entities exist, results is empty (not an error)."""
         from mods.eln.models import NotebookEntry
@@ -429,8 +454,8 @@ class EntityHubAPITests(APITestCase):
             schema_type=lims_type,
             is_default=False,
             columns=[
-                {"name": "sample_type", "type": "Text"},
-                {"name": "concentration", "type": "Number"},
+                {"name": "sample_type", "type": "text"},
+                {"name": "concentration", "type": "number"},
             ],
         )
         response = self.client.get(f"{self.url}?schema={schema.id}")
@@ -455,8 +480,8 @@ class EntityHubAPITests(APITestCase):
             schema_type=lims_type,
             is_default=False,
             columns=[
-                {"name": "sample_type", "type": "Text"},
-                {"name": "concentration", "type": "Number"},
+                {"name": "sample_type", "type": "text"},
+                {"name": "concentration", "type": "number"},
             ],
         )
         Entity.objects.create(
@@ -493,8 +518,8 @@ class EntityHubAPITests(APITestCase):
             schema_type=lims_type,
             is_default=False,
             columns=[
-                {"name": "known_field", "type": "Text"},
-                {"name": "unknown_field", "type": "Text"},
+                {"name": "known_field", "type": "text"},
+                {"name": "unknown_field", "type": "text"},
             ],
         )
         Entity.objects.create(

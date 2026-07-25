@@ -603,21 +603,21 @@ describe("EntitiesHub", () => {
     });
   });
 
-  // ── Filter Bar: Fields button ──────────────────────────────────────
+  // ── Filter Bar: Filters button ─────────────────────────────────────
 
-  it("renders Fields button", async () => {
+  it("renders Filters button", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
     await waitFor(() => {
-      expect(screen.getByText("Fields")).toBeInTheDocument();
+      expect(screen.getByText("Filters")).toBeInTheDocument();
     });
   });
 
   it("shows field filter count badge when filters active", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
-    renderHub("/entities?f=sample_type:B&f=concentration:5");
+    renderHub("/entities?f=sample_type:eq:B&f=concentration:eq:5");
     await waitFor(() => {
       expect(screen.getByText("2")).toBeInTheDocument();
     });
@@ -628,7 +628,7 @@ describe("EntitiesHub", () => {
   it("renders field filter chips below the filter bar", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
-    renderHub("/entities?f=sample_type:B");
+    renderHub("/entities?f=sample_type:eq:B");
     await waitFor(() => {
       expect(screen.getByText("sample_type")).toBeInTheDocument();
       expect(screen.getByText("B")).toBeInTheDocument();
@@ -638,10 +638,10 @@ describe("EntitiesHub", () => {
 
   it("passes field filters to API", async () => {
     mockGetEntities.mockResolvedValue(makeEmptyResponse());
-    renderHub("/entities?f=sample_type:B&f=concentration:5");
+    renderHub("/entities?f=sample_type:eq:B&f=concentration:eq:5");
     await waitFor(() => {
       const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
-      expect(lastCall?.f).toEqual(["sample_type:B", "concentration:5"]);
+      expect(lastCall?.f).toEqual(["sample_type:eq:B", "concentration:eq:5"]);
     });
   });
 

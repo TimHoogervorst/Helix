@@ -17,8 +17,6 @@ import {
   AlignJustify,
   Lock,
   X,
-  Filter,
-  Plus,
 } from "lucide-react";
 import type { SlotContext } from "../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
@@ -48,6 +46,12 @@ import {
   isColumnLocked,
   getLockedCount,
 } from "./columnLock";
+import {
+  FilterBar,
+  serializeFilter,
+  deserializeFilter,
+  type FilterRow,
+} from "./FilterBar";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -141,9 +145,18 @@ function EntitiesHub() {
   const schemaParam = searchParams.get("schema") || "";
   const statusParam = searchParams.get("status") || "";
   const sortParam = searchParams.get("sort") || "";
-  const fieldFilters = searchParams.getAll("f");
-  // Stabilize array reference so it doesn't trigger fetchData recreation
-  const fieldFiltersKey = fieldFilters.join(",");
+  const fieldFiltersRaw = searchParams.getAll("f");
+  // Parse into structured filter rows (new format: column:operator:value)
+  // and legacy filters (old format: key:value → eq operator).
+  const fieldFilters = useMemo(() => {
+    let nextId = 0;
+    return fieldFiltersRaw.map((raw) => deserializeFilter(raw, nextId++));
+  }, [fieldFiltersRaw]);
+  // Stabilize the serialized form so it doesn't trigger fetchData recreation
+  const fieldFiltersKey = useMemo(
+    () => fieldFilters.map(serializeFilter).join(","),
+    [fieldFilters],
+  );
   const pageParam = parseInt(searchParams.get("page") || "1", 10);
   const sizeParam = parseInt(searchParams.get("size") || "50", 10);
 
@@ -272,27 +285,24 @@ function EntitiesHub() {
     }));
   }, [schemaTypes, schemas]);
 
-  // ── Fields popover state ────────────────────────────────────────────────
+  // ── Filter bar state (operator-aware) ──────────────────────────────────
 
-  const [fieldsPopoverOpen, setFieldsPopoverOpen] = useState(false);
-  const fieldsPopoverRef = useRef<HTMLDivElement>(null);
-  const [fieldKey, setFieldKey] = useState("");
-  const [fieldValue, setFieldValue] = useState("");
-
-  // Close popover on outside click
-  useEffect(() => {
-    if (!fieldsPopoverOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (
-        fieldsPopoverRef.current &&
-        !fieldsPopoverRef.current.contains(e.target as Node)
-      ) {
-        setFieldsPopoverOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [fieldsPopoverOpen]);
+  const handleFiltersChange = useCallback(
+    (newFilters: FilterRow[]) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("f");
+        for (const f of newFilters) {
+          if (f.column && f.operator) {
+            next.append("f", serializeFilter(f));
+          }
+        }
+        next.set("page", "1");
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   // ── Fetch data when URL params change ───────────────────────────────────
 
@@ -310,7 +320,11 @@ function EntitiesHub() {
       if (schemaParam) filters.schema = schemaParam;
       if (statusParam) filters.status = statusParam;
       if (sortParam) filters.sort = sortParam;
-      if (fieldFilters.length > 0) filters.f = fieldFilters;
+      if (fieldFilters.length > 0) {
+        filters.f = fieldFilters
+          .filter((f) => f.column && f.operator)
+          .map(serializeFilter);
+      }
       const response = await getEntities(filters);
       setData(response);
     } catch (err) {
@@ -341,39 +355,6 @@ function EntitiesHub() {
         if (key !== "page") {
           next.set("page", "1");
         }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
-
-  const addFieldFilter = useCallback(
-    (key: string, value: string) => {
-      if (!key.trim() || !value.trim()) return;
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.append("f", `${key.trim()}:${value.trim()}`);
-        next.set("page", "1");
-        return next;
-      });
-      setFieldKey("");
-      setFieldValue("");
-    },
-    [setSearchParams],
-  );
-
-  const removeFieldFilter = useCallback(
-    (index: number) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("f");
-        const all = prev.getAll("f");
-        for (let i = 0; i < all.length; i++) {
-          if (i !== index) {
-            next.append("f", all[i]);
-          }
-        }
-        next.set("page", "1");
         return next;
       });
     },
@@ -697,19 +678,10 @@ function EntitiesHub() {
     );
   }, [allColumns, columnVisibility]);
 
-  // Parse existing field filters into {key, value} pairs for chips
-  const parsedFieldFilters = useMemo(() => {
-    return fieldFilters
-      .map((f) => {
-        const colonIdx = f.indexOf(":");
-        if (colonIdx === -1) return null;
-        return {
-          key: f.slice(0, colonIdx),
-          value: f.slice(colonIdx + 1),
-        };
-      })
-      .filter(Boolean) as { key: string; value: string }[];
-  }, [fieldFilters]);
+  // Active filter count for the badge
+  const activeFilterCount = fieldFilters.filter(
+    (f) => f.column && f.operator,
+  ).length;
 
   // ── Has any filter active? ───────────────────────────────────────────────
 
@@ -718,8 +690,23 @@ function EntitiesHub() {
     schemaTypeParam !== "" ||
     schemaParam !== "" ||
     statusParam !== "" ||
-    fieldFilters.length > 0 ||
+    activeFilterCount > 0 ||
     sortParam !== "";
+
+  // ── Operator label resolver ─────────────────────────────────────────────
+
+  /** Look up the human-readable label for an operator from the column type registry. */
+  function resolveOperatorLabel(columnKey: string, operatorId: string): string {
+    const colType = availableColumns.find((c) => c.key === columnKey)?.type;
+    if (!colType) return operatorId;
+    try {
+      const ct = ModRegistry.getInstance().getColumnType(colType);
+      const op = ct?.operators.find((o) => o.id === operatorId);
+      return op?.label ?? operatorId;
+    } catch {
+      return operatorId;
+    }
+  }
 
   // ── Loading state ────────────────────────────────────────────────────────
 
@@ -857,117 +844,12 @@ function EntitiesHub() {
               </select>
             </div>
 
-            {/* Fields popover */}
-            <div
-              className="entities-filter-fields-wrap"
-              ref={fieldsPopoverRef}
-            >
-              <button
-                className="entities-filter-fields-btn"
-                type="button"
-                onClick={() => setFieldsPopoverOpen((prev) => !prev)}
-              >
-                <Filter size={14} />
-                Fields
-                {parsedFieldFilters.length > 0 && (
-                  <span className="entities-filter-fields-count">
-                    {parsedFieldFilters.length}
-                  </span>
-                )}
-              </button>
-              {fieldsPopoverOpen && (
-                <div className="entities-filter-fields-popover">
-                  <div className="entities-filter-fields-popover-header">
-                    Field Filters
-                  </div>
-                  {availableColumns.length > 0 ? (
-                    <div className="entities-filter-fields-popover-body">
-                      {/* Add a new field filter */}
-                      <div className="entities-filter-fields-add">
-                        <select
-                          className="entities-filter-select"
-                          value={fieldKey}
-                          onChange={(e) => setFieldKey(e.target.value)}
-                        >
-                          <option value="">Select field…</option>
-                          {availableColumns
-                            .filter((c) => c.source !== "common" || c.key === "name")
-                            .map((col) => (
-                              <option key={col.key} value={col.key}>
-                                {col.label}
-                              </option>
-                            ))}
-                        </select>
-                        <input
-                          className="entities-filter-search"
-                          type="text"
-                          placeholder="Value…"
-                          value={fieldValue}
-                          onChange={(e) => setFieldValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              addFieldFilter(fieldKey, fieldValue);
-                            }
-                          }}
-                        />
-                        <button
-                          className="entities-filter-fields-add-btn"
-                          type="button"
-                          onClick={() => addFieldFilter(fieldKey, fieldValue)}
-                          title="Add filter"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-
-                      {/* Existing field filters */}
-                      {parsedFieldFilters.length > 0 && (
-                        <div className="entities-filter-fields-existing">
-                          <div className="entities-filter-fields-existing-label">
-                            Active field filters:
-                          </div>
-                          {parsedFieldFilters.map((ff, i) => {
-                            const fieldIdx = fieldFilters.indexOf(
-                              `${ff.key}:${ff.value}`,
-                            );
-                            return (
-                              <div
-                                key={`${ff.key}:${ff.value}-${i}`}
-                                className="entities-filter-field-chip"
-                              >
-                                <span className="entities-filter-field-chip-key">
-                                  {ff.key}
-                                </span>
-                                <span className="entities-filter-field-chip-sep">
-                                  =
-                                </span>
-                                <span className="entities-filter-field-chip-value">
-                                  {ff.value}
-                                </span>
-                                <button
-                                  className="entities-filter-field-chip-remove"
-                                  type="button"
-                                  onClick={() =>
-                                    removeFieldFilter(fieldIdx)
-                                  }
-                                  title="Remove filter"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="entities-filter-fields-popover-empty">
-                      No fields available. Select a schema to see its fields.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Operator-aware filter bar */}
+            <FilterBar
+              availableColumns={availableColumns}
+              filters={fieldFilters}
+              onFiltersChange={handleFiltersChange}
+            />
 
             {/* Sort button */}
             <button
@@ -1020,41 +902,52 @@ function EntitiesHub() {
         </div>
 
         {/* ── Active field filter chips (below filter bar) ────────────────── */}
-        {parsedFieldFilters.length > 0 && (
+        {activeFilterCount > 0 && (
           <div className="entities-filter-chips">
-            {parsedFieldFilters.map((ff, i) => {
-              const fieldIdx = fieldFilters.indexOf(`${ff.key}:${ff.value}`);
-              return (
-                <span
-                  key={`chip-${ff.key}:${ff.value}-${i}`}
-                  className="entities-filter-chip"
-                >
-                  <span className="entities-filter-chip-key">{ff.key}</span>
-                  <span className="entities-filter-chip-sep">:</span>
-                  <span className="entities-filter-chip-value">{ff.value}</span>
-                  <button
-                    className="entities-filter-chip-remove"
-                    type="button"
-                    onClick={() => removeFieldFilter(fieldIdx)}
-                    title="Remove filter"
+            {fieldFilters
+              .filter((f) => f.column && f.operator)
+              .map((ff, i) => {
+                const colLabel =
+                  availableColumns.find((c) => c.key === ff.column)?.label ??
+                  ff.column;
+                const opLabel = resolveOperatorLabel(ff.column, ff.operator);
+                return (
+                  <span
+                    key={`chip-${ff.column}:${ff.operator}:${ff.value}-${i}`}
+                    className="entities-filter-chip"
                   >
-                    <X size={12} />
-                  </button>
-                </span>
-              );
-            })}
-            {parsedFieldFilters.length > 0 && (
+                    <span className="entities-filter-chip-key">{colLabel}</span>
+                    <span className="entities-filter-chip-sep">
+                      {opLabel}
+                    </span>
+                    {ff.value && (
+                      <>
+                        <span className="entities-filter-chip-sep">:</span>
+                        <span className="entities-filter-chip-value">
+                          {ff.value}
+                        </span>
+                      </>
+                    )}
+                    <button
+                      className="entities-filter-chip-remove"
+                      type="button"
+                      onClick={() => {
+                        handleFiltersChange(
+                          fieldFilters.filter((f) => f.id !== ff.id),
+                        );
+                      }}
+                      title="Remove filter"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                );
+              })}
+            {activeFilterCount > 0 && (
               <button
                 className="entities-filter-chip-clear-all"
                 type="button"
-                onClick={() => {
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.delete("f");
-                    next.set("page", "1");
-                    return next;
-                  });
-                }}
+                onClick={() => handleFiltersChange([])}
               >
                 Clear all
               </button>

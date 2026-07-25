@@ -28,6 +28,11 @@ from helix_core.serializers import (
 from helix_core.models import EntityHubView
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
+from helix_core.query_builder import (
+    FilterSpec,
+    build_entity_hub_filters,
+    parse_filter_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,17 +136,27 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
         return self._apply_filters(qs)
 
     def _parse_filter_params(self):
-        """Return a dict of parsed filter params, cached on the viewset."""
+        """Return a dict of parsed filter params, cached on the viewset.
+
+        Parses ``?f=`` params into structured filter specs (new
+        ``column:operator:value`` format) and legacy filters (old
+        ``key:value`` format), using :func:`parse_filter_params`.
+        """
         if hasattr(self, "_filter_params"):
             return self._filter_params
         request = self.request
+        raw_filters: list[str] = request.query_params.getlist("f")
+        structured, legacy = parse_filter_params(raw_filters)
         self._filter_params = {
             "search": request.query_params.get("search", "").strip(),
             "schema_type": request.query_params.get("schema_type", "").strip(),
             "schema": request.query_params.get("schema", "").strip(),
             "status": request.query_params.get("status", "").strip(),
-            "field_filters": request.query_params.getlist("f"),
             "sort": request.query_params.get("sort", "").strip(),
+            # New structured filter specs (column:operator:value)
+            "filter_specs": structured,
+            # Legacy exact-match field filters (key:value)
+            "field_filters": legacy,
         }
         return self._filter_params
 
@@ -167,14 +182,17 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
         if params["status"] in ("in_progress", "finished"):
             qs = qs.filter(status=params["status"])
 
-        # ── Field filters (repeatable ?f=key:value) ────────────────────
-        for ff in params["field_filters"]:
-            if ":" in ff:
-                key, value = ff.split(":", 1)
-                qs = qs.filter(
-                    Q(properties__has_key=key)
-                    & Q(**{f"properties__{key}": value})
-                )
+        # ── Structured field filters (new ?f=column:operator:value) ───
+        if params["filter_specs"]:
+            qs = qs.filter(
+                build_entity_hub_filters(params["filter_specs"])
+            )
+
+        # ── Legacy field filters (repeatable ?f=key:value) ─────────────
+        if params["field_filters"]:
+            qs = qs.filter(
+                build_entity_hub_filters([], params["field_filters"])
+            )
 
         # ── Sort ───────────────────────────────────────────────────────
         sort = params["sort"]
@@ -228,6 +246,128 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
             try:
                 # Derive workspace_id from schema_type_id (format: "mod.entity")
                 workspace_id = params["schema_type"].split(".")[0]
+                schema_type_obj = SchemaType.objects.get(
+                    workspace_id=workspace_id, is_active=True
+                )
+                for col in schema_type_obj.columns:
+                    columns.append(_enrich_schema_column(col, "schema_type"))
+            except (SchemaType.DoesNotExist, IndexError):
+                pass
+
+        response.data["available_columns"] = columns
+        return response
+
+
+class EntityHubQueryView(APIView):
+    """POST endpoint for structured entity hub queries.
+
+    ``POST /api/registry/entities/query/`` accepts a JSON body with an
+    optional ``filters`` array.  Each filter is an object with:
+
+    * ``column`` — the column key (e.g. ``"name"``, ``"concentration"``)
+    * ``operator`` — the operator ID (e.g. ``"eq"``, ``"contains"``, ``"gt"``)
+    * ``value`` — the filter value as a string
+
+    The endpoint also accepts the same query parameters as the GET endpoint
+    (``search``, ``schema_type``, ``schema``, ``status``, ``sort``, ``page``,
+    ``size``) so the full filter state can be sent in one request.
+
+    Returns the same paginated response shape as GET
+    ``/api/registry/entities/``.
+    """
+
+    permission_classes: list = []
+
+    def post(self, request):
+        from rest_framework import serializers as drf_serializers
+
+        # ── Parse structured filters from JSON body ────────────────────
+        raw_filters: list[dict] = request.data.get("filters", [])
+        filter_specs: list[FilterSpec] = []
+        errors: list[str] = []
+
+        for i, f in enumerate(raw_filters):
+            column = f.get("column", "")
+            operator = f.get("operator", "")
+            value = f.get("value", "")
+            if not column or not operator:
+                errors.append(
+                    f"filters[{i}]: 'column' and 'operator' are required."
+                )
+                continue
+            filter_specs.append(
+                FilterSpec(column=str(column), operator=str(operator), value=str(value))
+            )
+
+        if errors:
+            raise drf_serializers.ValidationError(errors)
+
+        # ── Build the filtered queryset ────────────────────────────────
+        qs = EntityHubView.objects.select_related("author", "schema").all()
+
+        # Search
+        search = request.data.get("search", "").strip()
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search)
+                | Q(display_id__icontains=search)
+            )
+
+        # Schema type
+        schema_type = request.data.get("schema_type", "").strip()
+        if schema_type:
+            qs = qs.filter(schema_type_id=schema_type)
+
+        # Schema
+        schema = request.data.get("schema", "").strip()
+        if schema:
+            qs = qs.filter(schema_id=schema)
+
+        # Status
+        status_val = request.data.get("status", "").strip()
+        if status_val in ("in_progress", "finished"):
+            qs = qs.filter(status=status_val)
+
+        # Structured filters from POST body
+        if filter_specs:
+            qs = qs.filter(build_entity_hub_filters(filter_specs))
+
+        # Sort
+        sort = request.data.get("sort", "").strip()
+        if sort:
+            descending = False
+            if sort.startswith("-"):
+                descending = True
+                sort = sort[1:]
+            if sort in SORTABLE_FIELDS:
+                ordering = f"-{sort}" if descending else sort
+                qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("-updated_at")
+
+        # ── Paginate ───────────────────────────────────────────────────
+        paginator = EntityHubPaginator()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = EntityHubSerializer(
+            page, many=True, context={"request": request}
+        )
+
+        response = paginator.get_paginated_response(serializer.data)
+
+        # ── available_columns ──────────────────────────────────────────
+        columns = _build_available_columns()
+        if schema:
+            try:
+                schema_obj = Schema.objects.get(
+                    pk=int(schema), is_active=True
+                )
+                for col in schema_obj.columns:
+                    columns.append(_enrich_schema_column(col, "schema"))
+            except (Schema.DoesNotExist, ValueError):
+                pass
+        elif schema_type:
+            try:
+                workspace_id = schema_type.split(".")[0]
                 schema_type_obj = SchemaType.objects.get(
                     workspace_id=workspace_id, is_active=True
                 )

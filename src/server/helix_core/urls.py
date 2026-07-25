@@ -7,6 +7,7 @@ from helix_core.views import (
     SchemaViewSet,
     SchemaTypeViewSet,
     EntityHubListView,
+    EntityHubQueryView,
 )
 
 # Router for schemas and schema-types
@@ -22,5 +23,10 @@ urlpatterns = [
     path("actions/", ActionCreateView.as_view(), name="action-create"),
     path("", include(router.urls)),
     path("registry/", include(registry_router.urls)),
+    path(
+        "registry/entities/query/",
+        EntityHubQueryView.as_view(),
+        name="registry-entity-query",
+    ),
     path("mod-registry/", ModRegistryView.as_view(), name="mod-registry"),
 ]

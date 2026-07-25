@@ -293,9 +293,7 @@ function EntitiesHub() {
         const next = new URLSearchParams(prev);
         next.delete("f");
         for (const f of newFilters) {
-          if (f.column && f.operator) {
-            next.append("f", serializeFilter(f));
-          }
+          next.append("f", serializeFilter(f));
         }
         next.set("page", "1");
         return next;

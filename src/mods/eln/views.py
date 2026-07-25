@@ -91,11 +91,30 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     @staticmethod
     def _get_default_schema():
-        """Return the default Schema for ELN notebook entries."""
-        return Schema.objects.get(
-            schema_type__model="mods.eln.models.NotebookEntry",
-            is_default=True,
+        """Return the default Schema for ELN notebook entries.
+
+        Uses ``get_or_create`` so the endpoint is resilient to the Schema
+        not having been created yet — e.g. after a fresh migration where
+        the mod registration hasn't run.
+        """
+        from helix_core.models import SchemaType
+
+        schema_type, _ = SchemaType.objects.get_or_create(
+            model="mods.eln.models.NotebookEntry",
+            defaults={
+                "display_name": "ELN Entry",
+                "workspace_id": "eln",
+            },
         )
+        schema, _ = Schema.objects.get_or_create(
+            schema_type=schema_type,
+            is_default=True,
+            defaults={
+                "name": "Default",
+                "prefix": "E",
+            },
+        )
+        return schema
 
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None

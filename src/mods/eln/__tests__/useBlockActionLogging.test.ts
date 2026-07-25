@@ -373,7 +373,9 @@ describe("useBlockActionLogging", () => {
 
     // Should log a warning
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      '[eln] Failed to send block action "eln.table-block.created" for entry E-001:',
+      '[eln] Failed to send block action "%s" for entry %s:',
+      "eln.table-block.created",
+      "E-001",
       expect.any(Error),
     );
 

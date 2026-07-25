@@ -79,7 +79,7 @@ export interface ServiceConfig {
 export interface SchemaColumnDef {
   id?: string;
   name: string;
-  type: "Text" | "Number" | "Date" | "Boolean" | "Reference";
+  type: string;
   required?: boolean;
   default?: string;
   units?: string;

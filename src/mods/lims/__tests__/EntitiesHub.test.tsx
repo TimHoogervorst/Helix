@@ -109,8 +109,8 @@ const MOCK_SCHEMAS: Schema[] = [
     schema_type: 1,
     schema_type_display: "Entry",
     columns: [
-      { id: "col-1", name: "sample_type", type: "Text" },
-      { id: "col-2", name: "concentration", type: "Number" },
+      { id: "col-1", name: "sample_type", type: "text" },
+      { id: "col-2", name: "concentration", type: "number" },
     ],
     is_default: true,
     is_active: true,
@@ -123,7 +123,7 @@ const MOCK_SCHEMAS: Schema[] = [
     schema_type: 2,
     schema_type_display: "Entity",
     columns: [
-      { id: "col-3", name: "blood_type", type: "Text" },
+      { id: "col-3", name: "blood_type", type: "text" },
     ],
     is_default: true,
     is_active: true,

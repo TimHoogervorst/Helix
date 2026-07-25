@@ -13,7 +13,7 @@ const liveSchema: Schema = makeSchema({
   schema_type_display: "Entity",
   columns: [
     makeColumnDef({ required: true }),
-    makeColumnDef({ name: "hemolyzed", type: "Boolean" }),
+    makeColumnDef({ name: "hemolyzed", type: "boolean" }),
   ],
 });
 

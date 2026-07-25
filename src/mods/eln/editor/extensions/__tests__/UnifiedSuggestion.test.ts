@@ -55,8 +55,8 @@ function makeBlockRegistration(
       schemaId: null,
       title: "Table",
       columns: [
-        { name: "Column 1", type: "Text" },
-        { name: "Column 2", type: "Text" },
+        { name: "Column 1", type: "text" },
+        { name: "Column 2", type: "text" },
       ],
       rows: [
         {

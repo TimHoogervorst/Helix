@@ -90,8 +90,8 @@ function makeBlockRegistration(id: string, label: string, overrides?: Record<str
       schemaId: null,
       title: "Table",
       columns: [
-        { name: "Column 1", type: "Text" },
-        { name: "Column 2", type: "Text" },
+        { name: "Column 1", type: "text" },
+        { name: "Column 2", type: "text" },
       ],
       rows: [
         { entityId: null, displayId: "#1", values: { "Column 1": "", "Column 2": "" } },

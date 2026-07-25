@@ -5,16 +5,14 @@
 // module reference them, but they are not LIMS domain concepts — they
 // are presentation-level grid types.
 
-/** Column type identifier string — matches the registry's lowercase type IDs. */
-export type GridColumnType = string;
-
 /** A column definition for the ELN table grid. Mirrors LIMS ColumnDef but
  *  adds grid-only metadata like width and pinned. */
 export interface GridColumn {
   /** Stable UUID from the server-side column definition (#252). */
   id?: string;
   name: string;
-  type: GridColumnType;
+  /** Column type identifier string — matches the registry's lowercase type IDs. */
+  type: string;
   required?: boolean;
   default?: string;
   units?: string;

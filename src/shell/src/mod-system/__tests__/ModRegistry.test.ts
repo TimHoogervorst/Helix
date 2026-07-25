@@ -672,7 +672,7 @@ describe("ModRegistry", () => {
               id: "lims.entity",
               displayName: "Entity",
               prefix: "BLOOD",
-              columns: [{ name: "Name", type: "Text" as const }],
+              columns: [{ name: "Name", type: "text" as const }],
             },
           ],
           actions: [
@@ -696,7 +696,7 @@ describe("ModRegistry", () => {
         id: "lims.entity",
         displayName: "Entity",
         defaultPrefix: "BLOOD",
-        columns: [{ name: "Name", type: "Text" }],
+        columns: [{ name: "Name", type: "text" }],
       });
     });
 
@@ -772,7 +772,7 @@ describe("ModRegistry", () => {
               id: "lims.entity",
               displayName: "Entity",
               prefix: "E",
-              columns: [{ name: "Col1", type: "Number" as const }],
+              columns: [{ name: "Col1", type: "number" as const }],
             },
             {
               id: "lims.sample",
@@ -841,8 +841,8 @@ describe("ModRegistry", () => {
 
     it("passes columns through from backend to schemaType", () => {
       const columns = [
-        { id: "c1", name: "Patient ID", type: "Text" as const, required: true },
-        { name: "Hemoglobin", type: "Number" as const, units: "g/dL" },
+        { id: "c1", name: "Patient ID", type: "text" as const, required: true },
+        { name: "Hemoglobin", type: "number" as const, units: "g/dL" },
       ];
 
       const payload = {

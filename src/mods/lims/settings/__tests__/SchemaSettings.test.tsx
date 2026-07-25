@@ -43,7 +43,7 @@ describe("SchemaSettings", () => {
           schema_type: 1,
           schema_type_display: "Entity",
           columns: [
-            { name: "Volume", type: "Number" as const },
+            { name: "Volume", type: "number" as const },
           ],
           is_default: false,
           is_active: true,

@@ -56,7 +56,7 @@ function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   return vals;
 }
 
-/** Resolve a GridColumnType string to a BackendColumnType from the registry. */
+/** Resolve a column type string to a BackendColumnType from the registry. */
 function resolveColumnType(columnType: string) {
   const typeId = columnType.toLowerCase();
   return ModRegistry.getInstance().getColumnType(typeId);
@@ -189,7 +189,7 @@ interface EditableCellProps {
   readOnly?: boolean;
 }
 
-/** Resolve the operand_shape for a column type string (e.g. "Number" → "number"). */
+/** Resolve the operand_shape for a column type string from the registry. */
 function resolveOperandShape(columnType: string): string {
   const colType = resolveColumnType(columnType);
   return colType?.operandShape ?? "text";

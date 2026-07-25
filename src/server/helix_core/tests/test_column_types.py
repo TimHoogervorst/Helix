@@ -97,6 +97,10 @@ class TextColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "text")
         self.assertEqual(self.ct.display_name, "Text")
         self.assertEqual(self.ct.icon, "type")
+        self.assertEqual(self.ct.operand_shape, "text")
+
+    def test_get_default_value(self):
+        self.assertEqual(self.ct.get_default_value(), "")
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -135,6 +139,10 @@ class NumberColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "number")
         self.assertEqual(self.ct.display_name, "Number")
         self.assertEqual(self.ct.icon, "hash")
+        self.assertEqual(self.ct.operand_shape, "number")
+
+    def test_get_default_value(self):
+        self.assertEqual(self.ct.get_default_value(), 0)
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -194,6 +202,10 @@ class DateColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "date")
         self.assertEqual(self.ct.display_name, "Date")
         self.assertEqual(self.ct.icon, "calendar")
+        self.assertEqual(self.ct.operand_shape, "date")
+
+    def test_get_default_value(self):
+        self.assertIsNone(self.ct.get_default_value())
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -246,6 +258,10 @@ class DatetimeColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "datetime")
         self.assertEqual(self.ct.display_name, "Date & Time")
         self.assertEqual(self.ct.icon, "clock")
+        self.assertEqual(self.ct.operand_shape, "date")
+
+    def test_get_default_value(self):
+        self.assertIsNone(self.ct.get_default_value())
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -285,6 +301,10 @@ class BooleanColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "boolean")
         self.assertEqual(self.ct.display_name, "Boolean")
         self.assertEqual(self.ct.icon, "toggle-left")
+        self.assertEqual(self.ct.operand_shape, "boolean")
+
+    def test_get_default_value(self):
+        self.assertEqual(self.ct.get_default_value(), False)
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -342,6 +362,7 @@ class SelectColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "select")
         self.assertEqual(self.ct.display_name, "Select")
         self.assertEqual(self.ct.icon, "list")
+        self.assertEqual(self.ct.operand_shape, "select")
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -392,6 +413,7 @@ class ReferenceColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "reference")
         self.assertEqual(self.ct.display_name, "Reference")
         self.assertEqual(self.ct.icon, "link")
+        self.assertEqual(self.ct.operand_shape, "entity-picker")
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -447,6 +469,7 @@ class UserColumnTypeTests(TestCase):
         self.assertEqual(self.ct.id, "user")
         self.assertEqual(self.ct.display_name, "User")
         self.assertEqual(self.ct.icon, "user")
+        self.assertEqual(self.ct.operand_shape, "entity-picker")
 
     def test_extends_reference(self):
         """User extends Reference."""
@@ -560,6 +583,8 @@ class ColumnTypeRegistryPayloadTests(TestCase):
         self.assertEqual(entry["id"], "text")
         self.assertEqual(entry["displayName"], "Text")
         self.assertEqual(entry["icon"], "type")
+        self.assertEqual(entry["operandShape"], "text")
+        self.assertEqual(entry["defaultValue"], "")
         self.assertIsInstance(entry["operators"], list)
         self.assertGreater(len(entry["operators"]), 0)
 
@@ -638,13 +663,14 @@ class ColumnTypesContractTests(TestCase):
         self.assertGreater(len(types), 0)
 
     def test_each_column_type_has_required_fields(self):
-        """Each column type entry has id, displayName, icon, operators."""
+        """Each column type entry has id, displayName, icon, operandShape, defaultValue, operators."""
         response = self.client.get("/api/mod-registry/")
         for ct in response.data["columnTypes"]:
             self.assertIn("id", ct)
             self.assertIn("displayName", ct)
             self.assertIn("icon", ct)
-            self.assertIn("operators", ct)
+            self.assertIn("operandShape", ct)
+            self.assertIn("defaultValue", ct)
             self.assertIsInstance(ct["operators"], list)
 
     def test_response_matches_json_schema(self):

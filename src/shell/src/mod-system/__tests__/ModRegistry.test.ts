@@ -1077,6 +1077,8 @@ describe("ModRegistry", () => {
           id: "text",
           displayName: "Text",
           icon: "type",
+          operandShape: "text",
+          defaultValue: "",
           operators: [
             { id: "eq", label: "Equals", operandShape: "text", djangoLookupName: "exact" },
             { id: "contains", label: "Contains", operandShape: "text", djangoLookupName: "icontains" },
@@ -1086,6 +1088,8 @@ describe("ModRegistry", () => {
           id: "number",
           displayName: "Number",
           icon: "hash",
+          operandShape: "number",
+          defaultValue: 0,
           operators: [
             { id: "eq", label: "Equals", operandShape: "number", djangoLookupName: "exact" },
           ],
@@ -1127,6 +1131,8 @@ describe("ModRegistry", () => {
           id: "boolean",
           displayName: "Boolean",
           icon: "toggle-left",
+          operandShape: "boolean",
+          defaultValue: false,
           operators: [],
         },
       ];
@@ -1150,7 +1156,7 @@ describe("ModRegistry", () => {
 
     it("column types do not interfere with workspace hydration", () => {
       const columnTypes = [
-        { id: "text", displayName: "Text", icon: "type", operators: [] },
+        { id: "text", displayName: "Text", icon: "type", operandShape: "text", defaultValue: "", operators: [] },
       ];
 
       const payload = {
@@ -1181,7 +1187,7 @@ describe("ModRegistry", () => {
 
     it("clears column types on subsequent hydration", () => {
       const firstTypes = [
-        { id: "text", displayName: "Text", icon: "type", operators: [] },
+        { id: "text", displayName: "Text", icon: "type", operandShape: "text", defaultValue: "", operators: [] },
       ];
 
       registry.hydrateFromBackend(
@@ -1192,8 +1198,8 @@ describe("ModRegistry", () => {
       expect(registry.getColumnTypes().size).toBe(1);
 
       const secondTypes = [
-        { id: "number", displayName: "Number", icon: "hash", operators: [] },
-        { id: "date", displayName: "Date", icon: "calendar", operators: [] },
+        { id: "number", displayName: "Number", icon: "hash", operandShape: "number", defaultValue: 0, operators: [] },
+        { id: "date", displayName: "Date", icon: "calendar", operandShape: "date", defaultValue: null, operators: [] },
       ];
 
       registry.hydrateFromBackend(
@@ -1210,7 +1216,7 @@ describe("ModRegistry", () => {
 
     it("payload with only columnTypes and no workspaces works", () => {
       const columnTypes = [
-        { id: "text", displayName: "Text", icon: "type", operators: [] },
+        { id: "text", displayName: "Text", icon: "type", operandShape: "text", defaultValue: "", operators: [] },
       ];
 
       registry.hydrateFromBackend({ columnTypes }, new Map());

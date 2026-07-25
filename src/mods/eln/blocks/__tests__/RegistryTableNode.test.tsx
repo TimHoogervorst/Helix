@@ -65,6 +65,49 @@ vi.mock("lucide-react", () => ({
   ArrowLeftRight: (props: Record<string, unknown>) => (
     <span data-testid="icon-arrow-left-right" {...props}>↔</span>
   ),
+  // Icons used by CellEditors.tsx COLUMN_TYPE_ICON_MAP
+  Type: (props: Record<string, unknown>) => (
+    <span data-testid="icon-type" {...props}>Aa</span>
+  ),
+  Hash: (props: Record<string, unknown>) => (
+    <span data-testid="icon-hash" {...props}>#</span>
+  ),
+  Clock: (props: Record<string, unknown>) => (
+    <span data-testid="icon-clock" {...props}>🕐</span>
+  ),
+  ToggleLeft: (props: Record<string, unknown>) => (
+    <span data-testid="icon-toggle-left" {...props}>◉</span>
+  ),
+  List: (props: Record<string, unknown>) => (
+    <span data-testid="icon-list" {...props}>☰</span>
+  ),
+  Link: (props: Record<string, unknown>) => (
+    <span data-testid="icon-link" {...props}>🔗</span>
+  ),
+  User: (props: Record<string, unknown>) => (
+    <span data-testid="icon-user" {...props}>👤</span>
+  ),
+  FileText: (props: Record<string, unknown>) => (
+    <span data-testid="icon-file-text" {...props}>📄</span>
+  ),
+}));
+
+// ── Mock ModRegistry column type lookups ───────────────────────────────────
+// Column types used by RegistryTableNode's EditableCell and header rendering.
+
+const { mockGetColumnType } = vi.hoisted(() => ({
+  mockGetColumnType: vi.fn(),
+}));
+
+vi.mock("../../../../shell/src/mod-system/ModRegistry", () => ({
+  ModRegistry: {
+    getInstance: () => ({
+      getColumnType: mockGetColumnType,
+      getColumnTypes: () => new Map(),
+    }),
+    _reset: () => {},
+    resolveActionLabel: (actionType: string) => actionType,
+  },
 }));
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────
@@ -163,6 +206,83 @@ function makeRow(overrides?: Partial<RegistryTableRow>): RegistryTableRow {
     ...overrides,
   };
 }
+
+/** Pre-seed the ModRegistry mock with built-in column types used in tests. */
+function seedColumnTypes() {
+  const types: Record<string, {
+    id: string;
+    displayName: string;
+    icon: string;
+    operandShape: string;
+    operators: Array<{
+      id: string;
+      label: string;
+      operandShape: string;
+      djangoLookupName: string;
+    }>;
+  }> = {
+    text: {
+      id: "text",
+      displayName: "Text",
+      icon: "type",
+      operandShape: "text",
+      defaultValue: "",
+      operators: [
+        { id: "contains", label: "Contains", operandShape: "text", djangoLookupName: "icontains" },
+      ],
+    },
+    number: {
+      id: "number",
+      displayName: "Number",
+      icon: "hash",
+      operandShape: "number",
+      defaultValue: 0,
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "number", djangoLookupName: "exact" },
+      ],
+    },
+    date: {
+      id: "date",
+      displayName: "Date",
+      icon: "calendar",
+      operandShape: "date",
+      defaultValue: null,
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "date", djangoLookupName: "exact" },
+      ],
+    },
+    boolean: {
+      id: "boolean",
+      displayName: "Boolean",
+      icon: "toggle-left",
+      operandShape: "boolean",
+      defaultValue: false,
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "boolean", djangoLookupName: "exact" },
+      ],
+    },
+    reference: {
+      id: "reference",
+      displayName: "Reference",
+      icon: "link",
+      operandShape: "entity-picker",
+      defaultValue: "",
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "entity-picker", djangoLookupName: "exact" },
+      ],
+    },
+  };
+
+  mockGetColumnType.mockImplementation(
+    (typeId: string) => types[typeId],
+  );
+}
+
+// Top-level beforeEach: seed column types for every test so that
+// EditableCell and header rendering can look them up via the registry.
+beforeEach(() => {
+  seedColumnTypes();
+});
 
 // ══════════════════════════════════════════════════════════════════════════
 // Placeholder state
@@ -390,7 +510,7 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     expect(within(dateHeader).getByTestId("icon-calendar")).toBeInTheDocument();
   });
 
-  it("renders Boolean column header with check icon", () => {
+  it("renders Boolean column header with icon from registry", () => {
     render(
       <RegistryTableBlockComponent
         {...loadedProps({
@@ -405,7 +525,9 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     );
     const boolHeader = screen.getByTestId("registry-table-header-Active");
     expect(boolHeader).toHaveTextContent("Active");
-    expect(within(boolHeader).getByTestId("icon-check")).toBeInTheDocument();
+    // Boolean type icon is "toggle-left" — the registry-driven renderColumnTypeBadge
+    // renders the ToggleLeft Lucide component.
+    expect(within(boolHeader).getByTestId("icon-toggle-left")).toBeInTheDocument();
   });
 
   it("renders status bar and delete column headers", () => {

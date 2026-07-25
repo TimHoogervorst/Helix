@@ -1,6 +1,36 @@
 from django.urls import include, path
 
+from helix_core.column_types import ColumnType, OperatorMeta, registry as column_type_registry
 from helix_core.mod_system.registry import registry
+
+
+class TiptapContentColumnType(ColumnType):
+    """Column type for TipTap rich-text content stored as JSON.
+
+    Represents the body content of ELN entries.  The ``contains`` operator
+    searches within the plain-text portion of the TipTap JSON document.
+    """
+
+    id = "tiptap_content"
+    display_name = "TipTap Content"
+    icon = "file-text"
+    operand_shape = "text"
+
+    def get_operators(self) -> list[OperatorMeta]:
+        return [
+            OperatorMeta("contains", "Contains", "text", "icontains"),
+            OperatorMeta("is_empty", "Is Empty", "none", "isnull"),
+        ]
+
+    def validate(self, value, **context) -> bool | str:
+        """TipTap content is stored as JSON (dict/list) or string. Always
+        valid at the column-type level — structural validation is handled by
+        the TipTap editor."""
+        if value is None or value == "":
+            return True
+        if isinstance(value, (str, dict, list)):
+            return True
+        return f"Expected TipTap JSON (dict, list, or string), got {type(value).__name__}"
 
 
 def register():
@@ -9,6 +39,10 @@ def register():
 
     from mods.eln.cascade import update_entity_status_from_entry
     from mods.eln.models import ElnAction, NotebookEntry
+
+    # Register the tiptap_content column type so consumers (entity hub,
+    # registry table) can discover and render it generically.
+    column_type_registry.register_column_type(TiptapContentColumnType())
 
     registry.register_action_model("eln", ElnAction)
 

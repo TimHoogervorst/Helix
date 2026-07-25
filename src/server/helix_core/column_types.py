@@ -145,11 +145,17 @@ class ColumnType:
         id: Lowercase string identifier (e.g. ``"text"``, ``"number"``).
         display_name: Human-readable label (e.g. ``"Text"``, ``"Number"``).
         icon: Lucide icon token string (e.g. ``"type"``, ``"hash"``).
+        operand_shape: The primary operand shape for cell editing and
+            rendering.  Drives which frontend cell editor component to use.
+            Valid values: ``"text"``, ``"number"``, ``"date"``,
+            ``"boolean"``, ``"select"``, ``"entity-picker"``, ``"range"``,
+            ``"none"``.
     """
 
     id: ClassVar[str]
     display_name: ClassVar[str]
     icon: ClassVar[str]
+    operand_shape: ClassVar[str]
 
     def get_operators(self) -> list[OperatorMeta]:
         """Return the list of filter operators available for this column type."""
@@ -171,6 +177,15 @@ class ColumnType:
         """
         return True
 
+    def get_default_value(self) -> object:
+        """Return the default value for this column type.
+
+        Used by the frontend to initialise empty cells.  Subclasses may
+        override this to provide a type-appropriate default (e.g. ``0``
+        for numbers, ``""`` for text, ``False`` for booleans).
+        """
+        return ""
+
 
 # ── Built-in column types ────────────────────────────────────────────────────
 
@@ -179,6 +194,7 @@ class TextColumnType(ColumnType):
     id = "text"
     display_name = "Text"
     icon = "type"
+    operand_shape = "text"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_text_operators()
@@ -188,11 +204,15 @@ class TextColumnType(ColumnType):
             return True
         return isinstance(value, str) or f"Expected a string, got {type(value).__name__}"
 
+    def get_default_value(self) -> object:
+        return ""
+
 
 class NumberColumnType(ColumnType):
     id = "number"
     display_name = "Number"
     icon = "hash"
+    operand_shape = "number"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_number_operators()
@@ -212,14 +232,21 @@ class NumberColumnType(ColumnType):
                 return f"'{value}' is not a valid number"
         return f"Expected a number, got {type(value).__name__}"
 
+    def get_default_value(self) -> object:
+        return 0
+
 
 class DateColumnType(ColumnType):
     id = "date"
     display_name = "Date"
     icon = "calendar"
+    operand_shape = "date"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_date_operators()
+
+    def get_default_value(self) -> object:
+        return None
 
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
@@ -244,9 +271,13 @@ class DatetimeColumnType(ColumnType):
     id = "datetime"
     display_name = "Date & Time"
     icon = "clock"
+    operand_shape = "date"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_datetime_operators()
+
+    def get_default_value(self) -> object:
+        return None
 
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
@@ -272,6 +303,7 @@ class BooleanColumnType(ColumnType):
     id = "boolean"
     display_name = "Boolean"
     icon = "toggle-left"
+    operand_shape = "boolean"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_boolean_operators()
@@ -288,11 +320,15 @@ class BooleanColumnType(ColumnType):
             return f"'{value}' is not a valid boolean (expected true/false)"
         return f"Expected a boolean, got {type(value).__name__}"
 
+    def get_default_value(self) -> object:
+        return False
+
 
 class SelectColumnType(ColumnType):
     id = "select"
     display_name = "Select"
     icon = "list"
+    operand_shape = "select"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_select_operators()
@@ -313,6 +349,7 @@ class ReferenceColumnType(ColumnType):
     id = "reference"
     display_name = "Reference"
     icon = "link"
+    operand_shape = "entity-picker"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_reference_operators()
@@ -340,6 +377,7 @@ class UserColumnType(ReferenceColumnType):
     id = "user"
     display_name = "User"
     icon = "user"
+    operand_shape = "entity-picker"
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_user_operators()
@@ -431,9 +469,9 @@ class ColumnTypeRegistry:
     def get_registry_payload(self) -> list[dict]:
         """Return the column types payload for the mod-registry API.
 
-        Each entry includes ``id``, ``displayName``, ``icon``, ``operators``
-        (each with ``id``, ``label``, ``operandShape``), and
-        ``django_lookup_name``.
+        Each entry includes ``id``, ``displayName``, ``icon``,
+        ``operandShape``, and ``operators`` (each with ``id``, ``label``,
+        ``operandShape``, ``djangoLookupName``).
 
         Returns:
             A list of dicts, one per registered column type, suitable for
@@ -445,6 +483,8 @@ class ColumnTypeRegistry:
                 "id": ct.id,
                 "displayName": ct.display_name,
                 "icon": ct.icon,
+                "operandShape": ct.operand_shape,
+                "defaultValue": ct.get_default_value(),
                 "operators": [
                     {
                         "id": op.id,

@@ -23,6 +23,13 @@
             "type": "string",
             "description": "Lucide icon token for this column type."
           },
+          "operandShape": {
+            "type": "string",
+            "description": "Primary operand shape for cell editing and rendering. Valid values: text, number, date, boolean, select, entity-picker, range, none."
+          },
+          "defaultValue": {
+            "description": "Default value for cells of this column type. Type varies by operand shape."
+          },
           "operators": {
             "type": "array",
             "items": {
@@ -37,7 +44,7 @@
             }
           }
         },
-        "required": ["id", "displayName", "icon", "operators"]
+        "required": ["id", "displayName", "icon", "operandShape", "defaultValue", "operators"]
       }
     }
   },

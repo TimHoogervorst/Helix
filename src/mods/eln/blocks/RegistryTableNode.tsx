@@ -16,14 +16,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import { Database, Loader, Trash2, Plus, RefreshCw, Upload, Check, Calendar, ArrowLeftRight } from "lucide-react";
+import { Database, Loader, Trash2, Plus, RefreshCw, Upload, ArrowLeftRight } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
-import type { GridColumn, GridColumnType } from "../../../shell/src/shared/types/types";
+import type { GridColumn } from "../../../shell/src/shared/types/types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import type { ElnSidebarData } from "./sidebarData";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -54,30 +56,29 @@ function emptyValues(columns: GridColumn[]): Record<string, unknown> {
   return vals;
 }
 
-/** Get the default value for a single column. */
-function emptyValue(col: GridColumn): unknown {
-  switch (col.type) {
-    case "Number":
-      return col.default ? Number(col.default) : 0;
-    case "Boolean":
-      return col.default === "true";
-    default:
-      return col.default ?? "";
-  }
+/** Resolve a GridColumnType string to a BackendColumnType from the registry. */
+function resolveColumnType(columnType: string) {
+  const typeId = columnType.toLowerCase();
+  return ModRegistry.getInstance().getColumnType(typeId);
 }
 
-/** Map a GridColumnType to its compact label shown after the column name. */
-function columnTypeLabel(type: GridColumnType): string {
-  switch (type) {
-    case "Text":
-      return "Aa";
-    case "Number":
-      return "#";
-    case "Reference":
-      return "@";
-    default:
-      return type;
+/** Get the default value for a single column, driven by its column type's
+ *  ``defaultValue`` from the registry. */
+function emptyValue(col: GridColumn): unknown {
+  const colType = resolveColumnType(col.type);
+  const defaultValue = colType?.defaultValue ?? "";
+
+  if (col.default !== undefined) {
+    const shape = colType?.operandShape ?? "text";
+    if (shape === "number") {
+      return Number(col.default);
+    }
+    if (shape === "boolean") {
+      return col.default === "true";
+    }
+    return col.default;
   }
+  return defaultValue;
 }
 
 /** Convert an EntityTypeSummary's columns to GridColumn[] for use in the table. */
@@ -182,43 +183,64 @@ const DOT_LABELS: Record<DotColor, string> = {
 
 interface EditableCellProps {
   columnName: string;
-  columnType: GridColumnType;
+  columnType: string;
   value: unknown;
-  rowDisplayId: string;
   onCommit: (columnName: string, newValue: unknown) => void;
   readOnly?: boolean;
 }
 
+/** Resolve the operand_shape for a column type string (e.g. "Number" → "number"). */
+function resolveOperandShape(columnType: string): string {
+  const colType = resolveColumnType(columnType);
+  return colType?.operandShape ?? "text";
+}
+
+/** Render the compact type badge shown after a column name in the header row.
+ *  Reads the icon from the column type registry and falls back to the type
+ *  label for unknown or unregistered types. */
+function renderColumnTypeBadge(columnType: string): React.ReactNode {
+  const colType = resolveColumnType(columnType);
+  if (colType) {
+    const IconComponent = getColumnTypeIcon(colType.icon);
+    if (IconComponent) {
+      return <IconComponent className="h-3.5 w-3.5" aria-label={colType.displayName} />;
+    }
+  }
+  // Fallback: compact label for legacy types
+  return columnType;
+}
+
 /**
- * Renders the appropriate editor for a cell based on its column type.
+ * Renders the appropriate editor for a cell based on its column type's
+ * ``operand_shape``, looked up from the column type registry.
  *
- * - Text: contentEditable span (inline edit)
- * - Number: <input type="number"> on click
- * - Date: <input type="date"> on click
- * - Boolean: <input type="checkbox"> (always visible)
- * - Reference: clickable MentionBadge + popover for entity search
+ * The dispatch is fully generic — adding a new column type requires zero
+ * changes to this component (unless a completely custom editor is needed,
+ * deferred).
  */
 function EditableCell({
   columnName,
   columnType,
   value,
-  rowDisplayId,
   onCommit,
   readOnly = false,
 }: EditableCellProps) {
+  const operandShape = resolveOperandShape(columnType);
+  const CellEditor: CellEditorComponent = getCellEditor(operandShape);
+
   if (readOnly) {
-    // Render all cell types as read-only display, except Reference which
-    // keeps its MentionBadge clickable.
-    if (columnType === "Reference") {
+    // Render all cell types as read-only display, except entity-picker
+    // which keeps its MentionBadge clickable.
+    if (operandShape === "entity-picker") {
       return (
-        <ReferenceCell
-          value={value as string}
+        <CellEditor
+          value={value}
           onCommit={(v) => onCommit(columnName, v)}
           readOnly
         />
       );
     }
-    if (columnType === "Boolean") {
+    if (operandShape === "boolean") {
       return (
         <span data-testid="boolean-display" className="inline-block px-4 py-2">
           {value === true ? "Yes" : "No"}
@@ -232,419 +254,11 @@ function EditableCell({
     );
   }
 
-  switch (columnType) {
-    case "Number":
-      return (
-        <NumberCell
-          value={value as number | null}
-          onCommit={(v) => onCommit(columnName, v)}
-        />
-      );
-    case "Date":
-      return (
-        <DateCell
-          value={value as string | null}
-          onCommit={(v) => onCommit(columnName, v)}
-        />
-      );
-    case "Boolean":
-      return (
-        <BooleanCell
-          value={value as boolean}
-          onCommit={(v) => onCommit(columnName, v)}
-        />
-      );
-    case "Reference":
-      return (
-        <ReferenceCell
-          value={value as string}
-          onCommit={(v) => onCommit(columnName, v)}
-        />
-      );
-    case "Text":
-    default:
-      return (
-        <TextCell
-          value={value as string}
-          onCommit={(v) => onCommit(columnName, v)}
-        />
-      );
-  }
-}
-
-// ── Text Cell ──────────────────────────────────────────────────────────────
-
-function TextCell({
-  value,
-  onCommit,
-}: {
-  value: string;
-  onCommit: (v: string) => void;
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-
-  const handleBlur = useCallback(() => {
-    const newVal = ref.current?.textContent ?? "";
-    if (newVal !== (value ?? "")) {
-      onCommit(newVal);
-    }
-  }, [value, onCommit]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      (e.target as HTMLElement).blur();
-    }
-  }, []);
-
   return (
-    <span
-      ref={ref}
-      className="outline-none min-w-[60px] inline-block px-4 py-2 rounded hover:bg-surface/50 focus:bg-surface/80"
-      contentEditable
-      suppressContentEditableWarning
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-      data-testid="text-cell"
-    >
-      {value || ""}
-    </span>
-  );
-}
-
-// ── Number Cell ────────────────────────────────────────────────────────────
-
-function NumberCell({
-  value,
-  onCommit,
-}: {
-  value: number | null;
-  onCommit: (v: number | null) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editing]);
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        type="number"
-        className="w-full bg-surface/80 px-4 py-2 rounded border border-primary/30 outline-none"
-        defaultValue={value != null ? String(value) : ""}
-        onBlur={(e) => {
-          const raw = e.target.value.trim();
-          const num = raw === "" ? null : Number(raw);
-          onCommit(isNaN(num as number) ? null : num);
-          setEditing(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            (e.target as HTMLElement).blur();
-          } else if (e.key === "Escape") {
-            setEditing(false);
-          }
-        }}
-        data-testid="number-input"
-      />
-    );
-  }
-
-  return (
-    <span
-      className="cursor-text min-w-[40px] inline-block px-4 py-2 rounded hover:bg-surface/50 tabular-nums"
-      onClick={() => setEditing(true)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          setEditing(true);
-        }
-      }}
-      tabIndex={0}
-      data-testid="number-display"
-    >
-      {value != null ? String(value) : ""}
-    </span>
-  );
-}
-
-// ── Date Cell ──────────────────────────────────────────────────────────────
-
-function DateCell({
-  value,
-  onCommit,
-}: {
-  value: string | null;
-  onCommit: (v: string | null) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [editing]);
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        type="date"
-        className="bg-surface/80 px-4 py-2 rounded border border-primary/30 outline-none"
-        defaultValue={value ?? ""}
-        onBlur={(e) => {
-          const raw = e.target.value;
-          onCommit(raw || null);
-          setEditing(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            (e.target as HTMLElement).blur();
-          } else if (e.key === "Escape") {
-            setEditing(false);
-          }
-        }}
-        data-testid="date-input"
-      />
-    );
-  }
-
-  const display = value
-    ? new Date(value + "T00:00:00").toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : "";
-
-  return (
-    <span
-      className="cursor-text min-w-[80px] inline-block px-4 py-2 rounded hover:bg-surface/50"
-      onClick={() => setEditing(true)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          setEditing(true);
-        }
-      }}
-      tabIndex={0}
-      data-testid="date-display"
-    >
-      {display || ""}
-    </span>
-  );
-}
-
-// ── Boolean Cell ───────────────────────────────────────────────────────────
-
-function BooleanCell({
-  value,
-  onCommit,
-}: {
-  value: boolean;
-  onCommit: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-center px-4 py-2">
-      <input
-        type="checkbox"
-        className="h-4 w-4 rounded border-hairline cursor-pointer accent-primary"
-        checked={value === true}
-        onChange={(e) => onCommit(e.target.checked)}
-        data-testid="boolean-checkbox"
-      />
-    </div>
-  );
-}
-
-// ── Reference Cell ─────────────────────────────────────────────────────────
-
-interface SearchResult {
-  display_id: string;
-  title: string;
-  type: string;
-  icon: string;
-  workspaceId: string | null;
-}
-
-function ReferenceCell({
-  value,
-  onCommit,
-  readOnly = false,
-}: {
-  value: string;
-  onCommit: (v: string) => void;
-  readOnly?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // ── Close on outside click ────────────────────────────────────────────
-  useClickOutside(
-    [triggerRef, popoverRef],
-    () => setOpen(false),
-    open,
-  );
-
-  // ── Focus input when popover opens ────────────────────────────────────
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      setQuery("");
-      setResults([]);
-    }
-  }, [open]);
-
-  // ── Search entities as user types ─────────────────────────────────────
-  const handleSearch = useCallback(async (q: string) => {
-    setQuery(q);
-    if (q.trim().length < 1) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await get<SearchResult[]>(
-        `/lims/entities/?search=${encodeURIComponent(q)}`,
-      );
-      setResults(data.slice(0, 10));
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ── Select an entity ──────────────────────────────────────────────────
-  const handleSelect = useCallback(
-    (displayId: string) => {
-      onCommit(displayId);
-      setOpen(false);
-    },
-    [onCommit],
-  );
-
-  // ── Clear the reference ───────────────────────────────────────────────
-  const handleClear = useCallback(() => {
-    onCommit("");
-    setOpen(false);
-  }, [onCommit]);
-
-  return (
-    <div className="relative inline-flex items-center gap-1 px-4 py-2">
-      {value ? (
-        <div className="flex items-center gap-1">
-          <MentionBadge displayId={value} clickable />
-          {!readOnly && (
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-destructive text-xs leading-none px-0.5"
-              onClick={handleClear}
-              title="Clear reference"
-              aria-label="Clear reference"
-              data-testid="ref-clear-btn"
-            >
-              ×
-            </button>
-          )}
-        </div>
-      ) : (
-        !readOnly && (
-          <button
-            ref={triggerRef}
-            type="button"
-            className="bg-transparent border-transparent text-xs text-muted-foreground italic px-1 py-0.5 rounded hover:bg-muted hover:text-muted-foreground"
-            onClick={() => setOpen(true)}
-            data-testid="ref-trigger-btn"
-          >
-            @mention…
-          </button>
-        )
-      )}
-
-      {/* ── Popover — portaled to body ────────────────────────────────── */}
-      {open &&
-        createPortal(
-          <div
-            ref={popoverRef}
-            className="z-50 w-72 rounded-md border border-hairline bg-popover shadow-lg"
-            style={{
-              position: "fixed",
-              top: (triggerRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-              left: triggerRef.current?.getBoundingClientRect().left ?? 0,
-            }}
-            data-testid="ref-popover"
-          >
-            <div className="p-2 border-b border-hairline">
-              <input
-                ref={inputRef}
-                type="text"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                placeholder="Search entities…"
-                value={query}
-                onChange={(e) => handleSearch(e.target.value)}
-                data-testid="ref-search-input"
-              />
-            </div>
-            <div className="max-h-48 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-                  <Loader className="h-4 w-4 animate-spin" />
-                  Searching…
-                </div>
-              ) : results.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">
-                  {query.length > 0
-                    ? "No entities found."
-                    : "Type to search entities."}
-                </div>
-              ) : (
-                results.map((r) => (
-                  <button
-                    key={r.display_id}
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
-                    onClick={() => handleSelect(r.display_id)}
-                    data-testid={`ref-result-${r.display_id}`}
-                  >
-                    <span className="font-medium">{r.display_id}</span>
-                    {r.title && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {r.title}
-                      </span>
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-            {value && (
-              <div className="border-t border-hairline p-1">
-                <button
-                  type="button"
-                  className="w-full text-left px-2 py-1 text-xs text-destructive hover:bg-surface/60 rounded"
-                  onClick={handleClear}
-                  data-testid="ref-clear-option"
-                >
-                  Clear reference
-                </button>
-              </div>
-            )}
-          </div>,
-          document.body,
-        )}
-    </div>
+    <CellEditor
+      value={value}
+      onCommit={(v) => onCommit(columnName, v)}
+    />
   );
 }
 
@@ -1261,13 +875,7 @@ export function RegistryTableContent({
                 >
                   {col.name}
                   <span className="ml-1 inline-flex items-center text-[10px] text-muted-foreground font-normal align-middle">
-                    {col.type === "Boolean" ? (
-                      <Check className="h-4 w-4" aria-label="Boolean" />
-                    ) : col.type === "Date" ? (
-                      <Calendar className="h-3.5 w-3.5" aria-label="Date" />
-                    ) : (
-                      columnTypeLabel(col.type)
-                    )}
+                    {renderColumnTypeBadge(col.type)}
                   </span>
                 </th>
               ))}
@@ -1387,7 +995,6 @@ export function RegistryTableContent({
                         columnName={col.name}
                         columnType={col.type}
                         value={row.values[col.name]}
-                        rowDisplayId={row.displayId}
                         onCommit={(colName, newValue) =>
                           handleCellCommit(row.displayId, colName, newValue)
                         }

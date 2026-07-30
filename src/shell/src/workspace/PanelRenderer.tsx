@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
-import { useSendAction } from "./useSendAction";
 
 /**
  * Renders blocks as vertically stacked panels.
@@ -51,8 +50,6 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
-  const sendAction = useSendAction(context.workspaceId);
-
   // Augment context with a block-specific emitAction that derives the
   // global action ID as {blockId}.{localId} and emits on the workspace bus.
   const augmentedContext: SlotContext = useMemo(
@@ -78,9 +75,7 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
       <Component
         context={augmentedContext}
         instance={instance}
-        bus={bus}
         overrides={binding.overrides}
-        sendAction={sendAction}
       />
     );
   }
@@ -90,9 +85,7 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
       <Component
         context={augmentedContext}
         instance={instance}
-        bus={bus}
         overrides={binding.overrides}
-        sendAction={sendAction}
       />
     </div>
   );

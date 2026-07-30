@@ -20,7 +20,6 @@ import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
 import type { LifecycleEventPayload } from "./useActionAccumulator";
-import { useSendAction } from "../useSendAction";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -219,8 +218,6 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const BlockComponent = binding.component;
 
-  const sendAction = useSendAction(context.workspaceId);
-
   // Augment context with a block-specific emitAction that derives the
   // global action ID as {blockId}.{localId} and emits on the workspace bus.
   const augmentedContext: SlotContext = useMemo(
@@ -263,7 +260,6 @@ export function BlockNodeView(props: BlockNodeViewProps) {
         context={augmentedContext}
         instance={instanceRef.current}
         overrides={binding.overrides}
-        sendAction={sendAction}
       />
     </NodeViewWrapper>
   );

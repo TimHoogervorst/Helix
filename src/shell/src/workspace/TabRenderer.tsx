@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
-import { useSendAction } from "./useSendAction";
 
 /**
  * Renders blocks as tabs in a tabbed interface.
@@ -93,8 +92,6 @@ function TabContent({
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
-  const sendAction = useSendAction(context.workspaceId);
-
   // Augment context with a block-specific emitAction that derives the
   // global action ID as {blockId}.{localId} and emits on the workspace bus.
   const augmentedContext: SlotContext = useMemo(
@@ -118,7 +115,6 @@ function TabContent({
         context={augmentedContext}
         instance={instance}
         overrides={binding.overrides}
-        sendAction={sendAction}
       />
     </div>
   );

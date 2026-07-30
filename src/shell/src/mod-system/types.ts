@@ -195,32 +195,18 @@ export interface BlockInstance {
 /**
  * Props contract every block component receives from its renderer.
  *
- * `bus` is optional — only provided by renderers that support imperative
- * subscriptions (PanelRenderer). TipTapRenderer does NOT pass `bus` —
- * editor blocks use declarative `onEvent` handlers. TabRenderer also
- * omits `bus`. Buttons receive `bus` in their `onClick` handler.
+ * Blocks never touch the bus or the HTTP layer directly. Listening is done
+ * declaratively via ``listensTo``/``onEvent``, and emitting custom actions
+ * via ``context.emitAction`` — both managed by the renderer.
+ *
+ * ``sendAction`` is exclusively called by ``useActionAccumulator`` inside
+ * ``TipTapRenderer`` — blocks do not call it.
  */
 export interface BlockComponentProps {
   context: SlotContext;
   instance: BlockInstance;
-  /** Workspace event bus. Only present when rendered by PanelRenderer. */
-  bus?: WorkspaceBus;
   /** Binding-level overrides merged from slot defaults and per-binding config. */
   overrides: Record<string, unknown>;
-  /**
-   * Send an action to the backend via ``POST /api/actions/``.
-   *
-   * The workspace context (``workspaceId``) is included automatically.
-   * Blocks call this at runtime based on user interactions — action labels
-   * are derived from the backend action catalog, not from static block config.
-   */
-  sendAction: (
-    actionType: string,
-    targetType: string,
-    targetId: number,
-    metadata?: Record<string, unknown>,
-    requestId?: string,
-  ) => Promise<void>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

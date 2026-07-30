@@ -852,3 +852,22 @@ describe("TabRenderer", () => {
     });
   });
 });
+
+// ── Type-level tests ──────────────────────────────────────────────────────
+//
+// These assertions are evaluated at compile time — they produce no runtime
+// output.  If `bus` or `sendAction` were still on BlockComponentProps the
+// helper type would resolve to `never` and the assignment to `true` would
+// fail to compile.
+
+/** Resolves to `true` when K is NOT a key of T, otherwise `never`. */
+type AssertNotHasProp<T, K extends string> = K extends keyof T ? never : true;
+
+/**
+ * Compile-time type guards verifying `bus` and `sendAction` are not
+ * assignable to `BlockComponentProps`.  If either property creeps back
+ * into the interface, the return type resolves to `never` and `true`
+ * fails to assign, breaking the build.
+ */
+void ((): AssertNotHasProp<BlockComponentProps, "bus"> => true);
+void ((): AssertNotHasProp<BlockComponentProps, "sendAction"> => true);

@@ -37,6 +37,7 @@ function makeBlockBinding(
     component: DummyComponent,
     listensTo: [],
     onEvent: {},
+    emits: [],
     order: 0,
     overrides: {},
     serialize: (state: Record<string, unknown>) => JSON.stringify(state),
@@ -1509,6 +1510,391 @@ describe("TipTapRenderer", () => {
       );
       expect(editorElement).toBeTruthy();
       expect(editorElement!.getAttribute("contenteditable")).toBe("true");
+    });
+  });
+
+  // ── Action accumulator: custom domain actions via emits ─────────────
+
+  describe("custom domain actions (emits)", () => {
+    it("accumulates and flushes custom actions from bus events matching blockId.*", async () => {
+      const mockFlush = vi.fn().mockResolvedValue(undefined);
+      const capture = captureEditor();
+      const bindings: BlockBinding[] = [
+        makeBlockBinding({
+          id: "eln.registryTable-block",
+          label: "Registry Table",
+          component: TestBlock,
+          emits: [
+            { id: "row-added", label: "Row Added", core: "created" as const },
+          ],
+        }),
+      ];
+
+      let saveSignal: Date | null = new Date(); // non-null initial so first transition is skipped
+      const { rerender } = render(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(capture.editor).toBeTruthy();
+      });
+
+      // Wait for the rAF suppression gate to release.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Simulate a block calling context.emitAction("row-added", { rowCount: 3 })
+      // by emitting directly on the bus as the renderer would.
+      bus.emit("eln.registryTable-block.row-added", {
+        blockInstanceId: "eln.registryTable-block::0",
+        blockId: "eln.registryTable-block",
+        localId: "row-added",
+        payload: { rowCount: 3 },
+      });
+
+      // Trigger flush
+      saveSignal = new Date();
+      rerender(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await vi.waitFor(() => {
+        expect(mockFlush).toHaveBeenCalled();
+      });
+
+      // Verify the custom action was flushed with the correct metadata
+      const customActionCall = mockFlush.mock.calls.find(
+        (c: unknown[]) => c[0] === "eln.registryTable-block.row-added",
+      );
+      expect(customActionCall).toBeDefined();
+      expect(customActionCall![1]).toBe("eln.entry");
+      expect(customActionCall![2]).toBe(42);
+      expect(customActionCall![3]).toEqual({
+        message: "Row Added",
+        rowCount: 3,
+      });
+    });
+
+    it("uses fallback label when emit declaration is not found", async () => {
+      const mockFlush = vi.fn().mockResolvedValue(undefined);
+      const capture = captureEditor();
+      const bindings: BlockBinding[] = [
+        makeBlockBinding({
+          id: "eln.registryTable-block",
+          label: "Registry Table",
+          component: TestBlock,
+          emits: [
+            { id: "row-added", label: "Row Added", core: "created" as const },
+          ],
+        }),
+      ];
+
+      let saveSignal: Date | null = new Date();
+      const { rerender } = render(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(capture.editor).toBeTruthy();
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Emit an event whose localId doesn't match any emit declaration
+      bus.emit("eln.registryTable-block.unknown-action", {
+        blockInstanceId: "eln.registryTable-block::0",
+        blockId: "eln.registryTable-block",
+        localId: "unknown-action",
+        payload: {},
+      });
+
+      saveSignal = new Date();
+      rerender(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await vi.waitFor(() => {
+        expect(mockFlush).toHaveBeenCalled();
+      });
+
+      // Should fall back to action string as label and "created" as core
+      const customActionCall = mockFlush.mock.calls.find(
+        (c: unknown[]) => c[0] === "eln.registryTable-block.unknown-action",
+      );
+      expect(customActionCall).toBeDefined();
+      expect(customActionCall![3]).toEqual({
+        message: "eln.registryTable-block.unknown-action",
+      });
+    });
+
+    it("does not subscribe to wildcards for bindings with empty emits", async () => {
+      const mockFlush = vi.fn().mockResolvedValue(undefined);
+      const capture = captureEditor();
+      const bindings: BlockBinding[] = [
+        makeBlockBinding({
+          id: "eln.table",
+          label: "Table",
+          component: TestBlock,
+          emits: [],
+        }),
+      ];
+
+      let saveSignal: Date | null = new Date();
+      const { rerender } = render(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(capture.editor).toBeTruthy();
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Emit an event matching the pattern — should be ignored (emits is empty)
+      bus.emit("eln.table.row-added", {
+        blockInstanceId: "eln.table::0",
+        blockId: "eln.table",
+        localId: "row-added",
+        payload: {},
+      });
+
+      // Also trigger a lifecycle event so there's something to flush
+      await act(async () => {
+        capture.editor!.commands.setContent({
+          type: "doc",
+          content: [
+            {
+              type: "eln.table",
+              attrs: { content: JSON.stringify({}) },
+            },
+          ],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      saveSignal = new Date();
+      rerender(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await vi.waitFor(() => {
+        expect(mockFlush).toHaveBeenCalled();
+      });
+
+      // Only lifecycle events should be flushed, not the custom action
+      const customActionCall = mockFlush.mock.calls.find(
+        (c: unknown[]) => c[0] === "eln.table.row-added",
+      );
+      expect(customActionCall).toBeUndefined();
+    });
+
+    it("accumulates multiple custom actions alongside lifecycle events", async () => {
+      const mockFlush = vi.fn().mockResolvedValue(undefined);
+      const capture = captureEditor();
+      const bindings: BlockBinding[] = [
+        makeBlockBinding({
+          id: "eln.registryTable-block",
+          label: "Registry Table",
+          component: TestBlock,
+          emits: [
+            { id: "row-added", label: "Row Added", core: "created" as const },
+            { id: "registered-entities", label: "Entities Registered", core: "created" as const },
+          ],
+        }),
+      ];
+
+      let saveSignal: Date | null = new Date();
+      const { rerender } = render(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(capture.editor).toBeTruthy();
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Emit two custom actions
+      bus.emit("eln.registryTable-block.row-added", {
+        blockInstanceId: "eln.registryTable-block::0",
+        blockId: "eln.registryTable-block",
+        localId: "row-added",
+        payload: { rowCount: 3 },
+      });
+
+      bus.emit("eln.registryTable-block.registered-entities", {
+        blockInstanceId: "eln.registryTable-block::0",
+        blockId: "eln.registryTable-block",
+        localId: "registered-entities",
+        payload: { registeredCount: 3, totalAttempted: 3 },
+      });
+
+      saveSignal = new Date();
+      rerender(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await vi.waitFor(() => {
+        expect(mockFlush).toHaveBeenCalled();
+      });
+
+      // Both custom actions should be flushed
+      const actionTypes = mockFlush.mock.calls.map((c: unknown[]) => c[0]);
+      expect(actionTypes).toContain("eln.registryTable-block.row-added");
+      expect(actionTypes).toContain("eln.registryTable-block.registered-entities");
+    });
+
+    it("emits action.performed for custom actions on successful flush", async () => {
+      const mockFlush = vi.fn().mockResolvedValue(undefined);
+      const actionPerformedPayloads: unknown[] = [];
+      bus.on("eln.action.performed", (payload) => {
+        actionPerformedPayloads.push(payload);
+      });
+
+      const capture = captureEditor();
+      const bindings: BlockBinding[] = [
+        makeBlockBinding({
+          id: "eln.registryTable-block",
+          label: "Registry Table",
+          component: TestBlock,
+          emits: [
+            { id: "row-added", label: "Row Added", core: "created" as const },
+          ],
+        }),
+      ];
+
+      let saveSignal: Date | null = new Date();
+      const { rerender } = render(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(capture.editor).toBeTruthy();
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      bus.emit("eln.registryTable-block.row-added", {
+        blockInstanceId: "eln.registryTable-block::0",
+        blockId: "eln.registryTable-block",
+        localId: "row-added",
+        payload: { rowCount: 2 },
+      });
+
+      saveSignal = new Date();
+      rerender(
+        <TipTapRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={bus}
+          context={defaultContext}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onCreate={(capture as any).onCreate}
+          onFlushActions={mockFlush}
+          saveSignal={saveSignal}
+          targetId={42}
+        />,
+      );
+
+      await vi.waitFor(() => {
+        expect(actionPerformedPayloads.length).toBeGreaterThan(0);
+      });
+
+      // Verify the action.performed payload includes the custom action
+      const customPerformed = actionPerformedPayloads.find(
+        (p: unknown) =>
+          (p as Record<string, unknown>).action === "eln.registryTable-block.row-added",
+      );
+      expect(customPerformed).toBeDefined();
     });
   });
 });

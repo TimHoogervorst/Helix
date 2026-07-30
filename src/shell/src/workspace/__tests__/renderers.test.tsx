@@ -50,6 +50,7 @@ function makeBlockBinding(
     component: DummyComponent,
     listensTo: [],
     onEvent: {},
+    emits: [],
     order: 0,
     overrides: {},
     serialize: (state) => JSON.stringify(state),
@@ -440,6 +441,95 @@ describe("PanelRenderer", () => {
     bus.emit("data.export", {});
     expect(receivedAttrs).toEqual([{ rows: 10 }]);
   });
+
+  // ── emitAction ─────────────────────────────────────────────────────────
+
+  it("passes emitAction to block component via augmented context", () => {
+    const receivedEmitAction: Array<
+      ((localId: string, payload?: Record<string, unknown>) => void) | undefined
+    > = [];
+
+    function EmitActionTestBlock({ context }: BlockComponentProps) {
+      receivedEmitAction.push(context.emitAction);
+      return (
+        <div data-testid="emit-action-block">
+          {typeof context.emitAction}
+        </div>
+      );
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registryTable-block",
+        label: "Registry Table",
+        component: EmitActionTestBlock,
+        emits: [
+          { id: "row-added", label: "Row Added", core: "created" as const },
+        ],
+      }),
+    ];
+
+    render(
+      <PanelRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // emitAction should be a function
+    expect(receivedEmitAction[0]).toBeTypeOf("function");
+  });
+
+  it("emitAction emits on bus with correct event pattern {blockId}.{localId}", () => {
+    const receivedPayloads: unknown[] = [];
+    bus.on("eln.registryTable-block.row-added", (payload) => {
+      receivedPayloads.push(payload);
+    });
+
+    let capturedEmitAction:
+      | ((localId: string, payload?: Record<string, unknown>) => void)
+      | undefined;
+
+    function EmitTestBlock({ context }: BlockComponentProps) {
+      capturedEmitAction = context.emitAction;
+      return <div data-testid="emit-block" />;
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registryTable-block",
+        label: "Registry Table",
+        component: EmitTestBlock,
+        emits: [
+          { id: "row-added", label: "Row Added", core: "created" as const },
+        ],
+      }),
+    ];
+
+    render(
+      <PanelRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // Call emitAction and verify it emits on the bus
+    capturedEmitAction?.("row-added", { rowCount: 5 });
+
+    expect(receivedPayloads.length).toBe(1);
+    expect(receivedPayloads[0]).toMatchObject({
+      blockId: "eln.registryTable-block",
+      localId: "row-added",
+      payload: { rowCount: 5 },
+    });
+    expect((receivedPayloads[0] as Record<string, unknown>).blockInstanceId).toBeTypeOf(
+      "string",
+    );
+  });
 });
 
 // ── TabRenderer ───────────────────────────────────────────────────────────
@@ -678,5 +768,87 @@ describe("TabRenderer", () => {
     unmount();
     bus.emit("data.export", {});
     expect(onEventHandler).not.toHaveBeenCalled();
+  });
+
+  // ── emitAction ─────────────────────────────────────────────────────────
+
+  it("passes emitAction to block component via augmented context", () => {
+    const receivedEmitAction: Array<
+      ((localId: string, payload?: Record<string, unknown>) => void) | undefined
+    > = [];
+
+    function EmitActionTestBlock({ context }: BlockComponentProps) {
+      receivedEmitAction.push(context.emitAction);
+      return <div data-testid="emit-action-block" />;
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registryTable-block",
+        label: "Registry Table",
+        component: EmitActionTestBlock,
+        emits: [
+          { id: "row-added", label: "Row Added", core: "created" as const },
+        ],
+      }),
+    ];
+
+    render(
+      <TabRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // emitAction should be a function
+    expect(receivedEmitAction[0]).toBeTypeOf("function");
+  });
+
+  it("emitAction emits on bus with correct event pattern from tab context", () => {
+    const receivedPayloads: unknown[] = [];
+    bus.on("eln.registryTable-block.row-added", (payload) => {
+      receivedPayloads.push(payload);
+    });
+
+    let capturedEmitAction:
+      | ((localId: string, payload?: Record<string, unknown>) => void)
+      | undefined;
+
+    function EmitTestBlock({ context }: BlockComponentProps) {
+      capturedEmitAction = context.emitAction;
+      return <div data-testid="emit-block" />;
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registryTable-block",
+        label: "Registry Table",
+        component: EmitTestBlock,
+        emits: [
+          { id: "row-added", label: "Row Added", core: "created" as const },
+        ],
+      }),
+    ];
+
+    render(
+      <TabRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // Call emitAction and verify it emits on the bus
+    capturedEmitAction?.("row-added", { rowCount: 5 });
+
+    expect(receivedPayloads.length).toBe(1);
+    expect(receivedPayloads[0]).toMatchObject({
+      blockId: "eln.registryTable-block",
+      localId: "row-added",
+      payload: { rowCount: 5 },
+    });
   });
 });

@@ -1,4 +1,5 @@
-import type { RendererProps, BlockBinding } from "../mod-system/types";
+import { useMemo } from "react";
+import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
 import { useSendAction } from "./useSendAction";
 
@@ -52,13 +53,30 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
 
   const sendAction = useSendAction(context.workspaceId);
 
+  // Augment context with a block-specific emitAction that derives the
+  // global action ID as {blockId}.{localId} and emits on the workspace bus.
+  const augmentedContext: SlotContext = useMemo(
+    () => ({
+      ...context,
+      emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        bus.emit(`${binding.id}.${localId}`, {
+          blockInstanceId: instance.id,
+          blockId: binding.id,
+          localId,
+          payload,
+        });
+      },
+    }),
+    [context, binding.id, bus, instance.id],
+  );
+
   // Blocks can opt out of the card wrapper via `noCard: true` in overrides.
   const noCard = binding.overrides?.noCard === true;
 
   if (noCard) {
     return (
       <Component
-        context={context}
+        context={augmentedContext}
         instance={instance}
         bus={bus}
         overrides={binding.overrides}
@@ -70,7 +88,7 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
   return (
     <div className="rounded-lg border border-hairline bg-background p-4">
       <Component
-        context={context}
+        context={augmentedContext}
         instance={instance}
         bus={bus}
         overrides={binding.overrides}

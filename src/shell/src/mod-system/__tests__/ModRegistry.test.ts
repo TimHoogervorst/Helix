@@ -97,6 +97,7 @@ function makeBlockRegistration(
     component: DummyComponent,
     listensTo: [],
     onEvent: {},
+    emits: [],
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => JSON.parse(json),
     defaultState: {},

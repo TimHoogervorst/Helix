@@ -14,7 +14,7 @@
  * - Bus subscriptions for `listensTo` events are cleaned up on NodeView
  *   destruction (unmount).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
@@ -221,6 +221,23 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const sendAction = useSendAction(context.workspaceId);
 
+  // Augment context with a block-specific emitAction that derives the
+  // global action ID as {blockId}.{localId} and emits on the workspace bus.
+  const augmentedContext: SlotContext = useMemo(
+    () => ({
+      ...context,
+      emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        bus.emit(`${binding.id}.${localId}`, {
+          blockInstanceId: instanceRef.current.id,
+          blockId: binding.id,
+          localId,
+          payload,
+        });
+      },
+    }),
+    [context, binding.id, bus],
+  );
+
   // Per-block centering: max-w-3xl mx-auto by default.
   // When overrides.stretch is true, the block reads its runtime stretchMode
   // from attrs to decide layout:
@@ -243,7 +260,7 @@ export function BlockNodeView(props: BlockNodeViewProps) {
       contentEditable={false}
     >
       <BlockComponent
-        context={context}
+        context={augmentedContext}
         instance={instanceRef.current}
         overrides={binding.overrides}
         sendAction={sendAction}

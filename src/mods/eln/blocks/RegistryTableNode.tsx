@@ -23,7 +23,6 @@ import type { GridColumn } from "../../../shell/src/shared/types/types";
 import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
-import type { ElnSidebarData } from "./sidebarData";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
 import { listDropdowns } from "../../dropdowns/api";
@@ -316,18 +315,14 @@ interface RegistryTableContentProps {
   /** When true, the stretch toggle button is rendered. */
   showStretchToggle?: boolean;
   /**
-   * Optional sendAction function for emitting custom domain actions
-   * (e.g. "registered entities", "row added") to the backend.
+   * Optional emitAction function for emitting custom domain actions
+   * declared in the block registration's `emits` field.
+   *
+   * Replaces the legacy `sendAction` prop — blocks call this with a
+   * localId and payload, and the renderer derives the global action ID
+   * as `{blockId}.{localId}` and emits on the workspace bus.
    */
-  sendAction?: (
-    actionType: string,
-    targetType: string,
-    targetId: number,
-    metadata?: Record<string, unknown>,
-    requestId?: string,
-  ) => Promise<void>;
-  /** Numeric entry ID, used as the target for action logging. */
-  numericEntryId?: number;
+  emitAction?: (localId: string, payload?: Record<string, unknown>) => void;
 }
 
 // ── Inner Content Component ─────────────────────────────────────────────────
@@ -350,8 +345,7 @@ export function RegistryTableContent({
   stretchMode = "auto",
   onToggleStretch,
   showStretchToggle = false,
-  sendAction,
-  numericEntryId,
+  emitAction,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
@@ -534,18 +528,9 @@ export function RegistryTableContent({
     };
     updateAttrs({ rows: [...rows, newRow] });
 
-    // Emit custom action for the row-added event (fail-open).
-    if (sendAction && numericEntryId != null) {
-      sendAction(
-        "eln.registryTable-block.row-added",
-        "eln.entry",
-        numericEntryId,
-        { rowCount: rows.length + 1 },
-      ).catch(() => {
-        // Logging failure never breaks the UI.
-      });
-    }
-  }, [rows, columns, updateAttrs, sendAction, numericEntryId]);
+    // Emit custom domain action via context.emitAction (fail-open).
+    emitAction?.("row-added", { rowCount: rows.length + 1 });
+  }, [rows, columns, updateAttrs, emitAction]);
 
   // ── Delete row ───────────────────────────────────────────────────────
   const handleDeleteRow = useCallback(
@@ -702,22 +687,18 @@ export function RegistryTableContent({
     updateAttrs({ rows: updatedRows });
     setRegistering(false);
 
-    // Emit custom action for the registered-entities event (fail-open).
-    if (sendAction && numericEntryId != null && nonGreenRows.length > 0) {
+    // Emit custom domain action via context.emitAction (fail-open).
+    if (nonGreenRows.length > 0) {
       const successCount = nonGreenRows.filter(
         ({ index }) => !updatedRows[index]?.registrationError,
       ).length;
 
-      sendAction(
-        "eln.registryTable-block.registered-entities",
-        "eln.entry",
-        numericEntryId,
-        { registeredCount: successCount, totalAttempted: nonGreenRows.length },
-      ).catch(() => {
-        // Logging failure never breaks the UI.
+      emitAction?.("registered-entities", {
+        registeredCount: successCount,
+        totalAttempted: nonGreenRows.length,
       });
     }
-  }, [schemaId, rows, schemaContentHash, updateAttrs, sendAction, numericEntryId]);
+  }, [schemaId, rows, schemaContentHash, updateAttrs, emitAction]);
 
   // ── Placeholder state ───────────────────────────────────────────────
   if (schemaId === null) {
@@ -1129,7 +1110,6 @@ export function RegistryTableBlockComponent({
   instance,
   context,
   overrides = {},
-  sendAction,
 }: BlockComponentProps) {
   const attrs = instance.attrs as Record<string, unknown>;
   const schemaId = (attrs.schemaId as number | null) ?? null;
@@ -1142,11 +1122,6 @@ export function RegistryTableBlockComponent({
     (attrs.rows as RegistryTableRow[]) ?? [];
   const readOnly = context.viewMode === "view";
   const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
-
-  // Extract the numeric entry ID from ElnSidebarData for action logging.
-  // Follows the same pattern as LinkedEntitiesBlock and MetadataBlock.
-  const sidebarData = context.entry as ElnSidebarData | undefined;
-  const numericEntryId = sidebarData?.entry?.id;
 
   const handleToggleStretch = () => {
     const nextMode = stretchMode === "auto" ? "full" : "auto";
@@ -1166,8 +1141,7 @@ export function RegistryTableBlockComponent({
       stretchMode={stretchMode}
       onToggleStretch={handleToggleStretch}
       showStretchToggle={overrides.stretch === true}
-      sendAction={sendAction}
-      numericEntryId={numericEntryId}
+      emitAction={context.emitAction}
     />
   );
 }

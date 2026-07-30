@@ -9,6 +9,7 @@ import type {
   BlockRegistration,
   SlotDeclaration,
   BlockInstance,
+  BlockComponentProps,
 } from "../../../../mod-system/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ function makeBlockReg(
     component: TestBlock,
     listensTo: [],
     onEvent: {},
+    emits: [],
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => JSON.parse(json),
     defaultState: {},
@@ -70,6 +72,7 @@ function makeBlockBinding(
     component: TestBlock,
     listensTo: [],
     onEvent: {},
+    emits: [],
     order: 0,
     overrides: {},
     serialize: (s) => JSON.stringify(s),
@@ -246,6 +249,90 @@ describe("SlotSidebar", () => {
       expect(
         screen.getByTestId("block-content-test.block"),
       ).toBeInTheDocument();
+    });
+
+    // ── emitAction ─────────────────────────────────────────────────────
+
+    it("passes emitAction to block component via augmented context", () => {
+      const receivedEmitAction: Array<
+        ((localId: string, payload?: Record<string, unknown>) => void) | undefined
+      > = [];
+
+      function EmitActionTestBlock({ context }: BlockComponentProps) {
+        receivedEmitAction.push(context.emitAction);
+        return (
+          <div data-testid="block-content-test.block">
+            {typeof context.emitAction}
+          </div>
+        );
+      }
+
+      const bindings = [
+        makeBlockBinding({
+          id: "test.block",
+          label: "Test Block",
+          component: EmitActionTestBlock,
+          emits: [
+            { id: "row-added", label: "Row Added", core: "created" as const },
+          ],
+        }),
+      ];
+
+      render(
+        <SlotSidebar
+          slotId="test.sidebar"
+          bindings={bindings}
+          bus={STUB_BUS}
+          context={STUB_CONTEXT}
+        />,
+      );
+
+      expect(receivedEmitAction[0]).toBeTypeOf("function");
+    });
+
+    it("emitAction emits on bus with correct event pattern", () => {
+      const receivedPayloads: unknown[] = [];
+      STUB_BUS.on("test.block.row-added", (payload) => {
+        receivedPayloads.push(payload);
+      });
+
+      let capturedEmitAction:
+        | ((localId: string, payload?: Record<string, unknown>) => void)
+        | undefined;
+
+      function EmitTestBlock({ context }: BlockComponentProps) {
+        capturedEmitAction = context.emitAction;
+        return <div data-testid="block-content-test.block" />;
+      }
+
+      const bindings = [
+        makeBlockBinding({
+          id: "test.block",
+          label: "Test Block",
+          component: EmitTestBlock,
+          emits: [
+            { id: "row-added", label: "Row Added", core: "created" as const },
+          ],
+        }),
+      ];
+
+      render(
+        <SlotSidebar
+          slotId="test.sidebar"
+          bindings={bindings}
+          bus={STUB_BUS}
+          context={STUB_CONTEXT}
+        />,
+      );
+
+      capturedEmitAction?.("row-added", { rowCount: 3 });
+
+      expect(receivedPayloads.length).toBe(1);
+      expect(receivedPayloads[0]).toMatchObject({
+        blockId: "test.block",
+        localId: "row-added",
+        payload: { rowCount: 3 },
+      });
     });
   });
 

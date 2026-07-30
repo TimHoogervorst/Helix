@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { RendererProps, BlockBinding } from "../mod-system/types";
+import { useMemo, useState } from "react";
+import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
 import { useSendAction } from "./useSendAction";
 
@@ -95,10 +95,27 @@ function TabContent({
 
   const sendAction = useSendAction(context.workspaceId);
 
+  // Augment context with a block-specific emitAction that derives the
+  // global action ID as {blockId}.{localId} and emits on the workspace bus.
+  const augmentedContext: SlotContext = useMemo(
+    () => ({
+      ...context,
+      emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        bus.emit(`${binding.id}.${localId}`, {
+          blockInstanceId: instance.id,
+          blockId: binding.id,
+          localId,
+          payload,
+        });
+      },
+    }),
+    [context, binding.id, bus, instance.id],
+  );
+
   return (
     <div className="p-4" style={{ display: hidden ? "none" : undefined }}>
       <Component
-        context={context}
+        context={augmentedContext}
         instance={instance}
         overrides={binding.overrides}
         sendAction={sendAction}

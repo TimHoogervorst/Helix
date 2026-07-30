@@ -16,6 +16,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { MutableRefObject } from "react";
 import type { WorkspaceBus } from "../WorkspaceBus";
+import type { BlockBinding } from "../../mod-system/types";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -63,6 +64,13 @@ export interface UseActionAccumulatorOptions {
    * whether to set the X-Block-Actions header.
    */
   hasPendingRef?: MutableRefObject<boolean>;
+  /**
+   * Optional block bindings. When provided, the accumulator subscribes to
+   * wildcard bus events for each binding's `emits` declarations, so custom
+   * domain actions emitted via `context.emitAction()` are accumulated and
+   * flushed alongside lifecycle events.
+   */
+  bindings?: readonly BlockBinding[];
 }
 
 /** Payload passed from BlockNodeView to the accumulator. */
@@ -90,6 +98,7 @@ export function useActionAccumulator({
   targetId,
   onFlushActions,
   hasPendingRef,
+  bindings,
 }: UseActionAccumulatorOptions) {
   // ── Accumulation map: `${blockInstanceId}:${verb}` → AccumulatedAction ──
   const pendingRef = useRef<Map<string, AccumulatedAction>>(new Map());
@@ -160,6 +169,68 @@ export function useActionAccumulator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  // ── Subscribe to custom domain actions declared via emits ──────────────
+  //
+  // Each binding with a non-empty `emits` array gets a wildcard subscription
+  // on the workspace bus (e.g. `eln.registryTable-block.*`).  When a block
+  // calls `context.emitAction(localId, payload)`, the renderer emits
+  // `{blockId}.{localId}` on the bus, and this subscription picks it up,
+  // resolves the action label + core type from the emit declaration, and
+  // accumulates it in the pending map alongside lifecycle events.
+  useEffect(() => {
+    if (!bindings || bindings.length === 0) return;
+
+    const unsubscribes: Array<() => void> = [];
+
+    for (const binding of bindings) {
+      if (!binding.emits || binding.emits.length === 0) continue;
+
+      // Build a lookup map from localId → emit declaration for fast resolution
+      const emitMap = new Map(
+        binding.emits.map((e) => [e.id, e]),
+      );
+
+      const unsub = bus.on(
+        `${binding.id}.*`,
+        (payload: unknown) => {
+          const p = payload as {
+            blockInstanceId: string;
+            blockId: string;
+            localId: string;
+            payload?: Record<string, unknown>;
+          };
+          const { blockInstanceId, blockId, localId } = p;
+
+          // Resolve display label and core action_type from the emit declaration.
+          // Falls back to the localId and "created" when no declaration matches.
+          const emitDecl = emitMap.get(localId);
+          const action = `${blockId}.${localId}`;
+          const message = emitDecl?.label ?? action;
+          const coreVerb = emitDecl?.core ?? "created";
+
+          const pending = pendingRef.current;
+          const key = `${blockInstanceId}:${localId}`;
+
+          pending.set(key, {
+            action,
+            action_type: coreVerb,
+            metadata: { message, ...(p.payload ?? {}) },
+          });
+          if (hasPendingRef) hasPendingRef.current = true;
+        },
+      );
+      unsubscribes.push(unsub);
+    }
+
+    return () => {
+      for (const unsub of unsubscribes) {
+        unsub();
+      }
+    };
+    // bindings identity changes when the registry re-resolves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bindings]);
 
   // ── Flush on saveSignal transition ─────────────────────────────────────
   const prevSaveSignalRef = useRef<unknown>(saveSignal);

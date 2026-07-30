@@ -163,6 +163,19 @@ export interface SlotContext {
   entry?: unknown;
   /** Action catalog for this workspace, hydrated from ``GET /api/mod-registry/``. */
   actions?: ActionCatalogEntry[];
+  /**
+   * Emit a custom domain action declared in the block registration
+   * `emits` field.
+   *
+   * Set by the renderer (BlockNodeView / useBlockInstance) per-block.
+   * The renderer derives the global action ID as
+   * ``{blockGlobalId}.{localId}`` and emits the event on the workspace
+   * bus where the accumulation layer picks it up alongside lifecycle
+   * events.
+   *
+   * Blocks call this instead of the legacy ``sendAction`` on props.
+   */
+  emitAction?: (localId: string, payload?: Record<string, unknown>) => void;
 }
 
 /**
@@ -237,7 +250,8 @@ export interface BlockRegistration {
   onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
   /** Extract a display name from block attributes for human-readable action log messages. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
-  /** Tags for block picker / slash menu filtering. */
+  /** Custom domain actions this block can emit via `context.emitAction()`. */
+  emits: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
   tags?: string[];
   /** Serialize block state to a JSON string for persistence. */
   serialize: (state: Record<string, unknown>) => string;
@@ -339,6 +353,8 @@ export interface BlockBinding extends BaseBinding {
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker filtering. */
   tags?: string[];
+  /** Custom domain actions this block can emit via `context.emitAction()`. */
+  emits: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
   /** Merged overrides: slot defaults ← binding overrides (binding wins per-key). */
   overrides: Record<string, unknown>;
   /** Serialize block state to a JSON string for persistence. */

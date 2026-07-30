@@ -10,13 +10,36 @@
  * | number          | Number input            |
  * | date            | Date picker             |
  * | boolean         | Checkbox                |
- * | select          | Multi-select dropdown   |
+ * | dropdown        | Multi-select dropdown   |
  * | entity-picker   | Entity search popover   |
  * | range           | Two inputs (min, max)   |
  * | none            | No input (e.g. is_empty)|
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, type InputHTMLAttributes } from "react";
+
+// ── Auto-sizing input ───────────────────────────────────────────────────────
+// Uses a hidden <span> in the same CSS grid cell to measure text width.
+// The grid cell naturally sizes to the span, and the input fills it.
+
+function AutoSizeInput({
+  className,
+  sizerText,
+  inputProps,
+}: {
+  className: string;
+  sizerText: string;
+  inputProps: InputHTMLAttributes<HTMLInputElement>;
+}) {
+  return (
+    <span className="entities-auto-size-wrap">
+      <span className="entities-auto-size-sizer" aria-hidden="true">
+        {sizerText || " "}
+      </span>
+      <input className={className} {...inputProps} />
+    </span>
+  );
+}
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +54,10 @@ export interface ValueInputProps {
   disabled?: boolean;
   /** Placeholder text for text/number inputs. */
   placeholder?: string;
+  /** Dropdown options for dropdown-type filter inputs. When provided and the
+   *  operandShape is "dropdown", renders a multi-select dropdown instead of a
+   *  text input. */
+  dropdownOptions?: string[];
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -41,43 +68,50 @@ export function ValueInput({
   onChange,
   disabled = false,
   placeholder = "Value…",
+  dropdownOptions,
 }: ValueInputProps) {
   switch (operandShape) {
     case "text":
       return (
-        <input
+        <AutoSizeInput
           className="entities-filter-search"
-          type="text"
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ flex: 1 }}
+          sizerText={String(value) || placeholder}
+          inputProps={{
+            type: "text",
+            placeholder,
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
         />
       );
 
     case "number":
       return (
-        <input
+        <AutoSizeInput
           className="entities-filter-search"
-          type="number"
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ flex: 1 }}
+          sizerText={String(value) || placeholder}
+          inputProps={{
+            type: "number",
+            placeholder,
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
         />
       );
 
     case "date":
       return (
-        <input
+        <AutoSizeInput
           className="entities-filter-search"
-          type="date"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ flex: 1 }}
+          sizerText={value || "YYYY-MM-DD"}
+          inputProps={{
+            type: "date",
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
         />
       );
 
@@ -88,7 +122,6 @@ export function ValueInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          style={{ flex: 1 }}
         >
           <option value="">--</option>
           <option value="true">Yes</option>
@@ -96,32 +129,52 @@ export function ValueInput({
         </select>
       );
 
-    case "select":
-      // Multi-select: comma-separated values entered as text for now.
-      // A full multi-select dropdown would need dropdown options from the
-      // column definition — that's a follow-up feature.
+    case "dropdown":
+      if (dropdownOptions && dropdownOptions.length > 0) {
+        return (
+          <select
+            className="entities-filter-select"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+          >
+            <option value="">--</option>
+            {dropdownOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        );
+      }
+      // Fallback: comma-separated values entered as text when no dropdown
+      // options are available.
       return (
-        <input
+        <AutoSizeInput
           className="entities-filter-search"
-          type="text"
-          placeholder="option1, option2…"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ flex: 1 }}
+          sizerText={value || "option1, option2…"}
+          inputProps={{
+            type: "text",
+            placeholder: "option1, option2…",
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
         />
       );
 
     case "entity-picker":
       return (
-        <input
+        <AutoSizeInput
           className="entities-filter-search"
-          type="text"
-          placeholder="Display ID…"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ flex: 1 }}
+          sizerText={value || "Display ID…"}
+          inputProps={{
+            type: "text",
+            placeholder: "Display ID…",
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
         />
       );
 
@@ -131,15 +184,7 @@ export function ValueInput({
     case "none":
       // No value input needed (e.g. "is_empty" operator)
       return (
-        <span
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            color: "var(--color-muted-foreground, #888)",
-            fontSize: "0.8125rem",
-          }}
-        >
+        <span className="entities-filter-pill-none-value">
           (no value needed)
         </span>
       );
@@ -147,14 +192,16 @@ export function ValueInput({
     default:
       // Unknown shape — fall back to text input
       return (
-        <input
+        <AutoSizeInput
           className="entities-filter-search"
-          type="text"
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          style={{ flex: 1 }}
+          sizerText={String(value) || placeholder}
+          inputProps={{
+            type: "text",
+            placeholder,
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
         />
       );
   }
@@ -191,15 +238,17 @@ function RangeInput({
   );
 
   return (
-    <div style={{ display: "flex", gap: 4, flex: 1 }}>
-      <input
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      <AutoSizeInput
         className="entities-filter-search"
-        type={disabled ? "text" : "number"}
-        placeholder="Min"
-        value={min}
-        onChange={(e) => handleMinChange(e.target.value)}
-        disabled={disabled}
-        style={{ flex: 1, minWidth: 0 }}
+        sizerText={min || "Min"}
+        inputProps={{
+          type: disabled ? "text" : "number",
+          placeholder: "Min",
+          value: min,
+          onChange: (e) => handleMinChange(e.target.value),
+          disabled,
+        }}
       />
       <span
         style={{
@@ -212,14 +261,16 @@ function RangeInput({
       >
         to
       </span>
-      <input
+      <AutoSizeInput
         className="entities-filter-search"
-        type={disabled ? "text" : "number"}
-        placeholder="Max"
-        value={max}
-        onChange={(e) => handleMaxChange(e.target.value)}
-        disabled={disabled}
-        style={{ flex: 1, minWidth: 0 }}
+        sizerText={max || "Max"}
+        inputProps={{
+          type: disabled ? "text" : "number",
+          placeholder: "Max",
+          value: max,
+          onChange: (e) => handleMaxChange(e.target.value),
+          disabled,
+        }}
       />
     </div>
   );

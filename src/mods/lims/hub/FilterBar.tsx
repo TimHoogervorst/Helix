@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { Plus, X, ChevronDown } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { BackendOperator } from "../../../shell/src/mod-system/ModRegistry";
 import type { AvailableColumn } from "../types";
@@ -56,6 +56,10 @@ export interface FilterBarProps {
   filters: FilterRow[];
   /** Called when filters change (add, remove, update). */
   onFiltersChange: (filters: FilterRow[]) => void;
+  /** Map from column key to dropdown option strings. Used to render a
+   *  dropdown picker for "dropdown"-type filter values instead of a
+   *  plain text input. */
+  dropdownOptionsMap?: Map<string, string[]>;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -64,6 +68,7 @@ export function FilterBar({
   availableColumns,
   filters,
   onFiltersChange,
+  dropdownOptionsMap,
 }: FilterBarProps) {
   const [nextId, setNextId] = useState(() => Date.now());
 
@@ -122,6 +127,7 @@ export function FilterBar({
           row={row}
           columns={filterableColumns}
           columnTypeMap={columnTypeMap}
+          dropdownOptionsMap={dropdownOptionsMap}
           onUpdate={(updates) => handleUpdateFilter(row.id, updates)}
           onRemove={() => handleRemoveFilter(row.id)}
         />
@@ -160,6 +166,7 @@ interface FilterPillProps {
   row: FilterRow;
   columns: AvailableColumn[];
   columnTypeMap: Map<string, string>;
+  dropdownOptionsMap?: Map<string, string[]>;
   onUpdate: (updates: Partial<FilterRow>) => void;
   onRemove: () => void;
 }
@@ -168,6 +175,7 @@ function FilterPill({
   row,
   columns,
   columnTypeMap,
+  dropdownOptionsMap,
   onUpdate,
   onRemove,
 }: FilterPillProps) {
@@ -251,7 +259,6 @@ function FilterPill({
           aria-expanded={fieldPopoverOpen}
         >
           {colLabel}
-          <ChevronDown size={10} className="entities-filter-pill-chevron" />
         </button>
         {fieldPopoverOpen && (
           <div className="entities-filter-pill-popover" role="listbox">
@@ -286,7 +293,6 @@ function FilterPill({
           aria-expanded={operatorPopoverOpen}
         >
           {opLabel}
-          <ChevronDown size={10} className="entities-filter-pill-chevron" />
         </button>
         {operatorPopoverOpen && (
           <div className="entities-filter-pill-popover" role="listbox">
@@ -319,6 +325,7 @@ function FilterPill({
           onChange={handleValueChange}
           disabled={!row.operator}
           placeholder={row.operator ? "value…" : "select field first"}
+          dropdownOptions={dropdownOptionsMap?.get(row.column)}
         />
       </div>
 

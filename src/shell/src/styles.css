@@ -3516,12 +3516,6 @@ input.entities-filter-search {
   color: var(--color-foreground, #111827);
 }
 
-/* Chevron inside the trigger buttons */
-.entities-filter-pill-chevron {
-  opacity: 0.5;
-  flex-shrink: 0;
-}
-
 /* Colon separator */
 .entities-filter-pill-colon {
   color: var(--color-muted-foreground, #6b7280);
@@ -3545,7 +3539,6 @@ input.entities-filter-search {
   outline: none !important;
   box-shadow: none !important;
   border-radius: 4px !important;
-  min-width: 60px;
   width: auto;
   color: var(--color-foreground, #111827);
 }
@@ -3559,6 +3552,37 @@ input.entities-filter-search {
 .entities-filter-pill-value-wrap input:disabled,
 .entities-filter-pill-value-wrap select:disabled {
   opacity: 0.4;
+}
+
+/* Auto-size input wrapper (CSS grid sizer trick) */
+.entities-auto-size-wrap {
+  display: inline-grid;
+  align-items: center;
+}
+
+.entities-auto-size-wrap::after,
+.entities-auto-size-sizer {
+  content: attr(data-value) " ";
+  grid-area: 1 / 1 / 2 / 2;
+  visibility: hidden;
+  white-space: pre;
+  padding: 0.18rem 0.25rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+}
+
+.entities-auto-size-wrap input {
+  grid-area: 1 / 1 / 2 / 2;
+  min-width: 4px;
+}
+
+/* "(no value needed)" label for is_empty-style operators */
+.entities-filter-pill-none-value {
+  display: flex;
+  align-items: center;
+  color: var(--color-muted-foreground, #888);
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 /* Remove button inside pill */

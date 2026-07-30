@@ -855,9 +855,22 @@ describe("TipTapRenderer", () => {
     expect(attrs.updated).toBe(true);
   });
 
-  // ── Content-loading suppression gate ──────────────────────────────────
+  // ── rAF startup suppression gate (#367) ───────────────────────────────
 
-  it("suppresses lifecycle accumulation during programmatic content loads", async () => {
+  it("suppresses lifecycle accumulation before the first animation frame", async () => {
+    // Capture all rAF callbacks so we can release suppression on demand.
+    // React 19 itself may use rAF internally, so we collect every callback
+    // and fire them all at once rather than assuming a single registration.
+    const rafCallbacks: Array<() => void> = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      (cb: FrameRequestCallback) => {
+        rafCallbacks.push(() => cb(0));
+        return rafCallbacks.length;
+      },
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
     const mockFlush = vi.fn().mockResolvedValue(undefined);
     const capture = captureEditor();
     const bindings: BlockBinding[] = [
@@ -887,25 +900,53 @@ describe("TipTapRenderer", () => {
       expect(capture.editor).toBeTruthy();
     });
 
-    // Enable suppression BEFORE inserting blocks
-    bus.emit("eln.editor.content-loading", true);
+    // At least one rAF should have been registered (our suppression gate).
+    expect(rafCallbacks.length).toBeGreaterThan(0);
 
-    // Insert a block while suppression is active
+    // Insert a block while rAF suppression is still active.
+    // The created/edited lifecycle events from the NodeView mount should
+    // be suppressed — suppressRef is still true.
     await act(async () => {
       capture.editor!.commands.setContent({
         type: "doc",
         content: [
           {
             type: "eln.table",
-            attrs: { content: JSON.stringify({}) },
+            attrs: { content: JSON.stringify({ rows: 3 }) },
           },
         ],
       });
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    // Disable suppression
-    bus.emit("eln.editor.content-loading", false);
+    // Release all rAF callbacks — the suppression gate flips to false
+    act(() => {
+      for (const cb of rafCallbacks) {
+        cb();
+      }
+      rafCallbacks.length = 0;
+    });
+
+    // Edit the block after suppression release — should be accumulated
+    await act(async () => {
+      const editor = capture.editor!;
+      const { state } = editor;
+      let pos: number | null = null;
+      state.doc.descendants((node, p) => {
+        if (node.type.name === "eln.table" && pos === null) pos = p;
+        return pos === null;
+      });
+      if (pos !== null) {
+        editor.view.dispatch(
+          state.tr.setNodeAttribute(
+            pos,
+            "content",
+            JSON.stringify({ rows: 5 }),
+          ),
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
 
     // Trigger flush
     saveSignal = new Date();
@@ -923,10 +964,22 @@ describe("TipTapRenderer", () => {
       />,
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await vi.waitFor(() => {
+      expect(mockFlush).toHaveBeenCalled();
+    });
 
-    // No flush calls because lifecycle events were suppressed
-    expect(mockFlush).not.toHaveBeenCalled();
+    // Only the "edited" event from after rAF release should be accumulated;
+    // the "created" event was suppressed.
+    expect(mockFlush).toHaveBeenCalledTimes(1);
+    expect(mockFlush).toHaveBeenCalledWith(
+      "eln.table.edited",
+      "eln.entry",
+      42,
+      { message: "eln.table.edited" },
+      expect.any(String),
+    );
+
+    vi.unstubAllGlobals();
   });
 
   // ── Event routing: listensTo → onEvent ──────────────────────────────

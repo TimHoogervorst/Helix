@@ -39,7 +39,7 @@ type SendActionFn = (
 ) => Promise<void>;
 
 export interface UseActionAccumulatorOptions {
-  /** Workspace-scoped event bus for the suppression gate and post-flush events. */
+  /** Workspace-scoped event bus for post-flush events. */
   bus: WorkspaceBus;
   /** Workspace identifier used for bus event naming and sendAction targetType. */
   workspaceId: string;
@@ -101,21 +101,19 @@ export function useActionAccumulator({
   const onFlushActionsRef = useRef<SendActionFn>(onFlushActions);
   onFlushActionsRef.current = onFlushActions;
 
-  // Suppression flag — set to true during programmatic content loads
-  // (e.g. initial fetch, setContent) so we don't accumulate spurious
-  // lifecycle events from blocks being mounted from server payloads.
-  const suppressRef = useRef(false);
+  // Suppression flag — starts true so lifecycle events fired during
+  // editor initialization (useEditor → block NodeView mounts from server
+  // payload) are caught without a bus round-trip.  Released on the first
+  // requestAnimationFrame, after the initial React render + DOM commit.
+  const suppressRef = useRef(true);
 
-  // ── Suppression gate: content-loading ──────────────────────────────────
+  // ── Suppression gate: rAF startup ─────────────────────────────────────
   useEffect(() => {
-    const unsub = bus.on(
-      `${workspaceId}.editor.content-loading`,
-      (payload: unknown) => {
-        suppressRef.current = payload as boolean;
-      },
-    );
-    return unsub;
-  }, [bus, workspaceId]);
+    const handle = requestAnimationFrame(() => {
+      suppressRef.current = false;
+    });
+    return () => cancelAnimationFrame(handle);
+  }, []);
 
   // ── Stable lifecycle callback for BlockNodeView ────────────────────────
   //

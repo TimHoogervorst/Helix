@@ -1,14 +1,18 @@
 /**
  * Operator-aware filter bar for the Entity Hub.
  *
- * Replaces the old "Fields" popover (exact-match key:value filters) with
- * dynamic filter rows that resolve a column's type through the
- * ``ModRegistry`` to populate an operator dropdown, then render the correct
- * value input based on the operator's ``operandShape``.
+ * Renders active field filters as interactive inline "pills" rather than
+ * a button + popover.  Each pill exposes three clickable/edit-table zones:
+ *
+ *   [FieldName ▼] [Operator ▼] : [value input] [×]
+ *
+ * Clicking the field name opens a popover with all filterable columns.
+ * Clicking the operator opens a popover with the operators for that column's
+ * type.  The value is an inline input dispatched by ``operandShape``.
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { Filter, Plus, X } from "lucide-react";
+import { Plus, X, ChevronDown } from "lucide-react";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { BackendOperator } from "../../../shell/src/mod-system/ModRegistry";
 import type { AvailableColumn } from "../types";
@@ -61,7 +65,6 @@ export function FilterBar({
   filters,
   onFiltersChange,
 }: FilterBarProps) {
-  const [open, setOpen] = useState(false);
   const [nextId, setNextId] = useState(() => Date.now());
 
   // Filter available columns to those that are filterable
@@ -110,74 +113,50 @@ export function FilterBar({
     [filters, onFiltersChange],
   );
 
-  // ── Active filter count for the badge ─────────────────────────────────
-  const activeCount = filters.filter((f) => f.column && f.operator).length;
-
   return (
-    <div className="entities-filter-fields-wrap">
-      <button
-        className="entities-filter-fields-btn"
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        <Filter size={14} />
-        Filters
-        {activeCount > 0 && (
-          <span className="entities-filter-fields-count">{activeCount}</span>
-        )}
-      </button>
+    <div className="entities-filter-pills-bar">
+      {/* Active filter pills */}
+      {filters.map((row) => (
+        <FilterPill
+          key={row.id}
+          row={row}
+          columns={filterableColumns}
+          columnTypeMap={columnTypeMap}
+          onUpdate={(updates) => handleUpdateFilter(row.id, updates)}
+          onRemove={() => handleRemoveFilter(row.id)}
+        />
+      ))}
 
-      {open && (
-        <div
-          className="entities-filter-fields-popover"
-          style={{ minWidth: 380 }}
+      {/* + Add Filter ghost button */}
+      {filterableColumns.length > 0 && (
+        <button
+          className="entities-filter-add-btn"
+          type="button"
+          onClick={handleAddFilter}
+          title="Add filter"
         >
-          <div className="entities-filter-fields-popover-header">
-            Field Filters
-          </div>
-          <div className="entities-filter-fields-popover-body">
-            {/* Active filter rows */}
-            {filters.map((row) => (
-              <FilterRowEditor
-                key={row.id}
-                row={row}
-                columns={filterableColumns}
-                columnTypeMap={columnTypeMap}
-                onUpdate={(updates) => handleUpdateFilter(row.id, updates)}
-                onRemove={() => handleRemoveFilter(row.id)}
-              />
-            ))}
+          <Plus size={14} />
+          Add Filter
+        </button>
+      )}
 
-            {/* Add filter button */}
-            {filterableColumns.length > 0 && (
-              <button
-                className="entities-filter-fields-add-btn"
-                type="button"
-                onClick={handleAddFilter}
-                title="Add filter"
-                style={{ marginTop: filters.length > 0 ? 8 : 0 }}
-              >
-                <Plus size={14} />
-                Add Filter
-              </button>
-            )}
-
-            {filterableColumns.length === 0 && (
-              <div className="entities-filter-fields-popover-empty">
-                No filterable fields available. Select a schema to see its
-                fields.
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Clear all link when filters are active */}
+      {filters.filter((f) => f.column && f.operator).length > 0 && (
+        <button
+          className="entities-filter-clear-all-btn"
+          type="button"
+          onClick={() => onFiltersChange([])}
+        >
+          Clear all
+        </button>
       )}
     </div>
   );
 }
 
-// ── Filter Row Editor ───────────────────────────────────────────────────────
+// ── Filter Pill ─────────────────────────────────────────────────────────────
 
-interface FilterRowEditorProps {
+interface FilterPillProps {
   row: FilterRow;
   columns: AvailableColumn[];
   columnTypeMap: Map<string, string>;
@@ -185,13 +164,21 @@ interface FilterRowEditorProps {
   onRemove: () => void;
 }
 
-function FilterRowEditor({
+function FilterPill({
   row,
   columns,
   columnTypeMap,
   onUpdate,
   onRemove,
-}: FilterRowEditorProps) {
+}: FilterPillProps) {
+  // ── Popover open state ─────────────────────────────────────────────────
+  const [fieldPopoverOpen, setFieldPopoverOpen] = useState(false);
+  const [operatorPopoverOpen, setOperatorPopoverOpen] = useState(false);
+
+  // ── Resolve labels ────────────────────────────────────────────────────
+  const colLabel =
+    columns.find((c) => c.key === row.column)?.label ?? "Field";
+
   // ── Resolve available operators for the selected column ──────────────
   const operators = useMemo<BackendOperator[]>(() => {
     if (!row.column) return [];
@@ -205,15 +192,18 @@ function FilterRowEditor({
     }
   }, [row.column, columnTypeMap]);
 
-  // ── Resolve the selected operator's operandShape ─────────────────────
+  // ── Resolve the selected operator's label and operandShape ────────────
   const selectedOperator = useMemo<BackendOperator | undefined>(() => {
     if (!row.operator) return undefined;
     return operators.find((op) => op.id === row.operator);
   }, [row.operator, operators]);
 
+  const opLabel = selectedOperator?.label ?? "is";
+
   // ── When column changes, reset operator ──────────────────────────────
   const handleColumnChange = useCallback(
     (column: string) => {
+      setFieldPopoverOpen(false);
       onUpdate({ column, operator: "", value: "" });
     },
     [onUpdate],
@@ -221,6 +211,7 @@ function FilterRowEditor({
 
   const handleOperatorChange = useCallback(
     (operator: string) => {
+      setOperatorPopoverOpen(false);
       onUpdate({ operator, value: "" });
     },
     [onUpdate],
@@ -233,56 +224,112 @@ function FilterRowEditor({
     [onUpdate],
   );
 
+  // ── Shared blur handler for popover wrappers ─────────────────────────
+  const popoverBlur = useCallback(
+    (e: React.FocusEvent, setter: (v: boolean) => void) => {
+      // Close after a tick so click events on options fire first
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        setTimeout(() => setter(false), 150);
+      }
+    },
+    [],
+  );
+
   return (
-    <div className="entities-filter-row">
-      {/* Column selector */}
-      <select
-        className="entities-filter-select"
-        value={row.column}
-        onChange={(e) => handleColumnChange(e.target.value)}
-        style={{ flex: 1 }}
+    <div className="entities-filter-pill">
+      {/* ── Field name — clickable popover trigger ──────────────────────── */}
+      <div
+        className="entities-filter-pill-field-wrap"
+        onBlur={(e) => popoverBlur(e, setFieldPopoverOpen)}
       >
-        <option value="">Select field…</option>
-        {columns.map((col) => (
-          <option key={col.key} value={col.key}>
-            {col.label}
-          </option>
-        ))}
-      </select>
+        <button
+          className={`entities-filter-pill-field${row.column ? " is-set" : ""}`}
+          type="button"
+          onClick={() => setFieldPopoverOpen((prev) => !prev)}
+          title="Choose field"
+          aria-haspopup="listbox"
+          aria-expanded={fieldPopoverOpen}
+        >
+          {colLabel}
+          <ChevronDown size={10} className="entities-filter-pill-chevron" />
+        </button>
+        {fieldPopoverOpen && (
+          <div className="entities-filter-pill-popover" role="listbox">
+            {columns.map((col) => (
+              <button
+                key={col.key}
+                className={`entities-filter-pill-option${row.column === col.key ? " is-selected" : ""}`}
+                type="button"
+                role="option"
+                aria-selected={row.column === col.key}
+                onClick={() => handleColumnChange(col.key)}
+              >
+                {col.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* Operator selector */}
-      <select
-        className="entities-filter-select"
-        value={row.operator}
-        onChange={(e) => handleOperatorChange(e.target.value)}
-        disabled={!row.column}
-        style={{ flex: 1 }}
+      {/* ── Operator — clickable popover trigger ────────────────────────── */}
+      <div
+        className="entities-filter-pill-operator-wrap"
+        onBlur={(e) => popoverBlur(e, setOperatorPopoverOpen)}
       >
-        <option value="">Operator…</option>
-        {operators.map((op) => (
-          <option key={op.id} value={op.id}>
-            {op.label}
-          </option>
-        ))}
-      </select>
+        <button
+          className={`entities-filter-pill-operator${row.operator ? " is-set" : ""}`}
+          type="button"
+          onClick={() => row.column && setOperatorPopoverOpen((prev) => !prev)}
+          disabled={!row.column}
+          title="Choose operator"
+          aria-haspopup="listbox"
+          aria-expanded={operatorPopoverOpen}
+        >
+          {opLabel}
+          <ChevronDown size={10} className="entities-filter-pill-chevron" />
+        </button>
+        {operatorPopoverOpen && (
+          <div className="entities-filter-pill-popover" role="listbox">
+            {operators.map((op) => (
+              <button
+                key={op.id}
+                className={`entities-filter-pill-option${row.operator === op.id ? " is-selected" : ""}`}
+                type="button"
+                role="option"
+                aria-selected={row.operator === op.id}
+                onClick={() => handleOperatorChange(op.id)}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* Value input — dispatched by operand_shape */}
-      <ValueInput
-        operandShape={selectedOperator?.operandShape ?? "text"}
-        value={row.value}
-        onChange={handleValueChange}
-        disabled={!row.operator}
-        placeholder="Value…"
-      />
+      {/* ── Colon separator (hidden for "none" operands like is_empty) ──── */}
+      {selectedOperator?.operandShape !== "none" && (
+        <span className="entities-filter-pill-colon">:</span>
+      )}
 
-      {/* Remove button */}
+      {/* ── Value input — inline, dispatched by operandShape ────────────── */}
+      <div className="entities-filter-pill-value-wrap">
+        <ValueInput
+          operandShape={selectedOperator?.operandShape ?? "text"}
+          value={row.value}
+          onChange={handleValueChange}
+          disabled={!row.operator}
+          placeholder={row.operator ? "value…" : "select field first"}
+        />
+      </div>
+
+      {/* ── Remove button ──────────────────────────────────────────────── */}
       <button
-        className="entities-filter-row-remove"
+        className="entities-filter-pill-remove"
         type="button"
         onClick={onRemove}
         title="Remove filter"
       >
-        <X size={14} />
+        <X size={11} />
       </button>
     </div>
   );

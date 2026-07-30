@@ -16,7 +16,6 @@ import {
   LayoutList,
   AlignJustify,
   Lock,
-  X,
 } from "lucide-react";
 import type { SlotContext } from "../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
@@ -691,21 +690,6 @@ function EntitiesHub() {
     activeFilterCount > 0 ||
     sortParam !== "";
 
-  // ── Operator label resolver ─────────────────────────────────────────────
-
-  /** Look up the human-readable label for an operator from the column type registry. */
-  function resolveOperatorLabel(columnKey: string, operatorId: string): string {
-    const colType = availableColumns.find((c) => c.key === columnKey)?.type;
-    if (!colType) return operatorId;
-    try {
-      const ct = ModRegistry.getInstance().getColumnType(colType);
-      const op = ct?.operators.find((o) => o.id === operatorId);
-      return op?.label ?? operatorId;
-    } catch {
-      return operatorId;
-    }
-  }
-
   // ── Loading state ────────────────────────────────────────────────────────
 
   if (loading && !data) {
@@ -842,13 +826,6 @@ function EntitiesHub() {
               </select>
             </div>
 
-            {/* Operator-aware filter bar */}
-            <FilterBar
-              availableColumns={availableColumns}
-              filters={fieldFilters}
-              onFiltersChange={handleFiltersChange}
-            />
-
             {/* Sort button */}
             <button
               className={`entities-filter-sort-btn${sortParam ? " is-active" : ""}`}
@@ -899,59 +876,14 @@ function EntitiesHub() {
           </div>
         </div>
 
-        {/* ── Active field filter chips (below filter bar) ────────────────── */}
-        {activeFilterCount > 0 && (
-          <div className="entities-filter-chips">
-            {fieldFilters
-              .filter((f) => f.column && f.operator)
-              .map((ff, i) => {
-                const colLabel =
-                  availableColumns.find((c) => c.key === ff.column)?.label ??
-                  ff.column;
-                const opLabel = resolveOperatorLabel(ff.column, ff.operator);
-                return (
-                  <span
-                    key={`chip-${ff.column}:${ff.operator}:${ff.value}-${i}`}
-                    className="entities-filter-chip"
-                  >
-                    <span className="entities-filter-chip-key">{colLabel}</span>
-                    <span className="entities-filter-chip-sep">
-                      {opLabel}
-                    </span>
-                    {ff.value && (
-                      <>
-                        <span className="entities-filter-chip-sep">:</span>
-                        <span className="entities-filter-chip-value">
-                          {ff.value}
-                        </span>
-                      </>
-                    )}
-                    <button
-                      className="entities-filter-chip-remove"
-                      type="button"
-                      onClick={() => {
-                        handleFiltersChange(
-                          fieldFilters.filter((f) => f.id !== ff.id),
-                        );
-                      }}
-                      title="Remove filter"
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                );
-              })}
-            {activeFilterCount > 0 && (
-              <button
-                className="entities-filter-chip-clear-all"
-                type="button"
-                onClick={() => handleFiltersChange([])}
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        )}
+        {/* ── Filter pills row (operator-aware, below the search bar) ──── */}
+        <div className="entities-filter-pills-row">
+          <FilterBar
+            availableColumns={availableColumns}
+            filters={fieldFilters}
+            onFiltersChange={handleFiltersChange}
+          />
+        </div>
 
         {/* ── Error state ────────────────────────────────────────────────── */}
         {error && <div className="error">{error}</div>}

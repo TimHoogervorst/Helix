@@ -603,36 +603,38 @@ describe("EntitiesHub", () => {
     });
   });
 
-  // ── Filter Bar: Filters button ─────────────────────────────────────
+  // ── Filter Bar: Add Filter button ───────────────────────────────────
 
-  it("renders Filters button", async () => {
+  it("renders '+ Add Filter' button", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
     await waitFor(() => {
-      expect(screen.getByText("Filters")).toBeInTheDocument();
+      expect(screen.getByText("Add Filter")).toBeInTheDocument();
     });
   });
 
-  it("shows field filter count badge when filters active", async () => {
+  it("shows filter pills when field filters active", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub("/entities?f=sample_type:eq:B&f=concentration:eq:5");
     await waitFor(() => {
-      expect(screen.getByText("2")).toBeInTheDocument();
+      // Filter pills render inline in the filter bar, not as separate chips
+      expect(screen.getByText("Clear all")).toBeInTheDocument();
     });
   });
 
-  // ── Field filter chips ─────────────────────────────────────────────
+  // ── Field filter pills ──────────────────────────────────────────────
 
-  it("renders field filter chips below the filter bar", async () => {
+  it("renders field filter pills inline in the filter bar", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub("/entities?f=sample_type:eq:B");
     await waitFor(() => {
-      expect(screen.getByText("sample_type")).toBeInTheDocument();
-      expect(screen.getByText("B")).toBeInTheDocument();
+      // The pill shows the field label and value, and the Clear all link
       expect(screen.getByText("Clear all")).toBeInTheDocument();
+      // Pill components are rendered inside the filter bar (entities-filter-pills-bar)
+      expect(document.querySelector(".entities-filter-pill")).toBeInTheDocument();
     });
   });
 
@@ -1298,29 +1300,19 @@ describe("EntitiesHub", () => {
       expect(screen.getByText("E1")).toBeInTheDocument();
     });
 
-    // Open the filter popover
-    fireEvent.click(screen.getByText("Filters"));
-    await waitFor(() => {
-      expect(screen.getByText("Add Filter")).toBeInTheDocument();
-    });
-
-    // Click "Add Filter" — should add an empty row
+    // Click the "+ Add Filter" button directly (no popover to open first)
     fireEvent.click(screen.getByText("Add Filter"));
 
-    // The empty filter row should appear (column and operator selects)
+    // The empty filter pill should appear with a "Field" label and "is" operator
     await waitFor(() => {
-      // The new empty row has a column select set to "Select field…"
-      const selects = screen.getAllByRole("combobox");
-      // Should have at least one column select and one operator select
-      // (the empty row adds 2 more selects)
-      expect(selects.length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText("Field")).toBeInTheDocument();
     });
 
-    // The URL should contain the serialized empty filter
-    // (indirectly verified by the row persisting in the DOM)
-    const columnSelects = screen.getAllByRole("combobox");
-    const firstColumnSelect = columnSelects[0] as HTMLSelectElement;
-    expect(firstColumnSelect.value).toBe("");
+    // The pill should contain the field trigger and operator trigger
+    const fieldBtns = screen.getAllByTitle("Choose field");
+    expect(fieldBtns.length).toBeGreaterThanOrEqual(1);
+    const firstFieldBtn = fieldBtns[0] as HTMLButtonElement;
+    expect(firstFieldBtn.textContent).toContain("Field");
   });
 
   // ── Column header type icons ────────────────────────────────────────

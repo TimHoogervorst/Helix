@@ -1,12 +1,15 @@
 /**
- * Tests for FilterBar — operator-aware entity hub filter bar.
+ * Tests for FilterBar — operator-aware entity hub filter pills.
  *
  * Covers:
  * - serializeFilter / deserializeFilter (new and legacy formats)
- * - FilterBar rendering (column → operator → value flow)
- * - Add / remove filter rows
- * - Active filter badge count
+ * - FilterBar rendering (inline pills with field/operator/value zones)
+ * - Add / remove filter pills
+ * - Field name popover (column selector)
+ * - Operator popover (operator selector per column type)
+ * - Inline value input (dispatched by operandShape)
  * - ModRegistry integration for operator resolution
+ * - "Clear all" link when filters are active
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -135,10 +138,16 @@ function setupFilterBar(overrides: Partial<FilterBarProps> = {}) {
   };
 }
 
-/** Open the filter popover. */
-function openPopover() {
-  const btn = screen.getByText("Filters");
-  fireEvent.click(btn);
+/** Click the field name trigger on a pill to open the column popover. */
+function openFieldPopover() {
+  const fieldBtn = screen.getByTitle("Choose field");
+  fireEvent.click(fieldBtn);
+}
+
+/** Click the operator trigger on a pill to open the operator popover. */
+function openOperatorPopover() {
+  const operatorBtn = screen.getByTitle("Choose operator");
+  fireEvent.click(operatorBtn);
 }
 
 // ── Setup ──────────────────────────────────────────────────────────────────
@@ -147,7 +156,6 @@ beforeEach(() => {
   const registry = resetRegistry();
   // Hydrate column types into the registry
   for (const ct of MOCK_COLUMN_TYPES) {
-    // Use registerMod to satisfy validation, then manually set column types
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (registry as any).columnTypes.set(ct.id, ct);
   }
@@ -189,178 +197,306 @@ describe("deserializeFilter", () => {
 // ── FilterBar rendering ────────────────────────────────────────────────────
 
 describe("FilterBar — rendering", () => {
-  it("renders the Filters button", () => {
+  it("renders the '+ Add Filter' button", () => {
     setupFilterBar();
-    expect(screen.getByText("Filters")).toBeInTheDocument();
+    expect(screen.getByText("Add Filter")).toBeInTheDocument();
   });
 
-  it("shows active filter count badge", () => {
+  it("shows filter pills when filters exist", () => {
     const filters: FilterRow[] = [
       { id: 1, column: "name", operator: "contains", value: "PCR" },
     ];
     setupFilterBar({ filters });
-    expect(screen.getByText("1")).toBeInTheDocument();
+    // The pill should display the field label ("Name") and operator label ("contains")
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("contains")).toBeInTheDocument();
   });
 
-  it("hides badge when no active filters", () => {
-    setupFilterBar({ filters: [] });
-    const btn = screen.getByText("Filters");
-    // Badge should not be in the document
-    expect(btn.querySelector(".entities-filter-fields-count")).toBeNull();
-  });
-
-  it("opens popover on Filters button click", () => {
-    setupFilterBar();
-    openPopover();
-    expect(screen.getByText("Field Filters")).toBeInTheDocument();
-    expect(screen.getByText("Add Filter")).toBeInTheDocument();
-  });
-
-  it("shows empty state when no filterable columns", () => {
-    setupFilterBar({ availableColumns: [] });
-    openPopover();
-    expect(screen.getByText(/No filterable fields available/)).toBeInTheDocument();
-  });
-
-  it("does not show empty state when filterable columns exist", () => {
-    setupFilterBar();
-    openPopover();
-    expect(screen.queryByText(/No filterable fields available/)).toBeNull();
-  });
-});
-
-// ── FilterRowEditor — column → operator → value flow ──────────────────────
-
-describe("FilterBar — column → operator → value flow", () => {
-  it("renders column select, operator select, and value input per row", () => {
+  it("shows 'Field' placeholder when no column selected", () => {
     const filters: FilterRow[] = [
       { id: 1, column: "", operator: "", value: "" },
     ];
     setupFilterBar({ filters });
-    openPopover();
-
-    const selects = screen.getAllByRole("combobox");
-    // One column select + one operator select per row
-    expect(selects.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Field")).toBeInTheDocument();
   });
 
-  it("shows operators for the selected column's type", () => {
+  it("shows 'Clear all' link when filters are active", () => {
     const filters: FilterRow[] = [
-      { id: 1, column: "name", operator: "", value: "" },
+      { id: 1, column: "name", operator: "contains", value: "PCR" },
     ];
     setupFilterBar({ filters });
-    openPopover();
-
-    // Operator dropdown should show text-type operators
-    const operatorSelects = screen.getAllByRole("combobox");
-    const operatorSelect = operatorSelects[1]; // second select is operator
-    // Should contain text operators
-    expect(operatorSelect.textContent).toContain("equals");
-    expect(operatorSelect.textContent).toContain("contains");
+    expect(screen.getByText("Clear all")).toBeInTheDocument();
   });
 
-  it("calls onFiltersChange when Add Filter is clicked", () => {
+  it("does NOT show 'Clear all' when no active filters", () => {
+    setupFilterBar({ filters: [] });
+    expect(screen.queryByText("Clear all")).toBeNull();
+  });
+
+  it("hides '+ Add Filter' when no filterable columns exist", () => {
+    setupFilterBar({ availableColumns: [] });
+    expect(screen.queryByText("Add Filter")).toBeNull();
+  });
+
+  it("renders remove button for each pill", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "contains", value: "PCR" },
+    ];
+    setupFilterBar({ filters });
+    expect(screen.getByTitle("Remove filter")).toBeInTheDocument();
+  });
+});
+
+// ── Add / remove filter pills ──────────────────────────────────────────────
+
+describe("FilterBar — add / remove pills", () => {
+  it("calls onFiltersChange when '+ Add Filter' is clicked", () => {
     const onFiltersChange = vi.fn();
     setupFilterBar({ filters: [], onFiltersChange });
-    openPopover();
 
     fireEvent.click(screen.getByText("Add Filter"));
     expect(onFiltersChange).toHaveBeenCalled();
-    // Should be called with the previous filters + one new row
     const callArg = onFiltersChange.mock.calls[0][0] as FilterRow[];
     expect(callArg.length).toBe(1);
     expect(callArg[0].column).toBe("");
     expect(callArg[0].operator).toBe("");
   });
 
-  it("calls onFiltersChange when a filter row is removed", () => {
+  it("calls onFiltersChange when a filter pill is removed", () => {
     const onFiltersChange = vi.fn();
     const filters: FilterRow[] = [
       { id: 1, column: "name", operator: "contains", value: "PCR" },
     ];
     setupFilterBar({ filters, onFiltersChange });
-    openPopover();
 
-    // Click the remove (X) button
     const removeBtn = screen.getByTitle("Remove filter");
     fireEvent.click(removeBtn);
     expect(onFiltersChange).toHaveBeenCalledWith([]);
   });
 
-  it("shows correct value input when operator with range shape is selected", () => {
-    const filters: FilterRow[] = [
-      { id: 1, column: "created_at", operator: "between", value: "" },
-    ];
-    setupFilterBar({ filters });
-    openPopover();
-
-    // Should show range inputs (Min / Max)
-    expect(screen.getByPlaceholderText("Min")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Max")).toBeInTheDocument();
-  });
-
-  it("shows 'no value needed' when operator with none shape is selected", () => {
-    const filters: FilterRow[] = [
-      { id: 1, column: "name", operator: "is_empty", value: "" },
-    ];
-    setupFilterBar({ filters });
-    openPopover();
-
-    expect(screen.getByText("(no value needed)")).toBeInTheDocument();
-  });
-
-  it("shows multiple filter rows", () => {
+  it("shows multiple filter pills", () => {
     const filters: FilterRow[] = [
       { id: 1, column: "name", operator: "contains", value: "PCR" },
       { id: 2, column: "status", operator: "eq", value: "finished" },
     ];
     setupFilterBar({ filters });
-    openPopover();
 
-    // Should show two remove buttons (one per row)
+    // Two remove buttons (one per pill)
     const removeBtns = screen.getAllByTitle("Remove filter");
     expect(removeBtns.length).toBe(2);
   });
 
-  it("disables operator select and value input when no column selected", () => {
+  it("clears all filters when 'Clear all' is clicked", () => {
+    const onFiltersChange = vi.fn();
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "contains", value: "PCR" },
+    ];
+    setupFilterBar({ filters, onFiltersChange });
+
+    fireEvent.click(screen.getByText("Clear all"));
+    expect(onFiltersChange).toHaveBeenCalledWith([]);
+  });
+});
+
+// ── Field name popover ─────────────────────────────────────────────────────
+
+describe("FilterBar — field name popover", () => {
+  it("opens column popover when field name is clicked", () => {
     const filters: FilterRow[] = [
       { id: 1, column: "", operator: "", value: "" },
     ];
     setupFilterBar({ filters });
-    openPopover();
+    openFieldPopover();
 
-    const selects = screen.getAllByRole("combobox");
-    // The second select is the operator — it should be disabled
-    const operatorSelect = selects[1] as HTMLSelectElement;
-    expect(operatorSelect.disabled).toBe(true);
+    // Should show filterable column labels in the popover
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("Created")).toBeInTheDocument();
+    expect(screen.getByText("Author")).toBeInTheDocument();
   });
 
-  it("excludes non-filterable columns from the column selector", () => {
+  it("excludes non-filterable columns from field popover", () => {
     const filters: FilterRow[] = [
       { id: 1, column: "", operator: "", value: "" },
     ];
     setupFilterBar({ filters });
-    openPopover();
+    openFieldPopover();
 
     // display_id has filterable: false — should NOT appear
-    const columnSelect = screen.getAllByRole("combobox")[0];
-    expect(columnSelect.textContent).not.toContain("ID");
+    expect(screen.queryByText("ID")).toBeNull();
+  });
+
+  it("calls onFiltersChange when a field is selected from popover", () => {
+    const onFiltersChange = vi.fn();
+    const filters: FilterRow[] = [
+      { id: 1, column: "", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters, onFiltersChange });
+    openFieldPopover();
+
+    // Click the "Name" option in the popover
+    fireEvent.click(screen.getByText("Name"));
+    expect(onFiltersChange).toHaveBeenCalled();
+  });
+});
+
+// ── Operator popover ───────────────────────────────────────────────────────
+
+describe("FilterBar — operator popover", () => {
+  it("operator trigger is disabled when no column selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters });
+
+    const operatorBtn = screen.getByTitle("Choose operator");
+    expect((operatorBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("operator trigger is enabled when column is selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters });
+
+    const operatorBtn = screen.getByTitle("Choose operator");
+    expect((operatorBtn as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("opens operator popover with text-type operators when Name column selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters });
+    openOperatorPopover();
+
+    // Text operators should be shown
+    expect(screen.getByText("equals")).toBeInTheDocument();
+    expect(screen.getByText("contains")).toBeInTheDocument();
+    expect(screen.getByText("starts with")).toBeInTheDocument();
+    expect(screen.getByText("is empty")).toBeInTheDocument();
+  });
+
+  it("calls onFiltersChange when an operator is selected", () => {
+    const onFiltersChange = vi.fn();
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters, onFiltersChange });
+    openOperatorPopover();
+
+    fireEvent.click(screen.getByText("contains"));
+    expect(onFiltersChange).toHaveBeenCalled();
+  });
+});
+
+// ── Inline value input ────────────────────────────────────────────────────
+
+describe("FilterBar — inline value input", () => {
+  it("shows text input when text-type operator is selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "contains", value: "" },
+    ];
+    setupFilterBar({ filters });
+
+    const input = screen.getByPlaceholderText("value…");
+    expect(input).toBeInTheDocument();
+    expect((input as HTMLInputElement).type).toBe("text");
+  });
+
+  it("shows number input when number operator is selected", () => {
+    const numberColumns: AvailableColumn[] = [
+      { key: "concentration", label: "Concentration", source: "schema", type: "number", filterable: true, width: null },
+    ];
+    const numberFilters: FilterRow[] = [
+      { id: 1, column: "concentration", operator: "gt", value: "" },
+    ];
+    setupFilterBar({ availableColumns: numberColumns, filters: numberFilters });
+
+    const input = screen.getByPlaceholderText("value…");
+    expect((input as HTMLInputElement).type).toBe("number");
+  });
+
+  it("shows range inputs (min/max) when between operator is selected", () => {
+    const numberColumns: AvailableColumn[] = [
+      { key: "concentration", label: "Concentration", source: "schema", type: "number", filterable: true, width: null },
+    ];
+    const numberFilters: FilterRow[] = [
+      { id: 1, column: "concentration", operator: "between", value: "" },
+    ];
+    setupFilterBar({ availableColumns: numberColumns, filters: numberFilters });
+
+    expect(screen.getByPlaceholderText("Min")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Max")).toBeInTheDocument();
+  });
+
+  it("shows (no value needed) when is_empty operator is selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "is_empty", value: "" },
+    ];
+    setupFilterBar({ filters });
+
+    expect(screen.getByText("(no value needed)")).toBeInTheDocument();
+  });
+
+  it("shows no colon separator when is_empty operator is selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "is_empty", value: "" },
+    ];
+    setupFilterBar({ filters });
+
+    // The colon separator should not appear for "none" operands
+    const pill = document.querySelector(".entities-filter-pill");
+    expect(pill?.querySelector(".entities-filter-pill-colon")).toBeNull();
+  });
+
+  it("value input is disabled when no operator selected", () => {
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters });
+
+    const input = screen.getByPlaceholderText("select field first");
+    expect((input as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("calls onFiltersChange when value changes", () => {
+    const onFiltersChange = vi.fn();
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "contains", value: "" },
+    ];
+    setupFilterBar({ filters, onFiltersChange });
+
+    const input = screen.getByPlaceholderText("value…");
+    fireEvent.change(input, { target: { value: "PCR" } });
+    expect(onFiltersChange).toHaveBeenCalled();
   });
 });
 
 // ── onFiltersChange ────────────────────────────────────────────────────────
 
 describe("FilterBar — onFiltersChange", () => {
-  it("calls onFiltersChange when column is selected", () => {
+  it("calls onFiltersChange when column is selected via popover", () => {
     const onFiltersChange = vi.fn();
     const filters: FilterRow[] = [
       { id: 1, column: "", operator: "", value: "" },
     ];
     setupFilterBar({ filters, onFiltersChange });
-    openPopover();
+    openFieldPopover();
 
-    const columnSelect = screen.getAllByRole("combobox")[0];
-    fireEvent.change(columnSelect, { target: { value: "name" } });
+    fireEvent.click(screen.getByText("Name"));
+    expect(onFiltersChange).toHaveBeenCalled();
+  });
+
+  it("calls onFiltersChange when operator is selected via popover", () => {
+    const onFiltersChange = vi.fn();
+    const filters: FilterRow[] = [
+      { id: 1, column: "name", operator: "", value: "" },
+    ];
+    setupFilterBar({ filters, onFiltersChange });
+    openOperatorPopover();
+
+    fireEvent.click(screen.getByText("contains"));
     expect(onFiltersChange).toHaveBeenCalled();
   });
 });

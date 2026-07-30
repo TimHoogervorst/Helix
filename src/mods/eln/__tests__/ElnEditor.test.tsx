@@ -11,10 +11,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { createRef } from "react";
+import { createRef, useRef } from "react";
+import type { MutableRefObject } from "react";
 
 import ElnEditor from "../editor/ElnEditor";
 import type { ElnEditorHandle, ElnEditorState } from "../editor/ElnEditor";
+import { EMPTY_DOC, type TipTapDoc } from "../types";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -93,34 +95,6 @@ vi.mock("../hooks/useSaveQueue", () => ({
   }),
 }));
 
-/** Stub editor returned by useEditor mock. */
-function makeStubEditor(overrides?: Record<string, unknown>) {
-  return {
-    getJSON: vi.fn().mockReturnValue({
-      type: "doc",
-      content: [{ type: "paragraph" }],
-    }),
-    setEditable: vi.fn(),
-    commands: { setContent: vi.fn() },
-    isActive: vi.fn().mockReturnValue(false),
-    chain: vi.fn().mockReturnValue({
-      focus: vi.fn().mockReturnValue({
-        toggleBold: vi.fn().mockReturnValue({ run: vi.fn() }),
-      }),
-    }),
-    view: { dom: document.createElement("div") },
-    isDestroyed: false,
-    ...overrides,
-  };
-}
-
-const stubEditor = makeStubEditor();
-
-vi.mock("@tiptap/react", () => ({
-  useEditor: () => stubEditor,
-  EditorContent: () => <div data-testid="editor-content" />,
-}));
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function makeEntry(overrides?: Record<string, unknown>) {
@@ -140,6 +114,38 @@ function makeEntry(overrides?: Record<string, unknown>) {
   };
 }
 
+/**
+ * Wrapper component that creates the refs required by ElnEditor's new props
+ * and renders ElnEditor with them. This keeps test ergonomics simple while
+ * satisfying the component's required props.
+ */
+function ElnEditorTestWrapper({
+  entryId,
+  onStateChange,
+  elnEditorRef,
+  initialEntries,
+}: {
+  entryId?: string;
+  onStateChange?: (state: ElnEditorState) => void;
+  elnEditorRef?: React.Ref<ElnEditorHandle>;
+  initialEntries?: string[];
+}) {
+  const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
+  const contentVersion = 0;
+
+  return (
+    <MemoryRouter initialEntries={initialEntries}>
+      <ElnEditor
+        entryId={entryId}
+        onStateChange={onStateChange}
+        ref={elnEditorRef}
+        contentRef={contentRef}
+        contentVersion={contentVersion}
+      />
+    </MemoryRouter>
+  );
+}
+
 function renderEditor(
   props: {
     entryId?: string;
@@ -151,9 +157,12 @@ function renderEditor(
 ) {
   const { entryId, onStateChange, ref, initialEntries } = props;
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
-      <ElnEditor entryId={entryId} onStateChange={onStateChange} ref={ref} />
-    </MemoryRouter>,
+    <ElnEditorTestWrapper
+      entryId={entryId}
+      onStateChange={onStateChange}
+      elnEditorRef={ref}
+      initialEntries={initialEntries}
+    />,
   );
 }
 
@@ -169,7 +178,6 @@ beforeEach(() => {
   mockReleaseLock.mockResolvedValue(undefined);
   mockGetLockStatus.mockReset();
   mockGetLockStatus.mockResolvedValue({ locked: false });
-  Object.assign(stubEditor, makeStubEditor());
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
@@ -392,14 +400,17 @@ describe("ElnEditor integration", () => {
     });
   });
 
-  // ── Editor content ─────────────────────────────────────────────────────────
+  // ── Editor content area ────────────────────────────────────────────────────
 
-  it("renders editor content", async () => {
+  it("renders editor content wrapper that accepts children", async () => {
     mockGet.mockResolvedValue(makeEntry());
     renderEditor({ entryId: "E1" });
     await waitFor(() => {
-      expect(screen.getByTestId("editor-content")).toBeDefined();
+      expect(screen.getByTestId("metadata-line")).toBeDefined();
     });
+    // The prosemirror-wrapper renders in place of the former EditorContent.
+    // Children (TipTapRenderer) are passed by the parent ElnWorkspace.
+    expect(screen.getByTestId("prosemirror-wrapper")).toBeDefined();
   });
 
   // ── No paper-page wrapper ──────────────────────────────────────────────────

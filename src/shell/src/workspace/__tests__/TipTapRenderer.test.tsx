@@ -8,6 +8,7 @@ import type {
   SlotContext,
   BlockComponentProps,
 } from "../../mod-system/types";
+import { Node } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -1025,5 +1026,129 @@ describe("TipTapRenderer", () => {
     const doc = capture.editor!.state.doc;
     expect(doc.childCount).toBe(1); // paragraph is a child of doc
     expect(doc.firstChild?.type.name).toBe("paragraph");
+  });
+
+  // ── New props: extensions, onUpdate, editable ──────────────────────────
+
+  it("merges passed extensions with internal StarterKit and block nodes", async () => {
+    const TestNode = Node.create({
+      name: "testCustomNode",
+      group: "block",
+      content: "inline*",
+      parseHTML() {
+        return [{ tag: "test-node" }];
+      },
+      renderHTML() {
+        return ["test-node", {}, 0];
+      },
+    });
+
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({ id: "eln.table", component: TestBlock }),
+    ];
+
+    render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        extensions={[TestNode]}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(capture.editor).toBeTruthy();
+    });
+
+    const schema = capture.editor!.schema;
+    expect(schema.nodes["testCustomNode"]).toBeDefined();
+    expect(schema.nodes["eln.table"]).toBeDefined();
+    expect(schema.nodes["paragraph"]).toBeDefined();
+  });
+
+  it("calls onUpdate when editor content changes", async () => {
+    const onUpdate = vi.fn();
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({ id: "eln.table", component: TestBlock }),
+    ];
+
+    render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        onUpdate={onUpdate}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(capture.editor).toBeTruthy();
+    });
+
+    const initialCalls = onUpdate.mock.calls.length;
+
+    await act(async () => {
+      capture.editor!.commands.insertContent("Hello world");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(onUpdate.mock.calls.length).toBeGreaterThan(initialCalls);
+    const lastCall = onUpdate.mock.calls[onUpdate.mock.calls.length - 1];
+    expect(lastCall[0]).toBeTruthy();
+  });
+
+  it("disables input when editable is false", async () => {
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({ id: "eln.table", component: TestBlock }),
+    ];
+
+    render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        editable={false}
+      />,
+    );
+
+    await waitFor(() => {
+      const editorElement = document.querySelector(
+        ".tiptap-renderer [contenteditable]",
+      );
+      expect(editorElement).toBeTruthy();
+      expect(editorElement!.getAttribute("contenteditable")).toBe("false");
+    });
+  });
+
+  it("enables input when editable is not passed (defaults to true)", async () => {
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({ id: "eln.table", component: TestBlock }),
+    ];
+
+    render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    await waitFor(() => {
+      const editorElement = document.querySelector(
+        ".tiptap-renderer [contenteditable]",
+      );
+      expect(editorElement).toBeTruthy();
+      expect(editorElement!.getAttribute("contenteditable")).toBe("true");
+    });
   });
 });

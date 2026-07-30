@@ -1,36 +1,32 @@
 /**
- * ElnEditor — rich-text editor for ELN entries (always-editable, auto-save).
+ * ElnEditor — chrome-only wrapper for ELN entries (always-editable, auto-save).
  *
- * Composes:
- *   - useEntryCrud         — CRUD, save queue, lock lifecycle
- *   - useAutoSave           — debounced auto-save with initial-load suppression
- *   - createElnExtensions   — TipTap extension factory
+ * Owns: useEntryCrud, useAutoSave, useEntryFolder, useDirtyTracking, and
+ * the UI chrome (metadata, title, description, tags, divider, locked banner).
+ *
+ * Does NOT own: the TipTap editor instance — that is rendered by the parent
+ * (ElnWorkspace) via TipTapRenderer and passed as `children`.
  *
  * Content layout (PRD #4):
- *   Metadata line → Title → Description → Tags → Divider → ProseMirror
+ *   Metadata line → Title → Description → Tags → Divider → {children}
  *
  * Action buttons (MoreActions with Delete) are exposed via ref so the parent
  * (ElnWorkspace) can render them in the top toolbar.
  */
-import { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
-import type { MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useEditor, EditorContent } from "@tiptap/react";
 import { Lock } from "lucide-react";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
 import { useEntryCrud } from "../hooks/useEntryCrud";
 import { useAutoSave } from "../hooks/useAutoSave";
 import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
 import { useDirtyTracking } from "../hooks/useDirtyTracking";
-import { createElnExtensions } from "./extensions/createElnExtensions";
-import type { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
-import type { SlotContext } from "../../../shell/src/mod-system/types";
 import { useTaggableItems } from "../../tags/hooks";
 import { TagPill } from "../../tags/ui";
 import { TagAutocomplete } from "../../tags/ui";
 import { attachTags, detachTag } from "../api";
 import type { SaveStatus } from "../hooks/useSaveQueue";
-import { splitFirstParagraph } from "../hooks/useEntryEditor";
 
 /** Format an ISO date string as YYYY-MM-DD. */
 function formatDateShort(iso: string): string {
@@ -79,21 +75,26 @@ interface ElnEditorProps {
   /** Called whenever editor mode/state changes so the parent can render
    *  the correct action buttons (Save/Cancel vs Edit/Delete). */
   onStateChange?: (state: ElnEditorState) => void;
-  /** Workspace-scoped event bus for lifecycle events and event routing. */
-  bus?: WorkspaceBus;
-  /** Flat metadata bag available to block components. */
-  slotContext?: SlotContext;
+  /** Mutable ref synced by the parent via TipTapRenderer's onUpdate.
+   *  Read at save time to get the latest editor content for the API call. */
+  contentRef: MutableRefObject<TipTapDoc>;
+  /** Incremented by the parent on each user-initiated content change.
+   *  Drives useAutoSave and useDirtyTracking. */
+  contentVersion: number;
   /** Mutable ref set by useBlockActionLogging — true when block actions
    *  are pending. Read at save time to decide whether to set the
    *  X-Block-Actions header so the server suppresses eln.entry.edited. */
   hasBlockActionsRef?: MutableRefObject<boolean>;
+  /** The TipTap editor content rendered by the parent via TipTapRenderer.
+   *  Rendered in place of the former EditorContent. */
+  children?: ReactNode;
 }
 
 /** Editor component — MentionProvider is provided by Layout.
  *  Action buttons (MoreActions menu) are exposed via ref so the parent can
  *  render the Delete action in the top toolbar. */
 const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
-  function ElnEditor({ entryId, onStateChange, bus, slotContext, hasBlockActionsRef }, ref) {
+  function ElnEditor({ entryId, onStateChange, contentRef, contentVersion, hasBlockActionsRef, children }, ref) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // A "new" entry is one that was just created server-side and navigated
@@ -110,29 +111,6 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     return null;
   })();
 
-  // ── Content ref (synced on every editor update and on every render) ──
-  const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
-
-  // ── Gate programmatic content changes so onUpdate does not trigger
-  //     auto-save when content is loaded from the server (initial load).
-  const isProgrammaticChange = useRef(false);
-
-  // ── Track whether initial content has been loaded from the server.
-  //     Prevents re-syncing editor content after save responses, which
-  //     would overwrite user edits made during the save roundtrip.
-  const initialContentLoaded = useRef(false);
-
-  // ── contentVersion counter — incremented on every user-initiated TipTap
-  //     onUpdate so effects (useAutoSave) can react to content changes
-  //     without converting the entire document to state on every keystroke.
-  //     Programmatic changes (setContent from server) are gated so they
-  //     don't trigger a spurious auto-save on initial load.
-  const [contentVersion, setContentVersion] = useState(0);
-
-  // ── Error surfaced from content loading (setContent). Separate from
-  //     crud.error, which covers API-level failures (fetch, save, delete).
-  const [contentError, setContentError] = useState<string | null>(null);
-
   // ── Title ref (for contentEditable cursor preservation) ──
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   // Guard so auto-focus only fires once on mount, not on every re-render.
@@ -140,30 +118,6 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   // ── Description textarea ref (for auto-resize) ──
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // ── TipTap Editor — always editable ──
-  const editor = useEditor({
-    extensions: createElnExtensions(bus, "eln.editor", slotContext),
-    content: isNew
-      ? EMPTY_DOC
-      : { type: "doc", content: [{ type: "paragraph" }] },
-    editable: true,
-    editorProps: {
-      attributes: {
-        class: "ProseMirror",
-      },
-    },
-    onUpdate: ({ editor }) => {
-      contentRef.current = editor.getJSON() as TipTapDoc;
-      if (!isProgrammaticChange.current) {
-        setContentVersion((v) => v + 1);
-      }
-    },
-  });
-
-  // Sync on every render to cover cases outside PM transactions
-  // (e.g. initial editor creation, setContent in useEffect).
-  contentRef.current = editor?.getJSON() ?? EMPTY_DOC;
 
   // ── Hooks ──
   const crud = useEntryCrud({ entryId, isNew, contentRef });
@@ -277,14 +231,6 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     crud.save(folderId, isNew ? pendingTagIds : [], options?.hasBlockActions);
   const { deleteEntry } = crud;
 
-  // ── Lock-based read-only ──
-  // When another user holds the lock, the TipTap editor becomes non-editable.
-  useEffect(() => {
-    if (editor && !editor.isDestroyed) {
-      editor.setEditable(!isLockedByOther);
-    }
-  }, [editor, isLockedByOther]);
-
   // ── Expose actions to parent via ref ──
   const actionsRef = useRef({ save, deleteEntry, setFolderId, setStatus });
   actionsRef.current = { save, deleteEntry, setFolderId, setStatus };
@@ -295,55 +241,6 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
     setFolderId: (id: number | null) => actionsRef.current.setFolderId(id),
     setStatus: (s: string) => actionsRef.current.setStatus(s),
   }), []);
-
-  // ── Reset initial-content flag when entryId changes (navigating to a
-  //     different entry).
-  useEffect(() => {
-    initialContentLoaded.current = false;
-  }, [entryId]);
-
-  // ── Sync editor content on initial load only ──
-  // Does NOT sync after save responses — the editor is the source of truth
-  // for content during editing. Syncing saved content back would overwrite
-  // any user edits made during the save roundtrip and reset the cursor.
-  //
-  // Only the body (document minus the first paragraph, which is the
-  // description) is loaded into the editor. The description is edited
-  // separately in the textarea. prependDescription recombines them on save.
-  useEffect(() => {
-    if (!editor || !entry || initialContentLoaded.current) return;
-    const { body } = splitFirstParagraph(entry.content);
-    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(body)) {
-      // Notify the bus that content is being loaded programmatically so
-      // downstream subscribers (useBlockActionLogging) can suppress
-      // accumulation of lifecycle events during the load.
-      //
-      // IMPORTANT: setContent triggers React renders synchronously via
-      // TipTap's useSyncExternalStore, which calls flushSync internally.
-      // Deferring to a microtask avoids the "flushSync was called from
-      // inside a lifecycle method" error in React 18 concurrent mode.
-      bus?.emit("eln.editor.content-loading", true);
-      isProgrammaticChange.current = true;
-      queueMicrotask(() => {
-        try {
-          editor.commands.setContent(body);
-          contentRef.current = body as TipTapDoc;
-          setContentError(null);
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : "Failed to load editor content";
-          setContentError(message);
-          console.error("ElnEditor: setContent failed:", err);
-        } finally {
-          isProgrammaticChange.current = false;
-        }
-      });
-      queueMicrotask(() => {
-        bus?.emit("eln.editor.content-loading", false);
-      });
-    }
-    initialContentLoaded.current = true;
-  }, [editor, entry]);
 
   // Sync contentEditable h1 DOM when title changes externally (initial load,
   // auto-save response). During typing, the title and DOM are already in sync
@@ -421,17 +318,6 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
       {/* ── Error banner ── */}
       {error && <div className="error">{error}</div>}
-
-      {/* ── Content loading error banner ── */}
-      {contentError && (
-        <div
-          className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"
-          data-testid="content-error-banner"
-        >
-          <p className="font-medium">Failed to load editor content</p>
-          <p className="mt-1 text-[12px] text-destructive/80">{contentError}</p>
-        </div>
-      )}
 
       {/* ── Content area ── */}
 
@@ -528,12 +414,12 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
       </div>
 
-      {/* ── ProseMirror Content (always editable, no click-to-edit) ──
+      {/* ── ProseMirror Content (rendered by parent via TipTapRenderer) ──
           Not constrained by max-w-3xl so stretch blocks (registry tables,
           etc.) can expand into the gutters. Per-child centering is handled
           by .ProseMirror > * in styles.css. */}
       <div className="min-h-[60vh]" data-testid="prosemirror-wrapper">
-        {editor && <EditorContent editor={editor} />}
+        {children}
       </div>
     </div>
   );

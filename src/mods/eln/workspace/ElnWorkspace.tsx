@@ -1,5 +1,6 @@
 import { useNavigate, Link } from "react-router-dom";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import type { Editor } from "@tiptap/core";
 import {
   History,
   MessageSquare,
@@ -27,10 +28,17 @@ import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { SlotContext } from "../../../shell/src/mod-system/types";
+import type { SlotContext, BlockBinding } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "../blocks/sidebarData";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 import { useSendAction } from "../../../shell/src/workspace/useSendAction";
+import { TipTapRenderer } from "../../../shell/src/workspace/TipTapRenderer";
+import Reference from "../editor/extensions/Reference";
+import UnifiedSuggestion from "../editor/extensions/UnifiedSuggestion";
+import Placeholder from "@tiptap/extension-placeholder";
+import { TableKit } from "@tiptap/extension-table";
+import { EMPTY_DOC, type TipTapDoc } from "../types";
+import { splitFirstParagraph } from "../hooks/useEntryEditor";
 
 /** Placeholder icon button with tooltip — all wired in future PRDs.
  *  Uses .btn-icon so the global button background is properly overridden. */
@@ -110,6 +118,79 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     busRef.current = new WorkspaceBus();
   }
   const bus = busRef.current;
+
+  // ── TipTap editor ref + content tracking (moved from ElnEditor) ──
+  const tipTapEditorRef = useRef<Editor | null>(null);
+  const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
+  const [contentVersion, setContentVersion] = useState(0);
+  const isProgrammaticChange = useRef(false);
+  const initialContentLoaded = useRef(false);
+
+  // ── ELN-specific extensions (passed to TipTapRenderer as a prop) ──
+  const elnExtensions = useMemo(
+    () => [
+      Placeholder.configure({ placeholder: "Start writing…" }),
+      Reference,
+      UnifiedSuggestion,
+      TableKit,
+    ],
+    [],
+  );
+
+  // ── Resolve editor slot bindings for TipTapRenderer ──
+  const editorBindings = useMemo(() => {
+    const resolved = ModRegistry.getInstance().resolveSlot("eln.editor");
+    if (!resolved) return [];
+    return resolved.bindings.filter(
+      (b): b is BlockBinding => b.type === "block",
+    );
+  }, []);
+
+  // ── TipTapRenderer callbacks ──
+  const handleEditorCreate = useCallback((editor: Editor) => {
+    tipTapEditorRef.current = editor;
+  }, []);
+
+  const handleEditorUpdate = useCallback((editor: Editor) => {
+    contentRef.current = editor.getJSON() as TipTapDoc;
+    if (!isProgrammaticChange.current) {
+      setContentVersion((v) => v + 1);
+    }
+  }, []);
+
+  // ── Reset initial-content flag when entryId changes ──
+  useEffect(() => {
+    initialContentLoaded.current = false;
+  }, [entryId]);
+
+  // ── Sync editor content on initial load ──
+  // Content loading lives here because ElnWorkspace owns both the editor ref
+  // (from TipTapRenderer's onCreate) and the entry data (from ElnEditor's
+  // onStateChange callback).
+  useEffect(() => {
+    const editor = tipTapEditorRef.current;
+    const entry = editorState.entry;
+    if (!editor || editor.isDestroyed || !entry || initialContentLoaded.current) return;
+    const { body } = splitFirstParagraph(entry.content);
+    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(body)) {
+      bus.emit("eln.editor.content-loading", true);
+      isProgrammaticChange.current = true;
+      queueMicrotask(() => {
+        try {
+          editor.commands.setContent(body);
+          contentRef.current = body as TipTapDoc;
+        } catch (err) {
+          console.error("ElnWorkspace: setContent failed:", err);
+        } finally {
+          isProgrammaticChange.current = false;
+        }
+      });
+      queueMicrotask(() => {
+        bus.emit("eln.editor.content-loading", false);
+      });
+    }
+    initialContentLoaded.current = true;
+  }, [editorState.entry, bus]);
 
   // ── sendAction bound to "eln" workspace — used by useBlockActionLogging
   //     to post block actions to the unified POST /api/actions/ endpoint (#327).
@@ -456,7 +537,25 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
           <main className="min-h-0 w-full">
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
-                <ElnEditor entryId={entryId} ref={editorRef} onStateChange={handleStateChange} bus={bus} slotContext={slotContext} hasBlockActionsRef={hasBlockActionsRef} />
+                <ElnEditor
+                  entryId={entryId}
+                  ref={editorRef}
+                  onStateChange={handleStateChange}
+                  contentRef={contentRef}
+                  contentVersion={contentVersion}
+                  hasBlockActionsRef={hasBlockActionsRef}
+                >
+                  <TipTapRenderer
+                    slotId="eln.editor"
+                    bindings={editorBindings}
+                    bus={bus}
+                    context={slotContext}
+                    extensions={elnExtensions}
+                    onCreate={handleEditorCreate}
+                    onUpdate={handleEditorUpdate}
+                    editable={!editorState.isLockedByOther}
+                  />
+                </ElnEditor>
               </CommentVisibilityProvider>
             </div>
           </main>

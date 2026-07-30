@@ -15,7 +15,7 @@ import { TableBlockComponent } from "./blocks/TableNodeView";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
 import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
-import { ActivityFeedBlock } from "./components/ActivityFeedBlock";
+import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFeedBlock";
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
@@ -226,8 +226,8 @@ export function register() {
     label: "Activity Feed",
     icon: History,
     component: ActivityFeedBlock,
-    listensTo: [],
-    onEvent: {},
+    listensTo: ["eln.action.performed", "eln.entry.saved"],
+    onEvent: activityFeedOnEvent,
     emits: [],
     getDisplayName: () => "Activity Feed",
     serialize: () => "{}",

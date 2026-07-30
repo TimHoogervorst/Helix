@@ -135,6 +135,7 @@ export function TipTapRenderer({
     onFlushActions,
     hasPendingRef,
     bindings,
+    user: context.user,
   });
 
   // Merge block node wiring with additional extensions.

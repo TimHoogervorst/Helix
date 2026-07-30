@@ -698,9 +698,13 @@ describe("TipTapRenderer", () => {
 
     const payload = actionPerformedPayloads[0] as Record<string, unknown>;
     expect(payload.action).toBe("eln.table.created");
-    expect(payload.action_type).toBe("created");
+    expect(payload.actionType).toBe("created");
     expect(payload.targetId).toBe(42);
+    expect(payload.targetType).toBe("eln.entry");
     expect(payload.requestId).toEqual(expect.any(String));
+    expect(payload.performedBy).toBe(defaultContext.user);
+    expect(payload.createdAt).toEqual(expect.any(String));
+    expect(payload.label).toEqual(expect.any(String));
   });
 
   // ── Action accumulator: no bus event on flush failure ────────────────

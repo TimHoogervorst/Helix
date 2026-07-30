@@ -71,6 +71,12 @@ export interface UseActionAccumulatorOptions {
    * flushed alongside lifecycle events.
    */
   bindings?: readonly BlockBinding[];
+  /**
+   * Current user info. When provided, `performedBy` is included in the
+   * `{workspaceId}.action.performed` bus event payload so listeners
+   * (ActivityFeedBlock) can render optimistic items without an API refetch.
+   */
+  user?: unknown;
 }
 
 /** Payload passed from BlockNodeView to the accumulator. */
@@ -99,6 +105,7 @@ export function useActionAccumulator({
   onFlushActions,
   hasPendingRef,
   bindings,
+  user,
 }: UseActionAccumulatorOptions) {
   // ── Accumulation map: `${blockInstanceId}:${verb}` → AccumulatedAction ──
   const pendingRef = useRef<Map<string, AccumulatedAction>>(new Map());
@@ -298,13 +305,18 @@ export function useActionAccumulator({
         // Emit each resolved action as a separate bus event so listeners
         // (ActivityFeedBlock) can receive ready-to-render action items
         // without a refetch + reconciliation round-trip.
+        const performedAt = new Date().toISOString();
         for (const action of flushedActions) {
           bus.emit(`${workspaceId}.action.performed`, {
             action: action.action,
-            action_type: action.action_type,
+            actionType: action.action_type,
+            label: (action.metadata as Record<string, unknown> | undefined)?.message ?? action.action,
+            performedBy: user,
+            createdAt: performedAt,
+            targetId: numericId,
+            targetType: `${workspaceId}.entry`,
             metadata: action.metadata,
             requestId: sharedRequestId,
-            targetId: numericId,
           });
         }
       }

@@ -9,23 +9,6 @@ export type EventHandler = (
 ) => unknown | void | Promise<unknown | void>;
 
 /**
- * Payload shape emitted by BlockNodeView for block lifecycle events
- * (`{blockId}.created`, `{blockId}.edited`, `{blockId}.deleted`).
- *
- * Shared contract between the emitter (BlockNodeView) and all consumers
- * (ActivityFeedBlock, useActionAccumulator, etc.).
- */
-export interface BlockLifecyclePayload {
-  blockId: string;
-  slotId: string;
-  blockInstanceId: string;
-  /** Present on created and edited events. */
-  attrs?: Record<string, unknown>;
-  /** Present on edited events (the changed fields only). */
-  changedAttrs?: Record<string, unknown>;
-}
-
-/**
  * Workspace-scoped event bus for decoupled communication between UI elements
  * across all slots in a workspace.
  *

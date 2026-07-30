@@ -87,15 +87,15 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
     ],
   },
   {
-    id: "select",
-    displayName: "Select",
+    id: "dropdown",
+    displayName: "Dropdown",
     icon: "List",
-    operandShape: "select",
+    operandShape: "dropdown",
     defaultValue: "",
     operators: [
       { id: "eq", label: "equals", operandShape: "text", djangoLookupName: "exact" },
       { id: "neq", label: "not equals", operandShape: "text", djangoLookupName: "exact" },
-      { id: "in", label: "is any of", operandShape: "select", djangoLookupName: "in" },
+      { id: "in", label: "is any of", operandShape: "dropdown", djangoLookupName: "in" },
       { id: "is_empty", label: "is empty", operandShape: "none", djangoLookupName: "isnull" },
     ],
   },
@@ -108,7 +108,7 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
     operators: [
       { id: "eq", label: "equals", operandShape: "entity-picker", djangoLookupName: "exact" },
       { id: "neq", label: "not equals", operandShape: "entity-picker", djangoLookupName: "exact" },
-      { id: "is_in_group", label: "is in group", operandShape: "select", djangoLookupName: "in" },
+      { id: "is_in_group", label: "is in group", operandShape: "dropdown", djangoLookupName: "in" },
     ],
   },
 ];
@@ -117,7 +117,7 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
 
 const MOCK_COLUMNS: AvailableColumn[] = [
   { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
-  { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+  { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
   { key: "created_at", label: "Created", source: "common", type: "date", filterable: true, width: null },
   { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
   { key: "display_id", label: "ID", source: "common", type: "text", filterable: false, width: null },

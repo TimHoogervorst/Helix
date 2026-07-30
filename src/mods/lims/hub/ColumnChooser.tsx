@@ -44,7 +44,7 @@ export const COMMON_COLUMNS: HubColumn[] = [
   { key: "display_id", label: "ID", source: "common", hideable: false, sortable: false, type: "text", icon: resolveColumnIcon("text"), filterable: true, width: null },
   { key: "name", label: "Name", source: "common", hideable: true, sortable: true, type: "text", icon: resolveColumnIcon("text"), filterable: true, width: null },
   { key: "schema_type_id", label: "Schema Type", source: "common", hideable: true, sortable: false, type: "text", icon: resolveColumnIcon("text"), filterable: true, width: null },
-  { key: "status", label: "Status", source: "common", hideable: true, sortable: true, type: "select", icon: resolveColumnIcon("select"), filterable: true, width: null },
+  { key: "status", label: "Status", source: "common", hideable: true, sortable: true, type: "dropdown", icon: resolveColumnIcon("dropdown"), filterable: true, width: null },
   { key: "author", label: "Author", source: "common", hideable: true, sortable: false, type: "user", icon: resolveColumnIcon("user"), filterable: true, width: null },
   { key: "created_at", label: "Created", source: "common", hideable: true, sortable: true, type: "datetime", icon: resolveColumnIcon("datetime"), filterable: true, width: null },
   { key: "updated_at", label: "Updated", source: "common", hideable: true, sortable: true, type: "datetime", icon: resolveColumnIcon("datetime"), filterable: true, width: null },

@@ -120,18 +120,18 @@ describe("ValueInput — boolean shape", () => {
   });
 });
 
-// ── Select shape ───────────────────────────────────────────────────────────
+// ── Dropdown shape ─────────────────────────────────────────────────────────
 
-describe("ValueInput — select shape", () => {
+describe("ValueInput — dropdown shape", () => {
   it("renders a text input with multi-select placeholder", () => {
-    setup({ operandShape: "select" });
+    setup({ operandShape: "dropdown" });
     const input = screen.getByPlaceholderText("option1, option2…");
     expect(input.tagName).toBe("INPUT");
     expect(input.getAttribute("type")).toBe("text");
   });
 
   it("shows current comma-separated value", () => {
-    setup({ operandShape: "select", value: "alpha, beta" });
+    setup({ operandShape: "dropdown", value: "alpha, beta" });
     const input = screen.getByDisplayValue("alpha, beta");
     expect(input).toBeInTheDocument();
   });

@@ -7,6 +7,8 @@ export interface ColumnDef {
   default?: string;
   units?: string;
   description?: string;
+  /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
+  dropdownId?: number;
 }
 
 // ── Schema (new shared model) ───────────────────────────────────────────
@@ -102,6 +104,8 @@ export interface AvailableColumn {
   filterable: boolean;
   /** Default pixel width for the column header, or null for auto-size. */
   width: number | null;
+  /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
+  dropdownId?: number;
 }
 
 /** Paginated response from GET /api/registry/entities. */

@@ -24,6 +24,11 @@ vi.mock("../hub/api", () => ({
   getSchemas: (...args: unknown[]) => mockGetSchemas(...args),
 }));
 
+const mockListDropdowns = vi.fn();
+vi.mock("../../dropdowns/api", () => ({
+  listDropdowns: (...args: unknown[]) => mockListDropdowns(...args),
+}));
+
 // Mock localStorage for view mode persistence tests
 const localStorageStore: Record<string, string> = {};
 const mockLocalStorage = {
@@ -78,7 +83,7 @@ const DEFAULT_COLUMNS: EntityHubResponse["available_columns"] = [
   { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
   { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
   { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
-  { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+  { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
   { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
   { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
   { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
@@ -195,6 +200,7 @@ describe("EntitiesHub", () => {
     mockNavigate.mockReset();
     mockGetSchemaTypes.mockReset();
     mockGetSchemas.mockReset();
+    mockListDropdowns.mockReset();
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     mockLocalStorage.getItem.mockClear();
     mockLocalStorage.setItem.mockClear();
@@ -203,6 +209,7 @@ describe("EntitiesHub", () => {
     mockGetEntities.mockResolvedValue(makeEmptyResponse());
     mockGetSchemaTypes.mockResolvedValue(MOCK_SCHEMA_TYPES);
     mockGetSchemas.mockResolvedValue(MOCK_SCHEMAS);
+    mockListDropdowns.mockResolvedValue([]);
   });
 
   // ── Loading / Empty / Error states ─────────────────────────────────
@@ -892,7 +899,7 @@ describe("EntitiesHub", () => {
       { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
       { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
       { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
-      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
       { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
       { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
       { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
@@ -924,7 +931,7 @@ describe("EntitiesHub", () => {
       { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
       { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
       { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
-      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
       { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
       { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
       { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
@@ -956,7 +963,7 @@ describe("EntitiesHub", () => {
       { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
       { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
       { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
-      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
       { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
       { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
       { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
@@ -1035,7 +1042,7 @@ describe("EntitiesHub", () => {
       { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
       { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
       { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
-      { key: "status", label: "Status", source: "common", type: "select", filterable: true, width: null },
+      { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
       { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
       { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
       { key: "updated_at", label: "Updated", source: "common", type: "datetime", filterable: true, width: null },
@@ -1172,10 +1179,10 @@ describe("EntitiesHub", () => {
     });
   });
 
-  it("renders select-type as coloured badge", async () => {
+  it("renders dropdown-type as coloured badge", async () => {
     const schemaColumns: EntityHubResponse["available_columns"] = [
       ...DEFAULT_COLUMNS,
-      { key: "blood_type", label: "Blood Type", source: "schema", type: "select", filterable: true, width: null },
+      { key: "blood_type", label: "Blood Type", source: "schema", type: "dropdown", filterable: true, width: null },
     ];
     const items = [
       makeEntityHubItem({ id: 1, _expanded: { blood_type: "A+" } }),

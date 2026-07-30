@@ -1,7 +1,7 @@
-"""Dropdown model — a named set of options for select columns to reference.
+"""Dropdown model — a named set of options for dropdown columns to reference.
 
 Dropdown (formerly "controlled vocabulary") provides the canonical list
-of allowed values for Select columns.  A select column references a
+of allowed values for Dropdown columns.  A dropdown column references a
 dropdown by ``dropdownId`` in its column definition.
 
 :class:`DropdownsAction` is the concrete action-log table for dropdown
@@ -14,7 +14,7 @@ from helix_core.actions.base import AbstractBaseAction
 
 
 class Dropdown(models.Model):
-    """A named, ordered list of options for select-column validation.
+    """A named, ordered list of options for dropdown-column validation.
 
     Options are stored as a JSON array so ordered retrieval is
     guaranteed.  No colour data is stored — option colours are derived

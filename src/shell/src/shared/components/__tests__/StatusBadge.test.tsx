@@ -21,7 +21,7 @@ describe("StatusBadge", () => {
 
   it("renders fallback label for unknown statuses", () => {
     render(<StatusBadge status="unknown_status" />);
-    const chip = screen.getByText("unknown_status");
+    const chip = screen.getByText("Unknown Status");
     expect(chip).toBeInTheDocument();
     expect(chip.className).toContain("card-status-chip");
     // No specific status class for unknown statuses

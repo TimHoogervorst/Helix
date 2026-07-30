@@ -11,22 +11,24 @@ from helix_core.mod_system.registry import registry
 
 
 def _seed_builtin_dropdowns():
-    """Pre-seed the Status dropdown with "In Progress" and "Finished".
+    """Pre-seed the Status dropdown with "in_progress" and "finished".
 
     Idempotent — uses get_or_create so repeated calls on boot are safe.
+    Migrates existing human-readable values to machine values on upgrade.
     """
     from .models import Dropdown
 
     dropdown, created = Dropdown.objects.get_or_create(
         name="Status",
         defaults={
-            "options": ["In Progress", "Finished"],
+            "options": ["in_progress", "finished"],
         },
     )
-    # If the dropdown already existed but has no options, fill them in.
-    if not created and not dropdown.options:
-        dropdown.options = ["In Progress", "Finished"]
-        dropdown.save(update_fields=["options"])
+    if not created:
+        # Migrate from old human-readable values or fill empty options.
+        if dropdown.options == ["In Progress", "Finished"] or not dropdown.options:
+            dropdown.options = ["in_progress", "finished"]
+            dropdown.save(update_fields=["options"])
 
 
 def register():

@@ -26,6 +26,7 @@ import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import type { ElnSidebarData } from "./sidebarData";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
+import { listDropdowns } from "../../dropdowns/api";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -187,6 +188,8 @@ interface EditableCellProps {
   value: unknown;
   onCommit: (columnName: string, newValue: unknown) => void;
   readOnly?: boolean;
+  /** Resolved dropdown options for dropdown-type columns. */
+  dropdownOptions?: string[];
 }
 
 /** Resolve the operand_shape for a column type string from the registry. */
@@ -224,19 +227,30 @@ function EditableCell({
   value,
   onCommit,
   readOnly = false,
+  dropdownOptions,
 }: EditableCellProps) {
   const operandShape = resolveOperandShape(columnType);
   const CellEditor: CellEditorComponent = getCellEditor(operandShape);
 
   if (readOnly) {
     // Render all cell types as read-only display, except entity-picker
-    // which keeps its MentionBadge clickable.
+    // and select which keep their interactive elements visible.
     if (operandShape === "entity-picker") {
       return (
         <CellEditor
           value={value}
           onCommit={(v) => onCommit(columnName, v)}
           readOnly
+        />
+      );
+    }
+    if (operandShape === "dropdown" && dropdownOptions && dropdownOptions.length > 0) {
+      return (
+        <CellEditor
+          value={value}
+          onCommit={(v) => onCommit(columnName, v)}
+          readOnly
+          dropdownOptions={dropdownOptions}
         />
       );
     }
@@ -258,6 +272,7 @@ function EditableCell({
     <CellEditor
       value={value}
       onCommit={(v) => onCommit(columnName, v)}
+      dropdownOptions={dropdownOptions}
     />
   );
 }
@@ -351,6 +366,48 @@ export function RegistryTableContent({
   const newRowCounter = useRef(
     rows.filter((r) => !r.isRegistered).length + 1,
   );
+
+  // ── Resolve dropdown options for dropdown columns ──────────────────────
+  const [dropdownOptionsMap, setDropdownOptionsMap] = useState<
+    Map<string, string[]>
+  >(new Map());
+
+  useEffect(() => {
+    const selectColumns = columns.filter(
+      (c) => c.type === "dropdown" && c.dropdownId,
+    );
+    if (selectColumns.length === 0) {
+      setDropdownOptionsMap(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    listDropdowns()
+      .then((dropdowns) => {
+        if (cancelled) return;
+        const map = new Map<string, string[]>();
+        const optionsById = new Map<number, string[]>();
+        for (const d of dropdowns) {
+          optionsById.set(d.id, d.options);
+        }
+        for (const col of selectColumns) {
+          if (col.dropdownId) {
+            const opts = optionsById.get(col.dropdownId);
+            if (opts) {
+              map.set(col.name, opts);
+            }
+          }
+        }
+        setDropdownOptionsMap(map);
+      })
+      .catch(() => {
+        if (!cancelled) setDropdownOptionsMap(new Map());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [columns]);
 
   // ── Fetch entity types when picker opens ────────────────────────────
   const handleOpenPicker = useCallback(async () => {
@@ -999,6 +1056,7 @@ export function RegistryTableContent({
                           handleCellCommit(row.displayId, colName, newValue)
                         }
                         readOnly={readOnly}
+                        dropdownOptions={dropdownOptionsMap.get(col.name)}
                       />
                     </td>
                   ))}

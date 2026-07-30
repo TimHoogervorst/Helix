@@ -46,7 +46,7 @@ _COMMON_COLUMN_DEFS: list[dict] = [
     {"key": "display_id",    "label": "ID",          "type": "text"},
     {"key": "name",          "label": "Name",        "type": "text"},
     {"key": "schema_type_id","label": "Schema Type",  "type": "text"},
-    {"key": "status",        "label": "Status",      "type": "select"},
+    {"key": "status",        "label": "Status",      "type": "dropdown"},
     {"key": "author",        "label": "Author",      "type": "user"},
     {"key": "created_at",    "label": "Created",     "type": "datetime"},
     {"key": "updated_at",    "label": "Updated",     "type": "datetime"},
@@ -90,13 +90,17 @@ def _enrich_schema_column(col: dict, source: str) -> dict:
     from the column type registry.
     """
     col_type = col.get("type", "text")
-    return {
+    result = {
         "key": col.get("name", ""),
         "label": col.get("name", ""),
         "source": source,
         "type": col_type,
         **_resolve_column_meta(col_type),
     }
+    dropdown_id = col.get("dropdownId")
+    if dropdown_id is not None:
+        result["dropdownId"] = dropdown_id
+    return result
 
 SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})
 

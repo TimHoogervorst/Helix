@@ -1260,7 +1260,7 @@ class BatchRegisterSelectValidationTests(BaseTestCase):
         self.assertEqual(len(response.data["errors"]), 0)
 
     def test_non_string_rejected(self):
-        """Non-string values for select columns are rejected."""
+        """Non-string values for dropdown columns are rejected."""
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [

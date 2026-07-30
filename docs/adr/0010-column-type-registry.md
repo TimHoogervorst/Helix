@@ -39,7 +39,7 @@ A `ColumnType` is a Python class with:
 
 **Registration flow**: Mods call `registry.register_column_type(MyType)` in `mod.py`. `helix_core` registers the five built-in types in its `AppConfig.ready()`. The registry validates `id` uniqueness across all mods. `get_registry_payload()` adds a top-level `columnTypes` key to the boot response.
 
-**Frontend rendering**: No frontend registration required. The `operand_shape` field (`"text"`, `"number"`, `"date"`, `"boolean"`, `"select"`, `"entity-picker"`, `"range"`) maps 1:1 to generic input components. A single `renderCell` / `renderFilterInput` dispatches on shape. Custom rendering (e.g., DNA mini-viewer) is deferred as an escape hatch.
+**Frontend rendering**: No frontend registration required. The `operand_shape` field (`"text"`, `"number"`, `"date"`, `"boolean"`, `"dropdown"`, `"entity-picker"`, `"range"`) maps 1:1 to generic input components. A single `renderCell` / `renderFilterInput` dispatches on shape. Custom rendering (e.g., DNA mini-viewer) is deferred as an escape hatch.
 
 ### Built-in type hierarchy
 
@@ -50,17 +50,17 @@ A `ColumnType` is a Python class with:
 | `date` | ColumnType | eq, neq, gt, gte, lt, lte, between | date / range |
 | `datetime` | ColumnType | eq, neq, gt, gte, lt, lte, between | date / range |
 | `boolean` | ColumnType | eq, neq | boolean |
-| `select` | ColumnType | eq, neq, in, is_empty | select |
+| `dropdown` | ColumnType | eq, neq, in, is_empty | dropdown |
 | `reference` | ColumnType | eq, neq, is_any_of, is_empty | entity-picker |
 | `user` | Reference | eq, neq, is_in_group | entity-picker |
 
 ### Dropdown system
 
-Select columns reference centrally-stored dropdown definitions by `dropdownId`. Dropdowns are CRUD-able via a settings UI section and served through `GET/POST/PUT/DELETE /api/dropdowns/`. Each option's colour is derived deterministically: `hash(option_value) % palette_size`. The `status-dropdown` is pre-seeded with `["In Progress", "Finished"]`.
+Dropdown columns reference centrally-stored dropdown definitions by `dropdownId`. Dropdowns are CRUD-able via a settings UI section and served through `GET/POST/PUT/DELETE /api/dropdowns/`. Each option's colour is derived deterministically: `hash(option_value) % palette_size`. The `status-dropdown` is pre-seeded with `["In Progress", "Finished"]`.
 
 ### System columns
 
-`helix_core` declares a base entity column set that all entity types inherit: `display_id` (text), `name` (text), `status` (select → status-dropdown), `author` (user), `created_at` (datetime), `updated_at` (datetime). Mods declare additional system columns on `register_schema_type()`. ELN adds `content` (tiptap_content).
+`helix_core` declares a base entity column set that all entity types inherit: `display_id` (text), `name` (text), `status` (dropdown → status-dropdown), `author` (user), `created_at` (datetime), `updated_at` (datetime). Mods declare additional system columns on `register_schema_type()`. ELN adds `content` (tiptap_content).
 
 ### Migration
 

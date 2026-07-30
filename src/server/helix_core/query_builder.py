@@ -263,7 +263,7 @@ def _resolve_system_column_type(column_key: str):
         "display_id": "text",
         "name": "text",
         "schema_type_id": "text",
-        "status": "select",
+        "status": "dropdown",
         "author": "user",
         "created_at": "datetime",
         "updated_at": "datetime",

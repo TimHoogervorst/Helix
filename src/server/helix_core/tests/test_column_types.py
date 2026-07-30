@@ -26,7 +26,7 @@ from helix_core.column_types import (
     NumberColumnType,
     OperatorMeta,
     ReferenceColumnType,
-    SelectColumnType,
+    DropdownColumnType,
     TextColumnType,
     UserColumnType,
     get_builtin_column_types,
@@ -351,18 +351,18 @@ class BooleanColumnTypeTests(TestCase):
         self.assertIsInstance(result, str)
 
 
-# ── Built-in type: Select ────────────────────────────────────────────────────
+# ── Built-in type: Dropdown ──────────────────────────────────────────────────
 
 
-class SelectColumnTypeTests(TestCase):
+class DropdownColumnTypeTests(TestCase):
     def setUp(self):
-        self.ct = SelectColumnType()
+        self.ct = DropdownColumnType()
 
     def test_id_and_display_name(self):
-        self.assertEqual(self.ct.id, "select")
-        self.assertEqual(self.ct.display_name, "Select")
+        self.assertEqual(self.ct.id, "dropdown")
+        self.assertEqual(self.ct.display_name, "Dropdown")
         self.assertEqual(self.ct.icon, "list")
-        self.assertEqual(self.ct.operand_shape, "select")
+        self.assertEqual(self.ct.operand_shape, "dropdown")
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
@@ -370,8 +370,8 @@ class SelectColumnTypeTests(TestCase):
 
     def test_operator_operand_shapes(self):
         shapes = {op.id: op.operand_shape for op in self.ct.get_operators()}
-        self.assertEqual(shapes["eq"], "select")
-        self.assertEqual(shapes["in"], "select")
+        self.assertEqual(shapes["eq"], "dropdown")
+        self.assertEqual(shapes["in"], "dropdown")
         self.assertEqual(shapes["is_empty"], "none")
 
     def test_validate_string(self):
@@ -482,7 +482,7 @@ class UserColumnTypeTests(TestCase):
     def test_operator_operand_shapes(self):
         shapes = {op.id: op.operand_shape for op in self.ct.get_operators()}
         self.assertEqual(shapes["eq"], "entity-picker")
-        self.assertEqual(shapes["is_in_group"], "select")
+        self.assertEqual(shapes["is_in_group"], "dropdown")
 
     def test_validate_accepts_strings_and_ints(self):
         """User validate() accepts strings, ints, and None."""
@@ -687,7 +687,7 @@ class ColumnTypesContractTests(TestCase):
         """All built-in column types plus mod-registered types are present."""
         response = self.client.get("/api/mod-registry/")
         type_ids = {ct["id"] for ct in response.data["columnTypes"]}
-        expected = {"text", "number", "date", "datetime", "boolean", "select", "reference", "user", "tiptap_content"}
+        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "tiptap_content"}
         self.assertEqual(type_ids, expected)
 
     def test_builtin_operators_have_correct_shape(self):
@@ -702,6 +702,6 @@ class ColumnTypesContractTests(TestCase):
                 # operandShape must be one of the valid shapes.
                 valid_shapes = {
                     "text", "number", "date", "boolean",
-                    "select", "entity-picker", "range", "none",
+                    "dropdown", "entity-picker", "range", "none",
                 }
                 self.assertIn(op["operandShape"], valid_shapes)

@@ -24,12 +24,17 @@ def _get_dropdown_options(dropdown_id: str) -> list[str] | None:
     """Return the list of option values for a dropdown, or *None* if the
     dropdown cannot be found.
 
-    This is a placeholder — the full dropdown system will be implemented in
-    a future PR.  Returns ``None`` for unknown dropdown IDs so that callers
-    fall back to basic string validation.
+    Looks up the Dropdown model from the dropdowns mod by its integer
+    primary key.  Returns ``None`` for unknown IDs so that callers fall
+    back to basic string validation.
     """
-    # TODO: replace with a real dropdown lookup once the Dropdown model exists.
-    return None
+    from mods.dropdowns.models import Dropdown
+
+    try:
+        dropdown = Dropdown.objects.get(pk=int(dropdown_id))
+        return dropdown.options
+    except (Dropdown.DoesNotExist, ValueError, TypeError):
+        return None
 
 
 class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
@@ -207,7 +212,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
                 # Gather context for validation.
                 context: dict = {}
-                if type_id == "select":
+                if type_id == "dropdown":
                     # Look up dropdown options if a dropdownId is present.
                     dropdown_id = col_def.get("dropdownId")
                     if dropdown_id:

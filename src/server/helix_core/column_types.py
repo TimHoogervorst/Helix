@@ -35,7 +35,7 @@ class OperatorMeta:
         label: Human-readable label (e.g. ``"Equals"``, ``"Contains"``).
         operand_shape: Drives which frontend input component to render.
             Valid values: ``"text"``, ``"number"``, ``"date"``, ``"boolean"``,
-            ``"select"``, ``"entity-picker"``, ``"range"``, ``"none"``.
+            ``"dropdown"``, ``"entity-picker"``, ``"range"``, ``"none"``.
         django_lookup_name: The Django ORM field lookup suffix
             (e.g. ``"exact"``, ``"icontains"``, ``"gt"``).
     """
@@ -106,11 +106,11 @@ def _make_boolean_operators() -> list[OperatorMeta]:
     ]
 
 
-def _make_select_operators() -> list[OperatorMeta]:
+def _make_dropdown_operators() -> list[OperatorMeta]:
     return [
-        OperatorMeta("eq", "Equals", "select", "exact"),
-        OperatorMeta("neq", "Not Equals", "select", "exact"),
-        OperatorMeta("in", "In", "select", "in"),
+        OperatorMeta("eq", "Equals", "dropdown", "exact"),
+        OperatorMeta("neq", "Not Equals", "dropdown", "exact"),
+        OperatorMeta("in", "In", "dropdown", "in"),
         OperatorMeta("is_empty", "Is Empty", "none", "isnull"),
     ]
 
@@ -128,7 +128,7 @@ def _make_user_operators() -> list[OperatorMeta]:
     return [
         OperatorMeta("eq", "Equals", "entity-picker", "exact"),
         OperatorMeta("neq", "Not Equals", "entity-picker", "exact"),
-        OperatorMeta("is_in_group", "Is In Group", "select", "in"),
+        OperatorMeta("is_in_group", "Is In Group", "dropdown", "in"),
     ]
 
 
@@ -148,7 +148,7 @@ class ColumnType:
         operand_shape: The primary operand shape for cell editing and
             rendering.  Drives which frontend cell editor component to use.
             Valid values: ``"text"``, ``"number"``, ``"date"``,
-            ``"boolean"``, ``"select"``, ``"entity-picker"``, ``"range"``,
+            ``"boolean"``, ``"dropdown"``, ``"entity-picker"``, ``"range"``,
             ``"none"``.
     """
 
@@ -169,7 +169,7 @@ class ColumnType:
         Parameters:
             value: The value to validate.
             **context: Additional context (e.g. ``dropdown_options`` for
-                select types, ``required`` flag).
+                dropdown types, ``required`` flag).
 
         Returns:
             ``True`` if the value is valid, or a string error message if
@@ -324,14 +324,14 @@ class BooleanColumnType(ColumnType):
         return False
 
 
-class SelectColumnType(ColumnType):
-    id = "select"
-    display_name = "Select"
+class DropdownColumnType(ColumnType):
+    id = "dropdown"
+    display_name = "Dropdown"
     icon = "list"
-    operand_shape = "select"
+    operand_shape = "dropdown"
 
     def get_operators(self) -> list[OperatorMeta]:
-        return _make_select_operators()
+        return _make_dropdown_operators()
 
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
@@ -405,7 +405,7 @@ _BUILTIN_TYPES: list[type[ColumnType]] = [
     DateColumnType,
     DatetimeColumnType,
     BooleanColumnType,
-    SelectColumnType,
+    DropdownColumnType,
     ReferenceColumnType,
     UserColumnType,
 ]

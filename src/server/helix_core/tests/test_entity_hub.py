@@ -265,7 +265,7 @@ class EntityHubAPITests(APITestCase):
         type_by_key = {c["key"]: c["type"] for c in data["available_columns"]}
         self.assertEqual(type_by_key.get("display_id"), "text")
         self.assertEqual(type_by_key.get("name"), "text")
-        self.assertEqual(type_by_key.get("status"), "select")
+        self.assertEqual(type_by_key.get("status"), "dropdown")
         self.assertEqual(type_by_key.get("author"), "user")
         self.assertEqual(type_by_key.get("created_at"), "datetime")
         self.assertEqual(type_by_key.get("updated_at"), "datetime")

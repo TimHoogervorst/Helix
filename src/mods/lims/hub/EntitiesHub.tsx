@@ -25,6 +25,7 @@ import { relativeTime, formatDate } from "../../../shell/src/shared/format";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { deriveDropdownColor } from "../../dropdowns/colourUtils";
+import { listDropdowns } from "../../dropdowns/api";
 import { getEntities, getSchemaTypes, getSchemas } from "./api";
 import type { EntityHubFilters } from "./api";
 import type {
@@ -259,16 +260,20 @@ function EntitiesHub() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Schema types & schemas for dropdowns ────────────────────────────────
+  // ── Schema types, schemas & dropdowns ──────────────────────────────────
 
   const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
   const [schemas, setSchemas] = useState<Schema[]>([]);
+  const [dropdowns, setDropdowns] = useState<
+    { id: number; options: string[] }[]
+  >([]);
 
   useEffect(() => {
-    Promise.all([getSchemaTypes(), getSchemas()])
-      .then(([types, schemaList]) => {
+    Promise.all([getSchemaTypes(), getSchemas(), listDropdowns()])
+      .then(([types, schemaList, dropdownList]) => {
         setSchemaTypes(types);
         setSchemas(schemaList);
+        setDropdowns(dropdownList);
       })
       .catch(() => {
         // Dropdowns fall back to empty — user can still type search
@@ -556,7 +561,7 @@ function EntitiesHub() {
     }
   }
 
-  /** Render a select-type value as a coloured badge using hash-based colour. */
+  /** Render a dropdown-type value as a coloured badge using hash-based colour. */
   function renderSelectBadge(value: string): ReactNode {
     const color = deriveDropdownColor(value);
     return (
@@ -592,7 +597,7 @@ function EntitiesHub() {
         return formatDateTime(value);
       case "boolean":
         return value ? "Yes" : "No";
-      case "select":
+      case "dropdown":
         return renderSelectBadge(String(value));
       case "reference":
         return (
@@ -659,6 +664,26 @@ function EntitiesHub() {
   // ── Available columns from response (for Fields popover) ─────────────────
 
   const availableColumns: AvailableColumn[] = data?.available_columns || [];
+
+  // ── Build dropdown options map (column key → option strings) ────────────
+
+  const dropdownOptionsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (dropdowns.length === 0) return map;
+    const optionsById = new Map<number, string[]>();
+    for (const d of dropdowns) {
+      optionsById.set(d.id, d.options);
+    }
+    for (const col of availableColumns) {
+      if (col.type === "dropdown" && col.dropdownId) {
+        const opts = optionsById.get(col.dropdownId);
+        if (opts) {
+          map.set(col.key, opts);
+        }
+      }
+    }
+    return map;
+  }, [availableColumns, dropdowns]);
 
   // ── Build merged columns (common + schema_type + schema) ──────────────────
 
@@ -882,6 +907,7 @@ function EntitiesHub() {
             availableColumns={availableColumns}
             filters={fieldFilters}
             onFiltersChange={handleFiltersChange}
+            dropdownOptionsMap={dropdownOptionsMap}
           />
         </div>
 

@@ -157,7 +157,7 @@ function DropdownSettings() {
         <div>
           <h2 className="text-lg font-semibold">Dropdowns</h2>
           <p className="text-sm text-muted-foreground">
-            Manage controlled vocabularies for select columns.{" "}
+            Manage controlled vocabularies for dropdown columns.{" "}
             <span className="italic">
               Option colours are derived automatically from the option text.
             </span>

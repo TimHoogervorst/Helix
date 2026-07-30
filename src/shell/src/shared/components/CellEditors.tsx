@@ -41,6 +41,9 @@ export interface CellEditorProps {
   readOnly?: boolean;
   /** Additional context (e.g. the column name). */
   columnName?: string;
+  /** Dropdown options for dropdown-type cells. When provided, the cell renders
+   *  as a popover picker. When omitted or empty, falls back to text editing. */
+  dropdownOptions?: string[];
 }
 
 /** Signature of a cell editor React component. */
@@ -394,6 +397,130 @@ function ReferenceCell({
   );
 }
 
+// ── Dropdown Cell (popover picker) ─────────────────────────────────────────────
+
+function DropdownCell({
+  value,
+  onCommit,
+  readOnly = false,
+  dropdownOptions,
+}: CellEditorProps) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // ── Close on outside click ────────────────────────────────────────────
+  useClickOutside([triggerRef, popoverRef], () => setOpen(false), open);
+
+  // ── Fall back to text editing when no dropdown options ────────────────
+  const options = dropdownOptions ?? [];
+  if (options.length === 0) {
+    return (
+      <TextCell
+        value={value}
+        onCommit={onCommit}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  // ── Select an option ──────────────────────────────────────────────────
+  const handleSelect = useCallback(
+    (option: string) => {
+      onCommit(option);
+      setOpen(false);
+    },
+    [onCommit],
+  );
+
+  // ── Clear the selection ───────────────────────────────────────────────
+  const handleClear = useCallback(() => {
+    onCommit("");
+    setOpen(false);
+  }, [onCommit]);
+
+  return (
+    <div className="relative inline-flex items-center gap-1 px-4 py-2">
+      {Boolean(value) ? (
+        <div className="flex items-center gap-1">
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-surface/60 text-foreground border border-hairline">
+            {String(value)}
+          </span>
+          {!readOnly && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-destructive text-xs leading-none px-0.5"
+              onClick={handleClear}
+              title="Clear value"
+              aria-label="Clear value"
+              data-testid="sel-clear-btn"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ) : (
+        !readOnly && (
+          <button
+            ref={triggerRef}
+            type="button"
+            className="bg-transparent border-transparent text-xs text-muted-foreground italic px-1 py-0.5 rounded hover:bg-muted hover:text-muted-foreground"
+            onClick={() => setOpen(true)}
+            data-testid="sel-trigger-btn"
+          >
+            Select…
+          </button>
+        )
+      )}
+
+      {/* ── Popover — portaled to body ────────────────────────────────── */}
+      {open &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="z-50 w-56 rounded-md border border-hairline bg-popover shadow-lg"
+            style={{
+              position: "fixed",
+              top:
+                (triggerRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+              left: triggerRef.current?.getBoundingClientRect().left ?? 0,
+            }}
+            data-testid="sel-popover"
+          >
+            <div className="max-h-48 overflow-y-auto py-1">
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  className={`w-full px-3 py-1.5 text-left text-sm hover:bg-surface/60 transition-colors ${
+                    value === opt ? "bg-surface/40 font-medium" : ""
+                  }`}
+                  onClick={() => handleSelect(opt)}
+                  data-testid={`sel-option-${opt}`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            {Boolean(value) && (
+              <div className="border-t border-hairline p-1">
+                <button
+                  type="button"
+                  className="w-full text-left px-2 py-1 text-xs text-destructive hover:bg-surface/60 rounded"
+                  onClick={handleClear}
+                  data-testid="sel-clear-option"
+                >
+                  Clear value
+                </button>
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 // ── Lookup table ────────────────────────────────────────────────────────────
 
 /**
@@ -404,7 +531,7 @@ function ReferenceCell({
  * ``OperatorMeta.operand_shape`` and ``ColumnType.operand_shape``.
  *
  * Valid shapes: ``"text"``, ``"number"``, ``"date"``, ``"boolean"``,
- * ``"select"``, ``"entity-picker"``, ``"range"``, ``"none"``.
+ * ``"dropdown"``, ``"entity-picker"``, ``"range"``, ``"none"``.
  *
  * Missing shapes (``"range"``, ``"none"``) fall back to ``TextCell``
  * because they don't have a natural inline cell editor.
@@ -414,7 +541,7 @@ export const CELL_EDITOR_MAP: Record<string, CellEditorComponent> = {
   number: NumberCell,
   date: DateCell,
   boolean: BooleanCell,
-  select: TextCell, // Select cells fall back to text editing for now
+  dropdown: DropdownCell,
   "entity-picker": ReferenceCell,
   // "range" and "none" are not cell-editable shapes
 };

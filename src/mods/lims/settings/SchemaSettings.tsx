@@ -142,7 +142,7 @@ function SettingsPage() {
     id: number,
     index: number,
     field: keyof ColumnDef,
-    value: string | boolean,
+    value: string | boolean | number,
   ) => {
     setDirtyEdits((prev) => {
       const next = new Map(prev);

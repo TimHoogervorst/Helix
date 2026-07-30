@@ -1,4 +1,4 @@
-/** A named, ordered list of options for select columns. */
+/** A named, ordered list of options for dropdown columns. */
 export interface Dropdown {
   id: number;
   name: string;

@@ -21,9 +21,10 @@ import * as elnMod from "../index";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
-const { mockFetchActions, mockLockedState } = vi.hoisted(() => ({
+const { mockFetchActions, mockLockedState, mockIsReady } = vi.hoisted(() => ({
   mockFetchActions: vi.fn().mockResolvedValue([]),
   mockLockedState: { isLockedByOther: false, lockHeldBy: null as string | null },
+  mockIsReady: { value: true },
 }));
 
 vi.mock("../api", () => ({
@@ -37,7 +38,7 @@ vi.mock("../api", () => ({
 /** Mock useEntryCrud — provides editor state, was previously lifted from ElnEditor. */
 vi.mock("../hooks/useEntryCrud", () => ({
   useEntryCrud: () => ({
-    isReady: true,
+    isReady: mockIsReady.value,
     entry: null,
     title: "",
     setTitle: vi.fn(),
@@ -120,6 +121,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     mockFetchActions.mockResolvedValue([]);
     mockLockedState.isLockedByOther = false;
     mockLockedState.lockHeldBy = null;
+    mockIsReady.value = true;
 
     // Set up the ModRegistry so SlotRenderer can resolve eln.sidebar
     // and the ActivityFeedBlock.
@@ -149,6 +151,25 @@ describe("ElnWorkspacePage — five-zone layout", () => {
   it("does NOT render a Draft status badge in the top toolbar", () => {
     renderAtRoute("/eln/EXP-0284");
     expect(screen.queryByText("Draft")).toBeNull();
+  });
+
+  // ── Loading skeleton ──────────────────────────────────────────────────
+
+  it("renders ContentLoadingSkeleton when isReady is false", () => {
+    mockIsReady.value = false;
+    renderAtRoute("/eln/EXP-0284");
+    expect(screen.getByTestId("content-loading-skeleton")).toBeDefined();
+    // TipTapRenderer should NOT be rendered while loading
+    expect(screen.queryByTestId("tiptap-renderer")).toBeNull();
+  });
+
+  it("renders TipTapRenderer when isReady transitions to true", () => {
+    mockIsReady.value = true;
+    renderAtRoute("/eln/EXP-0284");
+    // TipTapRenderer should be rendered
+    expect(screen.getByTestId("tiptap-renderer")).toBeDefined();
+    // ContentLoadingSkeleton should NOT be rendered
+    expect(screen.queryByTestId("content-loading-skeleton")).toBeNull();
   });
 
   // ── Top toolbar: action buttons (History, Comments, Star) ───────────

@@ -4365,3 +4365,44 @@ input.entities-filter-search {
     max-width: 100%;
   }
 }
+
+/* ── Content Loading Skeleton ─────────────────────────────────────────── */
+
+.content-loading-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The skeleton lines — base colour, pulsing shimmer sweep */
+.skeleton-line {
+  background: var(--color-muted);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shimmer sweep: a translucent white gradient slides left-to-right across
+   each skeleton line, clipped by overflow:hidden on the parent container.
+   The container-level overflow:hidden ensures the sweep doesn't bleed
+   into adjacent elements. */
+.skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--color-background) 60%, transparent) 40%,
+    color-mix(in oklab, var(--color-background) 80%, transparent) 60%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

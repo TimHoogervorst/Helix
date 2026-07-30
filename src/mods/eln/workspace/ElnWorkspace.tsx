@@ -23,6 +23,7 @@ import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
 import MoreActions from "../components/MoreActions";
+import ContentLoadingSkeleton from "../components/ContentLoadingSkeleton";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
@@ -149,15 +150,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   const navigate = useNavigate();
 
-  // ── TipTap editor ref + content tracking ──
-  const tipTapEditorRef = useRef<Editor | null>(null);
+  // ── TipTap content tracking ──
   const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
   const [contentVersion, setContentVersion] = useState(0);
-  const isProgrammaticChange = useRef(false);
-  const initialContentLoaded = useRef(false);
-  // Tracks when the TipTap editor has mounted so the content-sync effect
-  // can re-fire on editor creation (refs don't trigger re-renders).
-  const [editorMounted, setEditorMounted] = useState(false);
 
   // ── WorkspaceBus — one per workspace instance, shared across all slots ──
   const busRef = useRef<WorkspaceBus>(null);
@@ -346,64 +341,21 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, []);
 
   // ── TipTapRenderer callbacks ──
-  const handleEditorCreate = useCallback((editor: Editor) => {
-    tipTapEditorRef.current = editor;
-    setEditorMounted(true);
-  }, []);
-
   const handleEditorUpdate = useCallback((editor: Editor) => {
     contentRef.current = editor.getJSON() as TipTapDoc;
-    if (!isProgrammaticChange.current) {
-      setContentVersion((v) => v + 1);
-    }
+    setContentVersion((v) => v + 1);
   }, []);
 
-  // ── Derive initial content for TipTapRenderer ──
-  // Passed as the `content` prop so the editor is populated on mount,
-  // avoiding the race where the content-sync effect fires before the
-  // TipTap editor instance exists.
-  const initialContent = useMemo(() => {
-    if (!editorState.entry) return null;
+  // ── Derive body content for TipTapRenderer ──
+  // Guaranteed non-null at mount: isReady gates the renderer branch for
+  // existing entries (entry is loaded), and EMPTY_DOC serves as the
+  // fallback for new entries (content arrives at mount — no post-mount
+  // setContent needed).
+  const bodyContent = useMemo(() => {
+    if (!editorState.entry) return EMPTY_DOC;
     const { body } = splitFirstParagraph(editorState.entry.content);
     return body;
   }, [editorState.entry]);
-
-  // ── Reset initial-content flag when entryId changes ──
-  useEffect(() => {
-    initialContentLoaded.current = false;
-  }, [entryId]);
-
-  // ── Sync editor content on initial load ──
-  //
-  // Depends on editorState.entry (content source), editorMounted (so the
-  // effect re-fires after the TipTap editor is created), and bus.
-  // Without editorMounted, the effect races with editor creation: the entry
-  // arrives before onCreate fires, the guard bails out, and content is
-  // never loaded.
-  useEffect(() => {
-    const editor = tipTapEditorRef.current;
-    const entryData = editorState.entry;
-    if (!editor || editor.isDestroyed || !entryData || initialContentLoaded.current) return;
-    const { body } = splitFirstParagraph(entryData.content);
-    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(body)) {
-      bus.emit("eln.editor.content-loading", true);
-      isProgrammaticChange.current = true;
-      queueMicrotask(() => {
-        try {
-          editor.commands.setContent(body);
-          contentRef.current = body as TipTapDoc;
-        } catch (err) {
-          console.error("ElnWorkspace: setContent failed:", err);
-        } finally {
-          isProgrammaticChange.current = false;
-        }
-      });
-      queueMicrotask(() => {
-        bus.emit("eln.editor.content-loading", false);
-      });
-    }
-    initialContentLoaded.current = true;
-  }, [editorState.entry, editorMounted, bus]);
 
   // ── sendAction bound to "eln" workspace — passed to TipTapRenderer as
   //     `onFlushActions` for useActionAccumulator to post block actions to
@@ -526,7 +478,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
           <div className="flex min-h-0 flex-1 justify-center overflow-y-auto" style={{ overflowX: "clip" }}>
             <main className="min-h-0 w-full">
               <div className="px-6 pb-24 pt-8">
-                <p className="text-center text-muted-foreground py-12">Loading…</p>
+                <ContentLoadingSkeleton />
               </div>
             </main>
           </div>
@@ -900,15 +852,14 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                       Not constrained by max-w-3xl so stretch blocks (registry tables,
                       etc.) can expand into the gutters. Per-child centering is handled
                       by .ProseMirror > * in styles.css. */}
-                  <div className="min-h-[60vh]" data-testid="prosemirror-wrapper">
+                  <div className="min-h-[60vh]" data-testid="prosemirror-wrapper" key={entryId}>
                     <TipTapRenderer
                       slotId="eln.editor"
                       bindings={editorBindings}
                       bus={bus}
                       context={slotContext}
-                      content={initialContent}
+                      content={bodyContent}
                       extensions={elnExtensions}
-                      onCreate={handleEditorCreate}
                       onUpdate={handleEditorUpdate}
                       editable={!editorState.isLockedByOther}
                       saveSignal={editorState.lastSavedAt}

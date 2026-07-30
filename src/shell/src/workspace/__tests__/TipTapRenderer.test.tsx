@@ -349,14 +349,10 @@ describe("TipTapRenderer", () => {
     expect(schema.nodes["doc"]).toBeDefined();
   });
 
-  // ── Lifecycle: created ──────────────────────────────────────────────
+  // ── Action accumulator: onFlushActions called on saveSignal change ──
 
-  it("emits created event when a block node is inserted", async () => {
-    const createdPayloads: unknown[] = [];
-    bus.on("eln.table.created", (payload) => {
-      createdPayloads.push(payload);
-    });
-
+  it("calls onFlushActions when saveSignal transitions after lifecycle events", async () => {
+    const mockFlush = vi.fn().mockResolvedValue(undefined);
     const capture = captureEditor();
     const bindings: BlockBinding[] = [
       makeBlockBinding({
@@ -366,7 +362,8 @@ describe("TipTapRenderer", () => {
       }),
     ];
 
-    render(
+    let saveSignal: Date | null = null;
+    const { rerender } = render(
       <TipTapRenderer
         slotId={defaultSlotId}
         bindings={bindings}
@@ -374,6 +371,9 @@ describe("TipTapRenderer", () => {
         context={defaultContext}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
       />,
     );
 
@@ -381,10 +381,9 @@ describe("TipTapRenderer", () => {
       expect(capture.editor).toBeTruthy();
     });
 
-    // Insert a block node via the editor commands
+    // Insert a block node to trigger lifecycle events
     await act(async () => {
-      const editor = capture.editor!;
-      editor.commands.setContent({
+      capture.editor!.commands.setContent({
         type: "doc",
         content: [
           {
@@ -395,25 +394,64 @@ describe("TipTapRenderer", () => {
           },
         ],
       });
-      // Allow ProseMirror to commit the transaction and NodeView to mount
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    expect(createdPayloads.length).toBeGreaterThanOrEqual(1);
-    const payload = createdPayloads[0] as Record<string, unknown>;
-    expect(payload.blockId).toBe("eln.table");
-    expect(payload.slotId).toBe(defaultSlotId);
-    expect(payload.blockInstanceId).toBeTruthy();
-  });
+    // Flush has not been called yet — no saveSignal transition
+    expect(mockFlush).not.toHaveBeenCalled();
 
-  // ── Lifecycle: edited ───────────────────────────────────────────────
+    // Trigger save by changing saveSignal from null → Date
+    saveSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
 
-  it("emits edited event when block content changes via updateAttrs", async () => {
-    const editedPayloads: unknown[] = [];
-    bus.on("eln.table.edited", (payload) => {
-      editedPayloads.push(payload);
+    // The initial null → Date transition is skipped (initial load, not save).
+    // Wait a tick then trigger a second save.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const secondSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={secondSignal}
+        targetId={42}
+      />,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockFlush).toHaveBeenCalled();
     });
 
+    // Verify sendAction was called with correct arguments
+    expect(mockFlush).toHaveBeenCalledWith(
+      "eln.table.created",
+      "eln.entry",
+      42,
+      { message: "eln.table.created" },
+      expect.any(String),
+    );
+  });
+
+  // ── Action accumulator: dedup by (blockInstanceId, verb) ─────────────
+
+  it("deduplicates lifecycle events by blockInstanceId and verb", async () => {
+    const mockFlush = vi.fn().mockResolvedValue(undefined);
     const capture = captureEditor();
     const bindings: BlockBinding[] = [
       makeBlockBinding({
@@ -423,7 +461,8 @@ describe("TipTapRenderer", () => {
       }),
     ];
 
-    render(
+    let saveSignal: Date | null = new Date(); // non-null initial so first transition is skipped
+    const { rerender } = render(
       <TipTapRenderer
         slotId={defaultSlotId}
         bindings={bindings}
@@ -431,6 +470,9 @@ describe("TipTapRenderer", () => {
         context={defaultContext}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
       />,
     );
 
@@ -438,7 +480,7 @@ describe("TipTapRenderer", () => {
       expect(capture.editor).toBeTruthy();
     });
 
-    // Insert a block node
+    // Insert a block and edit it multiple times
     await act(async () => {
       capture.editor!.commands.setContent({
         type: "doc",
@@ -454,48 +496,139 @@ describe("TipTapRenderer", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    // Track created events for reference (not used in assertions below)
-    const createdPayloads: unknown[] = [];
-    bus.on("eln.table.created", (p) => createdPayloads.push(p));
-
-    // Update content via editor command — simulates block's updateAttrs
+    // Edit the block twice
     await act(async () => {
       const editor = capture.editor!;
       const { state } = editor;
-      const { tr } = state;
       let pos: number | null = null;
-
-      // Find the block node position
       state.doc.descendants((node, p) => {
-        if (node.type.name === "eln.table" && pos === null) {
-          pos = p;
-        }
+        if (node.type.name === "eln.table" && pos === null) pos = p;
         return pos === null;
       });
-
       if (pos !== null) {
-        const updatedTr = tr.setNodeAttribute(
-          pos,
-          "content",
-          JSON.stringify({ rows: 5 }), // changed content
+        editor.view.dispatch(
+          state.tr.setNodeAttribute(pos, "content", JSON.stringify({ rows: 5 })),
         );
-        editor.view.dispatch(updatedTr);
       }
-
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    expect(editedPayloads.length).toBeGreaterThanOrEqual(1);
-    const payload = editedPayloads[0] as Record<string, unknown>;
-    expect(payload.blockId).toBe("eln.table");
-    expect(payload.blockInstanceId).toBeTruthy();
-    expect(payload.changedAttrs).toEqual({ rows: 5 });
+    await act(async () => {
+      const editor = capture.editor!;
+      const { state } = editor;
+      let pos: number | null = null;
+      state.doc.descendants((node, p) => {
+        if (node.type.name === "eln.table" && pos === null) pos = p;
+        return pos === null;
+      });
+      if (pos !== null) {
+        editor.view.dispatch(
+          state.tr.setNodeAttribute(pos, "content", JSON.stringify({ rows: 7 })),
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // Trigger flush
+    saveSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockFlush).toHaveBeenCalled();
+    });
+
+    // Should have 2 calls: created + edited (deduplicated to one edit)
+    expect(mockFlush).toHaveBeenCalledTimes(2);
+    const actionTypes = mockFlush.mock.calls.map((c: unknown[]) => c[0]);
+    expect(actionTypes).toContain("eln.table.created");
+    expect(actionTypes).toContain("eln.table.edited");
   });
 
-  it("updateAttrs merges partial updates with existing state", async () => {
-    const editedPayloads: unknown[] = [];
-    bus.on("eln.table.edited", (payload) => {
-      editedPayloads.push(payload);
+  // ── Action accumulator: no flush without targetId ────────────────────
+
+  it("does not call onFlushActions when targetId is absent", async () => {
+    const mockFlush = vi.fn().mockResolvedValue(undefined);
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.table",
+        label: "Table",
+        component: TestBlock,
+      }),
+    ];
+
+    let saveSignal: Date | null = new Date();
+    const { rerender } = render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={undefined}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(capture.editor).toBeTruthy();
+    });
+
+    // Insert a block
+    await act(async () => {
+      capture.editor!.commands.setContent({
+        type: "doc",
+        content: [
+          {
+            type: "eln.table",
+            attrs: { content: JSON.stringify({}) },
+          },
+        ],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // Trigger flush with no targetId
+    saveSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={undefined}
+      />,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockFlush).not.toHaveBeenCalled();
+  });
+
+  // ── Action accumulator: bus event on successful flush ────────────────
+
+  it("emits {workspaceId}.action.performed on successful flush", async () => {
+    const mockFlush = vi.fn().mockResolvedValue(undefined);
+    const actionPerformedPayloads: unknown[] = [];
+    bus.on("eln.action.performed", (payload) => {
+      actionPerformedPayloads.push(payload);
     });
 
     const capture = captureEditor();
@@ -507,6 +640,164 @@ describe("TipTapRenderer", () => {
       }),
     ];
 
+    let saveSignal: Date | null = new Date();
+    const { rerender } = render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(capture.editor).toBeTruthy();
+    });
+
+    // Insert a block
+    await act(async () => {
+      capture.editor!.commands.setContent({
+        type: "doc",
+        content: [
+          {
+            type: "eln.table",
+            attrs: {
+              content: JSON.stringify({ rows: 3 }),
+            },
+          },
+        ],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // Trigger flush
+    saveSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
+
+    await vi.waitFor(() => {
+      expect(actionPerformedPayloads.length).toBeGreaterThanOrEqual(1);
+    });
+
+    const payload = actionPerformedPayloads[0] as Record<string, unknown>;
+    expect(payload.action).toBe("eln.table.created");
+    expect(payload.action_type).toBe("created");
+    expect(payload.targetId).toBe(42);
+    expect(payload.requestId).toEqual(expect.any(String));
+  });
+
+  // ── Action accumulator: no bus event on flush failure ────────────────
+
+  it("does not emit {workspaceId}.action.performed when flush fails", async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const mockFlush = vi.fn().mockRejectedValue(new Error("Network error"));
+    const actionPerformedPayloads: unknown[] = [];
+    bus.on("eln.action.performed", (payload) => {
+      actionPerformedPayloads.push(payload);
+    });
+
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.table",
+        label: "Table",
+        component: TestBlock,
+      }),
+    ];
+
+    let saveSignal: Date | null = new Date();
+    const { rerender } = render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(capture.editor).toBeTruthy();
+    });
+
+    // Insert a block
+    await act(async () => {
+      capture.editor!.commands.setContent({
+        type: "doc",
+        content: [
+          {
+            type: "eln.table",
+            attrs: {
+              content: JSON.stringify({ rows: 3 }),
+            },
+          },
+        ],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // Trigger flush
+    saveSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockFlush).toHaveBeenCalled();
+    });
+
+    // No action.performed events should have been emitted
+    expect(actionPerformedPayloads.length).toBe(0);
+    expect(consoleWarnSpy).toHaveBeenCalled();
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("updateAttrs merges partial updates with existing state", async () => {
+    const mockFlush = vi.fn().mockResolvedValue(undefined);
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.table",
+        label: "Table",
+        component: TestBlock,
+      }),
+    ];
+
+    // Start with non-null saveSignal so the initial transition is skipped
+    const saveSignal: Date | null = new Date();
     render(
       <TipTapRenderer
         slotId={defaultSlotId}
@@ -515,6 +806,9 @@ describe("TipTapRenderer", () => {
         context={defaultContext}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
       />,
     );
 
@@ -549,26 +843,22 @@ describe("TipTapRenderer", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    // The edited event payload carries changedAttrs — the full deserialized
-    // state after the update. With the merge fix, it should preserve all
-    // existing fields AND include the new partial field.
-    expect(editedPayloads.length).toBeGreaterThanOrEqual(1);
-    const payload = editedPayloads[0] as Record<string, unknown>;
-    const changedAttrs = payload.changedAttrs as Record<string, unknown>;
-    expect(changedAttrs.title).toBe("My Table");
-    expect(changedAttrs.rows).toBe(3);
-    expect(changedAttrs.cols).toBe(2);
-    expect(changedAttrs.updated).toBe(true);
+    // Verify the DOM shows merged attrs
+    const attrsEl = document.querySelector(
+      '[data-testid="block-attrs-eln.table"]',
+    );
+    expect(attrsEl).toBeTruthy();
+    const attrs = JSON.parse(attrsEl!.textContent || "{}");
+    expect(attrs.title).toBe("My Table");
+    expect(attrs.rows).toBe(3);
+    expect(attrs.cols).toBe(2);
+    expect(attrs.updated).toBe(true);
   });
 
-  // ── Lifecycle: deleted ──────────────────────────────────────────────
+  // ── Content-loading suppression gate ──────────────────────────────────
 
-  it("emits deleted event when a block node is removed", async () => {
-    const deletedPayloads: unknown[] = [];
-    bus.on("eln.table.deleted", (payload) => {
-      deletedPayloads.push(payload);
-    });
-
+  it("suppresses lifecycle accumulation during programmatic content loads", async () => {
+    const mockFlush = vi.fn().mockResolvedValue(undefined);
     const capture = captureEditor();
     const bindings: BlockBinding[] = [
       makeBlockBinding({
@@ -578,7 +868,8 @@ describe("TipTapRenderer", () => {
       }),
     ];
 
-    render(
+    let saveSignal: Date | null = new Date();
+    const { rerender } = render(
       <TipTapRenderer
         slotId={defaultSlotId}
         bindings={bindings}
@@ -586,6 +877,9 @@ describe("TipTapRenderer", () => {
         context={defaultContext}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
       />,
     );
 
@@ -593,33 +887,46 @@ describe("TipTapRenderer", () => {
       expect(capture.editor).toBeTruthy();
     });
 
-    // Insert a block node
+    // Enable suppression BEFORE inserting blocks
+    bus.emit("eln.editor.content-loading", true);
+
+    // Insert a block while suppression is active
     await act(async () => {
       capture.editor!.commands.setContent({
         type: "doc",
         content: [
           {
             type: "eln.table",
-            attrs: {
-              content: JSON.stringify({ rows: 3 }),
-            },
+            attrs: { content: JSON.stringify({}) },
           },
         ],
       });
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    // Delete the block node
-    await act(async () => {
-      // Clear all content — removes the block node
-      capture.editor!.commands.clearContent();
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    });
+    // Disable suppression
+    bus.emit("eln.editor.content-loading", false);
 
-    expect(deletedPayloads.length).toBeGreaterThanOrEqual(1);
-    const payload = deletedPayloads[0] as Record<string, unknown>;
-    expect(payload.blockId).toBe("eln.table");
-    expect(payload.blockInstanceId).toBeTruthy();
+    // Trigger flush
+    saveSignal = new Date();
+    rerender(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+        onFlushActions={mockFlush}
+        saveSignal={saveSignal}
+        targetId={42}
+      />,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // No flush calls because lifecycle events were suppressed
+    expect(mockFlush).not.toHaveBeenCalled();
   });
 
   // ── Event routing: listensTo → onEvent ──────────────────────────────

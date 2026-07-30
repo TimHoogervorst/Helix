@@ -81,9 +81,10 @@ interface ElnEditorProps {
   /** Incremented by the parent on each user-initiated content change.
    *  Drives useAutoSave and useDirtyTracking. */
   contentVersion: number;
-  /** Mutable ref set by useBlockActionLogging — true when block actions
-   *  are pending. Read at save time to decide whether to set the
-   *  X-Block-Actions header so the server suppresses eln.entry.edited. */
+  /** Mutable ref set by useActionAccumulator (inside TipTapRenderer) —
+   *  true when block actions are pending. Read at save time to decide
+   *  whether to set the X-Block-Actions header so the server suppresses
+   *  eln.entry.edited. */
   hasBlockActionsRef?: MutableRefObject<boolean>;
   /** The TipTap editor content rendered by the parent via TipTapRenderer.
    *  Rendered in place of the former EditorContent. */
@@ -180,7 +181,7 @@ const ElnEditor = forwardRef<ElnEditorHandle, ElnEditorProps>(
 
   // ── Auto-save ──
   // Wrap crud.autoSave so hasBlockActionsRef is read at call time
-  // (the ref is updated synchronously by useBlockActionLogging).
+  // (the ref is updated synchronously by useActionAccumulator).
   const autoSaveWithBlockActions = useCallback(
     (folderId: number | null) => {
       crud.autoSave(folderId, hasBlockActionsRef?.current ?? false);

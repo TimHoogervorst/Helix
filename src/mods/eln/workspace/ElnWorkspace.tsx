@@ -30,7 +30,6 @@ import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSi
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { SlotContext, BlockBinding } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "../blocks/sidebarData";
-import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
 import { useSendAction } from "../../../shell/src/workspace/useSendAction";
 import { TipTapRenderer } from "../../../shell/src/workspace/TipTapRenderer";
 import Reference from "../editor/extensions/Reference";
@@ -71,16 +70,6 @@ function IconButton({
 interface ElnWorkspaceProps {
   entryId?: string;
 }
-
-/** Block IDs bound into the eln.editor slot — lifecycle events for these
- *  are accumulated by useBlockActionLogging and flushed to the batch
- *  actions endpoint on save. */
-const EDITOR_BLOCK_IDS = [
-  "eln.table-block",
-  "eln.comment-block",
-  "eln.protocol-block",
-  "eln.registryTable-block",
-];
 
 function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const entryDisplayId = entryId ?? "New";
@@ -192,16 +181,17 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     initialContentLoaded.current = true;
   }, [editorState.entry, bus]);
 
-  // ── sendAction bound to "eln" workspace — used by useBlockActionLogging
-  //     to post block actions to the unified POST /api/actions/ endpoint (#327).
+  // ── sendAction bound to "eln" workspace — passed to TipTapRenderer as
+  //     `onFlushActions` for useActionAccumulator to post block actions to
+  //     the unified POST /api/actions/ endpoint (#327, #351).
   const sendAction = useSendAction("eln");
 
-  // ── Block action logging: accumulate lifecycle events, flush on save ──
+  // ── Block action accumulation ref (updated by useActionAccumulator in
+  //     TipTapRenderer, read at save time for the X-Block-Actions header). ──
   const hasBlockActionsRef = useRef<boolean>(false);
-  // Numeric entry ID — only available after the entry is loaded.  The hook
-  // skips the flush when this is undefined (new entry, not yet created).
+  // Numeric entry ID — only available after the entry is loaded.  The
+  // accumulator skips the flush when this is undefined (new entry).
   const numericEntryId = editorState.entry?.id;
-  useBlockActionLogging(bus, entryId, numericEntryId, EDITOR_BLOCK_IDS, sendAction, hasBlockActionsRef);
 
   // ── Emit "eln.entry.saved" on the bus whenever a save completes ───────
   const prevLastSavedAtRef = useRef<Date | null>(null);
@@ -554,6 +544,10 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                     onCreate={handleEditorCreate}
                     onUpdate={handleEditorUpdate}
                     editable={!editorState.isLockedByOther}
+                    saveSignal={editorState.lastSavedAt}
+                    targetId={numericEntryId}
+                    onFlushActions={sendAction}
+                    hasPendingRef={hasBlockActionsRef}
                   />
                 </ElnEditor>
               </CommentVisibilityProvider>

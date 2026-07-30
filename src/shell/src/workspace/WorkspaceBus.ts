@@ -13,7 +13,7 @@ export type EventHandler = (
  * (`{blockId}.created`, `{blockId}.edited`, `{blockId}.deleted`).
  *
  * Shared contract between the emitter (BlockNodeView) and all consumers
- * (ActivityFeedBlock, useBlockActionLogging, etc.).
+ * (ActivityFeedBlock, useActionAccumulator, etc.).
  */
 export interface BlockLifecyclePayload {
   blockId: string;

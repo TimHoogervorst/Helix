@@ -155,6 +155,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const [contentVersion, setContentVersion] = useState(0);
   const isProgrammaticChange = useRef(false);
   const initialContentLoaded = useRef(false);
+  // Tracks when the TipTap editor has mounted so the content-sync effect
+  // can re-fire on editor creation (refs don't trigger re-renders).
+  const [editorMounted, setEditorMounted] = useState(false);
 
   // ── WorkspaceBus — one per workspace instance, shared across all slots ──
   const busRef = useRef<WorkspaceBus>(null);
@@ -345,6 +348,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   // ── TipTapRenderer callbacks ──
   const handleEditorCreate = useCallback((editor: Editor) => {
     tipTapEditorRef.current = editor;
+    setEditorMounted(true);
   }, []);
 
   const handleEditorUpdate = useCallback((editor: Editor) => {
@@ -354,12 +358,28 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     }
   }, []);
 
+  // ── Derive initial content for TipTapRenderer ──
+  // Passed as the `content` prop so the editor is populated on mount,
+  // avoiding the race where the content-sync effect fires before the
+  // TipTap editor instance exists.
+  const initialContent = useMemo(() => {
+    if (!editorState.entry) return null;
+    const { body } = splitFirstParagraph(editorState.entry.content);
+    return body;
+  }, [editorState.entry]);
+
   // ── Reset initial-content flag when entryId changes ──
   useEffect(() => {
     initialContentLoaded.current = false;
   }, [entryId]);
 
   // ── Sync editor content on initial load ──
+  //
+  // Depends on editorState.entry (content source), editorMounted (so the
+  // effect re-fires after the TipTap editor is created), and bus.
+  // Without editorMounted, the effect races with editor creation: the entry
+  // arrives before onCreate fires, the guard bails out, and content is
+  // never loaded.
   useEffect(() => {
     const editor = tipTapEditorRef.current;
     const entryData = editorState.entry;
@@ -383,7 +403,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       });
     }
     initialContentLoaded.current = true;
-  }, [editorState.entry, bus]);
+  }, [editorState.entry, editorMounted, bus]);
 
   // ── sendAction bound to "eln" workspace — passed to TipTapRenderer as
   //     `onFlushActions` for useActionAccumulator to post block actions to
@@ -886,6 +906,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                       bindings={editorBindings}
                       bus={bus}
                       context={slotContext}
+                      content={initialContent}
                       extensions={elnExtensions}
                       onCreate={handleEditorCreate}
                       onUpdate={handleEditorUpdate}

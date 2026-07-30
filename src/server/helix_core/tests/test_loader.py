@@ -171,14 +171,14 @@ class TestTopologicalSort:
         # Matches the dependency table from the mod-system spec (#208):
         #   eln     → depends_on=["lims", "tags"]
         #   library → depends_on=["tags", "eln"]
-        #   lims, tags, users, pins, core → depends_on=[]
+        #   lims, tags, users, tabs, core → depends_on=[]
         manifests = {
             "tags": _make_manifest("tags"),
             "users": _make_manifest("users"),
             "lims": _make_manifest("lims"),
             "eln": _make_manifest("eln", depends_on=["lims", "tags"]),
             "library": _make_manifest("library", depends_on=["tags", "eln"]),
-            "pins": _make_manifest("pins"),
+            "tabs": _make_manifest("tabs"),
             "core": _make_manifest("core"),
         }
         result = _topological_sort(manifests)
@@ -190,7 +190,7 @@ class TestTopologicalSort:
         assert result.index("eln") < result.index("library")
         # All 7 mods present.
         assert set(result) == {
-            "tags", "users", "lims", "eln", "library", "pins", "core",
+            "tags", "users", "lims", "eln", "library", "tabs", "core",
         }
 
     def test_deterministic_ordering(self):

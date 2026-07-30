@@ -80,10 +80,12 @@ export async function fetchActions(
  */
 export function createAction(
   displayId: string,
+  action: string,
   actionType: string,
   metadata?: Record<string, unknown>,
 ): Promise<ElnAction> {
   return post<ElnAction>(`/eln/entries/${displayId}/actions/`, {
+    action,
     action_type: actionType,
     metadata: metadata || {},
   });

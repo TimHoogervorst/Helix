@@ -98,12 +98,11 @@ class AbstractEntity(BrowsableItem):
         related_name="+",
     )
     status = models.CharField(
-        max_length=20,
-        choices=[
-            ("in_progress", "In Progress"),
-            ("finished", "Finished"),
-        ],
+        max_length=100,
         default="in_progress",
+        help_text="Status value from the dropdowns system. The canonical list of "
+                  "valid statuses is stored in the Status dropdown (managed in "
+                  "Settings → Dropdowns).",
     )
     folder = models.ForeignKey(
         "core.Folder",

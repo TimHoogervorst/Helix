@@ -50,8 +50,8 @@ class SchemaCrudTests(TestCase):
                 "prefix": "BLOOD",
                 "schema_type": self.schema_type.id,
                 "columns": [
-                    {"name": "volume", "type": "Number", "required": True},
-                    {"name": "patient", "type": "Text", "required": False},
+                    {"name": "volume", "type": "number", "required": True},
+                    {"name": "patient", "type": "text", "required": False},
                 ],
             },
             format="json",
@@ -109,7 +109,7 @@ class SchemaCrudTests(TestCase):
                 "name": "DNA Modified",
                 "prefix": "DNA",
                 "schema_type": self.schema_type.id,
-                "columns": [{"name": "concentration", "type": "Number"}],
+                "columns": [{"name": "concentration", "type": "number"}],
             },
             format="json",
         )
@@ -210,7 +210,7 @@ class SchemaColumnValidationTests(TestCase):
                 "name": "Test",
                 "prefix": "TS",
                 "schema_type": self.schema_type.id,
-                "columns": [{"name": "Name", "type": "Text"}],
+                "columns": [{"name": "Name", "type": "text"}],
             },
             format="json",
         )
@@ -224,7 +224,7 @@ class SchemaColumnValidationTests(TestCase):
                 "name": "Test",
                 "prefix": "TS",
                 "schema_type": self.schema_type.id,
-                "columns": [{"name": "  Name  ", "type": "Text"}],
+                "columns": [{"name": "  Name  ", "type": "text"}],
             },
             format="json",
         )

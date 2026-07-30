@@ -23,7 +23,7 @@ class SchemaTypeCRUDTests(TestCase):
             workspace_id="lims",
             model="mods.lims.models.Entity",
             columns=[
-                {"name": "volume", "type": "Number", "required": True},
+                {"name": "volume", "type": "number", "required": True},
             ],
         )
         self.assertEqual(st.display_name, "Entity")
@@ -175,8 +175,8 @@ class SchemaTypeColumnIdTests(TestCase):
             workspace_id="ws",
             model="m.T",
             columns=[
-                {"name": "volume", "type": "Number"},
-                {"name": "colour", "type": "Text"},
+                {"name": "volume", "type": "number"},
+                {"name": "colour", "type": "text"},
             ],
         )
         self.assertEqual(len(st.columns), 2)
@@ -190,7 +190,7 @@ class SchemaTypeColumnIdTests(TestCase):
             display_name="Test",
             workspace_id="ws",
             model="m.T",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         original_id = st.columns[0]["id"]
 
@@ -206,11 +206,11 @@ class SchemaTypeColumnIdTests(TestCase):
             display_name="Test",
             workspace_id="ws",
             model="m.T",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         original_id = st.columns[0]["id"]
 
-        st.columns.append({"name": "colour", "type": "Text"})
+        st.columns.append({"name": "colour", "type": "text"})
         st.save()
         st.refresh_from_db()
 
@@ -227,9 +227,9 @@ class SchemaTypeColumnIdTests(TestCase):
             workspace_id="ws",
             model="m.T",
             columns=[
-                {"name": "a", "type": "Text"},
-                {"name": "b", "type": "Text"},
-                {"name": "c", "type": "Text"},
+                {"name": "a", "type": "text"},
+                {"name": "b", "type": "text"},
+                {"name": "c", "type": "text"},
             ],
         )
         ids = [col["id"] for col in st.columns]
@@ -253,7 +253,7 @@ class SchemaColumnIdTests(TestCase):
             prefix="E",
             schema_type=self.schema_type,
             columns=[
-                {"name": "volume", "type": "Number"},
+                {"name": "volume", "type": "number"},
             ],
         )
         self.assertIn("id", schema.columns[0])
@@ -272,7 +272,7 @@ class SchemaTypeContentHashTests(TestCase):
             display_name="Test",
             workspace_id="ws",
             model="m.T",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         self.assertTrue(st.content_hash)
         self.assertEqual(len(st.content_hash), 64)  # SHA-256 hex digest
@@ -291,13 +291,13 @@ class SchemaTypeContentHashTests(TestCase):
             display_name="Test",
             workspace_id="ws",
             model="m.T",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         hash1 = st.content_hash
 
         st.columns = [
-            {"name": "volume", "type": "Number"},
-            {"name": "colour", "type": "Text"},
+            {"name": "volume", "type": "number"},
+            {"name": "colour", "type": "text"},
         ]
         st.save()
         st.refresh_from_db()
@@ -313,7 +313,7 @@ class SchemaTypeContentHashTests(TestCase):
             columns=[
                 {
                     "name": "volume",
-                    "type": "Number",
+                    "type": "number",
                     "description": "The volume in mL",
                 }
             ],
@@ -332,7 +332,7 @@ class SchemaTypeContentHashTests(TestCase):
             display_name="Test",
             workspace_id="ws",
             model="m.T",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         hash1 = st.content_hash
 
@@ -358,7 +358,7 @@ class SchemaContentHashTests(TestCase):
             name="Default",
             prefix="E",
             schema_type=self.schema_type,
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         self.assertTrue(schema.content_hash)
         self.assertEqual(len(schema.content_hash), 64)
@@ -369,11 +369,11 @@ class SchemaContentHashTests(TestCase):
             name="Default",
             prefix="E",
             schema_type=self.schema_type,
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
         )
         hash1 = schema.content_hash
 
-        schema.columns.append({"name": "colour", "type": "Text"})
+        schema.columns.append({"name": "colour", "type": "text"})
         schema.save()
         schema.refresh_from_db()
 

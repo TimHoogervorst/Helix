@@ -6,7 +6,7 @@
 
 ## The Mod System
 
-> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Pins — is a mod. The Shell is the thin frame that loads mods and provides the services they render into. Both internal (core mods) and future external mods use the same `register*()` API. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend and backend code.
+> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Tabs — is a mod. The Shell is the thin frame that loads mods and provides the services they render into. Both internal (core mods) and future external mods use the same `register*()` API. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend and backend code.
 
 | Term | Definition |
 |------|-----------|
@@ -16,16 +16,13 @@
 | **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, hub content, slot resolution, and workspace identity. |
 | **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
 | **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
-| **Workspace** | A mod's dedicated work surface for a type of content. Declared via `registerWorkspace({ id, displayName })` — the `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Any mod that registers a workspace is automatically discoverable by the mention system and the pins/bookmarks system. Workspace pages are registered separately via `registerRoute()`. |
+| **Workspace** | A mod's dedicated work surface for a type of content. The `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Workspaces are backend-declared and frontend-discovered at boot via the mod registry API. Any mod that declares a schema type is automatically discoverable by the mention system and the Tabs (bookmarks) system. Workspace pages are registered separately as frontend routes. |
 
-### Workspace Registration
+### Workspace Discovery
 
-Workspaces are a first-class registration in the mod system. A mod calls `registerWorkspace()` during boot, providing:
+Workspaces are **backend-declared, frontend-discovered**. A mod declares its schema type (which implies a workspace) in its backend registration; the frontend discovers all workspaces at boot via the mod registry API. There is no frontend workspace registration.
 
-- **id** — the mod's unique identifier (e.g. `"eln"`, `"lims"`). Doubles as the URL namespace.
-- **displayName** — human-readable label (e.g. `"Electronic Lab Notebook"`).
-
-The workspace URL is **derived by convention**, not configured: `/{workspaceId}/{displayId}`. This convention is the single integration point that makes the mention system, pins/bookmarks, and navigation work automatically for any mod that registers a workspace. A mod does not need to provide mention-specific wiring — it only needs to register its workspace and entity types with LIMS.
+The workspace URL is **derived by convention**, not configured: `/{workspaceId}/{displayId}`. This convention is the single integration point that makes the mention system, Tabs (bookmarks), and navigation work automatically for any mod that declares a schema type. A mod does not need to provide mention-specific wiring — it only needs to declare its schema type and entity types in the backend.
 
 ### Slot System
 
@@ -34,7 +31,7 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | Term | Definition |
 |------|-----------|
 | **Slot** | A named placeholder in a workspace declared via `declareSlot({ id, accepts, renderer })`. The `renderer` owns presentation; the slot's `accepts` field (`"block"` or `"button"`) filters what can bind into it. |
-| **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), serialization, and optional action log `messages`. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. |
+| **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), and serialization. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. Blocks send domain actions at runtime via `sendAction()` rather than declaring static action messages. |
 | **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Use for toolbar buttons (export, lock, delete). |
 | **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
 | **Binding Override** | A per-binding configuration key (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; binding wins per-key. Used for presentation-level configuration like `stretch: true` — the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
@@ -49,7 +46,7 @@ The backend mirrors the frontend mod system. Mods are discovered from `modManife
 
 ### Action Logging
 
-All mutating operations are automatically logged for CFR Part 11 audit compliance. HTTP endpoints use `ActionLoggingMixin` (DRF viewset mixin) or `@logs_action` (decorator). Block actions are routed through the workspace event bus and batched on save. The `ActivityFeed` is a cross-mod block that renders actions from any mod. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`). See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
+All mutating operations are automatically logged for CFR Part 11 audit compliance. Every action — whether from an HTTP endpoint or a block — flows through a single unified `POST /api/actions/` endpoint. Core CRUD actions (`created`, `edited`, `deleted`) are auto-derived from every model; custom domain actions must be explicitly registered and map to a core action. The `ActivityFeed` is a cross-mod block that renders actions from any mod. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
 
 ---
 
@@ -320,9 +317,9 @@ A declaration by a mod that it contributes an entity type to the LIMS registry. 
 - **workspaceId** — the workspace that owns entities of this type. Used by Mentions to build navigation URLs.
 - **displayName** — human-readable label (e.g. `"DNA Sequence"`).
 
-LIMS is the **gatekeeper** for all entity type registrations. Mods register via `registry.call("lims.registerEntityType", {...})` at boot. The backend stores registrations in a `RegisteredEntityType` model; the resolve endpoint joins through it to map any `displayId` to its owning workspace.
+LIMS is the **gatekeeper** for all entity type registrations. Mods register their entity types in the backend (via `register_schema_type()`); the frontend discovers them at boot via the mod registry API. The backend stores registrations in a `RegisteredEntityType` model; the resolve endpoint joins through it to map any `displayId` to its owning workspace.
 
-**Registration flow:** Mod boot → `register()` → `registry.call("lims.registerEntityType", {...})` → LIMS validates prefix uniqueness and stores the registration. Both the frontend (in-memory registry) and backend (`RegisteredEntityType` table) hold the mapping.
+**Registration flow:** Mod backend boot → `register_schema_type()` → LIMS validates prefix uniqueness and stores the registration. The backend (`RegisteredEntityType` table) is the authoritative mapping; the frontend hydrates its in-memory registry from the backend at boot.
 
 **Invariant:** Every prefix is owned by exactly one entity type. The prefix `E` is reserved for ELN Entries (registered as a custom entity type). The backend `RegisteredEntityType.prefix` has a `unique=True` constraint.
 
@@ -377,11 +374,9 @@ The narrow (~48px) collapsed state of the left sidebar. Renders a vertical stack
 
 The `[<]` / `[>]` button that collapses/expands an entire sidebar. Positioned on the outer edge: right edge for left sidebar, left edge for right sidebar. When the sidebar is collapsed (right, variant full-hide), the toggle appears in a thin persistent strip.
 
-### Pinned Workspace
+### Tab (Pinned Workspace)
 
-A workspace (Entity or Entry) that a User has bookmarked for quick access. Pinned Workspaces appear in the sidebar's Workspace section and persist across sessions. Each pin stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation.
-
-Clicking a Pinned Workspace navigates directly to its dedicated URL. The sidebar also shows the **current** workspace — the workspace the user is actively viewing — with a "Current" badge. If the current workspace is not yet pinned, it appears as a temporary row at the top of the list with a pin button. Pinning it moves it into the pinned list.
+A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs appear in the sidebar's Workspace section and persist across sessions. Each Tab stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation. The Tabs mod (formerly Pins) owns the pinning lifecycle — it listens to workspace navigation events and renders the pinned workspace list accordingly.
 
 **Lifecycle:**
 - A User pins a workspace via the sidebar (hover to reveal the pin button on the Current row)
@@ -432,7 +427,7 @@ Tag (standalone — reusable labels with name + color, managed inline on entries
 User ──▶ NotebookEntry (1:N — author of entries)
 User ──▶ Action (1:N — performer of actions)
 User ──▶ Entity (1:N — creator of entities)
-User ──▶ PinnedWorkspace (1:N — user bookmarks workspaces)
+User ──▶ Tab (1:N — user bookmarks workspaces)
 User ──▶ Affiliation (1:N — user has career timeline entries)
 User ──▶ Publication (1:N — user has publications)
 User ──▶ Recognition (1:N — user has honors and awards)
@@ -443,15 +438,12 @@ NotebookEntry.status ──cascades to──▶ Entity.status (only via source_e
 
 ModLoader ──▶ ModRegistry (populated by register*() calls from mod index.ts / mod.py)
               ├── Registered Hubs → sidebar nav + routes
-              ├── Registered Workspaces → workspace identity + URL namespaces
-              ├── Registered Entity Types → prefix→workspace mapping (held by LIMS)
+              ├── Registered Entity Types → prefix→workspace mapping (backend-declared, frontend-discovered via API)
               ├── Registered Settings Sections → settings shell panels
               ├── Registered Blocks → renderer-agnostic content units
               ├── Registered Buttons → toolbar actions
               ├── Declared Slots → named workspace placeholders
               ├── Slot Bindings → block/button→slot connections
-              ├── Registered Sidebar Actions → sidebar row buttons
-              ├── Registered Library Items → hub card components
               └── Registered Services → mod-to-mod communication
 ```
 

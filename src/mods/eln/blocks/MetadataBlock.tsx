@@ -10,13 +10,46 @@
  * ElnWorkspace's `<aside>`: author, last editor, project/folder,
  * started date, status dropdown, and folder dropdown.
  */
+import { useState, useEffect } from "react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "./sidebarData";
 import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
+import { listDropdowns } from "../../dropdowns/api";
+
+/** Format a snake_case status value for display (e.g. "in_progress" → "In Progress"). */
+function formatStatusLabel(status: string): string {
+  return status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function MetadataBlock({ context }: BlockComponentProps) {
   const data = context.entry as ElnSidebarData | undefined;
   const entry = data?.entry ?? null;
+
+  // ── Fetch status options from the dropdowns API ──────────────────────────
+  const [statusOptions, setStatusOptions] = useState<string[]>([
+    "in_progress",
+    "finished",
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listDropdowns()
+      .then((dropdowns) => {
+        if (cancelled) return;
+        const statusDropdown = dropdowns.find((d) => d.name === "Status");
+        if (statusDropdown && statusDropdown.options.length > 0) {
+          setStatusOptions(statusDropdown.options);
+        }
+      })
+      .catch(() => {
+        // Keep defaults on error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section>
@@ -86,8 +119,11 @@ export function MetadataBlock({ context }: BlockComponentProps) {
               className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
               data-testid="status-select"
             >
-              <option value="in_progress">In Progress</option>
-              <option value="finished">Finished</option>
+              {statusOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {formatStatusLabel(opt)}
+                </option>
+              ))}
             </select>
           </dd>
         </div>

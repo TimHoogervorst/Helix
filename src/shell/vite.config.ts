@@ -5,21 +5,42 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const shellNodeModules = path.resolve(import.meta.dirname, "node_modules");
+const repoRoot = path.resolve(import.meta.dirname, "../..");
+const nodeModules = path.resolve(repoRoot, "node_modules");
 const shellRequire = createRequire(import.meta.url);
 
 /**
- * Packages that Vite pre-bundles internally.  We must let Vite handle
- * resolution for these so the optimized ESM builds are used (otherwise
- * named exports like ``Fragment`` from ``react/jsx-dev-runtime`` are
- * missing, causing white-screen crashes on pages that use JSX fragments).
+ * Rewrite ``use-sync-external-store/shim/*`` imports in @tiptap/react
+ * to load local ESM shims.  The upstream CJS files use ``module.exports =
+ * require(...)`` which Vite's runtime CJS interop cannot extract named
+ * exports from — and ``resolveId`` hooks don't fire reliably for imports
+ * inside excluded node_modules packages.  A ``transform`` hook on the
+ * @tiptap/react source replaces the specifiers before import analysis runs.
  */
-const VITE_PREBUNDLED = new Set([
-  "react",
-  "react-dom",
-  "react/jsx-runtime",
-  "react/jsx-dev-runtime",
-]);
+function useSyncExternalStorePlugin() {
+  const shimDir = path.resolve(import.meta.dirname, "src/shims");
+  const shimIndex = path.resolve(shimDir, "use-sync-external-store-shim.js");
+  const shimWithSelector = path.resolve(shimDir, "use-sync-external-store-with-selector.js");
+  return {
+    name: "transform-use-sync-external-store",
+    enforce: "pre" as const,
+    transform(code: string, id: string) {
+      if (!id.includes("@tiptap/react")) return null;
+      let changed = false;
+      // Replace both import specifiers with absolute paths to our shims.
+      code = code.replace(
+        /"use-sync-external-store\/shim\/index\.js"/g,
+        () => { changed = true; return JSON.stringify(shimIndex); },
+      );
+      code = code.replace(
+        /"use-sync-external-store\/shim\/with-selector\.js"/g,
+        () => { changed = true; return JSON.stringify(shimWithSelector); },
+      );
+      if (!changed) return null;
+      return { code, map: null };
+    },
+  };
+}
 
 /**
  * Vite plugin that redirects bare-specifier imports from mod files
@@ -46,11 +67,9 @@ function modResolutionPlugin() {
       if (!normalized.includes("/mods/")) return null;
       // Only redirect bare specifiers, not relative imports.
       if (id.startsWith(".") || id.startsWith("/") || id.startsWith("\0")) return null;
-      // Let Vite handle pre-bundled packages so optimized ESM is used.
-      if (VITE_PREBUNDLED.has(id)) return null;
       try {
         const resolved = shellRequire.resolve(id, {
-          paths: [shellNodeModules],
+          paths: [nodeModules],
         });
         // Only intercept when the resolved package lives inside the
         // shell's own node_modules — otherwise Vite's native ESM
@@ -58,7 +77,7 @@ function modResolutionPlugin() {
         // "import" condition in package.json exports).  Returning a
         // CJS path from an ancestor node_modules would break default
         // imports (e.g. @tiptap/extension-placeholder).
-        if (!resolved.startsWith(shellNodeModules)) return null;
+        if (!resolved.startsWith(nodeModules)) return null;
         return resolved;
       } catch {
         return null;
@@ -68,11 +87,21 @@ function modResolutionPlugin() {
 }
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), modResolutionPlugin()],
+  plugins: [tailwindcss(), react(), useSyncExternalStorePlugin(), modResolutionPlugin()],
   resolve: {
-    // Prevent duplicate React instances when modules are resolved via
-    // different paths (e.g. shell vs mod directory resolution).
-    dedupe: ["react", "react-dom"],
+    // Prevent duplicate instances when modules are resolved via
+    // different paths.  React dedupe avoids double React trees;
+    // prosemirror dedupe prevents multiple copies of DecorationSet /
+    // EditorState / etc. that would break instanceof checks and cause
+    // the localsInner crash (issue #329).
+    dedupe: [
+      "react",
+      "react-dom",
+      "prosemirror-view",
+      "prosemirror-state",
+      "prosemirror-model",
+      "prosemirror-transform",
+    ],
   },
   server: {
     host: true,

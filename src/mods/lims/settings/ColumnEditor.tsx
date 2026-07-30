@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import type { ColumnDef } from "../types";
-
-const ALLOWED_TYPES = ["Text", "Number", "Date", "Boolean", "Reference"];
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { listDropdowns } from "../../dropdowns/api";
+import type { Dropdown } from "../../dropdowns/types";
 
 export interface ColumnEditorProps {
   columns: ColumnDef[];
@@ -8,7 +10,7 @@ export interface ColumnEditorProps {
   onUpdate: (
     index: number,
     field: keyof ColumnDef,
-    value: string | boolean,
+    value: string | boolean | number,
   ) => void;
   onRemove: (index: number) => void;
   onMove: (index: number, direction: "up" | "down") => void;
@@ -36,6 +38,17 @@ function ColumnEditor({
   onMove,
   onDiscard,
 }: ColumnEditorProps) {
+  const columnTypes = ModRegistry.getInstance().getColumnTypes();
+  const textType = columnTypes.get("text");
+  const [dropdowns, setDropdowns] = useState<Dropdown[]>([]);
+
+  // ── Fetch dropdowns for the dropdown-column picker ────────────────────
+  useEffect(() => {
+    listDropdowns()
+      .then(setDropdowns)
+      .catch(() => setDropdowns([]));
+  }, []);
+
   const handleNameChange = (
     index: number,
     field: keyof ColumnDef,
@@ -47,6 +60,16 @@ function ColumnEditor({
     }
     onUpdate(index, field, value);
   };
+
+  /** Render a type option with its display name from the registry. */
+  const renderTypeOption = (ct: {
+    id: string;
+    displayName: string;
+  }) => (
+    <option key={ct.id} value={ct.id}>
+      {ct.displayName}
+    </option>
+  );
 
   return (
     <div className="column-editor">
@@ -80,7 +103,9 @@ function ColumnEditor({
             title="Name is an implicit column on every schema — it cannot be edited or removed."
           />
           <select disabled className="col-type col-type--system">
-            <option>Text</option>
+            <option value="text">
+              {textType?.displayName ?? "Text"}
+            </option>
           </select>
           <div className="col-required" />
           <div className="col-remove" />
@@ -121,12 +146,32 @@ function ColumnEditor({
               onChange={(e) => onUpdate(i, "type", e.target.value)}
               className="col-type"
             >
-              {ALLOWED_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+              {[...columnTypes.values()].map(renderTypeOption)}
             </select>
+            {col.type === "dropdown" && (
+              <select
+                value={col.dropdownId ?? ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  onUpdate(
+                    i,
+                    "dropdownId",
+                    raw ? Number(raw) : "",
+                  );
+                }}
+                className="col-type"
+                style={{ minWidth: 120 }}
+                title="Dropdown (controlled vocabulary) for this column"
+                aria-label="Dropdown"
+              >
+                <option value="">No dropdown</option>
+                {dropdowns.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <label className="col-required">
               <input
                 type="checkbox"

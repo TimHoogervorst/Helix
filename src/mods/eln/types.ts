@@ -48,8 +48,6 @@ export interface EntryDetail {
   mentions: Mention[];
 }
 
-import type { GridColumnType } from "../../shared/types/types";
-
 /** Summary of an entity type (schema) as returned by the LIMS API.
  *  Only includes the fields the ELN editor actually uses — not the full
  *  EntityType shape from the LIMS module. */
@@ -60,7 +58,7 @@ export interface EntityTypeSummary {
   columns: {
     id?: string; // UUID assigned by the server (#252)
     name: string;
-    type: GridColumnType;
+    type: string;
     required?: boolean;
     default?: string;
     units?: string;
@@ -104,6 +102,7 @@ export interface ActionUser {
 /** An action log entry returned by the actions endpoint. */
 export interface ElnAction {
   id: number;
+  action: string;
   action_type: string;
   target_type: string;
   target_id: number;

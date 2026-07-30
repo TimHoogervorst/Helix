@@ -30,18 +30,17 @@
 
 | Term | Definition |
 |------|-----------|
-| **Mod** | A self-contained unit of functionality — owns its own hub, workspace pages, library items, blocks, buttons, settings, routes, and sidebar actions. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend (TypeScript) and backend (Python) code. |
+| **Mod** | A self-contained unit of functionality — owns its own hub, workspace pages, blocks, buttons, settings, and routes. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend (TypeScript) and backend (Python) code. |
 | **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The **single source of truth** for mod identity — both frontend and backend loaders read this file. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
 | **Core / Shell** | The immutable app shell — Layout, routing, mod loader, mention resolution, API client. Lives at `src/shell/` (frontend) and `src/server/` (backend). The shell provides the frame; mods provide the content. |
 | **Core Mod** | A mod that ships with the repository under `src/mods/`. Always loaded. First-party. Uses the same registration API that external mods will use. |
 | **Mod API** | The registration surface (`register*()` functions) that every mod calls to declare what it provides. Internal mods and future external mods use the same API. |
 | **Mod Registry** | Central data structure populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, settings panels, slash command menus, and slot content. |
-| **Hub** | A free-form browsing page that links to Workspaces. Each hub is registered by a mod and appears in the sidebar nav. Hubs are minimal — they own no defaults, no `accepts` filter, and no workspace type registry. Each hub manages its own item registrations internally (e.g., `registerLibraryItem()` for the Library hub). |
-| **Workspace** | A full work surface for a specific item, accessed via a dedicated URL (e.g., `/eln/E-1234`). Workspaces are registered via `registerWorkspace()` for identity and `registerRoute()` for the URL. The workspace `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`). |
-| **Block** | A reusable, renderer-agnostic content unit registered via `registerBlock()`. Can render in a TipTap editor, a sidebar panel, or a tab without the block author writing any rendering-mode-specific code. Blocks declare `listensTo` + `onEvent` for event bus reactions, and optional `messages` for action logging. |
+| **Hub** | A free-form browsing page that links to Workspaces. Each hub is registered by a mod and appears in the sidebar nav. Hubs are minimal — they own no defaults, no `accepts` filter, and no workspace type registry. The Library hub is generic: it renders entities from their LIMS schema column definitions rather than via per-mod card registrations. |
+| **Workspace** | A full work surface for a specific item, accessed via a dedicated URL (e.g., `/eln/E-1234`). Workspaces are backend-declared (via `register_schema_type()`) and frontend-discovered at boot. The workspace `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`). |
+| **Block** | A reusable, renderer-agnostic content unit registered via `registerBlock()`. Can render in a TipTap editor, a sidebar panel, or a tab without the block author writing any rendering-mode-specific code. Blocks declare `listensTo` + `onEvent` for event bus reactions. Blocks send domain actions at runtime via `sendAction()` — no static `messages` field. |
 | **Button** | A simple fire-only action registered via `registerButton()`. Buttons emit events on the workspace bus but never listen. If a UI element needs to both listen and fire, use a block. |
 | **Slot** | A named placeholder in a workspace that owns how things are rendered. Declared via `declareSlot()`. The slot's `renderer` determines presentation; blocks/buttons bind into slots via `registerIntoSlot()`. |
-| **Library Item** | A card rendered in the Library hub. Mods register a `listCard` component via `registerLibraryItem()`. The library core wraps it in a `BaseLibraryCard` that handles view-mode CSS, selection state, and field visibility toggles. |
 | **Mention** | A cross-reference from one piece of content to another via a display ID (e.g., `#DNA34`). Previously called "reference" — the entire stack (backend app, frontend module, components, API routes) has been renamed from `references` to `mentions`. |
 
 ---
@@ -119,9 +118,9 @@ src/
 │   │   ├── index.ts
 │   │   └── pages/                      # SettingsPage.tsx
 │   │
-│   ├── pins/                           # Pinned workspaces sidebar
+│   ├── tabs/                           # Tabs (pinned workspace sidebar)
 │   │   ├── modManifest.json
-│   │   ├── package.json                # @helix/pins
+│   │   ├── package.json                # @helix/tabs
 │   │   ├── index.ts
 │   │   ├── types.ts
 │   │   ├── api.ts
@@ -197,7 +196,6 @@ Every mod declares what it provides by calling `register*()` functions in its `i
 | Function | What it registers | Layer |
 |----------|------------------|-------|
 | `registerHub()` | A free-form browsing hub with sidebar nav item (e.g. Library at `/library`, Home at `/home`) | App |
-| `registerLibraryItem()` | A card component rendered in the Library hub (e.g. ELN entry cards with List/Grid/Compact views) | App |
 | `registerBlock()` | A reusable, renderer-agnostic content block that can render in TipTap, a sidebar panel, or a tab | Slot |
 | `registerButton()` | A fire-only button rendered in toolbar slots | Slot |
 | `declareSlot()` | A named placeholder in a workspace that owns how bound content is rendered | Slot |
@@ -205,8 +203,6 @@ Every mod declares what it provides by calling `register*()` functions in its `i
 | `registerSettingsSection()` | A panel in the Settings shell (e.g. entity schemas) | App |
 | `registerRoute()` | A standalone route (e.g. `/settings`, workspace pages like `/eln/:displayId`) | App |
 | `registerPublicRoute()` | A route outside the Layout shell — no sidebar, no app chrome (e.g. `/login`) | App |
-| `registerSidebarAction()` | A button or badge on a workspace's sidebar row (e.g. pin/unpin) | App |
-| `registerWorkspace()` | A workspace identity — `id` doubles as the URL namespace for mention resolution | App |
 
 ### registerHub()
 
@@ -231,25 +227,6 @@ registerHub({
 | Library | `library` | `/library` | Card-based filesystem browser (List/Grid/Compact) |
 | Settings | `settings` | `/settings` | Application settings shell |
 
-### registerLibraryItem()
-
-Registers a card component for rendering in the Library hub. Mods contribute one `listCard` component; the library core wraps it in `BaseLibraryCard`.
-
-```ts
-registerLibraryItem({
-  id: string;                        // e.g. 'eln.entry'
-  icon: React.ComponentType;
-  listCard: React.ComponentType;     // Card component rendered inside BaseLibraryCard
-  property_fields?: PropertyField[]; // Optional inline metadata fields
-}): void;
-```
-
-**Current library items:**
-
-| ID | Mod | Card Component |
-|----|-----|---------------|
-| `eln.entry` | ELN | `ElnLibraryCard` |
-
 ### registerBlock()
 
 Registers a reusable, renderer-agnostic content block. The same block can render in a TipTap editor, a sidebar panel, or a tab — the slot's renderer owns presentation.
@@ -262,7 +239,6 @@ registerBlock({
   component: ComponentType<BlockComponentProps>;        // React component
   listensTo: string[];                                  // Events this block reacts to
   onEvent: Record<string, (instance, payload) => unknown | void>;
-  messages?: { created?: string; edited?: string; deleted?: string };
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   tags?: string[];                                      // For slash menu filtering
   serialize: (state: Record<string, unknown>) => string;
@@ -270,6 +246,8 @@ registerBlock({
   defaultState: Record<string, unknown>;
 }): void;
 ```
+
+Blocks send domain actions at runtime via `sendAction(action_type, metadata)` from `BlockComponentProps`. The action catalog is available via `SlotContext.actions`. There is no static `messages` field — blocks determine which action to send based on what the user did.
 
 **How blocks are consumed:**
 
@@ -361,33 +339,6 @@ registerSettingsSection({
 }): void;
 ```
 
-### registerSidebarAction()
-
-Registers a button or badge on a workspace's sidebar row (e.g., pin/unpin).
-
-```ts
-registerSidebarAction({
-  id: string;                        // e.g. 'pins.pin'
-  workspaceId: string;               // Which workspace this action targets
-  component: React.ComponentType;
-  position: 'inline' | 'hover';
-}): void;
-```
-
-### registerWorkspace()
-
-Registers a workspace identity. The `id` doubles as the URL namespace for mention resolution and navigation.
-
-```ts
-registerWorkspace({
-  id: string;                        // URL namespace, e.g. 'eln', 'lims'
-  displayName: string;               // Human-readable, e.g. 'Electronic Lab Notebook'
-  icon?: React.ComponentType;
-}): void;
-```
-
-Workspace pages are registered separately via `registerRoute()` with a path like `/{workspaceId}/:displayId`.
-
 ---
 
 ## Boot Sequence
@@ -396,28 +347,25 @@ Workspace pages are registered separately via `registerRoute()` with a path like
 main.tsx
   → BrowserRouter
     → App.tsx
-      → <ModLoader>
+      → <ModLoader> (shows "Loading Helix…" loading screen)
           1. Read modManifest.json from each src/mods/*/ directory
              → Parse id, displayName, version, dependsOn, coreVersion
-          2. Topological sort mods by dependsOn graph
-          3. Validate: no circular deps, no missing deps, no duplicate IDs,
+          2. Glob all src/mods/*/index.ts files → collect register() functions
+          3. Topological sort mods by dependsOn graph
+          4. Validate: no circular deps, no missing deps, no duplicate IDs,
              coreVersion constraints satisfied
-          4. Glob all src/mods/*/index.ts files
-          5. Call each mod's register function in sorted order
-             → Each index.ts calls register*() → populates ModRegistry
-          6. Validate registry: slot bindings resolve, cross-references valid
-          7. Render <AppShell>
-             → Layout reads registry for sidebar nav (getHubs())
-             → Router reads registry for route tree
-             → Hub pages read registry for items/blocks
-             → Settings shell reads registry for settings panels
-             → Workspaces resolve slots via registry.resolveSlot()
-          8. App renders, mods are live
+          5. GET /api/mod-registry/ → fetch backend-owned data:
+             workspace IDs, schema types, action catalogs
+          6. Hydrate frontend ModRegistry with backend data
+          7. Call each mod's register function in sorted order (UI only)
+          8. Validate registry: slot bindings resolve
+          9. Render <AppShell> → hubs, routes, blocks, settings, slots
+         10. App renders, mods are live
 ```
 
-**Error handling:** Fail-fast. If a mod fails to load or a dependency is missing, the app shows the error in the terminal and does not boot. Slot binding errors are warn-and-skip — bad bindings are logged but don't crash the app.
+**Error handling:** Fail-fast. If a mod fails to load, a dependency is missing, or the `GET /api/mod-registry/` call fails, the app shows the error and does not boot. Slot binding errors are warn-and-skip.
 
-**Mod metadata** is read from `modManifest.json` — there is no inline `meta` export in `index.ts`. The manifest is the single source of truth for mod identity.
+**Mod metadata** is read from `modManifest.json` — there is no `meta` export in `index.ts`. `index.ts` exports a single `register` function. The manifest is the single source of truth for mod identity.
 
 ---
 
@@ -449,16 +397,17 @@ Sidebar (dynamic: registry.getHubs())
 
 The sidebar is auto-populated from `registerHub()`. Every registered hub gets a sidebar nav item with its icon, label, and route. The `order` field controls sort order.
 
-The Pins mod registers a sidebar section via `registerSidebarAction()` — the pinned workspaces list renders below the nav items.
+The Tabs mod (formerly Pins) listens to workspace navigation events and renders the pinned workspaces list below the nav items — no registration API needed.
 
 ---
 
 ## Workspace Pages
 
-Every workspace has a dedicated URL (e.g., `/lims/E-1234`, `/eln/E-1234`). The workspace identity is registered via `registerWorkspace()`; the route is registered via `registerRoute()`:
+Every workspace has a dedicated URL (e.g., `/lims/E-1234`, `/eln/E-1234`). The workspace identity is backend-declared (via `register_schema_type()`) and discovered by the frontend at boot via `GET /api/mod-registry/`. The route is registered via `registerRoute()`:
 
-1. Mod registers workspace identity: `registerWorkspace({ id: 'eln', displayName: '...' })`
-2. Mod registers route: `registerRoute({ path: '/eln/:displayId', ... })`
+1. Backend declares schema type → implies workspace identity
+2. Frontend discovers all workspaces at boot via `GET /api/mod-registry/`
+3. Mod registers route: `registerRoute({ path: '/eln/:displayId', ... })`
 3. Router matches the pattern, workspace component is lazy-loaded
 4. Workspace component **fetches its own data** — receives `displayId` as a route param
 5. Workspace declares slots and resolves bindings at render time
@@ -595,7 +544,6 @@ Every mod follows this structure:
 | `admin.py` | Django admin registration | Optional |
 | `api.ts` | Frontend API calls to mod's backend | If mod has API endpoints |
 | `blocks/` | Content blocks registered via `registerBlock()` | If mod contributes editor blocks |
-| `library/` | Card components registered via `registerLibraryItem()` | If mod appears in Library hub |
 | `workspace/` | Full workspace + standalone page shell | If mod has a workspace |
 | `settings/` | Settings panels registered to the Settings shell | If mod has settings |
 | `editor/` | Rich editor + extensions | If mod owns an editor |
@@ -633,11 +581,11 @@ External mods will live in separate repositories and be installed via npm (front
 | Dependency model | Explicit `dependsOn` with topological sort | Detect circular deps and missing deps at boot |
 | Error handling | Fail-fast for deps; warn-and-skip for slot bindings | Broken dep graph = no boot; misconfigured slot = graceful degradation |
 | Hub config | Minimal (`id`, `label`, `icon`, `route`, `component`, `order`) | No shared panel layout to constrain design |
-| Workspace routing | `registerWorkspace()` for identity + `registerRoute()` for URL | Workspace identity used by mentions; route used by router |
-| Library | Custom hub layout via `registerLibraryItem()` | Card-based List/Grid/Compact views |
+| Workspace routing | Backend-declared (via `register_schema_type()`) + frontend `registerRoute()` for URL | Backend owns workspace identity; frontend owns the route |
+| Library | Generic LIMS-driven rendering from schema column definitions | New entity types appear automatically; no per-mod card registration |
 | Blocks | Renderer-agnostic via slot system | Same block renders in TipTap, sidebar, or tab |
 | Slot validation | Warn-and-skip for bad bindings | Misconfiguration shouldn't be catastrophic |
 | Backend mod system | `BackendModRegistry` with `register_*()` methods | Same pattern as frontend; shared mental model |
 | Cross-mod communication | Service registry (`registry.call()`) | No direct imports between mods |
-| Action logging | Declarative (`ActionLoggingMixin` + `@logs_action`) | Zero boilerplate for mod authors |
-| Block actions | Batching via `bus.collect()` + flush on save | Reduces API calls; ensures atomicity |
+| Action logging | Unified `POST /api/actions/` endpoint with core auto-derivation + custom actions | One audit trail path; blocks send actions at runtime |
+| Block actions | Runtime via `sendAction()` from `BlockComponentProps` | Blocks send domain actions based on what the user did; no static `messages` |

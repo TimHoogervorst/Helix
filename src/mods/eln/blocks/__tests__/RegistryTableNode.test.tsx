@@ -65,6 +65,49 @@ vi.mock("lucide-react", () => ({
   ArrowLeftRight: (props: Record<string, unknown>) => (
     <span data-testid="icon-arrow-left-right" {...props}>↔</span>
   ),
+  // Icons used by CellEditors.tsx COLUMN_TYPE_ICON_MAP
+  Type: (props: Record<string, unknown>) => (
+    <span data-testid="icon-type" {...props}>Aa</span>
+  ),
+  Hash: (props: Record<string, unknown>) => (
+    <span data-testid="icon-hash" {...props}>#</span>
+  ),
+  Clock: (props: Record<string, unknown>) => (
+    <span data-testid="icon-clock" {...props}>🕐</span>
+  ),
+  ToggleLeft: (props: Record<string, unknown>) => (
+    <span data-testid="icon-toggle-left" {...props}>◉</span>
+  ),
+  List: (props: Record<string, unknown>) => (
+    <span data-testid="icon-list" {...props}>☰</span>
+  ),
+  Link: (props: Record<string, unknown>) => (
+    <span data-testid="icon-link" {...props}>🔗</span>
+  ),
+  User: (props: Record<string, unknown>) => (
+    <span data-testid="icon-user" {...props}>👤</span>
+  ),
+  FileText: (props: Record<string, unknown>) => (
+    <span data-testid="icon-file-text" {...props}>📄</span>
+  ),
+}));
+
+// ── Mock ModRegistry column type lookups ───────────────────────────────────
+// Column types used by RegistryTableNode's EditableCell and header rendering.
+
+const { mockGetColumnType } = vi.hoisted(() => ({
+  mockGetColumnType: vi.fn(),
+}));
+
+vi.mock("../../../../shell/src/mod-system/ModRegistry", () => ({
+  ModRegistry: {
+    getInstance: () => ({
+      getColumnType: mockGetColumnType,
+      getColumnTypes: () => new Map(),
+    }),
+    _reset: () => {},
+    resolveActionLabel: (actionType: string) => actionType,
+  },
 }));
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────
@@ -80,8 +123,8 @@ const sampleEntityTypes = [
     name: "Blood Sample",
     prefix: "BLOOD",
     columns: [
-      { id: "uuid-blood-1", name: "Volume", type: "Number" as const, units: "mL" },
-      { id: "uuid-blood-2", name: "Collection Date", type: "Date" as const },
+      { id: "uuid-blood-1", name: "Volume", type: "number" as const, units: "mL" },
+      { id: "uuid-blood-2", name: "Collection Date", type: "date" as const },
     ],
     is_active: true,
     is_default: false,
@@ -92,8 +135,8 @@ const sampleEntityTypes = [
     name: "Chemical Reagent",
     prefix: "CHEM",
     columns: [
-      { id: "uuid-chem-1", name: "Concentration", type: "Number" as const, units: "M" },
-      { id: "uuid-chem-2", name: "Purity", type: "Text" as const },
+      { id: "uuid-chem-1", name: "Concentration", type: "number" as const, units: "M" },
+      { id: "uuid-chem-2", name: "Purity", type: "text" as const },
     ],
     is_active: true,
     is_default: false,
@@ -163,6 +206,83 @@ function makeRow(overrides?: Partial<RegistryTableRow>): RegistryTableRow {
     ...overrides,
   };
 }
+
+/** Pre-seed the ModRegistry mock with built-in column types used in tests. */
+function seedColumnTypes() {
+  const types: Record<string, {
+    id: string;
+    displayName: string;
+    icon: string;
+    operandShape: string;
+    operators: Array<{
+      id: string;
+      label: string;
+      operandShape: string;
+      djangoLookupName: string;
+    }>;
+  }> = {
+    text: {
+      id: "text",
+      displayName: "Text",
+      icon: "type",
+      operandShape: "text",
+      defaultValue: "",
+      operators: [
+        { id: "contains", label: "Contains", operandShape: "text", djangoLookupName: "icontains" },
+      ],
+    },
+    number: {
+      id: "number",
+      displayName: "Number",
+      icon: "hash",
+      operandShape: "number",
+      defaultValue: 0,
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "number", djangoLookupName: "exact" },
+      ],
+    },
+    date: {
+      id: "date",
+      displayName: "Date",
+      icon: "calendar",
+      operandShape: "date",
+      defaultValue: null,
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "date", djangoLookupName: "exact" },
+      ],
+    },
+    boolean: {
+      id: "boolean",
+      displayName: "Boolean",
+      icon: "toggle-left",
+      operandShape: "boolean",
+      defaultValue: false,
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "boolean", djangoLookupName: "exact" },
+      ],
+    },
+    reference: {
+      id: "reference",
+      displayName: "Reference",
+      icon: "link",
+      operandShape: "entity-picker",
+      defaultValue: "",
+      operators: [
+        { id: "eq", label: "Equals", operandShape: "entity-picker", djangoLookupName: "exact" },
+      ],
+    },
+  };
+
+  mockGetColumnType.mockImplementation(
+    (typeId: string) => types[typeId],
+  );
+}
+
+// Top-level beforeEach: seed column types for every test so that
+// EditableCell and header rendering can look them up via the registry.
+beforeEach(() => {
+  seedColumnTypes();
+});
 
 // ══════════════════════════════════════════════════════════════════════════
 // Placeholder state
@@ -300,8 +420,8 @@ describe("RegistryTableBlockComponent — picker dropdown", () => {
       schemaName: "Blood Sample",
       schemaContentHash: "abc123def456",
       columns: [
-        { id: "uuid-blood-1", name: "Volume", type: "Number", required: undefined, default: undefined, units: "mL", description: undefined },
-        { id: "uuid-blood-2", name: "Collection Date", type: "Date", required: undefined, default: undefined, units: undefined, description: undefined },
+        { id: "uuid-blood-1", name: "Volume", type: "number", required: undefined, default: undefined, units: "mL", description: undefined },
+        { id: "uuid-blood-2", name: "Collection Date", type: "date", required: undefined, default: undefined, units: undefined, description: undefined },
       ],
       rows: [],
     });
@@ -347,8 +467,8 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
         schemaContentHash: "abc123def456",
         title: "My Blood Samples",
         columns: [
-          { name: "Volume", type: "Number" as const, units: "mL" },
-          { name: "Collection Date", type: "Date" as const },
+          { name: "Volume", type: "number" as const, units: "mL" },
+          { name: "Collection Date", type: "date" as const },
         ],
         rows: [makeRow()],
         ...(opts?.attrs ?? {}),
@@ -390,14 +510,14 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     expect(within(dateHeader).getByTestId("icon-calendar")).toBeInTheDocument();
   });
 
-  it("renders Boolean column header with check icon", () => {
+  it("renders Boolean column header with icon from registry", () => {
     render(
       <RegistryTableBlockComponent
         {...loadedProps({
           attrs: {
             columns: [
-              { name: "Volume", type: "Number" as const, units: "mL" },
-              { name: "Active", type: "Boolean" as const },
+              { name: "Volume", type: "number" as const, units: "mL" },
+              { name: "Active", type: "boolean" as const },
             ],
           },
         })}
@@ -405,7 +525,9 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     );
     const boolHeader = screen.getByTestId("registry-table-header-Active");
     expect(boolHeader).toHaveTextContent("Active");
-    expect(within(boolHeader).getByTestId("icon-check")).toBeInTheDocument();
+    // Boolean type icon is "toggle-left" — the registry-driven renderColumnTypeBadge
+    // renders the ToggleLeft Lucide component.
+    expect(within(boolHeader).getByTestId("icon-toggle-left")).toBeInTheDocument();
   });
 
   it("renders status bar and delete column headers", () => {
@@ -462,7 +584,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
         schemaName: "Blood Sample",
         schemaContentHash: "abc123def456",
         title: "My Blood Samples",
-        columns: [{ name: "Volume", type: "Number" as const, units: "mL" }],
+        columns: [{ name: "Volume", type: "number" as const, units: "mL" }],
         rows: [row],
         ...blockAttrs,
       },
@@ -617,7 +739,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("renders text cell as contentEditable span", () => {
     const { props } = renderWithColumns(
-      [{ name: "Notes", type: "Text" }],
+      [{ name: "Notes", type: "text" }],
       { Notes: "Hello world" },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -630,7 +752,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("renders number cell as display span initially", () => {
     const { props } = renderWithColumns(
-      [{ name: "Volume", type: "Number" }],
+      [{ name: "Volume", type: "number" }],
       { Volume: 42 },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -640,7 +762,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("switches number cell to input on click", async () => {
     const { props } = renderWithColumns(
-      [{ name: "Volume", type: "Number" }],
+      [{ name: "Volume", type: "number" }],
       { Volume: 42 },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -657,7 +779,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("renders date cell with formatted display", () => {
     const { props } = renderWithColumns(
-      [{ name: "Collection Date", type: "Date" }],
+      [{ name: "Collection Date", type: "date" }],
       { "Collection Date": "2025-06-15" },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -667,7 +789,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("switches date cell to input on click", async () => {
     const { props } = renderWithColumns(
-      [{ name: "Collection Date", type: "Date" }],
+      [{ name: "Collection Date", type: "date" }],
       { "Collection Date": "2025-06-15" },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -684,7 +806,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("renders boolean cell as checkbox", () => {
     const { props } = renderWithColumns(
-      [{ name: "Active", type: "Boolean" }],
+      [{ name: "Active", type: "boolean" }],
       { Active: true },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -694,7 +816,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("boolean checkbox toggles value", () => {
     const { props, updateAttrs } = renderWithColumns(
-      [{ name: "Active", type: "Boolean" }],
+      [{ name: "Active", type: "boolean" }],
       { Active: false },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -713,7 +835,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("renders reference cell with @mention button when empty", () => {
     const { props } = renderWithColumns(
-      [{ name: "Related", type: "Reference" }],
+      [{ name: "Related", type: "reference" }],
       { Related: "" },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -722,7 +844,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
 
   it("opens reference popover on click", async () => {
     const { props } = renderWithColumns(
-      [{ name: "Related", type: "Reference" }],
+      [{ name: "Related", type: "reference" }],
       { Related: "" },
     );
     render(<RegistryTableBlockComponent {...props} />);
@@ -754,7 +876,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
         schemaName: "Blood Sample",
         schemaContentHash: "abc123",
         title: "Test",
-        columns: [{ name: "Volume", type: "Number" as const, units: "mL" }],
+        columns: [{ name: "Volume", type: "number" as const, units: "mL" }],
         rows: [row],
       },
       rest: {
@@ -767,7 +889,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
             schemaName: "Blood Sample",
             schemaContentHash: "abc123",
             title: "Test",
-            columns: [{ name: "Volume", type: "Number", units: "mL" }],
+            columns: [{ name: "Volume", type: "number", units: "mL" }],
             rows: [row],
           },
           updateAttrs,
@@ -800,7 +922,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
       schemaName: "Blood Sample",
       schemaContentHash: "abc123",
       title: "Test",
-      columns: [{ name: "Volume", type: "Number" as const, units: "mL" }],
+      columns: [{ name: "Volume", type: "number" as const, units: "mL" }],
       rows: [registeredRow],
     };
 
@@ -891,7 +1013,7 @@ describe("RegistryTableBlockComponent — block defaults and serialization", () 
       schemaName: "Blood Sample",
       schemaContentHash: "abc123def456",
       title: "My Samples",
-      columns: [{ name: "Volume", type: "Number", units: "mL" }],
+      columns: [{ name: "Volume", type: "number", units: "mL" }],
       rows: [
         {
           entityId: 1,
@@ -975,7 +1097,7 @@ describe("RegistryTableContent — refresh schema button", () => {
       schemaContentHash: "abc123",
       title: "Test Table",
       columns: opts?.columns ?? [
-        { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+        { name: "Volume", type: "number" as const, units: "mL", id: "uuid-1" },
       ],
       rows: opts?.rows ?? [makeRow()],
       updateAttrs: vi.fn(),
@@ -1008,8 +1130,8 @@ describe("RegistryTableContent — refresh schema", () => {
   });
 
   const existingColumns = [
-    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-vol" },
-    { name: "Collection Date", type: "Date" as const, id: "uuid-date" },
+    { name: "Volume", type: "number" as const, units: "mL", id: "uuid-vol" },
+    { name: "Collection Date", type: "date" as const, id: "uuid-date" },
   ];
 
   const existingRows: RegistryTableRow[] = [
@@ -1059,8 +1181,8 @@ describe("RegistryTableContent — refresh schema", () => {
       name: "Blood Sample",
       prefix: "BLOOD",
       columns: [
-        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
-        { id: "uuid-date", name: "Collection Date", type: "Date" },
+        { id: "uuid-vol", name: "Volume", type: "number", units: "mL" },
+        { id: "uuid-date", name: "Collection Date", type: "date" },
       ],
       is_active: true,
       content_hash: "abc123",
@@ -1082,7 +1204,7 @@ describe("RegistryTableContent — refresh schema", () => {
       name: "Blood Sample (updated)",
       prefix: "BLOOD",
       columns: [
-        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+        { id: "uuid-vol", name: "Volume", type: "number", units: "mL" },
       ],
       is_active: true,
       content_hash: "new-hash-789",
@@ -1113,9 +1235,9 @@ describe("RegistryTableContent — refresh schema", () => {
       name: "Blood Sample",
       prefix: "BLOOD",
       columns: [
-        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
-        { id: "uuid-date", name: "Collection Date", type: "Date" },
-        { id: "uuid-new", name: "Temperature", type: "Number", units: "°C" },
+        { id: "uuid-vol", name: "Volume", type: "number", units: "mL" },
+        { id: "uuid-date", name: "Collection Date", type: "date" },
+        { id: "uuid-new", name: "Temperature", type: "number", units: "°C" },
       ],
       is_active: true,
       content_hash: "hash-expanded",
@@ -1155,7 +1277,7 @@ describe("RegistryTableContent — refresh schema", () => {
       name: "Blood Sample",
       prefix: "BLOOD",
       columns: [
-        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
+        { id: "uuid-vol", name: "Volume", type: "number", units: "mL" },
         // Collection Date removed
       ],
       is_active: true,
@@ -1190,8 +1312,8 @@ describe("RegistryTableContent — refresh schema", () => {
       name: "Blood Sample",
       prefix: "BLOOD",
       columns: [
-        { id: "uuid-vol", name: "Volume (mL)", type: "Number", units: "mL" }, // renamed
-        { id: "uuid-date", name: "Collected On", type: "Date" }, // renamed
+        { id: "uuid-vol", name: "Volume (mL)", type: "number", units: "mL" }, // renamed
+        { id: "uuid-date", name: "Collected On", type: "date" }, // renamed
       ],
       is_active: true,
       content_hash: "hash-renamed",
@@ -1276,7 +1398,7 @@ describe("RegistryTableContent — refresh schema", () => {
       id: 1,
       name: "Blood Sample",
       prefix: "BLOOD",
-      columns: [{ id: "uuid-vol", name: "Volume", type: "Number", units: "mL" }],
+      columns: [{ id: "uuid-vol", name: "Volume", type: "number", units: "mL" }],
       is_active: true,
       content_hash: "abc",
     });
@@ -1289,8 +1411,8 @@ describe("RegistryTableContent — refresh schema", () => {
       name: "Blood Sample",
       prefix: "BLOOD",
       columns: [
-        { id: "uuid-vol", name: "Volume", type: "Number", units: "mL" },
-        { id: "uuid-new", name: "Temp", type: "Number" },
+        { id: "uuid-vol", name: "Volume", type: "number", units: "mL" },
+        { id: "uuid-new", name: "Temp", type: "number" },
       ],
       is_active: true,
       content_hash: "new-hash",
@@ -1330,11 +1452,11 @@ describe("RegistryTableContent — view mode (readOnly)", () => {
   });
 
   const columns = [
-    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
-    { name: "Notes", type: "Text" as const, id: "uuid-2" },
-    { name: "Active", type: "Boolean" as const, id: "uuid-3" },
-    { name: "Collected", type: "Date" as const, id: "uuid-4" },
-    { name: "Related", type: "Reference" as const, id: "uuid-5" },
+    { name: "Volume", type: "number" as const, units: "mL", id: "uuid-1" },
+    { name: "Notes", type: "text" as const, id: "uuid-2" },
+    { name: "Active", type: "boolean" as const, id: "uuid-3" },
+    { name: "Collected", type: "date" as const, id: "uuid-4" },
+    { name: "Related", type: "reference" as const, id: "uuid-5" },
   ];
 
   const row: RegistryTableRow = {
@@ -1481,7 +1603,7 @@ describe("RegistryTableBlockComponent — viewMode integration", () => {
             schemaName: "Blood Sample",
             schemaContentHash: "abc123",
             title: "Test",
-            columns: [{ name: "Volume", type: "Number", id: "uuid-1" }],
+            columns: [{ name: "Volume", type: "number", id: "uuid-1" }],
             rows: [makeRow()],
           },
           rest: {
@@ -1506,7 +1628,7 @@ describe("RegistryTableBlockComponent — viewMode integration", () => {
             schemaName: "Blood Sample",
             schemaContentHash: "abc123",
             title: "Test",
-            columns: [{ name: "Volume", type: "Number", id: "uuid-1" }],
+            columns: [{ name: "Volume", type: "number", id: "uuid-1" }],
             rows: [makeRow()],
           },
           rest: {
@@ -1531,7 +1653,7 @@ describe("RegistryTableBlockComponent — viewMode integration", () => {
             schemaName: "Blood Sample",
             schemaContentHash: "abc123",
             title: "Test",
-            columns: [{ name: "Volume", type: "Number", id: "uuid-1" }],
+            columns: [{ name: "Volume", type: "number", id: "uuid-1" }],
             rows: [makeRow()],
           },
           rest: {
@@ -1558,7 +1680,7 @@ describe("RegistryTableContent — Register Entities button", () => {
   });
 
   const baseColumns = [
-    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+    { name: "Volume", type: "number" as const, units: "mL", id: "uuid-1" },
   ];
 
   function contentProps(
@@ -1814,7 +1936,7 @@ describe("RegistryTableContent — Register Entities success path", () => {
   });
 
   const baseColumns = [
-    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+    { name: "Volume", type: "number" as const, units: "mL", id: "uuid-1" },
   ];
 
   function contentProps(rows: RegistryTableRow[], updateAttrs?: ReturnType<typeof vi.fn>) {
@@ -1962,7 +2084,7 @@ describe("RegistryTableContent — Register Entities error path", () => {
   });
 
   const baseColumns = [
-    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+    { name: "Volume", type: "number" as const, units: "mL", id: "uuid-1" },
   ];
 
   function contentProps(rows: RegistryTableRow[], updateAttrs: ReturnType<typeof vi.fn>) {
@@ -2151,7 +2273,7 @@ describe("RegistryTableContent — green row detection", () => {
   });
 
   const baseColumns = [
-    { name: "Volume", type: "Number" as const, units: "mL", id: "uuid-1" },
+    { name: "Volume", type: "number" as const, units: "mL", id: "uuid-1" },
   ];
 
   it("skips green rows (no non-green → no API call, no updateAttrs)", () => {
@@ -2365,7 +2487,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
         schemaName: "Blood Sample",
         schemaContentHash: "abc123",
         title: "Test Table",
-        columns: [{ name: "Volume", type: "Number" as const, units: "mL" }],
+        columns: [{ name: "Volume", type: "number" as const, units: "mL" }],
         rows: [makeRow()],
         ...(opts?.attrs ?? {}),
       },
@@ -2443,7 +2565,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
                 schemaName: "Blood Sample",
                 schemaContentHash: "abc123",
                 title: "Test Table",
-                columns: [{ name: "Volume", type: "Number", units: "mL" }],
+                columns: [{ name: "Volume", type: "number", units: "mL" }],
                 rows: [makeRow()],
               },
               updateAttrs,
@@ -2475,7 +2597,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
                 schemaName: "Blood Sample",
                 schemaContentHash: "abc123",
                 title: "Test Table",
-                columns: [{ name: "Volume", type: "Number", units: "mL" }],
+                columns: [{ name: "Volume", type: "number", units: "mL" }],
                 rows: [makeRow()],
                 stretchMode: "full",
               },

@@ -25,12 +25,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def logs_action(action_type: str, **config: Any) -> Callable:
+def logs_action(action: str, **config: Any) -> Callable:
     """Declare that a custom ``@action`` method logs an action.
 
     The decorated method's config is merged into the viewset's
     ``action_log_config`` at class-creation time.  Works with both
     detail and list ``@action`` decorators.
+
+    Validates *action* against the registry at decoration time.
+    Core CRUD verbs (``created``, ``edited``, ``deleted``) are always
+    valid.  Custom action types must be registered via
+    :func:`~helix_core.actions.registry.register_custom_action` before
+    the viewset is imported.  If the registry has not been populated yet
+    (e.g. during test setup), validation is skipped.
 
     Usage::
 
@@ -42,19 +49,79 @@ def logs_action(action_type: str, **config: Any) -> Callable:
                 ...
 
     Args:
-        action_type: Triple-dotted action name (e.g.
+        action: Triple-dotted action identifier (e.g.
             ``"eln.entry.exported"``).
         **config: Additional entries merged into the
             ``action_log_config`` dict for this action.
+
+    Raises:
+        ValueError: If *action* is a non-core action that has not
+            been registered in the action catalog, and the registry is
+            already populated.
     """
 
+    # ── validate at decoration time ───────────────────────────────────
+    _validate_action_type(action)
+
     def decorator(method: Callable) -> Callable:
-        cfg: Dict[str, Any] = {"action_type": action_type}
+        cfg: Dict[str, Any] = {"action": action}
         cfg.update(config)
         method._action_log_config = cfg  # type: ignore[attr-defined]
         return method
 
     return decorator
+
+
+def _validate_action_type(action: str) -> None:
+    """Validate *action* against the registry, if fully initialized.
+
+    Core verbs always pass.  For other actions, checks that the
+    owning mod (derived from the action prefix) has registered an
+    action model.  When custom actions are registered for the mod, also
+    validates that the specific action appears in the catalog.
+
+    Validation is only performed for mods that are in the known mod
+    order (i.e. have been through ``HelixCoreConfig.ready()``
+    initialization).  Test mods and ad-hoc viewset modules are never
+    validated at decoration time.
+    """
+    from helix_core.mod_system.registry import CORE_ACTION_VERBS, registry
+
+    # Core verbs are always valid — skip the registry check.
+    if action in CORE_ACTION_VERBS:
+        return
+
+    # Derive the mod from the action prefix (first dot-segment).
+    mod_id = action.split(".")[0]
+
+    # Only validate when this mod is part of the known mod order.
+    if not registry.is_mod_known(mod_id):
+        return
+
+    # Check that the owning mod has registered an action model.
+    if not registry.has_action_model(mod_id):
+        raise ValueError(
+            f"Unknown action type '{action}'. The mod '{mod_id}' "
+            f"has not registered an action model via "
+            f"register_action_model(). Call register_action_model() in "
+            f"the mod's mod.py.register() before importing viewsets "
+            f"that use @logs_action."
+        )
+
+    # When the mod has registered custom actions, validate that this
+    # specific action appears in the catalog.  If the mod hasn't
+    # registered any custom actions yet, we allow any action —
+    # it will be validated at request time by log_action().
+    catalog = registry.get_action_catalog(mod_id)
+    has_custom = not all(
+        entry.get("id") in CORE_ACTION_VERBS for entry in catalog
+    )
+    if has_custom and not registry.validate_action(action):
+        raise ValueError(
+            f"Unknown action type '{action}'. Custom actions must be "
+            f"registered via register_custom_action() in the mod's "
+            f"mod.py.register() before the viewset is imported."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -86,19 +153,19 @@ class ActionLoggingMixin:
         class MyViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             action_log_config = {
                 "create": {
-                    "action_type": "myapp.widget.created",
+                    "action": "myapp.widget.created",
                 },
                 "update": {
-                    "action_type": "myapp.widget.edited",
+                    "action": "myapp.widget.edited",
                     "get_metadata": lambda inst, data, req: {
                         "changed": list(data.keys()),
                     },
                 },
                 "partial_update": {
-                    "action_type": "myapp.widget.edited",
+                    "action": "myapp.widget.edited",
                 },
                 "destroy": {
-                    "action_type": "myapp.widget.deleted",
+                    "action": "myapp.widget.deleted",
                 },
             }
 
@@ -216,9 +283,9 @@ class ActionLoggingMixin:
 
     def _do_log(self, config, instance, validated_data, user):
         """Call ``log_action()`` with the assembled parameters."""
-        action_type: str = config["action_type"]
+        action: str = config["action"]
         target_type: str = config.get(
-            "target_type", self._derive_target_type(action_type)
+            "target_type", self._derive_target_type(action)
         )
         target_id: int = self._resolve_target_id(config, instance)
         metadata: dict = {}
@@ -234,7 +301,7 @@ class ActionLoggingMixin:
 
         log_action(
             user=user,
-            action_type=action_type,
+            action=action,
             target_type=target_type,
             target_id=target_id,
             metadata=metadata,
@@ -248,13 +315,13 @@ class ActionLoggingMixin:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _derive_target_type(action_type: str) -> str:
-        """Derive ``target_type`` from a triple-dotted ``action_type``.
+    def _derive_target_type(action: str) -> str:
+        """Derive ``target_type`` from a triple-dotted *action*.
 
         Strips the last dot-separated segment (the verb).  For
         ``"eln.entry.created"`` returns ``"eln.entry"``.
         """
-        return action_type.rsplit(".", 1)[0]
+        return action.rsplit(".", 1)[0]
 
     def _resolve_target_id(self, config, instance) -> int:
         """Resolve the target PK from *config* or *instance*."""

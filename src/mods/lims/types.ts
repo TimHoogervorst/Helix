@@ -2,11 +2,13 @@
 export interface ColumnDef {
   id?: string;
   name: string;
-  type: "Text" | "Number" | "Date" | "Boolean" | "Reference";
+  type: string;
   required?: boolean;
   default?: string;
   units?: string;
   description?: string;
+  /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
+  dropdownId?: number;
 }
 
 // ── Schema (new shared model) ───────────────────────────────────────────
@@ -96,6 +98,14 @@ export interface AvailableColumn {
   key: string;
   label: string;
   source: "common" | "schema_type" | "schema";
+  /** Column type ID from the column type registry (e.g. "text", "number"). */
+  type: string;
+  /** Whether this column can be filtered by its type's operators. */
+  filterable: boolean;
+  /** Default pixel width for the column header, or null for auto-size. */
+  width: number | null;
+  /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
+  dropdownId?: number;
 }
 
 /** Paginated response from GET /api/registry/entities. */

@@ -18,7 +18,7 @@ const schemas: Schema[] = [
   makeSchema({
     columns: [
       makeColumnDef(),
-      makeColumnDef({ name: "hemolyzed", type: "Boolean" }),
+      makeColumnDef({ name: "hemolyzed", type: "boolean" }),
     ],
   }),
   makeSchema({
@@ -26,7 +26,7 @@ const schemas: Schema[] = [
     name: "Mice",
     prefix: "MICE",
     is_active: false,
-    columns: [makeColumnDef({ name: "strain", type: "Text" })],
+    columns: [makeColumnDef({ name: "strain", type: "text" })],
   }),
   makeSchema({
     id: 3,

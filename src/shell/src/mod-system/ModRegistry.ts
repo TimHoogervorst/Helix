@@ -2,9 +2,7 @@ import type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
-  SidebarActionConfig,
   ServiceConfig,
-  LibraryItemConfig,
   WorkspaceConfig,
   BlockRegistration,
   ButtonRegistration,
@@ -12,7 +10,50 @@ import type {
   SlotBinding,
   BlockBinding,
   ButtonBinding,
+  SchemaColumnDef,
+  ModManifest,
+  ActionCatalogEntry,
 } from "./types";
+
+/** Schema type entry from the backend mod-registry payload. */
+interface BackendSchemaType {
+  id: string;
+  displayName: string;
+  prefix: string;
+  columns?: Record<string, unknown>[];
+}
+
+/** Operator definition from the backend column type registry. */
+export interface BackendOperator {
+  id: string;
+  label: string;
+  operandShape: string;
+  djangoLookupName: string;
+}
+
+/** Column type entry from the backend mod-registry payload. */
+export interface BackendColumnType {
+  id: string;
+  displayName: string;
+  icon: string;
+  operandShape: string;
+  defaultValue: unknown;
+  operators: BackendOperator[];
+}
+
+/** Single workspace entry in the backend mod-registry response. */
+interface BackendModRegistryEntry {
+  workspaceId: string;
+  schemaTypes: BackendSchemaType[];
+  actions: Array<{ id: string; label: string; action_type: string }>;
+}
+
+/** Type guard: structural check that a value is a workspace entry. */
+function isWorkspaceEntry(
+  value: BackendModRegistryEntry | BackendColumnType[],
+): value is BackendModRegistryEntry {
+  return !Array.isArray(value) && typeof value === "object" && "workspaceId" in value;
+}
 
 /**
  * Central registry for all mod registrations.
@@ -47,15 +88,19 @@ export class ModRegistry {
   private hubs = new Map<string, HubConfig>();
   private settingsSections = new Map<string, SettingsSectionConfig>();
   private routes = new Map<string, RouteConfig>();
-  private sidebarActions = new Map<string, SidebarActionConfig>();
   private services = new Map<string, ServiceConfig>();
-  private libraryItems = new Map<string, LibraryItemConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private blocks = new Map<string, BlockRegistration>();
   private slots = new Map<string, SlotDeclaration>();
   private buttons = new Map<string, ButtonRegistration>();
   /** Bindings keyed by slotId. Each slot can have multiple bindings. */
   private bindings = new Map<string, SlotBinding[]>();
+
+  /** Action catalogs keyed by workspace ID, hydrated from the backend. */
+  private actions = new Map<string, ActionCatalogEntry[]>();
+
+  /** Column type definitions keyed by type ID, hydrated from the backend. */
+  private columnTypes = new Map<string, BackendColumnType>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -97,15 +142,6 @@ export class ModRegistry {
     this.routes.set(config.id, config);
   }
 
-  registerSidebarAction(config: SidebarActionConfig): void {
-    if (this.sidebarActions.has(config.id)) {
-      throw new Error(
-        `Duplicate sidebar action registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.sidebarActions.set(config.id, config);
-  }
-
   registerService(config: ServiceConfig): void {
     if (this.services.has(config.id)) {
       throw new Error(
@@ -115,22 +151,72 @@ export class ModRegistry {
     this.services.set(config.id, config);
   }
 
-  registerLibraryItem(config: LibraryItemConfig): void {
-    if (this.libraryItems.has(config.id)) {
-      throw new Error(
-        `Duplicate library item registration: '${config.id}' is already registered.`,
-      );
-    }
-    this.libraryItems.set(config.id, config);
-  }
+  /**
+   * Hydrate workspace data from the backend mod-registry API response.
+   *
+   * Called by ModLoader after manifest globbing and mod registration.
+   * Populates the workspaces map so that ``getWorkspaces()`` returns
+   * backend-sourced data — consumers like ``resolveCurrentWorkspace()`` and
+   * ``PinnedWorkspacesSidebar`` work unchanged because the data shape is the same.
+   *
+   * @param payload - The parsed JSON body from ``GET /api/mod-registry/``,
+   *   keyed by workspace ID.
+   * @param manifests - Mod manifests already collected from JSON globs.
+   *   Used to supply ``displayName`` for each workspace.
+   */
+  hydrateFromBackend(
+    payload: Record<string, BackendModRegistryEntry | BackendColumnType[]>,
+    manifests: ReadonlyMap<string, ModManifest>,
+  ): void {
+    for (const [key, value] of Object.entries(payload)) {
+      // The "columnTypes" key holds the column type registry array.
+      // Use structural check (Array.isArray) alongside the key name so the
+      // type guard does not depend on a magic string alone.
+      if (key === "columnTypes" && Array.isArray(value)) {
+        this.columnTypes.clear();
+        for (const ct of value) {
+          this.columnTypes.set(ct.id, ct);
+        }
+        continue;
+      }
 
-  registerWorkspace(config: WorkspaceConfig): void {
-    if (this.workspaces.has(config.id)) {
-      throw new Error(
-        `Duplicate workspace registration: '${config.id}' is already registered.`,
-      );
+      // Structural guard: workspace entries have a workspaceId property.
+      if (!isWorkspaceEntry(value)) {
+        continue;
+      }
+
+      const wsEntry = value;
+      const manifest = manifests.get(key);
+      const schemaType = wsEntry.schemaTypes?.[0];
+
+      this.workspaces.set(key, {
+        id: key,
+        displayName: manifest?.displayName ?? key,
+        icon: undefined,
+        schemaType: schemaType
+          ? {
+              id: schemaType.id,
+              displayName: schemaType.displayName,
+              defaultPrefix: schemaType.prefix,
+              columns: schemaType.columns as SchemaColumnDef[] | undefined,
+            }
+          : undefined,
+      });
+
+      // Hydrate action catalog for this workspace.
+      // Always replace — an empty actions array clears the catalog so
+      // stale entries from a previous hydration call are not retained.
+      if (wsEntry.actions) {
+        this.actions.set(
+          key,
+          wsEntry.actions.map((a) => ({
+            id: a.id,
+            label: a.label,
+            action_type: a.action_type,
+          })),
+        );
+      }
     }
-    this.workspaces.set(config.id, config);
   }
 
   /**
@@ -185,14 +271,6 @@ export class ModRegistry {
   // ── Resolution methods ────────────────────────────────────────────────
 
   /**
-   * Resolve the registered LibraryItemConfig for a given item type ID.
-   * Returns undefined if no registration matches.
-   */
-  resolveLibraryItem(itemTypeId: string): LibraryItemConfig | undefined {
-    return this.libraryItems.get(itemTypeId);
-  }
-
-  /**
    * Resolve a slot into its renderer-ready bindings.
    *
    * Looks up the slot declaration, resolves each binding's target (block or
@@ -234,7 +312,6 @@ export class ModRegistry {
           component: block.component,
           listensTo: block.listensTo,
           onEvent: block.onEvent,
-          messages: block.messages,
           getDisplayName: block.getDisplayName,
           tags: block.tags,
           overrides: mergedOverrides,
@@ -399,16 +476,6 @@ export class ModRegistry {
     return [...this.routes.values()].filter((r) => !r.public);
   }
 
-  /** Returns a read-only view of all registered sidebar actions. */
-  getSidebarActions(): ReadonlyMap<string, SidebarActionConfig> {
-    return this.sidebarActions;
-  }
-
-  /** Returns a read-only view of all registered library items. */
-  getLibraryItems(): ReadonlyMap<string, LibraryItemConfig> {
-    return this.libraryItems;
-  }
-
   /** Returns a read-only view of all registered workspaces. */
   getWorkspaces(): ReadonlyMap<string, WorkspaceConfig> {
     return this.workspaces;
@@ -432,5 +499,89 @@ export class ModRegistry {
   /** Returns a read-only view of all slot bindings, keyed by slotId. */
   getBindings(): ReadonlyMap<string, SlotBinding[]> {
     return this.bindings;
+  }
+
+  /**
+   * Return the action catalog for a workspace, hydrated from the backend.
+   *
+   * Returns an empty array when no actions have been hydrated for the
+   * given workspace (e.g. before hydration completes or when the backend
+   * has no action model registered for this workspace).
+   */
+  getActions(workspaceId: string): ActionCatalogEntry[] {
+    return this.actions.get(workspaceId) ?? [];
+  }
+
+  /**
+   * Look up a registered column type by its ID.
+   *
+   * Returns ``undefined`` when no column type with the given ID has been
+   * hydrated from the backend.
+   */
+  getColumnType(typeId: string): BackendColumnType | undefined {
+    return this.columnTypes.get(typeId);
+  }
+
+  /**
+   * Return all registered column types as a read-only map.
+   *
+   * Returns an empty map before hydration completes.
+   */
+  getColumnTypes(): ReadonlyMap<string, BackendColumnType> {
+    return this.columnTypes;
+  }
+
+  /**
+   * Resolve a human-readable label for an action type from a catalog.
+   *
+   * Returns the catalog entry's ``label`` when a matching entry exists,
+   * falling back to the raw ``actionType`` string (e.g. "eln.table-block.created").
+   * This is the single place for the label-resolution strategy — both
+   * ``useBlockActionLogging`` and ``ActivityFeedBlock`` route through here.
+   */
+  static resolveActionLabel(
+    actionType: string,
+    catalog: ActionCatalogEntry[],
+  ): string {
+    return catalog.find((a) => a.id === actionType)?.label ?? actionType;
+  }
+
+  // ── Backend hydration ─────────────────────────────────────────────────
+
+  /**
+   * Fetch ``GET /api/mod-registry/`` and hydrate the registry.
+   *
+   * Called by ModLoader during async boot.  In production this replaces
+   * the inline fetch logic in ModLoader so the registry is the single
+   * owner of its hydration strategy.
+   *
+   * @param manifests - Mod manifests already collected from JSON globs.
+   *   Used to supply ``displayName`` for each workspace.
+   * @returns A promise that resolves when hydration completes.  Errors
+   *   are caught and logged — hydration failure does not block boot.
+   */
+  static async loadFromBackend(
+    manifests: ReadonlyMap<string, ModManifest>,
+  ): Promise<void> {
+    const registry = ModRegistry.getInstance();
+
+    try {
+      const response = await fetch("/api/mod-registry/");
+      if (response.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const payload = (await response.json()) as any;
+        registry.hydrateFromBackend(payload, manifests);
+      } else {
+        console.warn(
+          `Failed to fetch /api/mod-registry/ (status ${response.status}). ` +
+            `Workspaces won't be hydrated from backend.`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
+        err,
+      );
+    }
   }
 }

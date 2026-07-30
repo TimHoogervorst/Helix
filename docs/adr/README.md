@@ -17,6 +17,8 @@ and onboarding reference for contributors.
 | [0005](0005-entry-status-cascade.md) | Entry Status Cascades to Source Entities | 2026-07-02 | Accepted |
 | [0006](0006-workspace-entity-type-registry.md) | Workspace-Based Mention Resolution via Entity Type Registry | 2026-07-09 | Accepted |
 | [0007](0007-monorepo-restructure.md) | Monorepo Restructure — co-located mods, single manifest | 2026-07-16 | Accepted |
+| [0008](0008-single-source-registration.md) | Single Source Registration — backend as the authoritative source | 2026-07-24 | Accepted |
+| [0009](0009-actions-api-gateway.md) | Actions API Gateway — unified endpoint for all database mutations | 2026-07-24 | Accepted |
 
 ## Creating a New ADR
 

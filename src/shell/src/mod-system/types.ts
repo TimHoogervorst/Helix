@@ -64,48 +64,7 @@ export interface RouteConfig {
   public?: boolean;
 }
 
-// ── Sidebar Action ────────────────────────────────────────────────────────
-
-export interface SidebarActionConfig {
-  id: string;
-  workspaceId: string;
-  component: ComponentType<any>;
-  position: "inline" | "hover";
-}
-
 // ── Block ──────────────────────────────────────────────────────────────────
-
-// ── Library Item ──────────────────────────────────────────────────────────
-
-/** Flexible metadata field for a library item card. */
-export interface PropertyField {
-  /** Value accessor on the data item, e.g. "samples_count". */
-  key: string;
-  /** Optional display label. */
-  label?: string;
-}
-
-/** Props contract between BaseCard and mod-provided card components. */
-export interface LibraryCardProps {
-  /** The data item to render. */
-  item: Record<string, unknown>;
-  /** Which view mode is currently active. */
-  viewMode: "list" | "grid" | "compact";
-  /** Whether this card is currently selected. */
-  isSelected: boolean;
-}
-
-/** Configuration for a library item type registered by a mod. */
-export interface LibraryItemConfig {
-  /** Globally unique identifier, e.g. "eln.entry". */
-  id: string;
-  /** Icon component for the card. */
-  icon: ComponentType<any>;
-  /** The full list-row card component provided by the mod. */
-  listCard: ComponentType<LibraryCardProps>;
-  /** Flexible metadata fields rendered inline as · value1 · value2 · value3. */
-  property_fields?: PropertyField[];
-}
 
 // ── Service (shape only — implementation deferred) ────────────────────────
 
@@ -120,7 +79,7 @@ export interface ServiceConfig {
 export interface SchemaColumnDef {
   id?: string;
   name: string;
-  type: "Text" | "Number" | "Date" | "Boolean" | "Reference";
+  type: string;
   required?: boolean;
   default?: string;
   units?: string;
@@ -130,9 +89,8 @@ export interface SchemaColumnDef {
 /**
  * Schema type identity carried by a workspace.
  *
- * When a mod passes `schemaType` to `registerWorkspace()`, the registry
- * stores it alongside the workspace config so that workspace registration
- * carries everything needed for entity type identity.
+ * Workspace + schemaType metadata is hydrated from the backend via
+ * ``GET /api/mod-registry/`` — no separate service call is required.
  */
 export interface SchemaTypeConfig {
   /** Unique schema type identifier, e.g. "lims.entity", "eln.entry". */
@@ -146,7 +104,7 @@ export interface SchemaTypeConfig {
 }
 
 /**
- * Configuration for a workspace registered by a mod.
+ * Workspace metadata hydrated from the backend via ``GET /api/mod-registry/``.
  *
  * The workspace `id` doubles as the URL namespace: `/{workspaceId}/{displayId}`.
  * Must be a valid URL path segment (lowercase alphanumeric by convention).
@@ -172,7 +130,7 @@ export interface WorkspaceConfig {
 /**
  * Resolved metadata for the currently active workspace, derived from the URL.
  *
- * Defined in core/ so both pins and mentions modules can share it without
+ * Defined in core/ so both tabs and mentions modules can share it without
  * creating an inverted dependency (core importing from a mods package).
  */
 export interface CurrentWorkspace {
@@ -183,6 +141,13 @@ export interface CurrentWorkspace {
 }
 
 // ── Slot System — Forward-Declaring Interfaces ────────────────────────────────
+
+/** Single action catalog entry hydrated from the backend. */
+export interface ActionCatalogEntry {
+  id: string;
+  label: string;
+  action_type: string;
+}
 
 /**
  * Flat bag of metadata available to every block and button in a workspace slot.
@@ -196,6 +161,8 @@ export interface SlotContext {
   displayId?: string;
   /** Arbitrary entry-specific data passed from workspace to sidebar blocks. */
   entry?: unknown;
+  /** Action catalog for this workspace, hydrated from ``GET /api/mod-registry/``. */
+  actions?: ActionCatalogEntry[];
 }
 
 /**
@@ -227,6 +194,20 @@ export interface BlockComponentProps {
   bus?: WorkspaceBus;
   /** Binding-level overrides merged from slot defaults and per-binding config. */
   overrides: Record<string, unknown>;
+  /**
+   * Send an action to the backend via ``POST /api/actions/``.
+   *
+   * The workspace context (``workspaceId``) is included automatically.
+   * Blocks call this at runtime based on user interactions — action labels
+   * are derived from the backend action catalog, not from static block config.
+   */
+  sendAction: (
+    actionType: string,
+    targetType: string,
+    targetId: number,
+    metadata?: Record<string, unknown>,
+    requestId?: string,
+  ) => Promise<void>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────
@@ -254,12 +235,6 @@ export interface BlockRegistration {
   listensTo: string[];
   /** Map of event name → handler. Called by the renderer when a listened-to event fires. */
   onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  /** Optional activity feed message overrides for lifecycle events. */
-  messages?: {
-    created?: string;
-    edited?: string;
-    deleted?: string;
-  };
   /** Extract a display name from block attributes for human-readable action log messages. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker / slash menu filtering. */
@@ -360,8 +335,6 @@ export interface BlockBinding extends BaseBinding {
   listensTo: string[];
   /** Map of event name → handler. */
   onEvent: Record<string, (instance: BlockInstance, payload: unknown) => unknown | void>;
-  /** Optional activity feed message overrides. */
-  messages?: { created?: string; edited?: string; deleted?: string };
   /** Extract a display name from block attributes. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker filtering. */

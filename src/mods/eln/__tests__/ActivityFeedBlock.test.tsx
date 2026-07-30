@@ -23,7 +23,8 @@ function makeActionUser(overrides: Partial<ElnAction["performed_by"]> = {}) {
 function makeElnAction(overrides: Partial<ElnAction> = {}): ElnAction {
   return {
     id: 1,
-    action_type: "eln.entry.edited",
+    action: "eln.entry.edited",
+    action_type: "edited",
     target_type: "eln.entry",
     target_id: 42,
     metadata: {},
@@ -59,7 +60,8 @@ describe("mapElnAction", () => {
     const result: DisplayActionItem = mapElnAction(action);
 
     expect(result.id).toBe(1);
-    expect(result.actionType).toBe("eln.entry.edited");
+    expect(result.action).toBe("eln.entry.edited");
+    expect(result.actionType).toBe("edited");
     expect(result.targetType).toBe("eln.entry");
     expect(result.targetId).toBe(42);
     expect(result.requestId).toBe("abc-123");

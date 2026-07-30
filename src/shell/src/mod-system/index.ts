@@ -4,9 +4,6 @@ export { registerHub } from "./registerHub";
 export { registerSettingsSection } from "./registerSettingsSection";
 export { registerRoute } from "./registerRoute";
 export { registerPublicRoute } from "./registerPublicRoute";
-export { registerSidebarAction } from "./registerSidebarAction";
-export { registerLibraryItem } from "./registerLibraryItem";
-export { registerWorkspace } from "./registerWorkspace";
 export { registerBlock } from "./registerBlock";
 export { declareSlot } from "./declareSlot";
 export { registerButton } from "./registerButton";
@@ -17,14 +14,7 @@ export type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
-  SidebarActionConfig,
   ServiceConfig,
-  LibraryItemConfig,
-  LibraryCardProps,
-  PropertyField,
-  WorkspaceConfig,
-  SchemaTypeConfig,
-  SchemaColumnDef,
   CurrentWorkspace,
   BlockRegistration,
   ButtonRegistration,
@@ -33,6 +23,7 @@ export type {
   BlockComponentProps,
   BlockInstance,
   SlotContext,
+  ActionCatalogEntry,
   RendererProps,
   BaseBinding,
   BlockBinding,

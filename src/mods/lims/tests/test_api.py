@@ -60,11 +60,11 @@ class EntityApiTests(BaseTestCase):
         super().setUp()
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
         self.chem_schema = Schema.objects.create(
             name="Chemical", prefix="CHEM", schema_type=self.schema_type,
-            columns=[{"name": "purity", "type": "Text"}],
+            columns=[{"name": "purity", "type": "text"}],
         )
 
     def test_list_entities_with_filters(self):
@@ -396,7 +396,7 @@ class BatchRegisterCreateTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_create_single_entity(self):
@@ -467,7 +467,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
         self.entity = Entity.objects.create(
             name="Original Name",
@@ -541,7 +541,7 @@ class BatchRegisterValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_missing_name_returns_error(self):
@@ -595,7 +595,7 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_partial_success_mixed_valid_invalid(self):
@@ -675,7 +675,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
 
     def test_create_is_idempotent_by_name_and_schema(self):
@@ -748,7 +748,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "Number"}],
+            columns=[{"name": "concentration", "type": "number"}],
         )
         self._patcher = patch(BATCH_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
@@ -968,3 +968,574 @@ class EntityAuthRequiredTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Batch register — column type validation (issue #333)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class BatchRegisterNumberValidationTests(BaseTestCase):
+    """Number columns are validated during batch register."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "concentration", "type": "number"}],
+        )
+
+    def test_valid_number_accepted(self):
+        """Integer and float values pass number validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"concentration": 42}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_numeric_string_accepted(self):
+        """Numeric strings like '42' pass number validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"concentration": "3.14"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_non_numeric_string_rejected(self):
+        """Non-numeric strings produce a row-level error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"concentration": "abc"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["row_index"], 0)
+        self.assertEqual(response.data["errors"][0]["field"], "concentration")
+        self.assertIn("not a valid number", response.data["errors"][0]["message"])
+
+    def test_empty_value_accepted(self):
+        """Empty string is acceptable (field not required)."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"concentration": ""}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_null_value_accepted(self):
+        """None/null value is acceptable."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"concentration": None}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+
+class BatchRegisterDateValidationTests(BaseTestCase):
+    """Date columns are validated during batch register."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "sample_date", "type": "date"}],
+        )
+
+    def test_valid_iso_date_accepted(self):
+        """ISO 8601 date strings pass date validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"sample_date": "2025-01-15"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_invalid_date_string_rejected(self):
+        """Invalid date strings produce a row-level error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"sample_date": "not-a-date"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "sample_date")
+        self.assertIn("not a valid ISO 8601 date", response.data["errors"][0]["message"])
+
+
+class BatchRegisterDatetimeValidationTests(BaseTestCase):
+    """Datetime columns are validated during batch register."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "recorded_at", "type": "Datetime"}],
+        )
+
+    def test_valid_iso_datetime_accepted(self):
+        """ISO 8601 datetime strings pass validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A",
+                 "values": {"recorded_at": "2025-01-15T14:30:00"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_invalid_datetime_string_rejected(self):
+        """Invalid datetime strings produce a row-level error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A",
+                 "values": {"recorded_at": "not-a-datetime"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "recorded_at")
+        self.assertIn("not a valid ISO 8601 datetime", response.data["errors"][0]["message"])
+
+
+class BatchRegisterBooleanValidationTests(BaseTestCase):
+    """Boolean columns accept true/false in multiple forms."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "is_active", "type": "boolean"}],
+        )
+
+    def test_json_boolean_accepted(self):
+        """JSON true/false values pass boolean validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"is_active": True}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_string_true_accepted(self):
+        """String 'true' (case-insensitive) passes boolean validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"is_active": "True"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_string_false_accepted(self):
+        """String 'false' (case-insensitive) passes boolean validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"is_active": "FALSE"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_invalid_boolean_string_rejected(self):
+        """Invalid boolean strings produce a row-level error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"is_active": "yes"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "is_active")
+        self.assertIn("not a valid boolean", response.data["errors"][0]["message"])
+
+
+class BatchRegisterSelectValidationTests(BaseTestCase):
+    """Select columns are validated during batch register."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "status", "type": "Select"}],
+        )
+
+    def test_string_accepted_without_dropdown_options(self):
+        """Without dropdown options, any string is acceptable."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"status": "In Progress"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_non_string_rejected(self):
+        """Non-string values for dropdown columns are rejected."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"status": 42}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "status")
+
+
+class BatchRegisterReferenceValidationTests(BaseTestCase):
+    """Reference columns validate prefix+DIGITS format."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "source", "type": "reference"}],
+        )
+
+    def test_valid_reference_accepted(self):
+        """Valid prefix+DIGITS format passes reference validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"source": "DNA42"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_invalid_reference_format_rejected(self):
+        """Values without prefix+DIGITS format produce a row-level error."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"source": "ref-123"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "source")
+        self.assertIn("not a valid reference", response.data["errors"][0]["message"])
+
+    def test_int_reference_accepted(self):
+        """Integer values are accepted as references (e.g. user IDs)."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"source": 42}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+
+class BatchRegisterTextValidationTests(BaseTestCase):
+    """Text columns accept any value (base validate returns True)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "notes", "type": "text"}],
+        )
+
+    def test_any_string_accepted(self):
+        """Any string value is accepted for text columns."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"notes": "anything goes"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_non_string_rejected(self):
+        """Non-string values for text columns are rejected."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"notes": 123}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "notes")
+
+
+class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
+    """Column-type validation errors preserve partial success."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[
+                {"name": "concentration", "type": "number"},
+                {"name": "sample_date", "type": "date"},
+            ],
+        )
+
+    def test_valid_rows_succeed_alongside_validation_errors(self):
+        """Rows with valid values still succeed when other rows fail type validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.schema.id,
+                "rows": [
+                    {"entity_id": None, "name": "Valid", "values": {"concentration": 42}},
+                    {"entity_id": None, "name": "BadNumber", "values": {"concentration": "abc"}},
+                    {"entity_id": None, "name": "AlsoValid", "values": {"sample_date": "2025-01-15"}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["results"][0]["row_index"], 0)
+        self.assertEqual(response.data["results"][1]["row_index"], 2)
+        self.assertEqual(response.data["errors"][0]["row_index"], 1)
+        self.assertEqual(response.data["errors"][0]["field"], "concentration")
+
+        # Verify only 2 entities created
+        self.assertEqual(Entity.objects.filter(schema=self.schema).count(), 2)
+
+    def test_multiple_validation_errors_in_same_row(self):
+        """Multiple invalid values in the same row are reported (first error only)."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.schema.id,
+                "rows": [
+                    {"entity_id": None, "name": "Bad",
+                     "values": {"concentration": "abc", "sample_date": "not-a-date"}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+        # First failing field triggers the error; the row is skipped.
+        self.assertGreaterEqual(len(response.data["errors"]), 1)
+
+    def test_unknown_columns_skipped(self):
+        """Properties without a matching column definition are skipped, not errored."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"unknown_prop": "whatever"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_mixed_name_error_and_type_validation_error(self):
+        """Both name errors and type validation errors appear in the same response."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.schema.id,
+                "rows": [
+                    {"entity_id": None, "name": "", "values": {}},               # name error
+                    {"entity_id": None, "name": "Bad", "values": {"concentration": "xyz"}},  # type error
+                    {"entity_id": None, "name": "Good", "values": {"concentration": 10}},    # ok
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 2)
+        self.assertEqual(response.data["errors"][0]["field"], "name")
+        self.assertEqual(response.data["errors"][1]["field"], "concentration")
+        self.assertEqual(Entity.objects.filter(schema=self.schema).count(), 1)
+
+    def test_existing_tests_still_pass_number_column(self):
+        """Regression test: existing batch register behavior works with validation."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.schema.id,
+                "rows": [
+                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+        result = response.data["results"][0]
+        self.assertEqual(result["status"], "created")
+        self.assertTrue(result["display_id"].startswith("TST"))
+
+
+class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
+    """Column type IDs are accepted in lowercase for column type registry lookup."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        # Lowercase type IDs match the column type registry convention.
+        self.schema = Schema.objects.create(
+            name="Test", prefix="TST", schema_type=self.schema_type,
+            columns=[{"name": "count", "type": "number"}],
+        )
+
+    def test_lowercase_type_id_is_validated(self):
+        """Lowercase type IDs like 'number' are validated via the registry."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"count": 42}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["errors"]), 0)
+
+    def test_lowercase_type_id_rejects_invalid_value(self):
+        """Validation works with lowercase type IDs."""
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {"schema_id": self.schema.id, "rows": [
+                {"entity_id": None, "name": "A", "values": {"count": "abc"}},
+            ]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["field"], "count")

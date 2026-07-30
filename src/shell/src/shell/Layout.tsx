@@ -9,6 +9,7 @@ import { SidebarProvider, useSidebar } from "../workspace/SidebarContext";
 import { CollapsibleSidebar } from "../shared/components/Sidebar/CollapsibleSidebar";
 import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
 import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
+import PinnedWorkspacesSidebar from "../../../mods/tabs/components/PinnedWorkspacesSidebar";
 
 /**
  * Brand header with logo, "Helix Alpha" text, and a collapse toggle.
@@ -79,14 +80,6 @@ function Layout() {
     [],
   );
 
-  const inlineSidebarActions = useMemo(
-    () =>
-      [...ModRegistry.getInstance().getSidebarActions().values()].filter(
-        (a) => a.position === "inline",
-      ),
-    [],
-  );
-
   // ── Icon-strip groups for collapsed state ──────────────────────────────
   const iconStripGroups = useMemo((): IconStripGroup[] => {
     const groups: IconStripGroup[] = [];
@@ -137,15 +130,11 @@ function Layout() {
     return groups;
   }, [isSettings, navigate, settingsSections, sortedHubs]);
 
-  // ── Collapsed content: inline sidebar actions rendered as icon buttons ──
+  // ── Collapsed content: tabs rendered as icon buttons ──
   const collapsedContent = useMemo(() => {
     if (isSettings) return null;
-    if (inlineSidebarActions.length === 0) return null;
-    return inlineSidebarActions.map((a) => {
-      const Comp = a.component;
-      return <Comp key={a.id} />;
-    });
-  }, [isSettings, inlineSidebarActions]);
+    return <PinnedWorkspacesSidebar />;
+  }, [isSettings]);
 
   return (
     <MentionProvider>
@@ -225,14 +214,9 @@ function Layout() {
                       </nav>
                     </SidebarSection>
 
-                    {inlineSidebarActions.length > 0 && (
-                      <SidebarSection id="workspace" label="Workspace">
-                        {inlineSidebarActions.map((a) => {
-                          const Comp = a.component;
-                          return <Comp key={a.id} />;
-                        })}
-                      </SidebarSection>
-                    )}
+                    <SidebarSection id="workspace" label="Workspace">
+                      <PinnedWorkspacesSidebar />
+                    </SidebarSection>
                   </>
                 )}
               </div>

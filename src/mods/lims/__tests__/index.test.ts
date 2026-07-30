@@ -15,37 +15,29 @@ describe("lims mod registration", () => {
     resetRegistry();
   });
 
-  it("has correct meta", async () => {
+  it("does not export inline meta", async () => {
     const mod = await import("../index");
-
-    expect(mod.meta.id).toBe("lims");
-    expect(mod.meta.displayName).toBe("LIMS");
-    expect(mod.meta.dependsOn).toEqual([]);
+    expect((mod as Record<string, unknown>).meta).toBeUndefined();
   });
 
-  it("registers a workspace for LIMS with schemaType", async () => {
+  it("does not populate workspaces during register()", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
+    registry.registerMod("lims");
     mod.register();
 
+    // Workspaces are now hydrated from GET /api/mod-registry/, not from
+    // registerWorkspace() calls inside register().
     const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("lims")).toBe(true);
-    const ws = workspaces.get("lims");
-    expect(ws?.displayName).toBe("LIMS");
-    expect(ws?.schemaType).toEqual({
-      id: "lims.entity",
-      displayName: "Entity",
-      defaultPrefix: "E",
-    });
+    expect(workspaces.has("lims")).toBe(false);
   });
 
   it("registers route for /lims/:displayId", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
+    registry.registerMod("lims");
     mod.register();
 
     const routes = registry.getRoutes();
@@ -60,7 +52,7 @@ describe("lims mod registration", () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
+    registry.registerMod("lims");
     mod.register();
 
     const sections = registry.getSettingsSections();
@@ -75,7 +67,7 @@ describe("lims mod registration", () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
-    registry.registerMod(mod.meta.id);
+    registry.registerMod("lims");
     mod.register();
 
     expect(() => registry.validate()).not.toThrow();

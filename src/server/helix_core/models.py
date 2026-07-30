@@ -32,7 +32,7 @@ class ContentHashedModel(models.Model):
     are included in the hash.
     """
 
-    _HASH_FIELDS = ("id", "name", "type", "required", "default", "units")
+    _HASH_FIELDS = ("id", "name", "type", "required", "default", "units", "dropdownId")
 
     class Meta:
         abstract = True
@@ -198,7 +198,7 @@ class EntityHubView(models.Model):
         related_name="+",
         db_column="last_editor_id",
     )
-    status = models.CharField(max_length=20)
+    status = models.CharField(max_length=100)
     folder = models.ForeignKey(
         "core.Folder",
         on_delete=models.DO_NOTHING,

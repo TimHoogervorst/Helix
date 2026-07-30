@@ -503,7 +503,6 @@ describe("SlotRenderer", () => {
         component: DummyComponent,
         listensTo: ["data.export", "entry.saved"],
         onEvent: { "data.export": () => "result" },
-        messages: { edited: "spreadsheet updated" },
         getDisplayName,
         tags: ["data", "table"],
         serialize,
@@ -528,7 +527,6 @@ describe("SlotRenderer", () => {
     expect(b.label).toBe("Table");
     expect(b.listensTo).toEqual(["data.export", "entry.saved"]);
     expect(b.onEvent["data.export"]).toBeDefined();
-    expect(b.messages).toEqual({ edited: "spreadsheet updated" });
     expect(b.getDisplayName).toBe(getDisplayName);
     expect(b.tags).toEqual(["data", "table"]);
     expect(b.serialize).toBe(serialize);

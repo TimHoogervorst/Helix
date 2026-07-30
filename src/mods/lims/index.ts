@@ -1,14 +1,12 @@
-import { Cog, FlaskConical, Info, LayoutList, Microscope, Users } from "lucide-react";
+import { Cog, Info, LayoutList, Microscope, Users } from "lucide-react";
 import {
   registerRoute,
   registerSettingsSection,
-  registerWorkspace,
   registerHub,
   declareSlot,
   registerBlock,
   registerIntoSlot,
 } from "../../shell/src/mod-system";
-import type { ModManifest } from "../../shell/src/mod-system";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
@@ -17,26 +15,7 @@ import { SelectionBlock } from "./blocks/SelectionBlock";
 import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
 
-export const meta: ModManifest = {
-  id: "lims",
-  displayName: "LIMS",
-  dependsOn: [],
-};
-
 export function register() {
-  // ── Workspace: entity workspace ────────────────────────────────────────
-  // schemaType carries entity type identity so no separate service call is needed.
-  registerWorkspace({
-    id: "lims",
-    displayName: "LIMS",
-    icon: FlaskConical,
-    schemaType: {
-      id: "lims.entity",
-      displayName: "Entity",
-      defaultPrefix: "E",
-    },
-  });
-
   // ── Standalone route: full entity workspace page ──────────────────────
   registerRoute({
     id: "lims.entity-page",

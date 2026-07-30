@@ -61,13 +61,22 @@ export function ModLoader({ children }: ModLoaderProps) {
   useEffect(() => {
     if (didBoot.current) return;
     didBoot.current = true;
+
+    // Phase 1: Sync boot — manifests, sort, register, validate.
+    // This gates rendering so consumers never see an empty registry.
     bootModSystem(modModules, jsonManifestModules);
     setBooted(true);
+
+    // Phase 2: Async hydration — fetch backend mod-registry data.
+    // Non-blocking; errors are caught and logged. Workspace icons may
+    // briefly show the Box fallback until hydration completes.
+    void hydrateRegistryFromApi(modModules, jsonManifestModules);
   }, []);
 
-  // When mods exist, block children until boot completes.  This prevents
-  // LegacyApp / Layout from rendering with an empty registry on the first
-  // paint (the singleton mutation does not trigger a React re-render).
+  // When mods exist, block children until sync boot completes.  This
+  // prevents Layout / Router from rendering with an empty registry on
+  // the first paint (the singleton mutation does not trigger a React
+  // re-render).
   const hasMods = Object.keys(modModules).length > 0;
   if (hasMods && !booted) return null;
 
@@ -76,16 +85,19 @@ export function ModLoader({ children }: ModLoaderProps) {
 
 // ── Boot logic (extracted for testability) ──────────────────────────────
 
-function bootModSystem(
+/**
+ * Collect all discovered mod modules, resolving each one's manifest
+ * (JSON manifest preferred over inline ``meta`` export) and validating
+ * that it has a ``register`` function.
+ *
+ * Used by both {@link bootModSystem} and {@link hydrateFromApi}.
+ *
+ * @internal Exported for direct unit testing.
+ */
+function collectMods(
   modules: Record<string, ModModule>,
-  jsonModules: Record<string, { default: Record<string, unknown> }>,
-): void {
-  const registry = ModRegistry.getInstance();
-
-  // Build a lookup of mod directory → parsed JSON manifest.
-  const jsonManifestMap = buildJsonManifestMap(jsonModules);
-
-  // Step 1: Collect all discovered mod modules
+  jsonManifestMap: Map<string, { manifest: ModManifest; path: string }>,
+): ModModule[] {
   const mods: ModModule[] = [];
   for (const [path, mod] of Object.entries(modules)) {
     const dirName = extractModDir(path);
@@ -108,6 +120,19 @@ function bootModSystem(
     }
     mods.push({ meta, register: mod.register });
   }
+  return mods;
+}
+
+function bootModSystem(
+  modules: Record<string, ModModule>,
+  jsonModules: Record<string, { default: Record<string, unknown> }>,
+): void {
+  const registry = ModRegistry.getInstance();
+
+  const jsonManifestMap = buildJsonManifestMap(jsonModules);
+
+  // Step 1: Collect all discovered mod modules
+  const mods = collectMods(modules, jsonManifestMap);
 
   // No mods yet — nothing to do
   if (mods.length === 0) return;
@@ -132,6 +157,33 @@ function bootModSystem(
 
   // Step 5: Validate the populated registry
   registry.validate();
+}
+
+// ── Async hydration ────────────────────────────────────────────────────
+
+/**
+ * Fetch ``GET /api/mod-registry/`` and hydrate workspace + action catalog
+ * data into the registry.
+ *
+ * Delegates to {@link ModRegistry.loadFromBackend} so the registry is the
+ * single owner of its hydration strategy.
+ *
+ * Runs asynchronously after synchronous boot so it doesn't block
+ * rendering.  Errors are non-fatal — the app boots without hydrated
+ * workspaces (sidebar falls back to the Box icon).
+ */
+async function hydrateRegistryFromApi(
+  modules: Record<string, ModModule>,
+  jsonModules: Record<string, { default: Record<string, unknown> }>,
+): Promise<void> {
+  const jsonManifestMap = buildJsonManifestMap(jsonModules);
+  const mods = collectMods(modules, jsonManifestMap);
+
+  if (mods.length === 0) return;
+
+  const manifests = new Map(mods.map((m) => [m.meta.id, m.meta]));
+
+  await ModRegistry.loadFromBackend(manifests);
 }
 
 // ── JSON manifest helpers ───────────────────────────────────────────────

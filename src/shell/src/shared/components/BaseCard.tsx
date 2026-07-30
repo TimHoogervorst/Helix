@@ -1,16 +1,20 @@
 import type { ComponentType } from "react";
 import { Star } from "lucide-react";
 import type { LibraryEntryItem } from "../../../../mods/library/types";
-import type {
-  PropertyField,
-  LibraryCardProps,
-} from "../../mod-system/types";
 import { Avatar, getInitials } from "../Avatar";
 import { relativeTime } from "../format";
 import { StatusBadge } from "./StatusBadge";
 import { TagPill } from "../../../../mods/tags/ui/TagPill";
 
 // ── Types ──────────────────────────────────────────────────────────────────
+
+/** Flexible metadata field for a library item card. */
+export interface PropertyField {
+  /** Value accessor on the data item, e.g. "samples_count". */
+  key: string;
+  /** Optional display label. */
+  label?: string;
+}
 
 interface BaseCardProps {
   /** The library entry data to render. */
@@ -19,10 +23,8 @@ interface BaseCardProps {
   viewMode: "list" | "grid" | "compact";
   /** Whether this card is selected. */
   isSelected: boolean;
-  /** Icon component from the library item registration. */
+  /** Icon component for the card type. */
   icon: ComponentType<any>;
-  /** Mod-provided card content component. */
-  listCard: ComponentType<LibraryCardProps>;
   /** Which property fields to render as inline metadata. */
   propertyFields?: PropertyField[];
   /** Show the description field. Default false. */
@@ -50,7 +52,6 @@ export function BaseCard({
   viewMode,
   isSelected,
   icon: Icon,
-  listCard: ListCard,
   propertyFields,
   showDescription = false,
   showTags = false,
@@ -148,9 +149,6 @@ export function BaseCard({
             ))}
           </div>
         )}
-
-        {/* Mod-specific content */}
-        <ListCard item={item as unknown as Record<string, unknown>} viewMode={viewMode} isSelected={isSelected} />
       </div>
 
       {/* ── Owner ─────────────────────────────────────────────────── */}

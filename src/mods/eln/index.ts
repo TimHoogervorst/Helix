@@ -1,20 +1,16 @@
 import { lazy } from "react";
-import { BookOpen, FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
+import { FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
 import {
   registerRoute,
-  registerLibraryItem,
-  registerWorkspace,
   registerBlock,
   registerSettingsSection,
   declareSlot,
   registerButton,
   registerIntoSlot,
 } from "../../shell/src/mod-system";
-import type { ModManifest } from "../../shell/src/mod-system/types";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
-import ElnLibraryCard from "./library/ElnLibraryCard";
 import { TableBlockComponent } from "./blocks/TableNodeView";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
@@ -24,27 +20,7 @@ import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
 
-export const meta: ModManifest = {
-  id: "eln",
-  displayName: "Electronic Lab Notebook",
-  version: "0.1.0",
-  dependsOn: ["lims", "tags"],
-};
-
 export function register() {
-  // ── Workspace: ELN notebook workspace ───────────────────────────────────
-  // schemaType carries entity type identity so no separate service call is needed.
-  registerWorkspace({
-    id: "eln",
-    displayName: "ELN",
-    icon: BookOpen,
-    schemaType: {
-      id: "eln.entry",
-      displayName: "ELN Entry",
-      defaultPrefix: "E",
-    },
-  });
-
   // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
   declareSlot({
     id: "eln.header.actions",
@@ -63,16 +39,6 @@ export function register() {
     component: lazy(() => import("./workspace/ElnWorkspacePage")),
   });
 
-  // ── Library: ELN entry card ──────────────────────────────────────────
-  registerLibraryItem({
-    id: "eln.entry",
-    icon: FlaskConical,
-    listCard: ElnLibraryCard,
-    property_fields: [
-      { key: "samples_count" },
-      { key: "attachments_count" },
-    ],
-  });
   // ── Slot: ELN Editor ────────────────────────────────────
   declareSlot({
     id: "eln.editor",
@@ -93,11 +59,6 @@ export function register() {
     onEvent: {},
     tags: ["data", "spreadsheet"],
     getDisplayName: (attrs) => (attrs.title as string) || "Table",
-    messages: {
-      created: "Table '{name}' created",
-      edited: "Table '{name}' edited",
-      deleted: "Table '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -128,11 +89,6 @@ export function register() {
       const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
       return thread?.[0]?.authorName || "Comment";
     },
-    messages: {
-      created: "Comment by '{name}' created",
-      edited: "Comment by '{name}' edited",
-      deleted: "Comment by '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -153,11 +109,6 @@ export function register() {
     onEvent: {},
     tags: ["procedure", "workflow"],
     getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
-    messages: {
-      created: "Protocol '{name}' created",
-      edited: "Protocol '{name}' edited",
-      deleted: "Protocol '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -182,11 +133,6 @@ export function register() {
     tags: ["table", "registry", "lims"],
     getDisplayName: (attrs) =>
       (attrs.schemaName || attrs.title) as string || "Registry Table",
-    messages: {
-      created: "Registry Table '{name}' created",
-      edited: "Registry Table '{name}' edited",
-      deleted: "Registry Table '{name}' deleted",
-    },
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => {
       try { return JSON.parse(json); } catch { return {}; }
@@ -226,7 +172,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Metadata",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},
@@ -241,7 +186,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Linked Entities",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},
@@ -256,7 +200,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Attachments",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},
@@ -276,7 +219,6 @@ export function register() {
     listensTo: [],
     onEvent: {},
     getDisplayName: () => "Activity Feed",
-    messages: {},
     serialize: () => "{}",
     deserialize: () => ({}),
     defaultState: {},

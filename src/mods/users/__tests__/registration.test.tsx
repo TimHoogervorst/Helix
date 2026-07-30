@@ -21,24 +21,25 @@ vi.mock("../../../shell/src/mod-system", () => ({
   registerSettingsSection: mockRegisterSettingsSection,
 }));
 
-import { meta, register } from "../index";
+import { register } from "../index";
+import usersManifest from "../modManifest.json";
 
 describe("users mod — index.ts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("meta", () => {
+  describe("meta (modManifest.json)", () => {
     it("has required id field", () => {
-      expect(meta.id).toBe("users");
+      expect(usersManifest.id).toBe("users");
     });
 
     it("has displayName", () => {
-      expect(meta.displayName).toBe("Users");
+      expect(usersManifest.displayName).toBe("Users");
     });
 
     it("has dependsOn as an array", () => {
-      expect(Array.isArray(meta.dependsOn)).toBe(true);
+      expect(Array.isArray(usersManifest.dependsOn)).toBe(true);
     });
   });
 

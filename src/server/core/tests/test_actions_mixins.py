@@ -38,16 +38,16 @@ class WidgetBatchSerializer(serializers.Serializer):
 
     def validate_actions(self, value):
         for i, entry in enumerate(value):
-            action_type = entry.get("action_type", "")
-            if not action_type or not str(action_type).strip():
+            action = entry.get("action", "")
+            if not action or not str(action).strip():
                 raise serializers.ValidationError(
-                    f"actions[{i}]: 'action_type' is required."
+                    f"actions[{i}]: 'action' is required."
                 )
             # Enforce triple-dotted convention: "{mod}.{target}.{verb_past}"
-            if str(action_type).count(".") < 2:
+            if str(action).count(".") < 2:
                 raise serializers.ValidationError(
-                    f"actions[{i}]: 'action_type' must follow the "
-                    f"triple-dotted convention, got '{action_type}'."
+                    f"actions[{i}]: 'action' must follow the "
+                    f"triple-dotted convention, got '{action}'."
                 )
         return value
 
@@ -67,25 +67,25 @@ class WidgetViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     action_log_config = {
         "create": {
-            "action_type": "test.widget.created",
+            "action": "test.widget.created",
         },
         "update": {
-            "action_type": "test.widget.edited",
+            "action": "test.widget.edited",
             "get_metadata": lambda inst, data, req: {
                 "changed_fields": list(data.keys()) if data else [],
             },
         },
         "partial_update": {
-            "action_type": "test.widget.edited",
+            "action": "test.widget.edited",
             "get_metadata": lambda inst, data, req: {
                 "changed_fields": list(data.keys()) if data else [],
             },
         },
         "destroy": {
-            "action_type": "test.widget.deleted",
+            "action": "test.widget.deleted",
         },
         "list_custom": {
-            "action_type": "test.widget.batched",
+            "action": "test.widget.batched",
             "get_target": lambda inst, req: -1,  # list-route actions need get_target
         },
     }
@@ -183,7 +183,7 @@ class CreateActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "test.widget.created")
+        self.assertEqual(kwargs["action"], "test.widget.created")
         self.assertEqual(kwargs["target_type"], "test.widget")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -232,7 +232,7 @@ class UpdateActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "test.widget.edited")
+        self.assertEqual(kwargs["action"], "test.widget.edited")
         self.assertEqual(kwargs["target_id"], self.widget.pk)
         self.assertEqual(kwargs["user"], self.user)
 
@@ -254,7 +254,7 @@ class UpdateActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "test.widget.edited")
+        self.assertEqual(kwargs["action"], "test.widget.edited")
 
     def test_update_captures_request_id_and_client_ip(self):
         self.client.patch(
@@ -286,7 +286,7 @@ class DestroyActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "test.widget.deleted")
+        self.assertEqual(kwargs["action"], "test.widget.deleted")
         self.assertEqual(kwargs["target_id"], self.widget.pk)
         self.assertEqual(kwargs["user"], self.user)
 
@@ -347,7 +347,7 @@ class LogsActionDecoratorTests(BaseTestCase):
         self.assertEqual(response.data, {"pong": True})
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "test.widget.pinged")
+        self.assertEqual(kwargs["action"], "test.widget.pinged")
         self.assertEqual(kwargs["target_id"], self.widget.pk)
         self.assertEqual(kwargs["metadata"], {"echo": True})
 
@@ -398,7 +398,7 @@ class ListRouteActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "test.widget.batched")
+        self.assertEqual(kwargs["action"], "test.widget.batched")
         self.assertEqual(kwargs["target_id"], -1)  # from get_target
 
 
@@ -479,8 +479,8 @@ class BatchActionEndpointTests(BaseTestCase):
         """The batch endpoint calls bulk_log_actions with correct args."""
         payload = {
             "actions": [
-                {"action_type": "test.widget.table_edited", "metadata": {"name": "T"}},
-                {"action_type": "test.widget.comment_created", "metadata": {}},
+                {"action": "test.widget.table_edited", "metadata": {"name": "T"}},
+                {"action": "test.widget.comment_created", "metadata": {}},
             ]
         }
         response = self.client.post(
@@ -500,8 +500,8 @@ class BatchActionEndpointTests(BaseTestCase):
         """All actions in the batch share a single request_id."""
         payload = {
             "actions": [
-                {"action_type": "test.widget.table_edited", "metadata": {}},
-                {"action_type": "test.widget.comment_created", "metadata": {}},
+                {"action": "test.widget.table_edited", "metadata": {}},
+                {"action": "test.widget.comment_created", "metadata": {}},
             ]
         }
         response = self.client.post(
@@ -520,7 +520,7 @@ class BatchActionEndpointTests(BaseTestCase):
     def test_batch_endpoint_captures_client_ip(self):
         """client_ip is captured from the request."""
         payload = {
-            "actions": [{"action_type": "test.widget.table_edited", "metadata": {}}]
+            "actions": [{"action": "test.widget.table_edited", "metadata": {}}]
         }
         self.client.post(
             f"/api/widgets/{self.widget.pk}/actions/batch/",
@@ -534,9 +534,9 @@ class BatchActionEndpointTests(BaseTestCase):
         """Response includes count and request_id."""
         payload = {
             "actions": [
-                {"action_type": "test.widget.a", "metadata": {}},
-                {"action_type": "test.widget.b", "metadata": {}},
-                {"action_type": "test.widget.c", "metadata": {}},
+                {"action": "test.widget.a", "metadata": {}},
+                {"action": "test.widget.b", "metadata": {}},
+                {"action": "test.widget.c", "metadata": {}},
             ]
         }
         response = self.client.post(
@@ -551,7 +551,7 @@ class BatchActionEndpointTests(BaseTestCase):
     def test_batch_endpoint_fail_open(self):
         """Logging failure does not break the response (fail-open)."""
         payload = {
-            "actions": [{"action_type": "test.widget.table_edited", "metadata": {}}]
+            "actions": [{"action": "test.widget.table_edited", "metadata": {}}]
         }
         with patch(BULK_LOG_ACTIONS_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.post(
@@ -584,7 +584,7 @@ class BatchActionEndpointTests(BaseTestCase):
 
     def test_batch_endpoint_rejects_non_triple_dotted_action_type(self):
         """Action entry with non-triple-dotted action_type is rejected."""
-        payload = {"actions": [{"action_type": "not_enough_dots", "metadata": {}}]}
+        payload = {"actions": [{"action": "not_enough_dots", "metadata": {}}]}
         response = self.client.post(
             f"/api/widgets/{self.widget.pk}/actions/batch/",
             payload,
@@ -596,7 +596,7 @@ class BatchActionEndpointTests(BaseTestCase):
         """Unauthenticated requests are rejected."""
         self.client.force_authenticate(user=None)
         payload = {
-            "actions": [{"action_type": "test.widget.table_edited", "metadata": {}}]
+            "actions": [{"action": "test.widget.table_edited", "metadata": {}}]
         }
         response = self.client.post(
             f"/api/widgets/{self.widget.pk}/actions/batch/",

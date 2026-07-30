@@ -19,6 +19,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
+import { useSendAction } from "../useSendAction";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -46,14 +47,32 @@ export interface BlockNodeViewProps extends NodeViewProps {
  * There is no `bus` prop; blocks respond to events declaratively via `onEvent`.
  */
 export function BlockNodeView(props: BlockNodeViewProps) {
-  const { node, updateAttributes, binding, bus, slotId, context } = props;
+  const { node, updateAttributes, getPos, binding, bus, slotId, context } = props;
 
   // ── Instance (stable identity) ────────────────────────────────────────
+
+  // Derive instance ID from the ProseMirror node position so that TipTap
+  // NodeView churn during a single transaction (destroy + recreate of
+  // ReactNodeView at the same position) produces the same blockInstanceId.
+  // Without this, each new NodeView gets a fresh crypto.randomUUID() and
+  // the accumulator in useBlockActionLogging treats spurious lifecycle
+  // events as separate entries, causing duplicate action rows.
+  const instanceId = (() => {
+    try {
+      const pos = getPos();
+      if (typeof pos === "number" && pos >= 0) {
+        return `${binding.id}::${pos}`;
+      }
+    } catch {
+      // getPos() may throw during unmount/disposal — fall through
+    }
+    return `${binding.id}::${crypto.randomUUID()}`;
+  })();
 
   // Create instance once with current (possibly default) content.
   // Use ref so onEvent handlers always read the latest attrs.
   const instanceRef = useRef<BlockInstance>({
-    id: `${binding.id}::${crypto.randomUUID()}`,
+    id: instanceId,
     blockId: binding.id,
     slotId,
     attrs: binding.deserialize(node.attrs.content as string),
@@ -198,6 +217,8 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const BlockComponent = binding.component;
 
+  const sendAction = useSendAction(context.workspaceId);
+
   // Per-block centering: max-w-3xl mx-auto by default.
   // When overrides.stretch is true, the block reads its runtime stretchMode
   // from attrs to decide layout:
@@ -219,7 +240,12 @@ export function BlockNodeView(props: BlockNodeViewProps) {
       data-block-type={binding.id}
       contentEditable={false}
     >
-      <BlockComponent context={context} instance={instanceRef.current} overrides={binding.overrides} />
+      <BlockComponent
+        context={context}
+        instance={instanceRef.current}
+        overrides={binding.overrides}
+        sendAction={sendAction}
+      />
     </NodeViewWrapper>
   );
 }

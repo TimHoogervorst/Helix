@@ -143,7 +143,7 @@ Django startup (AppConfig.ready)
 
 ### mod.py Contract
 
-Every backend mod provides a `mod.py` at its root with a `register()` function:
+Every backend mod provides a `mod.py` at its root with a `register()` function. This is the **canonical registration entry point** — mods register all backend concerns here, not in `apps.py`:
 
 ```python
 # src/mods/lims/mod.py
@@ -151,7 +151,16 @@ from helix_core.registry import registry
 
 def register():
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    registry.register_entity_type("lims", "sample", prefix="SAMP")
+    registry.register_schema_type(
+        mod_id="lims", display_name="Entity",
+        workspace_id="lims", prefix="BLOOD", columns=[...],
+    )
+    registry.register_action_model("lims", LimsAction)
+    registry.register_custom_action(
+        mod_id="lims", action_id="lims.sample.registered",
+        label="Sample Registered", core="edited",
+        target_model="mods.lims.models.Entity",
+    )
     registry.register_urls("lims", "mods.lims.urls")
 ```
 
@@ -165,7 +174,7 @@ HELIX_MODS = [
     "src/mods/lims",
     "src/mods/eln",
     "src/mods/library",
-    "src/mods/pins",
+    "src/mods/tabs",
     "src/mods/tags",
     "src/mods/home",
     "src/mods/settings",
@@ -187,13 +196,19 @@ The unified registry for backend mod contributions. One `BackendModRegistry` sin
 class BackendModRegistry:
     """Unified backend registry — the single API for mod contributions."""
 
-    def register_action_model(self, mod_id: str, model_class: type) -> None:
-        """Register a concrete action log model inheriting from AbstractBaseAction."""
+    def register_schema_type(self, mod_id: str, display_name: str,
+                            workspace_id: str, prefix: str,
+                            columns: list[dict] = None) -> None:
+        """Register a schema type — the backend authority for workspace identity."""
 
-    def register_entity_type(self, mod_id: str, entity_type: str,
-                             prefix: str, workspace_id: str,
-                             display_name: str) -> None:
-        """Register an entity type prefix for mention resolution."""
+    def register_action_model(self, mod_id: str, model_class: type) -> None:
+        """Register a concrete action log model. Auto-derives core CRUD actions."""
+
+    def register_custom_action(self, mod_id: str, action_id: str,
+                               label: str, core: str,
+                               target_model: str) -> None:
+        """Register a custom domain action that maps to a core action.
+        core must be one of: 'created', 'edited', 'deleted'."""
 
     def register_urls(self, mod_id: str, url_module: str) -> None:
         """Register a mod's URL patterns for inclusion in the root URL conf."""
@@ -213,17 +228,27 @@ class BackendModRegistry:
     def call(self, service_id: str, *args, **kwargs) -> Any: ...
     def get_url_modules(self) -> list[str]: ...
     def get_action_models(self) -> dict[str, type]: ...
-    def get_entity_type_prefixes(self) -> dict[str, str]: ...
+    def get_registry_payload(self) -> dict:
+        """Return JSON-serializable dict of all registered data for GET /api/mod-registry/."""
+    def get_action_catalog(self, mod_id: str) -> list[dict]:
+        """Return all registered actions (core + custom) for a mod."""
+    def validate_action(self, action_type: str) -> bool:
+        """Check whether an action type is in the registered catalog."""
 ```
 
 | Method | Purpose | Example |
 |--------|---------|---------|
+| `register_schema_type()` | Register a schema type (display name, prefix, columns, workspace identity) | `registry.register_schema_type("lims", display_name="Entity", ...)` |
 | `register_action_model()` | Register a mod's concrete action log model | `registry.register_action_model("eln", ElnAction)` |
-| `register_entity_type()` | Register a prefix for mention resolution | `registry.register_entity_type("lims", "sample", prefix="SAMP")` |
+| `register_custom_action()` | Register a custom domain action that maps to a core action | `registry.register_custom_action("lims", "lims.sample.registered", ...)` |
 | `register_urls()` | Register URL patterns for root URL conf | `registry.register_urls("lims", "mods.lims.urls")` |
 | `register_settings()` | Declare settings keys the mod needs | `registry.register_settings("eln", ["ELN_MAX_TAGS"])` |
 | `register_signal()` | Wire cross-mod signal handlers | `registry.register_signal("eln", "entry_saved", handler)` |
 | `register_service()` | Register a callable cross-mod service | `registry.register_service("lims", "resolve_entity", handler)` |
+
+### Mod Registry API Endpoint
+
+`GET /api/mod-registry/` returns all backend-owned mod data to the frontend at boot time. The response is a JSON object keyed by `mod_id` with workspace IDs, schema types (id, displayName, prefix, columns), and action catalogs (core + custom actions with their `core` mapping).
 
 ---
 
@@ -339,5 +364,8 @@ HELIX_MODS = [
 | Registration style | Imperative (`register_*()` in `mod.py`) | Same pattern as frontend; flexible and testable |
 | Error handling | Fail-fast | Broken dependency graph = no boot, error in terminal |
 | Cross-mod communication | `registry.call()` | No direct imports between mods; same pattern as frontend |
+| Frontend discovery of backend data | `GET /api/mod-registry/` endpoint | Frontend hydrates workspace IDs, schema types, and action catalogs from backend at boot |
+| Registration entry point | `mod.py` `register()` function | Canonical single entry point for backend registration; replaces `apps.py` |
+| Custom actions | `register_custom_action()` with core mapping | Every custom action maps to a core CRUD action; audit trail always clear |
 | External mod discovery | Python entry points (`helix_mod`) | Standard packaging mechanism; no custom discovery protocol |
 | `INSTALLED_APPS` | Computed programmatically | No manual maintenance; reflects actual mod dependency order |

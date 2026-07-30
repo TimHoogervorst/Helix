@@ -5,20 +5,20 @@
 // module reference them, but they are not LIMS domain concepts — they
 // are presentation-level grid types.
 
-/** The valid column types for ELN table grid columns. */
-export type GridColumnType = "Text" | "Number" | "Date" | "Boolean" | "Reference";
-
 /** A column definition for the ELN table grid. Mirrors LIMS ColumnDef but
  *  adds grid-only metadata like width and pinned. */
 export interface GridColumn {
   /** Stable UUID from the server-side column definition (#252). */
   id?: string;
   name: string;
-  type: GridColumnType;
+  /** Column type identifier string — matches the registry's lowercase type IDs. */
+  type: string;
   required?: boolean;
   default?: string;
   units?: string;
   description?: string;
+  /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
+  dropdownId?: number;
   /** Pixel width; undefined means auto-size. */
   width?: number;
   /** Whether this column came from the schema or was added locally. */

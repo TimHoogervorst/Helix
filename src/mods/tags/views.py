@@ -24,10 +24,10 @@ class TagViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
 
     action_log_config = {
-        "create": {"action_type": "tags.tag.created"},
-        "update": {"action_type": "tags.tag.edited"},
-        "partial_update": {"action_type": "tags.tag.edited"},
-        "destroy": {"action_type": "tags.tag.deleted"},
+        "create": {"action": "tags.tag.created"},
+        "update": {"action": "tags.tag.edited"},
+        "partial_update": {"action": "tags.tag.edited"},
+        "destroy": {"action": "tags.tag.deleted"},
     }
 
     def get_queryset(self):

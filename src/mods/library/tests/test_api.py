@@ -152,6 +152,7 @@ class LibraryApiTests(BaseTestCase):
         e = entries[0]
         self.assertEqual(e["type"], "entry")
         self.assertIn("id", e)
+        self.assertIn("workspace_id", e)
         self.assertIn("display_id", e)
         self.assertIn("title", e)
         self.assertIn("folder", e)

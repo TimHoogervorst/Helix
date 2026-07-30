@@ -132,7 +132,7 @@ function SettingsPage() {
       if (!s) return prev;
       next.set(id, {
         ...s,
-        columns: [...s.columns, { name: "", type: "Text" as const }],
+        columns: [...s.columns, { name: "", type: "text" }],
       });
       return next;
     });
@@ -142,7 +142,7 @@ function SettingsPage() {
     id: number,
     index: number,
     field: keyof ColumnDef,
-    value: string | boolean,
+    value: string | boolean | number,
   ) => {
     setDirtyEdits((prev) => {
       const next = new Map(prev);

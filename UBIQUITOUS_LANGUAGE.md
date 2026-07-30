@@ -17,7 +17,7 @@
 | **Mod API** | The registration surface (`register*()` functions in `core/mod-system/`) that every mod calls to declare what it provides. The contract between core and mods | plugin API, extension API |
 | **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
 | **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
-| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerLibraryItem()`, `registerBlock()`, `registerButton()`, `declareSlot()`, `registerIntoSlot()`, `registerSettingsSection()`, `registerRoute()`, `registerPublicRoute()`, `registerSidebarAction()`, `registerWorkspace()`. The contract between core and mods | register, declare, contribute |
+| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerBlock()`, `registerButton()`, `declareSlot()`, `registerIntoSlot()`, `registerSettingsSection()`, `registerRoute()`, `registerPublicRoute()`. The contract between core and mods. Former functions `registerLibraryItem()`, `registerSidebarAction()`, and `registerWorkspace()` have been eliminated — library cards are now generic schema-driven, sidebar actions use event-driven tabs, and workspaces are hydrated from the backend API | register, declare, contribute |
 | **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn`, `coreVersion`, and `description`. The single source of truth read by both frontend and backend loaders. Does NOT describe capabilities — those are discovered from `register*()` calls at boot. The `description` field provides a human-readable summary shown on hub cards in the Jump Back In section | mod.json, manifest, mod identity |
 | **`dependsOn`** | Field in `modManifest.json` declaring which other mods must load first. Supports bare mod ID strings and objects with optional `version` constraints. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
 
@@ -68,7 +68,7 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Home** | The hub at `/home`, registered by the Home core mod (`order: 0` — first in sidebar). Serves as the lab landing page with a personalised greeting, **Jump Back In** hub cards for quick navigation to other hubs, and placeholders for stats, recent activity, and daily schedule. The greeting uses the current user's first name from `useCurrentUser()` | landing page, dashboard |
-| **Library** | The hub at `/library`, registered by the Library core mod (`order: 10`). Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Each entry type registers its card renderer via `registerLibraryItem()` | Library Hub, ELN browser |
+| **Library** | The hub at `/library`, registered by the Library core mod (`order: 10`). Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Cards are rendered generically from workspace schema column definitions — no per-mod card registration needed | Library Hub, ELN browser |
 
 ## Items
 

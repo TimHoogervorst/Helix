@@ -113,7 +113,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     // and the ActivityFeedBlock.
     ModRegistry._reset();
     const registry = ModRegistry.getInstance();
-    registry.registerMod(elnMod.meta.id);
+    registry.registerMod("eln");
     elnMod.register();
   });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
@@ -226,6 +226,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     mockFetchActions.mockResolvedValue([
       {
         id: 1,
+        action: "eln.entry.edited",
         action_type: "edited",
         target_type: "eln.entry",
         target_id: 1,
@@ -252,6 +253,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     });
     const makeAction = (userId: number) => ({
       id: userId,
+      action: "eln.entry.edited" as const,
       action_type: "edited" as const,
       target_type: "eln.entry",
       target_id: 1,
@@ -478,6 +480,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       mockFetchActions.mockResolvedValue([
         {
           id: 1,
+          action: "eln.entry.created",
           action_type: "created",
           target_type: "eln.entry",
           target_id: 1,
@@ -493,6 +496,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
         },
         {
           id: 2,
+          action: "eln.entry.edited",
           action_type: "edited",
           target_type: "eln.entry",
           target_id: 1,
@@ -525,6 +529,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       const now = new Date().toISOString();
       const actions = Array.from({ length: 12 }, (_, i) => ({
         id: i + 1,
+        action: "eln.entry.edited",
         action_type: "edited",
         target_type: "eln.entry",
         target_id: 1,

@@ -18,7 +18,7 @@
  */
 import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
-import Suggestion, { findSuggestionMatch } from "@tiptap/suggestion";
+import Suggestion, { findSuggestionMatch, exitSuggestion } from "@tiptap/suggestion";
 import type {
   Trigger,
   SuggestionMatch,
@@ -200,14 +200,18 @@ const UnifiedSuggestion = Extension.create({
 
         // ── Items ──────────────────────────────────────────────
         items: async ({ query }: { query: string }) => {
-          if (activeTrigger === "/") {
+          // Capture trigger synchronously — the variable can change
+          // before this async function resolves (e.g. / dismissed,
+          // # triggered, activeTrigger overwritten).
+          const trigger = activeTrigger;
+          if (trigger === "/") {
             const commands = getCommands();
             if (!query) return commands;
             return commands.filter((cmd) =>
               fuzzyMatch(`${cmd.label} ${cmd.description}`, query),
             );
           }
-          if (activeTrigger === "#") {
+          if (trigger === "#") {
             return fetchItems(query);
           }
           return [];
@@ -223,9 +227,21 @@ const UnifiedSuggestion = Extension.create({
           range: any;
           props: any;
         }) => {
-          if (activeTrigger === "/") {
+          const trigger = activeTrigger;
+          // Explicitly exit the suggestion before modifying the
+          // document.  Without this, the suggestion's decoration
+          // (an inline Decoration at the / or # position) must be
+          // mapped through the document change, which can produce
+          // an inconsistent DecorationGroup and crash with
+          // "Cannot read properties of undefined (reading
+          // 'localsInner')".  The Escape key handler in
+          // @tiptap/suggestion follows the same pattern — it
+          // dispatches an exit transaction before the view
+          // processes anything else.
+          exitSuggestion(editor.view, UNIFIED_SUGGESTION_KEY);
+          if (trigger === "/") {
             (props as SlashCommand).action(editor, range);
-          } else if (activeTrigger === "#") {
+          } else if (trigger === "#") {
             const result = props as SearchResult;
             editor
               .chain()
@@ -246,8 +262,17 @@ const UnifiedSuggestion = Extension.create({
         allow: ({ state, range }: { state: any; range: any }) => {
           const $from = state.doc.resolve(range.from);
           const parentType = $from.parent.type.name;
-          // # mentions are also allowed inside table cells
-          if (activeTrigger === "#") {
+
+          // Derive the trigger character from the document text at
+          // the match position rather than relying on the mutable
+          // activeTrigger variable (which may be stale if a previous
+          // session's exit collided with a new match attempt).
+          const charBefore = range.from > 0
+            ? state.doc.textBetween(range.from - 1, range.from)
+            : "";
+          const isHash = charBefore === "#";
+
+          if (isHash) {
             return (
               parentType === "paragraph" ||
               parentType === "text" ||
@@ -264,16 +289,19 @@ const UnifiedSuggestion = Extension.create({
 
           return {
             onStart: (props: any) => {
-              if (activeTrigger === "/") slashRenderer.onStart(props);
-              else if (activeTrigger === "#") mentionRenderer.onStart(props);
+              const trigger = activeTrigger;
+              if (trigger === "/") slashRenderer.onStart(props);
+              else if (trigger === "#") mentionRenderer.onStart(props);
             },
             onUpdate: (props: any) => {
-              if (activeTrigger === "/") slashRenderer.onUpdate(props);
-              else if (activeTrigger === "#") mentionRenderer.onUpdate(props);
+              const trigger = activeTrigger;
+              if (trigger === "/") slashRenderer.onUpdate(props);
+              else if (trigger === "#") mentionRenderer.onUpdate(props);
             },
             onKeyDown: (props: any): boolean => {
-              if (activeTrigger === "/") return slashRenderer.onKeyDown(props);
-              if (activeTrigger === "#")
+              const trigger = activeTrigger;
+              if (trigger === "/") return slashRenderer.onKeyDown(props);
+              if (trigger === "#")
                 return mentionRenderer.onKeyDown(props);
               return false;
             },
@@ -282,6 +310,9 @@ const UnifiedSuggestion = Extension.create({
               // need their DOM state reset.
               slashRenderer.onExit(props);
               mentionRenderer.onExit(props);
+              // Reset so a stale trigger doesn't leak into the next
+              // suggestion session via allow / items / command.
+              activeTrigger = null;
             },
           };
         },

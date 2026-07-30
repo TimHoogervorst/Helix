@@ -4,9 +4,8 @@ from rest_framework import serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema, SchemaType, EntityHubView
-
-ALLOWED_COLUMN_TYPES = {"Text", "Number", "Date", "Boolean", "Reference"}
 
 
 def validate_prefix(value):
@@ -19,7 +18,7 @@ def validate_prefix(value):
 
 
 def validate_columns(value):
-    """Each column must have a valid type from the allowed set.
+    """Each column must have a valid type from the column type registry.
 
     Also rejects user-defined columns named "Name" (case-insensitive,
     trimmed) since Name is an implicit pseudo-column on every schema.
@@ -30,9 +29,10 @@ def validate_columns(value):
         if not isinstance(col, dict):
             raise serializers.ValidationError(f"columns[{i}] must be an object.")
         col_type = col.get("type", "")
-        if col_type not in ALLOWED_COLUMN_TYPES:
+        if col_type not in column_type_registry:
+            valid_types = sorted(ct.id for ct in column_type_registry)
             raise serializers.ValidationError(
-                f"columns[{i}].type must be one of: {', '.join(sorted(ALLOWED_COLUMN_TYPES))}."
+                f"columns[{i}].type must be one of: {', '.join(valid_types)}."
             )
         if "name" not in col:
             raise serializers.ValidationError(

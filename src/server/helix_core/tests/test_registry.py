@@ -827,7 +827,7 @@ class TestBuildURLPatterns:
             "mods.lims",
             "mods.eln",
             "mods.library",
-            "mods.pins",
+            "mods.tabs",
             "mods.core",
         ])
 
@@ -992,7 +992,7 @@ class TestRegisterSchemaType:
             display_name="Entity",
             workspace_id="lims",
             model="mods.lims.models.Entity",
-            columns=[{"name": "volume", "type": "Number"}],
+            columns=[{"name": "volume", "type": "number"}],
             prefix="E",
         )
 
@@ -1097,3 +1097,323 @@ class TestActionRegistryDelegation:
         from helix_core.actions.registry import get_action_model
 
         assert get_action_model("completely_unknown_mod_xyz") is None
+
+
+# ── action catalog ────────────────────────────────────────────────────────────
+
+
+class TestRegisterCustomAction:
+    """Tests for register_custom_action."""
+
+    def test_register_custom_action_stores_entry(self):
+        """register_custom_action stores the custom action and makes it
+        retrievable via get_action_catalog."""
+        reg = _fresh_registry()
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        catalog = reg.get_action_catalog("lims")
+        # Custom actions have id != action_type (id is the full action ID,
+        # action_type is the core verb).
+        custom_actions = [a for a in catalog if a["id"] != a["action_type"]]
+        assert len(custom_actions) == 1
+        action = custom_actions[0]
+        assert action["id"] == "lims.sample.registered"
+        assert action["label"] == "Sample Registered"
+        assert action["action_type"] == "edited"
+        assert action["target_model"] == "mods.lims.models.Entity"
+
+    def test_register_custom_action_multiple_actions(self):
+        """Multiple custom actions for the same mod are all stored."""
+        reg = _fresh_registry()
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.aliquoted",
+            label="Sample Aliquoted",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        catalog = reg.get_action_catalog("lims")
+        # Custom actions: id not in the three core verb names.
+        custom_actions = [a for a in catalog if a["id"] not in ("created", "edited", "deleted")]
+        assert len(custom_actions) == 2
+
+    def test_register_custom_action_different_mods(self):
+        """Custom actions for different mods don't interfere."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeElnAction", (), {}))
+        reg.register_action_model("lims", type("FakeLimsAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="eln",
+            action_id="eln.entry.exported",
+            label="Entry Exported",
+            core="edited",
+            target_model="mods.eln.models.NotebookEntry",
+        )
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        eln_catalog = reg.get_action_catalog("eln")
+        lims_catalog = reg.get_action_catalog("lims")
+        # Custom actions have id != action_type.
+        eln_custom = [a for a in eln_catalog if a["id"] not in ("created", "edited", "deleted")]
+        lims_custom = [a for a in lims_catalog if a["id"] not in ("created", "edited", "deleted")]
+        assert len(eln_custom) == 1
+        assert len(lims_custom) == 1
+        assert eln_custom[0]["id"] == "eln.entry.exported"
+        assert lims_custom[0]["id"] == "lims.sample.registered"
+
+
+class TestCoreActionAutoDerivation:
+    """Tests for core action auto-derivation when register_action_model is called."""
+
+    def test_core_actions_auto_derived(self):
+        """Calling register_action_model auto-creates created/edited/deleted
+        core action entries."""
+        reg = _fresh_registry()
+
+        class FakeAction:
+            pass
+
+        reg.register_action_model("eln", FakeAction)
+
+        catalog = reg.get_action_catalog("eln")
+        # Core actions have id == action_type (self-referential — both are the verb).
+        core_action_types = {a["action_type"] for a in catalog if a["id"] == a["action_type"]}
+        assert core_action_types == {"created", "edited", "deleted"}
+
+    def test_core_actions_have_correct_labels(self):
+        """Core actions have human-readable labels."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        catalog = reg.get_action_catalog("eln")
+        core_actions = {a["action_type"]: a for a in catalog if a["id"] == a["action_type"]}
+        assert core_actions["created"]["label"] == "Created"
+        assert core_actions["edited"]["label"] == "Edited"
+        assert core_actions["deleted"]["label"] == "Deleted"
+
+    def test_core_actions_have_target_model(self):
+        """Core actions include the target_model derived from the model class."""
+        reg = _fresh_registry()
+
+        class FakeAction:
+            pass
+
+        reg.register_action_model("eln", FakeAction)
+
+        catalog = reg.get_action_catalog("eln")
+        core_actions = {a["action_type"]: a for a in catalog if a["id"] == a["action_type"]}
+        for verb in ("created", "edited", "deleted"):
+            assert core_actions[verb]["target_model"] is not None, \
+                f"Core action '{verb}' should have a target_model"
+
+    def test_core_actions_marked_as_core(self):
+        """Core actions have id equal to action_type (self-referential)."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        catalog = reg.get_action_catalog("eln")
+        for action in catalog:
+            if action["action_type"] in ("created", "edited", "deleted"):
+                # Core actions: id == action_type (both are the verb).
+                assert action["id"] == action["action_type"], \
+                    f"Core action {action['action_type']} should have id == action_type"
+
+    def test_no_core_actions_without_action_model(self):
+        """get_action_catalog returns empty list when no action model registered."""
+        reg = _fresh_registry()
+
+        catalog = reg.get_action_catalog("nonexistent")
+        assert catalog == []
+
+
+class TestGetActionCatalog:
+    """Tests for get_action_catalog — combined core + custom actions."""
+
+    def test_returns_both_core_and_custom(self):
+        """get_action_catalog returns core actions and custom actions together."""
+        reg = _fresh_registry()
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        catalog = reg.get_action_catalog("lims")
+        # 3 core + 1 custom = 4 actions
+        assert len(catalog) == 4
+        action_ids = {a["id"] for a in catalog}
+        assert "created" in action_ids
+        assert "edited" in action_ids
+        assert "deleted" in action_ids
+        assert "lims.sample.registered" in action_ids
+
+    def test_custom_action_core_field_points_to_core_verb(self):
+        """Custom actions have action_type pointing to the base core verb."""
+        reg = _fresh_registry()
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.aliquoted",
+            label="Sample Aliquoted",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        catalog = reg.get_action_catalog("lims")
+        # Custom actions have the full ID in the "id" field.
+        custom = [a for a in catalog if a["id"] == "lims.sample.aliquoted"]
+        assert len(custom) == 1
+        # The action_type for custom actions is the core verb.
+        assert custom[0]["action_type"] == "edited"
+        assert custom[0]["label"] == "Sample Aliquoted"
+
+    def test_returns_copy_not_reference(self):
+        """Mutation of returned catalog does not affect internal state."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        catalog = reg.get_action_catalog("eln")
+        catalog.append({"id": "fake", "label": "Fake", "action_type": "created", "target_model": None})
+
+        catalog2 = reg.get_action_catalog("eln")
+        assert len(catalog2) == 3  # Only the 3 core actions
+
+
+class TestValidateAction:
+    """Tests for validate_action."""
+
+    def test_valid_core_action_returns_true(self):
+        """validate_action returns True for a recognized core action verb."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        # Core verbs are valid even without target prefix
+        assert reg.validate_action("created") is True
+        assert reg.validate_action("edited") is True
+        assert reg.validate_action("deleted") is True
+
+    def test_valid_custom_action_returns_true(self):
+        """validate_action returns True for a registered custom action."""
+        reg = _fresh_registry()
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        assert reg.validate_action("lims.sample.registered") is True
+
+    def test_unregistered_action_returns_false(self):
+        """validate_action returns False for an unknown action type."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        assert reg.validate_action("unknown.action.type") is False
+
+    def test_unregistered_core_verb_returns_false(self):
+        """validate_action returns False for an unregistered core verb."""
+        reg = _fresh_registry()
+
+        # No mod registered — even core verbs fail
+        assert reg.validate_action("created") is False
+
+    def test_partial_match_returns_false(self):
+        """validate_action returns False for a partial match."""
+        reg = _fresh_registry()
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        # Partial/substring match should not count
+        assert reg.validate_action("lims.sample.reg") is False
+        assert reg.validate_action("lims.sample.registered.extra") is False
+
+    def test_multiple_mods_validate_independently(self):
+        """Each mod's catalog is validated independently."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+        reg.register_action_model("lims", type("FakeAction", (), {}))
+
+        reg.register_custom_action(
+            mod_id="lims",
+            action_id="lims.sample.registered",
+            label="Sample Registered",
+            core="edited",
+            target_model="mods.lims.models.Entity",
+        )
+
+        # eln has core actions but not the custom lims action
+        assert reg.validate_action("created") is True  # eln has it
+        assert reg.validate_action("lims.sample.registered") is True  # lims has it
+
+
+class TestCustomActionRegistrationWithoutModel:
+    """Edge-case tests for register_custom_action."""
+
+    def test_register_custom_action_without_action_model_raises(self):
+        """Registering a custom action for a mod without register_action_model
+        should raise ValueError."""
+        reg = _fresh_registry()
+
+        with pytest.raises(ValueError, match="register_action_model"):
+            reg.register_custom_action(
+                mod_id="fake",
+                action_id="fake.widget.exported",
+                label="Exported",
+                core="edited",
+                target_model="fake.models.Widget",
+            )
+
+    def test_register_custom_action_with_invalid_core_raises(self):
+        """register_custom_action rejects an invalid core verb."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        with pytest.raises(ValueError, match="Must be one of"):
+            reg.register_custom_action(
+                mod_id="eln",
+                action_id="eln.entry.viewed",
+                label="Entry Viewed",
+                core="viewed",  # invalid — not created/edited/deleted
+                target_model="mods.eln.models.NotebookEntry",
+            )

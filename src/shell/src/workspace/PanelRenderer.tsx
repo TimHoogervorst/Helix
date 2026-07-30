@@ -1,5 +1,6 @@
 import type { RendererProps, BlockBinding } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
+import { useSendAction } from "./useSendAction";
 
 /**
  * Renders blocks as vertically stacked panels.
@@ -49,16 +50,32 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
+  const sendAction = useSendAction(context.workspaceId);
+
   // Blocks can opt out of the card wrapper via `noCard: true` in overrides.
   const noCard = binding.overrides?.noCard === true;
 
   if (noCard) {
-    return <Component context={context} instance={instance} bus={bus} overrides={binding.overrides} />;
+    return (
+      <Component
+        context={context}
+        instance={instance}
+        bus={bus}
+        overrides={binding.overrides}
+        sendAction={sendAction}
+      />
+    );
   }
 
   return (
     <div className="rounded-lg border border-hairline bg-background p-4">
-      <Component context={context} instance={instance} bus={bus} overrides={binding.overrides} />
+      <Component
+        context={context}
+        instance={instance}
+        bus={bus}
+        overrides={binding.overrides}
+        sendAction={sendAction}
+      />
     </div>
   );
 }

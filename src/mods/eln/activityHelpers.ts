@@ -20,7 +20,7 @@ export function getRecentEditors(actions: ElnAction[]): ElnAction[] {
   const unique: ElnAction[] = [];
   for (const a of actions) {
     if (
-      (a.action_type === "edited" || a.action_type.endsWith(".edited")) &&
+      a.action_type === "edited" &&
       new Date(a.created_at) >= oneWeekAgo
     ) {
       if (!seen.has(a.performed_by.id)) {

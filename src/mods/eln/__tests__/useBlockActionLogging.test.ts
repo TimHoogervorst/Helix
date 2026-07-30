@@ -1,17 +1,23 @@
 /**
  * Tests for useBlockActionLogging — accumulates block lifecycle events
- * and flushes batched block-declared actions on entry save.
+ * and flushes each action individually via sendAction() → POST /api/actions/
+ * on entry save (#327).
  *
- * Covers acceptance criteria from #223:
+ * Covers acceptance criteria from #223 (retained) and #327 (new):
  * - Lifecycle events are accumulated per (blockInstanceId, verb)
  * - Dedup: multiple edits to the same block → one action row
  * - Different verbs for same block both survive
- * - Batched flush on "eln.entry.saved" event
- * - No API call without a save event (no orphaned actions)
- * - No API call when accumulator is empty
- * - No API call when entryId is undefined (new entry)
+ * - Each accumulated action is sent individually via sendAction() on save
+ * - sendAction is called with correct (actionType, targetType, targetId, metadata)
+ * - No sendAction calls without a save event (no orphaned actions)
+ * - No sendAction calls when accumulator is empty
+ * - No sendAction calls when numericEntryId is undefined (new entry)
  * - Map is cleared after successful flush
- * - Fail-open: POST failure is caught, does not throw
+ * - eln.actions.flushed is emitted with flushed keys on success
+ * - eln.actions.flushed is emitted with keys:[] when accumulator is empty on save
+ * - Partial failure: actions after a failed sendAction are still attempted
+ * - eln.actions.flushed is NOT emitted when any sendAction fails
+ * - Fail-open: sendAction rejection is caught, does not throw
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -19,14 +25,6 @@ import { createTestBus } from "../../../shell/src/workspace/WorkspaceBus";
 import type { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { useBlockActionLogging } from "../hooks/useBlockActionLogging";
-
-// ── Mocks ──────────────────────────────────────────────────────────────────
-
-const mockPost = vi.fn();
-
-vi.mock("../../../shell/src/api/client", () => ({
-  post: (...args: unknown[]) => mockPost(...args),
-}));
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -70,27 +68,28 @@ function emitSave(bus: WorkspaceBus, entryId: string): void {
 }
 
 /**
- * Render the hook and return the bus so tests can drive it.
- * Returns a `flush` helper that emits a save and returns the mockPost
- * promise resolution (or rejection).
+ * Render the hook and return the bus + a mock sendAction so tests can
+ * drive and assert.
  */
-function renderWithBus(entryId: string | undefined) {
+function renderWithBus(
+  entryId: string | undefined,
+  numericEntryId: number | undefined,
+  mockSendAction?: ReturnType<typeof vi.fn>,
+) {
   const bus = createTestBus();
+  const sendAction = mockSendAction ?? vi.fn().mockResolvedValue(undefined);
   const { unmount } = renderHook(() =>
-    useBlockActionLogging(bus, entryId, BLOCK_IDS),
+    useBlockActionLogging(bus, entryId, numericEntryId, BLOCK_IDS, sendAction),
   );
-  return { bus, unmount };
+  return { bus, unmount, sendAction };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe("useBlockActionLogging", () => {
   beforeEach(() => {
-    mockPost.mockClear();
-    // Default: resolve successfully
-    mockPost.mockResolvedValue({ count: 1, request_id: "test-req-id" });
-
-    // Register stub blocks so message derivation works
+    // Register stub blocks and hydrate the action catalog so message
+    // derivation works via the backend catalog (not static `messages`).
     ModRegistry._reset();
     const registry = ModRegistry.getInstance();
     const stubComponent = () => null;
@@ -101,12 +100,8 @@ describe("useBlockActionLogging", () => {
       component: stubComponent,
       listensTo: [],
       onEvent: {},
-      messages: {
-        created: "Table created",
-        edited: "Table edited",
-        deleted: "Table deleted",
-      },
-      getDisplayName: () => "Table",
+      getDisplayName: (attrs: Record<string, unknown>) =>
+        (attrs as Record<string, string>).title ?? "Table",
       serialize: () => "{}",
       deserialize: () => ({}),
       defaultState: {},
@@ -118,26 +113,42 @@ describe("useBlockActionLogging", () => {
       component: stubComponent,
       listensTo: [],
       onEvent: {},
-      messages: {
-        created: "Comment created",
-        edited: "Comment edited",
-        deleted: "Comment deleted",
-      },
       getDisplayName: () => "Comment",
       serialize: () => "{}",
       deserialize: () => ({}),
       defaultState: {},
     });
+
+    // Hydrate the action catalog so getActions("eln") returns block-action
+    // labels.  The catalog is the single source of truth for action labels.
+    registry.hydrateFromBackend(
+      {
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [],
+          actions: [
+            { id: "eln.table-block.created", label: "Table Created", core: false },
+            { id: "eln.table-block.edited", label: "Table Edited", core: false },
+            { id: "eln.table-block.deleted", label: "Table Deleted", core: false },
+            { id: "eln.comment-block.created", label: "Comment Created", core: false },
+            { id: "eln.comment-block.edited", label: "Comment Edited", core: false },
+            { id: "eln.comment-block.deleted", label: "Comment Deleted", core: false },
+          ],
+        },
+      },
+      new Map(),
+    );
   });
 
   afterEach(() => {
-    mockPost.mockReset();
+    vi.restoreAllMocks();
   });
 
-  // ── Accumulation ───────────────────────────────────────────────────────
+  // ── Accumulation + flush via sendAction ──────────────────────────────────
 
-  it("accumulates lifecycle events and flushes them on save", async () => {
-    const { bus } = renderWithBus("E-001");
+  it("accumulates lifecycle events and flushes each via sendAction on save", async () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitLifecycle(bus, "eln.comment-block", "created", "inst-2");
@@ -146,26 +157,34 @@ describe("useBlockActionLogging", () => {
 
     // Wait for the async flush to complete
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(2);
     });
 
-    const [path, body] = mockPost.mock.calls[0];
-    expect(path).toBe("/eln/entries/E-001/actions/batch/");
-    expect(body.actions).toHaveLength(2);
-    expect(body.actions).toContainEqual({
-      action_type: "eln.table-block.created",
-      metadata: { message: "Table created" },
-    });
-    expect(body.actions).toContainEqual({
-      action_type: "eln.comment-block.created",
-      metadata: { message: "Comment created" },
-    });
+    expect(mockSendAction).toHaveBeenCalledWith(
+      "eln.table-block.created",
+      "eln.entry",
+      42,
+      { message: "Table Created" },
+      expect.any(String),
+    );
+    expect(mockSendAction).toHaveBeenCalledWith(
+      "eln.comment-block.created",
+      "eln.entry",
+      42,
+      { message: "Comment Created" },
+      expect.any(String),
+    );
+    // Both calls share the same requestId.
+    const firstRequestId = mockSendAction.mock.calls[0][4];
+    const secondRequestId = mockSendAction.mock.calls[1][4];
+    expect(firstRequestId).toBe(secondRequestId);
   });
 
   // ── Dedup: same (blockInstanceId, verb) ────────────────────────────────
 
   it("deduplicates multiple edits to the same block instance", async () => {
-    const { bus } = renderWithBus("E-001");
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     // Two edits to the same block instance — only the last one survives
     emitLifecycle(bus, "eln.table-block", "edited", "inst-1", { title: "v1" });
@@ -174,21 +193,23 @@ describe("useBlockActionLogging", () => {
     emitSave(bus, "E-001");
 
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(1);
     });
 
-    const [, body] = mockPost.mock.calls[0];
-    expect(body.actions).toHaveLength(1);
-    expect(body.actions[0]).toEqual({
-      action_type: "eln.table-block.edited",
-      metadata: { message: "Table edited" },
-    });
+    expect(mockSendAction).toHaveBeenCalledWith(
+      "eln.table-block.edited",
+      "eln.entry",
+      42,
+      { message: "Table Edited" },
+      expect.any(String),
+    );
   });
 
   // ── Different verbs for the same blockInstanceId both survive ───────────
 
   it("preserves both created and edited for the same block instance", async () => {
-    const { bus } = renderWithBus("E-001");
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitLifecycle(bus, "eln.table-block", "edited", "inst-1");
@@ -196,85 +217,104 @@ describe("useBlockActionLogging", () => {
     emitSave(bus, "E-001");
 
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(2);
     });
 
-    const [, body] = mockPost.mock.calls[0];
-    expect(body.actions).toHaveLength(2);
-    expect(body.actions).toContainEqual({
-      action_type: "eln.table-block.created",
-      metadata: { message: "Table created" },
-    });
-    expect(body.actions).toContainEqual({
-      action_type: "eln.table-block.edited",
-      metadata: { message: "Table edited" },
-    });
+    const calls = mockSendAction.mock.calls;
+    const actionTypes = calls.map((c: unknown[]) => c[0]);
+    expect(actionTypes).toContain("eln.table-block.created");
+    expect(actionTypes).toContain("eln.table-block.edited");
   });
 
-  // ── No orphaned actions: no save → no API call ────────────────────────
+  // ── No orphaned actions: no save → no sendAction calls ─────────────────
 
-  it("does not call the API when no save event fires", () => {
-    const { bus } = renderWithBus("E-001");
+  it("does not call sendAction when no save event fires", () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitLifecycle(bus, "eln.table-block", "edited", "inst-1");
 
-    // No save event emitted — API should not be called
-    expect(mockPost).not.toHaveBeenCalled();
+    // No save event emitted — sendAction should not be called
+    expect(mockSendAction).not.toHaveBeenCalled();
   });
 
-  // ── No-op on empty accumulator ─────────────────────────────────────────
+  // ── Emit eln.actions.flushed with empty keys when no actions accumulated
 
-  it("does not call the API when the accumulator is empty on save", () => {
-    const { bus } = renderWithBus("E-001");
+  it("emits eln.actions.flushed with keys:[] when accumulator is empty on save", () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
+
+    let flushedPayload: { keys: string[] } | null = null;
+    bus.on("eln.actions.flushed", (payload: unknown) => {
+      flushedPayload = payload as { keys: string[] };
+    });
 
     emitSave(bus, "E-001");
 
-    // No lifecycle events were emitted — should be a no-op
-    expect(mockPost).not.toHaveBeenCalled();
+    // sendAction should NOT be called — there were no lifecycle events
+    expect(mockSendAction).not.toHaveBeenCalled();
+    // eln.actions.flushed should be emitted with empty keys so
+    // ActivityFeedBlock knows the save cycle is complete and can refetch.
+    expect(flushedPayload).toEqual({ keys: [] });
   });
 
-  // ── No-op on missing entryId ──────────────────────────────────────────
+  // ── No-op on missing numericEntryId ────────────────────────────────────
 
-  it("does not call the API when entryId is undefined (new entry)", () => {
-    const { bus } = renderWithBus(undefined);
+  it("does not call sendAction when numericEntryId is undefined (new entry)", () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus(undefined, undefined, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
-    emitSave(bus, ""); // Save with no real ID
+    emitSave(bus, "");
 
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockSendAction).not.toHaveBeenCalled();
+  });
+
+  // ── No-op when entryId is set but numericEntryId is undefined ──────────
+
+  it("does not call sendAction when entryId is set but numericEntryId is undefined", () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", undefined, mockSendAction);
+
+    emitLifecycle(bus, "eln.table-block", "created", "inst-1");
+    emitSave(bus, "E-001");
+
+    expect(mockSendAction).not.toHaveBeenCalled();
   });
 
   // ── Clear after flush ─────────────────────────────────────────────────
 
   it("clears accumulated actions after flush so they are not sent twice", async () => {
-    const { bus } = renderWithBus("E-001");
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitSave(bus, "E-001");
 
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(1);
     });
 
     // Second save without new lifecycle events — should be a no-op
     emitSave(bus, "E-001");
 
     // No additional call — the map was cleared
-    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockSendAction).toHaveBeenCalledTimes(1);
   });
 
   // ── New events after flush are accumulated for the next save cycle ────
 
   it("accumulates new events after flush for the next save cycle", async () => {
-    const { bus } = renderWithBus("E-001");
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     // First cycle
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitSave(bus, "E-001");
 
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(1);
     });
 
     // Second cycle — new event after flush
@@ -282,38 +322,60 @@ describe("useBlockActionLogging", () => {
     emitSave(bus, "E-001");
 
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(2);
+      expect(mockSendAction).toHaveBeenCalledTimes(2);
     });
 
-    const [, body] = mockPost.mock.calls[1];
-    expect(body.actions).toHaveLength(1);
-    expect(body.actions[0]).toEqual({
-      action_type: "eln.comment-block.created",
-      metadata: { message: "Comment created" },
-    });
+    // The second call should be the comment block action
+    const lastCall = mockSendAction.mock.calls[1];
+    expect(lastCall[0]).toBe("eln.comment-block.created");
   });
 
-  // ── Fail-open: POST failure is caught ──────────────────────────────────
+  // ── sendAction called with correct targetType and targetId ─────────────
 
-  it("handles API failure gracefully (fail-open)", async () => {
+  it("calls sendAction with targetType='eln.entry' and the numeric entry ID", async () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 99, mockSendAction);
+
+    emitLifecycle(bus, "eln.table-block", "deleted", "inst-1");
+    emitSave(bus, "E-001");
+
+    await vi.waitFor(() => {
+      expect(mockSendAction).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockSendAction).toHaveBeenCalledWith(
+      "eln.table-block.deleted",
+      "eln.entry",
+      99,
+      { message: "Table Deleted" },
+      expect.any(String),
+    );
+  });
+
+  // ── Fail-open: sendAction failure is caught ────────────────────────────
+
+  it("handles sendAction failure gracefully (fail-open)", async () => {
     const consoleWarnSpy = vi
       .spyOn(console, "warn")
       .mockImplementation(() => {});
-    mockPost.mockRejectedValueOnce(new Error("Network down"));
-
-    const { bus } = renderWithBus("E-001");
+    const mockSendAction = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Network down"));
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitSave(bus, "E-001");
 
     // Should not throw — the hook swallows errors
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(1);
     });
 
     // Should log a warning
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[eln] Failed to flush block action log for entry E-001:",
+      '[eln] Failed to send block action "%s" for entry %s:',
+      "eln.table-block.created",
+      "E-001",
       expect.any(Error),
     );
 
@@ -322,8 +384,9 @@ describe("useBlockActionLogging", () => {
 
   // ── Multiple block types ──────────────────────────────────────────────
 
-  it("handles events from multiple block types in one batch", async () => {
-    const { bus } = renderWithBus("E-001");
+  it("handles events from multiple block types in one save cycle", async () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
     emitLifecycle(bus, "eln.comment-block", "created", "inst-2");
@@ -333,17 +396,15 @@ describe("useBlockActionLogging", () => {
     emitSave(bus, "E-001");
 
     await vi.waitFor(() => {
-      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockSendAction).toHaveBeenCalledTimes(4);
     });
-
-    const [, body] = mockPost.mock.calls[0];
-    expect(body.actions).toHaveLength(4);
   });
 
   // ── Unmount discards accumulated actions ───────────────────────────────
 
-  it("discards accumulated actions on unmount without calling the API", () => {
-    const { bus, unmount } = renderWithBus("E-001");
+  it("discards accumulated actions on unmount without calling sendAction", () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus, unmount } = renderWithBus("E-001", 42, mockSendAction);
 
     emitLifecycle(bus, "eln.table-block", "created", "inst-1");
 
@@ -351,6 +412,93 @@ describe("useBlockActionLogging", () => {
 
     // After unmount, even if save fires, the listener is gone
     emitSave(bus, "E-001");
-    expect(mockPost).not.toHaveBeenCalled();
+    expect(mockSendAction).not.toHaveBeenCalled();
+  });
+
+  // ── eln.actions.flushed event is emitted on success ───────────────────
+
+  it("emits eln.actions.flushed with flushed keys and requestId on successful flush", async () => {
+    const mockSendAction = vi.fn().mockResolvedValue(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
+
+    let flushedPayload: { keys: string[]; requestId?: string } | null = null;
+    bus.on("eln.actions.flushed", (payload: unknown) => {
+      flushedPayload = payload as { keys: string[]; requestId?: string };
+    });
+
+    emitLifecycle(bus, "eln.table-block", "created", "inst-1");
+    emitLifecycle(bus, "eln.comment-block", "edited", "inst-2");
+    emitSave(bus, "E-001");
+
+    await vi.waitFor(() => {
+      expect(mockSendAction).toHaveBeenCalledTimes(2);
+    });
+
+    // Should contain both keys and a shared requestId.
+    expect(flushedPayload).not.toBeNull();
+    expect(flushedPayload!.keys).toHaveLength(2);
+    expect(flushedPayload!.keys).toContain("inst-1:created");
+    expect(flushedPayload!.keys).toContain("inst-2:edited");
+    expect(flushedPayload!.requestId).toEqual(expect.any(String));
+    // requestId should be a valid UUID
+    expect(flushedPayload!.requestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+
+  // ── eln.actions.flushed is NOT emitted on partial failure ──────────────
+
+  it("does not emit eln.actions.flushed when any sendAction fails", async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const mockSendAction = vi
+      .fn()
+      .mockResolvedValueOnce(undefined) // first succeeds
+      .mockRejectedValueOnce(new Error("Network down")); // second fails
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
+
+    let flushedEmitted = false;
+    bus.on("eln.actions.flushed", () => {
+      flushedEmitted = true;
+    });
+
+    emitLifecycle(bus, "eln.table-block", "created", "inst-1");
+    emitLifecycle(bus, "eln.comment-block", "edited", "inst-2");
+    emitSave(bus, "E-001");
+
+    await vi.waitFor(() => {
+      expect(mockSendAction).toHaveBeenCalledTimes(2);
+    });
+
+    // eln.actions.flushed should NOT be emitted because one action failed
+    expect(flushedEmitted).toBe(false);
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  // ── Partial failure: all actions are still attempted ───────────────────
+
+  it("attempts all actions even when an earlier one fails", async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const mockSendAction = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("First failed"))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    const { bus } = renderWithBus("E-001", 42, mockSendAction);
+
+    emitLifecycle(bus, "eln.table-block", "created", "inst-1");
+    emitLifecycle(bus, "eln.table-block", "edited", "inst-1");
+    emitLifecycle(bus, "eln.comment-block", "created", "inst-2");
+    emitSave(bus, "E-001");
+
+    await vi.waitFor(() => {
+      expect(mockSendAction).toHaveBeenCalledTimes(3);
+    });
+
+    consoleWarnSpy.mockRestore();
   });
 });

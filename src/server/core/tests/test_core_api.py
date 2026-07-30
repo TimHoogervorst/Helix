@@ -39,7 +39,7 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.folder.created")
+        self.assertEqual(kwargs["action"], "core.folder.created")
         self.assertEqual(kwargs["target_type"], "core.folder")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -54,7 +54,7 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.folder.edited")
+        self.assertEqual(kwargs["action"], "core.folder.edited")
         self.assertEqual(kwargs["target_type"], "core.folder")
         self.assertEqual(kwargs["target_id"], folder.id)
 
@@ -68,7 +68,7 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.folder.edited")
+        self.assertEqual(kwargs["action"], "core.folder.edited")
 
     def test_delete_folder_logs_action(self):
         folder = Folder.objects.create(name="DeleteMe")
@@ -76,7 +76,7 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.folder.deleted")
+        self.assertEqual(kwargs["action"], "core.folder.deleted")
         self.assertEqual(kwargs["target_type"], "core.folder")
         self.assertEqual(kwargs["target_id"], folder.id)
 
@@ -117,7 +117,7 @@ class CoreSettingActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "core.setting.edited")
+        self.assertEqual(kwargs["action"], "core.setting.edited")
         self.assertEqual(kwargs["target_type"], "core.setting")
         self.assertEqual(kwargs["target_id"], setting.id)
         self.assertEqual(kwargs["user"], self.user)

@@ -1,15 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Box } from "lucide-react";
+
 import { ModRegistry } from "../ModRegistry";
 import type {
   HubConfig,
   SettingsSectionConfig,
   RouteConfig,
-  SidebarActionConfig,
-  LibraryItemConfig,
   SlotDeclaration,
   ButtonRegistration,
   BlockRegistration,
+  ModManifest,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -63,29 +62,6 @@ function makeRoute(overrides?: Partial<RouteConfig>): RouteConfig {
   };
 }
 
-function makeSidebarAction(
-  overrides?: Partial<SidebarActionConfig>,
-): SidebarActionConfig {
-  return {
-    id: "test.action",
-    workspaceId: "*",
-    component: DummyComponent,
-    position: "inline",
-    ...overrides,
-  };
-}
-
-function makeLibraryItem(
-  overrides?: Partial<LibraryItemConfig>,
-): LibraryItemConfig {
-  return {
-    id: "test.item",
-    icon: DummyComponent,
-    listCard: DummyComponent,
-    ...overrides,
-  };
-}
-
 function makeSlotDeclaration(
   overrides?: Partial<SlotDeclaration>,
 ): SlotDeclaration {
@@ -124,6 +100,15 @@ function makeBlockRegistration(
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => JSON.parse(json),
     defaultState: {},
+    ...overrides,
+  };
+}
+
+function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
+  return {
+    id: "lims",
+    displayName: "LIMS",
+    dependsOn: [],
     ...overrides,
   };
 }
@@ -208,21 +193,6 @@ describe("ModRegistry", () => {
     );
   });
 
-  // ── registerSidebarAction ────────────────────────────────────────────
-
-  it("registerSidebarAction stores a sidebar action config", () => {
-    const config = makeSidebarAction({ id: "a1" });
-    registry.registerSidebarAction(config);
-    expect(registry.getSidebarActions().get("a1")).toBe(config);
-  });
-
-  it("registerSidebarAction throws on duplicate ID", () => {
-    registry.registerSidebarAction(makeSidebarAction({ id: "a1" }));
-    expect(() =>
-      registry.registerSidebarAction(makeSidebarAction({ id: "a1" })),
-    ).toThrow("Duplicate sidebar action registration");
-  });
-
   // ── validate ─────────────────────────────────────────────────────────
 
   it("passes when all cross-references resolve", () => {
@@ -265,136 +235,6 @@ describe("ModRegistry", () => {
   it("getRoutes returns a read-only view", () => {
     registry.registerRoute(makeRoute({ id: "r1" }));
     expect(registry.getRoutes().has("r1")).toBe(true);
-  });
-
-  // ── registerLibraryItem ────────────────────────────────────────────────
-
-  it("registerLibraryItem stores a library item config", () => {
-    const config = makeLibraryItem({ id: "eln.entry" });
-    registry.registerLibraryItem(config);
-    expect(registry.getLibraryItems().get("eln.entry")).toBe(config);
-  });
-
-  it("registerLibraryItem throws on duplicate ID", () => {
-    registry.registerLibraryItem(makeLibraryItem({ id: "eln.entry" }));
-    expect(() =>
-      registry.registerLibraryItem(makeLibraryItem({ id: "eln.entry" })),
-    ).toThrow("Duplicate library item registration");
-  });
-
-  it("getLibraryItems returns a read-only view", () => {
-    registry.registerLibraryItem(makeLibraryItem({ id: "eln.entry" }));
-    const items = registry.getLibraryItems();
-    expect(items.has("eln.entry")).toBe(true);
-    expect(items.get("eln.entry")?.id).toBe("eln.entry");
-  });
-
-  it("resolveLibraryItem returns the registered config for a given ID", () => {
-    const config = makeLibraryItem({ id: "eln.entry" });
-    registry.registerLibraryItem(config);
-    const resolved = registry.resolveLibraryItem("eln.entry");
-    expect(resolved).toBe(config);
-  });
-
-  it("resolveLibraryItem returns undefined for unregistered ID", () => {
-    const resolved = registry.resolveLibraryItem("nonexistent");
-    expect(resolved).toBeUndefined();
-  });
-
-  // ── registerWorkspace ──────────────────────────────────────────────────
-
-  it("registerWorkspace stores a workspace config", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    expect(registry.getWorkspaces().get("lims")).toEqual({
-      id: "lims",
-      displayName: "LIMS",
-    });
-  });
-
-  it("registerWorkspace stores an optional icon", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS", icon: Box });
-    expect(registry.getWorkspaces().get("lims")).toEqual({
-      id: "lims",
-      displayName: "LIMS",
-      icon: Box,
-    });
-  });
-
-  it("registerWorkspace works without providing an icon (backward-compatible)", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws).toBeDefined();
-    expect(ws?.icon).toBeUndefined();
-  });
-
-  it("registerWorkspace stores workspace + schemaType from a single call", () => {
-    registry.registerWorkspace({
-      id: "lims",
-      displayName: "LIMS",
-      icon: Box,
-      schemaType: {
-        id: "lims.entity",
-        displayName: "Entity",
-        defaultPrefix: "E",
-      },
-    });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws).toBeDefined();
-    expect(ws?.schemaType).toEqual({
-      id: "lims.entity",
-      displayName: "Entity",
-      defaultPrefix: "E",
-    });
-  });
-
-  it("registerWorkspace stores schemaType with optional columns", () => {
-    registry.registerWorkspace({
-      id: "lims",
-      displayName: "LIMS",
-      schemaType: {
-        id: "lims.entity",
-        displayName: "Entity",
-        defaultPrefix: "E",
-        columns: [
-          { name: "Name", type: "Text", required: true },
-          { name: "Quantity", type: "Number", units: "mL" },
-        ],
-      },
-    });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws?.schemaType?.columns).toHaveLength(2);
-    expect(ws?.schemaType?.columns?.[0]).toEqual({
-      name: "Name",
-      type: "Text",
-      required: true,
-    });
-  });
-
-  it("registerWorkspace schemaType is undefined when not provided (backward-compatible)", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    const ws = registry.getWorkspaces().get("lims");
-    expect(ws?.schemaType).toBeUndefined();
-  });
-
-  it("registerWorkspace throws on duplicate ID", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    expect(() =>
-      registry.registerWorkspace({ id: "lims", displayName: "LIMS v2" }),
-    ).toThrow("Duplicate workspace registration");
-  });
-
-  it("getWorkspaces returns a read-only view", () => {
-    registry.registerWorkspace({ id: "lims", displayName: "LIMS" });
-    registry.registerWorkspace({ id: "eln", displayName: "ELN" });
-    const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("lims")).toBe(true);
-    expect(workspaces.has("eln")).toBe(true);
-    expect(workspaces.get("lims")?.displayName).toBe("LIMS");
-  });
-
-  it("getWorkspaces returns empty map when no workspaces registered", () => {
-    const workspaces = registry.getWorkspaces();
-    expect(workspaces.size).toBe(0);
   });
 
   // ── registerBlock ────────────────────────────────────────────────────────
@@ -794,7 +634,6 @@ describe("ModRegistry", () => {
         label: "Table",
         listensTo: ["data.export"],
         onEvent: { "data.export": () => "exported" },
-        messages: { edited: "spreadsheet updated" },
         getDisplayName: (attrs) => String(attrs.name ?? ""),
         tags: ["data", "table"],
       }),
@@ -807,12 +646,676 @@ describe("ModRegistry", () => {
       expect(binding.listensTo).toEqual(["data.export"]);
       expect(binding.onEvent).toBeDefined();
       expect(binding.onEvent["data.export"]).toBeDefined();
-      expect(binding.messages).toEqual({ edited: "spreadsheet updated" });
       expect(binding.getDisplayName).toBeDefined();
       expect(binding.tags).toEqual(["data", "table"]);
       expect(binding.serialize).toBeDefined();
       expect(binding.deserialize).toBeDefined();
       expect(binding.defaultState).toEqual({});
     }
+  });
+
+  // ── hydrateFromBackend ─────────────────────────────────────────────
+
+  describe("hydrateFromBackend", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("populates workspaces from backend payload", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [{ name: "Name", type: "text" as const }],
+            },
+          ],
+          actions: [
+            { id: "created", label: "Created", action_type: "created" },
+          ],
+        },
+      };
+
+      const manifests = new Map([["lims", makeManifest()]]);
+
+      registry.hydrateFromBackend(payload, manifests);
+
+      const workspaces = registry.getWorkspaces();
+      expect(workspaces.has("lims")).toBe(true);
+
+      const ws = workspaces.get("lims")!;
+      expect(ws.id).toBe("lims");
+      expect(ws.displayName).toBe("LIMS");
+      expect(ws.icon).toBeUndefined();
+      expect(ws.schemaType).toEqual({
+        id: "lims.entity",
+        displayName: "Entity",
+        defaultPrefix: "BLOOD",
+        columns: [{ name: "Name", type: "text" }],
+      });
+    });
+
+    it("hydrates multiple workspaces from backend payload", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [
+            {
+              id: "eln.entry",
+              displayName: "ELN Entry",
+              prefix: "E",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      const manifests = new Map([
+        ["lims", makeManifest({ id: "lims", displayName: "LIMS" })],
+        ["eln", makeManifest({ id: "eln", displayName: "ELN" })],
+      ]);
+
+      registry.hydrateFromBackend(payload, manifests);
+
+      const workspaces = registry.getWorkspaces();
+      expect(workspaces.size).toBe(2);
+      expect(workspaces.get("lims")?.displayName).toBe("LIMS");
+      expect(workspaces.get("eln")?.displayName).toBe("ELN");
+    });
+
+    it("falls back to workspaceId as displayName when manifest is missing", () => {
+      const payload = {
+        external: {
+          workspaceId: "external",
+          schemaTypes: [
+            {
+              id: "external.thing",
+              displayName: "Thing",
+              prefix: "X",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map());
+
+      const ws = registry.getWorkspaces().get("external")!;
+      expect(ws.displayName).toBe("external");
+    });
+
+    it("uses the first schemaType from the array", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "E",
+              columns: [{ name: "Col1", type: "number" as const }],
+            },
+            {
+              id: "lims.sample",
+              displayName: "Sample",
+              prefix: "S",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType?.id).toBe("lims.entity");
+      expect(ws.schemaType?.defaultPrefix).toBe("E");
+    });
+
+    it("handles empty schemaTypes array gracefully", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType).toBeUndefined();
+    });
+
+    it("handles empty payload gracefully", () => {
+      registry.hydrateFromBackend({}, new Map());
+
+      const workspaces = registry.getWorkspaces();
+      expect(workspaces.size).toBe(0);
+    });
+
+    it("correctly maps backend 'prefix' to SchemaTypeConfig 'defaultPrefix'", () => {
+      // Regression: verify the backend prefix → frontend defaultPrefix
+      // mapping so the LIMS prefix drift ("E" vs "BLOOD") is structurally
+      // eliminated.
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType?.defaultPrefix).toBe("BLOOD");
+    });
+
+    it("passes columns through from backend to schemaType", () => {
+      const columns = [
+        { id: "c1", name: "Patient ID", type: "text" as const, required: true },
+        { name: "Hemoglobin", type: "number" as const, units: "g/dL" },
+      ];
+
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns,
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ws = registry.getWorkspaces().get("lims")!;
+      expect(ws.schemaType?.columns).toEqual(columns);
+    });
+
+    it("overwrites workspaces on subsequent hydration calls (last write wins)", () => {
+      // First hydration
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [],
+          },
+        },
+        new Map([["lims", makeManifest({ displayName: "Old LIMS" })]]),
+      );
+
+      expect(registry.getWorkspaces().get("lims")?.displayName).toBe("Old LIMS");
+
+      // Second hydration with updated display name
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      // Hydration overwrites (last write wins)
+      expect(registry.getWorkspaces().get("lims")?.displayName).toBe("LIMS");
+    });
+  });
+
+  // ── Action catalog hydration ────────────────────────────────────────
+
+  describe("action catalog hydration", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("stores actions from backend payload", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [
+            { id: "created", label: "Created", action_type: "created" },
+            { id: "edited", label: "Edited", action_type: "edited" },
+            { id: "deleted", label: "Deleted", action_type: "deleted" },
+          ],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const actions = registry.getActions("lims");
+      expect(actions).toHaveLength(3);
+      expect(actions[0]).toEqual({ id: "created", label: "Created", action_type: "created" });
+      expect(actions[1]).toEqual({ id: "edited", label: "Edited", action_type: "edited" });
+      expect(actions[2]).toEqual({ id: "deleted", label: "Deleted", action_type: "deleted" });
+    });
+
+    it("stores both core and custom actions from backend payload", () => {
+      const payload = {
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [],
+          actions: [
+            { id: "created", label: "Created", action_type: "created" },
+            { id: "eln.entry.status-changed", label: "Status Changed", action_type: "edited" },
+          ],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["eln", makeManifest({ id: "eln" })]]));
+
+      const actions = registry.getActions("eln");
+      expect(actions).toHaveLength(2);
+
+      const coreAction = actions.find((a) => a.id === "created");
+      expect(coreAction).toBeDefined();
+      expect(coreAction!.action_type).toBe("created");
+
+      const customAction = actions.find((a) => a.id === "eln.entry.status-changed");
+      expect(customAction).toBeDefined();
+      expect(customAction!.action_type).toBe("edited");
+      expect(customAction!.label).toBe("Status Changed");
+    });
+
+    it("stores actions for multiple workspaces", () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [{ id: "created", label: "Created", action_type: "created" }],
+        },
+        eln: {
+          workspaceId: "eln",
+          schemaTypes: [],
+          actions: [{ id: "created", label: "Created", action_type: "created" }],
+        },
+      };
+
+      registry.hydrateFromBackend(
+        payload,
+        new Map([
+          ["lims", makeManifest()],
+          ["eln", makeManifest({ id: "eln" })],
+        ]),
+      );
+
+      expect(registry.getActions("lims")).toHaveLength(1);
+      expect(registry.getActions("eln")).toHaveLength(1);
+    });
+
+    it("getActions returns empty array for unknown workspace", () => {
+      const actions = registry.getActions("nonexistent");
+      expect(actions).toEqual([]);
+    });
+
+    it("getActions returns empty array before hydration", () => {
+      const actions = registry.getActions("lims");
+      expect(actions).toEqual([]);
+    });
+
+    it("clears actions when backend returns empty actions array", () => {
+      // First hydration with actions.
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [{ id: "created", label: "Created", action_type: "created" }],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+      expect(registry.getActions("lims")).toHaveLength(1);
+
+      // Second hydration with empty actions — must clear stale data.
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      const actions = registry.getActions("lims");
+      expect(actions).toEqual([]);
+    });
+
+    it("overwrites actions on subsequent hydration calls (last write wins)", () => {
+      // First hydration
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [{ id: "created", label: "Created", action_type: "created" }],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      expect(registry.getActions("lims")).toHaveLength(1);
+
+      // Second hydration with different actions
+      registry.hydrateFromBackend(
+        {
+          lims: {
+            workspaceId: "lims",
+            schemaTypes: [],
+            actions: [
+              { id: "created", label: "Created", action_type: "created" },
+              { id: "lims.sample.registered", label: "Sample Registered", action_type: "edited" },
+            ],
+          },
+        },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      expect(registry.getActions("lims")).toHaveLength(2);
+    });
+  });
+
+  // ── Column type hydration ────────────────────────────────────────────
+
+  describe("column type hydration", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("stores column types from backend payload", () => {
+      const columnTypes = [
+        {
+          id: "text",
+          displayName: "Text",
+          icon: "type",
+          operandShape: "text",
+          defaultValue: "",
+          operators: [
+            { id: "eq", label: "Equals", operandShape: "text", djangoLookupName: "exact" },
+            { id: "contains", label: "Contains", operandShape: "text", djangoLookupName: "icontains" },
+          ],
+        },
+        {
+          id: "number",
+          displayName: "Number",
+          icon: "hash",
+          operandShape: "number",
+          defaultValue: 0,
+          operators: [
+            { id: "eq", label: "Equals", operandShape: "number", djangoLookupName: "exact" },
+          ],
+        },
+      ];
+
+      const payload = {
+        columnTypes,
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      // Column types are stored.
+      expect(registry.getColumnTypes().size).toBe(2);
+      expect(registry.getColumnType("text")).toEqual(columnTypes[0]);
+      expect(registry.getColumnType("number")).toEqual(columnTypes[1]);
+    });
+
+    it("getColumnType returns undefined for unknown type", () => {
+      expect(registry.getColumnType("nonexistent")).toBeUndefined();
+    });
+
+    it("getColumnType returns undefined before hydration", () => {
+      expect(registry.getColumnType("text")).toBeUndefined();
+    });
+
+    it("getColumnTypes returns empty map before hydration", () => {
+      expect(registry.getColumnTypes().size).toBe(0);
+    });
+
+    it("column types are looked up by type ID (lowercase)", () => {
+      const columnTypes = [
+        {
+          id: "boolean",
+          displayName: "Boolean",
+          icon: "toggle-left",
+          operandShape: "boolean",
+          defaultValue: false,
+          operators: [],
+        },
+      ];
+
+      const payload = {
+        columnTypes,
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      const ct = registry.getColumnType("boolean");
+      expect(ct).toBeDefined();
+      expect(ct!.id).toBe("boolean");
+      expect(ct!.displayName).toBe("Boolean");
+    });
+
+    it("column types do not interfere with workspace hydration", () => {
+      const columnTypes = [
+        { id: "text", displayName: "Text", icon: "type", operandShape: "text", defaultValue: "", operators: [] },
+      ];
+
+      const payload = {
+        columnTypes,
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [
+            {
+              id: "lims.entity",
+              displayName: "Entity",
+              prefix: "BLOOD",
+              columns: [],
+            },
+          ],
+          actions: [],
+        },
+      };
+
+      registry.hydrateFromBackend(payload, new Map([["lims", makeManifest()]]));
+
+      // Workspaces still hydrated correctly.
+      expect(registry.getWorkspaces().has("lims")).toBe(true);
+      expect(registry.getWorkspaces().get("lims")?.displayName).toBe("LIMS");
+
+      // Column types hydrated.
+      expect(registry.getColumnTypes().size).toBe(1);
+    });
+
+    it("clears column types on subsequent hydration", () => {
+      const firstTypes = [
+        { id: "text", displayName: "Text", icon: "type", operandShape: "text", defaultValue: "", operators: [] },
+      ];
+
+      registry.hydrateFromBackend(
+        { columnTypes: firstTypes, lims: { workspaceId: "lims", schemaTypes: [], actions: [] } },
+        new Map([["lims", makeManifest()]]),
+      );
+
+      expect(registry.getColumnTypes().size).toBe(1);
+
+      const secondTypes = [
+        { id: "number", displayName: "Number", icon: "hash", operandShape: "number", defaultValue: 0, operators: [] },
+        { id: "date", displayName: "Date", icon: "calendar", operandShape: "date", defaultValue: null, operators: [] },
+      ];
+
+      registry.hydrateFromBackend(
+        { columnTypes: secondTypes },
+        new Map(),
+      );
+
+      // Old types are cleared, new types are stored.
+      expect(registry.getColumnTypes().size).toBe(2);
+      expect(registry.getColumnType("text")).toBeUndefined();
+      expect(registry.getColumnType("number")).toBeDefined();
+      expect(registry.getColumnType("date")).toBeDefined();
+    });
+
+    it("payload with only columnTypes and no workspaces works", () => {
+      const columnTypes = [
+        { id: "text", displayName: "Text", icon: "type", operandShape: "text", defaultValue: "", operators: [] },
+      ];
+
+      registry.hydrateFromBackend({ columnTypes }, new Map());
+
+      expect(registry.getColumnTypes().size).toBe(1);
+      expect(registry.getColumnType("text")).toBeDefined();
+      // Workspaces remain empty.
+      expect(registry.getWorkspaces().size).toBe(0);
+    });
+  });
+
+  // ── loadFromBackend ──────────────────────────────────────────────────
+
+  describe("loadFromBackend", () => {
+    let registry: ModRegistry;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+    });
+
+    it("fetches and hydrates the registry from the API", async () => {
+      const payload = {
+        lims: {
+          workspaceId: "lims",
+          schemaTypes: [],
+          actions: [
+            { id: "created", label: "Created", action_type: "created" },
+            { id: "edited", label: "Edited", action_type: "edited" },
+            { id: "deleted", label: "Deleted", action_type: "deleted" },
+          ],
+        },
+      };
+
+      // Mock fetch to return the payload.
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(payload),
+      });
+
+      try {
+        const manifests = new Map([["lims", makeManifest()]]);
+        await ModRegistry.loadFromBackend(manifests);
+
+        // Workspaces are hydrated.
+        expect(registry.getWorkspaces().has("lims")).toBe(true);
+
+        // Actions are hydrated.
+        const actions = registry.getActions("lims");
+        expect(actions).toHaveLength(3);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles non-ok response gracefully", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      try {
+        const manifests = new Map([["lims", makeManifest()]]);
+        await ModRegistry.loadFromBackend(manifests);
+
+        // Workspaces are NOT hydrated on failure.
+        expect(registry.getWorkspaces().size).toBe(0);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Failed to fetch /api/mod-registry/"),
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("handles network error gracefully", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+
+      try {
+        const manifests = new Map([["lims", makeManifest()]]);
+        await ModRegistry.loadFromBackend(manifests);
+
+        // Workspaces are NOT hydrated on error.
+        expect(registry.getWorkspaces().size).toBe(0);
+        expect(warnSpy).toHaveBeenCalledWith(
+          "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
+          expect.any(Error),
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+        warnSpy.mockRestore();
+      }
+    });
   });
 });

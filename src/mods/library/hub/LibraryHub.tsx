@@ -17,8 +17,9 @@ import Breadcrumbs from "../../../shell/src/shared/components/Breadcrumbs";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
+import type { PropertyField } from "../../../shell/src/shared/components/BaseCard";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { LibraryItemConfig, SlotContext } from "../../../shell/src/mod-system/types";
+import type { SlotContext, SchemaColumnDef } from "../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 
@@ -57,6 +58,7 @@ function folderToEntryShape(folder: {
   return {
     type: "entry", // treat as entry for BaseCard compatibility
     id: folder.id,
+    workspace_id: "",
     display_id: "",
     title: folder.name,
     folder: folder.parent,
@@ -75,16 +77,21 @@ function folderToEntryShape(folder: {
   };
 }
 
-// ── Fallback components ─────────────────────────────────────────────────────
+// ── Schema column → property field adapter ──────────────────────────────────
 
-/** Fallback icon when no library item config is found in the registry. */
-function FallbackIcon() {
-  return <FileText size={18} />;
-}
-
-/** No-op list card for when the registry has no mod-provided component. */
-function NoopListCard() {
-  return null;
+/**
+ * Convert backend schema column definitions into BaseCard property fields.
+ * Each column's name is lowercased for the key so it matches keys in
+ * the entry's ``property_fields`` record.
+ */
+function columnsToPropertyFields(
+  columns: SchemaColumnDef[] | undefined,
+): PropertyField[] {
+  if (!columns || columns.length === 0) return [];
+  return columns.map((col) => ({
+    key: col.name.toLowerCase().replace(/\s+/g, "_"),
+    label: col.name,
+  }));
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -154,12 +161,22 @@ function LibraryHub() {
     [viewMode],
   );
 
-  // ── Registry-driven card config ───────────────────────────────────────
+  // ── Registry-driven card config (generic, from hydrated workspaces) ───
 
   const registry = useMemo(() => ModRegistry.getInstance(), []);
-  const entryConfig: LibraryItemConfig | undefined = useMemo(
-    () => registry.resolveLibraryItem("eln.entry"),
-    [registry],
+  const workspaces = useMemo(() => registry.getWorkspaces(), [registry]);
+
+  /**
+   * Build the property fields for an entry by looking up its workspace's
+   * schema type columns.  Returns an empty array when the workspace or
+   * schema type is not yet hydrated.
+   */
+  const getPropertyFieldsForEntry = useCallback(
+    (entry: LibraryEntryItem): PropertyField[] => {
+      const ws = workspaces.get(entry.workspace_id);
+      return columnsToPropertyFields(ws?.schemaType?.columns);
+    },
+    [workspaces],
   );
 
   // ── Folder navigation ─────────────────────────────────────────────────
@@ -198,8 +215,8 @@ function LibraryHub() {
         navigateToFolder(item.name);
         return;
       }
-      // Entry click → navigate directly to workspace
-      navigate(`/eln/${item.display_id}`);
+      // Entry click → navigate to the entry's workspace
+      navigate(`/${item.workspace_id}/${item.display_id}`);
     },
     [navigateToFolder, navigate],
   );
@@ -241,7 +258,6 @@ function LibraryHub() {
           viewMode={viewMode}
           isSelected={data.selectedId === item.id}
           icon={Folder}
-          listCard={NoopListCard}
           showDescription={false}
           showTags={false}
           showUpdatedAt={false}
@@ -250,8 +266,9 @@ function LibraryHub() {
       );
     }
 
-    // Entry item — resolve card config from registry
+    // Entry item — build card config from workspace schema columns
     const isSelected = data.selectedId === item.id;
+    const propertyFields = getPropertyFieldsForEntry(item);
 
     return (
       <BaseCard
@@ -259,9 +276,8 @@ function LibraryHub() {
         item={item}
         viewMode={viewMode}
         isSelected={isSelected}
-        icon={entryConfig?.icon ?? FallbackIcon}
-        listCard={entryConfig?.listCard ?? NoopListCard}
-        propertyFields={entryConfig?.property_fields}
+        icon={FileText}
+        propertyFields={propertyFields}
         showDescription={true}
         showTags={true}
         showUpdatedAt={true}

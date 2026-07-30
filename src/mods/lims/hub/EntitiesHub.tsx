@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useEffect,
+  type ReactNode,
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -15,15 +16,16 @@ import {
   LayoutList,
   AlignJustify,
   Lock,
-  X,
-  Filter,
-  Plus,
 } from "lucide-react";
 import type { SlotContext } from "../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { StatusBadge } from "../../../shell/src/shared/components/StatusBadge";
-import { relativeTime } from "../../../shell/src/shared/format";
+import { relativeTime, formatDate } from "../../../shell/src/shared/format";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { deriveDropdownColor } from "../../dropdowns/colourUtils";
+import { listDropdowns } from "../../dropdowns/api";
 import { getEntities, getSchemaTypes, getSchemas } from "./api";
 import type { EntityHubFilters } from "./api";
 import type {
@@ -44,6 +46,12 @@ import {
   isColumnLocked,
   getLockedCount,
 } from "./columnLock";
+import {
+  FilterBar,
+  serializeFilter,
+  deserializeFilter,
+  type FilterRow,
+} from "./FilterBar";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -137,9 +145,18 @@ function EntitiesHub() {
   const schemaParam = searchParams.get("schema") || "";
   const statusParam = searchParams.get("status") || "";
   const sortParam = searchParams.get("sort") || "";
-  const fieldFilters = searchParams.getAll("f");
-  // Stabilize array reference so it doesn't trigger fetchData recreation
-  const fieldFiltersKey = fieldFilters.join(",");
+  const fieldFiltersRaw = searchParams.getAll("f");
+  // Parse into structured filter rows (new format: column:operator:value)
+  // and legacy filters (old format: key:value → eq operator).
+  const fieldFilters = useMemo(() => {
+    let nextId = 0;
+    return fieldFiltersRaw.map((raw) => deserializeFilter(raw, nextId++));
+  }, [fieldFiltersRaw]);
+  // Stabilize the serialized form so it doesn't trigger fetchData recreation
+  const fieldFiltersKey = useMemo(
+    () => fieldFilters.map(serializeFilter).join(","),
+    [fieldFilters],
+  );
   const pageParam = parseInt(searchParams.get("page") || "1", 10);
   const sizeParam = parseInt(searchParams.get("size") || "50", 10);
 
@@ -243,16 +260,20 @@ function EntitiesHub() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Schema types & schemas for dropdowns ────────────────────────────────
+  // ── Schema types, schemas & dropdowns ──────────────────────────────────
 
   const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
   const [schemas, setSchemas] = useState<Schema[]>([]);
+  const [dropdowns, setDropdowns] = useState<
+    { id: number; options: string[] }[]
+  >([]);
 
   useEffect(() => {
-    Promise.all([getSchemaTypes(), getSchemas()])
-      .then(([types, schemaList]) => {
+    Promise.all([getSchemaTypes(), getSchemas(), listDropdowns()])
+      .then(([types, schemaList, dropdownList]) => {
         setSchemaTypes(types);
         setSchemas(schemaList);
+        setDropdowns(dropdownList);
       })
       .catch(() => {
         // Dropdowns fall back to empty — user can still type search
@@ -268,27 +289,22 @@ function EntitiesHub() {
     }));
   }, [schemaTypes, schemas]);
 
-  // ── Fields popover state ────────────────────────────────────────────────
+  // ── Filter bar state (operator-aware) ──────────────────────────────────
 
-  const [fieldsPopoverOpen, setFieldsPopoverOpen] = useState(false);
-  const fieldsPopoverRef = useRef<HTMLDivElement>(null);
-  const [fieldKey, setFieldKey] = useState("");
-  const [fieldValue, setFieldValue] = useState("");
-
-  // Close popover on outside click
-  useEffect(() => {
-    if (!fieldsPopoverOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (
-        fieldsPopoverRef.current &&
-        !fieldsPopoverRef.current.contains(e.target as Node)
-      ) {
-        setFieldsPopoverOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [fieldsPopoverOpen]);
+  const handleFiltersChange = useCallback(
+    (newFilters: FilterRow[]) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("f");
+        for (const f of newFilters) {
+          next.append("f", serializeFilter(f));
+        }
+        next.set("page", "1");
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   // ── Fetch data when URL params change ───────────────────────────────────
 
@@ -306,7 +322,11 @@ function EntitiesHub() {
       if (schemaParam) filters.schema = schemaParam;
       if (statusParam) filters.status = statusParam;
       if (sortParam) filters.sort = sortParam;
-      if (fieldFilters.length > 0) filters.f = fieldFilters;
+      if (fieldFilters.length > 0) {
+        filters.f = fieldFilters
+          .filter((f) => f.column && f.operator)
+          .map(serializeFilter);
+      }
       const response = await getEntities(filters);
       setData(response);
     } catch (err) {
@@ -337,39 +357,6 @@ function EntitiesHub() {
         if (key !== "page") {
           next.set("page", "1");
         }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
-
-  const addFieldFilter = useCallback(
-    (key: string, value: string) => {
-      if (!key.trim() || !value.trim()) return;
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.append("f", `${key.trim()}:${value.trim()}`);
-        next.set("page", "1");
-        return next;
-      });
-      setFieldKey("");
-      setFieldValue("");
-    },
-    [setSearchParams],
-  );
-
-  const removeFieldFilter = useCallback(
-    (index: number) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("f");
-        const all = prev.getAll("f");
-        for (let i = 0; i < all.length; i++) {
-          if (i !== index) {
-            next.append("f", all[i]);
-          }
-        }
-        next.set("page", "1");
         return next;
       });
     },
@@ -525,9 +512,126 @@ function EntitiesHub() {
     return offset;
   }
 
+  // ── Column type icon resolver ─────────────────────────────────────────
+
+  /** Look up the Lucide icon for a column type from the registry. */
+  function resolveColumnIcon(col: HubColumn): ReactNode {
+    const iconName =
+      col.icon ?? ModRegistry.getInstance().getColumnType(col.type)?.icon;
+    if (!iconName) return null;
+    const IconComponent = getColumnTypeIcon(iconName);
+    if (!IconComponent) return null;
+    return (
+      <IconComponent
+        className="entities-th-type-icon"
+        size={13}
+        aria-hidden="true"
+      />
+    );
+  }
+
   // ── Cell renderer ────────────────────────────────────────────────────────
 
+  /** Format a value as a locale-aware date-only string. */
+  function formatDateOnly(value: unknown): string {
+    if (typeof value !== "string") return String(value);
+    try {
+      // Extract the date portion (YYYY-MM-DD) in case the value is a full
+      // ISO datetime string like "2025-03-15T14:30:00Z".
+      const datePart = value.slice(0, 10);
+      const date = new Date(datePart + "T00:00:00");
+      if (isNaN(date.getTime())) return value;
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return value;
+    }
+  }
+
+  /** Format a value as a locale-aware date+time string. */
+  function formatDateTime(value: unknown): string {
+    if (typeof value !== "string") return String(value);
+    try {
+      return formatDate(value);
+    } catch {
+      return value;
+    }
+  }
+
+  /** Render a dropdown-type value as a coloured badge using hash-based colour. */
+  function renderSelectBadge(value: string): ReactNode {
+    const color = deriveDropdownColor(value);
+    return (
+      <span
+        className="entities-select-badge"
+        style={{
+          backgroundColor: color.bg,
+          color: color.fg,
+        }}
+      >
+        {value}
+      </span>
+    );
+  }
+
+  /** Render a schema property cell based on the column type from the registry. */
+  function renderTypedCell(item: EntityHubItem, col: HubColumn): ReactNode {
+    const value = item._expanded?.[col.key];
+    if (value === null || value === undefined) return "—";
+
+    switch (col.type) {
+      case "text":
+        return String(value);
+      case "number": {
+        if (typeof value === "number") return value.toLocaleString("en-US");
+        const num = Number(value);
+        if (Number.isNaN(num)) return String(value);
+        return num.toLocaleString("en-US");
+      }
+      case "date":
+        return formatDateOnly(value);
+      case "datetime":
+        return formatDateTime(value);
+      case "boolean":
+        return value ? "Yes" : "No";
+      case "dropdown":
+        return renderSelectBadge(String(value));
+      case "reference":
+        return (
+          <a
+            className="entities-ref-link"
+            href={`/${item.workspace_id}/${String(value)}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/${item.workspace_id}/${String(value)}`);
+            }}
+          >
+            {String(value)}
+          </a>
+        );
+      case "user":
+        return (
+          <a
+            className="entities-user-link"
+            href="/profile"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate("/profile");
+            }}
+          >
+            {String(value)}
+          </a>
+        );
+      default:
+        return String(value);
+    }
+  }
+
   function renderCell(item: EntityHubItem, col: HubColumn) {
+    // System columns retain specialized (non-generic) rendering
     switch (col.key) {
       case "display_id":
         return (
@@ -551,19 +655,35 @@ function EntitiesHub() {
         return relativeTime(item.created_at);
       case "updated_at":
         return relativeTime(item.updated_at);
-      default: {
-        // Schema or schema_type properties column — read from _expanded
-        const value = item._expanded?.[col.key];
-        if (value === null || value === undefined) return "—";
-        if (typeof value === "boolean") return value ? "Yes" : "No";
-        return String(value);
-      }
+      default:
+        // Schema property columns — dispatch on column type from registry
+        return renderTypedCell(item, col);
     }
   }
 
   // ── Available columns from response (for Fields popover) ─────────────────
 
   const availableColumns: AvailableColumn[] = data?.available_columns || [];
+
+  // ── Build dropdown options map (column key → option strings) ────────────
+
+  const dropdownOptionsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (dropdowns.length === 0) return map;
+    const optionsById = new Map<number, string[]>();
+    for (const d of dropdowns) {
+      optionsById.set(d.id, d.options);
+    }
+    for (const col of availableColumns) {
+      if (col.type === "dropdown" && col.dropdownId) {
+        const opts = optionsById.get(col.dropdownId);
+        if (opts) {
+          map.set(col.key, opts);
+        }
+      }
+    }
+    return map;
+  }, [availableColumns, dropdowns]);
 
   // ── Build merged columns (common + schema_type + schema) ──────────────────
 
@@ -580,19 +700,10 @@ function EntitiesHub() {
     );
   }, [allColumns, columnVisibility]);
 
-  // Parse existing field filters into {key, value} pairs for chips
-  const parsedFieldFilters = useMemo(() => {
-    return fieldFilters
-      .map((f) => {
-        const colonIdx = f.indexOf(":");
-        if (colonIdx === -1) return null;
-        return {
-          key: f.slice(0, colonIdx),
-          value: f.slice(colonIdx + 1),
-        };
-      })
-      .filter(Boolean) as { key: string; value: string }[];
-  }, [fieldFilters]);
+  // Active filter count for the badge
+  const activeFilterCount = fieldFilters.filter(
+    (f) => f.column && f.operator,
+  ).length;
 
   // ── Has any filter active? ───────────────────────────────────────────────
 
@@ -601,7 +712,7 @@ function EntitiesHub() {
     schemaTypeParam !== "" ||
     schemaParam !== "" ||
     statusParam !== "" ||
-    fieldFilters.length > 0 ||
+    activeFilterCount > 0 ||
     sortParam !== "";
 
   // ── Loading state ────────────────────────────────────────────────────────
@@ -740,118 +851,6 @@ function EntitiesHub() {
               </select>
             </div>
 
-            {/* Fields popover */}
-            <div
-              className="entities-filter-fields-wrap"
-              ref={fieldsPopoverRef}
-            >
-              <button
-                className="entities-filter-fields-btn"
-                type="button"
-                onClick={() => setFieldsPopoverOpen((prev) => !prev)}
-              >
-                <Filter size={14} />
-                Fields
-                {parsedFieldFilters.length > 0 && (
-                  <span className="entities-filter-fields-count">
-                    {parsedFieldFilters.length}
-                  </span>
-                )}
-              </button>
-              {fieldsPopoverOpen && (
-                <div className="entities-filter-fields-popover">
-                  <div className="entities-filter-fields-popover-header">
-                    Field Filters
-                  </div>
-                  {availableColumns.length > 0 ? (
-                    <div className="entities-filter-fields-popover-body">
-                      {/* Add a new field filter */}
-                      <div className="entities-filter-fields-add">
-                        <select
-                          className="entities-filter-select"
-                          value={fieldKey}
-                          onChange={(e) => setFieldKey(e.target.value)}
-                        >
-                          <option value="">Select field…</option>
-                          {availableColumns
-                            .filter((c) => c.source !== "common" || c.key === "name")
-                            .map((col) => (
-                              <option key={col.key} value={col.key}>
-                                {col.label}
-                              </option>
-                            ))}
-                        </select>
-                        <input
-                          className="entities-filter-search"
-                          type="text"
-                          placeholder="Value…"
-                          value={fieldValue}
-                          onChange={(e) => setFieldValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              addFieldFilter(fieldKey, fieldValue);
-                            }
-                          }}
-                        />
-                        <button
-                          className="entities-filter-fields-add-btn"
-                          type="button"
-                          onClick={() => addFieldFilter(fieldKey, fieldValue)}
-                          title="Add filter"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-
-                      {/* Existing field filters */}
-                      {parsedFieldFilters.length > 0 && (
-                        <div className="entities-filter-fields-existing">
-                          <div className="entities-filter-fields-existing-label">
-                            Active field filters:
-                          </div>
-                          {parsedFieldFilters.map((ff, i) => {
-                            const fieldIdx = fieldFilters.indexOf(
-                              `${ff.key}:${ff.value}`,
-                            );
-                            return (
-                              <div
-                                key={`${ff.key}:${ff.value}-${i}`}
-                                className="entities-filter-field-chip"
-                              >
-                                <span className="entities-filter-field-chip-key">
-                                  {ff.key}
-                                </span>
-                                <span className="entities-filter-field-chip-sep">
-                                  =
-                                </span>
-                                <span className="entities-filter-field-chip-value">
-                                  {ff.value}
-                                </span>
-                                <button
-                                  className="entities-filter-field-chip-remove"
-                                  type="button"
-                                  onClick={() =>
-                                    removeFieldFilter(fieldIdx)
-                                  }
-                                  title="Remove filter"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="entities-filter-fields-popover-empty">
-                      No fields available. Select a schema to see its fields.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* Sort button */}
             <button
               className={`entities-filter-sort-btn${sortParam ? " is-active" : ""}`}
@@ -902,48 +901,15 @@ function EntitiesHub() {
           </div>
         </div>
 
-        {/* ── Active field filter chips (below filter bar) ────────────────── */}
-        {parsedFieldFilters.length > 0 && (
-          <div className="entities-filter-chips">
-            {parsedFieldFilters.map((ff, i) => {
-              const fieldIdx = fieldFilters.indexOf(`${ff.key}:${ff.value}`);
-              return (
-                <span
-                  key={`chip-${ff.key}:${ff.value}-${i}`}
-                  className="entities-filter-chip"
-                >
-                  <span className="entities-filter-chip-key">{ff.key}</span>
-                  <span className="entities-filter-chip-sep">:</span>
-                  <span className="entities-filter-chip-value">{ff.value}</span>
-                  <button
-                    className="entities-filter-chip-remove"
-                    type="button"
-                    onClick={() => removeFieldFilter(fieldIdx)}
-                    title="Remove filter"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              );
-            })}
-            {parsedFieldFilters.length > 0 && (
-              <button
-                className="entities-filter-chip-clear-all"
-                type="button"
-                onClick={() => {
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.delete("f");
-                    next.set("page", "1");
-                    return next;
-                  });
-                }}
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        )}
+        {/* ── Filter pills row (operator-aware, below the search bar) ──── */}
+        <div className="entities-filter-pills-row">
+          <FilterBar
+            availableColumns={availableColumns}
+            filters={fieldFilters}
+            onFiltersChange={handleFiltersChange}
+            dropdownOptionsMap={dropdownOptionsMap}
+          />
+        </div>
 
         {/* ── Error state ────────────────────────────────────────────────── */}
         {error && <div className="error">{error}</div>}
@@ -996,7 +962,10 @@ function EntitiesHub() {
                           }
                         >
                           <span className="entities-th-content">
-                            {col.label}
+                            <span className="entities-th-label">
+                              {resolveColumnIcon(col)}
+                              {col.label}
+                            </span>
                             {renderSortIcon(col.key)}
                             {col.hideable && (
                               <button

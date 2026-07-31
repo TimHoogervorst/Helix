@@ -280,6 +280,16 @@ export interface BlockComponentProps {
   instance: BlockInstance;
   /** Binding-level overrides merged from slot defaults and per-binding config. */
   overrides: Record<string, unknown>;
+  /**
+   * Typed emitters for every entry in the block's ``emits`` array.
+   *
+   * Set by the renderer (BlockNodeView / PanelRenderer / TabRenderer) at
+   * render time.  Each emitter's ``fire(payload)`` method constructs a
+   * ``BlockEvent``-shaped payload and dispatches it on the workspace bus.
+   *
+   * Example: ``props.emits.entitiesRegistered.fire({ count: 5 })``
+   */
+  emits?: Record<string, { fire: (payload: Record<string, unknown>) => void }>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

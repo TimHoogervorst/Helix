@@ -1,15 +1,6 @@
 export { ModLoader } from "./ModLoader";
-export { ModRegistry } from "./ModRegistry";
 export { Mod } from "./Mod";
 export { BlockEvent } from "./BlockEvent";
-export { registerHub } from "./registerHub";
-export { registerSettingsSection } from "./registerSettingsSection";
-export { registerRoute } from "./registerRoute";
-export { registerPublicRoute } from "./registerPublicRoute";
-export { registerBlock } from "./registerBlock";
-export { declareSlot } from "./declareSlot";
-export { registerButton } from "./registerButton";
-export { registerIntoSlot } from "./registerIntoSlot";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
 export type {
   ModManifest,

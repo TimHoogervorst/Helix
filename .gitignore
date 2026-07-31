@@ -50,3 +50,4 @@ docs/protoypes/
 .mcp.json
 .docs
 src/shell/test-results/.last-run.json
+.opencode/*

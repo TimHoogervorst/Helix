@@ -46,31 +46,6 @@ def register():
 
     registry.register_action_model("eln", ElnAction)
 
-    # ── Block-level action types ──────────────────────────────────────────
-    # Register each block type × verb as a custom action so that
-    # POST /api/actions/ validates block-level action types sent via
-    # sendAction() (see #327 — Migrate ELN Block Pipeline to sendAction).
-    _BLOCK_ACTION_VERBS = {
-        "created": "Created",
-        "edited": "Edited",
-        "deleted": "Deleted",
-    }
-    _BLOCK_IDS = [
-        "table",
-        "comment",
-        "protocol",
-        "registry-table",
-    ]
-    for block_id in _BLOCK_IDS:
-        for verb, label in _BLOCK_ACTION_VERBS.items():
-            registry.register_custom_action(
-                mod_id="eln",
-                action_id=f"eln.{block_id}.{verb}",
-                label=f"{block_id.replace('-', ' ').title()} {label}",
-                core=verb,
-                target_model="mods.eln.models.NotebookEntry",
-            )
-
     # ── Entry-level custom actions ───────────────────────────────────────
     # Actions used by @logs_action decorators in views.py.  Must be
     # registered before the views are imported.
@@ -85,26 +60,6 @@ def register():
         mod_id="eln",
         action_id="eln.entry.tag_detached",
         label="Tag Detached",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
-
-    # ── Registry-table custom actions ────────────────────────────────────
-    # Actions triggered by user interactions in the Registry Table block
-    # (register entities, add new row).  Both map to the "edited" core
-    # verb because they modify the entry's registry data, not create or
-    # delete the entry itself.
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.registry-table.registered-entities",
-        label="Registered Entities",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.registry-table.row-added",
-        label="Row Added",
         core="edited",
         target_model="mods.eln.models.NotebookEntry",
     )

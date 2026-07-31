@@ -218,6 +218,31 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const BlockComponent = binding.component;
 
+  // ── Typed emitters ────────────────────────────────────────────────────
+
+  // Build typed emitter functions from the binding's emits declarations.
+  // Each emitter's fire() constructs a BlockEvent-shaped payload and
+  // dispatches it on the workspace bus.  UI events (category: "ui") stay
+  // on the bus; action events are picked up by the accumulator.
+  const emits: Record<string, { fire: (payload: Record<string, unknown>) => void }> =
+    {};
+  if (binding.emits) {
+    for (const e of binding.emits) {
+      emits[e.id] = {
+        fire: (payload: Record<string, unknown>) => {
+          bus.emit(`${binding.id}.${e.id}`, {
+            blockInstanceId: instanceRef.current.id,
+            blockId: binding.id,
+            localId: e.id,
+            category: e.category,
+            core: e.core,
+            payload,
+          });
+        },
+      };
+    }
+  }
+
   // Augment context with a block-specific emitAction that derives the
   // global action ID as {blockId}.{localId} and emits on the workspace bus.
   const augmentedContext: SlotContext = useMemo(
@@ -260,6 +285,7 @@ export function BlockNodeView(props: BlockNodeViewProps) {
         context={augmentedContext}
         instance={instanceRef.current}
         overrides={binding.overrides}
+        emits={emits}
       />
     </NodeViewWrapper>
   );

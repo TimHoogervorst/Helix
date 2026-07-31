@@ -605,3 +605,33 @@ class ModRegistryView(APIView):
 
         payload = registry.get_registry_payload()
         return Response(payload)
+
+    def post(self, request):
+        """Sync frontend block action IDs into the backend action catalog.
+
+        ``POST /api/mod-registry/sync-actions/`` accepts a mod ID and a
+        list of action objects (``{"id": str, "core": str}``), atomically
+        replaces all custom actions for the mod, derives human-readable
+        labels, and validates that every provided action ID exists in the
+        catalog after upsert.
+
+        Hard-fails (400) when any action IDs are missing from the catalog
+        after the sync — the frontend treats this as a boot error.
+        """
+        from helix_core.mod_system.registry import registry
+
+        mod_id = request.data.get("mod_id")
+        actions = request.data.get("actions", [])
+
+        if not mod_id:
+            return Response(
+                {"status": "error", "error": "mod_id is required"},
+                status=400,
+            )
+
+        result = registry.sync_actions(mod_id, actions)
+
+        if result["status"] == "error":
+            return Response(result, status=400)
+
+        return Response(result)

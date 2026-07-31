@@ -190,6 +190,23 @@ async function hydrateRegistryFromApi(
   // which returns workspace data keyed by mod name (e.g. "lims", "eln").
   const manifests = new Map(mods.map((m) => [m.meta.name, m.meta]));
 
+  const registry = ModRegistry.getInstance();
+
+  // Step 1: Sync frontend-computed action IDs to the backend so the
+  // action catalog is up-to-date before we fetch it.  Hard-fails on
+  // validation mismatch — boot does not proceed with a stale catalog.
+  try {
+    await registry.syncActions();
+  } catch (err) {
+    console.error(
+      "Action sync to backend failed. Boot cannot proceed with a stale action catalog.",
+      err,
+    );
+    throw err;
+  }
+
+  // Step 2: Fetch GET /api/mod-registry/ and hydrate workspace +
+  // action catalog data from the backend response.
   await ModRegistry.loadFromBackend(manifests);
 }
 

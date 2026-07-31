@@ -213,6 +213,11 @@ export function useActionAccumulator({
           // Label resolved from the backend action catalog; falls back to the
           // action string when no catalog entry exists.
           const emitDecl = emitMap.get(localId);
+
+          // UI events (category === "ui") stay on the bus for in-workspace
+          // communication but are never accumulated or flushed to the backend.
+          if (emitDecl?.category === "ui") return;
+
           const action = `${blockId}.${localId}`;
           const catalog = ModRegistry.getInstance().getActions(workspaceId);
           const message = ModRegistry.resolveActionLabel(action, catalog);

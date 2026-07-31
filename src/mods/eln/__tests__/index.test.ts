@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  ModRegistry,
-  type SlotDeclaration,
-  type ButtonRegistration,
-  type SlotBinding,
-} from "../../../shell/src/mod-system";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import type {
+  SlotDeclaration,
+  ButtonRegistration,
+  SlotBinding,
+} from "../../../shell/src/mod-system/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

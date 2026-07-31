@@ -12,7 +12,7 @@ import { Node } from "@tiptap/core";
 import UnifiedSuggestion from "../UnifiedSuggestion";
 import Reference from "../Reference";
 import { createTestEditor } from "../../../../../shell/src/test/factories";
-import { ModRegistry } from "../../../../../shell/src/mod-system";
+import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
 
 // ── Test block node (matches SlashCommands test) ─────────────────────
 

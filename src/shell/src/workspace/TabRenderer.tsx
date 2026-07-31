@@ -92,6 +92,26 @@ function TabContent({
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
+  // Build typed emitter functions from the binding's emits declarations.
+  const emits: Record<string, { fire: (payload: Record<string, unknown>) => void }> =
+    {};
+  if (binding.emits) {
+    for (const e of binding.emits) {
+      emits[e.id] = {
+        fire: (payload: Record<string, unknown>) => {
+          bus.emit(`${binding.id}.${e.id}`, {
+            blockInstanceId: instance.id,
+            blockId: binding.id,
+            localId: e.id,
+            category: e.category,
+            core: e.core,
+            payload,
+          });
+        },
+      };
+    }
+  }
+
   // Augment context with a block-specific emitAction that derives the
   // global action ID as {blockId}.{localId} and emits on the workspace bus.
   const augmentedContext: SlotContext = useMemo(
@@ -115,6 +135,7 @@ function TabContent({
         context={augmentedContext}
         instance={instance}
         overrides={binding.overrides}
+        emits={emits}
       />
     </div>
   );

@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Node } from "@tiptap/core";
 import SlashCommands from "../SlashCommands";
 import { createTestEditor } from "../../../../../shell/src/test/factories";
-import { ModRegistry } from "../../../../../shell/src/mod-system";
+import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
 
 /** Minimal inline TipTap node for testing — matches the block ID used in registerTableBlock. */
 const TestTableNode = Node.create({

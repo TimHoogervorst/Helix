@@ -1586,7 +1586,9 @@ describe("TipTapRenderer", () => {
         expect(mockFlush).toHaveBeenCalled();
       });
 
-      // Verify the custom action was flushed with the correct metadata
+      // Verify the custom action was flushed with the correct metadata.
+      // The label is resolved from the backend action catalog; when no catalog
+      // entry exists (as in this test), it falls back to the raw action string.
       const customActionCall = mockFlush.mock.calls.find(
         (c: unknown[]) => c[0] === "eln.registry-table.row-added",
       );
@@ -1594,7 +1596,7 @@ describe("TipTapRenderer", () => {
       expect(customActionCall![1]).toBe("eln.entry");
       expect(customActionCall![2]).toBe(42);
       expect(customActionCall![3]).toEqual({
-        message: "Row Added",
+        message: "eln.registry-table.row-added",
         rowCount: 3,
       });
     });

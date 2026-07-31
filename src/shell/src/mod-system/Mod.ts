@@ -20,9 +20,9 @@ import type {
  * automatically from ``manifest.name + "." + localName`` and delegate
  * storage to the internal {@link ModRegistry}.
  *
- * The standalone ``registerBlock()``, ``declareSlot()``, etc. functions
- * continue to work alongside the ``Mod`` class — both APIs populate the
- * same singleton registry.
+ * Mods import ``Mod`` directly; ``ModRegistry`` and the standalone
+ * ``registerBlock()`` / ``declareSlot()`` / etc. functions are no longer
+ * part of the public API.
  *
  * ## Example
  *
@@ -168,6 +168,52 @@ export class Mod {
       overrides,
       order,
     );
+  }
+
+  // ── Cross-mod slot lookup ────────────────────────────────────────────
+
+  /**
+   * Resolve a slot declared by another mod at runtime.
+   *
+   * The ``qualifiedModId`` is the fully-qualified ``vendor.name`` identity
+   * (e.g. ``"helix.eln"``).  The ``slotName`` is the local slot name within
+   * that mod (e.g. ``"editor"``).  Together they resolve to the global slot
+   * ID ``"eln.editor"``.
+   *
+   * Returns a {@link SlotHandle} when the slot exists so the caller can pass
+   * it to {@link registerIntoSlot}.  Returns ``undefined`` when the target
+   * mod or slot is not found, or when the slot hasn't been declared yet.
+   *
+   * The ``dependsOn`` manifest field guarantees the target mod loads first,
+   * so the slot is always registered before the consumer queries it.
+   *
+   * **Example:**
+   *
+   * .. code-block:: ts
+   *
+   *    const editorSlot = mod.resolveSlot("helix.eln", "editor");
+   *    if (editorSlot) {
+   *      mod.registerIntoSlot(editorSlot, myBlock);
+   *    }
+   */
+  resolveSlot(qualifiedModId: string, slotName: string): SlotHandle | undefined {
+    // Derive the target mod's manifest name from the qualified ID.
+    // Qualified mod ID is "vendor.name" (e.g. "helix.eln"); the manifest
+    // name is everything after the first dot (e.g. "eln").
+    const targetModName = qualifiedModId.substring(
+      qualifiedModId.indexOf(".") + 1,
+    );
+    const globalSlotId = `${targetModName}.${slotName}`;
+
+    const slot = ModRegistry.getInstance().getSlots().get(globalSlotId);
+    if (!slot) return undefined;
+
+    return {
+      __brand: "SlotHandle" as const,
+      globalId: slot.id,
+      modId: qualifiedModId,
+      accepts: slot.accepts,
+    };
   }
 
   // ── Hub ───────────────────────────────────────────────────────────────

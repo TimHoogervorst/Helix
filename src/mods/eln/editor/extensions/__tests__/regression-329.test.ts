@@ -23,7 +23,7 @@ import UnifiedSuggestion from "../UnifiedSuggestion";
 import Reference from "../Reference";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { ModRegistry } from "../../../../../shell/src/mod-system";
+import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
 
 // ── Test block node ──────────────────────────────────────────────────
 

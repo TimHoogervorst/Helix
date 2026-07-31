@@ -1,15 +1,18 @@
 import { lazy } from "react";
 import { List } from "lucide-react";
-import { registerSettingsSection } from "../../shell/src/mod-system";
+import { Mod } from "../../shell/src/mod-system/Mod";
+import type { ModManifest } from "../../shell/src/mod-system/types";
+import manifest from "./modManifest.json";
 
-export function register() {
-  // ── Settings: Dropdown management ────────────────────────────────────
-  registerSettingsSection({
-    id: "dropdowns.manage",
-    modId: "dropdowns",
-    label: "Dropdowns",
-    icon: List,
-    component: lazy(() => import("./settings/DropdownSettings")),
-    order: 30,
-  });
-}
+const mod = new Mod(manifest as ModManifest);
+
+// ── Settings: Dropdown management ────────────────────────────────────
+mod.registerSettingsSection("manage", {
+  label: "Dropdowns",
+  icon: List,
+  component: lazy(() => import("./settings/DropdownSettings")),
+  order: 30,
+});
+
+/** No-op — all registrations happen at module scope via the Mod class. */
+export function register() {}

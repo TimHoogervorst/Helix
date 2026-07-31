@@ -209,11 +209,13 @@ export function useActionAccumulator({
           };
           const { blockInstanceId, blockId, localId } = p;
 
-          // Resolve display label and core action_type from the emit declaration.
-          // Falls back to the localId and "created" when no declaration matches.
+          // Resolve core action_type from the emit declaration.
+          // Label resolved from the backend action catalog; falls back to the
+          // action string when no catalog entry exists.
           const emitDecl = emitMap.get(localId);
           const action = `${blockId}.${localId}`;
-          const message = emitDecl?.label ?? action;
+          const catalog = ModRegistry.getInstance().getActions(workspaceId);
+          const message = ModRegistry.resolveActionLabel(action, catalog);
           const coreVerb = emitDecl?.core ?? "created";
 
           const pending = pendingRef.current;

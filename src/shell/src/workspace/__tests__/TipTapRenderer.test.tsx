@@ -3,6 +3,7 @@ import { render, waitFor, act } from "@testing-library/react";
 import { TipTapRenderer } from "../TipTapRenderer/TipTapRenderer";
 import { createBlockNode } from "../TipTapRenderer/createBlockNode";
 import { WorkspaceBus } from "../WorkspaceBus";
+import { BlockEvent } from "../../mod-system/BlockEvent";
 import type {
   BlockBinding,
   SlotContext,
@@ -1529,7 +1530,7 @@ describe("TipTapRenderer", () => {
           label: "Registry Table",
           component: TestBlock,
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" as const },
+            BlockEvent.action({ id: "row-added", core: "created" }),
           ],
         }),
       ];
@@ -1607,7 +1608,7 @@ describe("TipTapRenderer", () => {
           label: "Registry Table",
           component: TestBlock,
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" as const },
+            BlockEvent.action({ id: "row-added", core: "created" }),
           ],
         }),
       ];
@@ -1760,8 +1761,8 @@ describe("TipTapRenderer", () => {
           label: "Registry Table",
           component: TestBlock,
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" as const },
-            { id: "registered-entities", label: "Entities Registered", core: "created" as const },
+            BlockEvent.action({ id: "row-added", core: "created" }),
+            BlockEvent.action({ id: "registered-entities", core: "created" }),
           ],
         }),
       ];
@@ -1841,7 +1842,7 @@ describe("TipTapRenderer", () => {
           label: "Registry Table",
           component: TestBlock,
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" as const },
+            BlockEvent.action({ id: "row-added", core: "created" }),
           ],
         }),
       ];

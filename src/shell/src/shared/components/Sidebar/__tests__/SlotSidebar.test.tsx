@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { SlotSidebar } from "../SlotSidebar";
 import { ModRegistry } from "../../../../mod-system/ModRegistry";
 import { WorkspaceBus } from "../../../../workspace/WorkspaceBus";
+import { BlockEvent } from "../../../../mod-system/BlockEvent";
 import type {
   SlotContext,
   BlockBinding,
@@ -273,7 +274,7 @@ describe("SlotSidebar", () => {
           label: "Test Block",
           component: EmitActionTestBlock,
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" as const },
+            BlockEvent.action({ id: "row-added", core: "created" }),
           ],
         }),
       ];
@@ -311,7 +312,7 @@ describe("SlotSidebar", () => {
           label: "Test Block",
           component: EmitTestBlock,
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" as const },
+            BlockEvent.action({ id: "row-added", core: "created" }),
           ],
         }),
       ];

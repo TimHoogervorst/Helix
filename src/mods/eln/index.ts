@@ -1,13 +1,8 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks, Download, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
-import {
-  registerRoute,
-  registerBlock,
-  registerSettingsSection,
-  declareSlot,
-  registerButton,
-  registerIntoSlot,
-} from "../../shell/src/mod-system";
+import { FlaskConical, ListChecks, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
+import { Mod } from "../../shell/src/mod-system/Mod";
+import { BlockEvent } from "../../shell/src/mod-system/BlockEvent";
+import type { ModManifest } from "../../shell/src/mod-system/types";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
@@ -19,233 +14,222 @@ import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFee
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
+import manifest from "./modManifest.json";
 
-export function register() {
-  // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
-  declareSlot({
-    id: "eln.header-actions",
-    accepts: "button",
-    renderer: ButtonGroupRenderer,
-    layout: "horizontal",
-    order: 0,
-    defaults: {},
-  });
+const mod = new Mod(manifest as ModManifest);
 
-  // ── Standalone route: entry detail page (full workspace) ──────────────
-  registerRoute({
-    id: "eln.entry-page",
-    modId: "eln",
-    path: "/eln/:id",
-    component: lazy(() => import("./workspace/ElnWorkspacePage")),
-  });
+// ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
+mod.declareSlot("header-actions", {
+  accepts: "button",
+  renderer: ButtonGroupRenderer,
+  layout: "horizontal",
+  order: 0,
+  defaults: {},
+});
 
-  // ── Slot: ELN Editor ────────────────────────────────────
-  declareSlot({
-    id: "eln.editor",
-    accepts: "block",
-    renderer: TipTapRenderer,
-    layout: "vertical",
-    order: 0,
-    defaults: {},
-  });
+// ── Standalone route: entry detail page (full workspace) ──────────────
+mod.registerRoute("entry-page", {
+  path: "/eln/:id",
+  component: lazy(() => import("./workspace/ElnWorkspacePage")),
+});
 
-  // ── Block: Table (new shape, slot-ready) ─────────────────────────────
-  registerBlock({
-    id: "eln.table",
-    label: "Table",
-    icon: Table,
-    component: TableBlockComponent,
-    listensTo: [],
-    onEvent: {},
-    emits: [],
-    tags: ["data", "spreadsheet"],
-    getDisplayName: (attrs) => (attrs.title as string) || "Table",
-    serialize: (state) => JSON.stringify(state),
-    deserialize: (json) => {
-      try { return JSON.parse(json); } catch { return {}; }
-    },
-    defaultState: {
-      title: "Table",
-      columns: [
-        { id: "col-1", name: "Column 1" },
-        { id: "col-2", name: "Column 2" },
-      ],
-      rows: [
-        { id: "row-1", cells: { "col-1": "", "col-2": "" } },
-        { id: "row-2", cells: { "col-1": "", "col-2": "" } },
-      ],
-    },
-  });
+// ── Slot: ELN Editor ────────────────────────────────────
+export const editorSlot = mod.declareSlot("editor", {
+  accepts: "block",
+  renderer: TipTapRenderer,
+  layout: "vertical",
+  order: 0,
+  defaults: {},
+});
 
-  // ── Block: Comment (new shape, slot-ready) ──────────────────────────
-  registerBlock({
-    id: "eln.comment",
-    label: "Comment",
-    icon: MessageSquare,
-    component: CommentBlockComponent,
-    listensTo: [],
-    onEvent: {},
-    emits: [],
-    tags: ["discussion", "annotation"],
-    getDisplayName: (attrs) => {
-      const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
-      return thread?.[0]?.authorName || "Comment";
-    },
-    serialize: (state) => JSON.stringify(state),
-    deserialize: (json) => {
-      try { return JSON.parse(json); } catch { return {}; }
-    },
-    defaultState: {
-      resolved: false,
-      thread: [],
-    },
-  });
-
-  // ── Block: Protocol (new shape, slot-ready) ─────────────────────────
-  registerBlock({
-    id: "eln.protocol",
-    label: "Protocol",
-    icon: FlaskConical,
-    component: ProtocolBlockComponent,
-    listensTo: [],
-    onEvent: {},
-    emits: [],
-    tags: ["procedure", "workflow"],
-    getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
-    serialize: (state) => JSON.stringify(state),
-    deserialize: (json) => {
-      try { return JSON.parse(json); } catch { return {}; }
-    },
-    defaultState: {
-      protocolId: null,
-      name: "Protocol",
-      items: [],
-      stepStates: {},
-      editable: false,
-    },
-  });
-
-  // ── Block: Registry Table ────────────────────────────────────────────
-  registerBlock({
-    id: "eln.registry-table",
-    label: "Registry Table",
-    icon: Database,
-    component: RegistryTableBlockComponent,
-    listensTo: [],
-    onEvent: {},
-    emits: [
-      { id: "row-added", label: "Row Added", core: "created" },
-      { id: "registered-entities", label: "Entities Registered", core: "created" },
+// ── Block: Table ───────────────────────────────────────────────────────
+export const tableBlock = mod.registerBlock("table", {
+  label: "Table",
+  icon: Table,
+  component: TableBlockComponent,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  tags: ["data", "spreadsheet"],
+  getDisplayName: (attrs) => (attrs.title as string) || "Table",
+  serialize: (state) => JSON.stringify(state),
+  deserialize: (json) => {
+    try { return JSON.parse(json); } catch { return {}; }
+  },
+  defaultState: {
+    title: "Table",
+    columns: [
+      { id: "col-1", name: "Column 1" },
+      { id: "col-2", name: "Column 2" },
     ],
-    tags: ["table", "registry", "lims"],
-    getDisplayName: (attrs) =>
-      (attrs.schemaName || attrs.title) as string || "Registry Table",
-    serialize: (state) => JSON.stringify(state),
-    deserialize: (json) => {
-      try { return JSON.parse(json); } catch { return {}; }
-    },
-    defaultState: {
-      schemaId: null,
-      schemaName: null,
-      schemaContentHash: null,
-      title: "Registry Table",
-      columns: [],
-      rows: [],
-    },
-  });
+    rows: [
+      { id: "row-1", cells: { "col-1": "", "col-2": "" } },
+      { id: "row-2", cells: { "col-1": "", "col-2": "" } },
+    ],
+  },
+});
 
-  // ── Bind blocks into eln.editor slot ──────────────────────────────────
-  registerIntoSlot("eln.editor", "eln.table", {}, 0);
-  registerIntoSlot("eln.editor", "eln.comment", {}, 1);
-  registerIntoSlot("eln.editor", "eln.protocol", {}, 2);
-  registerIntoSlot("eln.editor", "eln.registry-table", { stretch: true }, 3);
+// ── Block: Comment ─────────────────────────────────────────────────────
+export const commentBlock = mod.registerBlock("comment", {
+  label: "Comment",
+  icon: MessageSquare,
+  component: CommentBlockComponent,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  tags: ["discussion", "annotation"],
+  getDisplayName: (attrs) => {
+    const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
+    return thread?.[0]?.authorName || "Comment";
+  },
+  serialize: (state) => JSON.stringify(state),
+  deserialize: (json) => {
+    try { return JSON.parse(json); } catch { return {}; }
+  },
+  defaultState: {
+    resolved: false,
+    thread: [],
+  },
+});
 
-  // ── Slot: ELN Sidebar (dogfood #233) ──────────────────────────────────
-  declareSlot({
-    id: "eln.sidebar",
-    accepts: "block",
-    renderer: SlotSidebar,
-    layout: "vertical",
-    order: 2,
-    defaults: {},
-  });
+// ── Block: Protocol ────────────────────────────────────────────────────
+export const protocolBlock = mod.registerBlock("protocol", {
+  label: "Protocol",
+  icon: FlaskConical,
+  component: ProtocolBlockComponent,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  tags: ["procedure", "workflow"],
+  getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
+  serialize: (state) => JSON.stringify(state),
+  deserialize: (json) => {
+    try { return JSON.parse(json); } catch { return {}; }
+  },
+  defaultState: {
+    protocolId: null,
+    name: "Protocol",
+    items: [],
+    stepStates: {},
+    editable: false,
+  },
+});
 
-  // ── Block: Metadata ──────────────────────────────────────────────────
-  registerBlock({
-    id: "eln.metadata",
-    label: "Metadata",
-    icon: Info,
-    component: MetadataBlock,
-    listensTo: [],
-    onEvent: {},
-    emits: [],
-    getDisplayName: () => "Metadata",
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Block: Registry Table ──────────────────────────────────────────────
+export const registryTableBlock = mod.registerBlock("registry-table", {
+  label: "Registry Table",
+  icon: Database,
+  component: RegistryTableBlockComponent,
+  listensTo: [],
+  onEvent: {},
+  emits: [
+    BlockEvent.action({ id: "entities-registered", core: "edited" }),
+    BlockEvent.action({ id: "row-added", core: "edited" }),
+    BlockEvent.ui({ id: "column-resized" }),
+  ],
+  tags: ["table", "registry", "lims"],
+  getDisplayName: (attrs) =>
+    (attrs.schemaName || attrs.title) as string || "Registry Table",
+  serialize: (state) => JSON.stringify(state),
+  deserialize: (json) => {
+    try { return JSON.parse(json); } catch { return {}; }
+  },
+  defaultState: {
+    schemaId: null,
+    schemaName: null,
+    schemaContentHash: null,
+    title: "Registry Table",
+    columns: [],
+    rows: [],
+  },
+});
 
-  // ── Block: Linked Entities ─────────────────────────────────────────────
-  registerBlock({
-    id: "eln.linked-entities",
-    label: "Linked Entities",
-    icon: Link,
-    component: LinkedEntitiesBlock,
-    listensTo: [],
-    onEvent: {},
-    emits: [],
-    getDisplayName: () => "Linked Entities",
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Bind blocks into editor slot ────────────────────────────────────────
+mod.registerIntoSlot(editorSlot, tableBlock, {}, 0);
+mod.registerIntoSlot(editorSlot, commentBlock, {}, 1);
+mod.registerIntoSlot(editorSlot, protocolBlock, {}, 2);
+mod.registerIntoSlot(editorSlot, registryTableBlock, { stretch: true }, 3);
 
-  // ── Block: Attachments ────────────────────────────────────────────────
-  registerBlock({
-    id: "eln.attachments",
-    label: "Attachments",
-    icon: Paperclip,
-    component: AttachmentsBlock,
-    listensTo: [],
-    onEvent: {},
-    emits: [],
-    getDisplayName: () => "Attachments",
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Slot: ELN Sidebar (dogfood #233) ────────────────────────────────────
+export const sidebarSlot = mod.declareSlot("sidebar", {
+  accepts: "block",
+  renderer: SlotSidebar,
+  layout: "vertical",
+  order: 2,
+  defaults: {},
+});
 
-  // ── Bind sidebar blocks into eln.sidebar slot ──────────────────────────
-  registerIntoSlot("eln.sidebar", "eln.metadata", {}, 0);
-  registerIntoSlot("eln.sidebar", "eln.linked-entities", {}, 1);
-  registerIntoSlot("eln.sidebar", "eln.attachments", {}, 2);
+// ── Block: Metadata ─────────────────────────────────────────────────────
+export const metadataBlock = mod.registerBlock("metadata", {
+  label: "Metadata",
+  icon: Info,
+  component: MetadataBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  getDisplayName: () => "Metadata",
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
 
-  // ── Block: Activity Feed ─────────────────────────────────────────────
-  registerBlock({
-    id: "eln.activity-feed",
-    label: "Activity Feed",
-    icon: History,
-    component: ActivityFeedBlock,
-    listensTo: ["eln.action.performed", "eln.entry.saved"],
-    onEvent: activityFeedOnEvent,
-    emits: [],
-    getDisplayName: () => "Activity Feed",
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Block: Linked Entities ──────────────────────────────────────────────
+export const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
+  label: "Linked Entities",
+  icon: Link,
+  component: LinkedEntitiesBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  getDisplayName: () => "Linked Entities",
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
 
-  // ── Bind Activity Feed into sidebar slot ──────────────────────────────
-  registerIntoSlot("eln.sidebar", "eln.activity-feed", { noCard: true }, 3);
+// ── Block: Attachments ──────────────────────────────────────────────────
+export const attachmentsBlock = mod.registerBlock("attachments", {
+  label: "Attachments",
+  icon: Paperclip,
+  component: AttachmentsBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  getDisplayName: () => "Attachments",
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
 
-  // ── Settings: Protocol management ────────────────────────────────────
-  registerSettingsSection({
-    id: "eln.protocol-settings",
-    modId: "eln",
-    label: "Protocols",
-    icon: ListChecks,
-    component: lazy(() => import("./settings/ProtocolSettings")),
-    order: 20,
-  });
+// ── Bind sidebar blocks into sidebar slot ───────────────────────────────
+mod.registerIntoSlot(sidebarSlot, metadataBlock, {}, 0);
+mod.registerIntoSlot(sidebarSlot, linkedEntitiesBlock, {}, 1);
+mod.registerIntoSlot(sidebarSlot, attachmentsBlock, {}, 2);
 
-}
+// ── Block: Activity Feed ────────────────────────────────────────────────
+export const activityFeedBlock = mod.registerBlock("activity-feed", {
+  label: "Activity Feed",
+  icon: History,
+  component: ActivityFeedBlock,
+  listensTo: ["eln.action.performed", "eln.entry.saved"],
+  onEvent: activityFeedOnEvent,
+  emits: [],
+  getDisplayName: () => "Activity Feed",
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
+
+// ── Bind Activity Feed into sidebar slot ────────────────────────────────
+mod.registerIntoSlot(sidebarSlot, activityFeedBlock, { noCard: true }, 3);
+
+// ── Settings: Protocol management ───────────────────────────────────────
+mod.registerSettingsSection("protocol-settings", {
+  label: "Protocols",
+  icon: ListChecks,
+  component: lazy(() => import("./settings/ProtocolSettings")),
+  order: 20,
+});
+
+/** No-op — all registrations happen at module scope via the Mod class. */
+export function register() {}

@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { WorkspaceBus } from "../workspace/WorkspaceBus";
+import type { BlockEvent } from "./BlockEvent";
 
 // ── Mod Manifest ──────────────────────────────────────────────────────────
 
@@ -309,7 +310,7 @@ export interface BlockRegistration {
   /** Extract a display name from block attributes for human-readable action log messages. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Custom domain actions this block can emit via `context.emitAction()`. */
-  emits?: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
+  emits?: BlockEvent[];
   tags?: string[];
   /** Serialize block state to a JSON string for persistence. */
   serialize: (state: Record<string, unknown>) => string;
@@ -412,7 +413,7 @@ export interface BlockBinding extends BaseBinding {
   /** Tags for block picker filtering. */
   tags?: string[];
   /** Custom domain actions this block can emit via `context.emitAction()`. */
-  emits?: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
+  emits?: BlockEvent[];
   /** Merged overrides: slot defaults ← binding overrides (binding wins per-key). */
   overrides: Record<string, unknown>;
   /** Serialize block state to a JSON string for persistence. */

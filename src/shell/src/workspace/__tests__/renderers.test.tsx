@@ -4,6 +4,7 @@ import { ButtonGroupRenderer } from "../ButtonGroupRenderer";
 import { PanelRenderer } from "../PanelRenderer";
 import { TabRenderer } from "../TabRenderer";
 import { WorkspaceBus } from "../WorkspaceBus";
+import { BlockEvent } from "../../mod-system/BlockEvent";
 import type {
   ButtonBinding,
   BlockBinding,
@@ -464,7 +465,7 @@ describe("PanelRenderer", () => {
         label: "Registry Table",
         component: EmitActionTestBlock,
         emits: [
-          { id: "row-added", label: "Row Added", core: "created" as const },
+          BlockEvent.action({ id: "row-added", core: "created" }),
         ],
       }),
     ];
@@ -503,7 +504,7 @@ describe("PanelRenderer", () => {
         label: "Registry Table",
         component: EmitTestBlock,
         emits: [
-          { id: "row-added", label: "Row Added", core: "created" as const },
+          BlockEvent.action({ id: "row-added", core: "created" }),
         ],
       }),
     ];
@@ -788,7 +789,7 @@ describe("TabRenderer", () => {
         label: "Registry Table",
         component: EmitActionTestBlock,
         emits: [
-          { id: "row-added", label: "Row Added", core: "created" as const },
+          BlockEvent.action({ id: "row-added", core: "created" }),
         ],
       }),
     ];
@@ -827,7 +828,7 @@ describe("TabRenderer", () => {
         label: "Registry Table",
         component: EmitTestBlock,
         emits: [
-          { id: "row-added", label: "Row Added", core: "created" as const },
+          BlockEvent.action({ id: "row-added", core: "created" }),
         ],
       }),
     ];

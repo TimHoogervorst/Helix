@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Mod } from "../Mod";
+import { BlockEvent } from "../BlockEvent";
 import { ModRegistry } from "../ModRegistry";
 import type { ModManifest, BlockRegistration } from "../types";
 
@@ -108,20 +109,20 @@ describe("Mod", () => {
         "table",
         makeBlockConfig({
           emits: [
-            { id: "row-added", label: "Row Added", core: "created" },
-            { id: "registered-entities", label: "Entities Registered", core: "created" },
+            BlockEvent.action({ id: "row-added", core: "created" }),
+            BlockEvent.action({ id: "entities-registered", core: "created" }),
           ],
         }),
       );
 
       expect(Object.keys(handle.emits)).toEqual([
         "row-added",
-        "registered-entities",
+        "entities-registered",
       ]);
       expect(handle.emits["row-added"]).toBeDefined();
       expect(typeof handle.emits["row-added"].fire).toBe("function");
-      expect(handle.emits["registered-entities"]).toBeDefined();
-      expect(typeof handle.emits["registered-entities"].fire).toBe("function");
+      expect(handle.emits["entities-registered"]).toBeDefined();
+      expect(typeof handle.emits["entities-registered"].fire).toBe("function");
     });
 
     it("passes through all block config fields to ModRegistry", () => {

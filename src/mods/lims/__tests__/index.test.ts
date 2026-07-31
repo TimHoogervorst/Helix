@@ -1,18 +1,17 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function resetRegistry(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ModRegistry as any).instance = null;
-}
-
-// ── Tests ────────────────────────────────────────────────────────────────
-
 describe("lims mod registration", () => {
-  beforeEach(() => {
-    resetRegistry();
+  let registry: ModRegistry;
+
+  beforeAll(async () => {
+    await import("../index");
+    registry = ModRegistry.getInstance();
+    try {
+      registry.registerMod("lims");
+    } catch {
+      // already registered from another test file
+    }
   });
 
   it("does not export inline meta", async () => {
@@ -20,26 +19,7 @@ describe("lims mod registration", () => {
     expect((mod as Record<string, unknown>).meta).toBeUndefined();
   });
 
-  it("does not populate workspaces during register()", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("lims");
-    mod.register();
-
-    // Workspaces are now hydrated from GET /api/mod-registry/, not from
-    // registerWorkspace() calls inside register().
-    const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("lims")).toBe(false);
-  });
-
-  it("registers route for /lims/:displayId", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("lims");
-    mod.register();
-
+  it("registers route for /lims/:displayId", () => {
     const routes = registry.getRoutes();
     const route = routes.get("lims.entity-page");
 
@@ -48,13 +28,12 @@ describe("lims mod registration", () => {
     expect(route!.path).toBe("/lims/:displayId");
   });
 
-  it("registers schema settings section", async () => {
-    const mod = await import("../index");
+  it("does not populate workspaces during register()", () => {
+    const workspaces = registry.getWorkspaces();
+    expect(workspaces.has("lims")).toBe(false);
+  });
 
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("lims");
-    mod.register();
-
+  it("registers schema settings section", () => {
     const sections = registry.getSettingsSections();
     const schemaSection = sections.find((s) => s.id === "lims.schema-settings");
 
@@ -63,13 +42,7 @@ describe("lims mod registration", () => {
     expect(schemaSection!.label).toBe("Schemas");
   });
 
-  it("passes validation", async () => {
-    const mod = await import("../index");
-
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("lims");
-    mod.register();
-
+  it("passes validation", () => {
     expect(() => registry.validate()).not.toThrow();
   });
 });

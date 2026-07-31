@@ -16,8 +16,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import * as elnMod from "../index";
+import "../index";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -122,13 +121,6 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     mockLockedState.isLockedByOther = false;
     mockLockedState.lockHeldBy = null;
     mockIsReady.value = true;
-
-    // Set up the ModRegistry so SlotRenderer can resolve eln.sidebar
-    // and the ActivityFeedBlock.
-    ModRegistry._reset();
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("eln");
-    elnMod.register();
   });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 

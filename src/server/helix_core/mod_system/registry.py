@@ -391,6 +391,9 @@ class BackendModRegistry:
         Returns an empty list when no action model has been registered
         for *mod_id*.
         """
+        if mod_id not in self._action_models:
+            return []
+
         result: list[dict[str, Any]] = []
 
         # Core actions first.

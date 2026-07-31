@@ -474,18 +474,21 @@ def _read_json_manifest(mod_dir: Path, mod_id: str) -> ModManifest:
     # dependencies by the short mod ID (the directory name).  Strip the
     # vendor prefix so validation passes against the mod directory keys.
     raw_depends_on = data.get("dependsOn", [])
-    normalized_depends_on: list[str | dict[str, str]] = []
-    for dep in raw_depends_on:
-        if isinstance(dep, str):
-            # "helix.lims" → "lims"
-            normalized_depends_on.append(dep.rsplit(".", 1)[-1])
-        elif isinstance(dep, dict):
-            dep_copy = dict(dep)
-            if "id" in dep_copy:
-                dep_copy["id"] = dep_copy["id"].rsplit(".", 1)[-1]
-            normalized_depends_on.append(dep_copy)
-        else:
-            normalized_depends_on.append(dep)
+    if isinstance(raw_depends_on, list):
+        normalized_depends_on: list[str | dict[str, str]] = []
+        for dep in raw_depends_on:
+            if isinstance(dep, str):
+                # "helix.lims" → "lims"
+                normalized_depends_on.append(dep.rsplit(".", 1)[-1])
+            elif isinstance(dep, dict):
+                dep_copy = dict(dep)
+                if "id" in dep_copy:
+                    dep_copy["id"] = dep_copy["id"].rsplit(".", 1)[-1]
+                normalized_depends_on.append(dep_copy)
+            else:
+                normalized_depends_on.append(dep)
+    else:
+        normalized_depends_on = raw_depends_on
 
     # Map camelCase JSON keys to snake_case ModManifest kwargs.
     manifest = ModManifest(

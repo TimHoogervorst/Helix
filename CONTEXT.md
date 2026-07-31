@@ -194,6 +194,12 @@ An entity (from the LIMS domain) that is connected to a Notebook Entry through t
 
 The ELN workspace uses a **five-zone** horizontal layout (left to right): Left Sidebar (shell icon strip, collapsible), Left Gutter (empty space that absorbs stretch from centered blocks), Center Gutter (the main content column, `max-w-3xl`, centered — normal blocks like paragraphs and headings live here), Right Gutter (comment cards, `w-64`, hidden below `xl` breakpoint), and Right Sidebar (metadata panel, `w-72`, hidden below `xl`). Stretch-capable blocks expand outward equally from the center gutter into the left and right gutters, preserving centering.
 
+### Workspace Chrome
+
+The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, and the five-zone layout scaffolding. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
+
+**Synonyms:** editor chrome, workspace frame
+
 ### Center Gutter
 
 The main content column of the ELN workspace — `max-w-3xl` (768px), horizontally centered. All normal blocks (paragraphs, headings, lists) render inside this column by default. Provides a comfortable reading width for narrative text.

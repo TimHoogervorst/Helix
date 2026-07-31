@@ -157,7 +157,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user = serializer.save()
         log_action(
             user=request.user,
-            action_type="core.user.created",
+            action="core.user.created",
             target_type="core.user",
             target_id=user.id,
             metadata={"username": user.username},
@@ -180,7 +180,7 @@ class UserViewSet(viewsets.ModelViewSet):
         ):
             log_action(
                 user=self.request.user,
-                action_type="core.user.deactivated",
+                action="core.user.deactivated",
                 target_type="core.user",
                 target_id=instance.id,
                 metadata={"username": instance.username},

@@ -196,6 +196,19 @@ export function useEntryCrud({
       return;
     }
 
+    // Reset state when entryId changes so TipTapRenderer never mounts with
+    // stale data from the previous entry. Without this, isReady stays true
+    // across navigations, ElnWorkspace skips the ContentLoadingSkeleton,
+    // and TipTapRenderer mounts once with the old entry's content — which
+    // useEditor then locks in, ignoring subsequent content prop changes.
+    // #366 — Content-Sync Race Elimination spec (navigation fix)
+    setIsReady(false);
+    setEntry(null);
+    setTitle("");
+    setDescriptionState("");
+    setStatus("in_progress");
+    setError(null);
+
     const controller = new AbortController();
 
     get<EntryDetail>(`/eln/entries/${entryId}/`, controller.signal)

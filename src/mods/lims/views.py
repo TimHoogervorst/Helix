@@ -286,7 +286,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 with transaction.atomic():
                     log_action(
                         user=author,
-                        action_type="eln.entities.registered",
+                        action="eln.entities.registered",
                         target_type="lims.entities",
                         target_id=schema_id,
                         metadata={

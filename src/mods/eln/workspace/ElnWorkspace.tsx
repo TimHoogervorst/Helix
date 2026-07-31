@@ -39,7 +39,7 @@ import { TableKit } from "@tiptap/extension-table";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
 import { splitFirstParagraph } from "../hooks/useEntryEditor";
 import { useEntryCrud } from "../hooks/useEntryCrud";
-import { useAutoSave } from "../hooks/useAutoSave";
+import { useAutoSave, type ContentPhase } from "../hooks/useAutoSave";
 import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
 import { useDirtyTracking } from "../hooks/useDirtyTracking";
 import { useTaggableItems } from "../../tags/hooks";
@@ -154,6 +154,14 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
   const [contentVersion, setContentVersion] = useState(0);
 
+  // ── Content fidelity phase state machine ──
+  // Only "editing" allows auto-save.  Transitions to "loading" when
+  // isReady drops (navigation, refetch) and back to "editing" via rAF
+  // after the editor mount + initial onUpdate have committed.
+  // This guarantees contentRef.current corresponds to the current entry
+  // before any save can fire.  #366 follow-up.
+  const [contentPhase, setContentPhase] = useState<ContentPhase>("loading");
+
   // ── WorkspaceBus — one per workspace instance, shared across all slots ──
   const busRef = useRef<WorkspaceBus>(null);
   if (!busRef.current) {
@@ -244,7 +252,27 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     contentVersion,
     folderId: folder.folderId,
     autoSave: autoSaveWithBlockActions,
+    contentPhase,
   });
+
+  // ── Content phase transitions ──
+  //   isReady false → loading (discard stale baselines)
+  //   isReady true  → rAF → editing (editor has mounted + initial onUpdate fired)
+  //
+  // The rAF gate catches the synchronous onUpdate that fires during
+  // useEditor's useState initializer. Without it, the auto-save effect
+  // runs in the same render commit as the editor init and may capture
+  // a baseline before contentRef.current has been set.
+  useEffect(() => {
+    if (!crud.isReady) {
+      setContentPhase("loading");
+      return;
+    }
+    const handle = requestAnimationFrame(() => {
+      setContentPhase("editing");
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [crud.isReady]);
 
   // Destructure for convenient access
   const {

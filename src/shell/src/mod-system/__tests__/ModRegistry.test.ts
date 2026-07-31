@@ -1326,7 +1326,7 @@ describe("ModRegistry", () => {
 
   describe("syncActions", () => {
     let registry: ModRegistry;
-    let fetchSpy: ReturnType<typeof vi.fn>;
+    let fetchSpy: any;
 
     beforeEach(() => {
       registry = resetRegistry();
@@ -1601,7 +1601,7 @@ describe("ModRegistry", () => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
 
       const modIds = fetchSpy.mock.calls.map(
-        (call: [string, RequestInit]) =>
+        (call: any[]) =>
           JSON.parse(call[1].body as string).mod_id,
       );
       expect(modIds).toContain("eln");

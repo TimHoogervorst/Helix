@@ -114,15 +114,15 @@ export function useEntryEditor({
   });
   const folder = useEntryFolder({ initialFolderId });
 
-  // Derive baseline values from the last-saved entry (for dirty tracking).
+  // Derive baseline values from the saved baseline (last persisted payload).
   const baseline = useMemo(() => {
-    const saved = crud.entry;
+    const saved = crud.savedBaseline;
     if (!saved) {
       return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
     }
     const { description: d, body } = splitFirstParagraph(saved.content);
     return { title: saved.name, description: d, content: body, status: saved.status || "in_progress" };
-  }, [crud.entry]);
+  }, [crud.savedBaseline]);
 
   const { isDirty } = useDirtyTracking({
     title: crud.title,

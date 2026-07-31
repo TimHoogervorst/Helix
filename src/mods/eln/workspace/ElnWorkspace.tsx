@@ -189,9 +189,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   });
   const folder = useEntryFolder({ initialFolderId });
 
-  // ── Derive baseline values from the last-saved entry ──
+  // ── Derive baseline values from the saved baseline (last persisted payload) ──
   const baseline = useMemo(() => {
-    const saved = crud.entry;
+    const saved = crud.savedBaseline;
     if (!saved) {
       return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
     }
@@ -200,7 +200,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     // dirty-tracking comparison is apples-to-apples with contentRef.current
     // (which also holds only the body after initial setContent).
     return { title: saved.name, description: d, content: body, status: saved.status || "in_progress" };
-  }, [crud.entry]);
+  }, [crud.savedBaseline]);
 
   const { isDirty } = useDirtyTracking({
     title: crud.title,

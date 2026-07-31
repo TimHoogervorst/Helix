@@ -7,6 +7,22 @@
  *
  * Does NOT own: folder selection, tag management, dirty tracking, or debounce
  * timing (useAutoSave).
+ *
+ * ## Saved baseline (unsaved-changes guard fix — #375)
+ *
+ * ``savedBaseline`` captures the last **persisted** entry payload, advanced
+ * from the save queue's resolved server response on both auto and manual
+ * saves.  Dirty tracking compares current values against this baseline so the
+ * beforeunload guard clears after every completed save — not just manual
+ * saves as before the #375 fix, where the baseline was derived from
+ * ``crud.entry`` and auto-save never advanced it (cursor-preservation
+ * requirement).  The saved baseline is committed *after* the queue resolves,
+ * so it always reflects the most recent persisted payload
+ * (drain-order guarantee).
+ *
+ * Auto-save deliberately does NOT apply the server response to live editor
+ * state (title, description, content ref) — advancing only the saved baseline
+ * clears the guard while preserving cursor position (per #348).
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -54,6 +70,13 @@ export interface UseEntryCrudReturn {
   deleteEntry: () => Promise<void>;
   /** Apply server response to local state (shared by autoSave and save). */
   applySavedEntry: (entry: EntryDetail) => void;
+  /**
+   * Last persisted entry payload from the save queue — used by dirty
+   * tracking as the comparison baseline for the beforeunload guard.
+   * Advanced after every completed auto or manual save, but never
+   * touches live editor state (cursor preservation).
+   */
+  savedBaseline: { name: string; content: TipTapDoc; status: string } | null;
   /** Current save-queue status. */
   saveStatus: SaveStatus;
   /** When the most recent successful save completed, or null. */
@@ -81,6 +104,11 @@ export function useEntryCrud({
   const [isReady, setIsReady] = useState(false);
   const [isLockedByOther, setIsLockedByOther] = useState(false);
   const [lockHeldBy, setLockHeldBy] = useState<string | null>(null);
+  const [savedBaseline, setSavedBaseline] = useState<{
+    name: string;
+    content: TipTapDoc;
+    status: string;
+  } | null>(null);
   // Generation counter per entry — used to cancel stale releaseLock calls
   // that race with a subsequent acquireLock (StrictMode remount, page refresh).
   const lockGenRef = useRef<Record<string, number>>({});
@@ -101,6 +129,11 @@ export function useEntryCrud({
       setTitle(saved.name);
       setDescriptionState(desc);
       setStatus(saved.status || "in_progress");
+      setSavedBaseline({
+        name: saved.name,
+        content: saved.content,
+        status: saved.status || "in_progress",
+      });
 
       const refIds = collectDisplayIds(saved.content);
       if (refIds.length > 0) {
@@ -126,11 +159,21 @@ export function useEntryCrud({
       };
 
       enqueue(payload, "autosave", hasBlockActions).then((saved) => {
-        // For auto-saves we do NOT apply the server response to local
-        // state — the user may have edited since the save was triggered,
-        // and overwriting title / content would reset the cursor and
-        // discard post-save edits. Only resolve any new reference
-        // display IDs so reference labels stay up to date.
+        // Advance the saved baseline so dirty tracking sees the
+        // persisted payload and clears the beforeunload guard.
+        // We do NOT apply the server response to live editor state
+        // (title, description, content ref) — the user may have
+        // edited since the save was triggered, and overwriting
+        // those would reset the cursor and discard post-save
+        // edits (cursor preservation per #348).
+        setSavedBaseline({
+          name: saved.name,
+          content: saved.content,
+          status: saved.status || "in_progress",
+        });
+
+        // Only resolve any new reference display IDs so reference
+        // labels stay up to date.
         const refIds = collectDisplayIds(saved.content);
         if (refIds.length > 0) {
           resolveIds(refIds);
@@ -208,6 +251,7 @@ export function useEntryCrud({
     setDescriptionState("");
     setStatus("in_progress");
     setError(null);
+    setSavedBaseline(null);
 
     const controller = new AbortController();
 
@@ -219,6 +263,11 @@ export function useEntryCrud({
         setTitle(data.name);
         setDescriptionState(desc);
         setStatus(data.status || "in_progress");
+        setSavedBaseline({
+          name: data.name,
+          content: data.content,
+          status: data.status || "in_progress",
+        });
 
         const refIds = collectDisplayIds(data.content);
         if (refIds.length > 0) {
@@ -315,6 +364,7 @@ export function useEntryCrud({
     save,
     deleteEntry,
     applySavedEntry,
+    savedBaseline,
     saveStatus: effectiveEntryId ? saveStatus : "idle",
     lastSavedAt,
     queueLength: effectiveEntryId ? queueLength : 0,

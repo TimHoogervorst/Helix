@@ -66,7 +66,7 @@ function createProductionEditor(content?: Record<string, unknown>) {
 
   ModRegistry._reset();
   ModRegistry.getInstance().registerBlock(
-    makeBlockRegistration("test.table-block", "Table"),
+    makeBlockRegistration("test.table", "Table"),
   );
 
   const editor = new Editor({

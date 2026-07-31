@@ -460,7 +460,7 @@ describe("PanelRenderer", () => {
 
     const bindings: BlockBinding[] = [
       makeBlockBinding({
-        id: "eln.registryTable-block",
+        id: "eln.registry-table",
         label: "Registry Table",
         component: EmitActionTestBlock,
         emits: [
@@ -484,7 +484,7 @@ describe("PanelRenderer", () => {
 
   it("emitAction emits on bus with correct event pattern {blockId}.{localId}", () => {
     const receivedPayloads: unknown[] = [];
-    bus.on("eln.registryTable-block.row-added", (payload) => {
+    bus.on("eln.registry-table.row-added", (payload) => {
       receivedPayloads.push(payload);
     });
 
@@ -499,7 +499,7 @@ describe("PanelRenderer", () => {
 
     const bindings: BlockBinding[] = [
       makeBlockBinding({
-        id: "eln.registryTable-block",
+        id: "eln.registry-table",
         label: "Registry Table",
         component: EmitTestBlock,
         emits: [
@@ -522,7 +522,7 @@ describe("PanelRenderer", () => {
 
     expect(receivedPayloads.length).toBe(1);
     expect(receivedPayloads[0]).toMatchObject({
-      blockId: "eln.registryTable-block",
+      blockId: "eln.registry-table",
       localId: "row-added",
       payload: { rowCount: 5 },
     });
@@ -784,7 +784,7 @@ describe("TabRenderer", () => {
 
     const bindings: BlockBinding[] = [
       makeBlockBinding({
-        id: "eln.registryTable-block",
+        id: "eln.registry-table",
         label: "Registry Table",
         component: EmitActionTestBlock,
         emits: [
@@ -808,7 +808,7 @@ describe("TabRenderer", () => {
 
   it("emitAction emits on bus with correct event pattern from tab context", () => {
     const receivedPayloads: unknown[] = [];
-    bus.on("eln.registryTable-block.row-added", (payload) => {
+    bus.on("eln.registry-table.row-added", (payload) => {
       receivedPayloads.push(payload);
     });
 
@@ -823,7 +823,7 @@ describe("TabRenderer", () => {
 
     const bindings: BlockBinding[] = [
       makeBlockBinding({
-        id: "eln.registryTable-block",
+        id: "eln.registry-table",
         label: "Registry Table",
         component: EmitTestBlock,
         emits: [
@@ -846,7 +846,7 @@ describe("TabRenderer", () => {
 
     expect(receivedPayloads.length).toBe(1);
     expect(receivedPayloads[0]).toMatchObject({
-      blockId: "eln.registryTable-block",
+      blockId: "eln.registry-table",
       localId: "row-added",
       payload: { rowCount: 5 },
     });

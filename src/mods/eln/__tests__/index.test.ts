@@ -97,7 +97,7 @@ describe("eln mod registration", () => {
 
   // ── Slot System — Header Toolbar Dogfood (#227) ─────────────────────────
 
-  it("declares the eln.header.actions slot with ButtonGroupRenderer", async () => {
+  it("declares the eln.header-actions slot with ButtonGroupRenderer", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -105,12 +105,12 @@ describe("eln mod registration", () => {
     mod.register();
 
     const slots = registry.getSlots();
-    const headerSlot = slots.get("eln.header.actions") as
+    const headerSlot = slots.get("eln.header-actions") as
       | SlotDeclaration
       | undefined;
 
     expect(headerSlot).toBeDefined();
-    expect(headerSlot!.id).toBe("eln.header.actions");
+    expect(headerSlot!.id).toBe("eln.header-actions");
     expect(headerSlot!.accepts).toBe("button");
     expect(headerSlot!.layout).toBe("horizontal");
     expect(headerSlot!.order).toBe(0);
@@ -137,7 +137,7 @@ describe("eln mod registration", () => {
     expect(typeof exportBtn!.onClick).toBe("function");
   });
 
-  it.skip("binds eln.export into eln.header.actions slot", async () => {
+  it.skip("binds eln.export into eln.header-actions slot", async () => {
     const mod = await import("../index");
 
     const registry = ModRegistry.getInstance();
@@ -145,7 +145,7 @@ describe("eln mod registration", () => {
     mod.register();
 
     const bindings = registry.getBindings();
-    const headerBindings = bindings.get("eln.header.actions") as
+    const headerBindings = bindings.get("eln.header-actions") as
       | SlotBinding[]
       | undefined;
 
@@ -156,7 +156,7 @@ describe("eln mod registration", () => {
       (b) => b.targetId === "eln.export",
     );
     expect(exportBinding).toBeDefined();
-    expect(exportBinding!.slotId).toBe("eln.header.actions");
+    expect(exportBinding!.slotId).toBe("eln.header-actions");
     expect(exportBinding!.order).toBe(0);
     expect(exportBinding!.overrides).toEqual({});
   });

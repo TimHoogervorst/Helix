@@ -23,7 +23,7 @@ import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
 export function register() {
   // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
   declareSlot({
-    id: "eln.header.actions",
+    id: "eln.header-actions",
     accepts: "button",
     renderer: ButtonGroupRenderer,
     layout: "horizontal",
@@ -51,7 +51,7 @@ export function register() {
 
   // ── Block: Table (new shape, slot-ready) ─────────────────────────────
   registerBlock({
-    id: "eln.table-block",
+    id: "eln.table",
     label: "Table",
     icon: Table,
     component: TableBlockComponent,
@@ -79,7 +79,7 @@ export function register() {
 
   // ── Block: Comment (new shape, slot-ready) ──────────────────────────
   registerBlock({
-    id: "eln.comment-block",
+    id: "eln.comment",
     label: "Comment",
     icon: MessageSquare,
     component: CommentBlockComponent,
@@ -103,7 +103,7 @@ export function register() {
 
   // ── Block: Protocol (new shape, slot-ready) ─────────────────────────
   registerBlock({
-    id: "eln.protocol-block",
+    id: "eln.protocol",
     label: "Protocol",
     icon: FlaskConical,
     component: ProtocolBlockComponent,
@@ -127,7 +127,7 @@ export function register() {
 
   // ── Block: Registry Table ────────────────────────────────────────────
   registerBlock({
-    id: "eln.registryTable-block",
+    id: "eln.registry-table",
     label: "Registry Table",
     icon: Database,
     component: RegistryTableBlockComponent,
@@ -155,10 +155,10 @@ export function register() {
   });
 
   // ── Bind blocks into eln.editor slot ──────────────────────────────────
-  registerIntoSlot("eln.editor", "eln.table-block", {}, 0);
-  registerIntoSlot("eln.editor", "eln.comment-block", {}, 1);
-  registerIntoSlot("eln.editor", "eln.protocol-block", {}, 2);
-  registerIntoSlot("eln.editor", "eln.registryTable-block", { stretch: true }, 3);
+  registerIntoSlot("eln.editor", "eln.table", {}, 0);
+  registerIntoSlot("eln.editor", "eln.comment", {}, 1);
+  registerIntoSlot("eln.editor", "eln.protocol", {}, 2);
+  registerIntoSlot("eln.editor", "eln.registry-table", { stretch: true }, 3);
 
   // ── Slot: ELN Sidebar (dogfood #233) ──────────────────────────────────
   declareSlot({
@@ -172,7 +172,7 @@ export function register() {
 
   // ── Block: Metadata ──────────────────────────────────────────────────
   registerBlock({
-    id: "eln.metadata-block",
+    id: "eln.metadata",
     label: "Metadata",
     icon: Info,
     component: MetadataBlock,
@@ -187,7 +187,7 @@ export function register() {
 
   // ── Block: Linked Entities ─────────────────────────────────────────────
   registerBlock({
-    id: "eln.linked-entities-block",
+    id: "eln.linked-entities",
     label: "Linked Entities",
     icon: Link,
     component: LinkedEntitiesBlock,
@@ -202,7 +202,7 @@ export function register() {
 
   // ── Block: Attachments ────────────────────────────────────────────────
   registerBlock({
-    id: "eln.attachments-block",
+    id: "eln.attachments",
     label: "Attachments",
     icon: Paperclip,
     component: AttachmentsBlock,
@@ -216,9 +216,9 @@ export function register() {
   });
 
   // ── Bind sidebar blocks into eln.sidebar slot ──────────────────────────
-  registerIntoSlot("eln.sidebar", "eln.metadata-block", {}, 0);
-  registerIntoSlot("eln.sidebar", "eln.linked-entities-block", {}, 1);
-  registerIntoSlot("eln.sidebar", "eln.attachments-block", {}, 2);
+  registerIntoSlot("eln.sidebar", "eln.metadata", {}, 0);
+  registerIntoSlot("eln.sidebar", "eln.linked-entities", {}, 1);
+  registerIntoSlot("eln.sidebar", "eln.attachments", {}, 2);
 
   // ── Block: Activity Feed ─────────────────────────────────────────────
   registerBlock({

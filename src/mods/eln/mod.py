@@ -56,10 +56,10 @@ def register():
         "deleted": "Deleted",
     }
     _BLOCK_IDS = [
-        "table-block",
-        "comment-block",
-        "protocol-block",
-        "registryTable-block",
+        "table",
+        "comment",
+        "protocol",
+        "registry-table",
     ]
     for block_id in _BLOCK_IDS:
         for verb, label in _BLOCK_ACTION_VERBS.items():
@@ -96,14 +96,14 @@ def register():
     # delete the entry itself.
     registry.register_custom_action(
         mod_id="eln",
-        action_id="eln.registryTable-block.registered-entities",
+        action_id="eln.registry-table.registered-entities",
         label="Registered Entities",
         core="edited",
         target_model="mods.eln.models.NotebookEntry",
     )
     registry.register_custom_action(
         mod_id="eln",
-        action_id="eln.registryTable-block.row-added",
+        action_id="eln.registry-table.row-added",
         label="Row Added",
         core="edited",
         target_model="mods.eln.models.NotebookEntry",

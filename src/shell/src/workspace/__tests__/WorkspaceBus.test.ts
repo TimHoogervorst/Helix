@@ -676,10 +676,10 @@ describe("WorkspaceBus", () => {
 
         bus.on("*.created", handler);
 
-        bus.emit("table-block.created");
+        bus.emit("table.created");
         expect(handler).toHaveBeenCalledTimes(1);
 
-        bus.emit("comment-block.created");
+        bus.emit("comment.created");
         expect(handler).toHaveBeenCalledTimes(2);
       });
 
@@ -689,7 +689,7 @@ describe("WorkspaceBus", () => {
 
         bus.on("*.created", handler);
 
-        bus.emit("eln.table-block.created");
+        bus.emit("eln.table.created");
         expect(handler).not.toHaveBeenCalled();
       });
 
@@ -709,7 +709,7 @@ describe("WorkspaceBus", () => {
 
         bus.on("*.created", handler);
 
-        bus.emit("table-block.edited");
+        bus.emit("table.edited");
         expect(handler).not.toHaveBeenCalled();
       });
 
@@ -768,7 +768,7 @@ describe("WorkspaceBus", () => {
 
         bus.on("eln.**", handler);
 
-        bus.emit("eln.table-block.created");
+        bus.emit("eln.table.created");
         expect(handler).toHaveBeenCalledTimes(1);
 
         bus.emit("eln.foo");
@@ -794,7 +794,7 @@ describe("WorkspaceBus", () => {
 
         bus.on("eln.**", handler);
 
-        bus.emit("lims.table-block.created");
+        bus.emit("lims.table.created");
         expect(handler).not.toHaveBeenCalled();
 
         bus.emit("elnx");
@@ -837,23 +837,23 @@ describe("WorkspaceBus", () => {
     // -- Mixed patterns (* and ** together) --
 
     describe("mixed * and ** patterns", () => {
-      it("eln.*.created matches eln.table-block.created", () => {
+      it("eln.*.created matches eln.table.created", () => {
         const bus = freshBus();
         const handler = vi.fn();
 
         bus.on("eln.*.created", handler);
 
-        bus.emit("eln.table-block.created");
+        bus.emit("eln.table.created");
         expect(handler).toHaveBeenCalledTimes(1);
       });
 
-      it("eln.*.created does not match eln.table-block.edited", () => {
+      it("eln.*.created does not match eln.table.edited", () => {
         const bus = freshBus();
         const handler = vi.fn();
 
         bus.on("eln.*.created", handler);
 
-        bus.emit("eln.table-block.edited");
+        bus.emit("eln.table.edited");
         expect(handler).not.toHaveBeenCalled();
       });
 
@@ -873,7 +873,7 @@ describe("WorkspaceBus", () => {
 
         bus.on("**.created", handler);
 
-        bus.emit("eln.table-block.created");
+        bus.emit("eln.table.created");
         expect(handler).toHaveBeenCalledTimes(1);
 
         bus.emit("created");
@@ -959,10 +959,10 @@ describe("WorkspaceBus", () => {
 
         bus.on("ELN.**", handler);
 
-        bus.emit("eln.table-block.created");
+        bus.emit("eln.table.created");
         expect(handler).not.toHaveBeenCalled();
 
-        bus.emit("ELN.table-block.created");
+        bus.emit("ELN.table.created");
         expect(handler).toHaveBeenCalledTimes(1);
       });
     });
@@ -975,7 +975,7 @@ describe("WorkspaceBus", () => {
         const handler = vi.fn();
 
         bus.on("*.created", handler);
-        bus.emit("table-block.created");
+        bus.emit("table.created");
 
         expect(handler).toHaveBeenCalledTimes(1);
       });
@@ -986,7 +986,7 @@ describe("WorkspaceBus", () => {
         bus.on("*.created", () => "from-wildcard");
         bus.on("other.event", () => "should-not-appear");
 
-        const results = await bus.collect("table-block.created");
+        const results = await bus.collect("table.created");
 
         expect(results).toEqual(["from-wildcard"]);
       });
@@ -1020,11 +1020,11 @@ describe("WorkspaceBus", () => {
 
         bus.on("*.created", () => order.push("first"));
         bus.on("eln.*.created", () => order.push("second"));
-        bus.on("eln.table-block.created", () => order.push("third"));
+        bus.on("eln.table.created", () => order.push("third"));
 
-        bus.emit("eln.table-block.created");
+        bus.emit("eln.table.created");
 
-        // *.created (2 segments) does not match eln.table-block.created (3 segments)
+        // *.created (2 segments) does not match eln.table.created (3 segments)
         // eln.*.created and exact match both match
         expect(order).toEqual(["second", "third"]);
       });
@@ -1148,7 +1148,7 @@ describe("WorkspaceBus", () => {
 
         const unsub = bus.on("*.created", handler);
         unsub();
-        bus.emit("table-block.created");
+        bus.emit("table.created");
 
         expect(handler).not.toHaveBeenCalled();
       });

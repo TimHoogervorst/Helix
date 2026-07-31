@@ -352,9 +352,9 @@ describe("ModRegistry", () => {
 
   it("registerIntoSlot stores bindings for different slots independently", () => {
     registry.registerIntoSlot("eln.editor", "eln.table");
-    registry.registerIntoSlot("eln.header.actions", "eln.export");
+    registry.registerIntoSlot("eln.header-actions", "eln.export");
     expect(registry.getBindings().get("eln.editor")).toHaveLength(1);
-    expect(registry.getBindings().get("eln.header.actions")).toHaveLength(1);
+    expect(registry.getBindings().get("eln.header-actions")).toHaveLength(1);
   });
 
   it("getBindings returns empty map when no bindings registered", () => {
@@ -396,14 +396,14 @@ describe("ModRegistry", () => {
 
   it("validate warns and skips binding when target type does not match slot accepts", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registry.declareSlot(makeSlotDeclaration({ id: "eln.header.actions", accepts: "button" }));
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.header-actions", accepts: "button" }));
     registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
-    registry.registerIntoSlot("eln.header.actions", "eln.table");
+    registry.registerIntoSlot("eln.header-actions", "eln.table");
     registry.validate();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("accepts 'button' but target"),
     );
-    expect(registry.getBindings().has("eln.header.actions")).toBe(false);
+    expect(registry.getBindings().has("eln.header-actions")).toBe(false);
     warnSpy.mockRestore();
   });
 
@@ -534,20 +534,20 @@ describe("ModRegistry", () => {
     registry.declareSlot(
       makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
     );
-    registry.registerBlock(makeBlockRegistration({ id: "eln.legacy-block" }));
-    registry.registerIntoSlot("eln.editor", "eln.legacy-block");
+    registry.registerBlock(makeBlockRegistration({ id: "eln.legacy" }));
+    registry.registerIntoSlot("eln.editor", "eln.legacy");
 
     const result = registry.resolveSlot("eln.editor");
     // All BlockRegistration entries participate in the slot system
     expect(result).not.toBeNull();
     expect(result!.bindings).toHaveLength(1);
-    expect(result!.bindings[0].id).toBe("eln.legacy-block");
+    expect(result!.bindings[0].id).toBe("eln.legacy");
   });
 
   it("resolveSlot resolves a button binding", () => {
     registry.declareSlot(
       makeSlotDeclaration({
-        id: "eln.header.actions",
+        id: "eln.header-actions",
         accepts: "button",
         defaults: { size: "sm" },
       }),
@@ -555,9 +555,9 @@ describe("ModRegistry", () => {
     registry.registerButton(
       makeButtonRegistration({ id: "eln.export", label: "Export" }),
     );
-    registry.registerIntoSlot("eln.header.actions", "eln.export", {}, 0);
+    registry.registerIntoSlot("eln.header-actions", "eln.export", {}, 0);
 
-    const result = registry.resolveSlot("eln.header.actions");
+    const result = registry.resolveSlot("eln.header-actions");
     expect(result).not.toBeNull();
     expect(result!.bindings).toHaveLength(1);
 
@@ -571,17 +571,17 @@ describe("ModRegistry", () => {
   it("resolveSlot skips bindings whose button target doesn't exist", () => {
     registry.declareSlot(
       makeSlotDeclaration({
-        id: "eln.header.actions",
+        id: "eln.header-actions",
         accepts: "button",
       }),
     );
     registry.registerButton(
       makeButtonRegistration({ id: "eln.export" }),
     );
-    registry.registerIntoSlot("eln.header.actions", "eln.export");
-    registry.registerIntoSlot("eln.header.actions", "nonexistent.button");
+    registry.registerIntoSlot("eln.header-actions", "eln.export");
+    registry.registerIntoSlot("eln.header-actions", "nonexistent.button");
 
-    const result = registry.resolveSlot("eln.header.actions");
+    const result = registry.resolveSlot("eln.header-actions");
     expect(result).not.toBeNull();
     expect(result!.bindings).toHaveLength(1);
     expect(result!.bindings[0].id).toBe("eln.export");

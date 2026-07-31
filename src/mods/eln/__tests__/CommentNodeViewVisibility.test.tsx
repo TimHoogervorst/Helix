@@ -57,7 +57,7 @@ function makeBlockComponentProps(
     context: {} as any,
     instance: {
       id: "inst-1",
-      blockId: "eln.comment-block",
+      blockId: "eln.comment",
       slotId: "eln.editor",
       attrs: {
         resolved: overrides?.resolved ?? false,

@@ -180,7 +180,7 @@ export function useActionAccumulator({
   // ── Subscribe to custom domain actions declared via emits ──────────────
   //
   // Each binding with a non-empty `emits` array gets a wildcard subscription
-  // on the workspace bus (e.g. `eln.registryTable-block.*`).  When a block
+  // on the workspace bus (e.g. `eln.registry-table.*`).  When a block
   // calls `context.emitAction(localId, payload)`, the renderer emits
   // `{blockId}.{localId}` on the bus, and this subscription picks it up,
   // resolves the action label + core type from the emit declaration, and

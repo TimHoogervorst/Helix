@@ -1083,7 +1083,7 @@ function EntitiesHub() {
 
       {/* ── Right Sidebar (slot-driven) ─────────────────────────────────── */}
       <SlotSidebar
-        slotId="entities.sidebar"
+        slotId="lims.sidebar"
         context={sidebarContext}
         bus={bus}
       />

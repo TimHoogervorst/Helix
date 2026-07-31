@@ -587,7 +587,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         <div className="flex items-center gap-1">
           {/* ── Slot-rendered header actions (dogfood #227) ── */}
           <SlotRenderer
-            slotId="eln.header.actions"
+            slotId="eln.header-actions"
             bus={bus}
             context={slotContext}
           />

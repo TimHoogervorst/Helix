@@ -48,7 +48,7 @@ export function register() {
 
   // ── Slot: Entities Hub Sidebar ────────────────────────────────────────
   declareSlot({
-    id: "entities.sidebar",
+    id: "lims.sidebar",
     accepts: "block",
     renderer: SlotSidebar,
     layout: "vertical",
@@ -58,7 +58,7 @@ export function register() {
 
   // ── Block: Selection placeholder ──────────────────────────────────────
   registerBlock({
-    id: "entities.selection-block",
+    id: "lims.selection",
     label: "Selection",
     icon: Info,
     component: SelectionBlock,
@@ -72,7 +72,7 @@ export function register() {
 
   // ── Block: My Views placeholder ───────────────────────────────────────
   registerBlock({
-    id: "entities.my-views-block",
+    id: "lims.my-views",
     label: "My Views",
     icon: LayoutList,
     component: MyViewsBlock,
@@ -86,7 +86,7 @@ export function register() {
 
   // ── Block: Global Views placeholder ───────────────────────────────────
   registerBlock({
-    id: "entities.global-views-block",
+    id: "lims.global-views",
     label: "Global Views",
     icon: Users,
     component: GlobalViewsBlock,
@@ -99,7 +99,7 @@ export function register() {
   });
 
   // ── Bind blocks into the sidebar slot ─────────────────────────────────
-  registerIntoSlot("entities.sidebar", "entities.selection-block", {}, 0);
-  registerIntoSlot("entities.sidebar", "entities.my-views-block", {}, 1);
-  registerIntoSlot("entities.sidebar", "entities.global-views-block", {}, 2);
+  registerIntoSlot("lims.sidebar", "lims.selection", {}, 0);
+  registerIntoSlot("lims.sidebar", "lims.my-views", {}, 1);
+  registerIntoSlot("lims.sidebar", "lims.global-views", {}, 2);
 }

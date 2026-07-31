@@ -1525,7 +1525,7 @@ describe("TipTapRenderer", () => {
       const capture = captureEditor();
       const bindings: BlockBinding[] = [
         makeBlockBinding({
-          id: "eln.registryTable-block",
+          id: "eln.registry-table",
           label: "Registry Table",
           component: TestBlock,
           emits: [
@@ -1558,9 +1558,9 @@ describe("TipTapRenderer", () => {
 
       // Simulate a block calling context.emitAction("row-added", { rowCount: 3 })
       // by emitting directly on the bus as the renderer would.
-      bus.emit("eln.registryTable-block.row-added", {
-        blockInstanceId: "eln.registryTable-block::0",
-        blockId: "eln.registryTable-block",
+      bus.emit("eln.registry-table.row-added", {
+        blockInstanceId: "eln.registry-table::0",
+        blockId: "eln.registry-table",
         localId: "row-added",
         payload: { rowCount: 3 },
       });
@@ -1587,7 +1587,7 @@ describe("TipTapRenderer", () => {
 
       // Verify the custom action was flushed with the correct metadata
       const customActionCall = mockFlush.mock.calls.find(
-        (c: unknown[]) => c[0] === "eln.registryTable-block.row-added",
+        (c: unknown[]) => c[0] === "eln.registry-table.row-added",
       );
       expect(customActionCall).toBeDefined();
       expect(customActionCall![1]).toBe("eln.entry");
@@ -1603,7 +1603,7 @@ describe("TipTapRenderer", () => {
       const capture = captureEditor();
       const bindings: BlockBinding[] = [
         makeBlockBinding({
-          id: "eln.registryTable-block",
+          id: "eln.registry-table",
           label: "Registry Table",
           component: TestBlock,
           emits: [
@@ -1634,9 +1634,9 @@ describe("TipTapRenderer", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Emit an event whose localId doesn't match any emit declaration
-      bus.emit("eln.registryTable-block.unknown-action", {
-        blockInstanceId: "eln.registryTable-block::0",
-        blockId: "eln.registryTable-block",
+      bus.emit("eln.registry-table.unknown-action", {
+        blockInstanceId: "eln.registry-table::0",
+        blockId: "eln.registry-table",
         localId: "unknown-action",
         payload: {},
       });
@@ -1662,11 +1662,11 @@ describe("TipTapRenderer", () => {
 
       // Should fall back to action string as label and "created" as core
       const customActionCall = mockFlush.mock.calls.find(
-        (c: unknown[]) => c[0] === "eln.registryTable-block.unknown-action",
+        (c: unknown[]) => c[0] === "eln.registry-table.unknown-action",
       );
       expect(customActionCall).toBeDefined();
       expect(customActionCall![3]).toEqual({
-        message: "eln.registryTable-block.unknown-action",
+        message: "eln.registry-table.unknown-action",
       });
     });
 
@@ -1756,7 +1756,7 @@ describe("TipTapRenderer", () => {
       const capture = captureEditor();
       const bindings: BlockBinding[] = [
         makeBlockBinding({
-          id: "eln.registryTable-block",
+          id: "eln.registry-table",
           label: "Registry Table",
           component: TestBlock,
           emits: [
@@ -1788,16 +1788,16 @@ describe("TipTapRenderer", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Emit two custom actions
-      bus.emit("eln.registryTable-block.row-added", {
-        blockInstanceId: "eln.registryTable-block::0",
-        blockId: "eln.registryTable-block",
+      bus.emit("eln.registry-table.row-added", {
+        blockInstanceId: "eln.registry-table::0",
+        blockId: "eln.registry-table",
         localId: "row-added",
         payload: { rowCount: 3 },
       });
 
-      bus.emit("eln.registryTable-block.registered-entities", {
-        blockInstanceId: "eln.registryTable-block::0",
-        blockId: "eln.registryTable-block",
+      bus.emit("eln.registry-table.registered-entities", {
+        blockInstanceId: "eln.registry-table::0",
+        blockId: "eln.registry-table",
         localId: "registered-entities",
         payload: { registeredCount: 3, totalAttempted: 3 },
       });
@@ -1823,8 +1823,8 @@ describe("TipTapRenderer", () => {
 
       // Both custom actions should be flushed
       const actionTypes = mockFlush.mock.calls.map((c: unknown[]) => c[0]);
-      expect(actionTypes).toContain("eln.registryTable-block.row-added");
-      expect(actionTypes).toContain("eln.registryTable-block.registered-entities");
+      expect(actionTypes).toContain("eln.registry-table.row-added");
+      expect(actionTypes).toContain("eln.registry-table.registered-entities");
     });
 
     it("emits action.performed for custom actions on successful flush", async () => {
@@ -1837,7 +1837,7 @@ describe("TipTapRenderer", () => {
       const capture = captureEditor();
       const bindings: BlockBinding[] = [
         makeBlockBinding({
-          id: "eln.registryTable-block",
+          id: "eln.registry-table",
           label: "Registry Table",
           component: TestBlock,
           emits: [
@@ -1867,9 +1867,9 @@ describe("TipTapRenderer", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      bus.emit("eln.registryTable-block.row-added", {
-        blockInstanceId: "eln.registryTable-block::0",
-        blockId: "eln.registryTable-block",
+      bus.emit("eln.registry-table.row-added", {
+        blockInstanceId: "eln.registry-table::0",
+        blockId: "eln.registry-table",
         localId: "row-added",
         payload: { rowCount: 2 },
       });
@@ -1896,7 +1896,7 @@ describe("TipTapRenderer", () => {
       // Verify the action.performed payload includes the custom action
       const customPerformed = actionPerformedPayloads.find(
         (p: unknown) =>
-          (p as Record<string, unknown>).action === "eln.registryTable-block.row-added",
+          (p as Record<string, unknown>).action === "eln.registry-table.row-added",
       );
       expect(customPerformed).toBeDefined();
     });

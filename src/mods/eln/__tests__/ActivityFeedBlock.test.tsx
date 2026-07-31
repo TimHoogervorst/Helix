@@ -62,7 +62,7 @@ function makeBusPayload(
   overrides: Partial<BusActionPayload> = {},
 ): BusActionPayload {
   return {
-    action: "eln.table-block.created",
+    action: "eln.table.created",
     actionType: "created",
     label: "Table Created",
     performedBy: { id: "u1", name: "Test User" },

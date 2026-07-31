@@ -536,7 +536,7 @@ export class ModRegistry {
    * Resolve a human-readable label for an action type from a catalog.
    *
    * Returns the catalog entry's ``label`` when a matching entry exists,
-   * falling back to the raw ``actionType`` string (e.g. "eln.table-block.created").
+   * falling back to the raw ``actionType`` string (e.g. "eln.table.created").
    * This is the single place for the label-resolution strategy — both
    * ``useBlockActionLogging`` and ``ActivityFeedBlock`` route through here.
    */

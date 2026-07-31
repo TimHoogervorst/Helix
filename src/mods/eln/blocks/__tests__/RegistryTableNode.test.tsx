@@ -182,7 +182,7 @@ function makeBlockComponentProps(opts?: {
     context: {} as any,
     instance: {
       id: "inst-1",
-      blockId: "eln.registryTable-block",
+      blockId: "eln.registry-table",
       slotId: "eln.editor",
       attrs,
       updateAttrs: vi.fn(),
@@ -394,7 +394,7 @@ describe("RegistryTableBlockComponent — picker dropdown", () => {
           rest: {
             instance: {
               id: "inst-1",
-              blockId: "eln.registryTable-block",
+              blockId: "eln.registry-table",
               slotId: "eln.editor",
               attrs: {
                 schemaId: null,
@@ -718,7 +718,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
       rest: {
         instance: {
           id: "inst-1",
-          blockId: "eln.registryTable-block",
+          blockId: "eln.registry-table",
           slotId: "eln.editor",
           attrs: {
             schemaId: 1,
@@ -882,7 +882,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
       rest: {
         instance: {
           id: "inst-1",
-          blockId: "eln.registryTable-block",
+          blockId: "eln.registry-table",
           slotId: "eln.editor",
           attrs: {
             schemaId: 1,
@@ -933,7 +933,7 @@ describe("RegistryTableBlockComponent — row operations", () => {
           rest: {
             instance: {
               id: "inst-1",
-              blockId: "eln.registryTable-block",
+              blockId: "eln.registry-table",
               slotId: "eln.editor",
               attrs: attrsObj,
               updateAttrs,
@@ -2558,7 +2558,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
           rest: {
             instance: {
               id: "inst-1",
-              blockId: "eln.registryTable-block",
+              blockId: "eln.registry-table",
               slotId: "eln.editor",
               attrs: {
                 schemaId: 1,
@@ -2590,7 +2590,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
           rest: {
             instance: {
               id: "inst-1",
-              blockId: "eln.registryTable-block",
+              blockId: "eln.registry-table",
               slotId: "eln.editor",
               attrs: {
                 schemaId: 1,

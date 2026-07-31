@@ -1,5 +1,5 @@
 /**
- * React component for the registryTable TipTap block.
+ * React component for the registry-table TipTap block.
  *
  * Three states:
  * 1. **Placeholder** (schemaId === null): compact box with Database icon,

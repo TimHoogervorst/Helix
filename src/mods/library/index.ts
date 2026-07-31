@@ -35,7 +35,7 @@ export function register() {
 
   // ── Block: Selection placeholder ───────────────────────────────────
   registerBlock({
-    id: "library.selection-block",
+    id: "library.selection",
     label: "Selection",
     icon: Info,
     component: SelectionBlock,
@@ -49,7 +49,7 @@ export function register() {
 
   // ── Block: Views placeholder ────────────────────────────────────────
   registerBlock({
-    id: "library.views-block",
+    id: "library.views",
     label: "Views",
     icon: LayoutList,
     component: ViewsBlock,
@@ -62,6 +62,6 @@ export function register() {
   });
 
   // ── Bind blocks into the sidebar slot ──────────────────────────────
-  registerIntoSlot("library.sidebar", "library.selection-block", {}, 0);
-  registerIntoSlot("library.sidebar", "library.views-block", {}, 1);
+  registerIntoSlot("library.sidebar", "library.selection", {}, 0);
+  registerIntoSlot("library.sidebar", "library.views", {}, 1);
 }

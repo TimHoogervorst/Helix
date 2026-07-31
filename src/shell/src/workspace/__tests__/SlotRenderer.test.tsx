@@ -257,7 +257,7 @@ describe("SlotRenderer", () => {
 
     registry.declareSlot(
       makeSlotDeclaration({
-        id: "eln.header.actions",
+        id: "eln.header-actions",
         accepts: "button",
         renderer: StubRenderer,
       }),
@@ -268,12 +268,12 @@ describe("SlotRenderer", () => {
     registry.registerButton(
       makeButtonRegistration({ id: "eln.lock", label: "Lock" }),
     );
-    registry.registerIntoSlot("eln.header.actions", "eln.export", {}, 0);
-    registry.registerIntoSlot("eln.header.actions", "eln.lock", {}, 1);
+    registry.registerIntoSlot("eln.header-actions", "eln.export", {}, 0);
+    registry.registerIntoSlot("eln.header-actions", "eln.lock", {}, 1);
 
     render(
       <SlotRenderer
-        slotId="eln.header.actions"
+        slotId="eln.header-actions"
         bus={bus}
         context={defaultContext}
       />,
@@ -465,9 +465,9 @@ describe("SlotRenderer", () => {
     );
     // All blocks are BlockRegistration now — they all have component/serialize
     registry.registerBlock(
-      makeBlockRegistration({ id: "eln.legacy-block", label: "Legacy" }),
+      makeBlockRegistration({ id: "eln.legacy", label: "Legacy" }),
     );
-    registry.registerIntoSlot("eln.editor", "eln.legacy-block");
+    registry.registerIntoSlot("eln.editor", "eln.legacy");
 
     const { container } = render(
       <SlotRenderer

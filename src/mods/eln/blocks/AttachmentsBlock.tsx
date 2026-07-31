@@ -1,7 +1,7 @@
 /**
  * AttachmentsBlock — slot-system block for the ELN sidebar.
  *
- * Registered as `eln.attachments-block`, rendered by SlotSidebar in the
+ * Registered as `eln.attachments`, rendered by SlotSidebar in the
  * `eln.sidebar` slot. Renders placeholder attachment entries (hardcoded
  * mock data, same as the original `<aside>` section).
  *

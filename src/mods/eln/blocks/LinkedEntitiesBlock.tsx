@@ -1,7 +1,7 @@
 /**
  * LinkedEntitiesBlock — slot-system block for the ELN sidebar.
  *
- * Registered as `eln.linked-entities-block`, rendered by SlotSidebar in the
+ * Registered as `eln.linked-entities`, rendered by SlotSidebar in the
  * `eln.sidebar` slot. Reads entry mentions and resolution data from
  * {@link SlotContext.entry} (cast to {@link ElnSidebarData}).
  *

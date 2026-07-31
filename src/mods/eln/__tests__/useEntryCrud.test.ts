@@ -565,6 +565,77 @@ describe("useEntryCrud", () => {
     });
   });
 
+  // ── Fetch abort on unmount ──────────────────────────────────────────────
+
+  it("aborts fetch on unmount and does not apply stale data", async () => {
+    let resolveFetch!: (value: unknown) => void;
+    mockGet.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    const { result, unmount } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    unmount();
+
+    resolveFetch(makeEntry({ name: "Stale" }));
+
+    expect(result.current.isReady).toBe(false);
+    expect(result.current.entry).toBeNull();
+  });
+
+  // ── Delete cancelled confirm ─────────────────────────────────────────────
+
+  it("does not delete when confirm is cancelled", async () => {
+    mockGet.mockResolvedValue(makeEntry());
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isReady).toBe(true);
+    });
+
+    await act(async () => {
+      await result.current.deleteEntry();
+    });
+
+    expect(mockDel).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(result.current.deleting).toBe(false);
+  });
+
+  // ── Delete error ─────────────────────────────────────────────────────────
+
+  it("sets error on delete failure and clears deleting state", async () => {
+    mockGet.mockResolvedValue(makeEntry());
+    mockDel.mockRejectedValue(new Error("Delete failed"));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const { result } = renderHook(() =>
+      useEntryCrud(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isReady).toBe(true);
+    });
+
+    await act(async () => {
+      await result.current.deleteEntry();
+    });
+
+    expect(result.current.error).toBe("Delete failed");
+    expect(result.current.deleting).toBe(false);
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  // ── Lock gated saves ─────────────────────────────────────────────────────
+
   it("autoSave is gated when isLockedByOther is true", async () => {
     mockGet.mockResolvedValue(makeEntry({ display_id: "E1" }));
     mockGetLockStatus.mockResolvedValue({

@@ -107,7 +107,8 @@ function makeBlockRegistration(
 
 function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
   return {
-    id: "lims",
+    vendor: "helix",
+    name: "lims",
     displayName: "LIMS",
     dependsOn: [],
     ...overrides,
@@ -730,8 +731,8 @@ describe("ModRegistry", () => {
       };
 
       const manifests = new Map([
-        ["lims", makeManifest({ id: "lims", displayName: "LIMS" })],
-        ["eln", makeManifest({ id: "eln", displayName: "ELN" })],
+        ["lims", makeManifest({ name: "lims", displayName: "LIMS" })],
+        ["eln", makeManifest({ name: "eln", displayName: "ELN" })],
       ]);
 
       registry.hydrateFromBackend(payload, manifests);
@@ -948,7 +949,7 @@ describe("ModRegistry", () => {
         },
       };
 
-      registry.hydrateFromBackend(payload, new Map([["eln", makeManifest({ id: "eln" })]]));
+      registry.hydrateFromBackend(payload, new Map([["eln", makeManifest({ name: "eln" })]]));
 
       const actions = registry.getActions("eln");
       expect(actions).toHaveLength(2);
@@ -981,7 +982,7 @@ describe("ModRegistry", () => {
         payload,
         new Map([
           ["lims", makeManifest()],
-          ["eln", makeManifest({ id: "eln" })],
+          ["eln", makeManifest({ name: "eln" })],
         ]),
       );
 

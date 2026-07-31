@@ -137,21 +137,26 @@ function bootModSystem(
   // No mods yet — nothing to do
   if (mods.length === 0) return;
 
-  // Step 2: Validate no duplicate IDs
+  // Step 2: Validate no duplicate vendor.name identities
   const seenIds = new Set<string>();
   for (const mod of mods) {
-    if (seenIds.has(mod.meta.id)) {
-      throw new Error(`Duplicate mod ID: '${mod.meta.id}'.`);
+    const id = vendorName(mod.meta);
+    if (seenIds.has(id)) {
+      throw new Error(`Duplicate mod ID: '${id}'.`);
     }
-    seenIds.add(mod.meta.id);
+    seenIds.add(id);
   }
 
-  // Step 3: Topological sort
+  // Step 3: Topological sort by vendor.name
   const sortedMods = topologicalSort(mods);
 
   // Step 4: Register in sorted order (each mod calls register*() → populates registry)
+  // Register both vendor.name (uniqueness anchor) and short name (backward
+  // compat — existing routes/settings sections still reference modId by
+  // short name, e.g. "lims", "eln").
   for (const mod of sortedMods) {
-    registry.registerMod(mod.meta.id);
+    registry.registerMod(vendorName(mod.meta));
+    registry.registerMod(mod.meta.name);
     mod.register();
   }
 
@@ -181,7 +186,9 @@ async function hydrateRegistryFromApi(
 
   if (mods.length === 0) return;
 
-  const manifests = new Map(mods.map((m) => [m.meta.id, m.meta]));
+  // Key by short name for backward compatibility with the backend API
+  // which returns workspace data keyed by mod name (e.g. "lims", "eln").
+  const manifests = new Map(mods.map((m) => [m.meta.name, m.meta]));
 
   await ModRegistry.loadFromBackend(manifests);
 }
@@ -225,15 +232,17 @@ function buildJsonManifestMap(
 /**
  * Parse and validate a ``modManifest.json`` payload into a ``ModManifest``.
  *
- * The JSON uses camelCase keys matching the frontend schema:
+ * The JSON uses camelCase keys matching the frontend schema.
+ * ``vendor`` and ``name`` together form the globally-unique mod identity.
  *
  * .. code-block:: json
  *
  *    {
- *      "id": "eln",
+ *      "vendor": "helix",
+ *      "name": "eln",
  *      "displayName": "Electronic Lab Notebook",
  *      "version": "0.1.0",
- *      "dependsOn": ["lims", "tags"]
+ *      "dependsOn": ["helix.lims", "helix.tags"]
  *    }
  *
  * Object-form dependencies are supported:
@@ -242,8 +251,8 @@ function buildJsonManifestMap(
  *
  *    {
  *      "dependsOn": [
- *        "lims",
- *        {"id": "tags", "version": ">=2.0"}
+ *        "helix.lims",
+ *        {"id": "helix.tags", "version": ">=2.0"}
  *      ]
  *    }
  *
@@ -258,9 +267,14 @@ export function parseJsonManifest(
   data: Record<string, unknown>,
   path: string,
 ): ModManifest {
-  if (typeof data.id !== "string" || !data.id) {
+  if (typeof data.name !== "string" || !data.name) {
     throw new Error(
-      `modManifest.json at '${path}' is missing required field 'id'.`,
+      `modManifest.json at '${path}' is missing required field 'name'.`,
+    );
+  }
+  if (typeof data.vendor !== "string" || !data.vendor) {
+    throw new Error(
+      `modManifest.json at '${path}' is missing required field 'vendor'.`,
     );
   }
   if (typeof data.displayName !== "string" || !data.displayName) {
@@ -277,14 +291,29 @@ export function parseJsonManifest(
   }
 
   // Validate each dependsOn entry is a string or an {id, version?} object.
+  // String entries must contain a '.' (vendor.name format).
   for (let i = 0; i < dependsOn.length; i++) {
     const entry = dependsOn[i];
-    if (typeof entry === "string") continue;
+    if (typeof entry === "string") {
+      if (!entry.includes(".")) {
+        throw new Error(
+          `modManifest.json at '${path}': dependsOn[${i}] "${entry}" ` +
+            `must be a fully-qualified "vendor.name" string.`,
+        );
+      }
+      continue;
+    }
     if (typeof entry === "object" && entry !== null) {
       const obj = entry as Record<string, unknown>;
       if (typeof obj.id !== "string" || !obj.id) {
         throw new Error(
           `modManifest.json at '${path}': dependsOn[${i}] object must have a non-empty 'id' string.`,
+        );
+      }
+      if (!obj.id.includes(".")) {
+        throw new Error(
+          `modManifest.json at '${path}': dependsOn[${i}].id "${obj.id}" ` +
+            `must be a fully-qualified "vendor.name" string.`,
         );
       }
       if (obj.version !== undefined && typeof obj.version !== "string") {
@@ -300,8 +329,9 @@ export function parseJsonManifest(
   }
 
   return {
-    id: data.id,
-    displayName: data.displayName,
+    vendor: data.vendor as string,
+    name: data.name as string,
+    displayName: data.displayName as string,
     version: typeof data.version === "string" ? data.version : undefined,
     dependsOn: dependsOn as (string | { id: string; version?: string })[],
     coreVersion:
@@ -310,6 +340,18 @@ export function parseJsonManifest(
     description:
       typeof data.description === "string" ? data.description : undefined,
   };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Derive the fully-qualified mod identity from a manifest.
+ *
+ * ``vendor + "." + name`` is the uniqueness anchor used for duplicate
+ * detection, topological sort, and ``registerMod`` identity.
+ */
+function vendorName(m: ModManifest): string {
+  return `${m.vendor}.${m.name}`;
 }
 
 // ── Topological Sort (Kahn's algorithm) ─────────────────────────────────
@@ -323,39 +365,44 @@ function depId(entry: string | { id: string; version?: string }): string {
 }
 
 /**
- * Sort mods by their `dependsOn` declarations so that dependencies
+ * Sort mods by their ``dependsOn`` declarations so that dependencies
  * load before their dependents.
  *
+ * Uses ``vendor.name`` as the node identity.  ``dependsOn`` entries must
+ * also be fully-qualified ``vendor.name`` strings.
+ *
  * Throws if:
- *   - A mod depends on an unknown mod ID (missing dependency)
+ *   - A mod depends on an unknown mod (missing dependency)
  *   - The graph contains a cycle (circular dependency)
  *
  * Exported for direct unit testing.
  */
 export function topologicalSort(mods: ModModule[]): ModModule[] {
-  // Build lookup: id → module
-  const modMap = new Map(mods.map((m) => [m.meta.id, m]));
+  // Build lookup: vendor.name → module
+  const modMap = new Map(mods.map((m) => [vendorName(m.meta), m]));
 
   // In-degree and adjacency maps
   const inDegree = new Map<string, number>();
-  const adjacency = new Map<string, string[]>(); // id → dependents
+  const adjacency = new Map<string, string[]>(); // vendor.name → dependents
 
   for (const mod of mods) {
-    inDegree.set(mod.meta.id, 0);
-    adjacency.set(mod.meta.id, []);
+    const id = vendorName(mod.meta);
+    inDegree.set(id, 0);
+    adjacency.set(id, []);
   }
 
   // Populate edges: dep → mod (dep must load before mod)
   for (const mod of mods) {
+    const modId = vendorName(mod.meta);
     for (const rawDep of mod.meta.dependsOn) {
       const dep = depId(rawDep);
       if (!modMap.has(dep)) {
         throw new Error(
-          `Mod '${mod.meta.id}' depends on '${dep}', which is not registered.`,
+          `Mod '${modId}' depends on '${dep}', which is not registered.`,
         );
       }
-      adjacency.get(dep)!.push(mod.meta.id);
-      inDegree.set(mod.meta.id, (inDegree.get(mod.meta.id) ?? 0) + 1);
+      adjacency.get(dep)!.push(modId);
+      inDegree.set(modId, (inDegree.get(modId) ?? 0) + 1);
     }
   }
 
@@ -380,7 +427,7 @@ export function topologicalSort(mods: ModModule[]): ModModule[] {
   if (result.length < mods.length) {
     const remaining = mods
       .filter((m) => !result.includes(m))
-      .map((m) => m.meta.id)
+      .map((m) => vendorName(m.meta))
       .join(", ");
     throw new Error(
       `Circular dependency detected involving mod(s): ${remaining}`,

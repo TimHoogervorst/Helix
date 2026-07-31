@@ -5,20 +5,36 @@ import type { WorkspaceBus } from "../workspace/WorkspaceBus";
 // ── Mod Manifest ──────────────────────────────────────────────────────────
 
 /**
- * What each mod's index.ts exports as `meta`.
+ * What each mod's index.ts exports as ``meta``.
  * Read by ModLoader during boot to order mods.
+ *
+ * The compound key ``vendor + "." + name`` (e.g. ``"helix.eln"``) is the
+ * uniqueness anchor used across the entire mod system.  ``name`` alone is
+ * the mod's local identifier within its vendor namespace.
  */
 export interface ModManifest {
-  /** Globally unique mod identifier, e.g. 'lims', 'eln'. */
-  id: string;
+  /**
+   * Vendor namespace.  Core platform mods use ``"helix"``.
+   * Combined with ``name`` to form the globally-unique ``vendor.name`` key.
+   */
+  vendor: string;
+  /**
+   * Local mod name within the vendor namespace, e.g. ``"eln"``, ``"lims"``.
+   * The compound key ``vendor.name`` (e.g. ``"helix.eln"``) is used as the
+   * unique mod identity everywhere in the system.
+   */
+  name: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
   /** Semver version string. Optional — core mods inherit the platform version when omitted. */
   version?: string;
   /**
-   * Mod IDs that must load before this mod.
-   * Each entry can be either a bare mod ID string or an object with an `id`
-   * and optional `version` constraint.
+   * Fully-qualified ``vendor.name`` strings identifying mods that must load
+   * before this mod.  Each entry can be either a bare ``"vendor.name"``
+   * string or an object with an ``id`` (also ``vendor.name``) and optional
+   * ``version`` constraint.
+   *
+   * Example: ``["helix.lims", { id: "helix.tags", version: ">=2.0" }]``
    */
   dependsOn: (string | { id: string; version?: string })[];
   /** Minimum platform version required by this mod. */
@@ -27,6 +43,62 @@ export interface ModManifest {
   icon?: string;
   /** Short description for settings and mod listing screens. */
   description?: string;
+}
+
+// ── Typed Handles ──────────────────────────────────────────────────────────
+
+/**
+ * Opaque handle returned by {@link Mod.registerBlock}.
+ *
+ * Carries the derived global ID, the owning mod's fully-qualified identity,
+ * and typed emitters for every entry in the block's ``emits`` array.
+ * The emitter shape is defined but not wired to the bus yet.
+ */
+export interface BlockHandle {
+  /** Brand to distinguish from other handle types at compile time. */
+  readonly __brand: "BlockHandle";
+  /** Derived global ID, e.g. ``"eln.table"``. */
+  readonly globalId: string;
+  /** Fully-qualified mod identity, e.g. ``"helix.eln"``. */
+  readonly modId: string;
+  /**
+   * Typed emitters keyed by emit local ID.
+   * Each value exposes a ``fire(payload)`` method.
+   */
+  readonly emits: Record<string, { fire: (payload: unknown) => void }>;
+}
+
+/**
+ * Opaque handle returned by {@link Mod.declareSlot}.
+ *
+ * Carries the derived global slot ID and the slot's ``accepts`` type so
+ * {@link Mod.registerIntoSlot} can compile-check that the bound target
+ * matches the slot's expectation.
+ */
+export interface SlotHandle {
+  /** Brand to distinguish from other handle types at compile time. */
+  readonly __brand: "SlotHandle";
+  /** Derived global slot ID, e.g. ``"eln.editor"``. */
+  readonly globalId: string;
+  /** Fully-qualified mod identity, e.g. ``"helix.eln"``. */
+  readonly modId: string;
+  /** What can be bound into this slot. */
+  readonly accepts: "block" | "button";
+}
+
+/**
+ * Opaque handle returned by {@link Mod.registerButton}.
+ *
+ * Carries the derived global button ID for use with
+ * {@link Mod.registerIntoSlot}.
+ */
+export interface ButtonHandle {
+  /** Brand to distinguish from other handle types at compile time. */
+  readonly __brand: "ButtonHandle";
+  /** Derived global ID, e.g. ``"eln.export"``. */
+  readonly globalId: string;
+  /** Fully-qualified mod identity, e.g. ``"helix.eln"``. */
+  readonly modId: string;
 }
 
 // ── Hub ───────────────────────────────────────────────────────────────────
@@ -237,7 +309,7 @@ export interface BlockRegistration {
   /** Extract a display name from block attributes for human-readable action log messages. */
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Custom domain actions this block can emit via `context.emitAction()`. */
-  emits: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
+  emits?: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
   tags?: string[];
   /** Serialize block state to a JSON string for persistence. */
   serialize: (state: Record<string, unknown>) => string;
@@ -340,7 +412,7 @@ export interface BlockBinding extends BaseBinding {
   /** Tags for block picker filtering. */
   tags?: string[];
   /** Custom domain actions this block can emit via `context.emitAction()`. */
-  emits: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
+  emits?: { id: string; label: string; core: "created" | "edited" | "deleted" }[];
   /** Merged overrides: slot defaults ← binding overrides (binding wins per-key). */
   overrides: Record<string, unknown>;
   /** Serialize block state to a JSON string for persistence. */

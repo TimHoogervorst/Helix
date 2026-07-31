@@ -19,15 +19,16 @@ interface ModModule {
 type DependsOnEntry = string | { id: string; version?: string };
 
 function makeMod(
-  id: string,
+  name: string,
   dependsOn: DependsOnEntry[] = [],
   registerFn: () => void = () => {},
   overrides: Partial<ModManifest> = {},
 ): ModModule {
   return {
     meta: {
-      id,
-      displayName: id.toUpperCase(),
+      vendor: "helix",
+      name,
+      displayName: name.toUpperCase(),
       version: "0.1.0",
       dependsOn,
       ...overrides,
@@ -58,51 +59,51 @@ describe("topologicalSort", () => {
     const result = topologicalSort(mods);
     // All should be present (order among independents is stable)
     expect(result).toHaveLength(3);
-    expect(result.map((m) => m.meta.id).sort()).toEqual(["a", "b", "c"]);
+    expect(result.map((m) => m.meta.name).sort()).toEqual(["a", "b", "c"]);
   });
 
   it("sorts linear dependency chain: c → b → a", () => {
     // a depends on b, b depends on c → order: c, b, a
     const mods = [
-      makeMod("a", ["b"]),
-      makeMod("b", ["c"]),
+      makeMod("a", ["helix.b"]),
+      makeMod("b", ["helix.c"]),
       makeMod("c", []),
     ];
     const result = topologicalSort(mods);
-    expect(result[0].meta.id).toBe("c");
-    expect(result[1].meta.id).toBe("b");
-    expect(result[2].meta.id).toBe("a");
+    expect(result[0].meta.name).toBe("c");
+    expect(result[1].meta.name).toBe("b");
+    expect(result[2].meta.name).toBe("a");
   });
 
   it("sorts diamond dependency: D first, then B/C, then A", () => {
     // A depends on B and C; B and C depend on D
     const mods = [
-      makeMod("a", ["b", "c"]),
-      makeMod("b", ["d"]),
-      makeMod("c", ["d"]),
+      makeMod("a", ["helix.b", "helix.c"]),
+      makeMod("b", ["helix.d"]),
+      makeMod("c", ["helix.d"]),
       makeMod("d", []),
     ];
     const result = topologicalSort(mods);
     // D must be first
-    expect(result[0].meta.id).toBe("d");
+    expect(result[0].meta.name).toBe("d");
     // A must be last
-    expect(result[3].meta.id).toBe("a");
+    expect(result[3].meta.name).toBe("a");
     // B and C are between D and A (order between them is stable but not
     // guaranteed by Kahn's — both are valid as long as they're after D
     // and before A)
-    const middleIds = [result[1].meta.id, result[2].meta.id].sort();
+    const middleIds = [result[1].meta.name, result[2].meta.name].sort();
     expect(middleIds).toEqual(["b", "c"]);
   });
 
   it("throws on missing dependency", () => {
-    const mods = [makeMod("a", ["nonexistent"])];
+    const mods = [makeMod("a", ["helix.nonexistent"])];
     expect(() => topologicalSort(mods)).toThrow(
-      "Mod 'a' depends on 'nonexistent', which is not registered",
+      "Mod 'helix.a' depends on 'helix.nonexistent', which is not registered",
     );
   });
 
   it("throws on circular dependency (A → B → A)", () => {
-    const mods = [makeMod("a", ["b"]), makeMod("b", ["a"])];
+    const mods = [makeMod("a", ["helix.b"]), makeMod("b", ["helix.a"])];
     expect(() => topologicalSort(mods)).toThrow(
       "Circular dependency detected involving",
     );
@@ -110,9 +111,9 @@ describe("topologicalSort", () => {
 
   it("throws on three-way circular dependency (A → B → C → A)", () => {
     const mods = [
-      makeMod("a", ["b"]),
-      makeMod("b", ["c"]),
-      makeMod("c", ["a"]),
+      makeMod("a", ["helix.b"]),
+      makeMod("b", ["helix.c"]),
+      makeMod("c", ["helix.a"]),
     ];
     expect(() => topologicalSort(mods)).toThrow(
       "Circular dependency detected involving",
@@ -127,21 +128,21 @@ describe("topologicalSort", () => {
       makeMod("c"),
     ];
     const result = topologicalSort(mods);
-    expect(result[0].meta.id).toBe("a");
-    expect(result[1].meta.id).toBe("b");
-    expect(result[2].meta.id).toBe("c");
+    expect(result[0].meta.name).toBe("a");
+    expect(result[1].meta.name).toBe("b");
+    expect(result[2].meta.name).toBe("c");
   });
 
   it("handles complex graph with multiple roots and leaves", () => {
     const mods = [
-      makeMod("app", ["lims", "eln", "library"]),
-      makeMod("lims", ["shared"]),
-      makeMod("eln", ["shared", "lims"]),
-      makeMod("library", ["shared"]),
+      makeMod("app", ["helix.lims", "helix.eln", "helix.library"]),
+      makeMod("lims", ["helix.shared"]),
+      makeMod("eln", ["helix.shared", "helix.lims"]),
+      makeMod("library", ["helix.shared"]),
       makeMod("shared", []),
     ];
     const result = topologicalSort(mods);
-    const ids = result.map((m) => m.meta.id);
+    const ids = result.map((m) => m.meta.name);
 
     // shared must come first
     expect(ids[0]).toBe("shared");
@@ -160,38 +161,39 @@ describe("topologicalSort", () => {
 
   it("handles object-form dependsOn entries with optional version", () => {
       const mods = [
-        makeMod("a", [{ id: "b", version: ">=1.0" }]),
+        makeMod("a", [{ id: "helix.b", version: ">=1.0" }]),
         makeMod("b", []),
       ];
       const result = topologicalSort(mods);
       // b must come before a
-      expect(result[0].meta.id).toBe("b");
-      expect(result[1].meta.id).toBe("a");
+      expect(result[0].meta.name).toBe("b");
+      expect(result[1].meta.name).toBe("a");
     });
 
     it("handles mixed string and object dependsOn entries", () => {
       const mods = [
-        makeMod("a", ["b", { id: "c", version: ">=2.0" }]),
+        makeMod("a", ["helix.b", { id: "helix.c", version: ">=2.0" }]),
         makeMod("b", []),
         makeMod("c", []),
       ];
       const result = topologicalSort(mods);
-      const ids = result.map((m) => m.meta.id);
+      const ids = result.map((m) => m.meta.name);
       expect(ids.indexOf("b")).toBeLessThan(ids.indexOf("a"));
       expect(ids.indexOf("c")).toBeLessThan(ids.indexOf("a"));
     });
 
     it("throws on missing dependency in object-form dependsOn", () => {
-      const mods = [makeMod("a", [{ id: "nonexistent" }])];
+      const mods = [makeMod("a", [{ id: "helix.nonexistent" }])];
       expect(() => topologicalSort(mods)).toThrow(
-        "Mod 'a' depends on 'nonexistent', which is not registered",
+        "Mod 'helix.a' depends on 'helix.nonexistent', which is not registered",
       );
     });
 
     it("accepts mod manifest without version", () => {
       const mod = makeMod("a", [], () => {}, { version: undefined });
       expect(mod.meta.version).toBeUndefined();
-      expect(mod.meta.id).toBe("a");
+      expect(mod.meta.name).toBe("a");
+      expect(mod.meta.vendor).toBe("helix");
     });
 
     it("accepts mod manifest with optional fields", () => {
@@ -240,10 +242,11 @@ describe("topologicalSort", () => {
 
     it("parses a minimal valid JSON manifest", () => {
       const manifest = parseJsonManifest(
-        { id: "test-mod", displayName: "Test Mod" },
+        { vendor: "helix", name: "test-mod", displayName: "Test Mod" },
         testPath,
       );
-      expect(manifest.id).toBe("test-mod");
+      expect(manifest.vendor).toBe("helix");
+      expect(manifest.name).toBe("test-mod");
       expect(manifest.displayName).toBe("Test Mod");
       expect(manifest.version).toBeUndefined();
       expect(manifest.dependsOn).toEqual([]);
@@ -255,20 +258,22 @@ describe("topologicalSort", () => {
     it("parses a full JSON manifest with all optional fields", () => {
       const manifest = parseJsonManifest(
         {
-          id: "full-mod",
+          vendor: "helix",
+          name: "full-mod",
           displayName: "Full Mod",
           version: "2.0.0",
-          dependsOn: ["tags", "lims"],
+          dependsOn: ["helix.tags", "helix.lims"],
           coreVersion: ">=1.0",
           icon: "flask-conical",
           description: "A complete test mod",
         },
         testPath,
       );
-      expect(manifest.id).toBe("full-mod");
+      expect(manifest.vendor).toBe("helix");
+      expect(manifest.name).toBe("full-mod");
       expect(manifest.displayName).toBe("Full Mod");
       expect(manifest.version).toBe("2.0.0");
-      expect(manifest.dependsOn).toEqual(["tags", "lims"]);
+      expect(manifest.dependsOn).toEqual(["helix.tags", "helix.lims"]);
       expect(manifest.coreVersion).toBe(">=1.0");
       expect(manifest.icon).toBe("flask-conical");
       expect(manifest.description).toBe("A complete test mod");
@@ -277,36 +282,38 @@ describe("topologicalSort", () => {
     it("parses object-form dependsOn entries", () => {
       const manifest = parseJsonManifest(
         {
-          id: "test-mod",
+          vendor: "helix",
+          name: "test-mod",
           displayName: "Test Mod",
           dependsOn: [
-            "tags",
-            { id: "lims", version: ">=2.0" },
+            "helix.tags",
+            { id: "helix.lims", version: ">=2.0" },
           ],
         },
         testPath,
       );
       expect(manifest.dependsOn).toEqual([
-        "tags",
-        { id: "lims", version: ">=2.0" },
+        "helix.tags",
+        { id: "helix.lims", version: ">=2.0" },
       ]);
     });
 
     it("parses object-form dependsOn without version", () => {
       const manifest = parseJsonManifest(
         {
-          id: "test-mod",
+          vendor: "helix",
+          name: "test-mod",
           displayName: "Test Mod",
-          dependsOn: [{ id: "lims" }],
+          dependsOn: [{ id: "helix.lims" }],
         },
         testPath,
       );
-      expect(manifest.dependsOn).toEqual([{ id: "lims" }]);
+      expect(manifest.dependsOn).toEqual([{ id: "helix.lims" }]);
     });
 
     it("defaults dependsOn to empty array when missing", () => {
       const manifest = parseJsonManifest(
-        { id: "test-mod", displayName: "Test Mod" },
+        { vendor: "helix", name: "test-mod", displayName: "Test Mod" },
         testPath,
       );
       expect(manifest.dependsOn).toEqual([]);
@@ -315,7 +322,8 @@ describe("topologicalSort", () => {
     it("skips undefined optional fields", () => {
       const manifest = parseJsonManifest(
         {
-          id: "test-mod",
+          vendor: "helix",
+          name: "test-mod",
           displayName: "Test Mod",
           version: undefined,
           coreVersion: undefined,
@@ -332,28 +340,46 @@ describe("topologicalSort", () => {
 
     // ── Error cases ────────────────────────────────────────────────────
 
-    it("throws on missing id field", () => {
+    it("throws on missing name field", () => {
       expect(() =>
         parseJsonManifest(
-          { displayName: "No Id" } as Record<string, unknown>,
+          { vendor: "helix", displayName: "No Name" } as Record<string, unknown>,
           testPath,
         ),
-      ).toThrow("missing required field 'id'");
+      ).toThrow("missing required field 'name'");
     });
 
-    it("throws on empty id string", () => {
+    it("throws on empty name string", () => {
       expect(() =>
         parseJsonManifest(
-          { id: "", displayName: "Empty Id" },
+          { vendor: "helix", name: "", displayName: "Empty Name" },
           testPath,
         ),
-      ).toThrow("missing required field 'id'");
+      ).toThrow("missing required field 'name'");
+    });
+
+    it("throws on missing vendor field", () => {
+      expect(() =>
+        parseJsonManifest(
+          { name: "test-mod", displayName: "No Vendor" } as Record<string, unknown>,
+          testPath,
+        ),
+      ).toThrow("missing required field 'vendor'");
+    });
+
+    it("throws on empty vendor string", () => {
+      expect(() =>
+        parseJsonManifest(
+          { vendor: "", name: "test-mod", displayName: "Empty Vendor" },
+          testPath,
+        ),
+      ).toThrow("missing required field 'vendor'");
     });
 
     it("throws on missing displayName field", () => {
       expect(() =>
         parseJsonManifest(
-          { id: "test-mod" } as Record<string, unknown>,
+          { vendor: "helix", name: "test-mod" } as Record<string, unknown>,
           testPath,
         ),
       ).toThrow("missing required field 'displayName'");
@@ -362,7 +388,7 @@ describe("topologicalSort", () => {
     it("throws on empty displayName string", () => {
       expect(() =>
         parseJsonManifest(
-          { id: "test-mod", displayName: "" },
+          { vendor: "helix", name: "test-mod", displayName: "" },
           testPath,
         ),
       ).toThrow("missing required field 'displayName'");
@@ -372,7 +398,8 @@ describe("topologicalSort", () => {
       expect(() =>
         parseJsonManifest(
           {
-            id: "test-mod",
+            vendor: "helix",
+            name: "test-mod",
             displayName: "Test Mod",
             dependsOn: "not-an-array",
           },
@@ -381,11 +408,40 @@ describe("topologicalSort", () => {
       ).toThrow("'dependsOn' must be an array");
     });
 
+    it("throws on bare dependsOn entry without dot (not fully qualified)", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            vendor: "helix",
+            name: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: ["lims"],
+          },
+          testPath,
+        ),
+      ).toThrow("must be a fully-qualified");
+    });
+
+    it("throws on object-form dependsOn entry without dot in id", () => {
+      expect(() =>
+        parseJsonManifest(
+          {
+            vendor: "helix",
+            name: "test-mod",
+            displayName: "Test Mod",
+            dependsOn: [{ id: "lims" }],
+          },
+          testPath,
+        ),
+      ).toThrow("must be a fully-qualified");
+    });
+
     it("throws on invalid dependsOn entry type (number)", () => {
       expect(() =>
         parseJsonManifest(
           {
-            id: "test-mod",
+            vendor: "helix",
+            name: "test-mod",
             displayName: "Test Mod",
             dependsOn: [42],
           },
@@ -398,7 +454,8 @@ describe("topologicalSort", () => {
       expect(() =>
         parseJsonManifest(
           {
-            id: "test-mod",
+            vendor: "helix",
+            name: "test-mod",
             displayName: "Test Mod",
             dependsOn: [{ version: ">=1.0" }],
           },
@@ -411,7 +468,8 @@ describe("topologicalSort", () => {
       expect(() =>
         parseJsonManifest(
           {
-            id: "test-mod",
+            vendor: "helix",
+            name: "test-mod",
             displayName: "Test Mod",
             dependsOn: [{ id: "" }],
           },
@@ -424,9 +482,10 @@ describe("topologicalSort", () => {
       expect(() =>
         parseJsonManifest(
           {
-            id: "test-mod",
+            vendor: "helix",
+            name: "test-mod",
             displayName: "Test Mod",
-            dependsOn: [{ id: "lims", version: 2 }],
+            dependsOn: [{ id: "helix.lims", version: 2 }],
           },
           testPath,
         ),
@@ -437,7 +496,8 @@ describe("topologicalSort", () => {
       expect(() =>
         parseJsonManifest(
           {
-            id: "test-mod",
+            vendor: "helix",
+            name: "test-mod",
             displayName: "Test Mod",
             dependsOn: [null],
           },

@@ -30,8 +30,12 @@ describe("users mod — index.ts", () => {
   });
 
   describe("meta (modManifest.json)", () => {
-    it("has required id field", () => {
-      expect(usersManifest.id).toBe("users");
+    it("has required vendor field", () => {
+      expect(usersManifest.vendor).toBe("helix");
+    });
+
+    it("has required name field", () => {
+      expect(usersManifest.name).toBe("users");
     });
 
     it("has displayName", () => {

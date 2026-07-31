@@ -36,12 +36,9 @@ import Reference from "../editor/extensions/Reference";
 import UnifiedSuggestion from "../editor/extensions/UnifiedSuggestion";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
-import { splitFirstParagraph } from "../entryContent";
-import { useEntryCrud } from "../hooks/useEntryCrud";
-import { useAutoSave, type ContentPhase } from "../hooks/useAutoSave";
-import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
-import { useDirtyTracking } from "../hooks/useDirtyTracking";
+import type { EntryDetail, Tag } from "../types";
+import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
+import type { Folder as FolderItem } from "../hooks/useEntryFolder";
 import { useTaggableItems } from "../../tags/hooks";
 import { TagPill } from "../../tags/ui";
 import { TagAutocomplete } from "../../tags/ui";
@@ -86,11 +83,10 @@ function IconButton({
 // ── Types ────────────────────────────────────────────────────────────────────────
 
 /** Snapshot of editor state used throughout the workspace and passed to
- *  slot children via SlotContext. Assembled from the composed hooks. */
+ *  slot children via SlotContext. Assembled from the facade and taggableItems. */
 interface ElnWorkspaceEditorState {
   isReady: boolean;
   isDirty: boolean;
-  deleting: boolean;
   /** Current save-queue status. */
   saveStatus: SaveStatus;
   /** When the most recent successful save completed, or null. */
@@ -107,7 +103,7 @@ interface ElnWorkspaceEditorState {
   status: string;
   /** Current tags on the entry. */
   tags: Tag[];
-  /** Current description text (first paragraph of TipTap content). */
+  /** Current description text. */
   description: string;
   /** True when another user holds an active lock — entry is read-only. */
   isLockedByOther: boolean;
@@ -124,13 +120,10 @@ interface ElnWorkspaceProps {
 function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const entryDisplayId = entryId ?? "New";
 
-  // ── URL param reading (was in ElnEditor) ────────────────────────────────────
+  // ── URL param reading ────────────────────────────────────────────────────
   const [searchParams] = useSearchParams();
-  // A "new" entry is one that was just created server-side and navigated
-  // to with ?new=true. It's immediately editable with deferred tag collection.
   const isNew = searchParams.get("new") === "true";
 
-  // Read initial folder from URL params (set when creating from library)
   const initialFolderId: number | null = (() => {
     const raw = searchParams.get("folderId");
     if (raw) {
@@ -142,25 +135,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   // ── Title ref (for contentEditable cursor preservation) ──
   const titleRef = useRef<HTMLHeadingElement | null>(null);
-  // Guard so auto-focus only fires once on mount, not on every re-render.
   const hasAutoFocusedRef = useRef(false);
 
   // ── Description textarea ref (for auto-resize) ──
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
   const navigate = useNavigate();
-
-  // ── TipTap content tracking ──
-  const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
-  const [contentVersion, setContentVersion] = useState(0);
-
-  // ── Content fidelity phase state machine ──
-  // Only "editing" allows auto-save.  Transitions to "loading" when
-  // isReady drops (navigation, refetch) and back to "editing" via rAF
-  // after the editor mount + initial onUpdate have committed.
-  // This guarantees contentRef.current corresponds to the current entry
-  // before any save can fire.  #366 follow-up.
-  const [contentPhase, setContentPhase] = useState<ContentPhase>("loading");
 
   // ── WorkspaceBus — one per workspace instance, shared across all slots ──
   const busRef = useRef<WorkspaceBus>(null);
@@ -169,142 +149,43 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }
   const bus = busRef.current;
 
-  // ── Hooks (was in ElnEditor) ──────────────────────────────────────────────
-  const crud = useEntryCrud({ entryId, isNew, contentRef });
+  // ── Facade hook: owns the entire save pipeline + content bridge ──────
+  const workspace = useEntryWorkspace({ entryId, isNew, initialFolderId });
+
+  // ── Tag management (stays outside the facade) ──
   const taggableItems = useTaggableItems({
-    initialTags: crud.entry?.tags ?? [],
+    initialTags: workspace.entry?.tags ?? [],
     attachFn: !isNew && entryId
       ? async (tagIds: number[]) => {
           const updated = await attachTags(entryId, tagIds);
-          crud.setEntry(updated);
+          workspace.save.applySavedEntry(updated);
         }
       : undefined,
     detachFn: !isNew && entryId
       ? async (tagId: number) => {
           const updated = await detachTag(entryId, tagId);
-          crud.setEntry(updated);
+          workspace.save.applySavedEntry(updated);
         }
       : undefined,
     deferred: isNew,
   });
-  const folder = useEntryFolder({ initialFolderId });
 
-  // ── Derive baseline values from the saved baseline (last persisted payload) ──
-  const baseline = useMemo(() => {
-    const saved = crud.savedBaseline;
-    if (!saved) {
-      return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
-    }
-    const { description: d, body } = splitFirstParagraph(saved.content);
-    // Use body (document minus first paragraph) for initialContent so the
-    // dirty-tracking comparison is apples-to-apples with contentRef.current
-    // (which also holds only the body after initial setContent).
-    return { title: saved.name, description: d, content: body, status: saved.status || "in_progress" };
-  }, [crud.savedBaseline]);
-
-  const { isDirty } = useDirtyTracking({
-    title: crud.title,
-    initialTitle: baseline.title,
-    description: crud.description,
-    initialDescription: baseline.description,
-    status: crud.status,
-    initialStatus: baseline.status,
-    contentRef,
-    initialContent: baseline.content,
-    queueLength: crud.queueLength,
-  });
-
-  // ── Block action accumulation ref (updated by useActionAccumulator in
-  //     TipTapRenderer, read at save time for the X-Block-Actions header).
-  //     Declared before auto-save hooks so it can be captured by
-  //     autoSaveWithBlockActions. ──
-  const hasBlockActionsRef = useRef<boolean>(false);
-
-  // ── Auto-save ──
-  // Wrap crud.autoSave so hasBlockActionsRef is read at call time
-  // (the ref is updated synchronously by useActionAccumulator).
-  const autoSaveWithBlockActions = useCallback(
-    (folderId: number | null) => {
-      crud.autoSave(folderId, hasBlockActionsRef.current ?? false);
-    },
-    [crud.autoSave, hasBlockActionsRef],
-  );
-
-  useAutoSave({
-    entryId: entryId ?? crud.entry?.display_id,
-    title: crud.title,
-    description: crud.description,
-    status: crud.status,
-    contentVersion,
-    folderId: folder.folderId,
-    autoSave: autoSaveWithBlockActions,
-    contentPhase,
-  });
-
-  // ── Content phase transitions ──
-  //   isReady false → loading (discard stale baselines)
-  //   isReady true  → rAF → editing (editor has mounted + initial onUpdate fired)
-  //
-  // The rAF gate catches the synchronous onUpdate that fires during
-  // useEditor's useState initializer. Without it, the auto-save effect
-  // runs in the same render commit as the editor init and may capture
-  // a baseline before contentRef.current has been set.
-  useEffect(() => {
-    if (!crud.isReady) {
-      setContentPhase("loading");
-      return;
-    }
-    const handle = requestAnimationFrame(() => {
-      setContentPhase("editing");
-    });
-    return () => cancelAnimationFrame(handle);
-  }, [crud.isReady]);
-
-  // Destructure for convenient access
-  const {
-    isReady,
-    entry,
-    title,
-    setTitle,
-    description,
-    setDescription,
-    status,
-    setStatus,
-    error,
-    deleting,
-    isLockedByOther,
-    lockHeldBy,
-    saveStatus,
-    lastSavedAt,
-    queueLength,
-  } = crud;
-
-  const {
-    tags,
-    pendingTagIds,
-    addTag,
-    removeTag,
-  } = taggableItems;
-
-  const { folderId, setFolderId, folders } = folder;
-
-  // Wire cross-hook actions
-  const save = useCallback(
-    (options?: { hasBlockActions?: boolean }) =>
-      crud.save(folderId, isNew ? pendingTagIds : [], options?.hasBlockActions),
-    [crud.save, folderId, isNew, pendingTagIds],
-  );
-  const { deleteEntry } = crud;
+  // ── Destructure grouped returns ──
+  const { isReady, error } = workspace;
+  const { title, description, status, setTitle, setDescription, setStatus } = workspace.fields;
+  const { folderId, folders, setFolderId } = workspace.folder;
+  const { saveStatus, lastSavedAt, queueLength, isDirty, save, deleteEntry } = workspace.save;
+  const { isLockedByOther, lockHeldBy } = workspace.lock;
+  const { tags, pendingTagIds, addTag, removeTag } = taggableItems;
 
   // ── Derived editor state (replaces the old onStateChange / useState pattern) ──
   const editorState = useMemo<ElnWorkspaceEditorState>(() => ({
     isReady,
     isDirty,
-    deleting,
     saveStatus,
     lastSavedAt,
     queueLength,
-    entry,
+    entry: workspace.entry,
     folders,
     folderId,
     status,
@@ -312,7 +193,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     description,
     isLockedByOther,
     lockHeldBy,
-  }), [isReady, isDirty, deleting, saveStatus, lastSavedAt, queueLength, entry, folders, folderId, status, tags, description, isLockedByOther, lockHeldBy]);
+  }), [isReady, isDirty, saveStatus, lastSavedAt, queueLength, workspace.entry, folders, folderId, status, tags, description, isLockedByOther, lockHeldBy]);
 
   const showActions = editorState.isReady;
 
@@ -354,42 +235,16 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     );
   }, []);
 
-  // ── TipTapRenderer callbacks ──
-  const handleEditorUpdate = useCallback((editor: Editor) => {
-    contentRef.current = editor.getJSON() as TipTapDoc;
-    setContentVersion((v) => v + 1);
-  }, []);
-
-  // ── Derive body content for TipTapRenderer ──
-  // Guaranteed non-null at mount: isReady gates the renderer branch for
-  // existing entries (entry is loaded), and EMPTY_DOC serves as the
-  // fallback for new entries (content arrives at mount — no post-mount
-  // setContent needed).
-  const bodyContent = useMemo(() => {
-    if (!editorState.entry) return EMPTY_DOC;
-    const { body } = splitFirstParagraph(editorState.entry.content);
-    return body;
-  }, [editorState.entry]);
-
   // ── sendAction bound to "eln" workspace — passed to TipTapRenderer as
   //     `onFlushActions` for useActionAccumulator to post block actions to
   //     the unified POST /api/actions/ endpoint (#327, #351).
   const sendAction = useSendAction("eln");
 
-  // Numeric entry ID — only available after the entry is loaded.  The
-  // accumulator skips the flush when this is undefined (new entry).
-  const numericEntryId = editorState.entry?.id;
-
   // ── Emit "eln.entry.saved" on the bus whenever a save completes ───────
   const prevLastSavedAtRef = useRef<Date | null>(null);
   useEffect(() => {
     const current = editorState.lastSavedAt;
-    // Skip initial null and unchanged values
     if (current === null) return;
-    // Skip the initial transition from null → first Date value on page load.
-    // The entry was just fetched from the server, not saved by the user, so
-    // we must not flush accumulated lifecycle events that were emitted during
-    // programmatic content loading (Strict Mode re-mounts, etc.).
     if (prevLastSavedAtRef.current === null) {
       prevLastSavedAtRef.current = current;
       return;
@@ -405,10 +260,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   // ── Activity data (single fetch serves Activity feed + toolbar avatars + last editor) ──
   const { actions } = useActivity(entryId);
 
-  // Deduplicate editors from the last week for the toolbar avatar row
   const recentEditors = getRecentEditors(actions);
-
-  // Most recent action's performer is the "last editor"
   const lastEditor =
     actions.length > 0 ? actions[0].performed_by : null;
 
@@ -426,7 +278,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, [editorState.entry?.mentions, resolveIds]);
 
   // ── Derived metadata for the panel ──
-  const folderPath = entry?.folder_path || "";
+  const folderPath = workspace.entry?.folder_path || "";
   const pathSegments = folderPath.split("/").filter(Boolean);
 
   // ── SlotContext — flat metadata bag available to all blocks and buttons ─
@@ -439,7 +291,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       displayId: entryDisplayId,
       actions: ModRegistry.getInstance().getActions("eln"),
       entry: {
-        entry,
+        entry: workspace.entry,
         lastEditor,
         status: editorState.status,
         folders: editorState.folders,
@@ -448,14 +300,14 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         onStatusChange: setStatus,
         onFolderChange: setFolderId,
         resolutionMap,
-        mentions: entry?.mentions ?? [],
+        mentions: workspace.entry?.mentions ?? [],
         navigate: (path: string) => navigate(path),
       } satisfies ElnSidebarData,
     }),
     [
       entryId,
       entryDisplayId,
-      entry,
+      workspace.entry,
       lastEditor,
       editorState.status,
       editorState.folders,
@@ -580,7 +432,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
           {/* ── Save status indicator ── */}
           {showActions && (() => {
-            // When locked by another user, show lock icon with tooltip.
             if (editorState.isLockedByOther) {
               const lockLabel = `Locked by ${editorState.lockHeldBy || "another user"} — read-only`;
               return (
@@ -620,7 +471,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                 className="btn-icon rounded-md"
                 aria-label={label}
                 title={label}
-                onClick={() => save({ hasBlockActions: hasBlockActionsRef.current })}
+                onClick={() => save(isNew ? pendingTagIds : undefined)}
               >
                 <Icon className={iconClass} aria-hidden="true" />
               </button>
@@ -723,34 +574,20 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         </div>
       </div>
 
-        {/* ── Content: five-zone layout (zones 2–5; zone 1 left sidebar is from Layout.tsx) ── */}
-        {/* An invisible left counterweight (zone 2) balances the right gutter
-            (zone 4) so the center gutter (zone 3) is always horizontally
-            centred via justify-center — the group (counterweight + center +
-            right gutter) is symmetric.  When comments hide below xl, the
-            counterweight hides with them so the center gutter is still centred.
-
-            Scroll lives on this five-zone content row, not on
-            Layout's <main> — the scrollbar stays between the left sidebar
-            and the right sidebar. The toolbar above is fixed (not scrollable). */}
+        {/* ── Content: five-zone layout ── */}
         <div className="flex min-h-0 flex-1 justify-center overflow-y-auto" style={{ overflowX: "clip" }}>
-          {/* Zone 2: Left gutter counterweight — invisible spacer matching
-              right gutter width (w-64 16rem + ml-6 1.5rem = 17.5rem).
-              Hidden together with the right gutter below xl. */}
+          {/* Zone 2: Left gutter counterweight */}
           <div
             className="hidden xl:block shrink-0"
             style={{ width: "17.5rem" }}
             aria-hidden="true"
           />
 
-          {/* Zone 3: Center gutter — per-block centering (max-w-3xl mx-auto)
-              lives on .ProseMirror children and BlockNodeView wrappers.
-              No max-w-3xl on <main> itself so stretched blocks can expand
-              beyond the text column into the gutter space. */}
+          {/* Zone 3: Center gutter */}
           <main className="min-h-0 w-full">
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
-                {/* ── Editor chrome + TipTapRenderer (was ElnEditor) ── */}
+                {/* ── Editor chrome + TipTapRenderer ── */}
                 <div>
                   {/* ── Locked banner ── */}
                   {isLockedByOther && (
@@ -768,11 +605,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                   )}
 
                   {/* ── Content area ── */}
-
-                  {/* Header section: centred like ProseMirror text, so the title,
-                      description, tags, and metadata line align with the text column.
-                      Stretch blocks (e.g. registry tables) still expand full-width
-                      because the ProseMirror wrapper lives outside this container. */}
                   <div className="max-w-3xl mx-auto">
 
                     {/* Metadata line */}
@@ -780,13 +612,13 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                       className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
                       data-testid="metadata-line"
                     >
-                      {entry ? (
+                      {workspace.entry ? (
                         <>
-                          {entry.display_id}
+                          {workspace.entry.display_id}
                           {" · "}
-                          Created {formatDateShort(entry.created_at)}
+                          Created {formatDateShort(workspace.entry.created_at)}
                           {" · "}
-                          Updated {formatDateShort(entry.updated_at)}
+                          Updated {formatDateShort(workspace.entry.updated_at)}
                         </>
                       ) : (
                         "New entry"
@@ -797,7 +629,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
                     <h1
                       ref={(el) => {
                         titleRef.current = el;
-                        // Autofocus new entries exactly once on mount (not on every re-render).
                         if (el && isNew && !isLockedByOther && !hasAutoFocusedRef.current) {
                           hasAutoFocusedRef.current = true;
                           requestAnimationFrame(() => el.focus());
@@ -862,24 +693,21 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
                   </div>
 
-                  {/* ── ProseMirror Content (TipTapRenderer) ──
-                      Not constrained by max-w-3xl so stretch blocks (registry tables,
-                      etc.) can expand into the gutters. Per-child centering is handled
-                      by .ProseMirror > * in styles.css. */}
+                  {/* ── ProseMirror Content (TipTapRenderer) ── */}
                   <div className="min-h-[60vh]" data-testid="prosemirror-wrapper" key={entryId}>
                     <TipTapRenderer
                       slotId="eln.editor"
                       bindings={editorBindings}
                       bus={bus}
                       context={slotContext}
-                      content={bodyContent}
+                      content={workspace.editor.content}
                       extensions={elnExtensions}
-                      onUpdate={handleEditorUpdate}
-                      editable={!editorState.isLockedByOther}
-                      saveSignal={editorState.lastSavedAt}
-                      targetId={numericEntryId}
+                      onUpdate={workspace.editor.onUpdate}
+                      editable={workspace.editor.editable}
+                      saveSignal={workspace.editor.saveSignal}
+                      targetId={workspace.editor.targetId}
                       onFlushActions={sendAction}
-                      hasPendingRef={hasBlockActionsRef}
+                      hasPendingRef={workspace.editor.hasPendingRef}
                     />
                   </div>
                 </div>
@@ -887,9 +715,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
             </div>
           </main>
 
-          {/* Zone 4: Right gutter — comment cards, w-64, hidden below xl.
-              Border separator only appears when the gutter has content
-              (rendered by comment card components — future PRD). */}
+          {/* Zone 4: Right gutter — comment cards, w-64, hidden below xl. */}
           <aside
             className="hidden xl:block w-64 shrink-0 overflow-y-auto ml-6"
             aria-label="Comments"

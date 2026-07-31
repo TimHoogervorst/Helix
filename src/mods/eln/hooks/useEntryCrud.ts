@@ -20,7 +20,7 @@ import {
   splitFirstParagraph,
   prependDescription,
   collectDisplayIds,
-} from "./useEntryEditor";
+} from "../entryContent";
 
 export interface UseEntryCrudOptions {
   entryId?: string;

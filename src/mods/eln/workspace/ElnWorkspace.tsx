@@ -37,7 +37,7 @@ import UnifiedSuggestion from "../editor/extensions/UnifiedSuggestion";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { EMPTY_DOC, type TipTapDoc, type EntryDetail, type Tag } from "../types";
-import { splitFirstParagraph } from "../hooks/useEntryEditor";
+import { splitFirstParagraph } from "../entryContent";
 import { useEntryCrud } from "../hooks/useEntryCrud";
 import { useAutoSave, type ContentPhase } from "../hooks/useAutoSave";
 import { useEntryFolder, type Folder as FolderItem } from "../hooks/useEntryFolder";
@@ -195,21 +195,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     if (!saved) {
       return { title: "", description: "", content: EMPTY_DOC as TipTapDoc, status: "in_progress" };
     }
-    const { description: d, body } = (() => {
-      const doc = saved.content;
-      if (!doc || typeof doc !== "object") return { description: "", body: EMPTY_DOC as TipTapDoc };
-      const c = doc as Record<string, unknown>;
-      const children = c.content;
-      if (Array.isArray(children) && children.length > 0) {
-        const first = children[0] as Record<string, unknown>;
-        if (first && first.type === "paragraph") {
-          const textContent = first.content as Array<Record<string, unknown>> | undefined;
-          const desc = textContent ? textContent.map((t) => t.text || "").join("") : "";
-          return { description: desc, body: { ...c, content: children.slice(1) } as TipTapDoc };
-        }
-      }
-      return { description: "", body: doc as TipTapDoc };
-    })();
+    const { description: d, body } = splitFirstParagraph(saved.content);
     // Use body (document minus first paragraph) for initialContent so the
     // dirty-tracking comparison is apples-to-apples with contentRef.current
     // (which also holds only the body after initial setContent).

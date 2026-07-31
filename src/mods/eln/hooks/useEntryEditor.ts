@@ -17,6 +17,10 @@ import { useEntryFolder, type Folder } from "./useEntryFolder";
 import { useDirtyTracking } from "./useDirtyTracking";
 import { attachTags, detachTag } from "../api";
 import { updateTag } from "../../tags/api";
+import { splitFirstParagraph } from "../entryContent";
+
+// Re-export for backward compatibility
+export { splitFirstParagraph, prependDescription, collectDisplayIds } from "../entryContent";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,104 +77,6 @@ export interface UseEntryEditorReturn {
   deleteEntry(): Promise<void>;
   /** @deprecated No-op in always-editable mode. Editor is always editable. */
   enterEditMode(): void;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Recursively extract all plain text from a TipTap JSON node.
- * Handles marks (bold, italic, etc.) by traversing into children.
- */
-function extractText(node: unknown): string {
-  if (!node || typeof node !== "object") return "";
-  const n = node as Record<string, unknown>;
-  if (n.type === "text" && typeof n.text === "string") {
-    return n.text;
-  }
-  const children = n.content;
-  if (Array.isArray(children)) {
-    return children.map((c) => extractText(c)).join("");
-  }
-  return "";
-}
-
-/**
- * Split a TipTap document into its first paragraph (the description) and
- * the rest of the document (everything after the first paragraph).
- *
- * Returns the description text and a new document with remaining content.
- * If the first node is not a paragraph, description is empty and doc is unchanged.
- */
-export function splitFirstParagraph(
-  doc: TipTapDoc,
-): { description: string; body: TipTapDoc } {
-  if (!doc || typeof doc !== "object") {
-    return { description: "", body: doc };
-  }
-  const d = doc as Record<string, unknown>;
-  const content = d.content;
-  if (!Array.isArray(content) || content.length === 0) {
-    return { description: "", body: doc };
-  }
-  const first = content[0] as Record<string, unknown> | undefined;
-  if (first && first.type === "paragraph") {
-    const description = extractText(first);
-    const body = { ...d, content: content.slice(1) };
-    return { description, body };
-  }
-  return { description: "", body: doc };
-}
-
-/**
- * Prepend a description paragraph to a TipTap document.
- */
-export function prependDescription(
-  doc: TipTapDoc,
-  description: string,
-): TipTapDoc {
-  const para = {
-    type: "paragraph",
-    content: description
-      ? [{ type: "text", text: description }]
-      : [],
-  };
-  const d = doc as Record<string, unknown>;
-  const content = Array.isArray(d.content) ? d.content : [];
-  return { ...d, content: [para, ...content] };
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Walk the TipTap JSON tree and collect all ``displayId`` values
- * from ``reference`` nodes.
- */
-export function collectDisplayIds(doc: TipTapDoc): string[] {
-  const ids: string[] = [];
-
-  function walk(node: unknown) {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-
-    if (n.type === "reference") {
-      const attrs = n.attrs as Record<string, unknown> | undefined;
-      const displayId = attrs?.displayId;
-      if (typeof displayId === "string") {
-        ids.push(displayId);
-      }
-      return; // reference nodes are atomic
-    }
-
-    const content = n.content;
-    if (Array.isArray(content)) {
-      for (const child of content) {
-        walk(child);
-      }
-    }
-  }
-
-  walk(doc);
-  return ids;
 }
 
 // ── Hook (composition wrapper) ────────────────────────────────────────────────

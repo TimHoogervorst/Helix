@@ -32,10 +32,7 @@ import type { SlotContext, BlockBinding } from "../../../shell/src/mod-system/ty
 import type { ElnSidebarData } from "../blocks/sidebarData";
 import { useSendAction } from "../../../shell/src/workspace/useSendAction";
 import { TipTapRenderer } from "../../../shell/src/workspace/TipTapRenderer";
-import Reference from "../editor/extensions/Reference";
-import UnifiedSuggestion from "../editor/extensions/UnifiedSuggestion";
-import Placeholder from "@tiptap/extension-placeholder";
-import { TableKit } from "@tiptap/extension-table";
+import { elnExtensions } from "../editor/extensions/elnExtensions";
 import type { EntryDetail, Tag } from "../types";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
 import type { Folder as FolderItem } from "../hooks/useEntryFolder";
@@ -214,17 +211,6 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [description]);
-
-  // ── ELN-specific extensions (passed to TipTapRenderer as a prop) ──
-  const elnExtensions = useMemo(
-    () => [
-      Placeholder.configure({ placeholder: "Start writing…" }),
-      Reference,
-      UnifiedSuggestion,
-      TableKit,
-    ],
-    [],
-  );
 
   // ── Resolve editor slot bindings for TipTapRenderer ──
   const editorBindings = useMemo(() => {

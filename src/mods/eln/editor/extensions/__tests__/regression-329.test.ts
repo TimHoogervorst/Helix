@@ -19,10 +19,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import UnifiedSuggestion from "../UnifiedSuggestion";
-import Reference from "../Reference";
-import Placeholder from "@tiptap/extension-placeholder";
-import { TableKit } from "@tiptap/extension-table";
+import { elnExtensions } from "../elnExtensions";
 import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
 
 // ── Test block node ──────────────────────────────────────────────────
@@ -73,10 +70,7 @@ function createProductionEditor(content?: Record<string, unknown>) {
     element: el,
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Placeholder.configure({ placeholder: "Start writing…" }),
-      Reference,
-      UnifiedSuggestion,
-      TableKit,
+      ...elnExtensions,
     ],
     content: content ?? { type: "doc", content: [{ type: "paragraph" }] },
   });

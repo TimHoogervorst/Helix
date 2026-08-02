@@ -75,6 +75,14 @@ function isWorkspaceEntry(
  * must be available outside the component tree (e.g. route matching, mod
  * loading) and must not trigger re-renders.
  */
+
+function getCsrfCookie(): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split("; csrftoken=");
+  if (parts.length === 2) return parts.pop()?.split(";").shift() ?? null;
+  return null;
+}
+
 export class ModRegistry {
   // ── Singleton ─────────────────────────────────────────────────────────
 
@@ -636,9 +644,16 @@ export class ModRegistry {
 
     // Step 3 — POST each mod's actions to the backend.
     for (const [modId, actions] of actionsByMod) {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const csrfToken = getCsrfCookie();
+      if (csrfToken) {
+        headers["X-CSRFToken"] = csrfToken;
+      }
       const response = await fetch("/api/mod-registry/sync-actions/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ mod_id: modId, actions }),
       });
 

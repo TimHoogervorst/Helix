@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Plus,
   Pencil,
@@ -59,7 +61,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
   const subtitle = applyValueTemplate(style.text, value);
 
   return (
-    <div className="group relative flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-start gap-1.5 bg-card px-5 py-3">
+    <div className="group relative flex-shrink-0 w-1/4 min-w-[180px] flex flex-col bg-card px-4 py-3">
       {/* Hover edit button */}
       <button
         type="button"
@@ -71,36 +73,43 @@ function CardTile({ state, onEdit }: CardTileProps) {
         <Pencil className="h-3.5 w-3.5" />
       </button>
 
-      <span className={colorClasses.text}>
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
+      {/* Top row: icon + label */}
+      <div className="flex items-center gap-1.5">
+        <span className={colorClasses.text}>
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground leading-snug">
+          {label}
+        </span>
+      </div>
 
-      {valueLoading ? (
-        <span className="font-serif text-2xl font-semibold tracking-tight text-muted-foreground flex items-center gap-1">
+      {/* Big number */}
+      <div className="flex-1 flex items-center py-1">
+        {valueLoading ? (
           <Loader2
-            className="h-5 w-5 animate-spin"
+            className="h-5 w-5 animate-spin text-muted-foreground"
             aria-label="Loading value"
           />
-        </span>
-      ) : valueError ? (
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-          <span className="font-mono text-[11px]">Failed to load</span>
-        </span>
-      ) : (
-        <span className={`font-serif text-2xl font-semibold tracking-tight ${
-          colorKey !== "muted" ? colorClasses.text : "text-foreground"
-        }`}>
-          {value !== null ? value : "\u2014"}
-        </span>
-      )}
+        ) : valueError ? (
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            <span className="font-mono text-[11px]">Failed to load</span>
+          </span>
+        ) : (
+          <span className={`font-serif text-3xl font-semibold tracking-tight ${
+            colorKey !== "muted" ? colorClasses.text : "text-foreground"
+          }`}>
+            {value !== null ? value : "\u2014"}
+          </span>
+        )}
+      </div>
 
-      <span className="font-mono text-[11px] text-muted-foreground">
-        {subtitle ?? ""}
-      </span>
+      {/* Subtitle — fixed height keeps number from shifting */}
+      <div className="h-4">
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {subtitle ?? ""}
+        </span>
+      </div>
     </div>
   );
 }
@@ -138,6 +147,17 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<CardData | null>(null);
   const cancelledRef = useRef(false);
+  const CARDS_PER_PAGE = 4;
+  const [currentPage, setCurrentPage] = useState(0);
+  const totalItems = cardStates.length + 1;
+  const totalPages = Math.max(1, Math.ceil(totalItems / CARDS_PER_PAGE));
+  const startIdx = currentPage * CARDS_PER_PAGE;
+  const visibleCards = cardStates.slice(startIdx, startIdx + CARDS_PER_PAGE);
+  const showAddButton = currentPage === totalPages - 1 && visibleCards.length < CARDS_PER_PAGE;
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [cardStates.length]);
 
   const loadCards = useCallback(() => {
     cancelledRef.current = false;
@@ -219,53 +239,78 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
   }, [loadCards]);
 
   return (
-    <section className="border-y-1 border-border bg-surface">
-      <div className="mx-auto max-w-4xl">
-        <div className="flex gap-px overflow-x-auto items-stretch">
-          {cardsLoading ? (
-            <LoadingSkeleton />
-          ) : cardStates.length === 0 ? (
-            <EmptyState onAdd={() => openBuilder(null)} />
-          ) : (
+    <>
+      <section className="border-y-1 border-border bg-surface group/bar">
+        <div className="mx-auto max-w-4xl relative">
+          {totalPages > 1 && (
             <>
-              {cardStates.map((state) => (
-                <CardTile
-                  key={state.card.id}
-                  state={state}
-                  onEdit={openBuilder}
-                />
-              ))}
-              {/* Add card button */}
               <button
                 type="button"
-                className="flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-center justify-center gap-1 bg-card px-5 py-3 group hover:bg-muted/50 transition"
-                onClick={() => openBuilder(null)}
-                title="Add card"
-                aria-label="Add card"
+                className="btn-icon absolute -left-6 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity disabled:opacity-20"
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                disabled={currentPage === 0}
+                aria-label="Show previous cards"
               >
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">
-                  <Plus
-                    className="h-5 w-5"
-                    aria-hidden="true"
-                  />
-                </span>
-                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Add card
-                </span>
+                <ChevronLeft className="h-4 w-4 text-muted-foreground/60" />
+              </button>
+              <button
+                type="button"
+                className="btn-icon absolute -right-6 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity disabled:opacity-20"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={currentPage >= totalPages - 1}
+                aria-label="Show next cards"
+              >
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </button>
             </>
           )}
+          <div className="flex gap-px overflow-x-hidden items-stretch">
+            {cardsLoading ? (
+              <LoadingSkeleton />
+            ) : cardStates.length === 0 ? (
+              <EmptyState onAdd={() => openBuilder(null)} />
+            ) : (
+              <>
+                {visibleCards.map((state) => (
+                  <CardTile
+                    key={state.card.id}
+                    state={state}
+                    onEdit={openBuilder}
+                  />
+                ))}
+                {showAddButton && (
+                  <button
+                    type="button"
+                    className="flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-center justify-center gap-1 bg-card px-5 py-3 group hover:bg-muted/50 transition"
+                    onClick={() => openBuilder(null)}
+                    title="Add card"
+                    aria-label="Add card"
+                  >
+                    <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+                      <Plus
+                        className="h-5 w-5"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Add card
+                    </span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
-      {builderOpen && (
-        <CardBuilderModal
-          editingCard={editingCard}
-          surface={surface}
-          onClose={closeBuilder}
-          onSaved={handleSaved}
-        />
-      )}
-    </section>
+        {builderOpen && (
+          <CardBuilderModal
+            editingCard={editingCard}
+            surface={surface}
+            onClose={closeBuilder}
+            onSaved={handleSaved}
+          />
+        )}
+      </section>
+    </>
   );
 }

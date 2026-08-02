@@ -17,7 +17,7 @@
  *  - Both panels render side by side, no inspirational quote
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { BookOpen } from "lucide-react";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
@@ -233,7 +233,7 @@ describe("HomePage", () => {
       });
     });
 
-    it("supports horizontal scrolling when there are more than 4 cards", async () => {
+    it("paginates cards with arrows when there are more than 4 cards", async () => {
       const manyCards = Array.from({ length: 6 }, (_, i) =>
         makeCard({ id: i + 1, order: i, label: `Card ${i + 1}` }),
       );
@@ -243,22 +243,52 @@ describe("HomePage", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Card 1")).toBeInTheDocument();
-        expect(screen.getByText("Card 6")).toBeInTheDocument();
+        expect(screen.getByText("Card 4")).toBeInTheDocument();
       });
 
-      // The scroll container should be present with overflow-x-auto
+      // Card 5 and 6 should not be visible on page 0
+      expect(screen.queryByText("Card 5")).not.toBeInTheDocument();
+      expect(screen.queryByText("Card 6")).not.toBeInTheDocument();
+
+      // No overflow-x-auto scroll container
       const sections = document.querySelectorAll(
         "section.border-y-1.border-border",
       );
       expect(sections.length).toBeGreaterThanOrEqual(1);
       const cardsSection = sections[sections.length - 1];
-      const scrollContainer = cardsSection.querySelector(".overflow-x-auto");
-      expect(scrollContainer).toBeInTheDocument();
+      expect(cardsSection.querySelector(".overflow-x-auto")).not.toBeInTheDocument();
 
-      // Each card should have w-1/4 (25% width), so 6 cards = 150% of parent → overflow.
-      // The add card button also has w-1/4, making 7 total elements.
-      const cardEls = scrollContainer!.querySelectorAll(".w-1\\/4");
-      expect(cardEls.length).toBe(7);
+      // Navigation arrows should be present
+      const nextBtn = screen.getByLabelText("Show next cards");
+      const prevBtn = screen.getByLabelText("Show previous cards");
+      expect(nextBtn).toBeInTheDocument();
+      expect(prevBtn).toBeInTheDocument();
+      expect(prevBtn).toBeDisabled();
+
+      // Navigate to next page
+      fireEvent.click(nextBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText("Card 5")).toBeInTheDocument();
+        expect(screen.getByText("Card 6")).toBeInTheDocument();
+      });
+
+      // Cards from page 0 should be gone
+      expect(screen.queryByText("Card 1")).not.toBeInTheDocument();
+
+      // Add card button should be visible on the last page
+      expect(screen.getByLabelText("Add card")).toBeInTheDocument();
+
+      // Next button should now be disabled
+      expect(screen.getByLabelText("Show next cards")).toBeDisabled();
+
+      // Navigate back
+      fireEvent.click(screen.getByLabelText("Show previous cards"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Card 1")).toBeInTheDocument();
+        expect(screen.getByText("Card 4")).toBeInTheDocument();
+      });
     });
 
     it("falls back to metric_name when label is empty", async () => {

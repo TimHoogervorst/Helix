@@ -439,9 +439,9 @@ class MetricViewSet(viewsets.ModelViewSet):
                 identity=identity,
             )
             return Response(result)
-        except Exception as e:
+        except Exception:
             logger.exception("Metric value evaluation failed for metric %d", metric.pk)
             return Response(
-                {"detail": str(e)},
+                {"detail": "An internal error has occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

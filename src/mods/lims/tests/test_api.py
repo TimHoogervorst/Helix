@@ -6,9 +6,10 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from core.tests.base import BaseTestCase
 from helix_core.models import SchemaType, Schema
-from mods.lims.models import Action as LimsAction, Entity
+from mods.lims.models import Action as LimsAction, Entity, LimsView, Metric
 
 
 class LimsApiTests(BaseTestCase):
@@ -1539,3 +1540,519 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["errors"]), 1)
         self.assertEqual(response.data["errors"][0]["field"], "count")
+
+
+# ── Metric API tests ────────────────────────────────────────────────────────
+
+
+class MetricApiTests(BaseTestCase):
+    """Metric CRUD, visibility, value evaluation, and seeding."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+            columns=[{"name": "concentration", "type": "number"}],
+        )
+        self.view = LimsView.objects.create(
+            owner=self.user,
+            name="My DNA View",
+            is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [],
+            },
+        )
+
+    # ── CRUD ────────────────────────────────────────────────────────────────
+
+    def test_create_metric_succeeds(self):
+        """POST creates a metric with auto-generated name."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            "/api/lims/metrics/",
+            {"view": self.view.id, "aggregate_function": "count", "column": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["aggregate_function"], "count")
+        self.assertIsNone(response.data["column"])
+        self.assertEqual(response.data["name"], "Count — My DNA View")
+        self.assertEqual(response.data["owner_username"], self.user.username)
+
+    def test_create_metric_with_explicit_name(self):
+        """POST with an explicit name uses the provided name."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            "/api/lims/metrics/",
+            {
+                "view": self.view.id,
+                "aggregate_function": "sum",
+                "column": "concentration",
+                "name": "Total DNA Conc",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["name"], "Total DNA Conc")
+
+    def test_create_metric_requires_auth(self):
+        """Unauthenticated POST is rejected."""
+        response = self.client.post(
+            "/api/lims/metrics/",
+            {"view": self.view.id, "aggregate_function": "count", "column": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_retrieve_metric(self):
+        """GET a single metric returns its fields."""
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], metric.id)
+        self.assertEqual(response.data["aggregate_function"], "count")
+
+    def test_update_metric(self):
+        """Owner can update their own metric."""
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        response = self.client.patch(
+            f"/api/lims/metrics/{metric.id}/",
+            {"name": "Renamed Metric"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], "Renamed Metric")
+
+    def test_delete_metric(self):
+        """Owner can delete their own metric."""
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        response = self.client.delete(f"/api/lims/metrics/{metric.id}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Metric.objects.filter(id=metric.id).exists())
+
+    # ── Visibility ──────────────────────────────────────────────────────────
+
+    def test_owner_sees_own_metric(self):
+        """Owner's metrics appear in list for the owner."""
+        self.client.force_authenticate(user=self.user)
+        Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        response = self.client.get("/api/lims/metrics/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def test_non_owner_cannot_see_private_metric(self):
+        """Another user cannot see metrics on a private view."""
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        other = User.objects.create_user(username="other", password="pass")
+        self.client.force_authenticate(user=other)
+        response = self.client.get("/api/lims/metrics/")
+        self.assertEqual(response.status_code, 200)
+        ids = [m["id"] for m in response.data]
+        self.assertNotIn(metric.id, ids)
+
+    def test_anyone_sees_metric_on_public_view(self):
+        """Any user (including anonymous) sees metrics on a public View."""
+        public_view = LimsView.objects.create(
+            owner=self.user,
+            name="Public View",
+            is_public=True,
+            filter_state={"columns": []},
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=public_view, aggregate_function="count", column=None,
+        )
+        response = self.client.get("/api/lims/metrics/")
+        self.assertEqual(response.status_code, 200)
+        ids = [m["id"] for m in response.data]
+        self.assertIn(metric.id, ids)
+
+    def test_non_owner_cannot_modify_metric(self):
+        """Another user cannot update or delete someone else's metric."""
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        other = User.objects.create_user(username="other", password="pass")
+        self.client.force_authenticate(user=other)
+        response = self.client.patch(
+            f"/api/lims/metrics/{metric.id}/",
+            {"name": "Hacked"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    # ── Value endpoint ──────────────────────────────────────────────────────
+
+    def test_value_count_without_column(self):
+        """The value endpoint returns a row count for a count-without-column metric."""
+        Entity.objects.create(
+            name="Sample A", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        Entity.objects.create(
+            name="Sample B", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        # Two entities with status=in_progress and schema_type=lims.entity
+        self.assertEqual(response.data["value"], 2)
+
+    def test_value_count_with_column(self):
+        """Count with a column counts non-null values."""
+        Entity.objects.create(
+            name="Sample A", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 42},
+        )
+        Entity.objects.create(
+            name="Sample B", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={},  # no concentration
+        )
+        self.client.force_authenticate(user=self.user)
+        col_view = LimsView.objects.create(
+            owner=self.user, name="Conc View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=col_view, aggregate_function="count",
+            column="concentration",
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 1)
+
+    def test_value_sum_on_numeric_column(self):
+        """Sum over a numeric JSON property returns the correct total."""
+        Entity.objects.create(
+            name="Sample A", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 42},
+        )
+        Entity.objects.create(
+            name="Sample B", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 58},
+        )
+        self.client.force_authenticate(user=self.user)
+        col_view = LimsView.objects.create(
+            owner=self.user, name="Sum View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "schema": str(self.schema.id),
+                "columns": [],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=col_view, aggregate_function="sum",
+            column="concentration",
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 100.0)
+
+    def test_value_avg_on_numeric_column(self):
+        """Avg over a numeric JSON property returns the correct average."""
+        Entity.objects.create(
+            name="Sample A", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 10},
+        )
+        Entity.objects.create(
+            name="Sample B", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 30},
+        )
+        self.client.force_authenticate(user=self.user)
+        col_view = LimsView.objects.create(
+            owner=self.user, name="Avg View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=col_view, aggregate_function="avg",
+            column="concentration",
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 20.0)
+
+    def test_value_min_on_numeric_column(self):
+        """Min over a numeric JSON property returns the smallest value."""
+        Entity.objects.create(
+            name="Sample A", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 5},
+        )
+        Entity.objects.create(
+            name="Sample B", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 95},
+        )
+        self.client.force_authenticate(user=self.user)
+        col_view = LimsView.objects.create(
+            owner=self.user, name="Min View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=col_view, aggregate_function="min",
+            column="concentration",
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 5.0)
+
+    def test_value_max_on_numeric_column(self):
+        """Max over a numeric JSON property returns the largest value."""
+        Entity.objects.create(
+            name="Sample A", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 5},
+        )
+        Entity.objects.create(
+            name="Sample B", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+            properties={"concentration": 95},
+        )
+        self.client.force_authenticate(user=self.user)
+        col_view = LimsView.objects.create(
+            owner=self.user, name="Max View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=col_view, aggregate_function="max",
+            column="concentration",
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 95.0)
+
+    def test_value_is_me_filter_with_identity(self):
+        """is_me filter rewrites to exact match when identity is provided."""
+        Entity.objects.create(
+            name="By Alice", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        other = User.objects.create_user(username="bob", password="pass")
+        Entity.objects.create(
+            name="By Bob", schema=self.schema, author=other,
+            folder=self.folder, status="in_progress",
+        )
+        self.client.force_authenticate(user=self.user)
+        by_me_view = LimsView.objects.create(
+            owner=self.user, name="By Me View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [
+                    {"column": "author", "operator": "is_me", "value": ""}
+                ],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=by_me_view, aggregate_function="count", column=None,
+        )
+        response = self.client.get(
+            f"/api/lims/metrics/{metric.id}/value/?me={self.user.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 1)
+
+    def test_value_is_me_no_identity(self):
+        """is_me filter with no identity drops the filter (returns all rows)."""
+        Entity.objects.create(
+            name="By Alice", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        other = User.objects.create_user(username="bob", password="pass")
+        Entity.objects.create(
+            name="By Bob", schema=self.schema, author=other,
+            folder=self.folder, status="in_progress",
+        )
+        self.client.force_authenticate(user=self.user)
+        by_me_view = LimsView.objects.create(
+            owner=self.user, name="By Me View", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema_type": "lims.entity",
+                "columns": [
+                    {"column": "author", "operator": "is_me", "value": ""}
+                ],
+            },
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=by_me_view, aggregate_function="count", column=None,
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        # No identity → is_me is a no-op → returns all matching rows
+        self.assertEqual(response.data["value"], 2)
+
+    def test_value_empty_database(self):
+        """Value endpoint returns 0 for count on an empty database."""
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 0)
+
+    def test_value_live_reference_invariant(self):
+        """The metric returns up-to-date results, not a cached snapshot."""
+        Entity.objects.create(
+            name="First", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=self.view, aggregate_function="count", column=None,
+        )
+        r1 = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(r1.data["value"], 1)
+
+        Entity.objects.create(
+            name="Second", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        r2 = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(r2.data["value"], 2)
+
+    def test_value_view_with_schema_filter(self):
+        """View with a schema filter only counts entities matching that schema."""
+        Schema.objects.create(
+            name="Chem", prefix="CHM", schema_type=self.schema_type,
+        )
+        view_with_schema = LimsView.objects.create(
+            owner=self.user, name="DNA Only", is_public=False,
+            filter_state={
+                "status": "in_progress",
+                "schema": str(self.schema.id),
+                "columns": [],
+            },
+        )
+        Entity.objects.create(
+            name="DNA Entry", schema=self.schema, author=self.user,
+            folder=self.folder, status="in_progress",
+        )
+        chem_schema = Schema.objects.get(prefix="DNA")
+        self.client.force_authenticate(user=self.user)
+        metric = Metric.objects.create(
+            owner=self.user, view=view_with_schema, aggregate_function="count",
+            column=None,
+        )
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["value"], 1)
+
+
+class MetricSeedTests(BaseTestCase):
+    """Tests for the boot-seeded Views and Metrics."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        # Seed requires a superuser — create one independently.
+        User.objects.create_user(
+            username="admin", password="pass",
+            is_superuser=True, is_staff=True, is_active=True,
+        )
+        # SchemaType that seeding references: eln.notebookentry + lims.entity
+        SchemaType.objects.create(
+            display_name="Entry", workspace_id="eln",
+            model="mods.eln.models.NotebookEntry",
+        )
+        SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims",
+            model="mods.lims.models.Entity",
+        )
+
+    def test_seed_creates_public_views_and_metrics(self):
+        """After register(), the seeded Views and Metrics exist."""
+        from mods.lims.mod import _seed_builtin_metrics
+
+        _seed_builtin_metrics()
+
+        view_count = LimsView.objects.filter(is_public=True).count()
+        self.assertGreaterEqual(view_count, 2)
+
+        metric_count = Metric.objects.filter(
+            view__is_public=True,
+            aggregate_function="count",
+        ).count()
+        self.assertGreaterEqual(metric_count, 2)
+
+    def test_seed_is_idempotent(self):
+        """Calling the seed twice does not duplicate Views or Metrics."""
+        from mods.lims.mod import _seed_builtin_metrics
+
+        _seed_builtin_metrics()
+        count_before_views = LimsView.objects.filter(is_public=True).count()
+        count_before_metrics = Metric.objects.filter(
+            view__is_public=True,
+        ).count()
+
+        _seed_builtin_metrics()
+        self.assertEqual(
+            LimsView.objects.filter(is_public=True).count(), count_before_views
+        )
+        self.assertEqual(
+            Metric.objects.filter(view__is_public=True).count(), count_before_metrics
+        )
+
+    def test_seed_views_have_is_me_filter(self):
+        """Seeded Views contain an is_me filter on the author column."""
+        from mods.lims.mod import _seed_builtin_metrics
+
+        _seed_builtin_metrics()
+
+        views = LimsView.objects.filter(is_public=True, name__icontains="by me")
+        for view in views:
+            columns = view.filter_state.get("columns", [])
+            has_is_me = any(
+                col.get("column") == "author" and col.get("operator") == "is_me"
+                for col in columns
+            )
+            self.assertTrue(has_is_me, f"View '{view.name}' missing is_me filter")

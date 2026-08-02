@@ -64,6 +64,41 @@ def register():
         target_model="mods.eln.models.NotebookEntry",
     )
 
+    # ── Block-level custom actions ───────────────────────────────────────
+    # Per docs/actions-system-design.md the backend catalog is the single
+    # source of truth — sync from the frontend is a convenience, not a
+    # prerequisite.  Registering every block action here ensures the
+    # catalog is always available, even after a server restart without a
+    # browser reload.
+    block_actions = [
+        # Registry-table custom actions (declared via emits in index.ts)
+        ("eln.registry-table.entities-registered", "Entities Registered", "edited"),
+        ("eln.registry-table.row-added", "Row Added", "edited"),
+        # Cross-mod action used by LIMS EntityViewSet.batch_register
+        ("eln.entities.registered", "Entities Registered", "edited"),
+        # Block lifecycle actions — auto-derived for every block type
+        ("eln.table.created", "Table Created", "created"),
+        ("eln.table.edited", "Table Edited", "edited"),
+        ("eln.table.deleted", "Table Deleted", "deleted"),
+        ("eln.comment.created", "Comment Created", "created"),
+        ("eln.comment.edited", "Comment Edited", "edited"),
+        ("eln.comment.deleted", "Comment Deleted", "deleted"),
+        ("eln.protocol.created", "Protocol Created", "created"),
+        ("eln.protocol.edited", "Protocol Edited", "edited"),
+        ("eln.protocol.deleted", "Protocol Deleted", "deleted"),
+        ("eln.registry-table.created", "Registry Table Created", "created"),
+        ("eln.registry-table.edited", "Registry Table Edited", "edited"),
+        ("eln.registry-table.deleted", "Registry Table Deleted", "deleted"),
+    ]
+    for action_id, label, core in block_actions:
+        registry.register_custom_action(
+            mod_id="eln",
+            action_id=action_id,
+            label=label,
+            core=core,
+            target_model="mods.eln.models.NotebookEntry",
+        )
+
     registry.register_schema_type(
         display_name="ELN Entry",
         workspace_id="eln",

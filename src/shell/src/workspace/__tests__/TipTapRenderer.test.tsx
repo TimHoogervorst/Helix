@@ -1764,7 +1764,7 @@ describe("TipTapRenderer", () => {
           component: TestBlock,
           emits: [
             BlockEvent.action({ id: "row-added", core: "created" }),
-            BlockEvent.action({ id: "registered-entities", core: "created" }),
+            BlockEvent.action({ id: "entities-registered", core: "created" }),
           ],
         }),
       ];
@@ -1798,10 +1798,10 @@ describe("TipTapRenderer", () => {
         payload: { rowCount: 3 },
       });
 
-      bus.emit("eln.registry-table.registered-entities", {
+      bus.emit("eln.registry-table.entities-registered", {
         blockInstanceId: "eln.registry-table::0",
         blockId: "eln.registry-table",
-        localId: "registered-entities",
+        localId: "entities-registered",
         payload: { registeredCount: 3, totalAttempted: 3 },
       });
 
@@ -1827,7 +1827,7 @@ describe("TipTapRenderer", () => {
       // Both custom actions should be flushed
       const actionTypes = mockFlush.mock.calls.map((c: unknown[]) => c[0]);
       expect(actionTypes).toContain("eln.registry-table.row-added");
-      expect(actionTypes).toContain("eln.registry-table.registered-entities");
+      expect(actionTypes).toContain("eln.registry-table.entities-registered");
     });
 
     it("emits action.performed for custom actions on successful flush", async () => {

@@ -246,7 +246,7 @@ export function useActionAccumulator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bindings]);
 
-  // ── Flush on saveSignal transition ─────────────────────────────────────
+    // ── Flush on saveSignal transition ─────────────────────────────────────
   const prevSaveSignalRef = useRef<unknown>(saveSignal);
 
   useEffect(() => {
@@ -255,22 +255,23 @@ export function useActionAccumulator({
 
     // No-op on initial render (prev === saveSignal)
     if (prev === saveSignal) return;
-    // Skip null → value transition (initial load, not a user save)
-    if (prev == null) return;
+    // Skip null → value transition (initial load, not a user save).
+    // A null→Date transition means the entry was just created and
+    // saveSignal is now reflecting the initial load — there are no
+    // user-initiated save events to flush.
+    if (prev == null && saveSignal instanceof Date) return;
 
     const numericId = targetIdRef.current;
     if (numericId == null) return;
 
     const pending = pendingRef.current;
-    const actions = Array.from(pending.values());
+    if (pending.size === 0) return;
 
-    if (actions.length === 0) return;
-
-    // Capture actions and clear the map before async work so new events
-    // during the flush are accumulated for the next save cycle.
-    const flushedActions: AccumulatedAction[] = [...actions];
-    pending.clear();
-    if (hasPendingRef) hasPendingRef.current = false;
+    // Snapshot pending entries (key + action) but do NOT clear the map.
+    // If the flush fails, actions remain for retry on the next save.
+    const flushedEntries: [string, AccumulatedAction][] = Array.from(
+      pending.entries(),
+    );
 
     // Generate a shared request ID so that all block actions flushed in
     // this save cycle can be grouped in the ActivityFeed.
@@ -283,7 +284,7 @@ export function useActionAccumulator({
     (async () => {
       let allSucceeded = true;
 
-      for (const action of flushedActions) {
+      for (const [, action] of flushedEntries) {
         try {
           await send(
             action.action,
@@ -294,9 +295,6 @@ export function useActionAccumulator({
           );
         } catch (err) {
           // Fail-open: logging failure never breaks the UI.
-          // Track failure so we can skip the "action.performed" events
-          // if any action failed (stale pending items are better than
-          // silently lost actions).
           allSucceeded = false;
           console.warn(
             '[%s] Failed to send block action "%s" for entry %s:',
@@ -309,11 +307,18 @@ export function useActionAccumulator({
       }
 
       if (allSucceeded) {
+        // Remove successfully flushed actions from the pending map.
+        // Failed actions stay for retry on the next save.
+        for (const [key] of flushedEntries) {
+          pending.delete(key);
+        }
+        if (hasPendingRef) hasPendingRef.current = pending.size > 0;
+
         // Emit each resolved action as a separate bus event so listeners
         // (ActivityFeedBlock) can receive ready-to-render action items
         // without a refetch + reconciliation round-trip.
         const performedAt = new Date().toISOString();
-        for (const action of flushedActions) {
+        for (const [, action] of flushedEntries) {
           bus.emit(`${workspaceId}.action.performed`, {
             action: action.action,
             actionType: action.action_type,

@@ -86,7 +86,7 @@ class Action(AbstractBaseAction):
         ("aliquoted", "Aliquoted"),
     ]
 
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name="actions")
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, null=True, blank=True, related_name="actions")
     source_entry = models.ForeignKey(
         "eln.NotebookEntry",
         on_delete=models.SET_NULL,

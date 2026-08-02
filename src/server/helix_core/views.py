@@ -518,6 +518,13 @@ class ActionCreateView(APIView):
         catalog_action_ids = {entry["id"] for entry in catalog}
         if action not in catalog_action_ids:
             available = ", ".join(sorted(catalog_action_ids))
+            logger.warning(
+                "ActionCreateView: rejecting unknown action '%s' for "
+                "workspace '%s'. Known actions: %s",
+                action,
+                workspace_id,
+                available,
+            )
             raise serializers.ValidationError(
                 f"Unknown action '{action}' for workspace "
                 f"'{workspace_id}'. Available action types: {available}"

@@ -693,7 +693,7 @@ export function RegistryTableContent({
         ({ index }) => !updatedRows[index]?.registrationError,
       ).length;
 
-      emitAction?.("registered-entities", {
+      emitAction?.("entities-registered", {
         registeredCount: successCount,
         totalAttempted: nonGreenRows.length,
       });

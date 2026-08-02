@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from django.contrib.auth import get_user_model
 from django.db.models import (
     Q,
     Count,
@@ -145,7 +146,15 @@ def build_filter_q(spec: FilterSpec, identity: str | None = None) -> Q:
     # ── Handle is_me operator (valueless, identity-driven) ─────────────
     if spec.operator == "is_me":
         if identity:
-            return Q(**{f"{field_path}__exact": identity})
+            User = get_user_model()
+            user = User.objects.filter(username=identity).first()
+            if not user:
+                try:
+                    user = User.objects.filter(pk=int(identity)).first()
+                except (ValueError, TypeError):
+                    pass
+            if user:
+                return Q(**{f"{field_path}__exact": user.pk})
         return Q()
 
     # ── Handle is_empty operator (doesn't use value) ───────────────────

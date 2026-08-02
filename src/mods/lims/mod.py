@@ -37,11 +37,16 @@ def _seed_builtin_metrics():
             is_public=True,
             defaults={
                 "filter_state": {
+                    "search": "",
                     "schema_type": vdef["schema_type"],
+                    "schema": "",
                     "status": "in_progress",
+                    "sort": "",
+                    "fields": [],
                     "columns": [
                         {"column": "author", "operator": "is_me", "value": ""}
                     ],
+                    "viewMode": "list",
                 },
             },
         )

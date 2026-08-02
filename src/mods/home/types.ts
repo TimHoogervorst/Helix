@@ -10,7 +10,7 @@ export interface CardData {
   order: number;
   label: string;
   icon: string;
-  formatting: Record<string, unknown>;
+  formatting: FormattingConfigInput;
   created_at: string;
   updated_at: string;
 }
@@ -26,4 +26,46 @@ export interface CardState {
   value: number | null;
   valueLoading: boolean;
   valueError: boolean;
+}
+
+// ── Formatting ─────────────────────────────────────────────────────────────
+
+import type { FormattingConfig } from "./formatting";
+
+export type FormattingConfigInput = FormattingConfig;
+
+// ── Metric ─────────────────────────────────────────────────────────────────
+
+/** A Metric as returned by GET /api/lims/metrics/ */
+export interface MetricData {
+  id: number;
+  owner: number;
+  owner_username: string;
+  name: string;
+  view: number;
+  view_name: string;
+  aggregate_function: string;
+  column: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload for creating a new Metric. */
+export interface MetricCreatePayload {
+  name?: string;
+  view: number;
+  aggregate_function: string;
+  column?: string | null;
+}
+
+// ── Card CRUD ──────────────────────────────────────────────────────────────
+
+/** Payload for creating/updating a card. */
+export interface CardPayload {
+  metric: number;
+  surface: string;
+  order?: number;
+  label?: string;
+  icon?: string;
+  formatting?: FormattingConfig;
 }

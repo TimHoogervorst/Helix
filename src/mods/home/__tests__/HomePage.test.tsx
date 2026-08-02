@@ -255,9 +255,10 @@ describe("HomePage", () => {
       const scrollContainer = cardsSection.querySelector(".overflow-x-auto");
       expect(scrollContainer).toBeInTheDocument();
 
-      // Each card should have w-1/4 (25% width), so 6 cards = 150% of parent → overflow
+      // Each card should have w-1/4 (25% width), so 6 cards = 150% of parent → overflow.
+      // The add card button also has w-1/4, making 7 total elements.
       const cardEls = scrollContainer!.querySelectorAll(".w-1\\/4");
-      expect(cardEls.length).toBe(6);
+      expect(cardEls.length).toBe(7);
     });
 
     it("falls back to metric_name when label is empty", async () => {

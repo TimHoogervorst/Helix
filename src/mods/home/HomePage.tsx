@@ -1,11 +1,8 @@
 import {
-  FlaskConical,
-  FileText,
-  Thermometer,
-  AlertTriangle,
   ArrowRight,
   Beaker,
   Eye,
+  FileText,
   Pencil,
   Flag,
   MessageSquare,
@@ -15,6 +12,7 @@ import { Link } from "react-router-dom";
 import { useCurrentUser } from "../../shell/src/user/CurrentUserProvider";
 import { ModRegistry } from "../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../shell/src/mod-system/types";
+import { MetricCardsBar } from "./MetricCardsBar";
 
 // ── Decorative Header ────────────────────────────────────────────────────────
 
@@ -55,81 +53,6 @@ function GreetingSection() {
         <p className="mt-2 text-sm text-muted-foreground">
           {GREETING_SUBTITLE}
         </p>
-      </div>
-    </section>
-  );
-}
-
-// ── Stats Bar ────────────────────────────────────────────────────────────────
-
-interface StatTileData {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  subtitle: string;
-}
-
-/** Hardcoded placeholder metrics for the stats bar. */
-const STAT_TILES: StatTileData[] = [
-  {
-    icon: <FlaskConical className="h-4 w-4" aria-hidden="true" />,
-    label: "Experiments running",
-    value: "3",
-    subtitle: "Across 2 labs",
-  },
-  {
-    icon: <FileText className="h-4 w-4" aria-hidden="true" />,
-    label: "Entries this week",
-    value: "12",
-    subtitle: "Last 7 days",
-  },
-  {
-    icon: <Thermometer className="h-4 w-4" aria-hidden="true" />,
-    label: "Freezer",
-    value: "-79.4 °C",
-    subtitle: "All systems normal",
-  },
-  {
-    icon: <AlertTriangle className="h-4 w-4" aria-hidden="true" />,
-    label: "Reagents low",
-    value: "2",
-    subtitle: "Reorder soon",
-  },
-];
-
-/**
- * A single stat tile with icon, uppercase label, large serif value, and mono subtitle.
- */
-function StatTile({ icon, label, value, subtitle }: StatTileData) {
-  return (
-   
-    <div className="flex flex-col items-start gap-1.5 bg-card px-5 py-3">
-      <span className="text-muted-foreground">{icon}</span>
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
-      <span className="font-serif text-2xl font-semibold tracking-tight text-foreground">
-        {value}
-      </span>
-      <span className="font-mono text-[11px] text-muted-foreground">
-        {subtitle}
-      </span>
-    </div>
-  );
-}
-
-/**
- * A 4-column grid of stat tiles with hardcoded placeholder metrics.
- */
-function StatsBar() {
-  return (
-    <section className="border-y-1 border-border bg-surface">
-      <div className="mx-auto max-w-4xl">
-        <div className="grid grid-cols-1 gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
-          {STAT_TILES.map((tile) => (
-            <StatTile key={tile.label} {...tile} />
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -501,7 +424,7 @@ function TodayInTheLab() {
  * Composed of six visible sections:
  *  1. Decorative header (thin bar with bottom border)
  *  2. Greeting section (grid-paper background, greets user by username)
- *  3. Stats bar (4-column grid of placeholder metrics)
+ *  3. Metric Cards bar (live metric values from the Cards API)
  *  4. Jump Back In (grid of hub cards for quick navigation)
  *  5. Recent Activity + Today in the Lab (2/3 + 1/3 side-by-side panels)
  */
@@ -510,7 +433,7 @@ function HomePage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* <DecorativeHeader /> */}
       <GreetingSection />
-      <StatsBar />
+      <MetricCardsBar />
       <JumpBackIn />
       <section className="px-6 py-6">
         <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-3">

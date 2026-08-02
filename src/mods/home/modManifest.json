@@ -3,6 +3,6 @@
   "name": "home",
   "displayName": "Home",
   "version": "0.1.0",
-  "dependsOn": [],
+  "dependsOn": ["helix.lims"],
   "description": "Your lab dashboard — greeting, activity feed, and quick navigation to all hubs."
 }

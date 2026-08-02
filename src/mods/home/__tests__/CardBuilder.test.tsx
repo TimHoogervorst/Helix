@@ -16,7 +16,7 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
-vi.mock("../api", () => ({
+vi.mock("../../../shell/src/shared/components/MetricCards/api", () => ({
   getCards: vi.fn(),
   getMetricValue: vi.fn(),
   getMetrics: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock("../api", () => ({
   forkCard: vi.fn(),
 }));
 
-import * as cardApi from "../api";
+import * as cardApi from "../../../shell/src/shared/components/MetricCards/api";
 
 vi.mock("../../lims/hub/api", () => ({
   getMyViews: vi.fn(),
@@ -69,7 +69,7 @@ import {
   resolveFormatting,
   applyValueTemplate,
   type FormattingConfig,
-} from "../formatting";
+} from "../../../shell/src/shared/components/MetricCards/formatting";
 
 // ── Test Data ──────────────────────────────────────────────────────────────
 

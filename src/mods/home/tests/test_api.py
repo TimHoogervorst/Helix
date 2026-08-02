@@ -93,6 +93,30 @@ class CardApiTests(BaseTestCase):
         self.assertIn("Profile Card", labels)
         self.assertNotIn("Home Card", labels)
 
+    def test_personal_cards_are_isolated_per_surface(self):
+        """A personal card created on one surface never appears on the other."""
+        self.client.force_authenticate(user=self.user)
+        profile_card = Card.objects.create(
+            owner=self.user, metric=self.metric, surface="profile", order=0,
+            label="My Profile Card",
+        )
+        home_card = Card.objects.create(
+            owner=self.user, metric=self.metric, surface="home", order=0,
+            label="My Home Card",
+        )
+
+        response = self.client.get("/api/home/cards/?surface=profile")
+        self.assertEqual(response.status_code, 200)
+        ids = [c["id"] for c in response.data]
+        self.assertIn(profile_card.id, ids)
+        self.assertNotIn(home_card.id, ids)
+
+        response = self.client.get("/api/home/cards/?surface=home")
+        self.assertEqual(response.status_code, 200)
+        ids = [c["id"] for c in response.data]
+        self.assertIn(home_card.id, ids)
+        self.assertNotIn(profile_card.id, ids)
+
     def test_list_ordered_by_order_field(self):
         """Cards are returned in order by the order field."""
         Card.objects.create(
@@ -367,16 +391,50 @@ class CardSeedTests(BaseTestCase):
         cards = Card.objects.filter(owner__isnull=True, surface="home")
         self.assertEqual(cards.count(), 2)
 
+    def test_seed_creates_two_global_cards_for_profile_surface(self):
+        """After seeding, exactly 2 global cards exist for surface profile."""
+        from mods.home.mod import _seed_global_cards
+
+        _seed_global_cards()
+
+        cards = Card.objects.filter(owner__isnull=True, surface="profile")
+        self.assertEqual(cards.count(), 2)
+
+    def test_seeded_profile_cards_have_correct_properties(self):
+        """Profile-surface seeded cards mirror the home labels, icons, and order."""
+        from mods.home.mod import _seed_global_cards
+
+        _seed_global_cards()
+
+        cards = Card.objects.filter(owner__isnull=True, surface="profile").order_by("order")
+        labels = [c.label for c in cards]
+        self.assertIn("In-progress entries", labels)
+        self.assertIn("Entities created", labels)
+
+        in_progress_card = Card.objects.get(
+            owner__isnull=True, surface="profile", label="In-progress entries",
+        )
+        self.assertEqual(in_progress_card.icon, "scroll-text")
+        self.assertEqual(in_progress_card.order, 0)
+        self.assertIsNotNone(in_progress_card.metric)
+
+        entities_card = Card.objects.get(
+            owner__isnull=True, surface="profile", label="Entities created",
+        )
+        self.assertEqual(entities_card.icon, "test-tubes")
+        self.assertEqual(entities_card.order, 1)
+        self.assertIsNotNone(entities_card.metric)
+
     def test_seed_is_idempotent(self):
         """Calling the seed twice does not duplicate cards."""
         from mods.home.mod import _seed_global_cards
 
         _seed_global_cards()
-        count_before = Card.objects.filter(owner__isnull=True, surface="home").count()
+        count_before = Card.objects.filter(owner__isnull=True).count()
 
         _seed_global_cards()
         self.assertEqual(
-            Card.objects.filter(owner__isnull=True, surface="home").count(),
+            Card.objects.filter(owner__isnull=True).count(),
             count_before,
         )
 

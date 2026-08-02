@@ -5,7 +5,7 @@ import {
   Plus,
   Pencil,
 } from "lucide-react";
-import { useCurrentUser } from "../../shell/src/user/CurrentUserProvider";
+import { useCurrentUser } from "../../../user/CurrentUserProvider";
 import { getCards, getMetricValue } from "./api";
 import {
   resolveFormatting,
@@ -127,7 +127,11 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 // ── Metric Cards Bar ───────────────────────────────────────────────────────
 
-export function MetricCardsBar({ surface = "home" }: { surface?: string }) {
+export interface MetricCardsBarProps {
+  surface?: string;
+}
+
+export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
   const { user } = useCurrentUser();
   const [cardStates, setCardStates] = useState<CardState[]>([]);
   const [cardsLoading, setCardsLoading] = useState(true);

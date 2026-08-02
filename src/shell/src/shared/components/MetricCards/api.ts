@@ -1,4 +1,4 @@
-import { get, post, patch, del } from "../../shell/src/api/client";
+import { get, post, patch, del } from "../../../api/client";
 import type {
   CardData,
   CardPayload,
@@ -41,7 +41,7 @@ export function deleteCard(id: number): Promise<void> {
 
 /** Fork a global card into a personal copy. */
 export function forkCard(id: number): Promise<CardData> {
-  return post<CardData>(`/home/cards/${id}/fork/`);
+  return post<CardData>(`/home/cards/${id}/fork/`, {});
 }
 
 // ── Metrics ────────────────────────────────────────────────────────────────

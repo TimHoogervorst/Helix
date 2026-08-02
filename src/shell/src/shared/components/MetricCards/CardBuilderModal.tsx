@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
-import { ModRegistry } from "../../shell/src/mod-system/ModRegistry";
+import { ModRegistry } from "../../../mod-system/ModRegistry";
 import {
   getMyViews,
   getPublicViews,
-} from "../lims/hub/api";
-import { get } from "../../shell/src/api/client";
+} from "../../../../../mods/lims/hub/api";
+import { get } from "../../../api/client";
 import {
   getMetrics,
   createMetric,
@@ -28,8 +28,7 @@ import {
   type CardColorToken,
 } from "./formatting";
 import type { CardData, MetricData, MetricCreatePayload } from "./types";
-import type { LimsViewItem, AvailableColumn } from "../lims/types";
-import type { BackendColumnType } from "../../shell/src/mod-system/ModRegistry";
+import type { LimsViewItem, AvailableColumn } from "../../../../../mods/lims/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -58,28 +57,8 @@ function aggregateRequiresColumn(fn: string): boolean {
   return fn !== "count";
 }
 
-/** Get supported aggregates for a column type from the registry. */
-function getAggregatesForColumnType(
-  columnType: BackendColumnType | undefined,
-): string[] {
-  if (!columnType?.aggregates) return [];
-  return columnType.aggregates.map((a) => a.id);
-}
-
 type BuilderStep = "metric" | "display" | "formatting";
 type MetricSource = "existing" | "new";
-
-interface BuilderState {
-  card?: CardData;
-  metricSource: MetricSource;
-  selectedMetricId: number | null;
-  selectedViewId: number | null;
-  selectedAggregate: string;
-  selectedColumn: string | null;
-  label: string;
-  icon: string;
-  formatting: FormattingConfig;
-}
 
 // ── CardBuilderModal ───────────────────────────────────────────────────────
 

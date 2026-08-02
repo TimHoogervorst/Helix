@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useClickOutside } from "../../shell/src/shared/hooks/useClickOutside";
+import { useClickOutside } from "../../hooks/useClickOutside";
 import { CARD_ICONS, resolveIcon } from "./formatting";
 
 interface IconPickerProps {

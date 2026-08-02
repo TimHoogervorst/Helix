@@ -12,7 +12,7 @@ import { Link } from "react-router-dom";
 import { useCurrentUser } from "../../shell/src/user/CurrentUserProvider";
 import { ModRegistry } from "../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../shell/src/mod-system/types";
-import { MetricCardsBar } from "./MetricCardsBar";
+import { MetricCardsBar } from "../../shell/src/shared/components/MetricCards";
 
 // ── Decorative Header ────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 """Backend registration for the home mod.
 
 Called by ModLoader after topological sort.  Registers URL patterns for
-the Metric Card API and pre-seeds two global cards.
+the Metric Card API and pre-seeds two global cards per surface.
 """
 
 from django.urls import include, path
@@ -29,8 +29,12 @@ _GLOBAL_CARD_DEFS = [
 ]
 
 
+# Surfaces that receive the seeded global cards at boot.
+_SEEDED_SURFACES = ["home", "profile"]
+
+
 def _seed_global_cards():
-    """Pre-seed two global Metric Cards pointing at the seeded Metrics.
+    """Pre-seed two global Metric Cards per surface, pointing at the seeded Metrics.
 
     Looks up the Metrics by their stable seeded identities (admin owner +
     the seeded View name) rather than hardcoding IDs.  Idempotent via
@@ -63,17 +67,18 @@ def _seed_global_cards():
         if not metric:
             continue
 
-        Card.objects.get_or_create(
-            owner=None,
-            metric=metric,
-            surface="home",
-            defaults={
-                "order": card_def["order"],
-                "label": card_def["label"],
-                "icon": card_def["icon"],
-                "formatting": DEFAULT_FORMATTING,
-            },
-        )
+        for surface in _SEEDED_SURFACES:
+            Card.objects.get_or_create(
+                owner=None,
+                metric=metric,
+                surface=surface,
+                defaults={
+                    "order": card_def["order"],
+                    "label": card_def["label"],
+                    "icon": card_def["icon"],
+                    "formatting": DEFAULT_FORMATTING,
+                },
+            )
 
 
 def register():

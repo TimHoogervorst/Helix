@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useClickOutside } from "../../shell/src/shared/hooks/useClickOutside";
+import { useClickOutside } from "../../hooks/useClickOutside";
 import {
   CARD_COLOR_TOKENS,
   CARD_COLOR_CLASSES,

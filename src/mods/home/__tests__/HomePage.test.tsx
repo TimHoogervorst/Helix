@@ -24,12 +24,12 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../../shell/src/mod-system/types";
 
 // Mock the Metric Cards API so the cards bar loads from seeded data
-vi.mock("../api", () => ({
+vi.mock("../../../shell/src/shared/components/MetricCards/api", () => ({
   getCards: vi.fn(),
   getMetricValue: vi.fn(),
 }));
 
-import * as cardApi from "../api";
+import * as cardApi from "../../../shell/src/shared/components/MetricCards/api";
 
 // Mock useCurrentUser so the greeting renders with a known username
 vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({

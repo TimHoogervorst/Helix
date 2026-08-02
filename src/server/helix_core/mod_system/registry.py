@@ -309,12 +309,7 @@ class BackendModRegistry:
             ``{"status": "error", "missing": [...]}`` when some action
             IDs are not found in the catalog after upsert.
         """
-        # Upsert synced actions into the existing custom action catalog
-        # without clearing server-registered entries.  The backend catalog
-        # is the single source of truth (docs/actions-system-design.md);
-        # frontend sync is a convenience, not a prerequisite.
-        if mod_id not in self._custom_actions:
-            self._custom_actions[mod_id] = {}
+        self._custom_actions[mod_id] = {}
 
         target_model = None
         if mod_id in self._action_models:
@@ -326,19 +321,12 @@ class BackendModRegistry:
             action_id = action["id"]
             core = action.get("core", "edited")
 
-            # Sanitize: default to "edited" for unrecognised core verbs.
             if core not in CORE_ACTION_VERBS:
                 core = "edited"
 
-            # Never overwrite server-registered custom actions —
-            # the backend catalog is the single source of truth.
-            existing = self._custom_actions[mod_id]
-            if action_id in existing:
-                continue
-
             label = self._derive_label(action_id)
 
-            existing[action_id] = {
+            self._custom_actions[mod_id][action_id] = {
                 "id": action_id,
                 "label": label,
                 "action_type": core,

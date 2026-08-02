@@ -31,6 +31,14 @@ export interface BackendOperator {
   djangoLookupName: string;
 }
 
+/** Aggregate definition from the backend column type registry. */
+export interface BackendAggregate {
+  id: string;
+  label: string;
+  djangoAggregateName: string;
+  resultOperandShape: string;
+}
+
 /** Column type entry from the backend mod-registry payload. */
 export interface BackendColumnType {
   id: string;
@@ -39,6 +47,7 @@ export interface BackendColumnType {
   operandShape: string;
   defaultValue: unknown;
   operators: BackendOperator[];
+  aggregates: BackendAggregate[];
 }
 
 /** Single workspace entry in the backend mod-registry response. */

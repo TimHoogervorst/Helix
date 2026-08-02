@@ -1,6 +1,11 @@
 from django.urls import include, path
 
-from helix_core.column_types import ColumnType, OperatorMeta, registry as column_type_registry
+from helix_core.column_types import (
+    AggregateMeta,
+    ColumnType,
+    OperatorMeta,
+    registry as column_type_registry,
+)
 from helix_core.mod_system.registry import registry
 
 
@@ -20,6 +25,12 @@ class TiptapContentColumnType(ColumnType):
         return [
             OperatorMeta("contains", "Contains", "text", "icontains"),
             OperatorMeta("is_empty", "Is Empty", "none", "isnull"),
+        ]
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return [
+            AggregateMeta("count", "Count", "Count"),
+            AggregateMeta("count_distinct", "Count Distinct", "Count"),
         ]
 
     def validate(self, value, **context) -> bool | str:

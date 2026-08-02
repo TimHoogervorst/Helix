@@ -134,7 +134,7 @@ The navigation bar at the top of the Library hub showing the current folder path
 
 ### LIMS
 
-The LIMS domain comprises Entity Types, Entities, and Actions. There is no LIMS hub — entities are accessed directly via their workspace URLs (`/lims/:displayId`). The entity workspace provides a tabbed detail view (Activity, Insights, Storage). Entity types are managed through the Settings hub.
+The LIMS domain comprises Entity Types, Entities, and Actions. The LIMS mod registers the **Entities Hub** (`/entities`) — a flat, filterable, searchable table over every entity in the system, regardless of which mod owns the entity type. This is where saved Views are created and applied. Individual entities are accessed via their workspace URLs; the entity workspace provides a tabbed detail view (Activity, Insights, Storage). Entity types are managed through the Settings hub.
 
 **Synonyms:** entity management, sample database
 
@@ -341,9 +341,49 @@ A named, saved filter configuration over the Entities Hub population. Has an own
 
 A named reduction of a View to a quantitative result: an aggregate function (count, average, standard deviation, …) applied to one column over the View's population. References exactly one View. The Metric is the platform's unit of data display and monitoring — home-page cards render Metrics, and notification rules threshold Metrics.
 
+A Metric's result is a single **scalar** value. Other result shapes (see *Breakdown*) may be added later; the Metric concept is designed to admit new shapes.
+
+**Invariant:** A Metric always evaluates against the *current* definition of its View — editing a View immediately changes what its Metrics report. (Contrast with Protocol Blocks, which deliberately snapshot at insert time for traceability.)
+
 **Distinction from View:** a View answers "which entities?"; a Metric answers "how many / how much?".
 
 **Synonyms:** measure, aggregate (rejected as a noun — "aggregate" is the function, not the thing)
+
+### Breakdown *(deferred)*
+
+A future Metric result shape: the reduction is computed **per bucket** of a second column, yielding one value per bucket (e.g. average temperature *per freezer*, entity count *per status*) instead of a single scalar.
+
+**Synonyms:** group-by, per-bucket reduction
+
+### Metric Card
+
+A Metric pinned to a **surface** (the Home hub, the profile page) for display. The surface is part of the Card's identity — the same Metric-card system serves every surface, and a Card belongs to exactly one. Carries presentation configuration — a label, an icon, and **conditional formatting** rules that map the Metric's live value to colours, icons, and text (e.g. "below 5 → warning colour, 'Attention required'"). A Card references its Metric by identity; creating the Metric and creating the Card are separate steps, and one Metric can back many Cards.
+
+A Card is either **global** (system-seeded, shown to everyone, not user-editable — users *fork* a copy to customize) or **personal** (owned by one user). A surface shows the union of global cards and the viewer's own cards. Because "by me" filters resolve per viewer, one global card shows every user their own numbers.
+
+**Synonyms:** stat tile, dashboard card
+
+### Metric Reading *(deferred)*
+
+One recorded value of a Metric at a point in time. Today Metrics are computed **live** — the aggregate runs against current data on every read, and no history is kept. Recorded readings (periodically snapshotted by a scheduled process) are the deferred foundation for trend graphs and "changed by X% this week" displays.
+
+**Synonyms:** metric snapshot, data point
+
+### By Me Filter
+
+A filter on a user column that resolves to the **current viewer** rather than a fixed user. Stored unresolved; substituted with the viewer's identity at evaluation time. Makes any View, Metric, or Metric Card self-personalizing — one shared definition yields per-user results.
+
+**Synonyms:** current-user filter, "assigned to me"-style filter
+
+### Notification Rule *(deferred)*
+
+A threshold condition on a Metric that sends a message via a channel (email, ntfy, in-app) when crossed. Requires a periodic evaluation loop (no scheduler exists in the platform yet). Structurally, a Notification Rule's condition is the same predicate as a Metric Card's conditional-formatting rule — a future "promote this card rule to a notification" flow is the intended bridge. Deferred to its own PR, built on top of Metrics.
+
+### Current Value *(deferred)*
+
+A future aggregate-like function that returns the **raw value** of a column rather than reducing the population — meaningful when a View narrows to a single entity (e.g. "the current temperature of freezer 3"). Becomes useful once property values are maintained automatically (sensor integrations); until then, `avg` over a single-row View serves the same purpose.
+
+**Synonyms:** raw value, select value
 
 ### Entity Action
 

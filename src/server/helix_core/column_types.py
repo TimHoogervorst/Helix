@@ -11,6 +11,7 @@ Usage::
         ColumnType,
         ColumnTypeRegistry,
         OperatorMeta,
+        AggregateMeta,
         registry as column_type_registry,
     )
 
@@ -44,6 +45,28 @@ class OperatorMeta:
     label: str
     operand_shape: str
     django_lookup_name: str
+
+
+# ── AggregateMeta ───────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class AggregateMeta:
+    """Metadata for a single aggregate function.
+
+    Attributes:
+        id: Unique aggregate identifier (e.g. ``"count"``, ``"sum"``).
+        label: Human-readable label (e.g. ``"Count"``, ``"Sum"``).
+        django_aggregate_name: The Django ORM aggregate name used at
+            query-build time (e.g. ``"Count"``, ``"Sum"``, ``"Avg"``).
+        result_operand_shape: The operand shape of the result value.
+            Drives frontend rendering for the metric result
+            (e.g. ``"number"``).
+    """
+
+    id: str
+    label: str
+    django_aggregate_name: str
+    result_operand_shape: str = "number"
 
 
 # ── Operator shape constants ────────────────────────────────────────────────
@@ -129,6 +152,75 @@ def _make_user_operators() -> list[OperatorMeta]:
         OperatorMeta("eq", "Equals", "entity-picker", "exact"),
         OperatorMeta("neq", "Not Equals", "entity-picker", "exact"),
         OperatorMeta("is_in_group", "Is In Group", "dropdown", "in"),
+        OperatorMeta("is_me", "By Me", "none", "is_me"),
+    ]
+
+
+# ── Aggregate factory functions ─────────────────────────────────────────────
+
+# Mirrors the operator factory pattern: each type family gets its own list
+# of AggregateMeta instances declared via a shared factory helper.
+
+
+def _make_text_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("count_distinct", "Count Distinct", "Count"),
+    ]
+
+
+def _make_number_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("count_distinct", "Count Distinct", "Count"),
+        AggregateMeta("sum", "Sum", "Sum"),
+        AggregateMeta("avg", "Average", "Avg"),
+        AggregateMeta("min", "Min", "Min"),
+        AggregateMeta("max", "Max", "Max"),
+        AggregateMeta("stdev", "Std Dev", "StdDev"),
+    ]
+
+
+def _make_date_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("min", "Min", "Min"),
+        AggregateMeta("max", "Max", "Max"),
+    ]
+
+
+def _make_datetime_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("min", "Min", "Min"),
+        AggregateMeta("max", "Max", "Max"),
+    ]
+
+
+def _make_boolean_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+    ]
+
+
+def _make_dropdown_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("count_distinct", "Count Distinct", "Count"),
+    ]
+
+
+def _make_reference_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("count_distinct", "Count Distinct", "Count"),
+    ]
+
+
+def _make_user_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("count_distinct", "Count Distinct", "Count"),
     ]
 
 
@@ -161,6 +253,12 @@ class ColumnType:
         """Return the list of filter operators available for this column type."""
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement get_operators()"
+        )
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        """Return the list of aggregate functions available for this column type."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement get_aggregates()"
         )
 
     def validate(self, value, **context) -> bool | str:
@@ -199,6 +297,9 @@ class TextColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_text_operators()
 
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_text_aggregates()
+
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
             return True
@@ -216,6 +317,9 @@ class NumberColumnType(ColumnType):
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_number_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_number_aggregates()
 
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
@@ -244,6 +348,9 @@ class DateColumnType(ColumnType):
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_date_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_date_aggregates()
 
     def get_default_value(self) -> object:
         return None
@@ -275,6 +382,9 @@ class DatetimeColumnType(ColumnType):
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_datetime_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_datetime_aggregates()
 
     def get_default_value(self) -> object:
         return None
@@ -308,6 +418,9 @@ class BooleanColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_boolean_operators()
 
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_boolean_aggregates()
+
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
             return True
@@ -333,6 +446,9 @@ class DropdownColumnType(ColumnType):
     def get_operators(self) -> list[OperatorMeta]:
         return _make_dropdown_operators()
 
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_dropdown_aggregates()
+
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
             return True
@@ -353,6 +469,9 @@ class ReferenceColumnType(ColumnType):
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_reference_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_reference_aggregates()
 
     def validate(self, value, **context) -> bool | str:
         if value is None or value == "":
@@ -381,6 +500,9 @@ class UserColumnType(ReferenceColumnType):
 
     def get_operators(self) -> list[OperatorMeta]:
         return _make_user_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_user_aggregates()
 
     def validate(self, value, **context) -> bool | str:
         """Validate a user reference value.
@@ -470,8 +592,8 @@ class ColumnTypeRegistry:
         """Return the column types payload for the mod-registry API.
 
         Each entry includes ``id``, ``displayName``, ``icon``,
-        ``operandShape``, and ``operators`` (each with ``id``, ``label``,
-        ``operandShape``, ``djangoLookupName``).
+        ``operandShape``, ``operators``, ``defaultValue``, and
+        ``aggregates``.
 
         Returns:
             A list of dicts, one per registered column type, suitable for
@@ -493,6 +615,15 @@ class ColumnTypeRegistry:
                         "djangoLookupName": op.django_lookup_name,
                     }
                     for op in ct.get_operators()
+                ],
+                "aggregates": [
+                    {
+                        "id": agg.id,
+                        "label": agg.label,
+                        "djangoAggregateName": agg.django_aggregate_name,
+                        "resultOperandShape": agg.result_operand_shape,
+                    }
+                    for agg in ct.get_aggregates()
                 ],
             })
         return result

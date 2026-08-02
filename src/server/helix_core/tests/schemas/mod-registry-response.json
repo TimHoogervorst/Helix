@@ -42,9 +42,22 @@
               },
               "required": ["id", "label", "operandShape", "djangoLookupName"]
             }
+          },
+          "aggregates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "djangoAggregateName": { "type": "string" },
+                "resultOperandShape": { "type": "string" }
+              },
+              "required": ["id", "label", "djangoAggregateName", "resultOperandShape"]
+            }
           }
         },
-        "required": ["id", "displayName", "icon", "operandShape", "defaultValue", "operators"]
+        "required": ["id", "displayName", "icon", "operandShape", "defaultValue", "operators", "aggregates"]
       }
     }
   },

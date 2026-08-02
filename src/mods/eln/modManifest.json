@@ -1,6 +1,7 @@
 {
-  "id": "eln",
+  "vendor": "helix",
+  "name": "eln",
   "displayName": "Electronic Lab Notebook",
   "version": "0.1.0",
-  "dependsOn": ["lims", "tags"]
+  "dependsOn": ["helix.lims", "helix.tags"]
 }

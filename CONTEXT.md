@@ -31,13 +31,13 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | Term | Definition |
 |------|-----------|
 | **Slot** | A named placeholder in a workspace declared via `declareSlot({ id, accepts, renderer })`. The `renderer` owns presentation; the slot's `accepts` field (`"block"` or `"button"`) filters what can bind into it. |
-| **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), and serialization. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. Blocks send domain actions at runtime via `sendAction()` rather than declaring static action messages. |
+| **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), an optional `emits` declaration for custom actions, and serialization. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. Blocks declare what they listen to and what they emit; the renderer wires everything. Blocks do not have direct access to the bus or the HTTP layer. |
 | **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Use for toolbar buttons (export, lock, delete). |
 | **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
 | **Binding Override** | A per-binding configuration key (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; binding wins per-key. Used for presentation-level configuration like `stretch: true` — the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
 | **Inline Block** | A block stored inside the ProseMirror/TipTap document JSON. Part of the document body — locked when the document is locked (e.g. during review). Created and edited through the editor. |
 | **Outline Block** | A block stored outside the ProseMirror document, in a separate `outline_blocks` array on the entry. Carries a document position anchor (`pos`). Can be added even when the document content is locked — enabling review-time annotations. Rendered outside the editor (e.g. in a gutter). |
-| **Event Bus** | A workspace-scoped pub/sub bus. Buttons emit events via `bus.emit()`; blocks listen via declarative `listensTo` + `onEvent` handlers. Lifecycle events (created/edited/deleted) are renderer-emitted — block authors never call `bus.emit()`. |
+| **Event Bus** | A workspace-scoped pub/sub bus. Created by the workspace and passed to renderers; blocks never see it directly. Buttons emit events via `bus.emit()`; blocks listen declaratively via `listensTo` + `onEvent` handlers (wired by the renderer) and emit custom actions via their `emits` declaration. The bus carries cross-boundary events like `{workspaceId}.action.performed` (resolved, ready-to-render action items). Block lifecycle events (created/edited/deleted) are internal renderer callbacks — not on the public bus. Supports wildcard pattern matching for subscriptions. |
 | **Block Stretch** | A slot-binding override (`stretch: true`) that allows a block to grow beyond the center content gutter. When enabled, the block expands outward equally into the left and right gutters, staying centered. Other blocks remain constrained to the center gutter. The block component reads `overrides.stretch` to conditionally render stretch-related UI (e.g. a full-width toggle button). Stretch is a presentation concern of the slot/renderer, not an intrinsic property of the block type. |
 
 ### Backend Mod System
@@ -193,6 +193,12 @@ An entity (from the LIMS domain) that is connected to a Notebook Entry through t
 ### ELN Workspace Layout
 
 The ELN workspace uses a **five-zone** horizontal layout (left to right): Left Sidebar (shell icon strip, collapsible), Left Gutter (empty space that absorbs stretch from centered blocks), Center Gutter (the main content column, `max-w-3xl`, centered — normal blocks like paragraphs and headings live here), Right Gutter (comment cards, `w-64`, hidden below `xl` breakpoint), and Right Sidebar (metadata panel, `w-72`, hidden below `xl`). Stretch-capable blocks expand outward equally from the center gutter into the left and right gutters, preserving centering.
+
+### Workspace Chrome
+
+The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, and the five-zone layout scaffolding. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
+
+**Synonyms:** editor chrome, workspace frame
 
 ### Center Gutter
 

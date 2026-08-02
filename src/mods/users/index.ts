@@ -1,38 +1,37 @@
 import { lazy } from "react";
 import { Users } from "lucide-react";
-import { registerRoute, registerPublicRoute, registerSettingsSection } from "../../shell/src/mod-system";
+import { Mod } from "../../shell/src/mod-system/Mod";
+import type { ModManifest } from "../../shell/src/mod-system/types";
+import manifest from "./modManifest.json";
 
-export function register() {
-  // ── Public routes (no sidebar, full-page) ──────────────────────────────
-  registerPublicRoute({
-    id: "users.login",
-    modId: "users",
-    path: "/login",
-    component: lazy(() => import("./pages/LoginPage")),
-  });
+const mod = new Mod(manifest as ModManifest);
 
-  registerPublicRoute({
-    id: "users.register",
-    modId: "users",
-    path: "/register",
-    component: lazy(() => import("./pages/RegisterPage")),
-  });
+// ── Public routes (no sidebar, full-page) ──────────────────────────────
+mod.registerRoute("login", {
+  path: "/login",
+  component: lazy(() => import("./pages/LoginPage")),
+  public: true,
+});
 
-  // ── Layout routes (with sidebar) ───────────────────────────────────────
-  registerRoute({
-    id: "users.profile",
-    modId: "users",
-    path: "/profile",
-    component: lazy(() => import("./pages/ProfilePage")),
-  });
+mod.registerRoute("register", {
+  path: "/register",
+  component: lazy(() => import("./pages/RegisterPage")),
+  public: true,
+});
 
-  // ── Settings section ──────────────────────────────────────────────────
-  registerSettingsSection({
-    id: "users.management",
-    modId: "users",
-    label: "Users",
-    icon: Users,
-    component: lazy(() => import("./settings/UserManagement")),
-    order: 5,
-  });
-}
+// ── Layout routes (with sidebar) ───────────────────────────────────────
+mod.registerRoute("profile", {
+  path: "/profile",
+  component: lazy(() => import("./pages/ProfilePage")),
+});
+
+// ── Settings section ───────────────────────────────────────────────────
+mod.registerSettingsSection("management", {
+  label: "Users",
+  icon: Users,
+  component: lazy(() => import("./settings/UserManagement")),
+  order: 5,
+});
+
+/** No-op — all registrations happen at module scope via the Mod class. */
+export function register() {}

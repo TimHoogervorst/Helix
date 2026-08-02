@@ -1,7 +1,6 @@
-import { useState } from "react";
-import type { RendererProps, BlockBinding } from "../mod-system/types";
+import { useMemo, useState } from "react";
+import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
-import { useSendAction } from "./useSendAction";
 
 /**
  * Renders blocks as tabs in a tabbed interface.
@@ -93,15 +92,50 @@ function TabContent({
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
-  const sendAction = useSendAction(context.workspaceId);
+  // Build typed emitter functions from the binding's emits declarations.
+  const emits: Record<string, { fire: (payload: Record<string, unknown>) => void }> =
+    {};
+  if (binding.emits) {
+    for (const e of binding.emits) {
+      emits[e.id] = {
+        fire: (payload: Record<string, unknown>) => {
+          bus.emit(`${binding.id}.${e.id}`, {
+            blockInstanceId: instance.id,
+            blockId: binding.id,
+            localId: e.id,
+            category: e.category,
+            core: e.core,
+            payload,
+          });
+        },
+      };
+    }
+  }
+
+  // Augment context with a block-specific emitAction that derives the
+  // global action ID as {blockId}.{localId} and emits on the workspace bus.
+  const augmentedContext: SlotContext = useMemo(
+    () => ({
+      ...context,
+      emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        bus.emit(`${binding.id}.${localId}`, {
+          blockInstanceId: instance.id,
+          blockId: binding.id,
+          localId,
+          payload,
+        });
+      },
+    }),
+    [context, binding.id, bus, instance.id],
+  );
 
   return (
     <div className="p-4" style={{ display: hidden ? "none" : undefined }}>
       <Component
-        context={context}
+        context={augmentedContext}
         instance={instance}
         overrides={binding.overrides}
-        sendAction={sendAction}
+        emits={emits}
       />
     </div>
   );

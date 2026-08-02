@@ -204,7 +204,7 @@ class EntryActionLoggingTests(BaseTestCase):
     """ActionLoggingMixin: spy on log_action() — the highest seam.
 
     Tests verify the mixin calls log_action() with the correct
-    action_type, target_type, target_id, user, and metadata.  No
+    action, target_type, target_id, user, and metadata.  No
     DB-row inspection — just the dispatch boundary.
     """
 
@@ -228,7 +228,7 @@ class EntryActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.entry.created")
+        self.assertEqual(kwargs["action"], "eln.entry.created")
         self.assertEqual(kwargs["target_type"], "eln.entry")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -247,7 +247,7 @@ class EntryActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.entry.edited")
+        self.assertEqual(kwargs["action"], "eln.entry.edited")
         self.assertEqual(kwargs["target_type"], "eln.entry")
         self.assertEqual(kwargs["target_id"], entry.id)
         self.assertEqual(kwargs["user"], self.user)
@@ -262,7 +262,7 @@ class EntryActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.entry.deleted")
+        self.assertEqual(kwargs["action"], "eln.entry.deleted")
         self.assertEqual(kwargs["target_type"], "eln.entry")
         self.assertEqual(kwargs["target_id"], entry.id)
         self.assertEqual(kwargs["user"], self.user)
@@ -312,11 +312,11 @@ class EntryActionsEndpointTests(BaseTestCase):
         # Create several actions via the logger so they exist before tests
         from helix_core.actions.logger import log_action
         self.a1 = log_action(
-            user=self.user, action_type="eln.entry.created",
+            user=self.user, action="eln.entry.created",
             target_type="eln.entry", target_id=self.entry.id,
         )
         self.a2 = log_action(
-            user=self.user, action_type="eln.entry.edited",
+            user=self.user, action="eln.entry.edited",
             target_type="eln.entry", target_id=self.entry.id,
         )
 
@@ -356,22 +356,22 @@ class EntryActionsEndpointTests(BaseTestCase):
     # ── GET: filter by action_type ────────────────────────────────────────
 
     def test_filter_by_action_type(self):
-        """?action_type=eln.entry.edited returns only edited actions."""
+        """?action_type=edited returns only edited actions."""
         response = self.client.get(
-            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=eln.entry.edited"
+            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=edited"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
-        self.assertEqual(response.data["results"][0]["action_type"], "eln.entry.edited")
+        self.assertEqual(response.data["results"][0]["action_type"], "edited")
 
     def test_filter_by_action_type_created(self):
-        """?action_type=eln.entry.created returns only created actions."""
+        """?action_type=created returns only created actions."""
         response = self.client.get(
-            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=eln.entry.created"
+            f"/api/eln/entries/{self.entry.display_id}/actions/?action_type=created"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
-        self.assertEqual(response.data["results"][0]["action_type"], "eln.entry.created")
+        self.assertEqual(response.data["results"][0]["action_type"], "created")
 
     # ── GET: filter by since ──────────────────────────────────────────────
 
@@ -410,11 +410,13 @@ class EntryActionsEndpointTests(BaseTestCase):
         """POST creates a new action and returns 201."""
         response = self.client.post(
             f"/api/eln/entries/{self.entry.display_id}/actions/",
-            {"action_type": "commented", "metadata": {"text": "Great work!"}},
+            {"action": "eln.entry.commented", "action_type": "commented",
+             "metadata": {"text": "Great work!"}},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(ElnAction.objects.count(), 3)
+        self.assertEqual(response.data["action"], "eln.entry.commented")
         self.assertEqual(response.data["action_type"], "commented")
         self.assertEqual(response.data["metadata"], {"text": "Great work!"})
         self.assertEqual(response.data["performed_by"]["username"], self.USERNAME)
@@ -425,7 +427,7 @@ class EntryActionsEndpointTests(BaseTestCase):
         anon_client = APIClient()
         response = anon_client.post(
             f"/api/eln/entries/{self.entry.display_id}/actions/",
-            {"action_type": "commented"},
+            {"action": "eln.entry.commented", "action_type": "commented"},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -474,7 +476,7 @@ class EntryTagActionsLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.entry.tags_attached")
+        self.assertEqual(kwargs["action"], "eln.entry.tags_attached")
         self.assertEqual(kwargs["target_type"], "eln.entry")
         self.assertEqual(kwargs["target_id"], self.entry.id)
         self.assertEqual(kwargs["metadata"], {"tag_ids": [self.tag1.id, self.tag2.id]})
@@ -487,7 +489,7 @@ class EntryTagActionsLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.entry.tag_detached")
+        self.assertEqual(kwargs["action"], "eln.entry.tag_detached")
         self.assertEqual(kwargs["target_type"], "eln.entry")
         self.assertEqual(kwargs["target_id"], self.entry.id)
         self.assertEqual(kwargs["metadata"], {"tag_id": self.tag1.id})

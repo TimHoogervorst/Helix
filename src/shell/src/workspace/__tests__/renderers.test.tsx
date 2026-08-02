@@ -4,6 +4,7 @@ import { ButtonGroupRenderer } from "../ButtonGroupRenderer";
 import { PanelRenderer } from "../PanelRenderer";
 import { TabRenderer } from "../TabRenderer";
 import { WorkspaceBus } from "../WorkspaceBus";
+import { BlockEvent } from "../../mod-system/BlockEvent";
 import type {
   ButtonBinding,
   BlockBinding,
@@ -50,6 +51,7 @@ function makeBlockBinding(
     component: DummyComponent,
     listensTo: [],
     onEvent: {},
+    emits: [],
     order: 0,
     overrides: {},
     serialize: (state) => JSON.stringify(state),
@@ -440,6 +442,95 @@ describe("PanelRenderer", () => {
     bus.emit("data.export", {});
     expect(receivedAttrs).toEqual([{ rows: 10 }]);
   });
+
+  // ── emitAction ─────────────────────────────────────────────────────────
+
+  it("passes emitAction to block component via augmented context", () => {
+    const receivedEmitAction: Array<
+      ((localId: string, payload?: Record<string, unknown>) => void) | undefined
+    > = [];
+
+    function EmitActionTestBlock({ context }: BlockComponentProps) {
+      receivedEmitAction.push(context.emitAction);
+      return (
+        <div data-testid="emit-action-block">
+          {typeof context.emitAction}
+        </div>
+      );
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registry-table",
+        label: "Registry Table",
+        component: EmitActionTestBlock,
+        emits: [
+          BlockEvent.action({ id: "row-added", core: "created" }),
+        ],
+      }),
+    ];
+
+    render(
+      <PanelRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // emitAction should be a function
+    expect(receivedEmitAction[0]).toBeTypeOf("function");
+  });
+
+  it("emitAction emits on bus with correct event pattern {blockId}.{localId}", () => {
+    const receivedPayloads: unknown[] = [];
+    bus.on("eln.registry-table.row-added", (payload) => {
+      receivedPayloads.push(payload);
+    });
+
+    let capturedEmitAction:
+      | ((localId: string, payload?: Record<string, unknown>) => void)
+      | undefined;
+
+    function EmitTestBlock({ context }: BlockComponentProps) {
+      capturedEmitAction = context.emitAction;
+      return <div data-testid="emit-block" />;
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registry-table",
+        label: "Registry Table",
+        component: EmitTestBlock,
+        emits: [
+          BlockEvent.action({ id: "row-added", core: "created" }),
+        ],
+      }),
+    ];
+
+    render(
+      <PanelRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // Call emitAction and verify it emits on the bus
+    capturedEmitAction?.("row-added", { rowCount: 5 });
+
+    expect(receivedPayloads.length).toBe(1);
+    expect(receivedPayloads[0]).toMatchObject({
+      blockId: "eln.registry-table",
+      localId: "row-added",
+      payload: { rowCount: 5 },
+    });
+    expect((receivedPayloads[0] as Record<string, unknown>).blockInstanceId).toBeTypeOf(
+      "string",
+    );
+  });
 });
 
 // ── TabRenderer ───────────────────────────────────────────────────────────
@@ -679,4 +770,105 @@ describe("TabRenderer", () => {
     bus.emit("data.export", {});
     expect(onEventHandler).not.toHaveBeenCalled();
   });
+
+  // ── emitAction ─────────────────────────────────────────────────────────
+
+  it("passes emitAction to block component via augmented context", () => {
+    const receivedEmitAction: Array<
+      ((localId: string, payload?: Record<string, unknown>) => void) | undefined
+    > = [];
+
+    function EmitActionTestBlock({ context }: BlockComponentProps) {
+      receivedEmitAction.push(context.emitAction);
+      return <div data-testid="emit-action-block" />;
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registry-table",
+        label: "Registry Table",
+        component: EmitActionTestBlock,
+        emits: [
+          BlockEvent.action({ id: "row-added", core: "created" }),
+        ],
+      }),
+    ];
+
+    render(
+      <TabRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // emitAction should be a function
+    expect(receivedEmitAction[0]).toBeTypeOf("function");
+  });
+
+  it("emitAction emits on bus with correct event pattern from tab context", () => {
+    const receivedPayloads: unknown[] = [];
+    bus.on("eln.registry-table.row-added", (payload) => {
+      receivedPayloads.push(payload);
+    });
+
+    let capturedEmitAction:
+      | ((localId: string, payload?: Record<string, unknown>) => void)
+      | undefined;
+
+    function EmitTestBlock({ context }: BlockComponentProps) {
+      capturedEmitAction = context.emitAction;
+      return <div data-testid="emit-block" />;
+    }
+
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        id: "eln.registry-table",
+        label: "Registry Table",
+        component: EmitTestBlock,
+        emits: [
+          BlockEvent.action({ id: "row-added", core: "created" }),
+        ],
+      }),
+    ];
+
+    render(
+      <TabRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+      />,
+    );
+
+    // Call emitAction and verify it emits on the bus
+    capturedEmitAction?.("row-added", { rowCount: 5 });
+
+    expect(receivedPayloads.length).toBe(1);
+    expect(receivedPayloads[0]).toMatchObject({
+      blockId: "eln.registry-table",
+      localId: "row-added",
+      payload: { rowCount: 5 },
+    });
+  });
 });
+
+// ── Type-level tests ──────────────────────────────────────────────────────
+//
+// These assertions are evaluated at compile time — they produce no runtime
+// output.  If `bus` or `sendAction` were still on BlockComponentProps the
+// helper type would resolve to `never` and the assignment to `true` would
+// fail to compile.
+
+/** Resolves to `true` when K is NOT a key of T, otherwise `never`. */
+type AssertNotHasProp<T, K extends string> = K extends keyof T ? never : true;
+
+/**
+ * Compile-time type guards verifying `bus` and `sendAction` are not
+ * assignable to `BlockComponentProps`.  If either property creeps back
+ * into the interface, the return type resolves to `never` and `true`
+ * fails to assign, breaking the build.
+ */
+void ((): AssertNotHasProp<BlockComponentProps, "bus"> => true);
+void ((): AssertNotHasProp<BlockComponentProps, "sendAction"> => true);

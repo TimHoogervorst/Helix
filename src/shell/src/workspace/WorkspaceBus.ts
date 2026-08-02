@@ -9,23 +9,6 @@ export type EventHandler = (
 ) => unknown | void | Promise<unknown | void>;
 
 /**
- * Payload shape emitted by BlockNodeView for block lifecycle events
- * (`{blockId}.created`, `{blockId}.edited`, `{blockId}.deleted`).
- *
- * Shared contract between the emitter (BlockNodeView) and all consumers
- * (ActivityFeedBlock, useBlockActionLogging, etc.).
- */
-export interface BlockLifecyclePayload {
-  blockId: string;
-  slotId: string;
-  blockInstanceId: string;
-  /** Present on created and edited events. */
-  attrs?: Record<string, unknown>;
-  /** Present on edited events (the changed fields only). */
-  changedAttrs?: Record<string, unknown>;
-}
-
-/**
  * Workspace-scoped event bus for decoupled communication between UI elements
  * across all slots in a workspace.
  *
@@ -44,8 +27,92 @@ export class WorkspaceBus {
   private handlers: Array<{ event: string; handler: EventHandler }> = [];
 
   /**
+   * Check whether a concrete event string matches a subscription pattern.
+   *
+   * Patterns may contain glob wildcards:
+   * - `*` matches exactly one dot-delimited segment
+   * - `**` matches zero or more dot-delimited segments
+   *
+   * When a pattern contains no wildcard characters, this reduces to an
+   * exact string comparison — zero overhead for existing callers.
+   */
+  private matchesEvent(pattern: string, event: string): boolean {
+    // Fast path: exact match for patterns without wildcards
+    if (!pattern.includes("*")) {
+      return pattern === event;
+    }
+
+    const patSegments = pattern.split(".");
+    const evtSegments = event.split(".");
+
+    const memo = new Map<string, boolean>();
+
+    const dfs = (pi: number, ei: number): boolean => {
+      const key = `${pi},${ei}`;
+      const cached = memo.get(key);
+      if (cached !== undefined) return cached;
+
+      // Both exhausted — match
+      if (pi === patSegments.length) {
+        const result = ei === evtSegments.length;
+        memo.set(key, result);
+        return result;
+      }
+
+      const p = patSegments[pi];
+
+      if (p === "**") {
+        // ** matches zero or more event segments
+        // Option 1: ** matches zero segments (skip **)
+        if (dfs(pi + 1, ei)) {
+          memo.set(key, true);
+          return true;
+        }
+        // Option 2: ** matches one event segment (consume one, stay on **)
+        if (ei < evtSegments.length && dfs(pi, ei + 1)) {
+          memo.set(key, true);
+          return true;
+        }
+        memo.set(key, false);
+        return false;
+      }
+
+      // Event exhausted but pattern still has non-** segments
+      if (ei === evtSegments.length) {
+        memo.set(key, false);
+        return false;
+      }
+
+      if (p === "*") {
+        // * matches exactly one non-empty event segment
+        if (evtSegments[ei] === "") {
+          memo.set(key, false);
+          return false;
+        }
+        const result = dfs(pi + 1, ei + 1);
+        memo.set(key, result);
+        return result;
+      }
+
+      // Literal match
+      if (p === evtSegments[ei]) {
+        const result = dfs(pi + 1, ei + 1);
+        memo.set(key, result);
+        return result;
+      }
+
+      memo.set(key, false);
+      return false;
+    };
+
+    return dfs(0, 0);
+  }
+
+  /**
    * Subscribe to an event. Returns an unsubscribe function.
    *
+   * The event string may contain glob wildcards (`*` for a single segment,
+   * `**` for zero or more segments), enabling pattern-based subscriptions.
    * The same handler reference can be registered for multiple events.
    * Unsubscribing removes only the specific (event, handler) pair.
    */
@@ -66,13 +133,16 @@ export class WorkspaceBus {
   }
 
   /**
-   * Fire and forget. Delivers payload to all matching handlers.
-   * Handler return values are ignored. Async handlers are fired
-   * but their promises are not awaited — rejections are silently caught.
+   * Fire and forget. Delivers payload to all handlers whose subscription
+   * pattern matches the emitted event. Handler return values are ignored.
+   * Async handlers are fired but their promises are not awaited —
+   * rejections are silently caught.
    */
   emit(event: string, payload?: unknown): void {
     // Snapshot handlers so unsubscribing during dispatch doesn't affect iteration
-    const matching = this.handlers.filter((h) => h.event === event);
+    const matching = this.handlers.filter((h) =>
+      this.matchesEvent(h.event, event),
+    );
     for (const entry of matching) {
       try {
         const result = entry.handler(payload);
@@ -90,6 +160,8 @@ export class WorkspaceBus {
    * Fire and collect. Awaits all matching handlers (sync or async) and
    * returns an array of their return values in registration order.
    *
+   * Matching is by subscription pattern — handlers registered with
+   * wildcard patterns are included when the emitted event matches.
    * Handlers that throw are silently skipped — their results are omitted
    * from the returned array.
    */
@@ -97,7 +169,9 @@ export class WorkspaceBus {
     event: string,
     payload?: unknown,
   ): Promise<T[]> {
-    const matching = this.handlers.filter((h) => h.event === event);
+    const matching = this.handlers.filter((h) =>
+      this.matchesEvent(h.event, event),
+    );
     const results: T[] = [];
     for (const entry of matching) {
       try {
@@ -115,13 +189,17 @@ export class WorkspaceBus {
    * registration order, short-circuiting on the first handler that returns
    * a non-null value.
    *
+   * Matching is by subscription pattern — handlers registered with
+   * wildcard patterns are included when the emitted event matches.
    * Returns null if no handler matches or all handlers return null/throw.
    */
   async request<T = unknown>(
     event: string,
     payload?: unknown,
   ): Promise<T | null> {
-    const matching = this.handlers.filter((h) => h.event === event);
+    const matching = this.handlers.filter((h) =>
+      this.matchesEvent(h.event, event),
+    );
     for (const entry of matching) {
       try {
         const result = await entry.handler(payload);

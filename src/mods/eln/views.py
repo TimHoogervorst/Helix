@@ -480,29 +480,40 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         try:
             lock = EntryLock.objects.create(entry=entry, held_by=request.user)
         except IntegrityError:
-            # Re-fetch — the lock definitely exists now.
-            existing = entry.lock
-            if existing.held_by == request.user:
-                existing.save()
-                return Response(
-                    self._lock_response(existing),
-                    status=status.HTTP_200_OK,
-                )
-            elif existing.is_stale():
-                existing.delete()
+            # Re-fetch — the lock definitely exists now.  Use a direct query
+            # instead of entry.lock because Django's ReverseOneToOneDescriptor
+            # caches the negative lookup from the check above and would re-raise
+            # EntryLock.DoesNotExist without re-querying the database.
+            try:
+                existing = EntryLock.objects.get(entry=entry)
+            except EntryLock.DoesNotExist:
+                # Lock was deleted between the IntegrityError and the re-fetch
+                # (e.g. a release raced in).  Retry the create.
                 lock = EntryLock.objects.create(
                     entry=entry, held_by=request.user,
                 )
             else:
-                return Response(
-                    {
-                        "locked": True,
-                        "held_by": existing.held_by.id,
-                        "held_by_username": existing.held_by.username,
-                        "detail": "This entry is currently being edited by another user.",
-                    },
-                    status=423,
-                )
+                if existing.held_by == request.user:
+                    existing.save()
+                    return Response(
+                        self._lock_response(existing),
+                        status=status.HTTP_200_OK,
+                    )
+                elif existing.is_stale():
+                    existing.delete()
+                    lock = EntryLock.objects.create(
+                        entry=entry, held_by=request.user,
+                    )
+                else:
+                    return Response(
+                        {
+                            "locked": True,
+                            "held_by": existing.held_by.id,
+                            "held_by_username": existing.held_by.username,
+                            "detail": "This entry is currently being edited by another user.",
+                        },
+                        status=423,
+                    )
         return Response(
             self._lock_response(lock),
             status=status.HTTP_201_CREATED,

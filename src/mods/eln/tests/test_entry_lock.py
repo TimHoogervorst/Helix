@@ -85,6 +85,36 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
         response = self.client.post(self.lock_url)
         self.assertEqual(response.status_code, 200)
 
+    def test_race_condition_duplicate_lock_recovers(self):
+        """When a concurrent request inserts a lock between our check and
+        create, the IntegrityError handler re-fetches via objects.get()
+        (bypassing Django's cached negative lookup) and recovers."""
+        from unittest.mock import patch
+        from django.db import IntegrityError
+
+        entry = NotebookEntry.objects.get(display_id=self.display_id)
+        original_create = EntryLock.objects.create
+
+        def create_with_race(*args, **kwargs):
+            # Simulate a concurrent request: create the lock first, then
+            # raise IntegrityError so our request's create() sees a duplicate.
+            race_lock = original_create(entry=entry, held_by=self.user)
+            raise IntegrityError(
+                "duplicate key value violates unique constraint "
+                '"eln_entry_lock_entry_id_key"\n'
+                f"DETAIL:  Key (entry_id)=({entry.id}) already exists.\n"
+            )
+
+        with patch.object(
+            EntryLock.objects, "create", side_effect=create_with_race
+        ):
+            response = self.client.post(self.lock_url)
+            # Re-fetch via objects.get() finds the race lock,
+            # same user → refresh → 200.
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.data["locked"])
+            self.assertEqual(response.data["held_by"], self.user.id)
+
     # ── helpers ────────────────────────────────────────────────────────────
 
     @staticmethod

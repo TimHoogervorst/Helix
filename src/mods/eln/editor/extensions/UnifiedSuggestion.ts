@@ -24,7 +24,7 @@ import type {
   SuggestionMatch,
 } from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
-import { ModRegistry } from "../../../../shell/src/mod-system";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import { get } from "../../../../shell/src/api/client";
 import type { SearchResult } from "../../../../shell/src/mentions/types";
 

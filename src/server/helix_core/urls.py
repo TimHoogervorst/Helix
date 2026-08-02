@@ -29,4 +29,9 @@ urlpatterns = [
         name="registry-entity-query",
     ),
     path("mod-registry/", ModRegistryView.as_view(), name="mod-registry"),
+    path(
+        "mod-registry/sync-actions/",
+        ModRegistryView.as_view(),
+        name="mod-registry-sync-actions",
+    ),
 ]

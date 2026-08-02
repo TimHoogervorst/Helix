@@ -19,6 +19,9 @@ and onboarding reference for contributors.
 | [0007](0007-monorepo-restructure.md) | Monorepo Restructure — co-located mods, single manifest | 2026-07-16 | Accepted |
 | [0008](0008-single-source-registration.md) | Single Source Registration — backend as the authoritative source | 2026-07-24 | Accepted |
 | [0009](0009-actions-api-gateway.md) | Actions API Gateway — unified endpoint for all database mutations | 2026-07-24 | Accepted |
+| [0010](0010-column-type-registry.md) | Column Type Registry — backend-owned typed column definitions | 2026-07-24 | Accepted |
+| [0011](0011-declarative-bus-subscriptions.md) | Declarative Bus Subscriptions — `listensTo`/`onEvent` as canonical block API | 2026-07-30 | Accepted |
+| [0012](0012-tiptap-renderer-editor-host.md) | TipTapRenderer as Sole Editor Host — dissolving the host-component anti-pattern | 2026-07-30 | Accepted |
 
 ## Creating a New ADR
 

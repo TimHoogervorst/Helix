@@ -138,7 +138,7 @@ function StatsBar() {
 // ── Jump Back In ────────────────────────────────────────────────────────────
 
 /** The hub ID for the home hub — excluded from the card grid. */
-const HOME_HUB_ID = "home";
+const HOME_HUB_ID = "home.home";
 
 /** Color tokens cycled through per hub card: flask → enzyme → solvent → repeat. */
 const HUB_COLOR_TOKENS = ["flask", "enzyme", "solvent"] as const;

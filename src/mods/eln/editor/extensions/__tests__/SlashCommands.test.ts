@@ -9,11 +9,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Node } from "@tiptap/core";
 import SlashCommands from "../SlashCommands";
 import { createTestEditor } from "../../../../../shell/src/test/factories";
-import { ModRegistry } from "../../../../../shell/src/mod-system";
+import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
 
 /** Minimal inline TipTap node for testing — matches the block ID used in registerTableBlock. */
 const TestTableNode = Node.create({
-  name: "test.table-block",
+  name: "test.table",
   group: "block",
   atom: true,
   addAttributes() {
@@ -109,7 +109,7 @@ function DummyComponent() {
 
 function registerTableBlock(overrides?: Record<string, unknown>) {
   ModRegistry.getInstance().registerBlock(
-    makeBlockRegistration("test.table-block", "Table", overrides),
+    makeBlockRegistration("test.table", "Table", overrides),
   );
 }
 
@@ -277,14 +277,14 @@ describe("SlashCommands editor integration", () => {
     editor.destroy();
   });
 
-  it("Table command action inserts a test.table-block node", () => {
+  it("Table command action inserts a test.table node", () => {
     const editor = createTestEditor([SlashCommands, TestTableNode]);
     const commands = getCommands();
     const tableCmd = commands.find((c) => c.label === "Table")!;
     const from = editor.state.selection.from;
     tableCmd.action(editor, { from, to: from });
     const doc = editor.getJSON();
-    const tableNode = doc.content?.find((n: any) => n.type === "test.table-block");
+    const tableNode = doc.content?.find((n: any) => n.type === "test.table");
     expect(tableNode).toBeTruthy();
     // The slash command inserts content via the block's serialized state
     // using the generic 'content' attribute used by slot-system BlockBindings.

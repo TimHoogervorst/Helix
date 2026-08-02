@@ -14,24 +14,30 @@
  * - Bus subscriptions for `listensTo` events are cleaned up on NodeView
  *   destruction (unmount).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
-import { useSendAction } from "../useSendAction";
+import type { LifecycleEventPayload } from "./useActionAccumulator";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
 export interface BlockNodeViewProps extends NodeViewProps {
   /** Resolved block binding with component, serialize/deserialize, etc. */
   binding: BlockBinding;
-  /** Workspace-scoped event bus for lifecycle events and event routing. */
+  /** Workspace-scoped event bus for event routing (listensTo → onEvent). */
   bus: WorkspaceBus;
   /** The slot this block instance lives in. */
   slotId: string;
   /** Flat metadata bag available to the block component. */
   context: SlotContext;
+  /**
+   * Internal callback from useActionAccumulator for lifecycle events.
+   * When provided, BlockNodeView calls this instead of emitting
+   * lifecycle events on the public bus.
+   */
+  onLifecycleEvent?: (payload: LifecycleEventPayload) => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -47,7 +53,7 @@ export interface BlockNodeViewProps extends NodeViewProps {
  * There is no `bus` prop; blocks respond to events declaratively via `onEvent`.
  */
 export function BlockNodeView(props: BlockNodeViewProps) {
-  const { node, updateAttributes, getPos, binding, bus, slotId, context } = props;
+  const { node, updateAttributes, getPos, binding, bus, slotId, context, onLifecycleEvent } = props;
 
   // ── Instance (stable identity) ────────────────────────────────────────
 
@@ -55,7 +61,7 @@ export function BlockNodeView(props: BlockNodeViewProps) {
   // NodeView churn during a single transaction (destroy + recreate of
   // ReactNodeView at the same position) produces the same blockInstanceId.
   // Without this, each new NodeView gets a fresh crypto.randomUUID() and
-  // the accumulator in useBlockActionLogging treats spurious lifecycle
+  // the accumulator in useActionAccumulator treats spurious lifecycle
   // events as separate entries, causing duplicate action rows.
   const instanceId = (() => {
     try {
@@ -121,12 +127,10 @@ export function BlockNodeView(props: BlockNodeViewProps) {
     if (hasEmittedCreated.current) return;
     hasEmittedCreated.current = true;
 
-    const eventName = `${binding.id}.created`;
-    bus.emit(eventName, {
+    onLifecycleEvent?.({
       blockId: binding.id,
-      slotId,
       blockInstanceId: instanceRef.current.id,
-      attrs: instanceRef.current.attrs,
+      verb: "created",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -147,12 +151,10 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
     if (committedContentRef.current !== currentContent) {
       committedContentRef.current = currentContent;
-      const eventName = `${binding.id}.edited`;
-      bus.emit(eventName, {
+      onLifecycleEvent?.({
         blockId: binding.id,
-        slotId,
         blockInstanceId: instanceRef.current.id,
-        changedAttrs: binding.deserialize(currentContent),
+        verb: "edited",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,11 +180,10 @@ export function BlockNodeView(props: BlockNodeViewProps) {
       // microtask fires.  On a real unmount, nobody replaces the token.
       queueMicrotask(() => {
         if (unmountTokenRef.current === token) {
-          const eventName = `${binding.id}.deleted`;
-          bus.emit(eventName, {
+          onLifecycleEvent?.({
             blockId: binding.id,
-            slotId,
             blockInstanceId: instanceRef.current.id,
+            verb: "deleted",
           });
         }
       });
@@ -217,7 +218,47 @@ export function BlockNodeView(props: BlockNodeViewProps) {
 
   const BlockComponent = binding.component;
 
-  const sendAction = useSendAction(context.workspaceId);
+  // ── Typed emitters ────────────────────────────────────────────────────
+
+  // Build typed emitter functions from the binding's emits declarations.
+  // Each emitter's fire() constructs a BlockEvent-shaped payload and
+  // dispatches it on the workspace bus.  UI events (category: "ui") stay
+  // on the bus; action events are picked up by the accumulator.
+  const emits: Record<string, { fire: (payload: Record<string, unknown>) => void }> =
+    {};
+  if (binding.emits) {
+    for (const e of binding.emits) {
+      emits[e.id] = {
+        fire: (payload: Record<string, unknown>) => {
+          bus.emit(`${binding.id}.${e.id}`, {
+            blockInstanceId: instanceRef.current.id,
+            blockId: binding.id,
+            localId: e.id,
+            category: e.category,
+            core: e.core,
+            payload,
+          });
+        },
+      };
+    }
+  }
+
+  // Augment context with a block-specific emitAction that derives the
+  // global action ID as {blockId}.{localId} and emits on the workspace bus.
+  const augmentedContext: SlotContext = useMemo(
+    () => ({
+      ...context,
+      emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        bus.emit(`${binding.id}.${localId}`, {
+          blockInstanceId: instanceRef.current.id,
+          blockId: binding.id,
+          localId,
+          payload,
+        });
+      },
+    }),
+    [context, binding.id, bus],
+  );
 
   // Per-block centering: max-w-3xl mx-auto by default.
   // When overrides.stretch is true, the block reads its runtime stretchMode
@@ -241,10 +282,10 @@ export function BlockNodeView(props: BlockNodeViewProps) {
       contentEditable={false}
     >
       <BlockComponent
-        context={context}
+        context={augmentedContext}
         instance={instanceRef.current}
         overrides={binding.overrides}
-        sendAction={sendAction}
+        emits={emits}
       />
     </NodeViewWrapper>
   );

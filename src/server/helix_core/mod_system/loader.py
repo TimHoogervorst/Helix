@@ -452,23 +452,50 @@ def _read_json_manifest(mod_dir: Path, mod_id: str) -> ModManifest:
         )
 
     # Validate required fields before constructing ModManifest.
+    # The frontend manifest format uses "vendor" + "name" (e.g.
+    # "helix.eln") instead of a single "id" field.  When "id" is
+    # missing, use "name" as the id (the short directory-scoped name).
     if "id" not in data:
-        raise ValueError(
-            f"modManifest.json at {json_path} is missing required "
-            f"field 'id'"
-        )
+        if "name" in data:
+            data["id"] = data["name"]
+        else:
+            raise ValueError(
+                f"modManifest.json at {json_path} is missing required "
+                f"field 'id' (or 'name')"
+            )
     if "displayName" not in data:
         raise ValueError(
             f"modManifest.json at {json_path} is missing required "
             f"field 'displayName'"
         )
 
+    # Normalize dependsOn entries: the frontend format uses fully-qualified
+    # "vendor.name" strings (e.g. "helix.lims"), but the backend resolves
+    # dependencies by the short mod ID (the directory name).  Strip the
+    # vendor prefix so validation passes against the mod directory keys.
+    raw_depends_on = data.get("dependsOn", [])
+    if isinstance(raw_depends_on, list):
+        normalized_depends_on: list[str | dict[str, str]] = []
+        for dep in raw_depends_on:
+            if isinstance(dep, str):
+                # "helix.lims" → "lims"
+                normalized_depends_on.append(dep.rsplit(".", 1)[-1])
+            elif isinstance(dep, dict):
+                dep_copy = dict(dep)
+                if "id" in dep_copy:
+                    dep_copy["id"] = dep_copy["id"].rsplit(".", 1)[-1]
+                normalized_depends_on.append(dep_copy)
+            else:
+                normalized_depends_on.append(dep)
+    else:
+        normalized_depends_on = raw_depends_on
+
     # Map camelCase JSON keys to snake_case ModManifest kwargs.
     manifest = ModManifest(
         id=data["id"],
         display_name=data["displayName"],
         version=data.get("version"),
-        depends_on=data.get("dependsOn", []),
+        depends_on=normalized_depends_on,
         core_version=data.get("coreVersion"),
         icon=data.get("icon"),
         description=data.get("description"),

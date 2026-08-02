@@ -1,12 +1,6 @@
 import { Cog, Info, LayoutList, Microscope, Users } from "lucide-react";
-import {
-  registerRoute,
-  registerSettingsSection,
-  registerHub,
-  declareSlot,
-  registerBlock,
-  registerIntoSlot,
-} from "../../shell/src/mod-system";
+import { Mod } from "../../shell/src/mod-system/Mod";
+import type { ModManifest } from "../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
@@ -14,89 +8,87 @@ import EntitiesHub from "./hub/EntitiesHub";
 import { SelectionBlock } from "./blocks/SelectionBlock";
 import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
+import manifest from "./modManifest.json";
 
-export function register() {
-  // ── Standalone route: full entity workspace page ──────────────────────
-  registerRoute({
-    id: "lims.entity-page",
-    modId: "lims",
-    path: "/lims/:displayId",
-    component: LimsWorkspacePage,
-  });
+const mod = new Mod(manifest as ModManifest);
 
-  // ── Settings: schema CRUD (includes DangerZone) ──────────────────────
-  registerSettingsSection({
-    id: "lims.schema-settings",
-    modId: "lims",
-    label: "Schemas",
-    icon: Cog,
-    component: SchemaSettings,
-    order: 10,
-  });
+// ── Standalone route: full entity workspace page ──────────────────────
+mod.registerRoute("entity-page", {
+  path: "/lims/:displayId",
+  component: LimsWorkspacePage,
+});
 
-  // ── Hub: Entities Hub — cross-mod entity browsing surface ─────────────
-  registerHub({
-    id: "entities",
-    label: "Entities",
-    icon: Microscope,
-    route: "/entities",
-    component: EntitiesHub,
-    order: 20,
-    description:
-      "Browse, search, and filter all entities across every workspace.",
-  });
+// ── Settings: schema CRUD (includes DangerZone) ──────────────────────
+mod.registerSettingsSection("schema-settings", {
+  label: "Schemas",
+  icon: Cog,
+  component: SchemaSettings,
+  order: 10,
+});
 
-  // ── Slot: Entities Hub Sidebar ────────────────────────────────────────
-  declareSlot({
-    id: "entities.sidebar",
-    accepts: "block",
-    renderer: SlotSidebar,
-    layout: "vertical",
-    order: 0,
-    defaults: {},
-  });
+// ── Hub: Entities Hub — cross-mod entity browsing surface ─────────────
+mod.registerHub("entities", {
+  label: "Entities",
+  icon: Microscope,
+  route: "/entities",
+  component: EntitiesHub,
+  order: 20,
+  description:
+    "Browse, search, and filter all entities across every workspace.",
+});
 
-  // ── Block: Selection placeholder ──────────────────────────────────────
-  registerBlock({
-    id: "entities.selection-block",
-    label: "Selection",
-    icon: Info,
-    component: SelectionBlock,
-    listensTo: [],
-    onEvent: {},
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Slot: Entities Hub Sidebar ────────────────────────────────────────
+export const sidebarSlot = mod.declareSlot("sidebar", {
+  accepts: "block",
+  renderer: SlotSidebar,
+  layout: "vertical",
+  order: 0,
+  defaults: {},
+});
 
-  // ── Block: My Views placeholder ───────────────────────────────────────
-  registerBlock({
-    id: "entities.my-views-block",
-    label: "My Views",
-    icon: LayoutList,
-    component: MyViewsBlock,
-    listensTo: [],
-    onEvent: {},
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Block: Selection placeholder ──────────────────────────────────────
+export const selectionBlock = mod.registerBlock("selection", {
+  label: "Selection",
+  icon: Info,
+  component: SelectionBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
 
-  // ── Block: Global Views placeholder ───────────────────────────────────
-  registerBlock({
-    id: "entities.global-views-block",
-    label: "Global Views",
-    icon: Users,
-    component: GlobalViewsBlock,
-    listensTo: [],
-    onEvent: {},
-    serialize: () => "{}",
-    deserialize: () => ({}),
-    defaultState: {},
-  });
+// ── Block: My Views placeholder ───────────────────────────────────────
+export const myViewsBlock = mod.registerBlock("my-views", {
+  label: "My Views",
+  icon: LayoutList,
+  component: MyViewsBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
 
-  // ── Bind blocks into the sidebar slot ─────────────────────────────────
-  registerIntoSlot("entities.sidebar", "entities.selection-block", {}, 0);
-  registerIntoSlot("entities.sidebar", "entities.my-views-block", {}, 1);
-  registerIntoSlot("entities.sidebar", "entities.global-views-block", {}, 2);
-}
+// ── Block: Global Views placeholder ───────────────────────────────────
+export const globalViewsBlock = mod.registerBlock("global-views", {
+  label: "Global Views",
+  icon: Users,
+  component: GlobalViewsBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
+
+// ── Bind blocks into the sidebar slot ─────────────────────────────────
+mod.registerIntoSlot(sidebarSlot, selectionBlock, {}, 0);
+mod.registerIntoSlot(sidebarSlot, myViewsBlock, {}, 1);
+mod.registerIntoSlot(sidebarSlot, globalViewsBlock, {}, 2);
+
+/** No-op — all registrations happen at module scope via the Mod class. */
+export function register() {}

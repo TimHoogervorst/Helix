@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { BlockEvent } from "../BlockEvent";
 import { ModRegistry } from "../ModRegistry";
 import type {
   HubConfig,
@@ -97,6 +98,7 @@ function makeBlockRegistration(
     component: DummyComponent,
     listensTo: [],
     onEvent: {},
+    emits: [],
     serialize: (state) => JSON.stringify(state),
     deserialize: (json) => JSON.parse(json),
     defaultState: {},
@@ -106,7 +108,8 @@ function makeBlockRegistration(
 
 function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
   return {
-    id: "lims",
+    vendor: "helix",
+    name: "lims",
     displayName: "LIMS",
     dependsOn: [],
     ...overrides,
@@ -350,9 +353,9 @@ describe("ModRegistry", () => {
 
   it("registerIntoSlot stores bindings for different slots independently", () => {
     registry.registerIntoSlot("eln.editor", "eln.table");
-    registry.registerIntoSlot("eln.header.actions", "eln.export");
+    registry.registerIntoSlot("eln.header-actions", "eln.export");
     expect(registry.getBindings().get("eln.editor")).toHaveLength(1);
-    expect(registry.getBindings().get("eln.header.actions")).toHaveLength(1);
+    expect(registry.getBindings().get("eln.header-actions")).toHaveLength(1);
   });
 
   it("getBindings returns empty map when no bindings registered", () => {
@@ -394,14 +397,14 @@ describe("ModRegistry", () => {
 
   it("validate warns and skips binding when target type does not match slot accepts", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registry.declareSlot(makeSlotDeclaration({ id: "eln.header.actions", accepts: "button" }));
+    registry.declareSlot(makeSlotDeclaration({ id: "eln.header-actions", accepts: "button" }));
     registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
-    registry.registerIntoSlot("eln.header.actions", "eln.table");
+    registry.registerIntoSlot("eln.header-actions", "eln.table");
     registry.validate();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("accepts 'button' but target"),
     );
-    expect(registry.getBindings().has("eln.header.actions")).toBe(false);
+    expect(registry.getBindings().has("eln.header-actions")).toBe(false);
     warnSpy.mockRestore();
   });
 
@@ -532,20 +535,20 @@ describe("ModRegistry", () => {
     registry.declareSlot(
       makeSlotDeclaration({ id: "eln.editor", accepts: "block" }),
     );
-    registry.registerBlock(makeBlockRegistration({ id: "eln.legacy-block" }));
-    registry.registerIntoSlot("eln.editor", "eln.legacy-block");
+    registry.registerBlock(makeBlockRegistration({ id: "eln.legacy" }));
+    registry.registerIntoSlot("eln.editor", "eln.legacy");
 
     const result = registry.resolveSlot("eln.editor");
     // All BlockRegistration entries participate in the slot system
     expect(result).not.toBeNull();
     expect(result!.bindings).toHaveLength(1);
-    expect(result!.bindings[0].id).toBe("eln.legacy-block");
+    expect(result!.bindings[0].id).toBe("eln.legacy");
   });
 
   it("resolveSlot resolves a button binding", () => {
     registry.declareSlot(
       makeSlotDeclaration({
-        id: "eln.header.actions",
+        id: "eln.header-actions",
         accepts: "button",
         defaults: { size: "sm" },
       }),
@@ -553,9 +556,9 @@ describe("ModRegistry", () => {
     registry.registerButton(
       makeButtonRegistration({ id: "eln.export", label: "Export" }),
     );
-    registry.registerIntoSlot("eln.header.actions", "eln.export", {}, 0);
+    registry.registerIntoSlot("eln.header-actions", "eln.export", {}, 0);
 
-    const result = registry.resolveSlot("eln.header.actions");
+    const result = registry.resolveSlot("eln.header-actions");
     expect(result).not.toBeNull();
     expect(result!.bindings).toHaveLength(1);
 
@@ -569,17 +572,17 @@ describe("ModRegistry", () => {
   it("resolveSlot skips bindings whose button target doesn't exist", () => {
     registry.declareSlot(
       makeSlotDeclaration({
-        id: "eln.header.actions",
+        id: "eln.header-actions",
         accepts: "button",
       }),
     );
     registry.registerButton(
       makeButtonRegistration({ id: "eln.export" }),
     );
-    registry.registerIntoSlot("eln.header.actions", "eln.export");
-    registry.registerIntoSlot("eln.header.actions", "nonexistent.button");
+    registry.registerIntoSlot("eln.header-actions", "eln.export");
+    registry.registerIntoSlot("eln.header-actions", "nonexistent.button");
 
-    const result = registry.resolveSlot("eln.header.actions");
+    const result = registry.resolveSlot("eln.header-actions");
     expect(result).not.toBeNull();
     expect(result!.bindings).toHaveLength(1);
     expect(result!.bindings[0].id).toBe("eln.export");
@@ -729,8 +732,8 @@ describe("ModRegistry", () => {
       };
 
       const manifests = new Map([
-        ["lims", makeManifest({ id: "lims", displayName: "LIMS" })],
-        ["eln", makeManifest({ id: "eln", displayName: "ELN" })],
+        ["lims", makeManifest({ name: "lims", displayName: "LIMS" })],
+        ["eln", makeManifest({ name: "eln", displayName: "ELN" })],
       ]);
 
       registry.hydrateFromBackend(payload, manifests);
@@ -947,7 +950,7 @@ describe("ModRegistry", () => {
         },
       };
 
-      registry.hydrateFromBackend(payload, new Map([["eln", makeManifest({ id: "eln" })]]));
+      registry.hydrateFromBackend(payload, new Map([["eln", makeManifest({ name: "eln" })]]));
 
       const actions = registry.getActions("eln");
       expect(actions).toHaveLength(2);
@@ -980,7 +983,7 @@ describe("ModRegistry", () => {
         payload,
         new Map([
           ["lims", makeManifest()],
-          ["eln", makeManifest({ id: "eln" })],
+          ["eln", makeManifest({ name: "eln" })],
         ]),
       );
 
@@ -1316,6 +1319,325 @@ describe("ModRegistry", () => {
         globalThis.fetch = originalFetch;
         warnSpy.mockRestore();
       }
+    });
+  });
+
+  // ── syncActions ──────────────────────────────────────────────────────
+
+  describe("syncActions", () => {
+    let registry: ModRegistry;
+    let fetchSpy: any;
+
+    beforeEach(() => {
+      registry = resetRegistry();
+      fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "ok" }),
+      });
+      globalThis.fetch = fetchSpy;
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function TipTapRenderer() {
+      return null;
+    }
+    function SidebarRenderer() {
+      return null;
+    }
+
+    it("sends lifecycle actions for editor-slot-bound blocks", async () => {
+      // Register an editor slot with TipTapRenderer.
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+      registry.registerIntoSlot("eln.editor", "eln.table");
+
+      await registry.syncActions();
+
+      // Should POST to sync-actions endpoint.
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchSpy.mock.calls[0];
+      expect(url).toBe("/api/mod-registry/sync-actions/");
+      expect(options.method).toBe("POST");
+
+      const body = JSON.parse(options.body);
+      expect(body.mod_id).toBe("eln");
+
+      // Should include lifecycle actions.
+      const actionIds = body.actions.map(
+        (a: { id: string }) => a.id,
+      );
+      expect(actionIds).toContain("eln.table.created");
+      expect(actionIds).toContain("eln.table.edited");
+      expect(actionIds).toContain("eln.table.deleted");
+    });
+
+    it("sends custom emit actions from block emits", async () => {
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(
+        makeBlockRegistration({
+          id: "eln.registry-table",
+          emits: [
+            BlockEvent.action({
+              id: "entities-registered",
+              core: "edited",
+            }),
+            BlockEvent.action({ id: "row-added", core: "edited" }),
+          ],
+        }),
+      );
+      registry.registerIntoSlot("eln.editor", "eln.registry-table");
+
+      await registry.syncActions();
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+      const actionIds = body.actions.map(
+        (a: { id: string }) => a.id,
+      );
+
+      // Lifecycle actions present (editor-slot-bound).
+      expect(actionIds).toContain("eln.registry-table.created");
+      expect(actionIds).toContain("eln.registry-table.edited");
+      expect(actionIds).toContain("eln.registry-table.deleted");
+
+      // Custom emit actions present.
+      expect(actionIds).toContain("eln.registry-table.entities-registered");
+      expect(actionIds).toContain("eln.registry-table.row-added");
+    });
+
+    it("skips UI-only emits", async () => {
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(
+        makeBlockRegistration({
+          id: "eln.registry-table",
+          emits: [
+            BlockEvent.action({
+              id: "entities-registered",
+              core: "edited",
+            }),
+            BlockEvent.ui({ id: "column-resized" }),
+          ],
+        }),
+      );
+      registry.registerIntoSlot("eln.editor", "eln.registry-table");
+
+      await registry.syncActions();
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+      const actionIds = body.actions.map(
+        (a: { id: string }) => a.id,
+      );
+
+      // Action events are included.
+      expect(actionIds).toContain(
+        "eln.registry-table.entities-registered",
+      );
+      // UI events are excluded.
+      expect(actionIds).not.toContain(
+        "eln.registry-table.column-resized",
+      );
+    });
+
+    it("skips lifecycle actions for non-editor slots", async () => {
+      // Sidebar slot uses a non-TipTap renderer.
+      registry.declareSlot({
+        id: "eln.sidebar",
+        accepts: "block",
+        renderer: SidebarRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(makeBlockRegistration({ id: "eln.metadata" }));
+      registry.registerIntoSlot("eln.sidebar", "eln.metadata");
+
+      await registry.syncActions();
+
+      // No POST should be made — no actions to sync.
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("includes custom emits for non-editor blocks", async () => {
+      // A sidebar block that has emits — custom emit actions should
+      // still be synced even though the block isn't in an editor slot.
+      registry.declareSlot({
+        id: "eln.sidebar",
+        accepts: "block",
+        renderer: SidebarRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(
+        makeBlockRegistration({
+          id: "eln.sidebar-widget",
+          emits: [
+            BlockEvent.action({ id: "widget-clicked", core: "edited" }),
+          ],
+        }),
+      );
+      registry.registerIntoSlot("eln.sidebar", "eln.sidebar-widget");
+
+      await registry.syncActions();
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+      const actionIds = body.actions.map(
+        (a: { id: string }) => a.id,
+      );
+
+      // Custom emit is synced regardless of slot type.
+      expect(actionIds).toContain("eln.sidebar-widget.widget-clicked");
+      // But NO lifecycle actions (sidebar, not editor).
+      expect(actionIds).not.toContain(
+        "eln.sidebar-widget.created",
+      );
+      expect(actionIds).not.toContain(
+        "eln.sidebar-widget.edited",
+      );
+      expect(actionIds).not.toContain(
+        "eln.sidebar-widget.deleted",
+      );
+    });
+
+    it("hard-fails when backend returns validation error", async () => {
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+      registry.registerIntoSlot("eln.editor", "eln.table");
+
+      fetchSpy.mockResolvedValue({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            missing: ["eln.table.created"],
+          }),
+      });
+
+      await expect(registry.syncActions()).rejects.toThrow(
+        "Action sync failed for mod 'eln': Missing actions: eln.table.created",
+      );
+    });
+
+    it("hard-fails when backend returns unexpected error", async () => {
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+      registry.registerIntoSlot("eln.editor", "eln.table");
+
+      fetchSpy.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({}),
+      });
+
+      await expect(registry.syncActions()).rejects.toThrow(
+        "Action sync failed for mod 'eln': HTTP 500",
+      );
+    });
+
+    it("groups actions by mod and sends separate requests", async () => {
+      // Register two mods' blocks in the same editor slot.
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.declareSlot({
+        id: "lims.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+      registry.registerBlock(makeBlockRegistration({ id: "lims.sample" }));
+      registry.registerIntoSlot("eln.editor", "eln.table");
+      registry.registerIntoSlot("lims.editor", "lims.sample");
+
+      await registry.syncActions();
+
+      // Two requests — one per mod.
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      const modIds = fetchSpy.mock.calls.map(
+        (call: any[]) =>
+          JSON.parse(call[1].body as string).mod_id,
+      );
+      expect(modIds).toContain("eln");
+      expect(modIds).toContain("lims");
+    });
+
+    it("syncs nothing when no blocks are registered", async () => {
+      await registry.syncActions();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("includes correct core verb in each action", async () => {
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+      registry.registerIntoSlot("eln.editor", "eln.table");
+
+      await registry.syncActions();
+
+      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+      const actionMap = new Map(
+        body.actions.map((a: { id: string; core: string }) => [
+          a.id,
+          a.core,
+        ]),
+      );
+
+      expect(actionMap.get("eln.table.created")).toBe("created");
+      expect(actionMap.get("eln.table.edited")).toBe("edited");
+      expect(actionMap.get("eln.table.deleted")).toBe("deleted");
     });
   });
 });

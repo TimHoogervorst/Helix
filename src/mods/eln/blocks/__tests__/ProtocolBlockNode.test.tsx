@@ -74,7 +74,7 @@ function makeBlockComponentProps(opts?: {
     context: {} as any,
     instance: {
       id: "inst-1",
-      blockId: "eln.protocol-block",
+      blockId: "eln.protocol",
       slotId: "eln.editor",
       attrs,
       updateAttrs: vi.fn(),

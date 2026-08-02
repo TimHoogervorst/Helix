@@ -12,12 +12,12 @@ import { Node } from "@tiptap/core";
 import UnifiedSuggestion from "../UnifiedSuggestion";
 import Reference from "../Reference";
 import { createTestEditor } from "../../../../../shell/src/test/factories";
-import { ModRegistry } from "../../../../../shell/src/mod-system";
+import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
 
 // ── Test block node (matches SlashCommands test) ─────────────────────
 
 const TestTableNode = Node.create({
-  name: "test.table-block",
+  name: "test.table",
   group: "block",
   atom: true,
   addAttributes() {
@@ -81,7 +81,7 @@ function DummyComponent() {
 
 function registerTableBlock(overrides?: Record<string, unknown>) {
   ModRegistry.getInstance().registerBlock(
-    makeBlockRegistration("test.table-block", "Table", overrides),
+    makeBlockRegistration("test.table", "Table", overrides),
   );
 }
 
@@ -295,14 +295,14 @@ describe("UnifiedSuggestion editor integration", () => {
       .chain()
       .focus()
       .insertContentAt(from, {
-        type: "test.table-block",
+        type: "test.table",
         attrs: { content: JSON.stringify({ title: "Test" }) },
       })
       .run();
 
     const doc = editor.getJSON();
     const tableNode = doc.content?.find(
-      (n: any) => n.type === "test.table-block",
+      (n: any) => n.type === "test.table",
     );
     expect(tableNode).toBeTruthy();
     editor.destroy();

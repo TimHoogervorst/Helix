@@ -2,26 +2,27 @@
  * ActivityFeedBlock — slot-system block component for workspace sidebars.
  *
  * Registered as a block via registerBlock(), rendered by PanelRenderer in
- * workspace sidebar slots. Fetches actions from the owning mod's API and
- * subscribes to block lifecycle events on the workspace bus for optimistic
- * updates.
+ * workspace sidebar slots. Fetches historical actions from the owning mod's
+ * API on mount and receives real-time action items through declarative
+ * `onEvent` handlers wired by the renderer.
  *
- * Receives `bus` from PanelRenderer (imperative subscriptions) and
- * `context.entryId` / `context.actions` from the slot context.
+ * After #355 (declarative subscriptions), the block declares
+ * `listensTo: ["eln.action.performed", "eln.entry.saved"]` and no longer
+ * calls `bus.on()`.  Bus event payloads are accumulated in
+ * `instance.attrs.busActionPayloads` and rendered as optimistic items
+ * alongside confirmed API items.
  *
  * Display labels are derived from the backend action catalog
  * (``context.actions``) — the catalog is the single source of truth for
- * action labels (#328). Falls back to the ``action_type`` string when no
- * catalog entry exists.
+ * action labels (#328).  For bus-delivered items the label is already in
+ * the payload.
  *
  * Mod-agnostic design: each mod registers its own ActivityFeedBlock wrapper
  * that points at its own API endpoint. The shared Activity component is pure
- * presentation — this block owns data fetching, type mapping, and bus wiring.
+ * presentation — this block owns data fetching, type mapping, and merging.
  */
-import { useEffect, useRef, useState, useMemo } from "react";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import type { BlockLifecyclePayload } from "../../../shell/src/workspace/WorkspaceBus";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { useEffect, useMemo, useRef } from "react";
+import type { BlockComponentProps, BlockInstance } from "../../../shell/src/mod-system/types";
 import { useActivity } from "../hooks/useActivity";
 import { Activity } from "../../../shell/src/shared/components/Activity";
 import { groupConfirmedActions } from "../../../shell/src/shared/groupActions";
@@ -31,8 +32,6 @@ import type {
   ActionUser,
 } from "../../../shell/src/shared/types/actions";
 import type { ElnAction } from "../types";
-
-const VERBS = ["created", "edited", "deleted"] as const;
 
 // ── Type mapping ────────────────────────────────────────────────────────────
 
@@ -63,34 +62,91 @@ export function mapElnAction(a: ElnAction): DisplayActionItem {
   };
 }
 
-/** Monotonic counter for unique negative pending item IDs. */
-let _pendingIdCounter = 0;
+// ── Bus event payload shape ─────────────────────────────────────────────────
 
-/** Create a pending DisplayActionItem from a bus event. */
-function createPendingItem(
-  eventName: string,
-  message: string,
-  actionType: string,
-  blockInstanceId: string,
-): DisplayActionItem {
-  const now = new Date().toISOString();
+/** Shape of the `{workspaceId}.action.performed` bus event payload. */
+export interface BusActionPayload {
+  action: string;
+  actionType: string;
+  label: string;
+  performedBy: unknown;
+  createdAt: string;
+  targetId: number;
+  targetType: string;
+  metadata: Record<string, unknown>;
+  requestId: string;
+}
+
+// ── onEvent handlers (exported for declarative registration) ────────────────
+
+/**
+ * Declarative `onEvent` handlers for ActivityFeedBlock.
+ *
+ * Wired by the renderer (PanelRenderer / useBlockInstance) when the block
+ * declares `listensTo`.  Each handler receives the block's `instance` handle
+ * and the event payload.
+ */
+export const activityFeedOnEvent: Record<
+  string,
+  (instance: BlockInstance, payload: unknown) => void
+> = {
+  /**
+   * Append a fully-resolved action item from the bus to the optimistic feed.
+   * The item is rendered immediately — no API refetch needed.
+   */
+  "eln.action.performed": (instance, payload) => {
+    const p = payload as BusActionPayload;
+    const current =
+      (instance.attrs.busActionPayloads as BusActionPayload[]) ?? [];
+    instance.updateAttrs({ busActionPayloads: [...current, p] });
+  },
+
+  /**
+   * Trigger an API refetch for non-block saves (title, description, status)
+   * where no block actions were produced but the backend still created
+   * entry-level actions.
+   */
+  "eln.entry.saved": (instance) => {
+    const count = (instance.attrs.refetchTrigger as number) ?? 0;
+    instance.updateAttrs({ refetchTrigger: count + 1 });
+  },
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Map `context.user` to `ActionUser` for optimistic items. */
+function toActionUser(user: unknown): ActionUser {
+  const u = user as Record<string, unknown> | null | undefined;
+  if (!u) {
+    return { id: "unknown", username: "Unknown" };
+  }
   return {
-    id: --_pendingIdCounter, // unique negative ID — replaced on reconciliation
-    performedBy: {
-      id: 0,
-      username: "",
-      firstName: "",
-      lastName: "",
-      color: "",
-    },
-    action: eventName,
-    actionType,
-    targetType: "",
-    targetId: 0,
-    metadata: { message, blockInstanceId },
-    createdAt: now,
-    state: "pending",
+    id: (u.id as string | number) ?? "unknown",
+    username: (u.username as string) ?? (u.name as string) ?? "Unknown",
+    firstName: u.firstName as string | undefined,
+    lastName: u.lastName as string | undefined,
+    color: u.color as string | undefined,
   };
+}
+
+/** Build optimistic `DisplayActionItem` entries from bus event payloads. */
+function buildOptimisticItems(
+  payloads: BusActionPayload[],
+  user: unknown,
+): DisplayActionItem[] {
+  const actionUser = toActionUser(user);
+  return payloads.map((p) => ({
+    id: `optimistic-${p.requestId}`,
+    performedBy: actionUser,
+    action: p.action,
+    actionType: p.actionType,
+    targetType: p.targetType,
+    targetId: p.targetId,
+    requestId: p.requestId,
+    metadata: p.metadata,
+    createdAt: p.createdAt,
+    state: "optimistic" as const,
+  }));
 }
 
 // ── Block component ─────────────────────────────────────────────────────────
@@ -98,147 +154,87 @@ function createPendingItem(
 /**
  * Slot-system block that renders the Activity feed sidebar panel.
  *
- * Fetches initial actions from the API, then subscribes to all block
- * lifecycle events on the workspace bus. Each event produces an
- * optimistically-pending item. Suppresses pending-item creation during
- * programmatic content loads (e.g. initial server payload) via the
- * `eln.editor.content-loading` bus event.
+ * Fetches historical actions from the API on mount (covers other
+ * users/sessions).  Real-time actions from the current session arrive via
+ * the declarative `onEvent` handler and are rendered optimistically.
  *
- * Pending items are cleared when `useBlockActionLogging` finishes the
- * save cycle and emits `eln.actions.flushed` on the bus.  This is the
- * single signal for "save complete — the server is now the source of
- * truth."  We clear *all* pending items and refetch confirmed actions
- * from the API.
+ * No longer calls `bus.on()` — all event wiring is declarative through
+ * `listensTo` / `onEvent` in the block registration.
  */
-export function ActivityFeedBlock({ context, bus }: BlockComponentProps) {
+export function ActivityFeedBlock({ context, instance }: BlockComponentProps) {
   const entryId = context.entryId;
-  const workspaceId = context.workspaceId ?? "eln";
   const { actions, isLoading, error, refetch } = useActivity(entryId);
 
-  // ── Pending items from bus events ──────────────────────────────────────
-  const [pendingItems, setPendingItems] = useState<DisplayActionItem[]>([]);
+  // ── Refetch trigger from onEvent ──────────────────────────────────────
+  //
+  // When `eln.entry.saved` fires (non-block save), the onEvent handler
+  // increments `refetchTrigger` in attrs.  We watch for changes and call
+  // `refetch()` to pull in entry-level actions (title, description, etc.).
+  const refetchTrigger = instance.attrs.refetchTrigger as number | undefined;
+  const prevTriggerRef = useRef(refetchTrigger);
 
-  // Map API actions to confirmed DisplayActionItems
-  const confirmedItems = useMemo<DisplayActionItem[]>(
-    () => actions.map(mapElnAction),
-    [actions],
-  );
+  useEffect(() => {
+    // Skip the initial value (undefined) and the reset value (0) used
+    // when clearing state on entry change.  Only positive integers
+    // represent genuine refetch requests from onEvent.
+    if (
+      refetchTrigger !== undefined &&
+      refetchTrigger !== 0 &&
+      refetchTrigger !== prevTriggerRef.current
+    ) {
+      refetch();
+    }
+    prevTriggerRef.current = refetchTrigger;
+  }, [refetchTrigger, refetch]);
 
-  // Merge confirmed + pending, most recent first, then group consecutive
-  // confirmed items that share a requestId.
-  const displayActions = useMemo<FeedItem[]>(() => {
-    const all = [...confirmedItems, ...pendingItems];
-    all.sort(
+  // ── Clear bus payloads when entry changes ─────────────────────────────
+  const prevEntryIdRef = useRef<string | undefined>(entryId);
+
+  useEffect(() => {
+    if (entryId !== prevEntryIdRef.current) {
+      prevEntryIdRef.current = entryId;
+      // Clear stale optimistic items and refetch trigger from previous entry
+      if (instance.attrs.busActionPayloads || instance.attrs.refetchTrigger) {
+        instance.updateAttrs({ busActionPayloads: [], refetchTrigger: 0 });
+      }
+    }
+  }, [entryId, instance]);
+
+  // ── Build display items ───────────────────────────────────────────────
+  //
+  // Merges confirmed API items with optimistic bus-delivered items.
+  // Optimistic items whose requestId matches a confirmed item are dropped
+  // (they've been persisted and the confirmed version takes precedence).
+  const displayItems = useMemo<FeedItem[]>(() => {
+    // Confirmed items from API
+    const confirmed: DisplayActionItem[] = actions.map(mapElnAction);
+
+    // Optimistic items from bus events
+    const payloads =
+      (instance.attrs.busActionPayloads as BusActionPayload[]) ?? [];
+    const optimistic = buildOptimisticItems(payloads, context.user);
+
+    // Dedup: remove optimistic items whose requestId matches a confirmed item
+    const confirmedRequestIds = new Set(
+      confirmed.map((a) => a.requestId).filter(Boolean),
+    );
+    const pendingOptimistic = optimistic.filter(
+      (a) => !confirmedRequestIds.has(a.requestId),
+    );
+
+    // Merge: bus events first (most recent real-time), then API items.
+    // Sort by createdAt descending so newest items appear at the top.
+    const merged = [...pendingOptimistic, ...confirmed];
+    const sorted = [...merged].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
-    return groupConfirmedActions(all);
-  }, [confirmedItems, pendingItems]);
-
-  // ── Bus subscriptions ──────────────────────────────────────────────────
-  const refetchRef = useRef(refetch);
-  refetchRef.current = refetch;
-
-  // Suppression via content-loading events (editor → sidebar signal).
-  // Falls back to isLoadingRef because React effect ordering means the
-  // editor's content-loading effect fires before the sidebar's
-  // subscription effect — the event is missed on initial load.
-  const suppressRef = useRef(false);
-  const isLoadingRef = useRef(isLoading);
-  isLoadingRef.current = isLoading;
-
-  useEffect(() => {
-    if (!bus) return;
-
-    const registry = ModRegistry.getInstance();
-    const blocks = registry.getBlocks();
-    const unsubs: Array<() => void> = [];
-
-    // ── Suppression gate: skip pending items during programmatic loads ──
-    const loadingUnsub = bus.on(
-      `${workspaceId}.editor.content-loading`,
-      (payload: unknown) => {
-        suppressRef.current = payload as boolean;
-      },
-    );
-    unsubs.push(loadingUnsub);
-
-    // ── Block lifecycle events → optimistic pending items ──────────────
-    for (const [blockId, block] of blocks) {
-      // Only subscribe for new-shape blocks (they have `component`)
-      if (!("component" in block)) continue;
-
-      for (const verb of VERBS) {
-        const eventName = `${blockId}.${verb}`;
-        const unsub = bus.on(eventName, (payload: unknown) => {
-          // Skip pending items while the initial fetch is in flight
-          // (covers page load where content-loading event is missed due
-          // to React effect ordering) and during programmatic content
-          // loads signalled by the editor.
-          if (isLoadingRef.current || suppressRef.current) return;
-
-          const p = payload as BlockLifecyclePayload;
-
-          // Derive display label and core action_type from the catalog.
-          // Falls back to the action type string when no catalog entry exists.
-          const actionType = eventName; // `${blockId}.${verb}`
-          const catalogEntry = (context.actions ?? []).find(
-            (a) => a.id === actionType,
-          );
-          const message = catalogEntry?.label ?? actionType;
-          const coreVerb = catalogEntry?.action_type ?? verb;
-
-          // Dedup: replace any existing pending item for the same
-          // (blockInstanceId, actionType) so repeated edits don't stack.
-          const dedupKey = `${p.blockInstanceId}:${eventName}`;
-          setPendingItems((prev) => {
-            const filtered = prev.filter(
-              (item) =>
-                !(
-                  item.state === "pending" &&
-                  item.metadata?.blockInstanceId &&
-                  `${item.metadata.blockInstanceId}:${item.action}` ===
-                    dedupKey
-                ),
-            );
-            const pending = createPendingItem(
-              eventName,
-              message,
-              coreVerb,
-              p.blockInstanceId,
-            );
-            return [pending, ...filtered];
-          });
-          // No refetch here — actions aren't persisted until save.
-          // The pending item provides optimistic feedback until then.
-        });
-        unsubs.push(unsub);
-      }
-    }
-
-    // ── Actions flushed: clear all pending + refetch ───────────────────
-    // useBlockActionLogging emits this after every save cycle — with
-    // flushed keys when actions were POSTed, or `keys: []` when there
-    // was nothing to flush (non-block saves like title / plain text).
-    // We clear *all* pending items here because the server is now the
-    // single source of truth; any pending item that wasn't flushed was
-    // either a duplicate or from a stale event and shouldn't linger.
-    const flushedUnsub = bus.on("eln.actions.flushed", () => {
-      setPendingItems([]);
-      refetchRef.current();
-    });
-    unsubs.push(flushedUnsub);
-
-    return () => {
-      for (const unsub of unsubs) {
-        unsub();
-      }
-    };
-  }, [bus, workspaceId]);
+    return groupConfirmedActions(sorted);
+  }, [actions, instance.attrs.busActionPayloads, context.user]);
 
   return (
     <Activity
-      actions={displayActions}
+      actions={displayItems}
       isLoading={isLoading}
       error={error}
       onRetry={refetch}

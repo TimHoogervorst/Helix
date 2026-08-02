@@ -664,23 +664,520 @@ describe("WorkspaceBus", () => {
     });
   });
 
-  // ── Event string matching ─────────────────────────────────────────────
+  // ── Wildcard pattern matching ──────────────────────────────────────────
 
-  describe("event matching", () => {
-    it("uses exact string match — no wildcards or regex", () => {
-      const bus = freshBus();
-      const handler = vi.fn();
+  describe("wildcard pattern matching", () => {
+    // -- Single-segment wildcard (*) --
 
-      bus.on("eln.table.edited", handler);
+    describe("* (single-segment wildcard)", () => {
+      it("matches exactly one segment where * appears", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
 
-      bus.emit("eln.table");
-      expect(handler).not.toHaveBeenCalled();
+        bus.on("*.created", handler);
 
-      bus.emit("eln.table.edited.extra");
-      expect(handler).not.toHaveBeenCalled();
+        bus.emit("table.created");
+        expect(handler).toHaveBeenCalledTimes(1);
 
-      bus.emit("eln.table.edited");
-      expect(handler).toHaveBeenCalledTimes(1);
+        bus.emit("comment.created");
+        expect(handler).toHaveBeenCalledTimes(2);
+      });
+
+      it("does not match events with more segments than the pattern", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.created", handler);
+
+        bus.emit("eln.table.created");
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("does not match events with fewer segments than the pattern", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.created", handler);
+
+        bus.emit("created");
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("does not match when the literal segment differs", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.created", handler);
+
+        bus.emit("table.edited");
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("* at the end matches any single trailing segment", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.*", handler);
+
+        bus.emit("eln.created");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("eln.edited");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("eln.foo.bar");
+        expect(handler).toHaveBeenCalledTimes(2); // not called — more segments
+      });
+
+      it("* at the beginning matches any single leading segment", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.edited", handler);
+
+        bus.emit("eln.edited");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("lims.edited");
+        expect(handler).toHaveBeenCalledTimes(2);
+      });
+
+      it("pattern-only * matches any single-segment event", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*", handler);
+
+        bus.emit("anything");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("eln");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("a.b");
+        expect(handler).toHaveBeenCalledTimes(2); // two segments — no match
+      });
+    });
+
+    // -- Multi-segment wildcard (**) --
+
+    describe("** (multi-segment wildcard)", () => {
+      it("matches any number of segments after the prefix", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.**", handler);
+
+        bus.emit("eln.table.created");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("eln.foo");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("eln.a.b.c.d");
+        expect(handler).toHaveBeenCalledTimes(3);
+      });
+
+      it("matches zero additional segments (exact prefix match)", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.**", handler);
+
+        bus.emit("eln");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("does not match when the prefix differs", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.**", handler);
+
+        bus.emit("lims.table.created");
+        expect(handler).not.toHaveBeenCalled();
+
+        bus.emit("elnx");
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("** at the beginning matches any event", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("**.action.performed", handler);
+
+        bus.emit("eln.action.performed");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("lims.action.performed");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("action.performed");
+        expect(handler).toHaveBeenCalledTimes(3); // zero segments before
+      });
+
+      it("pattern-only ** matches every event", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("**", handler);
+
+        bus.emit("anything.at.all");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("single");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("");
+        expect(handler).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    // -- Mixed patterns (* and ** together) --
+
+    describe("mixed * and ** patterns", () => {
+      it("eln.*.created matches eln.table.created", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.*.created", handler);
+
+        bus.emit("eln.table.created");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("eln.*.created does not match eln.table.edited", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.*.created", handler);
+
+        bus.emit("eln.table.edited");
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("eln.*.created does not match eln.a.b.created (too many segments)", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.*.created", handler);
+
+        bus.emit("eln.a.b.created");
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("**.created matches any event ending with .created", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("**.created", handler);
+
+        bus.emit("eln.table.created");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("created");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("eln.a.b.created");
+        expect(handler).toHaveBeenCalledTimes(3);
+      });
+
+      it("*.** matches anything with at least one segment before the **", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.**", handler);
+
+        bus.emit("eln.foo.bar");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("single");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("single.multi.segment");
+        expect(handler).toHaveBeenCalledTimes(3);
+
+        // No leading segment — no match
+        bus.emit("");
+        expect(handler).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    // -- Exact match backward compatibility --
+
+    describe("exact match backward compatibility", () => {
+      it("preserves exact-match behavior when no wildcard in pattern", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.table.edited", handler);
+
+        bus.emit("eln.table");
+        expect(handler).not.toHaveBeenCalled();
+
+        bus.emit("eln.table.edited.extra");
+        expect(handler).not.toHaveBeenCalled();
+
+        bus.emit("eln.table.edited");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("exact pattern is case-sensitive", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("Eln.Table.Edited", handler);
+
+        bus.emit("eln.table.edited");
+        expect(handler).not.toHaveBeenCalled();
+
+        bus.emit("Eln.Table.Edited");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -- Case sensitivity --
+
+    describe("case sensitivity", () => {
+      it("wildcard patterns are case-sensitive", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.Created", handler);
+
+        bus.emit("eln.created");
+        expect(handler).not.toHaveBeenCalled();
+
+        bus.emit("eln.Created");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("** patterns are case-sensitive", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("ELN.**", handler);
+
+        bus.emit("eln.table.created");
+        expect(handler).not.toHaveBeenCalled();
+
+        bus.emit("ELN.table.created");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -- Matching applies to all four fire methods --
+
+    describe("wildcard matching across all fire methods", () => {
+      it("emit matches handlers by pattern", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.created", handler);
+        bus.emit("table.created");
+
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("collect matches handlers by pattern", async () => {
+        const bus = freshBus();
+
+        bus.on("*.created", () => "from-wildcard");
+        bus.on("other.event", () => "should-not-appear");
+
+        const results = await bus.collect("table.created");
+
+        expect(results).toEqual(["from-wildcard"]);
+      });
+
+      it("request matches handlers by pattern", async () => {
+        const bus = freshBus();
+
+        bus.on("eln.**", () => "matched-via-wildcard");
+
+        const result = await bus.request("eln.foo.bar");
+
+        expect(result).toBe("matched-via-wildcard");
+      });
+
+      it("request short-circuits correctly with wildcard handlers", async () => {
+        const bus = freshBus();
+        const h2 = vi.fn(() => "second");
+
+        bus.on("eln.**", () => "first");
+        bus.on("eln.**", h2);
+
+        const result = await bus.request("eln.foo");
+
+        expect(result).toBe("first");
+        expect(h2).not.toHaveBeenCalled();
+      });
+
+      it("wildcard handlers are called in registration order for emit", () => {
+        const bus = freshBus();
+        const order: string[] = [];
+
+        bus.on("*.created", () => order.push("first"));
+        bus.on("eln.*.created", () => order.push("second"));
+        bus.on("eln.table.created", () => order.push("third"));
+
+        bus.emit("eln.table.created");
+
+        // *.created (2 segments) does not match eln.table.created (3 segments)
+        // eln.*.created and exact match both match
+        expect(order).toEqual(["second", "third"]);
+      });
+    });
+
+    // -- Edge cases --
+
+    describe("wildcard edge cases", () => {
+      it("empty string event with ** matches", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("**", handler);
+        bus.emit("");
+
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("empty string event with * does not match (needs one segment)", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*", handler);
+        bus.emit("");
+
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("empty string event with exact empty pattern matches", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("", handler);
+        bus.emit("");
+
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("literal dot characters in segments are matched exactly", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        // Subscribing to a 2-segment event ending with .created
+        bus.on("*.created", handler);
+
+        // Event with a dot in the first segment — the dot creates an extra segment
+        bus.emit("eln.table.created");
+        expect(handler).not.toHaveBeenCalled(); // 3 segments ≠ 2
+      });
+
+      it("pattern with only dots and wildcards works correctly", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.*", handler);
+
+        bus.emit("a.b");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("a");
+        expect(handler).toHaveBeenCalledTimes(1); // only 1 segment
+
+        bus.emit("a.b.c");
+        expect(handler).toHaveBeenCalledTimes(1); // 3 segments
+      });
+
+      it("** followed by * matches one-or-more then exactly one", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("**.*", handler);
+
+        bus.emit("foo");
+        expect(handler).toHaveBeenCalledTimes(1); // ** matches 0, * matches foo
+
+        bus.emit("foo.bar");
+        expect(handler).toHaveBeenCalledTimes(2); // ** matches foo, * matches bar
+
+        bus.emit("a.b.c");
+        expect(handler).toHaveBeenCalledTimes(3); // ** matches a.b, * matches c
+      });
+
+      it("pattern with adjacent ** and literal matches correctly", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("eln.**.created", handler);
+
+        bus.emit("eln.created");
+        expect(handler).toHaveBeenCalledTimes(1); // ** matches 0 segments
+
+        bus.emit("eln.foo.created");
+        expect(handler).toHaveBeenCalledTimes(2); // ** matches foo
+
+        bus.emit("eln.foo.bar.created");
+        expect(handler).toHaveBeenCalledTimes(3); // ** matches foo.bar
+      });
+
+      it("multiple ** segments in one pattern work correctly", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("**.eln.**", handler);
+
+        bus.emit("eln");
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        bus.emit("lims.eln");
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        bus.emit("lims.eln.foo.bar");
+        expect(handler).toHaveBeenCalledTimes(3);
+
+        bus.emit("lims.other");
+        expect(handler).toHaveBeenCalledTimes(3); // no "eln" segment
+      });
+
+      it("handler subscribed with wildcard can be unsubscribed", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        const unsub = bus.on("*.created", handler);
+        unsub();
+        bus.emit("table.created");
+
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it("consecutive dots create empty segments that * does not match", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.*.*", handler);
+
+        // "a..b".split(".") → ["a", "", "b"] — middle segment is empty
+        bus.emit("a..b");
+        expect(handler).not.toHaveBeenCalled(); // * rejects empty segment
+
+        // Normal 3-segment event matches
+        bus.emit("a.b.c");
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it("trailing dot creates empty trailing segment", () => {
+        const bus = freshBus();
+        const handler = vi.fn();
+
+        bus.on("*.*", handler);
+
+        // "a.".split(".") → ["a", ""] — trailing segment is empty
+        bus.emit("a.");
+        expect(handler).not.toHaveBeenCalled(); // * rejects empty segment
+      });
     });
   });
 

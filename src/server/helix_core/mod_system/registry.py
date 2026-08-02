@@ -280,6 +280,105 @@ class BackendModRegistry:
             "target_model": target_model,
         }
 
+    def sync_actions(
+        self, mod_id: str, actions: list[dict[str, str]]
+    ) -> dict[str, Any]:
+        """Atomically replace all custom actions for *mod_id*.
+
+        Receives action IDs from the frontend (derived from block emits
+        and lifecycle verbs), derives human-readable labels, and upserts
+        them into the custom actions catalog.  All existing custom actions
+        for *mod_id* are cleared first, so the catalog exactly matches
+        what the frontend sends.
+
+        Labels are auto-derived from the action ID segments (see
+        :meth:`_derive_label`).
+
+        After upsert, validates that every provided action ID exists in
+        the catalog and returns an error listing any that are missing.
+
+        Parameters:
+            mod_id: The mod that owns these actions.
+            actions: List of ``{"id": str, "core": str}`` objects.
+                ``id`` is the fully-qualified action type
+                (e.g. ``"eln.table.created"``).  ``core`` is the base
+                CRUD verb (``"created"``, ``"edited"``, or ``"deleted"``).
+
+        Returns:
+            ``{"status": "ok"}`` on success, or
+            ``{"status": "error", "missing": [...]}`` when some action
+            IDs are not found in the catalog after upsert.
+        """
+        self._custom_actions[mod_id] = {}
+
+        target_model = None
+        if mod_id in self._action_models:
+            target_model = self._derive_target_model_path(
+                self._action_models[mod_id]
+            )
+
+        for action in actions:
+            action_id = action["id"]
+            core = action.get("core", "edited")
+
+            if core not in CORE_ACTION_VERBS:
+                core = "edited"
+
+            label = self._derive_label(action_id)
+
+            self._custom_actions[mod_id][action_id] = {
+                "id": action_id,
+                "label": label,
+                "action_type": core,
+                "target_model": target_model,
+            }
+
+        # Validate: every provided action must exist in the catalog.
+        catalog = self.get_action_catalog(mod_id)
+        catalog_ids = {entry["id"] for entry in catalog}
+        missing = [a["id"] for a in actions if a["id"] not in catalog_ids]
+
+        if missing:
+            return {"status": "error", "missing": missing}
+
+        return {"status": "ok"}
+
+    @staticmethod
+    def _derive_label(action_id: str) -> str:
+        """Derive a human-readable label from an action ID.
+
+        Splits the action ID by ``"."``, skips the first segment (the mod
+        name), then humanizes the remaining segments:
+
+        * If the **last** segment is a core verb (``"created"``,
+          ``"edited"``, ``"deleted"``), all remaining segments are used.
+        * Otherwise only the last segment is used (custom action name).
+
+        Each segment is humanized by replacing ``"-"`` with a space and
+        title-casing every word.  The resulting parts are joined with a
+        single space.
+
+        Examples::
+
+            "eln.table.created"          → "Table Created"
+            "eln.registry-table.row-added" → "Row Added"
+            "eln.registry-table.entities-registered" → "Entities Registered"
+        """
+        parts = action_id.split(".")
+        # Skip the first segment (mod name).
+        remaining = parts[1:] if len(parts) > 1 else []
+
+        if remaining and remaining[-1] in CORE_ACTION_VERBS:
+            # Lifecycle action — use all remaining segments.
+            label_parts = remaining
+        else:
+            # Custom emit action — use only the last segment.
+            label_parts = remaining[-1:] if remaining else []
+
+        return " ".join(
+            segment.replace("-", " ").title() for segment in label_parts
+        )
+
     def get_action_catalog(self, mod_id: str) -> list[dict[str, Any]]:
         """Return the full action catalog for *mod_id*.
 
@@ -290,6 +389,9 @@ class BackendModRegistry:
         Returns an empty list when no action model has been registered
         for *mod_id*.
         """
+        if mod_id not in self._action_models:
+            return []
+
         result: list[dict[str, Any]] = []
 
         # Core actions first.

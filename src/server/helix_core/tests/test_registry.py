@@ -1417,3 +1417,319 @@ class TestCustomActionRegistrationWithoutModel:
                 core="viewed",  # invalid — not created/edited/deleted
                 target_model="mods.eln.models.NotebookEntry",
             )
+
+
+# ── _derive_label ───────────────────────────────────────────────────────────
+
+
+class TestDeriveLabel:
+    """Tests for BackendModRegistry._derive_label()."""
+
+    def test_lifecycle_action_label(self):
+        """Lifecycle actions include the block name and verb."""
+        assert (
+            BackendModRegistry._derive_label("eln.table.created")
+            == "Table Created"
+        )
+        assert (
+            BackendModRegistry._derive_label("eln.table.edited")
+            == "Table Edited"
+        )
+        assert (
+            BackendModRegistry._derive_label("eln.table.deleted")
+            == "Table Deleted"
+        )
+
+    def test_custom_emit_action_label(self):
+        """Custom emit actions use only the action name (last segment)."""
+        assert (
+            BackendModRegistry._derive_label("eln.registry-table.row-added")
+            == "Row Added"
+        )
+        assert (
+            BackendModRegistry._derive_label(
+                "eln.registry-table.entities-registered"
+            )
+            == "Entities Registered"
+        )
+
+    def test_hyphen_replaced_with_space(self):
+        """Hyphens in segments are replaced with spaces."""
+        assert (
+            BackendModRegistry._derive_label("mod.registry-table.created")
+            == "Registry Table Created"
+        )
+
+    def test_title_case_applied(self):
+        """Each word in each segment is title-cased."""
+        assert (
+            BackendModRegistry._derive_label("eln.sample-log.edited")
+            == "Sample Log Edited"
+        )
+
+    def test_single_segment_fallback(self):
+        """When there is only a mod name, fall back gracefully."""
+        assert BackendModRegistry._derive_label("eln") == ""
+
+    def test_empty_string(self):
+        """Empty action ID returns empty string."""
+        assert BackendModRegistry._derive_label("") == ""
+
+    def test_label_matches_existing_registrations(self):
+        """Derived labels match the labels currently in eln/mod.py."""
+        # Table lifecycle (currently registered as "Table Created" etc.)
+        assert (
+            BackendModRegistry._derive_label("eln.table.created")
+            == "Table Created"
+        )
+        # Existing custom action names
+        assert (
+            BackendModRegistry._derive_label(
+                "eln.registry-table.row-added"
+            )
+            == "Row Added"
+        )
+
+
+# ── sync_actions ────────────────────────────────────────────────────────────
+
+
+class TestSyncActions:
+    """Tests for BackendModRegistry.sync_actions()."""
+
+    def test_sync_actions_returns_ok(self):
+        """sync_actions atomically upserts actions and returns ok."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        result = reg.sync_actions(
+            "eln",
+            [
+                {"id": "eln.table.created", "core": "created"},
+                {"id": "eln.table.edited", "core": "edited"},
+                {"id": "eln.table.deleted", "core": "deleted"},
+            ],
+        )
+
+        assert result == {"status": "ok"}
+
+    def test_sync_actions_stores_custom_actions(self):
+        """Synced actions appear in the action catalog."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        reg.sync_actions(
+            "eln",
+            [
+                {"id": "eln.table.created", "core": "created"},
+                {"id": "eln.table.edited", "core": "edited"},
+                {"id": "eln.table.deleted", "core": "deleted"},
+                {"id": "eln.registry-table.entities-registered", "core": "edited"},
+                {"id": "eln.registry-table.row-added", "core": "edited"},
+            ],
+        )
+
+        catalog = reg.get_action_catalog("eln")
+        # Core actions (3) + synced custom actions (5) = 8 total
+        # But core actions have ids "created"/"edited"/"deleted",
+        # while synced actions have triple-dotted ids — no overlap.
+        action_ids = {a["id"] for a in catalog}
+        assert "eln.table.created" in action_ids
+        assert "eln.table.edited" in action_ids
+        assert "eln.table.deleted" in action_ids
+        assert "eln.registry-table.entities-registered" in action_ids
+        assert "eln.registry-table.row-added" in action_ids
+        # Core actions still present.
+        assert "created" in action_ids
+        assert "edited" in action_ids
+        assert "deleted" in action_ids
+
+    def test_sync_actions_derives_labels(self):
+        """Labels are auto-derived from the action IDs."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        reg.sync_actions(
+            "eln",
+            [
+                {"id": "eln.table.created", "core": "created"},
+                {"id": "eln.registry-table.entities-registered", "core": "edited"},
+            ],
+        )
+
+        catalog = reg.get_action_catalog("eln")
+        catalog_by_id = {a["id"]: a for a in catalog}
+        assert catalog_by_id["eln.table.created"]["label"] == "Table Created"
+        assert (
+            catalog_by_id["eln.registry-table.entities-registered"]["label"]
+            == "Entities Registered"
+        )
+
+    def test_sync_actions_replaces_existing(self):
+        """Calling sync_actions atomically replaces all custom actions."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        # First sync: table lifecycle actions.
+        reg.sync_actions(
+            "eln",
+            [{"id": "eln.table.created", "core": "created"}],
+        )
+        assert any(
+            a["id"] == "eln.table.created"
+            for a in reg.get_action_catalog("eln")
+        )
+
+        # Second sync: comment lifecycle — should replace, not merge.
+        reg.sync_actions(
+            "eln",
+            [{"id": "eln.comment.created", "core": "created"}],
+        )
+        catalog = reg.get_action_catalog("eln")
+        action_ids = {a["id"] for a in catalog}
+        assert "eln.comment.created" in action_ids
+        assert "eln.table.created" not in action_ids
+
+    def test_sync_actions_returns_missing_on_validation_failure(self):
+        """When an action doesn't appear in the catalog after sync, it
+        is listed in the error response."""
+        reg = _fresh_registry()
+
+        # No action model registered — catalog will be empty, so all
+        # actions are "missing" even though they were stored in
+        # _custom_actions.
+        result = reg.sync_actions(
+            "eln",
+            [{"id": "eln.table.created", "core": "created"}],
+        )
+
+        assert result["status"] == "error"
+        assert "eln.table.created" in result["missing"]
+
+    def test_sync_actions_stores_without_action_model(self):
+        """sync_actions stores actions even when no action model is
+        registered.  Validation fails (no catalog), but the data is stored."""
+        reg = _fresh_registry()
+
+        result = reg.sync_actions(
+            "eln",
+            [{"id": "eln.table.created", "core": "created"}],
+        )
+
+        # Data is stored in _custom_actions even if validation fails.
+        assert "eln" in reg._custom_actions
+        assert "eln.table.created" in reg._custom_actions["eln"]
+
+    def test_sync_actions_empty_actions_list(self):
+        """Syncing an empty list clears custom actions."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        # Add some custom actions first.
+        reg.register_custom_action(
+            mod_id="eln",
+            action_id="eln.entry.exported",
+            label="Entry Exported",
+            core="edited",
+            target_model="mods.eln.models.NotebookEntry",
+        )
+
+        # Sync empty — should clear.
+        result = reg.sync_actions("eln", [])
+        assert result == {"status": "ok"}
+
+        catalog = reg.get_action_catalog("eln")
+        # Only core actions remain.
+        custom_actions = [
+            a for a in catalog
+            if a["id"] not in ("created", "edited", "deleted")
+        ]
+        assert len(custom_actions) == 0
+
+    def test_sync_actions_with_target_model(self):
+        """When an action model is registered, target_model is populated."""
+        reg = _fresh_registry()
+
+        class FakeAction:
+            pass
+
+        FakeAction.__module__ = "mods.eln.models"
+        FakeAction.__qualname__ = "ElnAction"
+
+        reg.register_action_model("eln", FakeAction)
+
+        reg.sync_actions(
+            "eln",
+            [{"id": "eln.table.created", "core": "created"}],
+        )
+
+        catalog = reg.get_action_catalog("eln")
+        catalog_by_id = {a["id"]: a for a in catalog}
+        assert (
+            catalog_by_id["eln.table.created"]["target_model"]
+            == "mods.eln.models.ElnAction"
+        )
+
+    def test_sync_actions_defaults_core_to_edited(self):
+        """When core is missing or invalid, it defaults to 'edited'."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        reg.sync_actions(
+            "eln",
+            [
+                {"id": "eln.table.created"},  # no core
+                {"id": "eln.comment.modified", "core": "modified"},  # invalid
+            ],
+        )
+
+        catalog = reg.get_action_catalog("eln")
+        catalog_by_id = {a["id"]: a for a in catalog}
+        assert catalog_by_id["eln.table.created"]["action_type"] == "edited"
+        assert catalog_by_id["eln.comment.modified"]["action_type"] == "edited"
+
+    def test_sync_actions_multiple_mods_independent(self):
+        """sync_actions for different mods operates independently."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeEln", (), {}))
+        reg.register_action_model("lims", type("FakeLims", (), {}))
+
+        reg.sync_actions(
+            "eln",
+            [{"id": "eln.table.created", "core": "created"}],
+        )
+        reg.sync_actions(
+            "lims",
+            [{"id": "lims.sample.registered", "core": "edited"}],
+        )
+
+        eln_catalog = reg.get_action_catalog("eln")
+        lims_catalog = reg.get_action_catalog("lims")
+        eln_ids = {a["id"] for a in eln_catalog}
+        lims_ids = {a["id"] for a in lims_catalog}
+
+        assert "eln.table.created" in eln_ids
+        assert "eln.table.created" not in lims_ids
+        assert "lims.sample.registered" in lims_ids
+        assert "lims.sample.registered" not in eln_ids
+
+    def test_sync_actions_idempotent(self):
+        """Calling sync_actions twice with the same data is idempotent."""
+        reg = _fresh_registry()
+        reg.register_action_model("eln", type("FakeAction", (), {}))
+
+        actions = [
+            {"id": "eln.table.created", "core": "created"},
+            {"id": "eln.table.edited", "core": "edited"},
+        ]
+
+        assert reg.sync_actions("eln", actions) == {"status": "ok"}
+        assert reg.sync_actions("eln", actions) == {"status": "ok"}
+
+        # Catalog should have exactly the same entries (no duplicates).
+        catalog = reg.get_action_catalog("eln")
+        custom_ids = [
+            a["id"] for a in catalog
+            if a["id"] not in ("created", "edited", "deleted")
+        ]
+        assert sorted(custom_ids) == ["eln.table.created", "eln.table.edited"]

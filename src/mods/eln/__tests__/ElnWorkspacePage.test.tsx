@@ -7,21 +7,23 @@
  * and metadata panel with wired sections: Metadata, Linked Entities,
  * Attachments, Activity.
  *
- * Editor action buttons (Save/Cancel/Edit/Delete) are rendered in the top
- * toolbar via state lifted from ElnEditor through onStateChange + ref.
+ * Editor state is provided by mocked hooks (useEntryCrud, useEntryFolder,
+ * useDirtyTracking, useTaggableItems, useAutoSave) — previously this was
+ * done by mocking ElnEditor. After dissolving ElnEditor into ElnWorkspace
+ * (#352), the hooks are called directly.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import * as elnMod from "../index";
+import "../index";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
-const { mockFetchActions, mockLockedState } = vi.hoisted(() => ({
+const { mockFetchActions, mockLockedState, mockIsReady } = vi.hoisted(() => ({
   mockFetchActions: vi.fn().mockResolvedValue([]),
   mockLockedState: { isLockedByOther: false, lockHeldBy: null as string | null },
+  mockIsReady: { value: true },
 }));
 
 vi.mock("../api", () => ({
@@ -32,57 +34,67 @@ vi.mock("../api", () => ({
   detachTag: vi.fn(),
 }));
 
-/** ElnEditor mock that fires onStateChange so the top toolbar can render
- *  the correct action buttons. */
-vi.mock("../editor/ElnEditor", () => ({
-  default: React.forwardRef(
-    (
-      props: { entryId?: string; onStateChange?: (s: unknown) => void },
-      ref: React.Ref<unknown>,
-    ) => {
-      React.useEffect(() => {
-        // Simulate the editor loading and entering its initial state.
-        // All entries are always editable; new entries start immediately.
-        const t = setTimeout(() => {
-          props.onStateChange?.({
-            isReady: true,
-            isDirty: false,
-            deleting: false,
-            saveStatus: "idle",
-            lastSavedAt: null,
-            queueLength: 0,
-            entry: null,
-            folders: [
-              { id: 1, name: "CRISPR-Cas9 Optimization" },
-              { id: 2, name: "General" },
-            ],
-            folderId: null,
-            status: "in_progress",
-            tags: [],
-            description: "",
-            isLockedByOther: mockLockedState.isLockedByOther,
-            lockHeldBy: mockLockedState.lockHeldBy,
-          });
-        }, 0);
-        return () => clearTimeout(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, []);
+/** Mock useEntryCrud — provides editor state, was previously lifted from ElnEditor. */
+vi.mock("../hooks/useEntryCrud", () => ({
+  useEntryCrud: () => ({
+    isReady: mockIsReady.value,
+    entry: null,
+    title: "",
+    setTitle: vi.fn(),
+    description: "",
+    setDescription: vi.fn(),
+    status: "in_progress",
+    setStatus: vi.fn(),
+    error: null,
+    deleting: false,
+    isLockedByOther: mockLockedState.isLockedByOther,
+    lockHeldBy: mockLockedState.lockHeldBy,
+    saveStatus: "idle" as const,
+    lastSavedAt: null as Date | null,
+    queueLength: 0,
+    save: vi.fn(),
+    deleteEntry: vi.fn(),
+    autoSave: vi.fn(),
+    setEntry: vi.fn(),
+  }),
+}));
 
-      // Expose stub actions via the ref
-      React.useImperativeHandle(ref, () => ({
-        save: vi.fn(),
-        deleteEntry: vi.fn(),
-        setFolderId: vi.fn(),
-        setStatus: vi.fn(),
-      }));
+/** Mock useEntryFolder — provides folder data for the metadata panel. */
+vi.mock("../hooks/useEntryFolder", () => ({
+  useEntryFolder: () => ({
+    folderId: null as number | null,
+    setFolderId: vi.fn(),
+    folders: [
+      { id: 1, name: "CRISPR-Cas9 Optimization" },
+      { id: 2, name: "General" },
+    ],
+  }),
+}));
 
-      return (
-        <div data-testid="eln-editor" data-entry-id={props.entryId ?? "new"}>
-          ElnEditor mock (id: {props.entryId ?? "new"})
-        </div>
-      );
-    },
-  ),
+/** Mock useDirtyTracking — always returns clean. */
+vi.mock("../hooks/useDirtyTracking", () => ({
+  useDirtyTracking: () => ({ isDirty: false }),
+}));
+
+/** Mock useAutoSave — no-op for workspace layout tests. */
+vi.mock("../hooks/useAutoSave", () => ({
+  useAutoSave: () => {},
+}));
+
+/** Mock useTaggableItems — returns empty tags. */
+vi.mock("../../tags/hooks", () => ({
+  useTaggableItems: () => ({
+    tags: [],
+    pendingTagIds: [],
+    addTag: vi.fn(),
+    removeTag: vi.fn(),
+    resetToBaseline: vi.fn(),
+  }),
+}));
+
+/** Mock TipTapRenderer — avoids useEditor() DOM requirements in jsdom. */
+vi.mock("../../../shell/src/workspace/TipTapRenderer", () => ({
+  TipTapRenderer: () => React.createElement("div", { "data-testid": "tiptap-renderer" }, "TipTapRenderer mock"),
 }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -108,13 +120,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     mockFetchActions.mockResolvedValue([]);
     mockLockedState.isLockedByOther = false;
     mockLockedState.lockHeldBy = null;
-
-    // Set up the ModRegistry so SlotRenderer can resolve eln.sidebar
-    // and the ActivityFeedBlock.
-    ModRegistry._reset();
-    const registry = ModRegistry.getInstance();
-    registry.registerMod("eln");
-    elnMod.register();
+    mockIsReady.value = true;
   });
   // ── Top toolbar: breadcrumbs ──────────────────────────────────────────
 
@@ -137,6 +143,25 @@ describe("ElnWorkspacePage — five-zone layout", () => {
   it("does NOT render a Draft status badge in the top toolbar", () => {
     renderAtRoute("/eln/EXP-0284");
     expect(screen.queryByText("Draft")).toBeNull();
+  });
+
+  // ── Loading skeleton ──────────────────────────────────────────────────
+
+  it("renders ContentLoadingSkeleton when isReady is false", () => {
+    mockIsReady.value = false;
+    renderAtRoute("/eln/EXP-0284");
+    expect(screen.getByTestId("content-loading-skeleton")).toBeDefined();
+    // TipTapRenderer should NOT be rendered while loading
+    expect(screen.queryByTestId("tiptap-renderer")).toBeNull();
+  });
+
+  it("renders TipTapRenderer when isReady transitions to true", () => {
+    mockIsReady.value = true;
+    renderAtRoute("/eln/EXP-0284");
+    // TipTapRenderer should be rendered
+    expect(screen.getByTestId("tiptap-renderer")).toBeDefined();
+    // ContentLoadingSkeleton should NOT be rendered
+    expect(screen.queryByTestId("content-loading-skeleton")).toBeNull();
   });
 
   // ── Top toolbar: action buttons (History, Comments, Star) ───────────
@@ -295,17 +320,91 @@ describe("ElnWorkspacePage — five-zone layout", () => {
 
   // ── Content area ───────────────────────────────────────────────────────
 
-  it("renders ElnEditor in the content area", () => {
+  it("renders editor content in the content area", () => {
     renderAtRoute("/eln/EXP-0284");
-    const editor = screen.getByTestId("eln-editor");
+    // After #352 (dissolve ElnEditor), the TipTapRenderer mock and
+    // chrome UI are rendered directly inside ElnWorkspace.
+    const editor = screen.getByTestId("tiptap-renderer");
     expect(editor).toBeDefined();
-    expect(editor.getAttribute("data-entry-id")).toBe("EXP-0284");
   });
 
-  it("passes entryId from route param for new entry with ?new=true", () => {
+  it("renders editor content for new entry with ?new=true", () => {
     renderAtRoute("/eln/E-NEW?new=true");
-    const editor = screen.getByTestId("eln-editor");
-    expect(editor.getAttribute("data-entry-id")).toBe("E-NEW");
+    // The content area should render — no crash for new entries.
+    expect(screen.getByTestId("tiptap-renderer")).toBeDefined();
+  });
+
+  // ── Editor chrome (was ElnEditor, now inlined in ElnWorkspace #352) ─────
+
+  it("renders metadata line", () => {
+    renderAtRoute("/eln/EXP-0284");
+    const meta = screen.getByTestId("metadata-line");
+    expect(meta).toBeDefined();
+    expect(meta.className).toContain("font-mono");
+  });
+
+  it("renders title as contentEditable H1", () => {
+    renderAtRoute("/eln/EXP-0284");
+    const title = screen.getByTestId("title-display");
+    expect(title.tagName).toBe("H1");
+    expect(title.className).toContain("font-serif");
+    expect(title.getAttribute("contentEditable")).toBe("true");
+  });
+
+  it("renders description as textarea", () => {
+    renderAtRoute("/eln/EXP-0284");
+    const textarea = screen.getByTestId("description-input");
+    expect(textarea.tagName).toBe("TEXTAREA");
+  });
+
+  it("renders tags section", () => {
+    renderAtRoute("/eln/EXP-0284");
+    expect(screen.getByTestId("tags-section")).toBeDefined();
+  });
+
+  it("renders hairline divider", () => {
+    renderAtRoute("/eln/EXP-0284");
+    const divider = screen.getByTestId("content-divider");
+    expect(divider).toBeDefined();
+    expect(divider.className).toContain("bg-hairline");
+  });
+
+  it("does not render locked banner when not locked", () => {
+    renderAtRoute("/eln/EXP-0284");
+    expect(screen.queryByTestId("locked-banner")).toBeNull();
+  });
+
+  it("renders locked banner when locked by another user", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    const banner = await screen.findByTestId("locked-banner");
+    expect(banner).toBeDefined();
+    expect(banner.textContent).toContain("bob");
+  });
+
+  it("sets title contentEditable to false when locked", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    await screen.findByTestId("locked-banner");
+    const title = screen.getByTestId("title-display");
+    expect(title.getAttribute("contentEditable")).toBe("false");
+  });
+
+  it("sets description textarea to readOnly when locked", async () => {
+    mockLockedState.isLockedByOther = true;
+    mockLockedState.lockHeldBy = "bob";
+
+    renderAtRoute("/eln/EXP-0284");
+
+    await screen.findByTestId("locked-banner");
+    const textarea = screen.getByTestId("description-input");
+    expect(textarea.hasAttribute("readonly")).toBe(true);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -324,8 +423,8 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       const main = document.querySelector("main");
       expect(main).toBeDefined();
       expect(main).not.toBeNull();
-      // The editor is rendered inside main
-      expect(main!.querySelector('[data-testid="eln-editor"]')).toBeDefined();
+      // The editor renderer is rendered inside main
+      expect(main!.querySelector('[data-testid="tiptap-renderer"]')).toBeDefined();
 
       // Zone 4: Right gutter — aside for comments, hidden below xl
       const commentsAside = screen.getByLabelText("Comments");

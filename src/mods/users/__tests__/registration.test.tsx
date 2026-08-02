@@ -1,76 +1,74 @@
 /**
  * Tests for the users mod registration contract.
  *
- * Verifies the mod's index.ts exports valid metadata and that the
- * register() function calls into the mod-system registration API
- * without throwing.  The actual route/settings rendering is tested
- * by the shell integration tests.
+ * All registrations happen at module scope via the Mod class.
+ * This test verifies the ModRegistry state after importing the mod.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
-const { mockRegisterRoute, mockRegisterPublicRoute, mockRegisterSettingsSection } =
-  vi.hoisted(() => ({
-    mockRegisterRoute: vi.fn(),
-    mockRegisterPublicRoute: vi.fn(),
-    mockRegisterSettingsSection: vi.fn(),
-  }));
+import "../index";
 
-vi.mock("../../../shell/src/mod-system", () => ({
-  registerRoute: mockRegisterRoute,
-  registerPublicRoute: mockRegisterPublicRoute,
-  registerSettingsSection: mockRegisterSettingsSection,
-}));
-
-import { register } from "../index";
-import usersManifest from "../modManifest.json";
-
-describe("users mod — index.ts", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+describe("users mod — registry state", () => {
+  const registry = ModRegistry.getInstance();
 
   describe("meta (modManifest.json)", () => {
-    it("has required id field", () => {
-      expect(usersManifest.id).toBe("users");
-    });
-
-    it("has displayName", () => {
-      expect(usersManifest.displayName).toBe("Users");
-    });
-
-    it("has dependsOn as an array", () => {
-      expect(Array.isArray(usersManifest.dependsOn)).toBe(true);
+    it("exports a manifest with correct name", async () => {
+      const manifest = (await import("../modManifest.json")).default;
+      expect(manifest.vendor).toBe("helix");
+      expect(manifest.name).toBe("users");
+      expect(manifest.displayName).toBe("Users");
+      expect(Array.isArray(manifest.dependsOn)).toBe(true);
     });
   });
 
-  describe("register()", () => {
+  describe("routes", () => {
     it("registers public routes for login and register", () => {
-      register();
+      const routes = registry.getRoutes();
+      const login = routes.get("users.login");
+      const register = routes.get("users.register");
 
-      const publicCalls = mockRegisterPublicRoute.mock.calls;
-      const ids = publicCalls.map((c: { id: string }[]) => c[0].id);
+      expect(login).toBeDefined();
+      expect(login!.path).toBe("/login");
+      expect(login!.public).toBe(true);
+
+      expect(register).toBeDefined();
+      expect(register!.path).toBe("/register");
+      expect(register!.public).toBe(true);
+    });
+
+    it("registers public routes via getPublicRoutes()", () => {
+      const publicRoutes = registry.getPublicRoutes();
+      const ids = publicRoutes.map((r) => r.id);
       expect(ids).toContain("users.login");
       expect(ids).toContain("users.register");
     });
 
     it("registers a layout route for profile", () => {
-      register();
+      const routes = registry.getRoutes();
+      const profile = routes.get("users.profile");
 
-      const routeCalls = mockRegisterRoute.mock.calls;
-      const ids = routeCalls.map((c: { id: string }[]) => c[0].id);
+      expect(profile).toBeDefined();
+      expect(profile!.path).toBe("/profile");
+      expect(profile!.public).toBeUndefined();
+    });
+
+    it("profile route appears in getLayoutRoutes()", () => {
+      const layoutRoutes = registry.getLayoutRoutes();
+      const ids = layoutRoutes.map((r) => r.id);
       expect(ids).toContain("users.profile");
     });
+  });
 
+  describe("settings", () => {
     it("registers a settings section for user management", () => {
-      register();
+      const sections = registry.getSettingsSections();
+      const management = sections.find((s) => s.id === "users.management");
 
-      const settingsCalls = mockRegisterSettingsSection.mock.calls;
-      const ids = settingsCalls.map((c: { id: string }[]) => c[0].id);
-      expect(ids).toContain("users.management");
-    });
-
-    it("register() does not throw", () => {
-      expect(() => register()).not.toThrow();
+      expect(management).toBeDefined();
+      expect(management!.modId).toBe("users");
+      expect(management!.label).toBe("Users");
+      expect(management!.order).toBe(5);
     });
   });
 });

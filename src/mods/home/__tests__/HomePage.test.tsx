@@ -166,9 +166,8 @@ describe("HomePage", () => {
 
   describe("Jump Back In", () => {
     it("renders the section heading with hub count (home excluded)", () => {
-      // Register home + library hub
       registerHub({
-        id: "home",
+        id: "home.home",
         label: "Home",
         icon: DummyComponent,
         route: "/home",
@@ -189,13 +188,12 @@ describe("HomePage", () => {
       renderHomePage();
 
       expect(screen.getByText("Jump back in")).toBeInTheDocument();
-      // Hub count: only the non-home hub (library) counts
       expect(screen.getByText("1 workspace")).toBeInTheDocument();
     });
 
     it("renders one card per non-home hub with label and description", () => {
       registerHub({
-        id: "home",
+        id: "home.home",
         label: "Home",
         icon: DummyComponent,
         route: "/home",
@@ -223,7 +221,6 @@ describe("HomePage", () => {
 
       renderHomePage();
 
-      // Non-home hubs should be rendered
       expect(screen.getByText("Library")).toBeInTheDocument();
       expect(
         screen.getByText("Browse, search, and organize your lab's entries."),
@@ -233,13 +230,12 @@ describe("HomePage", () => {
         screen.getByText("Daily electronic lab notebook entries."),
       ).toBeInTheDocument();
 
-      // Hub count
       expect(screen.getByText("2 workspaces")).toBeInTheDocument();
     });
 
     it("excludes the home hub from the card grid", () => {
       registerHub({
-        id: "home",
+        id: "home.home",
         label: "Home",
         icon: DummyComponent,
         route: "/home",
@@ -258,7 +254,6 @@ describe("HomePage", () => {
 
       renderHomePage();
 
-      // "Home" label should not appear as a card heading (only as greeting)
       const cardHeadings = screen.getAllByRole("heading", { level: 3 });
       const homeCards = cardHeadings.filter((h) => h.textContent === "Home");
       expect(homeCards).toHaveLength(0);
@@ -266,7 +261,7 @@ describe("HomePage", () => {
 
     it("links each card to the hub's route", () => {
       registerHub({
-        id: "home",
+        id: "home.home",
         label: "Home",
         icon: DummyComponent,
         route: "/home",
@@ -290,9 +285,8 @@ describe("HomePage", () => {
     });
 
     it("shows an empty state message when no non-home hubs exist", () => {
-      // Only the home hub registered — no non-home hubs
       registerHub({
-        id: "home",
+        id: "home.home",
         label: "Home",
         icon: DummyComponent,
         route: "/home",
@@ -308,7 +302,7 @@ describe("HomePage", () => {
 
     it("renders the hardcoded placeholder stats line and footer on each card", () => {
       registerHub({
-        id: "home",
+        id: "home.home",
         label: "Home",
         icon: DummyComponent,
         route: "/home",
@@ -327,10 +321,9 @@ describe("HomePage", () => {
 
       renderHomePage();
 
-      // Placeholder stats line
-      expect(screen.getByText("2 active · 14 entries")).toBeInTheDocument();
+      const statsElements = screen.getAllByText("2 active · 14 entries");
+      expect(statsElements.length).toBe(1);
 
-      // Footer with chip and timestamp
       expect(screen.getByText("open")).toBeInTheDocument();
       expect(screen.getByText("edited 8 min ago")).toBeInTheDocument();
     });

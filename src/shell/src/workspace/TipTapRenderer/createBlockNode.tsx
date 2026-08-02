@@ -16,6 +16,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import { BlockNodeView } from "./BlockNodeView";
 import type { BlockBinding, SlotContext } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
+import type { LifecycleEventPayload } from "./useActionAccumulator";
 
 /**
  * Create a TipTap Node extension from a resolved BlockBinding.
@@ -32,12 +33,14 @@ import type { WorkspaceBus } from "../WorkspaceBus";
  * @param bus     - Workspace-scoped event bus for lifecycle events and event routing.
  * @param slotId  - The slot this block is rendered in.
  * @param context - Flat metadata bag available to the block component.
+ * @param onLifecycleEvent - Callback from useActionAccumulator for block lifecycle events.
  */
 export function createBlockNode(
   binding: BlockBinding,
   bus: WorkspaceBus,
   slotId: string,
   context: SlotContext,
+  onLifecycleEvent?: (payload: LifecycleEventPayload) => void,
 ): Node {
   // Determine ProseMirror group from overrides
   const group =
@@ -63,6 +66,7 @@ export function createBlockNode(
         bus={bus}
         slotId={slotId}
         context={context}
+        onLifecycleEvent={onLifecycleEvent}
       />
     );
   }

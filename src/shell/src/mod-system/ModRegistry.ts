@@ -314,6 +314,7 @@ export class ModRegistry {
           onEvent: block.onEvent,
           getDisplayName: block.getDisplayName,
           tags: block.tags,
+          emits: block.emits,
           overrides: mergedOverrides,
           serialize: block.serialize,
           deserialize: block.deserialize,
@@ -535,7 +536,7 @@ export class ModRegistry {
    * Resolve a human-readable label for an action type from a catalog.
    *
    * Returns the catalog entry's ``label`` when a matching entry exists,
-   * falling back to the raw ``actionType`` string (e.g. "eln.table-block.created").
+   * falling back to the raw ``actionType`` string (e.g. "eln.table.created").
    * This is the single place for the label-resolution strategy — both
    * ``useBlockActionLogging`` and ``ActivityFeedBlock`` route through here.
    */
@@ -544,6 +545,105 @@ export class ModRegistry {
     catalog: ActionCatalogEntry[],
   ): string {
     return catalog.find((a) => a.id === actionType)?.label ?? actionType;
+  }
+
+  // ── Action sync ──────────────────────────────────────────────────────
+
+  /**
+   * Compute action IDs from block emits and lifecycle actions, then
+   * sync them to the backend via ``POST /api/mod-registry/sync-actions/``.
+   *
+   * Called by ModLoader during async hydration **before**
+   * ``loadFromBackend`` so the backend catalog is up-to-date when the
+   * frontend fetches it.
+   *
+   * **Editor-slot-bound blocks** (renderer name ``"TipTapRenderer"``)
+   * get three baked-in lifecycle actions: ``{blockId}.created``,
+   * ``{blockId}.edited``, ``{blockId}.deleted``.
+   *
+   * **Custom emit actions** are derived from each block's ``emits``
+   * array: ``{blockId}.{emit.id}`` for every ``BlockEvent.action()``
+   * entry.  ``BlockEvent.ui()`` entries are skipped — they stay on the
+   * bus and never hit the database.
+   *
+   * Actions are grouped by mod (first ``"."``-separated segment of the
+   * block ID) and sent to the backend one mod at a time.
+   *
+   * **Hard-fail**: throws an ``Error`` when the backend returns a
+   * validation mismatch, preventing boot from proceeding with a stale
+   * action catalog.
+   */
+  async syncActions(): Promise<void> {
+    // Step 1 — identify editor-slot-bound block IDs.
+    const editorBlockIds = new Set<string>();
+
+    for (const [slotId, slotBindings] of this.bindings) {
+      const slot = this.slots.get(slotId);
+      if (!slot) continue;
+
+      // Editor slots are identified by renderer name — TipTapRenderer
+      // is the only editor renderer in the platform.
+      if (slot.renderer.name !== "TipTapRenderer") continue;
+
+      for (const binding of slotBindings) {
+        editorBlockIds.add(binding.targetId);
+      }
+    }
+
+    // Step 2 — compute action IDs grouped by mod.
+    const actionsByMod = new Map<
+      string,
+      Array<{ id: string; core: string }>
+    >();
+
+    const addAction = (modId: string, actionId: string, core: string) => {
+      if (!actionsByMod.has(modId)) {
+        actionsByMod.set(modId, []);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      actionsByMod.get(modId)!.push({ id: actionId, core });
+    };
+
+    for (const [blockId, block] of this.blocks) {
+      // First segment is the mod name (e.g. "eln" in "eln.table").
+      const modId = blockId.split(".")[0];
+
+      // Lifecycle actions — only for editor-slot-bound blocks.
+      if (editorBlockIds.has(blockId)) {
+        addAction(modId, `${blockId}.created`, "created");
+        addAction(modId, `${blockId}.edited`, "edited");
+        addAction(modId, `${blockId}.deleted`, "deleted");
+      }
+
+      // Custom emit actions — skip UI-only events.
+      if (block.emits) {
+        for (const emit of block.emits) {
+          if (emit.category === "action") {
+            addAction(modId, `${blockId}.${emit.id}`, emit.core);
+          }
+        }
+      }
+    }
+
+    // Step 3 — POST each mod's actions to the backend.
+    for (const [modId, actions] of actionsByMod) {
+      const response = await fetch("/api/mod-registry/sync-actions/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mod_id: modId, actions }),
+      });
+
+      if (!response.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = (await response.json()) as any;
+        throw new Error(
+          `Action sync failed for mod '${modId}': ` +
+            (result.missing
+              ? `Missing actions: ${result.missing.join(", ")}`
+              : result.error || `HTTP ${response.status}`),
+        );
+      }
+    }
   }
 
   // ── Backend hydration ─────────────────────────────────────────────────

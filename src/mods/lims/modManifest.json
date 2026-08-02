@@ -1,5 +1,6 @@
 {
-  "id": "lims",
+  "vendor": "helix",
+  "name": "lims",
   "displayName": "LIMS",
   "version": "0.1.0",
   "dependsOn": []

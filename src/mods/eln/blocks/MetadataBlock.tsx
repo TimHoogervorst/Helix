@@ -1,7 +1,7 @@
 /**
  * MetadataBlock — slot-system block for the ELN sidebar.
  *
- * Registered as `eln.metadata-block`, rendered by SlotSidebar in the
+ * Registered as `eln.metadata`, rendered by SlotSidebar in the
  * `eln.sidebar` slot. Reads entry data and editor actions from
  * {@link SlotContext.entry}, which ElnWorkspace populates with an
  * {@link ElnSidebarData} shape.

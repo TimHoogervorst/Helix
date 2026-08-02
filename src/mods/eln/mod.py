@@ -46,31 +46,6 @@ def register():
 
     registry.register_action_model("eln", ElnAction)
 
-    # ── Block-level action types ──────────────────────────────────────────
-    # Register each block type × verb as a custom action so that
-    # POST /api/actions/ validates block-level action types sent via
-    # sendAction() (see #327 — Migrate ELN Block Pipeline to sendAction).
-    _BLOCK_ACTION_VERBS = {
-        "created": "Created",
-        "edited": "Edited",
-        "deleted": "Deleted",
-    }
-    _BLOCK_IDS = [
-        "table-block",
-        "comment-block",
-        "protocol-block",
-        "registryTable-block",
-    ]
-    for block_id in _BLOCK_IDS:
-        for verb, label in _BLOCK_ACTION_VERBS.items():
-            registry.register_custom_action(
-                mod_id="eln",
-                action_id=f"eln.{block_id}.{verb}",
-                label=f"{block_id.replace('-', ' ').title()} {label}",
-                core=verb,
-                target_model="mods.eln.models.NotebookEntry",
-            )
-
     # ── Entry-level custom actions ───────────────────────────────────────
     # Actions used by @logs_action decorators in views.py.  Must be
     # registered before the views are imported.
@@ -89,25 +64,40 @@ def register():
         target_model="mods.eln.models.NotebookEntry",
     )
 
-    # ── Registry-table custom actions ────────────────────────────────────
-    # Actions triggered by user interactions in the Registry Table block
-    # (register entities, add new row).  Both map to the "edited" core
-    # verb because they modify the entry's registry data, not create or
-    # delete the entry itself.
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.registryTable-block.registered-entities",
-        label="Registered Entities",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.registryTable-block.row-added",
-        label="Row Added",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
+    # ── Block-level custom actions ───────────────────────────────────────
+    # Per docs/actions-system-design.md the backend catalog is the single
+    # source of truth — sync from the frontend is a convenience, not a
+    # prerequisite.  Registering every block action here ensures the
+    # catalog is always available, even after a server restart without a
+    # browser reload.
+    block_actions = [
+        # Registry-table custom actions (declared via emits in index.ts)
+        ("eln.registry-table.entities-registered", "Entities Registered", "edited"),
+        ("eln.registry-table.row-added", "Row Added", "edited"),
+        # Cross-mod action used by LIMS EntityViewSet.batch_register
+        ("eln.entities.registered", "Entities Registered", "edited"),
+        # Block lifecycle actions — auto-derived for every block type
+        ("eln.table.created", "Table Created", "created"),
+        ("eln.table.edited", "Table Edited", "edited"),
+        ("eln.table.deleted", "Table Deleted", "deleted"),
+        ("eln.comment.created", "Comment Created", "created"),
+        ("eln.comment.edited", "Comment Edited", "edited"),
+        ("eln.comment.deleted", "Comment Deleted", "deleted"),
+        ("eln.protocol.created", "Protocol Created", "created"),
+        ("eln.protocol.edited", "Protocol Edited", "edited"),
+        ("eln.protocol.deleted", "Protocol Deleted", "deleted"),
+        ("eln.registry-table.created", "Registry Table Created", "created"),
+        ("eln.registry-table.edited", "Registry Table Edited", "edited"),
+        ("eln.registry-table.deleted", "Registry Table Deleted", "deleted"),
+    ]
+    for action_id, label, core in block_actions:
+        registry.register_custom_action(
+            mod_id="eln",
+            action_id=action_id,
+            label=label,
+            core=core,
+            target_model="mods.eln.models.NotebookEntry",
+        )
 
     registry.register_schema_type(
         display_name="ELN Entry",

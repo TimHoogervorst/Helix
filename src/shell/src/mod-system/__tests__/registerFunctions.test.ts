@@ -74,6 +74,7 @@ describe("register functions", () => {
       component: DummyComponent,
       listensTo: [],
       onEvent: {},
+      emits: [],
       serialize: (state: Record<string, unknown>) => JSON.stringify(state),
       deserialize: (json: string) => JSON.parse(json),
       defaultState: {},

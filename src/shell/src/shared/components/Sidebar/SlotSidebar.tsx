@@ -13,7 +13,6 @@ import { SidebarSection } from "./SidebarSection";
 import { useBlockInstance } from "../../../workspace/useBlockInstance";
 import type { WorkspaceBus } from "../../../workspace/WorkspaceBus";
 import type { IconStripGroup } from "./IconStrip";
-import { useSendAction } from "../../../workspace/useSendAction";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -122,10 +121,6 @@ export function SlotSidebar(props: SlotSidebarProps) {
     ? props.bus
     : (props as SlotSidebarStandaloneProps).bus;
 
-  // Single sendAction for all blocks in this sidebar, computed once at the
-  // component level so the hook is called unconditionally.
-  const sendAction = useSendAction(context.workspaceId);
-
   // ── Configurable sidebar options from standalone props ────────────────
 
   const side =
@@ -189,7 +184,6 @@ export function SlotSidebar(props: SlotSidebarProps) {
                 context={context}
                 instance={instance}
                 overrides={binding.overrides}
-                sendAction={sendAction}
               />
             </SidebarSection>
           );
@@ -225,7 +219,22 @@ function SlotSidebarBlock({
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
 
-  const sendAction = useSendAction(context.workspaceId);
+  // Augment context with a block-specific emitAction that derives the
+  // global action ID as {blockId}.{localId} and emits on the workspace bus.
+  const augmentedContext: SlotContext = useMemo(
+    () => ({
+      ...context,
+      emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        bus.emit(`${binding.id}.${localId}`, {
+          blockInstanceId: instance.id,
+          blockId: binding.id,
+          localId,
+          payload,
+        });
+      },
+    }),
+    [context, binding.id, bus, instance.id],
+  );
 
   return (
     <SidebarSection
@@ -234,11 +243,9 @@ function SlotSidebarBlock({
       icon={binding.icon}
     >
       <Component
-        context={context}
+        context={augmentedContext}
         instance={instance}
-        bus={bus}
         overrides={binding.overrides}
-        sendAction={sendAction}
       />
     </SidebarSection>
   );

@@ -331,6 +331,20 @@ LIMS is the **gatekeeper** for all entity type registrations. Mods register thei
 
 **Out of scope (for now):** custom entity behaviors (DNA sequence viewer, GC analysis), per-entity-type action sets, dynamic registration after boot.
 
+### View (Saved View)
+
+A named, saved filter configuration over the Entities Hub population. Has an owner, a name, and a filter state (search, schema, status, per-column filters, sort). Can be shared with all users (public) or kept private. A View defines *which* entities are in scope — and nothing else. It says nothing about how the population is displayed or reduced.
+
+**Synonyms:** saved view, saved filter
+
+### Metric
+
+A named reduction of a View to a quantitative result: an aggregate function (count, average, standard deviation, …) applied to one column over the View's population. References exactly one View. The Metric is the platform's unit of data display and monitoring — home-page cards render Metrics, and notification rules threshold Metrics.
+
+**Distinction from View:** a View answers "which entities?"; a Metric answers "how many / how much?".
+
+**Synonyms:** measure, aggregate (rejected as a noun — "aggregate" is the function, not the thing)
+
 ### Entity Action
 
 A user-explicit operation recorded on an Entity. Has a type (e.g., "Used", "Created", "Measured", "Noted"), the performer, optional data (e.g., `{"volume_ul": 50}`), and an optional source Notebook Entry (the entry where this action was recorded).

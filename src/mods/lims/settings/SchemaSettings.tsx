@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put, del } from "../../../shell/src/api/client";
+import { FlaskConical } from "lucide-react";
+import { get, post, put } from "../../../shell/src/api/client";
 import type { Schema, SchemaPayload, SchemaTypeItem, ColumnDef } from "../types";
 import ColumnEditor from "./ColumnEditor";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
@@ -200,13 +201,9 @@ function SettingsPage() {
     setSaving(false);
   };
 
-  // ── Discard edits for one schema ──
-  const discardEdits = (id: number) => {
-    setDirtyEdits((prev) => {
-      const next = new Map(prev);
-      next.delete(id);
-      return next;
-    });
+  // ── Discard all dirty edits ──
+  const discardAllEdits = () => {
+    setDirtyEdits(new Map());
   };
 
   const visibleSchemas = (showArchived
@@ -222,11 +219,27 @@ function SettingsPage() {
       )
     : visibleSchemas;
 
-  const masterRows: MasterListRow[] = filteredSchemas.map((s) => ({
+  const ICON_BG_CLASSES = [
+    "bg-flask",
+    "bg-enzyme",
+    "bg-solvent",
+    "bg-accent",
+  ] as const;
+  const ICON_FG_CLASSES = [
+    "text-flask-foreground",
+    "text-enzyme-foreground",
+    "text-solvent-foreground",
+    "text-accent-foreground",
+  ] as const;
+
+  const masterRows: MasterListRow[] = filteredSchemas.map((s, i) => ({
     id: s.id,
     label: s.name,
     secondary: s.prefix,
     dirty: dirtyEdits.has(s.id),
+    icon: <FlaskConical size={13} />,
+    iconBg: ICON_BG_CLASSES[i % ICON_BG_CLASSES.length],
+    iconFg: ICON_FG_CLASSES[i % ICON_FG_CLASSES.length],
   }));
 
   const selectedSchema = selectedId
@@ -238,103 +251,130 @@ function SettingsPage() {
   if (loading) return <p className="empty">Loading…</p>;
 
   return (
-    <SettingsPageLayout>
+    <SettingsPageLayout
+      hero={
+        <>
+          <SettingsHeroHeader
+            eyebrow="schema directory"
+            title="Registry schemas"
+            description="Define the schemas that structure your entity data. Each schema controls what columns appear on entities created from it."
+            actions={
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                onClick={() => setShowNew(!showNew)}
+              >
+                + New schema
+              </button>
+            }
+          />
+
+          {showNew && (
+            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">Name</span>
+                  <input
+                    type="text"
+                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g., Blood Sample"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">Prefix</span>
+                  <input
+                    type="text"
+                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    value={newPrefix}
+                    onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
+                    placeholder="e.g., BLOOD"
+                    maxLength={20}
+                    style={{ width: 120 }}
+                  />
+                </label>
+                {schemaTypes.length > 0 && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      Schema Type
+                    </span>
+                    <select
+                      className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                      value={newSchemaType ?? ""}
+                      onChange={(e) => setNewSchemaType(Number(e.target.value))}
+                    >
+                      {schemaTypes.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    onClick={handleCreate}
+                    disabled={
+                      saving ||
+                      !newName.trim() ||
+                      !newPrefix.trim() ||
+                      newSchemaType === null
+                    }
+                  >
+                    {saving ? "Creating…" : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                    onClick={() => setShowNew(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      }
+      bottomBar={
+        dirtyCount > 0 ? (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {dirtyCount} schema{dirtyCount !== 1 ? "s" : ""} with unsaved
+              changes
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onClick={discardAllEdits}
+              >
+                Discard Changes
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={saveAllChanges}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
+              </button>
+            </div>
+          </div>
+        ) : undefined
+      }
+    >
       {error && (
         <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
           {error}
         </div>
       )}
 
-      <SettingsHeroHeader
-        eyebrow="schema directory"
-        title="Registry schemas"
-        description="Define the schemas that structure your entity data. Each schema controls what columns appear on entities created from it."
-        actions={
-          <button
-            type="button"
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            onClick={() => setShowNew(!showNew)}
-          >
-            + New schema
-          </button>
-        }
-      />
-
-      {/* New schema form */}
-      {showNew && (
-        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Name</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g., Blood Sample"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Prefix</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                value={newPrefix}
-                onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
-                placeholder="e.g., BLOOD"
-                maxLength={20}
-                style={{ width: 120 }}
-              />
-            </label>
-            {schemaTypes.length > 0 && (
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-muted-foreground">
-                  Schema Type
-                </span>
-                <select
-                  className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                  value={newSchemaType ?? ""}
-                  onChange={(e) => setNewSchemaType(Number(e.target.value))}
-                >
-                  {schemaTypes.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                onClick={handleCreate}
-                disabled={
-                  saving ||
-                  !newName.trim() ||
-                  !newPrefix.trim() ||
-                  newSchemaType === null
-                }
-              >
-                {saving ? "Creating…" : "Create"}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
-                onClick={() => setShowNew(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Master–detail layout */}
-      <div
-        className="flex min-h-0 gap-0"
-        style={{ height: "calc(100vh - 320px)" }}
-      >
+      <div className="flex min-h-0 gap-0">
         <div className="w-64 shrink-0">
           <SettingsMasterList
             rows={masterRows}
@@ -342,13 +382,13 @@ function SettingsPage() {
             filterValue={filterValue}
             onFilterChange={setFilterValue}
             onSelect={handleSelect}
-            filterPlaceholder="Search schemas…"
+            filterPlaceholder="Filter schemas"
             actions={
               <button
                 type="button"
-                className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                className={`rounded border-transparent bg-transparent px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                   showArchived
-                    ? "bg-primary/10 text-primary"
+                    ? "font-medium text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
                 onClick={() => setShowArchived(!showArchived)}
@@ -365,7 +405,7 @@ function SettingsPage() {
           )}
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-6">
+        <div className="flex-1 space-y-4 p-6">
           {selectedSchema && editingSchema ? (
             <>
               <SettingsSectionCard
@@ -373,47 +413,50 @@ function SettingsPage() {
                 subtitle="Identity fields"
               >
                 <div className="space-y-3">
-                  <label className="block">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      Name
-                    </span>
-                    <input
-                      type="text"
-                      className="mt-1 block w-full rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                      value={editingSchema.name}
-                      onChange={(e) =>
-                        updateSchemaField(
-                          editingSchema.id,
-                          "name",
-                          e.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      Prefix
-                    </span>
-                    <input
-                      type="text"
-                      className="mt-1 block w-full rounded-md border border-hairline bg-surface px-2.5 py-1.5 font-mono text-sm outline-none focus:border-primary/50"
-                      value={editingSchema.prefix}
-                      onChange={(e) =>
-                        updateSchemaField(
-                          editingSchema.id,
-                          "prefix",
-                          e.target.value.toUpperCase(),
-                        )
-                      }
-                      maxLength={20}
-                    />
-                  </label>
+                  <div className="grid grid-cols-[1fr_auto] gap-4">
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        Name
+                      </span>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                        value={editingSchema.name}
+                        onChange={(e) =>
+                          updateSchemaField(
+                            editingSchema.id,
+                            "name",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        Prefix
+                      </span>
+                      <input
+                        type="text"
+                        className="mt-1 block rounded-md border border-hairline bg-muted px-2.5 py-1.5 font-mono text-sm outline-none focus:border-primary/50"
+                        style={{ width: 120 }}
+                        value={editingSchema.prefix}
+                        onChange={(e) =>
+                          updateSchemaField(
+                            editingSchema.id,
+                            "prefix",
+                            e.target.value.toUpperCase(),
+                          )
+                        }
+                        maxLength={20}
+                      />
+                    </label>
+                  </div>
                   <label className="block">
                     <span className="text-[11px] font-medium text-muted-foreground">
                       Description
                     </span>
                     <textarea
-                      className="mt-1 block w-full resize-none rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                      className="mt-1 block w-full resize-none rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
                       rows={2}
                       value={editingSchema.description ?? ""}
                       onChange={(e) =>
@@ -430,12 +473,21 @@ function SettingsPage() {
               </SettingsSectionCard>
 
               <SettingsSectionCard
+                flush
                 title="Columns"
                 subtitle={`${editingSchema.columns.length} user-defined`}
+                actions={
+                  <button
+                    type="button"
+                    className="rounded-md border-transparent bg-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => addColumn(editingSchema.id)}
+                  >
+                    + Add Column
+                  </button>
+                }
               >
                 <ColumnEditor
                   columns={editingSchema.columns}
-                  onAdd={() => addColumn(editingSchema.id)}
                   onUpdate={(i, field, value) =>
                     updateColumn(editingSchema.id, i, field, value)
                   }
@@ -443,7 +495,6 @@ function SettingsPage() {
                   onMove={(i, dir) =>
                     moveColumn(editingSchema.id, i, dir)
                   }
-                  onDiscard={() => discardEdits(editingSchema.id)}
                 />
               </SettingsSectionCard>
             </>
@@ -454,26 +505,6 @@ function SettingsPage() {
           )}
         </div>
       </div>
-
-      {/* Save bar — fixed at bottom */}
-      {dirtyCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-hairline bg-panel/95 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3">
-            <span className="text-xs text-muted-foreground">
-              {dirtyCount} schema{dirtyCount !== 1 ? "s" : ""} with unsaved
-              changes
-            </span>
-            <button
-              type="button"
-              className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-              onClick={saveAllChanges}
-              disabled={saving}
-            >
-              {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
-            </button>
-          </div>
-        </div>
-      )}
     </SettingsPageLayout>
   );
 }

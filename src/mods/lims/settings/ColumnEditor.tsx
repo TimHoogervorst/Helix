@@ -1,4 +1,20 @@
 import { useState, useEffect } from "react";
+import {
+  ArrowUp,
+  ArrowDown,
+  Trash2,
+  Settings2,
+  FlaskConical,
+  Dna,
+  Hash,
+  List,
+  Link2,
+  Calendar,
+  Type,
+  ToggleLeft,
+  Braces,
+  Paperclip,
+} from "lucide-react";
 import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../dropdowns/api";
@@ -6,7 +22,6 @@ import type { Dropdown } from "../../dropdowns/types";
 
 export interface ColumnEditorProps {
   columns: ColumnDef[];
-  onAdd: () => void;
   onUpdate: (
     index: number,
     field: keyof ColumnDef,
@@ -14,35 +29,35 @@ export interface ColumnEditorProps {
   ) => void;
   onRemove: (index: number) => void;
   onMove: (index: number, direction: "up" | "down") => void;
-  onDiscard: () => void;
 }
 
-/** Check whether a column name collides with the implicit Name pseudo-column. */
+const COLUMN_ICONS = [
+  FlaskConical,
+  Dna,
+  Hash,
+  List,
+  Link2,
+  Calendar,
+  Type,
+  ToggleLeft,
+  Braces,
+  Paperclip,
+];
+
 function isNameCollision(value: string): boolean {
   return value.trim().toLowerCase() === "name";
 }
 
-/**
- * Inline column editing table.
- *
- * Renders a gray, non-editable "Name" pseudo-column at the top of the list
- * (representing the implicit ``Entity.name`` field), followed by user-defined
- * columns with full editing controls.  Adding a column named "Name"
- * (case-insensitive, trimmed) fires an alert and aborts.
- */
 function ColumnEditor({
   columns,
-  onAdd,
   onUpdate,
   onRemove,
   onMove,
-  onDiscard,
 }: ColumnEditorProps) {
   const columnTypes = ModRegistry.getInstance().getColumnTypes();
   const textType = columnTypes.get("text");
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([]);
 
-  // ── Fetch dropdowns for the dropdown-column picker ────────────────────
   useEffect(() => {
     listDropdowns()
       .then(setDropdowns)
@@ -61,7 +76,6 @@ function ColumnEditor({
     onUpdate(index, field, value);
   };
 
-  /** Render a type option with its display name from the registry. */
   const renderTypeOption = (ct: {
     id: string;
     displayName: string;
@@ -72,152 +86,171 @@ function ColumnEditor({
   );
 
   return (
-    <div className="column-editor">
-      <h3>Columns</h3>
-      <div className="column-list">
-        {/* ── Implicit Name pseudo-column (gray, non-editable) ── */}
-        <div className="column-row column-row--system" data-testid="name-pseudo-column">
-          <div className="drag-handles">
-            <button
-              className="drag-btn"
+    <div>
+      <div className="grid grid-cols-1 gap-2 border-b border-hairline bg-surface/60 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center">
+        <span className="text-[11px] font-medium text-muted-foreground">
+          Field name
+        </span>
+        <span className="text-[11px] font-medium text-muted-foreground">
+          Field type
+        </span>
+        <span className="text-[11px] font-medium text-muted-foreground">
+          Constraints
+        </span>
+        <span className="text-[11px] font-medium text-muted-foreground">
+          Order
+        </span>
+      </div>
+
+      <div
+        className="border-b border-hairline"
+        data-testid="name-pseudo-column"
+      >
+        <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center">
+          <div className="flex items-center gap-2">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-muted text-muted-foreground">
+              <Type size={12} />
+            </span>
+            <input
+              type="text"
+              value="Name"
               disabled
-              title="Move up"
-              aria-label="Move up"
-            >
-              ▲
-            </button>
-            <button
-              className="drag-btn"
-              disabled
-              title="Move down"
-              aria-label="Move down"
-            >
-              ▼
-            </button>
+              className="w-full rounded outline-none focus:outline-none focus:ring-0 bg-transparent px-1 py-1 text-[13px] text-muted-foreground"
+              title="Name is an implicit column on every schema — it cannot be edited or removed."
+            />
           </div>
-          <input
-            type="text"
-            value="Name"
+          <select
             disabled
-            className="col-name col-name--system"
-            title="Name is an implicit column on every schema — it cannot be edited or removed."
-          />
-          <select disabled className="col-type col-type--system">
+            className="rounded-md border border-hairline bg-background px-2 py-1 text-[12px] text-muted-foreground"
+          >
             <option value="text">
               {textType?.displayName ?? "Text"}
             </option>
           </select>
-          <div className="col-required" />
-          <div className="col-remove" />
+          <div />
+          <div />
         </div>
+      </div>
 
-        {/* ── User-defined columns ── */}
-        {columns.map((col, i) => (
-          <div key={i} className="column-row">
-            <div className="drag-handles">
-              <button
-                className="drag-btn"
-                disabled={i === 0}
-                onClick={() => onMove(i, "up")}
-                title="Move up"
-              >
-                ▲
-              </button>
-              <button
-                className="drag-btn"
-                disabled={i === columns.length - 1}
-                onClick={() => onMove(i, "down")}
-                title="Move down"
-              >
-                ▼
-              </button>
+      {columns.map((col, i) => {
+        const Icon = COLUMN_ICONS[i % COLUMN_ICONS.length];
+        return (
+          <div
+            key={i}
+            className="border-b border-hairline last:border-b-0"
+          >
+            <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center hover:bg-muted/40">
+              <div className="flex items-center gap-2">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-flask text-flask-foreground">
+                  <Icon size={12} />
+                </span>
+                <input
+                  type="text"
+                  value={col.name}
+                  onChange={(e) =>
+                    handleNameChange(i, "name", e.target.value)
+                  }
+                  placeholder="Column name"
+                  className="w-full border-0 bg-transparent px-1 py-1 text-[13px] outline-none focus:outline-none focus:ring-0 placeholder:text-muted-foreground"
+                />
+              </div>
+              <div>
+                <select
+                  value={col.type}
+                  onChange={(e) =>
+                    onUpdate(i, "type", e.target.value)
+                  }
+                  className="rounded-md border border-hairline bg-background px-2 py-1 text-[12px]"
+                >
+                  {[...columnTypes.values()].map(renderTypeOption)}
+                </select>
+                {col.type === "dropdown" && (
+                  <select
+                    value={col.dropdownId ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      onUpdate(
+                        i,
+                        "dropdownId",
+                        raw ? Number(raw) : "",
+                      );
+                    }}
+                    className="mt-1 rounded-md border border-hairline bg-background px-2 py-1 text-[12px]"
+                    title="Dropdown (controlled vocabulary) for this column"
+                    aria-label="Dropdown"
+                  >
+                    <option value="">No dropdown</option>
+                    {dropdowns.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[11px]">
+                <button
+                  type="button"
+                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase transition-colors ${
+                    col.required
+                      ? "border-[#b8dfd0] bg-[#E7F7F3] font-medium text-foreground"
+                      : "border-gray-200 bg-white text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  onClick={() =>
+                    onUpdate(i, "required", !col.required)
+                  }
+                >
+                  req
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase transition-colors ${
+                    col.unique
+                      ? "border-[#b8dfd0] bg-[#E7F7F3] font-medium text-foreground"
+                      : "border-gray-200 bg-white text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  onClick={() =>
+                    onUpdate(i, "unique", !col.unique)
+                  }
+                >
+                  uniq
+                </button>
+              </div>
+              <div className="flex items-center justify-end gap-0.5">
+                <button
+                  title="Move up"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                  disabled={i === 0}
+                  onClick={() => onMove(i, "up")}
+                >
+                  <ArrowUp size={12} />
+                </button>
+                <button
+                  title="Move down"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                  disabled={i === columns.length - 1}
+                  onClick={() => onMove(i, "down")}
+                >
+                  <ArrowDown size={12} />
+                </button>
+                <button
+                  title="Options"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Settings2 size={12} />
+                </button>
+                <button
+                  title="Delete"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() => onRemove(i)}
+                >
+                  <Trash2 size={12} className="text-destructive" />
+                </button>
+              </div>
             </div>
-            <input
-              type="text"
-              value={col.name}
-              onChange={(e) =>
-                handleNameChange(i, "name", e.target.value)
-              }
-              placeholder="Column name"
-              className="col-name"
-            />
-            <select
-              value={col.type}
-              onChange={(e) => onUpdate(i, "type", e.target.value)}
-              className="col-type"
-            >
-              {[...columnTypes.values()].map(renderTypeOption)}
-            </select>
-            {col.type === "dropdown" && (
-              <select
-                value={col.dropdownId ?? ""}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  onUpdate(
-                    i,
-                    "dropdownId",
-                    raw ? Number(raw) : "",
-                  );
-                }}
-                className="col-type"
-                style={{ minWidth: 120 }}
-                title="Dropdown (controlled vocabulary) for this column"
-                aria-label="Dropdown"
-              >
-                <option value="">No dropdown</option>
-                {dropdowns.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <label className="col-required">
-              <input
-                type="checkbox"
-                checked={col.required ?? false}
-                onChange={(e) => onUpdate(i, "required", e.target.checked)}
-              />
-              Required
-            </label>
-            <label className="col-required">
-              <input
-                type="checkbox"
-                checked={col.unique ?? false}
-                onChange={(e) => onUpdate(i, "unique", e.target.checked)}
-              />
-              Unique
-            </label>
-            <button
-              className="col-remove"
-              onClick={() => onRemove(i)}
-              title="Remove column"
-              style={{
-                background: "transparent",
-                color: "#dc2626",
-                border: "none",
-                fontSize: "1.2rem",
-                padding: "0 0.25rem",
-              }}
-            >
-              ×
-            </button>
           </div>
-        ))}
-      </div>
-      <div className="column-editor-actions">
-        <button onClick={onAdd}>+ Add Column</button>
-        <button
-          onClick={onDiscard}
-          style={{
-            background: "transparent",
-            color: "var(--gray-700)",
-            border: "1px solid var(--gray-300)",
-          }}
-        >
-          Discard Changes
-        </button>
-      </div>
+        );
+      })}
     </div>
   );
 }

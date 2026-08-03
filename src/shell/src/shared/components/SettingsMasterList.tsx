@@ -7,6 +7,8 @@ export interface MasterListRow {
   label: string;
   secondary?: string;
   icon?: ReactNode;
+  iconBg?: string;
+  iconFg?: string;
   dirty?: boolean;
 }
 
@@ -37,34 +39,34 @@ export function SettingsMasterList({
   };
 
   return (
-    <div className="flex flex-col min-h-0 border-r border-hairline bg-surface">
-      <div className="flex items-center gap-1 border-b border-hairline px-3 py-2">
-        <Search size={13} className="shrink-0 text-muted-foreground" />
-        <input
-          type="text"
-          className="w-full bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground outline-none"
-          placeholder={filterPlaceholder}
-          value={localFilter}
-          onChange={(e) => handleFilterChange(e.target.value)}
-        />
-        {actions && (
-          <div className="flex items-center gap-1">{actions}</div>
-        )}
+    <div className="flex flex-col min-h-0">
+      <div className="flex items-center gap-2 px-2 py-2">
+          <Search size={12} className="shrink-0 text-muted-foreground" />
+          <input
+            type="text"
+            className="w-full bg-transparent text-[6px] text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder={filterPlaceholder}
+            value={localFilter}
+            onChange={(e) => handleFilterChange(e.target.value)}
+          />
+        {actions}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-2 py-1">
         {rows.map((row) => (
           <button
             key={row.id}
             type="button"
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-muted/50 ${
+            className={`flex w-full items-center gap-2 rounded-none px-3 py-2 text-left text-[12px] transition-colors border ${
               selectedId === row.id
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground"
+                ? "border-[#b8dfd0] bg-[#E7F7F3] font-medium text-foreground"
+                : "border-gray-200 bg-white hover:bg-muted/40 text-muted-foreground"
             }`}
             onClick={() => onSelect(row.id)}
           >
             {row.icon && (
-              <span className="grid h-5 w-5 shrink-0 place-items-center">
+              <span
+                className={`grid h-6 w-6 shrink-0 place-items-center ${row.iconBg || "bg-muted"} ${row.iconFg || "text-muted-foreground"}`}
+              >
                 {row.icon}
               </span>
             )}
@@ -75,7 +77,7 @@ export function SettingsMasterList({
               </span>
             )}
             {row.dirty && (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+              <span className="h-1.5 w-1.5 shrink-0 bg-primary" />
             )}
           </button>
         ))}

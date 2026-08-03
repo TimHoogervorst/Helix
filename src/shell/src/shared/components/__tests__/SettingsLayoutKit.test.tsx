@@ -28,9 +28,9 @@ describe("SettingsPageLayout", () => {
     expect(screen.getByTestId("child")).toBeInTheDocument();
   });
 
-  it("applies grid-paper class to the hero region", () => {
+  it("applies grid-paper class only when hero is provided", () => {
     render(
-      <SettingsPageLayout>
+      <SettingsPageLayout hero={<div>Hero area</div>}>
         <div>Content</div>
       </SettingsPageLayout>,
     );
@@ -38,15 +38,59 @@ describe("SettingsPageLayout", () => {
     expect(hero).not.toBeNull();
   });
 
-  it("renders children inside the grid-paper region", () => {
+  it("does not render grid-paper when hero is not provided", () => {
     render(
       <SettingsPageLayout>
         <span data-testid="nested">Nested</span>
       </SettingsPageLayout>,
     );
     const hero = document.querySelector(".grid-paper");
+    expect(hero).toBeNull();
+    expect(screen.getByTestId("nested")).not.toBeNull();
+  });
+
+  it("renders hero content inside the grid-paper region", () => {
+    render(
+      <SettingsPageLayout hero={<span data-testid="hero-content">Hero</span>}>
+        <div>Content</div>
+      </SettingsPageLayout>,
+    );
+    const hero = document.querySelector(".grid-paper");
     expect(hero).not.toBeNull();
-    expect(hero!.querySelector("[data-testid='nested']")).not.toBeNull();
+    expect(
+      hero!.querySelector("[data-testid='hero-content']"),
+    ).not.toBeNull();
+  });
+
+  it("applies border-b to grid-paper when hero is provided", () => {
+    render(
+      <SettingsPageLayout hero={<div>Hero area</div>}>
+        <div>Content</div>
+      </SettingsPageLayout>,
+    );
+    const hero = document.querySelector(".grid-paper");
+    expect(hero).not.toBeNull();
+    expect(hero!.className.split(/\s+/)).toContain("border-b");
+  });
+
+  it("renders bottomBar when provided", () => {
+    render(
+      <SettingsPageLayout
+        bottomBar={<span data-testid="bottom-bar">Save bar</span>}
+      >
+        <div>Content</div>
+      </SettingsPageLayout>,
+    );
+    expect(screen.getByTestId("bottom-bar")).toBeInTheDocument();
+  });
+
+  it("does not render bottomBar when not provided", () => {
+    render(
+      <SettingsPageLayout>
+        <div>Content</div>
+      </SettingsPageLayout>,
+    );
+    expect(screen.queryByText("Save bar")).not.toBeInTheDocument();
   });
 });
 
@@ -161,6 +205,42 @@ describe("SettingsSectionCard", () => {
   });
 });
 
+describe("SettingsSectionCard collapsible", () => {
+  it("collapses children when header is clicked", () => {
+    render(
+      <SettingsSectionCard title="Details">
+        <div data-testid="inner">Inner content</div>
+      </SettingsSectionCard>,
+    );
+    expect(screen.getByTestId("inner")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Details"));
+    expect(screen.queryByTestId("inner")).not.toBeInTheDocument();
+  });
+
+  it("expands children when header is clicked again", () => {
+    render(
+      <SettingsSectionCard title="Details">
+        <div data-testid="inner">Inner content</div>
+      </SettingsSectionCard>,
+    );
+    const header = screen.getByText("Details");
+    fireEvent.click(header);
+    expect(screen.queryByTestId("inner")).not.toBeInTheDocument();
+    fireEvent.click(header);
+    expect(screen.getByTestId("inner")).toBeInTheDocument();
+  });
+
+  it("does not collapse when collapsible is false", () => {
+    render(
+      <SettingsSectionCard title="Details" collapsible={false}>
+        <div data-testid="inner">Inner content</div>
+      </SettingsSectionCard>,
+    );
+    fireEvent.click(screen.getByText("Details"));
+    expect(screen.getByTestId("inner")).toBeInTheDocument();
+  });
+});
+
 // ── SettingsMasterList ────────────────────────────────────────────────────
 
 describe("SettingsMasterList", () => {
@@ -194,9 +274,9 @@ describe("SettingsMasterList", () => {
   it("highlights the selected row", () => {
     render(<SettingsMasterList {...baseProps} selectedId="b" />);
     const betaBtn = screen.getByText("Beta").closest("button");
-    expect(betaBtn?.className.split(/\s+/)).toContain("bg-muted");
+    expect(betaBtn?.className.split(/\s+/)).toContain("bg-[#E7F7F3]");
     const alphaBtn = screen.getByText("Alpha").closest("button");
-    expect(alphaBtn?.className.split(/\s+/)).not.toContain("bg-muted");
+    expect(alphaBtn?.className.split(/\s+/)).not.toContain("bg-[#E7F7F3]");
   });
 
   it("renders a filter search input", () => {

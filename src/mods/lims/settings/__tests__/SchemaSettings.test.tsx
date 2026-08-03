@@ -204,7 +204,7 @@ describe("SchemaSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("Blood Sample")).toBeInTheDocument();
     });
-    const searchInput = screen.getByPlaceholderText("Search schemas…");
+    const searchInput = screen.getByPlaceholderText("Filter schemas");
     fireEvent.change(searchInput, { target: { value: "PAT" } });
     expect(screen.queryByText("Blood Sample")).not.toBeInTheDocument();
     expect(screen.getByText("Patient")).toBeInTheDocument();

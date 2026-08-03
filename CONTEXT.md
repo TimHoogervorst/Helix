@@ -312,7 +312,25 @@ A classification of Entities. Defines what kind of thing an Entity is (e.g., "DN
 
 Each EntityType has a unique `prefix` (e.g., "DNA", "BLOOD") used to auto-generate display IDs and route references.
 
-**Synonyms:** sample type (rejected — same reason as above), category, schema
+**Synonyms:** sample type (rejected — same reason as above), category
+
+### Schema
+
+The structure — name, prefix, and columns — that an Entity is created from. A Schema is owned by exactly one Entity Type. Entities FK to their Schema; the Schema's `columns` array defines the JSON properties an Entity of that Schema can hold. Concrete, queryable, and the unit of data modeling.
+
+**Invariant:** An Entity's schema reference is immutable after creation (changing an entity's schema would break its stored properties).
+
+**Distinction from Entity Type:** Entity Type is the workspace-registered *category* (e.g. "DNA Sequence"). Schema is the *structure* you build entities from (e.g. "pUC19 Plasmid" with columns `[Resistance, Length, Sequence]`). One Entity Type can own many Schemas.
+
+**Synonyms:** blueprint, entity template, data structure
+
+### Schema Type
+
+The canonical term for a workspace-registered category that Schemas belong to. Declared by a mod via `register_schema_type()` and recorded in the backend `RegisteredEntityType` table. "Entity Type" is retained as a synonym — both refer to the same concept.
+
+**Invariant:** Every Schema belongs to exactly one Schema Type. The Schema Type owns the prefix allocation (e.g. `DNA`) used for display ID generation.
+
+**Synonyms:** entity type, registered entity type, content type
 
 ### Registered Entity Type
 

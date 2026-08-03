@@ -180,6 +180,14 @@ function ColumnEditor({
               />
               Required
             </label>
+            <label className="col-required">
+              <input
+                type="checkbox"
+                checked={col.unique ?? false}
+                onChange={(e) => onUpdate(i, "unique", e.target.checked)}
+              />
+              Unique
+            </label>
             <button
               className="col-remove"
               onClick={() => onRemove(i)}

@@ -163,6 +163,7 @@ export function makeColumnDef(
 const _schemaDefaults: Schema = {
   id: 1,
   name: "Blood Sample",
+  description: undefined,
   prefix: "BLOOD",
   schema_type: 1,
   schema_type_display: "Entity",

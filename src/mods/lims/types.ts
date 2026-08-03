@@ -4,6 +4,7 @@ export interface ColumnDef {
   name: string;
   type: string;
   required?: boolean;
+  unique?: boolean;
   default?: string;
   units?: string;
   description?: string;
@@ -17,6 +18,7 @@ export interface ColumnDef {
 export interface Schema {
   id: number;
   name: string;
+  description?: string;
   prefix: string;
   schema_type: number;
   schema_type_display: string;
@@ -29,6 +31,7 @@ export interface Schema {
 /** Payload for creating/updating a Schema. */
 export interface SchemaPayload {
   name: string;
+  description?: string;
   prefix: string;
   schema_type: number;
   columns: ColumnDef[];

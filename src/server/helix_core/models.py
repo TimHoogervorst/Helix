@@ -254,3 +254,46 @@ class ColorToken(models.Model):
 
     def __str__(self):
         return f"{self.label} ({self.key})"
+
+
+# ── Icon Library Entry ─────────────────────────────────────────────────
+
+
+class IconLibraryEntry(models.Model):
+    """A curated icon available in the platform icon picker.
+
+    Each entry has a unique ``key`` used by referencing objects
+    (tags, cards, schemas).  ``kind`` is either ``"lucide"`` (a
+    Lucide icon reference with a kebab-case ``token``) or
+    ``"custom"`` (an uploaded SVG stored as sanitized markup in
+    ``svg``).
+    """
+
+    K_LUCIDE = "lucide"
+    K_CUSTOM = "custom"
+    KIND_CHOICES = [
+        (K_LUCIDE, "Lucide"),
+        (K_CUSTOM, "Custom"),
+    ]
+
+    key = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=255)
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    token = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Lucide kebab-case icon name (e.g. 'test-tube-2'). Only when kind=lucide.",
+    )
+    svg = models.TextField(
+        blank=True,
+        default="",
+        help_text="Sanitized SVG markup. Only when kind=custom.",
+    )
+
+    class Meta:
+        db_table = "helix_icon_library_entry"
+        ordering = ["label"]
+
+    def __str__(self):
+        return f"{self.label} ({self.key})"

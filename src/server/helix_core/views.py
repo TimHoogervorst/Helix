@@ -18,9 +18,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from helix_core.models import ColorToken, Schema, SchemaType
+from helix_core.models import ColorToken, IconLibraryEntry, Schema, SchemaType
 from helix_core.serializers import (
     ColorTokenSerializer,
+    IconLibrarySerializer,
     SchemaListSerializer,
     SchemaWriteSerializer,
     SchemaTypeListSerializer,
@@ -680,6 +681,48 @@ class ColorTokenViewSet(viewsets.ModelViewSet):
             {
                 "detail": f"Deleted colour token '{label}'.",
                 "usage_count": tag_count,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class IconLibraryViewSet(viewsets.ModelViewSet):
+    """API endpoint for managing IconLibraryEntry.
+
+    list:     GET    /api/icons/
+    create:   POST   /api/icons/
+    destroy:  DELETE /api/icons/{id}/  — hard-deletes; reports usage count
+    """
+
+    queryset = IconLibraryEntry.objects.all()
+    serializer_class = IconLibrarySerializer
+    permission_classes: list = []
+    pagination_class = None
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def destroy(self, request, *args, **kwargs):
+        """Hard-delete the icon and report how many objects reference it.
+
+        Deleting always succeeds, even when tags or cards reference
+        the key.  The response carries a ``usage_count`` so the caller
+        can warn the user before confirming the delete.
+        """
+        from mods.tags.models import Tag
+        from mods.home.models import Card
+
+        instance = self.get_object()
+        key = instance.key
+        label = instance.label
+
+        tag_count = Tag.objects.filter(icon=key).count()
+        card_count = Card.objects.filter(icon=key).count()
+
+        instance.delete()
+
+        return Response(
+            {
+                "detail": f"Deleted icon '{label}'.",
+                "usage_count": tag_count + card_count,
             },
             status=status.HTTP_200_OK,
         )

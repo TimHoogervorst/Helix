@@ -37,7 +37,7 @@ export function SettingsSectionCard({
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {actions}
+          <div onClick={(e) => e.stopPropagation()}>{actions}</div>
           {collapsible &&
             (collapsed ? (
               <ChevronUp size={14} className="text-muted-foreground" />

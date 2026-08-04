@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import ProtocolSettings from "../ProtocolSettings";
 
-// Mock the API client
 const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockPut = vi.fn();
@@ -49,21 +48,20 @@ describe("ProtocolSettings", () => {
   });
 
   it("shows loading state initially", () => {
-    mockGet.mockReturnValue(new Promise(() => {})); // never resolves
+    mockGet.mockReturnValue(new Promise(() => {}));
     render(<ProtocolSettings />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("renders protocols in the master panel after loading", async () => {
+  it("renders hero header and protocols in the master list after loading", async () => {
     mockGet.mockResolvedValue(
       makeProtocolResponse([protocol1, protocol2]),
     );
     render(<ProtocolSettings />);
     await waitFor(() => {
-      expect(
-        screen.getByText("CRISPR RNP Transfection"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Protocol settings")).toBeInTheDocument();
     });
+    expect(screen.getByText("CRISPR RNP Transfection")).toBeInTheDocument();
     expect(screen.getByText("qPCR Setup")).toBeInTheDocument();
   });
 
@@ -97,13 +95,11 @@ describe("ProtocolSettings", () => {
     fireEvent.click(screen.getByText("CRISPR RNP Transfection"));
 
     await waitFor(() => {
-      // Detail panel shows the protocol name again in the header
-      const headings = screen.getAllByText("CRISPR RNP Transfection");
-      expect(headings.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Protocol identity")).toBeInTheDocument();
     });
   });
 
-  it("shows save bar with count when edits are made", async () => {
+  it("shows save bar when edits are made", async () => {
     mockGet.mockResolvedValue(
       makeProtocolResponse([protocol1, protocol2]),
     );
@@ -115,22 +111,15 @@ describe("ProtocolSettings", () => {
       ).toBeInTheDocument();
     });
 
-    // Initially save bar is disabled (0 changes)
-    const saveBtn = screen.getByText("Save Changes (0)");
-    expect(saveBtn).toBeDisabled();
-
-    // Click to open detail panel — this creates a dirty edit copy
     fireEvent.click(screen.getByText("CRISPR RNP Transfection"));
 
-    // Now the protocol is selected but no edits made yet, so dirtyEdits
-    // gets populated with a copy on select. Wait for the detail panel.
     await waitFor(() => {
-      // Changing the name should trigger dirty tracking
-      const nameInput = screen.getAllByRole("textbox")[0];
-      fireEvent.change(nameInput, { target: { value: "Updated Name" } });
+      expect(screen.getByText("Protocol identity")).toBeInTheDocument();
     });
 
-    // Save button should now show 1 change and be enabled
+    const nameInput = screen.getByPlaceholderText("Protocol name");
+    fireEvent.change(nameInput, { target: { value: "Updated Name" } });
+
     await waitFor(() => {
       expect(screen.getByText("Save Changes (1)")).toBeEnabled();
     });
@@ -151,17 +140,13 @@ describe("ProtocolSettings", () => {
     fireEvent.click(screen.getByText("CRISPR RNP Transfection"));
 
     await waitFor(() => {
-      expect(
-        document.querySelector(".type-detail-close"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Protocol identity")).toBeInTheDocument();
     });
 
-    fireEvent.click(document.querySelector(".type-detail-close")!);
+    fireEvent.click(screen.getByTitle("Close detail"));
 
-    // Should return to just one "CRISPR RNP Transfection" (master panel only)
     await waitFor(() => {
-      const occurrences = screen.getAllByText("CRISPR RNP Transfection");
-      expect(occurrences).toHaveLength(1);
+      expect(screen.queryByText("Protocol identity")).not.toBeInTheDocument();
     });
   });
 
@@ -184,8 +169,7 @@ describe("ProtocolSettings", () => {
       ).toBeInTheDocument();
     });
 
-    // Open new form
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByText("+ New Protocol"));
 
     await waitFor(() => {
       expect(
@@ -193,13 +177,11 @@ describe("ProtocolSettings", () => {
       ).toBeInTheDocument();
     });
 
-    // Type name
     const nameInput = screen.getByPlaceholderText(
       "e.g., CRISPR RNP Transfection",
     );
     fireEvent.change(nameInput, { target: { value: "New Protocol" } });
 
-    // Click Create
     fireEvent.click(screen.getByText("Create"));
 
     await waitFor(() => {
@@ -224,15 +206,15 @@ describe("ProtocolSettings", () => {
       ).toBeInTheDocument();
     });
 
-    // Select and edit
     fireEvent.click(screen.getByText("CRISPR RNP Transfection"));
 
     await waitFor(() => {
-      const nameInput = screen.getAllByRole("textbox")[0];
-      fireEvent.change(nameInput, { target: { value: "Updated" } });
+      expect(screen.getByText("Protocol identity")).toBeInTheDocument();
     });
 
-    // Save
+    const nameInput = screen.getByPlaceholderText("Protocol name");
+    fireEvent.change(nameInput, { target: { value: "Updated" } });
+
     await waitFor(() => {
       expect(screen.getByText("Save Changes (1)")).toBeEnabled();
     });
@@ -246,12 +228,12 @@ describe("ProtocolSettings", () => {
     });
   });
 
-  it("shows '+' as toggle button text when form is closed", async () => {
+  it('shows "+ New Protocol" button in the hero header', async () => {
     mockGet.mockResolvedValue(makeProtocolResponse([]));
     render(<ProtocolSettings />);
 
     await waitFor(() => {
-      expect(screen.getByText("+")).toBeInTheDocument();
+      expect(screen.getByText("+ New Protocol")).toBeInTheDocument();
     });
   });
 
@@ -270,7 +252,6 @@ describe("ProtocolSettings", () => {
       ).toBeInTheDocument();
     });
 
-    // Select protocol to open detail panel
     fireEvent.click(screen.getByText("CRISPR RNP Transfection"));
 
     await waitFor(() => {
@@ -279,7 +260,6 @@ describe("ProtocolSettings", () => {
       ).toBeInTheDocument();
     });
 
-    // Click the delete button
     fireEvent.click(screen.getByTitle("Deactivate protocol"));
 
     expect(window.confirm).toHaveBeenCalledWith(

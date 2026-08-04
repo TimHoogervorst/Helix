@@ -597,3 +597,27 @@ The set of six canonical font sizes expressed as CSS custom properties: `--text-
 The curated table that assigns exactly one Lucide icon to each user-facing action (e.g., Save → `Save`, Delete → `Trash2`, Settings → `Settings`). This mapping is authoritative — two different buttons for the same action must use the same icon. The mapping lives in the styling guide, not in code, so it can be consulted during design review before implementation.
 
 **Synonyms:** icon catalog, icon assignments
+
+### Icon Library
+
+The curated set of icons managed in Settings that users choose from when assigning an icon to a domain object (Schema, Tag, Metric Card). Contains Lucide icon references and uploaded custom icons, indistinguishable to the picker. User-facing icon pickers offer **only** what is in the Icon Library — never the full Lucide catalog.
+
+**Synonyms:** icon set, managed icons
+
+### Static Icon
+
+An icon assigned **in code** at registration time — column types, hubs, sidebar slots, buttons. May reference any Lucide icon directly; it is not drawn from the Icon Library and requires no curation step. Static Icons are display-only: users see them but can never change them.
+
+**Synonyms:** fixed icon, code-set icon
+
+### Dynamic Icon
+
+An icon chosen by a **user** from the Icon Library and stored on a domain object (Schema, Tag, Metric Card). Editable by the user at any time via the shared icon picker.
+
+**Synonyms:** picked icon, user-assigned icon
+
+### Color Token
+
+A named color in the platform palette, managed by admins in Settings (add, name, define). Every place that stores an icon may also store a Color Token alongside it — tags, schemas, metric cards, and code-level registrations alike. Pickers offer **only** palette colors; arbitrary hex input is not allowed. The default Color Token for new objects is **muted** (gray).
+
+**Synonyms:** palette color, named color

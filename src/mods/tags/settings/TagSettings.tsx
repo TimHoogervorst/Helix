@@ -1,22 +1,33 @@
 import { useState, useEffect, useCallback } from "react";
+import { Trash2, X } from "lucide-react";
 import { listTags, createTag, updateTag, deleteTag } from "../api";
 import type { Tag } from "../types";
-import { TagPill } from "../ui/TagPill";
+import { getTagIcon } from "../constants";
 import { TagColorPicker } from "../ui/TagColorPicker";
-import { TagIconPopover } from "../ui/TagIconPopover";
-import { Trash2 } from "lucide-react";
+import { TagIconPicker } from "../ui/TagIconPicker";
+import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
+import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
+import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
+import {
+  SettingsMasterList,
+  type MasterListRow,
+} from "../../../shell/src/shared/components/SettingsMasterList";
+
+type TagMutator = (tag: Tag) => Tag;
 
 function TagSettings() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dirtyEdits, setDirtyEdits] = useState<Map<number, Tag>>(new Map());
   const [saving, setSaving] = useState(false);
 
-  // ── New tag form ──
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("muted");
   const [newIcon, setNewIcon] = useState("circle");
+  const [filterValue, setFilterValue] = useState("");
 
   const fetchTags = useCallback(async () => {
     try {
@@ -32,6 +43,17 @@ function TagSettings() {
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
+
+  const updateEditingTag = (fn: TagMutator) => {
+    if (selectedId === null) return;
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const t = next.get(selectedId);
+      if (!t) return prev;
+      next.set(selectedId, fn({ ...t }));
+      return next;
+    });
+  };
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -51,157 +73,296 @@ function TagSettings() {
     }
   };
 
-  const handleUpdateColor = async (tagId: number, color: string) => {
-    try {
-      await updateTag(tagId, { color });
-      setTags((prev) =>
-        prev.map((t) => (t.id === tagId ? { ...t, color } : t)),
-      );
-    } catch {
-      // silently ignore
+  const handleSelect = (id: string | number) => {
+    const tagId = Number(id);
+    if (selectedId === tagId) {
+      setSelectedId(null);
+    } else {
+      setSelectedId(tagId);
+      setDirtyEdits((prev) => {
+        if (prev.has(tagId)) return prev;
+        const tag = tags.find((t) => t.id === tagId);
+        if (!tag) return prev;
+        const next = new Map(prev);
+        next.set(tagId, { ...tag });
+        return next;
+      });
     }
   };
 
-  const handleUpdateIcon = async (tagId: number, icon: string) => {
+  const handleNameChange = (name: string) => {
+    updateEditingTag((t) => ({ ...t, name }));
+  };
+
+  const handleColorChange = (color: string) => {
+    updateEditingTag((t) => ({ ...t, color }));
+  };
+
+  const handleIconChange = (icon: string) => {
+    updateEditingTag((t) => ({ ...t, icon }));
+  };
+
+  const handleDelete = async () => {
+    if (selectedId === null) return;
+    const tag = tags.find((t) => t.id === selectedId);
+    if (!tag) return;
+    if (!window.confirm(`Delete tag "${tag.name}"? It will be removed from all entries.`)) return;
     try {
-      await updateTag(tagId, { icon });
-      setTags((prev) =>
-        prev.map((t) => (t.id === tagId ? { ...t, icon } : t)),
-      );
-    } catch {
-      // silently ignore
+      await deleteTag(selectedId);
+      setDirtyEdits((prev) => {
+        const next = new Map(prev);
+        next.delete(selectedId);
+        return next;
+      });
+      setSelectedId(null);
+      await fetchTags();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete tag");
     }
   };
 
-  const handleDelete = async (tagId: number) => {
-    if (!window.confirm("Delete this tag? It will be removed from all entries.")) return;
-    try {
-      await deleteTag(tagId);
-      setTags((prev) => prev.filter((t) => t.id !== tagId));
-    } catch {
-      // silently ignore
+  const saveAllChanges = async () => {
+    if (dirtyEdits.size === 0) return;
+    setSaving(true);
+    setError(null);
+    let failed = 0;
+    for (const [, t] of dirtyEdits) {
+      try {
+        await updateTag(t.id, { color: t.color, icon: t.icon });
+      } catch {
+        failed++;
+      }
     }
+    setDirtyEdits(new Map());
+    await fetchTags();
+    if (failed > 0) {
+      setError(`Failed to save ${failed} tag${failed > 1 ? "s" : ""}`);
+    }
+    setSaving(false);
   };
 
-  if (loading) {
-    return <p className="p-6 text-muted-foreground">Loading tags…</p>;
-  }
+  const discardAllEdits = () => {
+    setDirtyEdits(new Map());
+  };
+
+  const filteredTags = filterValue
+    ? tags.filter((t) =>
+        t.name.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : tags;
+
+  const masterRows: MasterListRow[] = filteredTags.map((t) => {
+    const iconInfo = getTagIcon(t.icon);
+    const IconComponent = iconInfo.Icon;
+    return {
+      id: t.id,
+      label: t.name,
+      secondary: t.color,
+      dirty: dirtyEdits.has(t.id),
+      icon: <IconComponent size={13} />,
+    };
+  });
+
+  const selectedTag = selectedId
+    ? tags.find((t) => t.id === selectedId) ?? null
+    : null;
+  const editingTag = selectedId ? dirtyEdits.get(selectedId) : undefined;
+  const dirtyCount = dirtyEdits.size;
+
+  if (loading) return <p className="empty">Loading tags…</p>;
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Labelling</h2>
-        <button
-          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-          onClick={() => setShowNew(true)}
-          disabled={showNew}
-        >
-          + New Tag
-        </button>
-      </div>
+    <SettingsPageLayout
+      hero={
+        <>
+          <SettingsHeroHeader
+            eyebrow="labelling"
+            title="Labelling"
+            description="Create and manage tags to label and organize your entries."
+            actions={
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                onClick={() => setShowNew(!showNew)}
+              >
+                {showNew ? "Cancel" : "+ New Tag"}
+              </button>
+            }
+          />
 
+          {showNew && (
+            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">Name</span>
+                  <input
+                    type="text"
+                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g., Urgent"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreate();
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">Color</span>
+                  <TagColorPicker value={newColor} onChange={setNewColor} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">Icon</span>
+                  <TagIconPicker value={newIcon} onChange={setNewIcon} />
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    onClick={handleCreate}
+                    disabled={saving || !newName.trim()}
+                  >
+                    {saving ? "Creating…" : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                    onClick={() => {
+                      setShowNew(false);
+                      setNewName("");
+                      setNewColor("muted");
+                      setNewIcon("circle");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      }
+      bottomBar={
+        dirtyCount > 0 ? (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {dirtyCount} tag{dirtyCount !== 1 ? "s" : ""} with unsaved
+              changes
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onClick={discardAllEdits}
+              >
+                Discard Changes
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={saveAllChanges}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
+              </button>
+            </div>
+          </div>
+        ) : undefined
+      }
+    >
       {error && (
-        <div className="mb-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
           {error}
         </div>
       )}
 
-      {/* ── New tag form ── */}
-      {showNew && (
-        <div className="mb-6 rounded-md border border-hairline bg-panel p-4">
-          <div className="flex items-end gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Name</label>
-              <input
-                type="text"
-                className="!w-48"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Tag name"
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Color</label>
-              <TagColorPicker value={newColor} onChange={setNewColor} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Icon</label>
-              <TagIconPopover value={newIcon} onChange={setNewIcon} />
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-                onClick={handleCreate}
-                disabled={saving || !newName.trim()}
-              >
-                {saving ? "Creating…" : "Create"}
-              </button>
-              <button
-                className="rounded-md border border-hairline px-3 py-1.5 text-sm hover:bg-muted"
-                onClick={() => {
-                  setShowNew(false);
-                  setNewName("");
-                  setNewColor("muted");
-                  setNewIcon("circle");
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+      <div className="flex min-h-0 gap-0">
+        <div className="w-64 shrink-0">
+          <SettingsMasterList
+            rows={masterRows}
+            selectedId={selectedId}
+            filterValue={filterValue}
+            onFilterChange={setFilterValue}
+            onSelect={handleSelect}
+            filterPlaceholder="Filter tags"
+          />
+          {masterRows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              No tags found.
+            </p>
+          )}
         </div>
-      )}
 
-      {/* ── Tag list ── */}
-      {/* ── Tags section ── */}
-      <h3 className="mb-3 text-sm font-medium text-muted-foreground">Tags</h3>
-      {tags.length === 0 ? (
-        <p className="text-muted-foreground">
-          No tags yet. Create your first tag above.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {tags.map((tag) => (
-            <div
-              key={tag.id}
-              className="group flex items-center gap-4 rounded-md border border-hairline bg-panel px-4 py-2.5"
-              data-testid="tag-settings-row"
-            >
-              {/* Tag pill display */}
-              <TagPill tag={tag} />
-
-              <TagColorPicker
-                value={tag.color}
-                onChange={(c) => handleUpdateColor(tag.id, c)}
-                size="xs"
-              />
-
-              <TagIconPopover
-                value={tag.icon}
-                onChange={(ico) => handleUpdateIcon(tag.id, ico)}
-                size="xs"
-              />
-
-              {/* Delete button — ghost, only visible on row hover */}
-              <button
-                type="button"
-                className="ml-auto rounded p-1 !border-0 bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                title="Delete tag"
-                aria-label={`Delete tag "${tag.name}"`}
-                onClick={() => handleDelete(tag.id)}
+        <div className="flex-1 space-y-4 p-6">
+          {selectedTag && editingTag ? (
+            <>
+              <SettingsSectionCard
+                title="Tag identity"
+                subtitle={`#${selectedTag.id}`}
+                actions={
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
+                      onClick={handleDelete}
+                      title="Delete tag"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={() => setSelectedId(null)}
+                      title="Close detail"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                }
               >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Name
+                    </span>
+                    <input
+                      type="text"
+                      className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                      value={editingTag.name}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      placeholder="Tag name"
+                    />
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Color
+                    </span>
+                    <TagColorPicker
+                      value={editingTag.color}
+                      onChange={handleColorChange}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Icon
+                    </span>
+                    <TagIconPicker
+                      value={editingTag.icon}
+                      onChange={handleIconChange}
+                    />
+                  </div>
+                </div>
+              </SettingsSectionCard>
 
-      {/* ── Icons section (placeholder) ── */}
-      <h3 className="mb-3 mt-8 text-sm font-medium text-muted-foreground">Icons</h3>
-      <p className="text-sm text-muted-foreground">Custom icons coming soon.</p>
-    </div>
+
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Select a tag from the list to view or edit its details.
+            </div>
+          )}
+        </div>
+      </div>
+    </SettingsPageLayout>
   );
 }
 

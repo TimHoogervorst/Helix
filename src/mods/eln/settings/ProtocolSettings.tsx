@@ -156,15 +156,6 @@ function ProtocolSettings() {
     });
   };
 
-  const handleDiscardEdits = () => {
-    if (selectedId === null) return;
-    setDirtyEdits((prev) => {
-      const next = new Map(prev);
-      next.delete(selectedId);
-      return next;
-    });
-  };
-
   const saveAllChanges = async () => {
     if (dirtyEdits.size === 0) return;
     setSaving(true);
@@ -494,17 +485,7 @@ function ProtocolSettings() {
                     ))}
                   </ol>
 
-                  {dirtyEdits.has(selectedProtocol.id) && (
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        className="rounded-md border-transparent bg-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        onClick={handleDiscardEdits}
-                      >
-                        Discard changes
-                      </button>
-                    </div>
-                  )}
+
                 </div>
               </SettingsSectionCard>
             </>

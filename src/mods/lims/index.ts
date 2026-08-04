@@ -18,7 +18,7 @@ mod.registerRoute("entity-page", {
   component: LimsWorkspacePage,
 });
 
-// ── Settings: schema CRUD (includes DangerZone) ──────────────────────
+// ── Settings: schema CRUD ───────────────────────────────────────────
 mod.registerSettingsSection("schema-settings", {
   label: "Schemas",
   icon: Cog,

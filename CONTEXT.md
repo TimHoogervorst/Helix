@@ -318,6 +318,8 @@ Each EntityType has a unique `prefix` (e.g., "DNA", "BLOOD") used to auto-genera
 
 The structure — name, prefix, and columns — that an Entity is created from. A Schema is owned by exactly one Entity Type. Entities FK to their Schema; the Schema's `columns` array defines the JSON properties an Entity of that Schema can hold. Concrete, queryable, and the unit of data modeling.
 
+A Schema also carries a **Dynamic Icon** and a **Color Token**, chosen by the user at creation time. They are the presentation identity of every instance of that Schema — shown on tabs, mention badges, library rows/cards, and the schema settings list. (The Schema Type deliberately carries no presentation — type-level displays use the default Schema's icon.)
+
 **Invariant:** An Entity's schema reference is immutable after creation (changing an entity's schema would break its stored properties).
 
 **Distinction from Entity Type:** Entity Type is the workspace-registered *category* (e.g. "DNA Sequence"). Schema is the *structure* you build entities from (e.g. "pUC19 Plasmid" with columns `[Resistance, Length, Sequence]`). One Entity Type can own many Schemas.
@@ -600,7 +602,9 @@ The curated table that assigns exactly one Lucide icon to each user-facing actio
 
 ### Icon Library
 
-The curated set of icons managed in Settings that users choose from when assigning an icon to a domain object (Schema, Tag, Metric Card). Contains Lucide icon references and uploaded custom icons, indistinguishable to the picker. User-facing icon pickers offer **only** what is in the Icon Library — never the full Lucide catalog.
+The curated set of icons managed in Settings that users choose from when assigning an icon to a domain object (Schema, Tag, Metric Card). Contains Lucide icon references and uploaded custom icons (SVG-only, stored as sanitized markup in the database), indistinguishable to the picker. User-facing icon pickers offer **only** what is in the Icon Library — never the full Lucide catalog.
+
+**Invariant:** Deleting a library entry is always allowed, even while in use. Referencing objects keep the dangling key and render the hardcoded fallback (a neutral circle glyph, `muted` color). Re-adding an entry under the same key heals all references automatically.
 
 **Synonyms:** icon set, managed icons
 

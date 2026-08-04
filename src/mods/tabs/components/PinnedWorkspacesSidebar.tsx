@@ -4,6 +4,7 @@ import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 
 /**
  * Render the icon for a workspace, falling back to a generic Box icon.
@@ -62,7 +63,13 @@ function PinnedWorkspacesSidebar() {
               title={tooltip}
               aria-label={`Open workspace: ${p.display_id}`}
             >
-              {wsId ? <WorkspaceIcon workspaceId={wsId} /> : <Box className="h-4 w-4" aria-hidden="true" />}
+              {p.icon ? (
+                <IconBadge iconKey={p.icon} colorKey={p.color || "muted"} size="sm" />
+              ) : wsId ? (
+                <WorkspaceIcon workspaceId={wsId} />
+              ) : (
+                <Box className="h-4 w-4" aria-hidden="true" />
+              )}
             </button>
           );
         })}
@@ -118,7 +125,9 @@ function PinnedWorkspacesSidebar() {
                 aria-label={`Open workspace: ${p.display_id}`}
                 onClick={() => handleRowClick(p.url)}
               >
-                {(() => {
+                {p.icon ? (
+                  <IconBadge iconKey={p.icon} colorKey={p.color || "muted"} size="sm" />
+                ) : (() => {
                   const wsId = extractWorkspaceId(p.url);
                   return wsId ? <WorkspaceIcon workspaceId={wsId} /> : null;
                 })()}

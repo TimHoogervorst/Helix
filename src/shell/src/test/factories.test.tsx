@@ -18,6 +18,7 @@ const resolvedEntry: BadgeResolved = {
   type: "entry",
   id: 1,
   icon: "📄",
+  color: "muted",
 };
 
 const resolvedEntity: BadgeResolved = {
@@ -26,6 +27,7 @@ const resolvedEntity: BadgeResolved = {
   type: "entity",
   id: 5,
   icon: "🩸",
+  color: "muted",
 };
 
 // ── Default config ──────────────────────────────────────────────────────

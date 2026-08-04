@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { ModRegistry } from "../../../mod-system/ModRegistry";
 import {
@@ -13,19 +13,15 @@ import {
   updateCard,
   forkCard,
 } from "./api";
-import { IconPicker } from "./IconPicker";
-import { ColorPicker } from "./ColorPicker";
+import { IconPickerPopover } from "../IconPickerPopover";
+import { resolveColorHex, deriveForeground, resolveIcon } from "../IconBadge";
 import {
   COMPARISON_OPS,
-  CARD_ICONS,
-  CARD_COLOR_TOKENS,
-  CARD_COLOR_CLASSES,
   defaultFormatting,
   defaultRuleColor,
   type ComparisonOp,
   type FormattingConfig,
   type FormattingRule,
-  type CardColorToken,
 } from "./formatting";
 import type { CardData, MetricData, MetricCreatePayload } from "./types";
 import type { LimsViewItem, AvailableColumn } from "../../../../../mods/lims/types";
@@ -758,7 +754,12 @@ function DisplayStep({
         <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           Icon
         </label>
-        <IconPicker value={icon} onChange={onIconChange} />
+        <IconPickerPopover
+          iconKey={icon}
+          colorKey="muted"
+          size="sm"
+          onChange={(newIcon, _newColor) => onIconChange(newIcon)}
+        />
       </div>
     </div>
   );
@@ -832,17 +833,14 @@ function FormattingStep({
         </label>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">Colour</span>
-            <ColorPicker
-              value={formatting.default.color}
-              onChange={(c) => onUpdateDefault({ color: c })}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">Icon</span>
-            <IconPicker
-              value={formatting.default.icon}
-              onChange={(i) => onUpdateDefault({ icon: i })}
+            <span className="text-xs text-muted-foreground">Colour & Icon</span>
+            <IconPickerPopover
+              iconKey={formatting.default.icon}
+              colorKey={formatting.default.color}
+              size="sm"
+              onChange={(newIcon, newColor) =>
+                onUpdateDefault({ icon: newIcon, color: newColor })
+              }
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -891,13 +889,41 @@ function RuleEditor({
   onMoveUp,
   onMoveDown,
 }: RuleEditorProps) {
-  const colorToken = CARD_COLOR_TOKENS.includes(rule.color as CardColorToken)
-    ? (rule.color as CardColorToken)
-    : null;
-  const colorClasses = colorToken ? CARD_COLOR_CLASSES[colorToken] : null;
+  const registry = ModRegistry.getInstance();
 
-  const iconDef = CARD_ICONS.find((i) => i.key === rule.icon);
-  const IconComp = iconDef?.Icon;
+  const colorPalette = useMemo(() => {
+    const entries = registry.getColorPalette();
+    return Array.from(entries.values());
+  }, [registry]);
+
+  const iconLibrary = useMemo(() => {
+    const entries = registry.getIconLibrary();
+    return Array.from(entries.values());
+  }, [registry]);
+
+  const colorTokenKeys = useMemo(
+    () => colorPalette.map((c) => c.key),
+    [colorPalette],
+  );
+
+  const isKnownColor = rule.color ? colorTokenKeys.includes(rule.color) : false;
+  const colorHex = isKnownColor ? resolveColorHex(rule.color!) : undefined;
+  const colorFg = colorHex ? deriveForeground(colorHex) : undefined;
+
+  const IconComp = rule.icon ? resolveIcon(rule.icon) : undefined;
+
+
+
+  // ── Style selects using registry data ────────────────────────────
+  const colorOptions = useMemo(
+    () => colorPalette.map((c) => ({ key: c.key, label: c.label })),
+    [colorPalette],
+  );
+
+  const iconOptions = useMemo(
+    () => iconLibrary.map((e) => ({ key: e.key, label: e.label })),
+    [iconLibrary],
+  );
 
   return (
     <div className="rounded border border-border bg-card p-3">
@@ -983,9 +1009,9 @@ function RuleEditor({
               }
             >
               <option value="">Default</option>
-              {CARD_COLOR_TOKENS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {colorOptions.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
                 </option>
               ))}
             </select>
@@ -1000,7 +1026,7 @@ function RuleEditor({
               }
             >
               <option value="">Default</option>
-              {CARD_ICONS.map(({ key, label: lbl }) => (
+              {iconOptions.map(({ key, label: lbl }) => (
                 <option key={key} value={key}>
                   {lbl}
                 </option>
@@ -1026,20 +1052,20 @@ function RuleEditor({
         </div>
 
         {/* Preview */}
-        {(colorClasses || IconComp) && (
+        {(colorHex || IconComp) && (
           <div className="flex items-center gap-2 mt-1">
             <span className="text-[10px] text-muted-foreground">Preview:</span>
-            {colorClasses && (
+            {colorHex && (
               <span
-                className={`h-3 w-3 rounded-sm ${colorClasses.bg}`}
+                className="h-3 w-3 rounded-sm"
+                style={{ backgroundColor: colorHex, color: colorFg }}
                 aria-hidden="true"
               />
             )}
             {IconComp && (
-              <IconComp
-                className="h-3 w-3 text-muted-foreground"
-                aria-hidden="true"
-              />
+              <span style={{ color: colorHex }}>
+                <IconComp className="h-3 w-3" aria-hidden="true" />
+              </span>
             )}
             {rule.text && (
               <span className="text-[10px] text-foreground">

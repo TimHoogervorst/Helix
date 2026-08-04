@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
-import { Star } from "lucide-react";
+import { Star, Folder } from "lucide-react";
 import type { LibraryEntryItem } from "../../../../mods/library/types";
 import { Avatar, getInitials } from "../Avatar";
 import { relativeTime } from "../format";
 import { StatusBadge } from "./StatusBadge";
 import { TagPill } from "../../../../mods/tags/ui/TagPill";
+import { IconBadge } from "./IconBadge";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -23,8 +24,12 @@ interface BaseCardProps {
   viewMode: "list" | "grid" | "compact";
   /** Whether this card is selected. */
   isSelected: boolean;
-  /** Icon component for the card type. */
-  icon: ComponentType<any>;
+  /** Icon component for the card type (fallback when iconKey not provided). */
+  icon?: ComponentType<any>;
+  /** Schema icon key — when provided, renders an IconBadge instead of the icon component. */
+  iconKey?: string;
+  /** Schema color key — used with iconKey to render an IconBadge. */
+  colorKey?: string;
   /** Which property fields to render as inline metadata. */
   propertyFields?: PropertyField[];
   /** Show the description field. Default false. */
@@ -52,6 +57,8 @@ export function BaseCard({
   viewMode,
   isSelected,
   icon: Icon,
+  iconKey,
+  colorKey = "muted",
   propertyFields,
   showDescription = false,
   showTags = false,
@@ -97,7 +104,13 @@ export function BaseCard({
 
       {/* ── Icon ──────────────────────────────────────────────────── */}
       <span className="card-icon">
-        <Icon />
+        {iconKey ? (
+          <IconBadge iconKey={iconKey} colorKey={colorKey} size="sm" />
+        ) : Icon ? (
+          <Icon />
+        ) : (
+          <Folder />
+        )}
       </span>
 
       {/* ── Main content ──────────────────────────────────────────── */}

@@ -12,14 +12,12 @@ import { getCards, getMetricValue } from "./api";
 import {
   resolveFormatting,
   applyValueTemplate,
-  resolveIcon,
-  CARD_COLOR_CLASSES,
   type FormattingConfig,
-  type CardColorToken,
   type FormattingStyle,
 } from "./formatting";
 import type { CardState, CardData } from "./types";
 import { CardBuilderModal } from "./CardBuilderModal";
+import { resolveColorHex, resolveIcon } from "../IconBadge";
 
 // ── Loading Skeleton ───────────────────────────────────────────────────────
 
@@ -53,8 +51,8 @@ function CardTile({ state, onEdit }: CardTileProps) {
 
   const formatting = card.formatting as FormattingConfig | undefined;
   const style: FormattingStyle = resolveFormatting(value, formatting);
-  const colorKey = style.color as CardColorToken;
-  const colorClasses = CARD_COLOR_CLASSES[colorKey] ?? CARD_COLOR_CLASSES.muted;
+  const colorKey = style.color;
+  const iconColor = resolveColorHex(colorKey);
 
   const Icon = resolveIcon(style.icon);
   const label = card.label || card.metric_name;
@@ -75,7 +73,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
 
       {/* Top row: icon + label */}
       <div className="flex items-center gap-1.5">
-        <span className={colorClasses.text}>
+        <span style={{ color: iconColor }}>
           <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground leading-snug">
@@ -96,9 +94,10 @@ function CardTile({ state, onEdit }: CardTileProps) {
             <span className="font-mono text-[11px]">Failed to load</span>
           </span>
         ) : (
-          <span className={`font-serif text-3xl font-semibold tracking-tight ${
-            colorKey !== "muted" ? colorClasses.text : "text-foreground"
-          }`}>
+          <span
+            className="font-serif text-3xl font-semibold tracking-tight"
+            style={{ color: colorKey !== "muted" ? iconColor : undefined }}
+          >
             {value !== null ? value : "\u2014"}
           </span>
         )}

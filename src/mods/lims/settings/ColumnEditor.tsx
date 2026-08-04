@@ -19,6 +19,14 @@ import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../dropdowns/api";
 import type { Dropdown } from "../../dropdowns/types";
+import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
+
+function resolveTypeColor(typeId: string): { bg: string; fg: string } {
+  const ct = ModRegistry.getInstance().getColumnType(typeId);
+  const colorKey = ct?.color || "muted";
+  const hex = resolveColorHex(colorKey);
+  return { bg: hex, fg: deriveForeground(hex) };
+}
 
 export interface ColumnEditorProps {
   columns: ColumnDef[];
@@ -134,6 +142,7 @@ function ColumnEditor({
 
       {columns.map((col, i) => {
         const Icon = COLUMN_ICONS[i % COLUMN_ICONS.length];
+        const typeColor = resolveTypeColor(col.type);
         return (
           <div
             key={i}
@@ -141,7 +150,10 @@ function ColumnEditor({
           >
             <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center hover:bg-muted/40">
               <div className="flex items-center gap-2">
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-flask text-flask-foreground">
+                <span
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded"
+                  style={{ backgroundColor: typeColor.bg, color: typeColor.fg }}
+                >
                   <Icon size={12} />
                 </span>
                 <input

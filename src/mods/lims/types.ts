@@ -26,6 +26,8 @@ export interface Schema {
   is_default: boolean;
   is_active: boolean;
   content_hash: string;
+  icon: string;
+  color: string;
 }
 
 /** Payload for creating/updating a Schema. */
@@ -35,6 +37,8 @@ export interface SchemaPayload {
   prefix: string;
   schema_type: number;
   columns: ColumnDef[];
+  icon?: string;
+  color?: string;
 }
 
 /** A SchemaType as returned by the list endpoint. */
@@ -90,6 +94,8 @@ export interface EntityHubItem {
   author_username: string | null;
   created_at: string;
   updated_at: string;
+  icon: string;
+  color: string;
   workspace_id: string;
   /** Schema properties columns extracted from the properties JSON.
    * Only populated when a specific Schema is selected. */

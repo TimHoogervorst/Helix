@@ -65,6 +65,9 @@ vi.mock("lucide-react", () => ({
   ArrowLeftRight: (props: Record<string, unknown>) => (
     <span data-testid="icon-arrow-left-right" {...props}>↔</span>
   ),
+  Circle: (props: Record<string, unknown>) => (
+    <span data-testid="icon-circle" {...props}>○</span>
+  ),
   // Icons used by CellEditors.tsx COLUMN_TYPE_ICON_MAP
   Type: (props: Record<string, unknown>) => (
     <span data-testid="icon-type" {...props}>Aa</span>
@@ -89,6 +92,57 @@ vi.mock("lucide-react", () => ({
   ),
   FileText: (props: Record<string, unknown>) => (
     <span data-testid="icon-file-text" {...props}>📄</span>
+  ),
+  Dna: (props: Record<string, unknown>) => (
+    <span data-testid="icon-dna" {...props}>🧬</span>
+  ),
+  Rat: (props: Record<string, unknown>) => (
+    <span data-testid="icon-rat" {...props}>🐀</span>
+  ),
+  Leaf: (props: Record<string, unknown>) => (
+    <span data-testid="icon-leaf" {...props}>🌿</span>
+  ),
+  Cog: (props: Record<string, unknown>) => (
+    <span data-testid="icon-cog" {...props}>⚙</span>
+  ),
+  NotebookText: (props: Record<string, unknown>) => (
+    <span data-testid="icon-notebook-text" {...props}>📓</span>
+  ),
+  Folder: (props: Record<string, unknown>) => (
+    <span data-testid="icon-folder" {...props}>📁</span>
+  ),
+  FlaskConical: (props: Record<string, unknown>) => (
+    <span data-testid="icon-flask-conical" {...props}>🧪</span>
+  ),
+  ScrollText: (props: Record<string, unknown>) => (
+    <span data-testid="icon-scroll-text" {...props}>📜</span>
+  ),
+  TestTubes: (props: Record<string, unknown>) => (
+    <span data-testid="icon-test-tubes" {...props}>🧪🧪</span>
+  ),
+  AlertTriangle: (props: Record<string, unknown>) => (
+    <span data-testid="icon-alert-triangle" {...props}>⚠</span>
+  ),
+  Activity: (props: Record<string, unknown>) => (
+    <span data-testid="icon-activity" {...props}>📊</span>
+  ),
+  BarChart3: (props: Record<string, unknown>) => (
+    <span data-testid="icon-bar-chart-3" {...props}>📊</span>
+  ),
+  Beaker: (props: Record<string, unknown>) => (
+    <span data-testid="icon-beaker" {...props}>🧪</span>
+  ),
+  CircleDollarSign: (props: Record<string, unknown>) => (
+    <span data-testid="icon-circle-dollar-sign" {...props}>💲</span>
+  ),
+  Thermometer: (props: Record<string, unknown>) => (
+    <span data-testid="icon-thermometer" {...props}>🌡</span>
+  ),
+  TrendingUp: (props: Record<string, unknown>) => (
+    <span data-testid="icon-trending-up" {...props}>📈</span>
+  ),
+  CheckCircle: (props: Record<string, unknown>) => (
+    <span data-testid="icon-check-circle" {...props}>✅</span>
   ),
 }));
 

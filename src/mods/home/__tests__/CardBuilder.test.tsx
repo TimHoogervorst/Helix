@@ -308,7 +308,7 @@ describe("CardTile conditional formatting rendering", () => {
     });
 
     const valueSpan = screen.getByText("7");
-    expect(valueSpan).toHaveClass("text-warn-foreground");
+    expect(valueSpan).toHaveStyle({ color: "#e6d9b3" });
   });
 
   it("substitutes {value} in the subtitle from a matched rule", async () => {
@@ -362,7 +362,7 @@ describe("CardTile conditional formatting rendering", () => {
     });
 
     const valueSpan = screen.getByText("5");
-    expect(valueSpan).toHaveClass("text-success-foreground");
+    expect(valueSpan).toHaveStyle({ color: "#b3e6b3" });
     expect(screen.getByText("All good")).toBeInTheDocument();
   });
 });

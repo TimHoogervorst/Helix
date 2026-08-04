@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { FlaskConical } from "lucide-react";
 import { get, post, put } from "../../../shell/src/api/client";
 import type { Schema, SchemaPayload, SchemaTypeItem, ColumnDef } from "../types";
 import ColumnEditor from "./ColumnEditor";
@@ -10,6 +9,8 @@ import {
   SettingsMasterList,
   type MasterListRow,
 } from "../../../shell/src/shared/components/SettingsMasterList";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 
 function SettingsPage() {
   const [schemas, setSchemas] = useState<Schema[]>([]);
@@ -25,6 +26,8 @@ function SettingsPage() {
   const [newPrefix, setNewPrefix] = useState("");
   const [newSchemaType, setNewSchemaType] = useState<number | null>(null);
   const [filterValue, setFilterValue] = useState("");
+  const [newIcon, setNewIcon] = useState("circle");
+  const [newColor, setNewColor] = useState("muted");
 
   const fetchSchemas = useCallback(async () => {
     try {
@@ -65,6 +68,8 @@ function SettingsPage() {
         prefix: newPrefix.trim().toUpperCase(),
         schema_type: newSchemaType,
         columns: [],
+        icon: newIcon,
+        color: newColor,
       };
       await post("/schemas/", payload);
       setShowNew(false);
@@ -187,6 +192,8 @@ function SettingsPage() {
           prefix: s.prefix,
           schema_type: s.schema_type,
           columns: s.columns,
+          icon: s.icon,
+          color: s.color,
         };
         await put(`/schemas/${s.id}/`, payload);
       } catch {
@@ -219,27 +226,20 @@ function SettingsPage() {
       )
     : visibleSchemas;
 
-  const ICON_BG_CLASSES = [
-    "bg-flask",
-    "bg-enzyme",
-    "bg-solvent",
-    "bg-accent",
-  ] as const;
-  const ICON_FG_CLASSES = [
-    "text-flask-foreground",
-    "text-enzyme-foreground",
-    "text-solvent-foreground",
-    "text-accent-foreground",
-  ] as const;
-
-  const masterRows: MasterListRow[] = filteredSchemas.map((s, i) => ({
+  const masterRows: MasterListRow[] = filteredSchemas.map((s) => ({
     id: s.id,
     label: s.name,
     secondary: s.prefix,
     dirty: dirtyEdits.has(s.id),
-    icon: <FlaskConical size={13} />,
-    iconBg: ICON_BG_CLASSES[i % ICON_BG_CLASSES.length],
-    iconFg: ICON_FG_CLASSES[i % ICON_FG_CLASSES.length],
+    icon: (
+      <IconBadge
+        iconKey={s.icon || "circle"}
+        colorKey={s.color || "muted"}
+        size="sm"
+      />
+    ),
+    iconBg: "",
+    iconFg: "",
   }));
 
   const selectedSchema = selectedId
@@ -262,7 +262,13 @@ function SettingsPage() {
               <button
                 type="button"
                 className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                onClick={() => setShowNew(!showNew)}
+                onClick={() => {
+                  setShowNew(!showNew);
+                  if (!showNew) {
+                    setNewIcon("circle");
+                    setNewColor("muted");
+                  }
+                }}
               >
                 + New schema
               </button>
@@ -272,6 +278,15 @@ function SettingsPage() {
           {showNew && (
             <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
               <div className="flex flex-wrap items-end gap-4">
+                <IconPickerPopover
+                  iconKey={newIcon}
+                  colorKey={newColor}
+                  size="sm"
+                  onChange={(icon, color) => {
+                    setNewIcon(icon);
+                    setNewColor(color);
+                  }}
+                />
                 <label className="flex flex-col gap-1">
                   <span className="text-[11px] text-muted-foreground">Name</span>
                   <input
@@ -413,43 +428,59 @@ function SettingsPage() {
                 subtitle="Identity fields"
               >
                 <div className="space-y-3">
-                  <div className="grid grid-cols-[1fr_auto] gap-4">
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-muted-foreground">
-                        Name
-                      </span>
-                      <input
-                        type="text"
-                        className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                        value={editingSchema.name}
-                        onChange={(e) =>
-                          updateSchemaField(
-                            editingSchema.id,
-                            "name",
-                            e.target.value,
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-muted-foreground">
-                        Prefix
-                      </span>
-                      <input
-                        type="text"
-                        className="mt-1 block rounded-md border border-hairline bg-muted px-2.5 py-1.5 font-mono text-sm outline-none focus:border-primary/50"
-                        style={{ width: 120 }}
-                        value={editingSchema.prefix}
-                        onChange={(e) =>
-                          updateSchemaField(
-                            editingSchema.id,
-                            "prefix",
-                            e.target.value.toUpperCase(),
-                          )
-                        }
-                        maxLength={20}
-                      />
-                    </label>
+                  <div className="flex items-start gap-3">
+                    <IconPickerPopover
+                      iconKey={editingSchema.icon || "circle"}
+                      colorKey={editingSchema.color || "muted"}
+                      size="md"
+                      onChange={(icon, color) => {
+                        setDirtyEdits((prev) => {
+                          const next = new Map(prev);
+                          const s = next.get(editingSchema.id);
+                          if (!s) return prev;
+                          next.set(editingSchema.id, { ...s, icon, color });
+                          return next;
+                        });
+                      }}
+                    />
+                    <div className="grid grid-cols-[1fr_auto] gap-4 flex-1">
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          Name
+                        </span>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                          value={editingSchema.name}
+                          onChange={(e) =>
+                            updateSchemaField(
+                              editingSchema.id,
+                              "name",
+                              e.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          Prefix
+                        </span>
+                        <input
+                          type="text"
+                          className="mt-1 block rounded-md border border-hairline bg-muted px-2.5 py-1.5 font-mono text-sm outline-none focus:border-primary/50"
+                          style={{ width: 120 }}
+                          value={editingSchema.prefix}
+                          onChange={(e) =>
+                            updateSchemaField(
+                              editingSchema.id,
+                              "prefix",
+                              e.target.value.toUpperCase(),
+                            )
+                          }
+                          maxLength={20}
+                        />
+                      </label>
+                    </div>
                   </div>
                   <label className="block">
                     <span className="text-[11px] font-medium text-muted-foreground">

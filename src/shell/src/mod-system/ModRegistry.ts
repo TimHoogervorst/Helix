@@ -13,6 +13,8 @@ import type {
   SchemaColumnDef,
   ModManifest,
   ActionCatalogEntry,
+  IconLibraryEntry,
+  ColorToken,
 } from "./types";
 
 /** Schema type entry from the backend mod-registry payload. */
@@ -59,9 +61,14 @@ interface BackendModRegistryEntry {
 
 /** Type guard: structural check that a value is a workspace entry. */
 function isWorkspaceEntry(
-  value: BackendModRegistryEntry | BackendColumnType[],
+  value: unknown,
 ): value is BackendModRegistryEntry {
-  return !Array.isArray(value) && typeof value === "object" && "workspaceId" in value;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "workspaceId" in value
+  );
 }
 
 /**
@@ -118,6 +125,12 @@ export class ModRegistry {
 
   /** Column type definitions keyed by type ID, hydrated from the backend. */
   private columnTypes = new Map<string, BackendColumnType>();
+
+  /** Icon library entries keyed by key, hydrated from the backend. */
+  private iconLibrary = new Map<string, IconLibraryEntry>();
+
+  /** Color palette entries keyed by key, hydrated from the backend. */
+  private colorPalette = new Map<string, ColorToken>();
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -182,17 +195,42 @@ export class ModRegistry {
    *   Used to supply ``displayName`` for each workspace.
    */
   hydrateFromBackend(
-    payload: Record<string, BackendModRegistryEntry | BackendColumnType[]>,
+    payload: Record<string, unknown>,
     manifests: ReadonlyMap<string, ModManifest>,
   ): void {
     for (const [key, value] of Object.entries(payload)) {
-      // The "columnTypes" key holds the column type registry array.
-      // Use structural check (Array.isArray) alongside the key name so the
-      // type guard does not depend on a magic string alone.
       if (key === "columnTypes" && Array.isArray(value)) {
         this.columnTypes.clear();
         for (const ct of value) {
-          this.columnTypes.set(ct.id, ct);
+          this.columnTypes.set(ct.id, ct as BackendColumnType);
+        }
+        continue;
+      }
+
+      if (key === "iconLibrary" && Array.isArray(value)) {
+        this.iconLibrary.clear();
+        for (const entry of value) {
+          const e = entry as { key: string; label: string; kind: string; token: string; svg: string };
+          this.iconLibrary.set(e.key, {
+            key: e.key,
+            label: e.label,
+            kind: e.kind as "lucide" | "custom",
+            token: e.token,
+            svg: e.svg,
+          });
+        }
+        continue;
+      }
+
+      if (key === "colorPalette" && Array.isArray(value)) {
+        this.colorPalette.clear();
+        for (const entry of value) {
+          const e = entry as { key: string; label: string; hex: string };
+          this.colorPalette.set(e.key, {
+            key: e.key,
+            label: e.label,
+            hex: e.hex,
+          });
         }
         continue;
       }
@@ -547,6 +585,24 @@ export class ModRegistry {
    */
   getColumnTypes(): ReadonlyMap<string, BackendColumnType> {
     return this.columnTypes;
+  }
+
+  /**
+   * Return all icon library entries as a read-only map, keyed by icon key.
+   *
+   * Returns an empty map before hydration completes.
+   */
+  getIconLibrary(): ReadonlyMap<string, IconLibraryEntry> {
+    return this.iconLibrary;
+  }
+
+  /**
+   * Return all color palette entries as a read-only map, keyed by color key.
+   *
+   * Returns an empty map before hydration completes.
+   */
+  getColorPalette(): ReadonlyMap<string, ColorToken> {
+    return this.colorPalette;
   }
 
   /**

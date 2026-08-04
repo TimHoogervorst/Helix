@@ -68,7 +68,7 @@ export function SettingsMasterList({
             >
             {row.icon && (
               <span
-                className={`grid h-6 w-6 shrink-0 place-items-center ${row.iconBg || "bg-muted"} ${row.iconFg || "text-muted-foreground"}`}
+                className={`grid h-6 w-6 shrink-0 place-items-center ${row.iconBg ?? "bg-muted"} ${row.iconFg ?? "text-muted-foreground"}`}
               >
                 {row.icon}
               </span>

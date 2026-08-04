@@ -237,6 +237,8 @@ class ColumnType:
         id: Lowercase string identifier (e.g. ``"text"``, ``"number"``).
         display_name: Human-readable label (e.g. ``"Text"``, ``"Number"``).
         icon: Lucide icon token string (e.g. ``"type"``, ``"hash"``).
+        color: Color token key string (e.g. ``"flask"``, ``"solvent"``).
+            Falls back to ``"muted"`` when not set on a subclass.
         operand_shape: The primary operand shape for cell editing and
             rendering.  Drives which frontend cell editor component to use.
             Valid values: ``"text"``, ``"number"``, ``"date"``,
@@ -247,6 +249,7 @@ class ColumnType:
     id: ClassVar[str]
     display_name: ClassVar[str]
     icon: ClassVar[str]
+    color: ClassVar[str] = "muted"
     operand_shape: ClassVar[str]
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -292,6 +295,7 @@ class TextColumnType(ColumnType):
     id = "text"
     display_name = "Text"
     icon = "type"
+    color = "flask"
     operand_shape = "text"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -313,6 +317,7 @@ class NumberColumnType(ColumnType):
     id = "number"
     display_name = "Number"
     icon = "hash"
+    color = "solvent"
     operand_shape = "number"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -344,6 +349,7 @@ class DateColumnType(ColumnType):
     id = "date"
     display_name = "Date"
     icon = "calendar"
+    color = "warn"
     operand_shape = "date"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -378,6 +384,7 @@ class DatetimeColumnType(ColumnType):
     id = "datetime"
     display_name = "Date & Time"
     icon = "clock"
+    color = "warn"
     operand_shape = "date"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -413,6 +420,7 @@ class BooleanColumnType(ColumnType):
     id = "boolean"
     display_name = "Boolean"
     icon = "toggle-left"
+    color = "success"
     operand_shape = "boolean"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -441,6 +449,7 @@ class DropdownColumnType(ColumnType):
     id = "dropdown"
     display_name = "Dropdown"
     icon = "list"
+    color = "enzyme"
     operand_shape = "dropdown"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -465,6 +474,7 @@ class ReferenceColumnType(ColumnType):
     id = "reference"
     display_name = "Reference"
     icon = "link"
+    color = "primary"
     operand_shape = "entity-picker"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -496,6 +506,7 @@ class UserColumnType(ReferenceColumnType):
     id = "user"
     display_name = "User"
     icon = "user"
+    color = "primary"
     operand_shape = "entity-picker"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -591,7 +602,7 @@ class ColumnTypeRegistry:
     def get_registry_payload(self) -> list[dict]:
         """Return the column types payload for the mod-registry API.
 
-        Each entry includes ``id``, ``displayName``, ``icon``,
+        Each entry includes ``id``, ``displayName``, ``icon``, ``color``,
         ``operandShape``, ``operators``, ``defaultValue``, and
         ``aggregates``.
 
@@ -605,6 +616,7 @@ class ColumnTypeRegistry:
                 "id": ct.id,
                 "displayName": ct.display_name,
                 "icon": ct.icon,
+                "color": ct.color,
                 "operandShape": ct.operand_shape,
                 "defaultValue": ct.get_default_value(),
                 "operators": [

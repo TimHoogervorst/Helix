@@ -1,10 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
-import { Trash2, X } from "lucide-react";
-import { listTags, createTag, updateTag, deleteTag } from "../api";
+import { useSearchParams } from "react-router-dom";
+import { Trash2, X, Upload } from "lucide-react";
+import {
+  listTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  listColors,
+  createColor,
+  deleteColor,
+  listIcons,
+  createIcon,
+  deleteIcon,
+} from "../api";
 import type { Tag } from "../types";
-import { getTagIcon } from "../constants";
-import { TagColorPicker } from "../ui/TagColorPicker";
-import { TagIconPicker } from "../ui/TagIconPicker";
+import type { ColorToken, IconLibraryEntry, DeleteResponse } from "../api";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
 import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
 import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
@@ -12,17 +24,53 @@ import {
   SettingsMasterList,
   type MasterListRow,
 } from "../../../shell/src/shared/components/SettingsMasterList";
+import { IconLibraryBrowser } from "./IconLibraryBrowser";
+
+type TabKind = "tags" | "colours" | "icons";
 
 type TagMutator = (tag: Tag) => Tag;
 
-function TagSettings() {
+// ── Tags tab hook ───────────────────────────────────────────────────────────
+
+interface TagsTabState {
+  tags: Tag[];
+  loading: boolean;
+  error: string | null;
+  selectedId: number | null;
+  dirtyEdits: Map<number, Tag>;
+  saving: boolean;
+  showNew: boolean;
+  newName: string;
+  newColor: string;
+  newIcon: string;
+  filterValue: string;
+  dirtyCount: number;
+  selectedTag: Tag | null;
+  editingTag: Tag | undefined;
+  masterRows: MasterListRow[];
+  fetchTags: () => Promise<void>;
+  handleSelect: (id: string | number) => void;
+  handleNameChange: (name: string) => void;
+  handleIconColorChange: (iconKey: string, colorKey: string) => void;
+  handleDelete: () => Promise<void>;
+  saveAllChanges: () => Promise<void>;
+  discardAllEdits: () => void;
+  handleCreate: () => Promise<void>;
+  setShowNew: (v: boolean) => void;
+  setNewName: (v: string) => void;
+  setNewColor: (v: string) => void;
+  setNewIcon: (v: string) => void;
+  setFilterValue: (v: string) => void;
+  setSelectedId: (id: number | null) => void;
+}
+
+function useTagsTabState(): TagsTabState {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dirtyEdits, setDirtyEdits] = useState<Map<number, Tag>>(new Map());
   const [saving, setSaving] = useState(false);
-
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("muted");
@@ -94,12 +142,8 @@ function TagSettings() {
     updateEditingTag((t) => ({ ...t, name }));
   };
 
-  const handleColorChange = (color: string) => {
-    updateEditingTag((t) => ({ ...t, color }));
-  };
-
-  const handleIconChange = (icon: string) => {
-    updateEditingTag((t) => ({ ...t, icon }));
+  const handleIconColorChange = (iconKey: string, colorKey: string) => {
+    updateEditingTag((t) => ({ ...t, icon: iconKey, color: colorKey }));
   };
 
   const handleDelete = async () => {
@@ -151,17 +195,13 @@ function TagSettings() {
       )
     : tags;
 
-  const masterRows: MasterListRow[] = filteredTags.map((t) => {
-    const iconInfo = getTagIcon(t.icon);
-    const IconComponent = iconInfo.Icon;
-    return {
-      id: t.id,
-      label: t.name,
-      secondary: t.color,
-      dirty: dirtyEdits.has(t.id),
-      icon: <IconComponent size={13} />,
-    };
-  });
+  const masterRows: MasterListRow[] = filteredTags.map((t) => ({
+    id: t.id,
+    label: t.name,
+    secondary: t.color,
+    dirty: dirtyEdits.has(t.id),
+    icon: <IconBadge iconKey={t.icon} colorKey={t.color} size="sm" />,
+  }));
 
   const selectedTag = selectedId
     ? tags.find((t) => t.id === selectedId) ?? null
@@ -169,123 +209,771 @@ function TagSettings() {
   const editingTag = selectedId ? dirtyEdits.get(selectedId) : undefined;
   const dirtyCount = dirtyEdits.size;
 
-  if (loading) return <p className="empty">Loading tags…</p>;
+  return {
+    tags,
+    loading,
+    error,
+    selectedId,
+    dirtyEdits,
+    saving,
+    showNew,
+    newName,
+    newColor,
+    newIcon,
+    filterValue,
+    dirtyCount,
+    selectedTag,
+    editingTag,
+    masterRows,
+    fetchTags,
+    handleSelect,
+    handleNameChange,
+    handleIconColorChange,
+    handleDelete,
+    saveAllChanges,
+    discardAllEdits,
+    handleCreate,
+    setShowNew,
+    setNewName,
+    setNewColor,
+    setNewIcon,
+    setFilterValue,
+    setSelectedId,
+  };
+}
 
-  return (
-    <SettingsPageLayout
-      hero={
-        <>
-          <SettingsHeroHeader
-            eyebrow="labelling"
-            title="Labelling"
-            description="Create and manage tags to label and organize your entries."
-            actions={
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                onClick={() => setShowNew(!showNew)}
-              >
-                {showNew ? "Cancel" : "+ New Tag"}
-              </button>
-            }
-          />
+// ── Colours tab hook ────────────────────────────────────────────────────────
 
-          {showNew && (
-            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Name</span>
-                  <input
-                    type="text"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="e.g., Urgent"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreate();
-                    }}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Color</span>
-                  <TagColorPicker value={newColor} onChange={setNewColor} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Icon</span>
-                  <TagIconPicker value={newIcon} onChange={setNewIcon} />
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                    onClick={handleCreate}
-                    disabled={saving || !newName.trim()}
-                  >
-                    {saving ? "Creating…" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
-                    onClick={() => {
-                      setShowNew(false);
-                      setNewName("");
-                      setNewColor("muted");
-                      setNewIcon("circle");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
+interface ColoursTabState {
+  colours: ColorToken[];
+  loading: boolean;
+  error: string | null;
+  selectedId: number | null;
+  saving: boolean;
+  showNew: boolean;
+  newKey: string;
+  newLabel: string;
+  newHex: string;
+  filterValue: string;
+  selectedColour: ColorToken | null;
+  masterRows: MasterListRow[];
+  fetchColours: () => Promise<void>;
+  handleSelect: (id: string | number) => void;
+  handleDelete: () => Promise<void>;
+  handleCreate: () => Promise<void>;
+  setShowNew: (v: boolean) => void;
+  setNewKey: (v: string) => void;
+  setNewLabel: (v: string) => void;
+  setNewHex: (v: string) => void;
+  setFilterValue: (v: string) => void;
+  setSelectedId: (id: number | null) => void;
+}
+
+function useColoursTabState(): ColoursTabState {
+  const [colours, setColours] = useState<ColorToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newHex, setNewHex] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+
+  const fetchColours = useCallback(async () => {
+    try {
+      const data = await listColors();
+      setColours(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load colours");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchColours();
+  }, [fetchColours]);
+
+  const handleCreate = async () => {
+    if (!newKey.trim() || !newLabel.trim() || !newHex.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createColor({
+        key: newKey.trim(),
+        label: newLabel.trim(),
+        hex: newHex.trim(),
+      });
+      setShowNew(false);
+      setNewKey("");
+      setNewLabel("");
+      setNewHex("");
+      await fetchColours();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create colour");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelect = (id: string | number) => {
+    const colourId = Number(id);
+    setSelectedId((prev) => (prev === colourId ? null : colourId));
+  };
+
+  const handleDelete = async () => {
+    if (selectedId === null) return;
+    const colour = colours.find((c) => c.id === selectedId);
+    if (!colour) return;
+    if (!window.confirm(`Delete colour "${colour.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteColor(selectedId);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} tag${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted colour "${colour.label}".${usageMsg}`);
+      setSelectedId(null);
+      await fetchColours();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete colour");
+    }
+  };
+
+  const filteredColours = filterValue
+    ? colours.filter(
+        (c) =>
+          c.label.toLowerCase().includes(filterValue.toLowerCase()) ||
+          c.key.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : colours;
+
+  const masterRows: MasterListRow[] = filteredColours.map((c) => ({
+    id: c.id,
+    label: c.label,
+    secondary: c.key,
+    icon: (
+      <div
+        className="h-3 w-3 shrink-0 rounded-full border border-hairline"
+        style={{ backgroundColor: c.hex }}
+      />
+    ),
+  }));
+
+  const selectedColour = selectedId
+    ? colours.find((c) => c.id === selectedId) ?? null
+    : null;
+
+  return {
+    colours,
+    loading,
+    error,
+    selectedId,
+    saving,
+    showNew,
+    newKey,
+    newLabel,
+    newHex,
+    filterValue,
+    selectedColour,
+    masterRows,
+    fetchColours,
+    handleSelect,
+    handleDelete,
+    handleCreate,
+    setShowNew,
+    setNewKey,
+    setNewLabel,
+    setNewHex,
+    setFilterValue,
+    setSelectedId,
+  };
+}
+
+// ── Icons tab hook ──────────────────────────────────────────────────────────
+
+interface IconsTabState {
+  icons: IconLibraryEntry[];
+  loading: boolean;
+  error: string | null;
+  selectedId: number | null;
+  saving: boolean;
+  showLucideBrowser: boolean;
+  showSvgUpload: boolean;
+  newKey: string;
+  newLabel: string;
+  newSvgContent: string;
+  svgFileName: string;
+  filterValue: string;
+  selectedIcon: IconLibraryEntry | null;
+  masterRows: MasterListRow[];
+  fetchIcons: () => Promise<void>;
+  handleSelect: (id: string | number) => void;
+  handleDelete: () => Promise<void>;
+  handleCreateFromLucide: (token: string, label: string) => Promise<void>;
+  handleUploadSvg: () => Promise<void>;
+  setShowLucideBrowser: (v: boolean) => void;
+  setShowSvgUpload: (v: boolean) => void;
+  setNewKey: (v: string) => void;
+  setNewLabel: (v: string) => void;
+  setNewSvgContent: (v: string) => void;
+  setSvgFileName: (v: string) => void;
+  setFilterValue: (v: string) => void;
+  setSelectedId: (id: number | null) => void;
+}
+
+function useIconsTabState(): IconsTabState {
+  const [icons, setIcons] = useState<IconLibraryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showLucideBrowser, setShowLucideBrowser] = useState(false);
+  const [showSvgUpload, setShowSvgUpload] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newSvgContent, setNewSvgContent] = useState("");
+  const [svgFileName, setSvgFileName] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+
+  const fetchIcons = useCallback(async () => {
+    try {
+      const data = await listIcons();
+      setIcons(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load icons");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIcons();
+  }, [fetchIcons]);
+
+  const handleCreateFromLucide = useCallback(
+    async (token: string, label: string) => {
+      setSaving(true);
+      setError(null);
+      try {
+        await createIcon({
+          key: token,
+          label,
+          kind: "lucide",
+          token,
+        });
+        setShowLucideBrowser(false);
+        await fetchIcons();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to add icon");
+      } finally {
+        setSaving(false);
       }
-      bottomBar={
-        dirtyCount > 0 ? (
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {dirtyCount} tag{dirtyCount !== 1 ? "s" : ""} with unsaved
-              changes
-            </span>
-            <div className="flex items-center gap-2">
+    },
+    [fetchIcons],
+  );
+
+  const handleUploadSvg = async () => {
+    if (!newKey.trim() || !newLabel.trim() || !newSvgContent) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createIcon({
+        key: newKey.trim(),
+        label: newLabel.trim(),
+        kind: "custom",
+        svg: newSvgContent,
+      });
+      setShowSvgUpload(false);
+      setNewKey("");
+      setNewLabel("");
+      setNewSvgContent("");
+      setSvgFileName("");
+      await fetchIcons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload icon");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelect = (id: string | number) => {
+    const iconId = Number(id);
+    setSelectedId((prev) => (prev === iconId ? null : iconId));
+  };
+
+  const handleDelete = async () => {
+    if (selectedId === null) return;
+    const icon = icons.find((i) => i.id === selectedId);
+    if (!icon) return;
+    if (!window.confirm(`Delete icon "${icon.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteIcon(selectedId);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} object${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted icon "${icon.label}".${usageMsg}`);
+      setSelectedId(null);
+      await fetchIcons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete icon");
+    }
+  };
+
+  const filteredIcons = filterValue
+    ? icons.filter(
+        (i) =>
+          i.label.toLowerCase().includes(filterValue.toLowerCase()) ||
+          i.key.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : icons;
+
+  const masterRows: MasterListRow[] = filteredIcons.map((i) => ({
+    id: i.id,
+    label: i.label,
+    secondary: i.key,
+    icon: <IconBadge iconKey={i.key} colorKey="muted" size="sm" />,
+  }));
+
+  const selectedIcon = selectedId
+    ? icons.find((i) => i.id === selectedId) ?? null
+    : null;
+
+  return {
+    icons,
+    loading,
+    error,
+    selectedId,
+    saving,
+    showLucideBrowser,
+    showSvgUpload,
+    newKey,
+    newLabel,
+    newSvgContent,
+    svgFileName,
+    filterValue,
+    selectedIcon,
+    masterRows,
+    fetchIcons,
+    handleSelect,
+    handleDelete,
+    handleCreateFromLucide,
+    handleUploadSvg,
+    setShowLucideBrowser,
+    setShowSvgUpload,
+    setNewKey,
+    setNewLabel,
+    setNewSvgContent,
+    setSvgFileName,
+    setFilterValue,
+    setSelectedId,
+  };
+}
+
+// ── Tab configuration ───────────────────────────────────────────────────────
+
+const TAB_CONFIG: Record<TabKind, { title: string; description: string }> = {
+  tags: {
+    title: "Tags",
+    description: "Create and manage tags to label and organize your entries.",
+  },
+  colours: {
+    title: "Colours",
+    description: "Manage the colour palette used across the platform.",
+  },
+  icons: {
+    title: "Icons",
+    description: "Manage the icon library — browse Lucide or upload custom SVGs.",
+  },
+};
+
+// ── Main component ──────────────────────────────────────────────────────────
+
+function TagSettings() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: TabKind =
+    (searchParams.get("tab") as TabKind) ?? "tags";
+
+  const tags = useTagsTabState();
+  const colours = useColoursTabState();
+  const icons = useIconsTabState();
+
+  const setActiveTab = (tab: TabKind) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", tab);
+    setSearchParams(params, { replace: true });
+  };
+
+  const config = TAB_CONFIG[activeTab];
+
+  // ── Hero create panel ────────────────────────────────────────────────
+
+  const heroCreatePanel = () => {
+    if (activeTab === "tags" && tags.showNew) {
+      return (
+        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Name</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                value={tags.newName}
+                onChange={(e) => tags.setNewName(e.target.value)}
+                placeholder="e.g., Urgent"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") tags.handleCreate();
+                }}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Icon &amp; Colour</span>
+              <IconPickerPopover
+                iconKey={tags.newIcon}
+                colorKey={tags.newColor}
+                size="sm"
+                onChange={(iconKey, colorKey) => {
+                  tags.setNewIcon(iconKey);
+                  tags.setNewColor(colorKey);
+                }}
+              />
+            </label>
+            <div className="flex gap-2">
               <button
                 type="button"
-                className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={discardAllEdits}
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={tags.handleCreate}
+                disabled={tags.saving || !tags.newName.trim()}
               >
-                Discard Changes
+                {tags.saving ? "Creating…" : "Create"}
               </button>
               <button
                 type="button"
-                className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                onClick={saveAllChanges}
-                disabled={saving}
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                onClick={() => {
+                  tags.setShowNew(false);
+                  tags.setNewName("");
+                  tags.setNewColor("muted");
+                  tags.setNewIcon("circle");
+                }}
               >
-                {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
+                Cancel
               </button>
             </div>
           </div>
-        ) : undefined
-      }
-    >
-      {error && (
+        </div>
+      );
+    }
+
+    if (activeTab === "colours" && colours.showNew) {
+      const hexValid = /^#[0-9A-Fa-f]{3,6}$/.test(colours.newHex.trim());
+      return (
+        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Key</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                value={colours.newKey}
+                onChange={(e) => colours.setNewKey(e.target.value)}
+                placeholder="e.g., crimson"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Label</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                value={colours.newLabel}
+                onChange={(e) => colours.setNewLabel(e.target.value)}
+                placeholder="e.g., Crimson"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Hex</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  className="w-24 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                  value={colours.newHex}
+                  onChange={(e) => colours.setNewHex(e.target.value)}
+                  placeholder="#FF0000"
+                />
+                {hexValid && (
+                  <div
+                    className="h-7 w-7 shrink-0 rounded border border-hairline"
+                    style={{ backgroundColor: colours.newHex.trim() }}
+                    data-testid="hex-preview"
+                  />
+                )}
+              </div>
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={colours.handleCreate}
+                disabled={
+                  colours.saving ||
+                  !colours.newKey.trim() ||
+                  !colours.newLabel.trim() ||
+                  !hexValid
+                }
+              >
+                {colours.saving ? "Creating…" : "Create"}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                onClick={() => {
+                  colours.setShowNew(false);
+                  colours.setNewKey("");
+                  colours.setNewLabel("");
+                  colours.setNewHex("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "icons" && icons.showSvgUpload) {
+      return (
+        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Key</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                value={icons.newKey}
+                onChange={(e) => icons.setNewKey(e.target.value)}
+                placeholder="e.g., petri-dish"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Label</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                value={icons.newLabel}
+                onChange={(e) => icons.setNewLabel(e.target.value)}
+                placeholder="e.g., Petri Dish"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">SVG File</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  onClick={() => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = ".svg";
+                    input.onchange = (ev) => {
+                      const file = (ev.target as HTMLInputElement).files?.[0];
+                      if (!file) return;
+                      icons.setSvgFileName(file.name);
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        icons.setNewSvgContent(reader.result as string);
+                      };
+                      reader.readAsText(file);
+                    };
+                    input.click();
+                  }}
+                >
+                  {icons.svgFileName || "Choose SVG…"}
+                </button>
+                {icons.newSvgContent && (
+                  <div
+                    className="h-6 w-6 shrink-0"
+                    dangerouslySetInnerHTML={{ __html: icons.newSvgContent }}
+                  />
+                )}
+              </div>
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={icons.handleUploadSvg}
+                disabled={
+                  icons.saving ||
+                  !icons.newKey.trim() ||
+                  !icons.newLabel.trim() ||
+                  !icons.newSvgContent
+                }
+              >
+                {icons.saving ? "Uploading…" : "Upload"}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                onClick={() => {
+                  icons.setShowSvgUpload(false);
+                  icons.setNewKey("");
+                  icons.setNewLabel("");
+                  icons.setNewSvgContent("");
+                  icons.setSvgFileName("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // ── Hero actions ─────────────────────────────────────────────────────
+
+  const heroActions = () => {
+    if (activeTab === "tags") {
+      return (
+        <button
+          type="button"
+          data-testid="new-tag-button"
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => tags.setShowNew(!tags.showNew)}
+        >
+          {tags.showNew ? "Cancel" : "+ New Tag"}
+        </button>
+      );
+    }
+
+    if (activeTab === "colours") {
+      return (
+        <button
+          type="button"
+          data-testid="new-colour-button"
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => colours.setShowNew(!colours.showNew)}
+        >
+          {colours.showNew ? "Cancel" : "+ New Colour"}
+        </button>
+      );
+    }
+
+    if (activeTab === "icons") {
+      return (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="add-from-lucide-button"
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            onClick={() => icons.setShowLucideBrowser(true)}
+          >
+            + Add from Lucide
+          </button>
+          <button
+            type="button"
+            data-testid="upload-svg-button"
+            className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+            onClick={() => icons.setShowSvgUpload(!icons.showSvgUpload)}
+          >
+            <Upload size={12} className="inline mr-1" />
+            {icons.showSvgUpload ? "Cancel" : "Upload SVG"}
+          </button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // ── Bottom save bar ──────────────────────────────────────────────────
+
+  const bottomBar = () => {
+    if (activeTab === "tags" && tags.dirtyCount > 0) {
+      return (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {tags.dirtyCount} tag{tags.dirtyCount !== 1 ? "s" : ""} with
+            unsaved changes
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={tags.discardAllEdits}
+            >
+              Discard Changes
+            </button>
+            <button
+              type="button"
+              className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              onClick={tags.saveAllChanges}
+              disabled={tags.saving}
+            >
+              {tags.saving
+                ? "Saving…"
+                : `Save Changes (${tags.dirtyCount})`}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return undefined;
+  };
+
+  // ── Loading state ────────────────────────────────────────────────────
+
+  const activeLoading =
+    activeTab === "tags"
+      ? tags.loading
+      : activeTab === "colours"
+        ? colours.loading
+        : icons.loading;
+
+  const activeError =
+    activeTab === "tags"
+      ? tags.error
+      : activeTab === "colours"
+        ? colours.error
+        : icons.error;
+
+  if (activeLoading) {
+    return (
+      <p className="empty">
+        Loading {activeTab}…
+      </p>
+    );
+  }
+
+  // ── Tab-specific content ─────────────────────────────────────────────
+
+  const renderTagsContent = () => (
+    <div className={activeTab === "tags" ? "" : "hidden"}>
+      {tags.error && (
         <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
-          {error}
+          {tags.error}
         </div>
       )}
 
       <div className="flex min-h-0 gap-0">
         <div className="w-64 shrink-0">
           <SettingsMasterList
-            rows={masterRows}
-            selectedId={selectedId}
-            filterValue={filterValue}
-            onFilterChange={setFilterValue}
-            onSelect={handleSelect}
+            rows={tags.masterRows}
+            selectedId={tags.selectedId}
+            filterValue={tags.filterValue}
+            onFilterChange={tags.setFilterValue}
+            onSelect={tags.handleSelect}
             filterPlaceholder="Filter tags"
           />
-          {masterRows.length === 0 && (
+          {tags.masterRows.length === 0 && (
             <p className="px-3 py-2 text-xs text-muted-foreground">
               No tags found.
             </p>
@@ -293,68 +981,57 @@ function TagSettings() {
         </div>
 
         <div className="flex-1 space-y-4 p-6">
-          {selectedTag && editingTag ? (
-            <>
-              <SettingsSectionCard
-                title="Tag identity"
-                subtitle={`#${selectedTag.id}`}
-                actions={
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                      onClick={handleDelete}
-                      title="Delete tag"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => setSelectedId(null)}
-                      title="Close detail"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                }
-              >
-                <div className="space-y-3">
-                  <label className="block">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      Name
-                    </span>
-                    <input
-                      type="text"
-                      className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
-                      value={editingTag.name}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      placeholder="Tag name"
-                    />
-                  </label>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      Color
-                    </span>
-                    <TagColorPicker
-                      value={editingTag.color}
-                      onChange={handleColorChange}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      Icon
-                    </span>
-                    <TagIconPicker
-                      value={editingTag.icon}
-                      onChange={handleIconChange}
-                    />
-                  </div>
+          {tags.selectedTag && tags.editingTag ? (
+            <SettingsSectionCard
+              title="Tag identity"
+              subtitle={`#${tags.selectedTag.id}`}
+              actions={
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
+                    onClick={tags.handleDelete}
+                    title="Delete tag"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => tags.setSelectedId(null)}
+                    title="Close detail"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
-              </SettingsSectionCard>
-
-
-            </>
+              }
+            >
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Name
+                  </span>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    value={tags.editingTag.name}
+                    onChange={(e) => tags.handleNameChange(e.target.value)}
+                    placeholder="Tag name"
+                  />
+                </label>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Icon &amp; Colour
+                  </span>
+                  <IconPickerPopover
+                    iconKey={tags.editingTag.icon}
+                    colorKey={tags.editingTag.color}
+                    size="md"
+                    onChange={tags.handleIconColorChange}
+                  />
+                </div>
+              </div>
+            </SettingsSectionCard>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Select a tag from the list to view or edit its details.
@@ -362,7 +1039,240 @@ function TagSettings() {
           )}
         </div>
       </div>
-    </SettingsPageLayout>
+    </div>
+  );
+
+  const renderColoursContent = () => (
+    <div className={activeTab === "colours" ? "" : "hidden"}>
+      {colours.error && (
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+          {colours.error}
+        </div>
+      )}
+
+      <div className="flex min-h-0 gap-0">
+        <div className="w-64 shrink-0">
+          <SettingsMasterList
+            rows={colours.masterRows}
+            selectedId={colours.selectedId}
+            filterValue={colours.filterValue}
+            onFilterChange={colours.setFilterValue}
+            onSelect={colours.handleSelect}
+            filterPlaceholder="Filter colours"
+          />
+          {colours.masterRows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              No colours found.
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-4 p-6">
+          {colours.selectedColour ? (
+            <SettingsSectionCard
+              title="Colour details"
+              subtitle={colours.selectedColour.key}
+              actions={
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
+                    onClick={colours.handleDelete}
+                    title="Delete colour"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => colours.setSelectedId(null)}
+                    title="Close detail"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              }
+            >
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="h-10 w-10 shrink-0 rounded border border-hairline"
+                    style={{ backgroundColor: colours.selectedColour.hex }}
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-foreground">
+                      {colours.selectedColour.label}
+                    </div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {colours.selectedColour.key}
+                    </div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {colours.selectedColour.hex}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </SettingsSectionCard>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Select a colour from the list to view its details.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderIconsContent = () => (
+    <div className={activeTab === "icons" ? "" : "hidden"}>
+      {icons.error && (
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+          {icons.error}
+        </div>
+      )}
+
+      <div className="flex min-h-0 gap-0">
+        <div className="w-64 shrink-0">
+          <SettingsMasterList
+            rows={icons.masterRows}
+            selectedId={icons.selectedId}
+            filterValue={icons.filterValue}
+            onFilterChange={icons.setFilterValue}
+            onSelect={icons.handleSelect}
+            filterPlaceholder="Filter icons"
+          />
+          {icons.masterRows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              No icons found.
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-4 p-6">
+          {icons.selectedIcon ? (
+            <SettingsSectionCard
+              title="Icon details"
+              subtitle={icons.selectedIcon.key}
+              actions={
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
+                    onClick={icons.handleDelete}
+                    title="Delete icon"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => icons.setSelectedId(null)}
+                    title="Close detail"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              }
+            >
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <IconBadge
+                    iconKey={icons.selectedIcon.key}
+                    colorKey="muted"
+                    size="lg"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-foreground">
+                      {icons.selectedIcon.label}
+                    </div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {icons.selectedIcon.key}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {icons.selectedIcon.kind === "lucide"
+                        ? `Lucide · ${icons.selectedIcon.token}`
+                        : "Custom SVG"}
+                    </div>
+                  </div>
+                </div>
+                {icons.selectedIcon.kind === "custom" &&
+                  icons.selectedIcon.svg && (
+                    <div
+                      className="mt-2 flex h-12 w-12 items-center justify-center rounded border border-hairline bg-muted p-1"
+                      dangerouslySetInnerHTML={{
+                        __html: icons.selectedIcon.svg,
+                      }}
+                    />
+                  )}
+              </div>
+            </SettingsSectionCard>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Select an icon from the list to view its details.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────
+
+  return (
+    <>
+      <IconLibraryBrowser
+        open={icons.showLucideBrowser}
+        onClose={() => icons.setShowLucideBrowser(false)}
+        onSelect={icons.handleCreateFromLucide}
+      />
+
+      <SettingsPageLayout
+        hero={
+          <>
+            <SettingsHeroHeader
+              eyebrow="labelling"
+              title={config.title}
+              description={config.description}
+              actions={heroActions()}
+            />
+
+            {heroCreatePanel()}
+
+            <div className="lims-tab-bar mt-2">
+              <button
+                type="button"
+                data-testid="tab-tags"
+                className={`lims-tab ${activeTab === "tags" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("tags")}
+              >
+                Tags
+              </button>
+              <button
+                type="button"
+                data-testid="tab-colours"
+                className={`lims-tab ${activeTab === "colours" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("colours")}
+              >
+                Colours
+              </button>
+              <button
+                type="button"
+                data-testid="tab-icons"
+                className={`lims-tab ${activeTab === "icons" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("icons")}
+              >
+                Icons
+              </button>
+            </div>
+          </>
+        }
+        bottomBar={bottomBar()}
+      >
+        {renderTagsContent()}
+        {renderColoursContent()}
+        {renderIconsContent()}
+      </SettingsPageLayout>
+    </>
   );
 }
 

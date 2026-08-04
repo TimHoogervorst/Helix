@@ -23,6 +23,7 @@ import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { StatusBadge } from "../../../shell/src/shared/components/StatusBadge";
 import { relativeTime, formatDate } from "../../../shell/src/shared/format";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { IconBadge, resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { deriveDropdownColor } from "../../dropdowns/colourUtils";
 import { listDropdowns } from "../../dropdowns/api";
@@ -516,17 +517,21 @@ function EntitiesHub() {
 
   /** Look up the Lucide icon for a column type from the registry. */
   function resolveColumnIcon(col: HubColumn): ReactNode {
-    const iconName =
-      col.icon ?? ModRegistry.getInstance().getColumnType(col.type)?.icon;
+    const ct = ModRegistry.getInstance().getColumnType(col.type);
+    const iconName = col.icon ?? ct?.icon;
     if (!iconName) return null;
     const IconComponent = getColumnTypeIcon(iconName);
     if (!IconComponent) return null;
+    const colorKey = ct?.color || "muted";
+    const bg = resolveColorHex(colorKey);
+    const fg = deriveForeground(bg);
     return (
-      <IconComponent
+      <span
         className="entities-th-type-icon"
-        size={13}
-        aria-hidden="true"
-      />
+        style={{ backgroundColor: bg, color: fg }}
+      >
+        <IconComponent size={13} aria-hidden="true" />
+      </span>
     );
   }
 
@@ -635,7 +640,10 @@ function EntitiesHub() {
     switch (col.key) {
       case "display_id":
         return (
-          <span className="entities-display-id">{item.display_id}</span>
+          <span className="entities-display-id">
+            <IconBadge iconKey={item.icon || "circle"} colorKey={item.color || "muted"} size="sm" />
+            <span className="entities-display-id-text">{item.display_id}</span>
+          </span>
         );
       case "name":
         return item.name;

@@ -24,4 +24,6 @@ export type {
   BaseBinding,
   BlockBinding,
   ButtonBinding,
+  IconLibraryEntry,
+  ColorToken,
 } from "./types";

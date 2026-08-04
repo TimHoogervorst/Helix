@@ -1,19 +1,3 @@
-import {
-  FlaskConical,
-  ScrollText,
-  TestTubes,
-  AlertTriangle,
-  Activity,
-  BarChart3,
-  Beaker,
-  CircleDollarSign,
-  Clock,
-  FileText,
-  Thermometer,
-  TrendingUp,
-  CheckCircle,
-  type LucideIcon,
-} from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -38,66 +22,6 @@ export interface FormattingStyle {
 export interface FormattingConfig {
   rules: FormattingRule[];
   default: FormattingStyle;
-}
-
-// ── Semantic Color Tokens ──────────────────────────────────────────────────
-
-export const CARD_COLOR_TOKENS = [
-  "flask",
-  "enzyme",
-  "solvent",
-  "warn",
-  "success",
-  "muted",
-] as const;
-
-export type CardColorToken = (typeof CARD_COLOR_TOKENS)[number];
-
-export const CARD_COLOR_CLASSES: Record<
-  CardColorToken,
-  { bg: string; text: string }
-> = {
-  flask: { bg: "bg-flask", text: "text-flask-foreground" },
-  enzyme: { bg: "bg-enzyme", text: "text-enzyme-foreground" },
-  solvent: { bg: "bg-solvent", text: "text-solvent-foreground" },
-  warn: { bg: "bg-warn", text: "text-warn-foreground" },
-  success: { bg: "bg-success", text: "text-success-foreground" },
-  muted: { bg: "bg-muted", text: "text-muted-foreground" },
-};
-
-export const CARD_COLOR_LABELS: Record<CardColorToken, string> = {
-  flask: "Flask",
-  enzyme: "Enzyme",
-  solvent: "Solvent",
-  warn: "Warn",
-  success: "Success",
-  muted: "Muted",
-};
-
-// ── Curated Icon Set ───────────────────────────────────────────────────────
-
-export const CARD_ICONS: { key: string; label: string; Icon: LucideIcon }[] = [
-  { key: "flask-conical", label: "Flask", Icon: FlaskConical },
-  { key: "scroll-text", label: "Scroll", Icon: ScrollText },
-  { key: "test-tubes", label: "Test Tubes", Icon: TestTubes },
-  { key: "alert-triangle", label: "Alert", Icon: AlertTriangle },
-  { key: "activity", label: "Activity", Icon: Activity },
-  { key: "bar-chart-3", label: "Chart", Icon: BarChart3 },
-  { key: "beaker", label: "Beaker", Icon: Beaker },
-  { key: "circle-dollar-sign", label: "Dollar", Icon: CircleDollarSign },
-  { key: "clock", label: "Clock", Icon: Clock },
-  { key: "file-text", label: "File", Icon: FileText },
-  { key: "thermometer", label: "Thermometer", Icon: Thermometer },
-  { key: "trending-up", label: "Trending", Icon: TrendingUp },
-  { key: "check-circle", label: "Check", Icon: CheckCircle },
-];
-
-const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
-  CARD_ICONS.map(({ key, Icon }) => [key, Icon]),
-);
-
-export function resolveIcon(token: string): LucideIcon {
-  return ICON_MAP[token] ?? FlaskConical;
 }
 
 // ── Rule Comparison ────────────────────────────────────────────────────────

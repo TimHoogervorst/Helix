@@ -80,6 +80,8 @@ def register():
         workspace_id="lims",
         model="mods.lims.models.Entity",
         prefix="BLOOD",
+        icon="flask-conical",
+        color="success",
     )
 
     # Pre-seed built-in Views and Metrics.

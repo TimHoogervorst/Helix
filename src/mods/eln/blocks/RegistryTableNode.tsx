@@ -25,6 +25,7 @@ import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
+import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { listDropdowns } from "../../dropdowns/api";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
@@ -204,8 +205,18 @@ function renderColumnTypeBadge(columnType: string): React.ReactNode {
   const colType = resolveColumnType(columnType);
   if (colType) {
     const IconComponent = getColumnTypeIcon(colType.icon);
+    const colorKey = colType.color || "muted";
+    const bg = resolveColorHex(colorKey);
+    const fg = deriveForeground(bg);
     if (IconComponent) {
-      return <IconComponent className="h-3.5 w-3.5" aria-label={colType.displayName} />;
+      return (
+        <span
+          className="inline-flex items-center justify-center rounded"
+          style={{ backgroundColor: bg, color: fg, width: 18, height: 18 }}
+        >
+          <IconComponent className="h-3 w-3" aria-label={colType.displayName} />
+        </span>
+      );
     }
   }
   // Fallback: compact label for legacy types

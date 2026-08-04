@@ -19,6 +19,7 @@ class TiptapContentColumnType(ColumnType):
     id = "tiptap_content"
     display_name = "TipTap Content"
     icon = "file-text"
+    color = "flask"
     operand_shape = "text"
 
     def get_operators(self) -> list[OperatorMeta]:
@@ -115,6 +116,8 @@ def register():
         workspace_id="eln",
         model="mods.eln.models.NotebookEntry",
         prefix="E",
+        icon="notebook",
+        color="muted",
     )
     registry.register_signal(
         "eln", post_save, update_entity_status_from_entry, sender=NotebookEntry

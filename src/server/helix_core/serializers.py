@@ -92,6 +92,8 @@ class SchemaListSerializer(serializers.ModelSerializer):
             "is_default",
             "is_active",
             "content_hash",
+            "icon",
+            "color",
         ]
         read_only_fields = ["id", "content_hash"]
 
@@ -116,6 +118,8 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "is_default",
             "is_active",
             "content_hash",
+            "icon",
+            "color",
         ]
         read_only_fields = ["id", "is_default", "content_hash", "schema_type_display"]
 
@@ -147,6 +151,12 @@ class EntityHubSerializer(serializers.ModelSerializer):
     schema_prefix = serializers.CharField(
         source="schema.prefix", read_only=True
     )
+    schema_icon = serializers.CharField(
+        source="schema.icon", read_only=True, default=""
+    )
+    schema_color = serializers.CharField(
+        source="schema.color", read_only=True, default=""
+    )
     schema_type_display = serializers.SerializerMethodField()
     _expanded = serializers.SerializerMethodField()
 
@@ -161,6 +171,8 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "schema_id",
             "schema_name",
             "schema_prefix",
+            "schema_icon",
+            "schema_color",
             "status",
             "author",
             "author_username",

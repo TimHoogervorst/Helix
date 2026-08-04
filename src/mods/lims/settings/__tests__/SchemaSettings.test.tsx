@@ -82,6 +82,8 @@ function makeSchema(overrides: Record<string, unknown> = {}) {
     is_default: false,
     is_active: true,
     content_hash: "abc123",
+    icon: "",
+    color: "",
     ...overrides,
   };
 }
@@ -375,6 +377,8 @@ describe("SchemaSettings", () => {
         prefix: "BLOOD",
         schema_type: 1,
         columns: [{ name: "Volume", type: "number" }],
+        icon: "",
+        color: "",
       });
     });
   });
@@ -553,6 +557,8 @@ describe("SchemaSettings", () => {
         prefix: "TS",
         schema_type: 1,
         columns: [],
+        icon: "circle",
+        color: "muted",
       });
     });
   });

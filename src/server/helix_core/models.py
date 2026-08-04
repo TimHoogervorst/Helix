@@ -159,6 +159,18 @@ class Schema(ContentHashedModel):
         blank=True,
         help_text="SHA-256 hash of column definitions.",
     )
+    icon = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Open key string referencing an IconLibraryEntry key. Soft reference with render-time fallback.",
+    )
+    color = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Open key string referencing a ColorToken key. Soft reference with render-time fallback.",
+    )
 
     class Meta:
         db_table = "helix_schema"

@@ -201,3 +201,22 @@ def get_icon(instance, model_type: str) -> str:
     except AttributeError:
         pass
     return "🧪"
+
+
+def get_color(instance, model_type: str) -> str:
+    """
+    Return the color key for a resolved reference.
+
+    - ELN entries: schema's color via ``instance.schema`` (if available),
+      falling back to ``"muted"``.
+    - Other model types: schema's color via ``instance.schema``,
+      falling back to ``"muted"``.
+    """
+    try:
+        schema = instance.schema
+        if schema and getattr(schema, "color", None):
+            return schema.color
+    except AttributeError:
+        pass
+    return "muted"
+

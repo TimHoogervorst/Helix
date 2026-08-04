@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from helix_core.views import (
     ActionCreateView,
+    ColorTokenViewSet,
     ModRegistryView,
     SchemaViewSet,
     SchemaTypeViewSet,
@@ -10,10 +11,11 @@ from helix_core.views import (
     EntityHubQueryView,
 )
 
-# Router for schemas and schema-types
+# Router for schemas, schema-types, and colors
 router = DefaultRouter()
 router.register(r"schemas", SchemaViewSet, basename="schema")
 router.register(r"schema-types", SchemaTypeViewSet, basename="schema-type")
+router.register(r"colors", ColorTokenViewSet, basename="color-token")
 
 # Router for the registry (cross-mod entity browsing)
 registry_router = DefaultRouter()

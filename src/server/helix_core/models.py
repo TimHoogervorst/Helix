@@ -230,3 +230,27 @@ class EntityHubView(models.Model):
         managed = False
         db_table = "entity_hub_view"
         ordering = ["-updated_at"]
+
+
+# ── Color Token ─────────────────────────────────────────────────────────
+
+
+class ColorToken(models.Model):
+    """A named color in the platform palette.
+
+    Each ColorToken has a unique ``key`` (string identifier used by
+    referencing objects like tags and schemas), a human-readable
+    ``label``, and a ``hex`` color value.  Foreground / glyph colour
+    is derived from the hex by luminance at render time — never stored.
+    """
+
+    key = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=255)
+    hex = models.CharField(max_length=7)
+
+    class Meta:
+        db_table = "helix_color_token"
+        ordering = ["label"]
+
+    def __str__(self):
+        return f"{self.label} ({self.key})"

@@ -1,11 +1,13 @@
-"""Serializers for Schema and SchemaType API endpoints."""
+"""Serializers for Schema, SchemaType, and ColorToken API endpoints."""
+
+import re
 
 from rest_framework import serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from helix_core.column_types import registry as column_type_registry
-from helix_core.models import Schema, SchemaType, EntityHubView
+from helix_core.models import ColorToken, Schema, SchemaType, EntityHubView
 
 
 def validate_prefix(value):
@@ -211,3 +213,30 @@ class EntityHubPaginator(PageNumberPagination):
             "page": self.page.number,
             "size": self.get_page_size(self.request),
         })
+
+
+# ── Color Token ─────────────────────────────────────────────────────────
+
+
+def validate_hex_color(value):
+    """Hex must be a valid #RRGGBB or #RGB colour string."""
+    if not re.match(r"^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$", value):
+        raise serializers.ValidationError(
+            "Hex must be a valid #RGB or #RRGGBB colour string."
+        )
+    return value
+
+
+class ColorTokenSerializer(serializers.ModelSerializer):
+    """Serializer for ColorToken — list, create, delete."""
+
+    hex = serializers.CharField(validators=[validate_hex_color])
+
+    class Meta:
+        model = ColorToken
+        fields = ["id", "key", "label", "hex"]
+        read_only_fields = ["id"]
+
+    def validate_hex(self, value):
+        """Normalise hex to uppercase for consistent storage."""
+        return value.upper()

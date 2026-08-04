@@ -189,6 +189,8 @@ def _auto_discover(
             continue
         if entry.name.startswith("_"):
             continue
+        if not (entry / "__init__.py").is_file():
+            continue
         manifest = _load_manifest_from_dir(entry, entry.name)
         if manifest is None:
             continue

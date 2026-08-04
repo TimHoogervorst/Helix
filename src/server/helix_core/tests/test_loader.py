@@ -785,6 +785,7 @@ class TestAutoDiscoverWithJsonManifest:
         server_dir.mkdir()
         mod_dir = mods_dir / "my-mod"
         mod_dir.mkdir()
+        (mod_dir / "__init__.py").write_text("")
         _make_json_manifest_file(mod_dir, "my-mod")
 
         result = _auto_discover(server_dir)
@@ -837,6 +838,7 @@ class TestAutoDiscoverWithJsonManifest:
         # JSON-only mod
         json_dir = mods_dir / "json-mod"
         json_dir.mkdir()
+        (json_dir / "__init__.py").write_text("")
         _make_json_manifest_file(json_dir, "json-mod")
         # mod.py-only mod
         _make_mod_dir(mods_dir, "py-mod")

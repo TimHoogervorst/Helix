@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Users, UserPlus, Shield, X } from "lucide-react";
+import { X } from "lucide-react";
 import { listUsers, createUser, deactivateUser, deleteUser, fetchCoreSetting, updateCoreSetting } from "../api";
 import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
 import { formatDate } from "../../../shell/src/shared/format";
 import type { CurrentUser } from "../types";
+import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
+import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
+import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -161,13 +164,20 @@ export default function UserManagement() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  if (loading) return <p className="p-4 text-[13px] text-muted-foreground">Loading users…</p>;
+  if (loading) return <p className="empty">Loading users…</p>;
 
   return (
-    <div className="flex flex-col gap-8 p-6">
-      {/* ── Page-level error ─────────────────────────────────────────── */}
+    <SettingsPageLayout
+      hero={
+        <SettingsHeroHeader
+          eyebrow="user management"
+          title="Users"
+          description="Manage user accounts, create new users, and control self-registration settings."
+        />
+      }
+    >
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
           {error}
           <button
             className="ml-3 underline"
@@ -178,108 +188,92 @@ export default function UserManagement() {
         </div>
       )}
 
-      {/* ── Section: User table ──────────────────────────────────────── */}
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-            All Users
-          </h2>
-          <span className="text-[11px] text-muted-foreground">
-            ({users.length})
-          </span>
-        </div>
-
-        {users.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">No users found.</p>
-        ) : (
-          <div className="overflow-hidden rounded-lg border border-hairline">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-hairline bg-muted/50">
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
-                    User
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
-                    Joined
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="border-b border-hairline last:border-b-0 hover:bg-muted/30"
-                  >
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Avatar
-                          initials={getInitials(user)}
-                          color={user.color}
-                          size="sm"
-                        />
-                        <span className="font-medium">{user.username}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {formatDate(user.date_joined)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <StatusChip active={user.is_active} />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {user.is_active ? (
-                        <button
-                          className="btn-ghost text-[12px] text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeactivate(user)}
-                        >
-                          Deactivate
-                        </button>
-                      ) : (
-                        <button
-                          className="btn-ghost p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => handleDelete(user)}
-                          title="Delete"
-                          aria-label={`Delete ${user.username}`}
-                        >
-                          <X className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ── Section: Create user ─────────────────────────────────────── */}
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <UserPlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Create User
-          </h2>
-        </div>
-
-        <form
-          onSubmit={handleCreate}
-          className="flex flex-col gap-3 rounded-lg border border-hairline p-4"
+      <div className="space-y-4">
+        <SettingsSectionCard
+          title="Users"
+          subtitle={`${users.length} total`}
         >
+          {users.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">No users found.</p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-hairline">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-hairline bg-muted/50">
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                      User
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                      Joined
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr
+                      key={user.id}
+                      className="border-b border-hairline last:border-b-0 hover:bg-muted/30"
+                    >
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Avatar
+                            initials={getInitials(user)}
+                            color={user.color}
+                            size="sm"
+                          />
+                          <span className="font-medium">{user.username}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {formatDate(user.date_joined)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusChip active={user.is_active} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {user.is_active ? (
+                          <button
+                            className="btn-ghost text-[12px] text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeactivate(user)}
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            className="btn-ghost p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDelete(user)}
+                            title="Delete"
+                            aria-label={`Delete ${user.username}`}
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SettingsSectionCard>
+
+        <SettingsSectionCard title="Create User">
           {createError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+            <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
               {createError}
             </div>
           )}
 
-          <div className="flex items-end gap-3">
+          <form
+            onSubmit={handleCreate}
+            className="flex items-end gap-3"
+          >
             <label className="flex flex-col gap-1.5">
               <span className="text-[13px] font-medium">Username</span>
               <input
@@ -312,50 +306,42 @@ export default function UserManagement() {
             >
               {creating ? "Creating…" : "Create User"}
             </button>
+          </form>
+        </SettingsSectionCard>
+
+        <SettingsSectionCard title="Registration">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-medium">Allow self-registration</p>
+              <p className="text-[12px] text-muted-foreground">
+                When enabled, anyone can create an account from the login page.
+              </p>
+            </div>
+
+            {toggleLoading ? (
+              <span className="text-[12px] text-muted-foreground">Loading…</span>
+            ) : (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={allowRegistration}
+                aria-label="Toggle self-registration"
+                disabled={toggleSaving}
+                onClick={handleToggleRegistration}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
+                  allowRegistration ? "bg-primary" : "bg-muted-foreground/25"
+                } ${toggleSaving ? "opacity-50" : ""}`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                    allowRegistration ? "translate-x-[18px]" : "translate-x-[3px]"
+                  }`}
+                />
+              </button>
+            )}
           </div>
-        </form>
-      </section>
-
-      {/* ── Section: Self-registration toggle ────────────────────────── */}
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <Shield className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Registration
-          </h2>
-        </div>
-
-        <div className="flex items-center justify-between rounded-lg border border-hairline p-4">
-          <div>
-            <p className="text-[13px] font-medium">Allow self-registration</p>
-            <p className="text-[12px] text-muted-foreground">
-              When enabled, anyone can create an account from the login page.
-            </p>
-          </div>
-
-          {toggleLoading ? (
-            <span className="text-[12px] text-muted-foreground">Loading…</span>
-          ) : (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={allowRegistration}
-              aria-label="Toggle self-registration"
-              disabled={toggleSaving}
-              onClick={handleToggleRegistration}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-                allowRegistration ? "bg-primary" : "bg-muted-foreground/25"
-              } ${toggleSaving ? "opacity-50" : ""}`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                  allowRegistration ? "translate-x-[18px]" : "translate-x-[3px]"
-                }`}
-              />
-            </button>
-          )}
-        </div>
-      </section>
-    </div>
+        </SettingsSectionCard>
+      </div>
+    </SettingsPageLayout>
   );
 }

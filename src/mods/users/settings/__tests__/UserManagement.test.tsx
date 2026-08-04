@@ -79,15 +79,16 @@ describe("UserManagement", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders users card with table showing user data", async () => {
+  it("renders master list with user data", async () => {
     render(<UserManagement />);
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
     expect(screen.getByText("bob")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("Inactive")).toBeInTheDocument();
-    expect(screen.getByText("2 total")).toBeInTheDocument();
+    const emails = screen.getAllByText("alice@example.com");
+    expect(emails.length).toBe(1);
+    const bobEmails = screen.getAllByText("bob@example.com");
+    expect(bobEmails.length).toBe(1);
   });
 
   it("shows empty state when no users exist", async () => {
@@ -103,9 +104,8 @@ describe("UserManagement", () => {
 
     render(<UserManagement />);
     await waitFor(() => {
-      expect(screen.getByText("No users found.")).toBeInTheDocument();
+      expect(screen.getAllByText("No users found.").length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getByText("0 total")).toBeInTheDocument();
   });
 
   it("shows error state on API failure", async () => {
@@ -122,12 +122,20 @@ describe("UserManagement", () => {
     });
   });
 
-  it("renders Create User card with form", async () => {
+  it("shows create user form when + New User button is clicked", async () => {
     render(<UserManagement />);
+    await waitFor(() => {
+      expect(screen.getByText("alice")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Username")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ New User" }));
+
     await waitFor(() => {
       expect(screen.getByText("Username")).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Create User" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g., jdoe")).toBeInTheDocument();
   });
 
   it("creates a user on form submit", async () => {
@@ -138,13 +146,23 @@ describe("UserManagement", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    const usernameInput = screen.getByLabelText("Username") as HTMLInputElement;
-    const passwordInput = screen.getByLabelText("Password") as HTMLInputElement;
+    fireEvent.click(screen.getByRole("button", { name: "+ New User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Username")).toBeInTheDocument();
+    });
+
+    const usernameInput = screen.getByPlaceholderText(
+      "e.g., jdoe",
+    ) as HTMLInputElement;
+    const passwordInput = document.querySelector(
+      'input[type="password"]',
+    ) as HTMLInputElement;
 
     fireEvent.change(usernameInput, { target: { value: "charlie" } });
     fireEvent.change(passwordInput, { target: { value: "secret123" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Create User" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
       expect(mockPost).toHaveBeenCalledWith("/core/users/", {
@@ -160,14 +178,36 @@ describe("UserManagement", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    const form = screen.getByText("Username").closest("form");
-    fireEvent.submit(form!);
+    fireEvent.click(screen.getByRole("button", { name: "+ New User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Username")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
       expect(
         screen.getByText("Username and password are required."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows user detail with deactivate button when user is selected", async () => {
+    render(<UserManagement />);
+    await waitFor(() => {
+      expect(screen.getByText("alice")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("alice"));
+
+    await waitFor(() => {
+      expect(screen.getByText("User details")).toBeInTheDocument();
+    });
+    const emails = screen.getAllByText("alice@example.com");
+    expect(emails.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Deactivate")).toBeInTheDocument();
   });
 
   it("deactivates user on confirm", async () => {
@@ -179,8 +219,13 @@ describe("UserManagement", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    const deactivateBtn = screen.getByText("Deactivate");
-    fireEvent.click(deactivateBtn);
+    fireEvent.click(screen.getByText("alice"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Deactivate")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Deactivate"));
 
     expect(window.confirm).toHaveBeenCalledWith(
       'Deactivate user "alice"?',
@@ -193,6 +238,20 @@ describe("UserManagement", () => {
     });
   });
 
+  it("shows delete button for inactive user in detail panel", async () => {
+    render(<UserManagement />);
+    await waitFor(() => {
+      expect(screen.getByText("bob")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("bob"));
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Delete user")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+  });
+
   it("deletes user on confirm", async () => {
     mockDel.mockResolvedValue(undefined);
     window.confirm = vi.fn().mockReturnValue(true);
@@ -202,7 +261,13 @@ describe("UserManagement", () => {
       expect(screen.getByText("bob")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTitle("Delete"));
+    fireEvent.click(screen.getByText("bob"));
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Delete user")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle("Delete user"));
 
     expect(window.confirm).toHaveBeenCalledWith(
       'Permanently delete user "bob"? This cannot be undone.',

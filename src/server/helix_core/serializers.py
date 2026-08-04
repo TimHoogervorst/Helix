@@ -291,8 +291,10 @@ class IconLibrarySerializer(serializers.ModelSerializer):
                 )
             try:
                 data["svg"] = sanitize_svg(svg)
-            except SvgSanitizationError as exc:
-                raise serializers.ValidationError({"svg": str(exc)})
+            except SvgSanitizationError:
+                raise serializers.ValidationError(
+                    {"svg": "Invalid SVG content."}
+                )
         else:
             raise serializers.ValidationError(
                 {"kind": "Must be 'lucide' or 'custom'."}

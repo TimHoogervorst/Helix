@@ -278,7 +278,7 @@ function LibraryHub() {
         viewMode={viewMode}
         isSelected={isSelected}
         iconKey={item.icon || "file-text"}
-        colorKey={item.color || "primary"}
+        colorKey={item.color === "muted" ? "primary" : item.color}
         propertyFields={propertyFields}
         showDescription={true}
         showTags={true}

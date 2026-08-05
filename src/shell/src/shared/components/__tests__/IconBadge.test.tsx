@@ -49,16 +49,16 @@ describe("IconBadge", () => {
       expect(badge.style.backgroundColor).toBe("rgb(217, 179, 230)");
     });
 
-    it("derives a dark foreground for light backgrounds", () => {
+    it("derives a darker foreground for light backgrounds", () => {
       render(<IconBadge iconKey="dna" colorKey="muted" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(26, 26, 26)");
+      expect(badge.style.color).toBe("rgb(141, 141, 141)");
     });
 
-    it("derives a dark foreground for primary blue background", () => {
+    it("derives a darker foreground for mid-tone backgrounds", () => {
       render(<IconBadge iconKey="dna" colorKey="primary" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(26, 26, 26)");
+      expect(badge.style.color).toBe("rgb(83, 116, 141)");
     });
   });
 

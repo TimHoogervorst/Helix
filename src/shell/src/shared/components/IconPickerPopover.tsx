@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { IconBadge, LazyIcon } from "./IconBadge";
+import { IconBadge, LazyIcon, deriveForeground } from "./IconBadge";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 
@@ -21,17 +21,6 @@ export interface IconPickerPopoverProps {
   colorKey: string;
   size?: "sm" | "md" | "lg";
   onChange: (iconKey: string, colorKey: string) => void;
-}
-
-function deriveForeground(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const rLin = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
-  const gLin = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
-  const bLin = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
-  const luminance = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
-  return luminance > 0.5 ? "#1a1a1a" : "#ffffff";
 }
 
 function getIconLibrary(): IconLibraryEntry[] {

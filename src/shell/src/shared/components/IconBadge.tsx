@@ -31,7 +31,20 @@ export function resolveColorHex(key: string): string {
   return FALLBACK_COLOR_HEX;
 }
 
-export function deriveForeground(hex: string): string {
+function hexToRgb(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return "#" + [r, g, b].map((c) => clamp(c).toString(16).padStart(2, "0")).join("");
+}
+
+function getLuminance(hex: string): number {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
@@ -40,9 +53,34 @@ export function deriveForeground(hex: string): string {
   const gLin = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
   const bLin = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
 
-  const luminance = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+  return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+}
 
-  return luminance > 0.35 ? "#1a1a1a" : "#ffffff";
+const DERIVE_FACTOR = 0.35;
+
+export function deriveLighter(hex: string, factor: number = DERIVE_FACTOR): string {
+  const [r, g, b] = hexToRgb(hex);
+  return rgbToHex(
+    r + (255 - r) * factor,
+    g + (255 - g) * factor,
+    b + (255 - b) * factor,
+  );
+}
+
+export function deriveDarker(hex: string, factor: number = DERIVE_FACTOR): string {
+  const [r, g, b] = hexToRgb(hex);
+  return rgbToHex(
+    r * (1 - factor),
+    g * (1 - factor),
+    b * (1 - factor),
+  );
+}
+
+export function deriveForeground(hex: string): string {
+  if (getLuminance(hex) > 0.35) {
+    return deriveDarker(hex);
+  }
+  return deriveLighter(hex);
 }
 
 const SIZE_CLASSES: Record<
@@ -158,17 +196,18 @@ export function IconBadge({
   onChange,
 }: IconBadgeProps) {
   const hex = resolveColorHex(colorKey);
+  const lighter = deriveLighter(hex);
   const foreground = deriveForeground(hex);
   const { box, icon } = SIZE_CLASSES[size];
 
-  const style = { backgroundColor: hex, color: foreground };
+  const style = { backgroundColor: hex, color: foreground, borderColor: lighter };
 
   if (onChange) {
     return (
       <button
         type="button"
         data-testid="icon-badge"
-        className={`${box} rounded border border-border flex shrink-0 items-center justify-center cursor-pointer`}
+        className={`${box} rounded border flex shrink-0 items-center justify-center cursor-pointer`}
         style={style}
         onClick={onChange}
         aria-label="Change icon"
@@ -181,7 +220,7 @@ export function IconBadge({
   return (
     <div
       data-testid="icon-badge"
-      className={`${box} rounded border border-border flex shrink-0 items-center justify-center`}
+      className={`${box} rounded border flex shrink-0 items-center justify-center`}
       style={style}
     >
       {resolveDynamicIcon(iconKey, icon)}

@@ -200,11 +200,11 @@ export function IconBadge({
   onChange,
 }: IconBadgeProps) {
   const hex = resolveColorHex(colorKey);
-  const tint = deriveTint(hex);
   const foreground = deriveShade(hex);
+  const borderHex = deriveTint(hex);
   const { box, icon } = SIZE_CLASSES[size];
 
-  const style = { backgroundColor: tint, color: foreground, borderColor: tint };
+  const style = { backgroundColor: hex, color: foreground, borderColor: borderHex };
 
   if (onChange) {
     return (

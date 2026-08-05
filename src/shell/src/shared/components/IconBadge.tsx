@@ -42,7 +42,7 @@ export function deriveForeground(hex: string): string {
 
   const luminance = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
 
-  return luminance > 0.5 ? "#1a1a1a" : "#ffffff";
+  return luminance > 0.35 ? "#1a1a1a" : "#ffffff";
 }
 
 const SIZE_CLASSES: Record<

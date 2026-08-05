@@ -55,10 +55,10 @@ describe("IconBadge", () => {
       expect(badge.style.color).toBe("rgb(26, 26, 26)");
     });
 
-    it("derives a light foreground for dark backgrounds", () => {
+    it("derives a dark foreground for primary blue background", () => {
       render(<IconBadge iconKey="dna" colorKey="primary" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(255, 255, 255)");
+      expect(badge.style.color).toBe("rgb(26, 26, 26)");
     });
   });
 

@@ -22,46 +22,77 @@ vi.mock("../../../dropdowns/api", () => ({
   listDropdowns: vi.fn().mockResolvedValue([]),
 }));
 
+const STANDARD_COLORS = [
+  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
+  { key: "flask", label: "Flask", hex: "#b3d9e6" },
+  { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
+  { key: "warn", label: "Warn", hex: "#e6d9b3" },
+  { key: "primary", label: "Primary", hex: "#7fb3d9" },
+  { key: "success", label: "Success", hex: "#b3e6b3" },
+  { key: "destructive", label: "Destructive", hex: "#e6b3b3" },
+  { key: "muted", label: "Muted", hex: "#d9d9d9" },
+];
+
+const STANDARD_ICONS = [
+  { key: "type", label: "Type", kind: "lucide" as const, token: "type", svg: "" },
+  { key: "hash", label: "Hash", kind: "lucide" as const, token: "hash", svg: "" },
+  { key: "calendar", label: "Calendar", kind: "lucide" as const, token: "calendar", svg: "" },
+  { key: "toggle-left", label: "Toggle Left", kind: "lucide" as const, token: "toggle-left", svg: "" },
+  { key: "list", label: "List", kind: "lucide" as const, token: "list", svg: "" },
+  { key: "link", label: "Link", kind: "lucide" as const, token: "link", svg: "" },
+  { key: "circle", label: "Circle", kind: "lucide" as const, token: "circle", svg: "" },
+];
+
 const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "text",
     displayName: "Text",
-    icon: "Type",
+    icon: "type",
+    color: "flask",
     operandShape: "text",
     defaultValue: "",
     operators: [],
+    aggregates: [],
   },
   {
     id: "number",
     displayName: "Number",
-    icon: "Hash",
+    icon: "hash",
+    color: "solvent",
     operandShape: "number",
     defaultValue: 0,
     operators: [],
+    aggregates: [],
   },
   {
     id: "boolean",
     displayName: "Boolean",
-    icon: "ToggleLeft",
+    icon: "toggle-left",
+    color: "success",
     operandShape: "boolean",
     defaultValue: false,
     operators: [],
+    aggregates: [],
   },
   {
     id: "dropdown",
     displayName: "Dropdown",
-    icon: "List",
+    icon: "list",
+    color: "enzyme",
     operandShape: "text",
     defaultValue: "",
     operators: [],
+    aggregates: [],
   },
   {
     id: "reference",
     displayName: "Reference",
-    icon: "Link",
+    icon: "link",
+    color: "primary",
     operandShape: "entity-picker",
     defaultValue: null,
     operators: [],
+    aggregates: [],
   },
 ];
 
@@ -92,6 +123,10 @@ describe("SchemaSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const registry = resetRegistry();
+    registry.hydrateFromBackend(
+      { colorPalette: STANDARD_COLORS, iconLibrary: STANDARD_ICONS },
+      new Map(),
+    );
     for (const ct of MOCK_COLUMN_TYPES) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (registry as any).columnTypes.set(ct.id, ct);

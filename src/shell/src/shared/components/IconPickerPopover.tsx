@@ -1,36 +1,7 @@
-import { useState, useRef, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
-import type { ComponentType } from "react";
-import { Circle } from "lucide-react";
-import { IconBadge } from "./IconBadge";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { IconBadge, LazyIcon } from "./IconBadge";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { ModRegistry } from "../../mod-system/ModRegistry";
-
-let _dynamicIconImports: Record<
-  string,
-  () => Promise<{ default: ComponentType<{ className?: string }> }>
-> | null = null;
-
-function getIconImport(
-  token: string,
-): (() => Promise<{ default: ComponentType<{ className?: string }> }>) | undefined {
-  if (!_dynamicIconImports) return undefined;
-  return _dynamicIconImports[token];
-}
-
-function loadDynamicIconImports() {
-  if (_dynamicIconImports) return;
-  import("lucide-react/dynamicIconImports")
-    .then((mod) => {
-      _dynamicIconImports = mod.default as unknown as Record<
-        string,
-        () => Promise<{ default: ComponentType<{ className?: string }> }>
-      >;
-    })
-    .catch(() => {
-      // dynamic imports unavailable (e.g. test environment) — fall back gracefully
-    });
-}
-loadDynamicIconImports();
 
 const ICONS_PER_PAGE = 20;
 
@@ -61,30 +32,6 @@ function deriveForeground(hex: string): string {
   const bLin = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
   const luminance = 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
   return luminance > 0.5 ? "#1a1a1a" : "#ffffff";
-}
-
-function LazyIcon({
-  token,
-  className,
-}: {
-  token: string;
-  className?: string;
-}) {
-  const Component = useMemo(() => {
-    const importFn = getIconImport(token);
-    if (!importFn) return null;
-    return lazy(importFn);
-  }, [token]);
-
-  if (!Component) {
-    return <Circle className={className} />;
-  }
-
-  return (
-    <Suspense fallback={<div className={className} />}>
-      <Component className={className} />
-    </Suspense>
-  );
 }
 
 function getIconLibrary(): IconLibraryEntry[] {

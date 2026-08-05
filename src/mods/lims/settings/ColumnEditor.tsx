@@ -1,25 +1,11 @@
 import { useState, useEffect } from "react";
-import {
-  ArrowUp,
-  ArrowDown,
-  Trash2,
-  Settings2,
-  FlaskConical,
-  Dna,
-  Hash,
-  List,
-  Link2,
-  Calendar,
-  Type,
-  ToggleLeft,
-  Braces,
-  Paperclip,
-} from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Settings2, Type, Circle } from "lucide-react";
 import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../dropdowns/api";
 import type { Dropdown } from "../../dropdowns/types";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
+import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 
 function resolveTypeColor(typeId: string): { bg: string; fg: string } {
   const ct = ModRegistry.getInstance().getColumnType(typeId);
@@ -39,18 +25,6 @@ export interface ColumnEditorProps {
   onMove: (index: number, direction: "up" | "down") => void;
 }
 
-const COLUMN_ICONS = [
-  FlaskConical,
-  Dna,
-  Hash,
-  List,
-  Link2,
-  Calendar,
-  Type,
-  ToggleLeft,
-  Braces,
-  Paperclip,
-];
 
 function isNameCollision(value: string): boolean {
   return value.trim().toLowerCase() === "name";
@@ -141,7 +115,8 @@ function ColumnEditor({
       </div>
 
       {columns.map((col, i) => {
-        const Icon = COLUMN_ICONS[i % COLUMN_ICONS.length];
+        const ct = ModRegistry.getInstance().getColumnType(col.type);
+        const Icon = ct?.icon ? getColumnTypeIcon(ct.icon) : Circle;
         const typeColor = resolveTypeColor(col.type);
         return (
           <div

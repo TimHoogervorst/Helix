@@ -17,7 +17,7 @@ import {
 } from "./formatting";
 import type { CardState, CardData } from "./types";
 import { CardBuilderModal } from "./CardBuilderModal";
-import { resolveColorHex, resolveIcon } from "../IconBadge";
+import { resolveColorHex, LazyIcon } from "../IconBadge";
 
 // ── Loading Skeleton ───────────────────────────────────────────────────────
 
@@ -53,8 +53,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
   const style: FormattingStyle = resolveFormatting(value, formatting);
   const colorKey = style.color;
   const iconColor = resolveColorHex(colorKey);
-
-  const Icon = resolveIcon(style.icon);
+  const iconToken = style.icon;
   const label = card.label || card.metric_name;
   const subtitle = applyValueTemplate(style.text, value);
 
@@ -74,7 +73,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
       {/* Top row: icon + label */}
       <div className="flex items-center gap-1.5">
         <span style={{ color: iconColor }}>
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          <LazyIcon token={iconToken} className="h-3.5 w-3.5" />
         </span>
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground leading-snug">
           {label}

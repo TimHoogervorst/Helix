@@ -24,6 +24,7 @@ import {
   SettingsMasterList,
   type MasterListRow,
 } from "../../../shell/src/shared/components/SettingsMasterList";
+import { SettingsCardGrid } from "../../../shell/src/shared/components/SettingsCardGrid";
 import { IconLibraryBrowser } from "./IconLibraryBrowser";
 
 type TabKind = "tags" | "colours" | "icons";
@@ -260,6 +261,7 @@ interface ColoursTabState {
   fetchColours: () => Promise<void>;
   handleSelect: (id: string | number) => void;
   handleDelete: () => Promise<void>;
+  handleDeleteItem: (id: number) => Promise<void>;
   handleCreate: () => Promise<void>;
   setShowNew: (v: boolean) => void;
   setNewKey: (v: string) => void;
@@ -342,6 +344,23 @@ function useColoursTabState(): ColoursTabState {
     }
   };
 
+  const handleDeleteItem = async (id: number) => {
+    const colour = colours.find((c) => c.id === id);
+    if (!colour) return;
+    if (!window.confirm(`Delete colour "${colour.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteColor(id);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} tag${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted colour "${colour.label}".${usageMsg}`);
+      await fetchColours();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete colour");
+    }
+  };
+
   const filteredColours = filterValue
     ? colours.filter(
         (c) =>
@@ -382,6 +401,7 @@ function useColoursTabState(): ColoursTabState {
     fetchColours,
     handleSelect,
     handleDelete,
+    handleDeleteItem,
     handleCreate,
     setShowNew,
     setNewKey,
@@ -412,6 +432,7 @@ interface IconsTabState {
   fetchIcons: () => Promise<void>;
   handleSelect: (id: string | number) => void;
   handleDelete: () => Promise<void>;
+  handleDeleteItem: (id: number) => Promise<void>;
   handleCreateFromLucide: (token: string, label: string) => Promise<void>;
   handleUploadSvg: () => Promise<void>;
   setShowLucideBrowser: (v: boolean) => void;
@@ -523,6 +544,23 @@ function useIconsTabState(): IconsTabState {
     }
   };
 
+  const handleDeleteItem = async (id: number) => {
+    const icon = icons.find((i) => i.id === id);
+    if (!icon) return;
+    if (!window.confirm(`Delete icon "${icon.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteIcon(id);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} object${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted icon "${icon.label}".${usageMsg}`);
+      await fetchIcons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete icon");
+    }
+  };
+
   const filteredIcons = filterValue
     ? icons.filter(
         (i) =>
@@ -560,6 +598,7 @@ function useIconsTabState(): IconsTabState {
     fetchIcons,
     handleSelect,
     handleDelete,
+    handleDeleteItem,
     handleCreateFromLucide,
     handleUploadSvg,
     setShowLucideBrowser,
@@ -1050,76 +1089,52 @@ function TagSettings() {
         </div>
       )}
 
-      <div className="flex min-h-0 gap-0">
-        <div className="w-64 shrink-0">
-          <SettingsMasterList
-            rows={colours.masterRows}
-            selectedId={colours.selectedId}
-            filterValue={colours.filterValue}
-            onFilterChange={colours.setFilterValue}
-            onSelect={colours.handleSelect}
-            filterPlaceholder="Filter colours"
-          />
-          {colours.masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
-              No colours found.
-            </p>
-          )}
-        </div>
-
-        <div className="flex-1 space-y-4 p-6">
-          {colours.selectedColour ? (
-            <SettingsSectionCard
-              title="Colour details"
-              subtitle={colours.selectedColour.key}
-              actions={
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                    onClick={colours.handleDelete}
-                    title="Delete colour"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() => colours.setSelectedId(null)}
-                    title="Close detail"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              }
+      <SettingsCardGrid
+        filterValue={colours.filterValue}
+        onFilterChange={colours.setFilterValue}
+        filterPlaceholder="Filter colours"
+        emptyMessage="No colours found."
+      >
+        {colours.colours
+          .filter(
+            (c) =>
+              !colours.filterValue ||
+              c.label
+                .toLowerCase()
+                .includes(colours.filterValue.toLowerCase()) ||
+              c.key.toLowerCase().includes(colours.filterValue.toLowerCase()),
+          )
+          .map((c) => (
+            <div
+              key={c.id}
+              className="group relative rounded-lg border border-hairline bg-panel p-4 transition-shadow hover:shadow-sm"
             >
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-10 w-10 shrink-0 rounded border border-hairline"
-                    style={{ backgroundColor: colours.selectedColour.hex }}
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-foreground">
-                      {colours.selectedColour.label}
-                    </div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {colours.selectedColour.key}
-                    </div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {colours.selectedColour.hex}
-                    </div>
+              <button
+                type="button"
+                className="btn-ghost absolute right-2 top-2 gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-warn group-hover:opacity-100"
+                onClick={() => colours.handleDeleteItem(c.id)}
+                title={`Delete colour "${c.label}"`}
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div
+                  className="h-12 w-12 shrink-0 rounded border border-hairline"
+                  style={{ backgroundColor: c.hex }}
+                />
+                <div>
+                  <div className="text-[13px] font-medium text-foreground">
+                    {c.label}
+                  </div>
+                  <div className="font-mono text-[11px] text-muted-foreground">
+                    {c.hex}
                   </div>
                 </div>
               </div>
-            </SettingsSectionCard>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Select a colour from the list to view its details.
             </div>
-          )}
-        </div>
-      </div>
+          ))}
+      </SettingsCardGrid>
     </div>
   );
 
@@ -1131,88 +1146,49 @@ function TagSettings() {
         </div>
       )}
 
-      <div className="flex min-h-0 gap-0">
-        <div className="w-64 shrink-0">
-          <SettingsMasterList
-            rows={icons.masterRows}
-            selectedId={icons.selectedId}
-            filterValue={icons.filterValue}
-            onFilterChange={icons.setFilterValue}
-            onSelect={icons.handleSelect}
-            filterPlaceholder="Filter icons"
-          />
-          {icons.masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
-              No icons found.
-            </p>
-          )}
-        </div>
-
-        <div className="flex-1 space-y-4 p-6">
-          {icons.selectedIcon ? (
-            <SettingsSectionCard
-              title="Icon details"
-              subtitle={icons.selectedIcon.key}
-              actions={
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                    onClick={icons.handleDelete}
-                    title="Delete icon"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() => icons.setSelectedId(null)}
-                    title="Close detail"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              }
+      <SettingsCardGrid
+        filterValue={icons.filterValue}
+        onFilterChange={icons.setFilterValue}
+        filterPlaceholder="Filter icons"
+        emptyMessage="No icons found."
+      >
+        {icons.icons
+          .filter(
+            (i) =>
+              !icons.filterValue ||
+              i.label
+                .toLowerCase()
+                .includes(icons.filterValue.toLowerCase()) ||
+              i.key.toLowerCase().includes(icons.filterValue.toLowerCase()),
+          )
+          .map((i) => (
+            <div
+              key={i.id}
+              className="group relative rounded-lg border border-hairline bg-panel p-4 transition-shadow hover:shadow-sm"
             >
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <IconBadge
-                    iconKey={icons.selectedIcon.key}
-                    colorKey="muted"
-                    size="lg"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-foreground">
-                      {icons.selectedIcon.label}
-                    </div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {icons.selectedIcon.key}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {icons.selectedIcon.kind === "lucide"
-                        ? `Lucide · ${icons.selectedIcon.token}`
-                        : "Custom SVG"}
-                    </div>
+              <button
+                type="button"
+                className="btn-ghost absolute right-2 top-2 gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-warn group-hover:opacity-100"
+                onClick={() => icons.handleDeleteItem(i.id)}
+                title={`Delete icon "${i.label}"`}
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+              <div className="flex flex-col items-center gap-2 text-center">
+                <IconBadge iconKey={i.key} colorKey="muted" size="lg" />
+                <div>
+                  <div className="text-[13px] font-medium text-foreground">
+                    {i.label}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {i.kind === "lucide" ? `Lucide · ${i.token}` : "Custom SVG"}
                   </div>
                 </div>
-                {icons.selectedIcon.kind === "custom" &&
-                  icons.selectedIcon.svg && (
-                    <div
-                      className="mt-2 flex h-12 w-12 items-center justify-center rounded border border-hairline bg-muted p-1"
-                      dangerouslySetInnerHTML={{
-                        __html: icons.selectedIcon.svg,
-                      }}
-                    />
-                  )}
               </div>
-            </SettingsSectionCard>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Select an icon from the list to view its details.
             </div>
-          )}
-        </div>
-      </div>
+          ))}
+      </SettingsCardGrid>
     </div>
   );
 
@@ -1237,34 +1213,35 @@ function TagSettings() {
             />
 
             {heroCreatePanel()}
-
-            <div className="lims-tab-bar mt-2">
-              <button
-                type="button"
-                data-testid="tab-tags"
-                className={`lims-tab ${activeTab === "tags" ? "is-active" : ""}`}
-                onClick={() => setActiveTab("tags")}
-              >
-                Tags
-              </button>
-              <button
-                type="button"
-                data-testid="tab-colours"
-                className={`lims-tab ${activeTab === "colours" ? "is-active" : ""}`}
-                onClick={() => setActiveTab("colours")}
-              >
-                Colours
-              </button>
-              <button
-                type="button"
-                data-testid="tab-icons"
-                className={`lims-tab ${activeTab === "icons" ? "is-active" : ""}`}
-                onClick={() => setActiveTab("icons")}
-              >
-                Icons
-              </button>
-            </div>
           </>
+        }
+        tabs={
+          <div className="lims-tab-bar">
+            <button
+              type="button"
+              data-testid="tab-tags"
+              className={`lims-tab ${activeTab === "tags" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("tags")}
+            >
+              Tags
+            </button>
+            <button
+              type="button"
+              data-testid="tab-colours"
+              className={`lims-tab ${activeTab === "colours" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("colours")}
+            >
+              Colours
+            </button>
+            <button
+              type="button"
+              data-testid="tab-icons"
+              className={`lims-tab ${activeTab === "icons" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("icons")}
+            >
+              Icons
+            </button>
+          </div>
         }
         bottomBar={bottomBar()}
       >

@@ -14,7 +14,7 @@ import {
   forkCard,
 } from "./api";
 import { IconPickerPopover } from "../IconPickerPopover";
-import { resolveColorHex, deriveForeground, resolveIcon } from "../IconBadge";
+import { resolveColorHex, deriveForeground, LazyIcon } from "../IconBadge";
 import {
   COMPARISON_OPS,
   defaultFormatting,
@@ -910,7 +910,7 @@ function RuleEditor({
   const colorHex = isKnownColor ? resolveColorHex(rule.color!) : undefined;
   const colorFg = colorHex ? deriveForeground(colorHex) : undefined;
 
-  const IconComp = rule.icon ? resolveIcon(rule.icon) : undefined;
+  const hasIcon = !!rule.icon;
 
 
 
@@ -1052,7 +1052,7 @@ function RuleEditor({
         </div>
 
         {/* Preview */}
-        {(colorHex || IconComp) && (
+        {(colorHex || hasIcon) && (
           <div className="flex items-center gap-2 mt-1">
             <span className="text-[10px] text-muted-foreground">Preview:</span>
             {colorHex && (
@@ -1062,9 +1062,9 @@ function RuleEditor({
                 aria-hidden="true"
               />
             )}
-            {IconComp && (
+            {hasIcon && (
               <span style={{ color: colorHex }}>
-                <IconComp className="h-3 w-3" aria-hidden="true" />
+                <LazyIcon token={rule.icon!} className="h-3 w-3" />
               </span>
             )}
             {rule.text && (

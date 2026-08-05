@@ -105,6 +105,27 @@ const defaultFormatting: FormattingConfig = {
 
 beforeEach(() => {
   ModRegistry._reset();
+  ModRegistry.getInstance().hydrateFromBackend(
+    {
+      colorPalette: [
+        { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
+        { key: "flask", label: "Flask", hex: "#b3d9e6" },
+        { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
+        { key: "warn", label: "Warn", hex: "#e6d9b3" },
+        { key: "primary", label: "Primary", hex: "#7fb3d9" },
+        { key: "success", label: "Success", hex: "#b3e6b3" },
+        { key: "destructive", label: "Destructive", hex: "#e6b3b3" },
+        { key: "muted", label: "Muted", hex: "#d9d9d9" },
+      ],
+      iconLibrary: [
+        { key: "flask-conical", label: "Flask Conical", kind: "lucide", token: "flask-conical", svg: "" },
+        { key: "alert-triangle", label: "Alert Triangle", kind: "lucide", token: "alert-triangle", svg: "" },
+        { key: "check-circle", label: "Check Circle", kind: "lucide", token: "check-circle", svg: "" },
+        { key: "dna", label: "DNA", kind: "lucide", token: "dna", svg: "" },
+      ],
+    },
+    new Map(),
+  );
   vi.mocked(cardApi.getCards).mockReset();
   vi.mocked(cardApi.getMetricValue).mockReset();
   vi.mocked(cardApi.getMetrics).mockReset();

@@ -1,27 +1,7 @@
-import {
-  Circle,
-  Dna,
-  Rat,
-  Leaf,
-  Cog,
-  NotebookText,
-  User,
-  Folder,
-  FlaskConical,
-  ScrollText,
-  TestTubes,
-  AlertTriangle,
-  Activity,
-  BarChart3,
-  Beaker,
-  CircleDollarSign,
-  Clock,
-  FileText,
-  Thermometer,
-  TrendingUp,
-  CheckCircle,
-} from "lucide-react";
+import { Circle } from "lucide-react";
 import type { ComponentType } from "react";
+import { useMemo, lazy, Suspense } from "react";
+import { ModRegistry } from "../../mod-system/ModRegistry";
 
 export interface IconBadgeProps {
   iconKey: string;
@@ -30,50 +10,25 @@ export interface IconBadgeProps {
   onChange?: () => void;
 }
 
-const FALLBACK_ICON = Circle;
 const FALLBACK_COLOR_HEX = "#d9d9d9";
+const warnedKeys = new Set<string>();
 
-const COLOR_HEX_MAP: Record<string, string> = {
-  enzyme: "#d9b3e6",
-  flask: "#b3d9e6",
-  solvent: "#b3e6c8",
-  warn: "#e6d9b3",
-  primary: "#7fb3d9",
-  success: "#b3e6b3",
-  destructive: "#e6b3b3",
-  muted: "#d9d9d9",
-};
-
-const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
-  circle: Circle,
-  dna: Dna,
-  rat: Rat,
-  leaf: Leaf,
-  cog: Cog,
-  notebook: NotebookText,
-  user: User,
-  folder: Folder,
-  "flask-conical": FlaskConical,
-  "scroll-text": ScrollText,
-  "test-tubes": TestTubes,
-  "alert-triangle": AlertTriangle,
-  activity: Activity,
-  "bar-chart-3": BarChart3,
-  beaker: Beaker,
-  "circle-dollar-sign": CircleDollarSign,
-  clock: Clock,
-  "file-text": FileText,
-  thermometer: Thermometer,
-  "trending-up": TrendingUp,
-  "check-circle": CheckCircle,
-};
-
-export function resolveIcon(key: string): ComponentType<{ className?: string }> {
-  return ICON_MAP[key] ?? FALLBACK_ICON;
+export function warnMissingIcon(key: string) {
+  if (warnedKeys.has(key)) return;
+  warnedKeys.add(key);
+  console.warn(
+    `[IconBadge] Unknown icon key "${key}" — not found in the icon library. Falling back to a circle.`,
+  );
 }
 
 export function resolveColorHex(key: string): string {
-  return COLOR_HEX_MAP[key] ?? FALLBACK_COLOR_HEX;
+  try {
+    const entry = ModRegistry.getInstance().getColorPalette().get(key);
+    if (entry) return entry.hex;
+  } catch {
+    // registry not available
+  }
+  return FALLBACK_COLOR_HEX;
 }
 
 export function deriveForeground(hex: string): string {
@@ -99,13 +54,109 @@ const SIZE_CLASSES: Record<
   lg: { box: "h-12 w-12", icon: "h-7 w-7" },
 };
 
+// ── Dynamic Lucide icon imports ─────────────────────────────────────────
+
+let _dynamicIconImports: Record<
+  string,
+  () => Promise<{ default: ComponentType<{ className?: string }> }>
+> | null = null;
+
+function getIconImport(
+  token: string,
+): (() => Promise<{ default: ComponentType<{ className?: string }> }>) | undefined {
+  if (!_dynamicIconImports) return undefined;
+  return _dynamicIconImports[token];
+}
+
+function loadDynamicIconImports() {
+  if (_dynamicIconImports) return;
+  import("lucide-react/dynamicIconImports")
+    .then((mod) => {
+      _dynamicIconImports = mod.default as unknown as Record<
+        string,
+        () => Promise<{ default: ComponentType<{ className?: string }> }>
+      >;
+    })
+    .catch(() => {
+      // dynamic imports unavailable (e.g. test environment) — fall back gracefully
+    });
+}
+loadDynamicIconImports();
+
+export function LazyIcon({
+  token,
+  className,
+}: {
+  token: string;
+  className?: string;
+}) {
+  const Component = useMemo(() => {
+    const importFn = getIconImport(token);
+    if (!importFn) return null;
+    return lazy(importFn);
+  }, [token]);
+
+  if (!Component) {
+    return <Circle className={className} />;
+  }
+
+  return (
+    <Suspense fallback={<div className={className} />}>
+      <Component className={className} />
+    </Suspense>
+  );
+}
+
+function CustomSvg({
+  svg,
+  className,
+}: {
+  svg: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{ __html: svg }}
+      aria-hidden="true"
+    />
+  );
+}
+
+// ── Resolution helpers ──────────────────────────────────────────────────
+
+function resolveDynamicIcon(
+  iconKey: string,
+  iconClass: string,
+) {
+  let entry;
+  try {
+    entry = ModRegistry.getInstance().getIconLibrary().get(iconKey);
+  } catch {
+    // registry not available
+  }
+
+  if (entry) {
+    if (entry.kind === "lucide" && entry.token) {
+      return <LazyIcon token={entry.token} className={iconClass} />;
+    }
+    if (entry.kind === "custom" && entry.svg) {
+      return <CustomSvg svg={entry.svg} className={iconClass} />;
+    }
+  }
+
+  warnMissingIcon(iconKey);
+  return <Circle className={iconClass} aria-hidden="true" />;
+}
+
+// ── IconBadge component ─────────────────────────────────────────────────
+
 export function IconBadge({
   iconKey,
   colorKey,
   size = "md",
   onChange,
 }: IconBadgeProps) {
-  const IconComponent = resolveIcon(iconKey);
   const hex = resolveColorHex(colorKey);
   const foreground = deriveForeground(hex);
   const { box, icon } = SIZE_CLASSES[size];
@@ -122,7 +173,7 @@ export function IconBadge({
         onClick={onChange}
         aria-label="Change icon"
       >
-        <IconComponent className={icon} aria-hidden="true" />
+        {resolveDynamicIcon(iconKey, icon)}
       </button>
     );
   }
@@ -133,7 +184,7 @@ export function IconBadge({
       className={`${box} rounded border border-border flex shrink-0 items-center justify-center`}
       style={style}
     >
-      <IconComponent className={icon} aria-hidden="true" />
+      {resolveDynamicIcon(iconKey, icon)}
     </div>
   );
 }

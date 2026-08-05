@@ -539,7 +539,7 @@ describe("TagSettings", () => {
     });
   });
 
-  it("selects a colour and shows its detail", async () => {
+  it("shows colour information in card grid", async () => {
     mockListColors.mockResolvedValue([
       { id: 1, key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
     ]);
@@ -547,10 +547,7 @@ describe("TagSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("Enzyme")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("Enzyme"));
-    expect(screen.getByText("Colour details")).toBeInTheDocument();
-    const enzymeInstances = screen.getAllByText("enzyme");
-    expect(enzymeInstances.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("#d9b3e6")).toBeInTheDocument();
   });
 
   it("deletes a colour with confirmation and shows usage count after", async () => {
@@ -563,8 +560,7 @@ describe("TagSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("Enzyme")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("Enzyme"));
-    fireEvent.click(screen.getByTitle("Delete colour"));
+    fireEvent.click(screen.getByTitle('Delete colour "Enzyme"'));
     expect(confirmSpy).toHaveBeenCalledWith('Delete colour "Enzyme"?');
     await waitFor(() => {
       expect(mockDeleteColor).toHaveBeenCalledWith(1);
@@ -627,7 +623,7 @@ describe("TagSettings", () => {
     expect(screen.getByPlaceholderText("e.g., Petri Dish")).toBeInTheDocument();
   });
 
-  it("selects an icon and shows its detail", async () => {
+  it("shows icon information in card grid", async () => {
     mockListIcons.mockResolvedValue([
       { id: 1, key: "dna", label: "DNA", kind: "lucide", token: "dna", svg: "" },
     ]);
@@ -635,12 +631,10 @@ describe("TagSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("DNA")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("DNA"));
-    expect(screen.getByText("Icon details")).toBeInTheDocument();
     expect(screen.getByText("Lucide · dna")).toBeInTheDocument();
   });
 
-  it("shows custom SVG preview in icon detail", async () => {
+  it("shows custom SVG icon in card grid", async () => {
     mockListIcons.mockResolvedValue([
       {
         id: 1,
@@ -655,7 +649,6 @@ describe("TagSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("Petri Dish")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("Petri Dish"));
     expect(screen.getByText("Custom SVG")).toBeInTheDocument();
   });
 
@@ -669,8 +662,7 @@ describe("TagSettings", () => {
     await waitFor(() => {
       expect(screen.getByText("DNA")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("DNA"));
-    fireEvent.click(screen.getByTitle("Delete icon"));
+    fireEvent.click(screen.getByTitle('Delete icon "DNA"'));
     expect(confirmSpy).toHaveBeenCalledWith('Delete icon "DNA"?');
     await waitFor(() => {
       expect(mockDeleteIcon).toHaveBeenCalledWith(1);

@@ -144,6 +144,9 @@ vi.mock("lucide-react", () => ({
   CheckCircle: (props: Record<string, unknown>) => (
     <span data-testid="icon-check-circle" {...props}>✅</span>
   ),
+  ChevronDown: (props: Record<string, unknown>) => (
+    <span data-testid="icon-chevron-down" {...props}>▼</span>
+  ),
 }));
 
 // ── Mock ModRegistry column type lookups ───────────────────────────────────

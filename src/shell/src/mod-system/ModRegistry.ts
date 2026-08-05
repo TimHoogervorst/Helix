@@ -46,6 +46,7 @@ export interface BackendColumnType {
   id: string;
   displayName: string;
   icon: string;
+  color: string;
   operandShape: string;
   defaultValue: unknown;
   operators: BackendOperator[];

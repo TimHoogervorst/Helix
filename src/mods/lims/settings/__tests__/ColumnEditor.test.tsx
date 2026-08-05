@@ -4,6 +4,26 @@ import ColumnEditor from "../ColumnEditor";
 import { makeColumnDef } from "../../../../shell/src/test/factories";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
+import { resolveColorHex } from "../../../../shell/src/shared/components/IconBadge";
+
+const STANDARD_COLORS = [
+  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
+  { key: "flask", label: "Flask", hex: "#b3d9e6" },
+  { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
+  { key: "warn", label: "Warn", hex: "#e6d9b3" },
+  { key: "primary", label: "Primary", hex: "#7fb3d9" },
+  { key: "success", label: "Success", hex: "#b3e6b3" },
+  { key: "destructive", label: "Destructive", hex: "#e6b3b3" },
+  { key: "muted", label: "Muted", hex: "#d9d9d9" },
+];
+
+const STANDARD_ICONS = [
+  { key: "type", label: "Type", kind: "lucide" as const, token: "type", svg: "" },
+  { key: "hash", label: "Hash", kind: "lucide" as const, token: "hash", svg: "" },
+  { key: "calendar", label: "Calendar", kind: "lucide" as const, token: "calendar", svg: "" },
+  { key: "toggle-left", label: "Toggle Left", kind: "lucide" as const, token: "toggle-left", svg: "" },
+  { key: "link", label: "Link", kind: "lucide" as const, token: "link", svg: "" },
+];
 
 // ── Reset ModRegistry singleton before each test ──────────────────────────
 
@@ -19,7 +39,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "text",
     displayName: "Text",
-    icon: "Type",
+    icon: "type",
+    color: "flask",
     operandShape: "text",
     defaultValue: "",
     operators: [],
@@ -27,7 +48,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "number",
     displayName: "Number",
-    icon: "Hash",
+    icon: "hash",
+    color: "solvent",
     operandShape: "number",
     defaultValue: 0,
     operators: [],
@@ -35,7 +57,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "date",
     displayName: "Date",
-    icon: "Calendar",
+    icon: "calendar",
+    color: "warn",
     operandShape: "date",
     defaultValue: null,
     operators: [],
@@ -43,7 +66,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "boolean",
     displayName: "Boolean",
-    icon: "ToggleLeft",
+    icon: "toggle-left",
+    color: "success",
     operandShape: "boolean",
     defaultValue: false,
     operators: [],
@@ -51,7 +75,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "reference",
     displayName: "Reference",
-    icon: "Link",
+    icon: "link",
+    color: "primary",
     operandShape: "entity-picker",
     defaultValue: null,
     operators: [],
@@ -66,7 +91,10 @@ const columns = [
 describe("ColumnEditor", () => {
   beforeEach(() => {
     const registry = resetRegistry();
-    // Hydrate column types into the registry
+    registry.hydrateFromBackend(
+      { colorPalette: STANDARD_COLORS, iconLibrary: STANDARD_ICONS },
+      new Map(),
+    );
     for (const ct of MOCK_COLUMN_TYPES) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (registry as any).columnTypes.set(ct.id, ct);

@@ -43,22 +43,22 @@ describe("IconBadge", () => {
       expect(badge.querySelector("svg")).toBeInTheDocument();
     });
 
-    it("applies the resolved background color", () => {
+    it("applies the background as a pastel tint", () => {
       render(<IconBadge iconKey="dna" colorKey="enzyme" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("rgb(217, 179, 230)");
+      expect(badge.style.backgroundColor).toBe("rgb(236, 231, 238)");
     });
 
-    it("derives a darker foreground for light backgrounds", () => {
+    it("derives a saturated shade for the foreground", () => {
       render(<IconBadge iconKey="dna" colorKey="muted" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(87, 87, 87)");
+      expect(badge.style.color).toBe("rgb(91, 91, 91)");
     });
 
-    it("derives a darker foreground for mid-tone backgrounds", () => {
+    it("derives a saturated shade for mid-tone backgrounds", () => {
       render(<IconBadge iconKey="dna" colorKey="primary" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(51, 72, 87)");
+      expect(badge.style.color).toBe("rgb(27, 79, 117)");
     });
   });
 
@@ -106,14 +106,14 @@ describe("IconBadge", () => {
     it("falls back to muted background for an unknown colorKey", () => {
       render(<IconBadge iconKey="dna" colorKey="nonexistent" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("rgb(217, 217, 217)");
+      expect(badge.style.backgroundColor).toBe("rgb(235, 235, 235)");
     });
 
     it("falls back gracefully when both keys are unknown", () => {
       render(<IconBadge iconKey="nonexistent" colorKey="nonexistent" />);
       const badge = screen.getByTestId("icon-badge");
       expect(badge.querySelector("svg")).toBeInTheDocument();
-      expect(badge.style.backgroundColor).toBe("rgb(217, 217, 217)");
+      expect(badge.style.backgroundColor).toBe("rgb(235, 235, 235)");
     });
   });
 
@@ -193,7 +193,7 @@ describe("IconBadge", () => {
     it("resolves color from dynamic palette", () => {
       render(<IconBadge iconKey="circle" colorKey="dyn-color" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("rgb(255, 204, 0)");
+      expect(badge.style.backgroundColor).toBe("rgb(242, 239, 227)");
     });
 
     it("renders custom SVG from dynamic library", () => {

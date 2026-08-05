@@ -31,56 +31,60 @@ export function resolveColorHex(key: string): string {
   return FALLBACK_COLOR_HEX;
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  return [
-    parseInt(hex.slice(1, 3), 16),
-    parseInt(hex.slice(3, 5), 16),
-    parseInt(hex.slice(5, 7), 16),
-  ];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
-  return "#" + [r, g, b].map((c) => clamp(c).toString(16).padStart(2, "0")).join("");
-}
-
-function getLuminance(hex: string): number {
+function hexToHsl(hex: string): [number, number, number] {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
 
-  const rLin = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
-  const gLin = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
-  const bLin = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
 
-  return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+  let h = 0;
+  if (delta !== 0) {
+    if (max === r) h = 60 * (((g - b) / delta + 6) % 6);
+    else if (max === g) h = 60 * ((b - r) / delta + 2);
+    else h = 60 * ((r - g) / delta + 4);
+  }
+
+  const l = (max + min) / 2;
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+
+  return [h, s * 100, l * 100];
 }
 
-const DERIVE_FACTOR = 0.6;
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100;
+  l /= 100;
 
-export function deriveLighter(hex: string, factor: number = DERIVE_FACTOR): string {
-  const [r, g, b] = hexToRgb(hex);
-  return rgbToHex(
-    r + (255 - r) * factor,
-    g + (255 - g) * factor,
-    b + (255 - b) * factor,
-  );
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+
+  let rgb: [number, number, number];
+  if (h < 60) rgb = [c, x, 0];
+  else if (h < 120) rgb = [x, c, 0];
+  else if (h < 180) rgb = [0, c, x];
+  else if (h < 240) rgb = [0, x, c];
+  else if (h < 300) rgb = [x, 0, c];
+  else rgb = [c, 0, x];
+
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round((n + m) * 255)));
+  return "#" + rgb.map((c) => clamp(c).toString(16).padStart(2, "0")).join("");
 }
 
-export function deriveDarker(hex: string, factor: number = DERIVE_FACTOR): string {
-  const [r, g, b] = hexToRgb(hex);
-  return rgbToHex(
-    r * (1 - factor),
-    g * (1 - factor),
-    b * (1 - factor),
-  );
+export function deriveTint(hex: string): string {
+  const [h, s] = hexToHsl(hex);
+  return hslToHex(h, s * 0.35, 92);
+}
+
+export function deriveShade(hex: string): string {
+  const [h, s, l] = hexToHsl(hex);
+  return hslToHex(h, Math.min(100, s * 1.15), l * 0.42);
 }
 
 export function deriveForeground(hex: string): string {
-  if (getLuminance(hex) > 0.35) {
-    return deriveDarker(hex);
-  }
-  return deriveLighter(hex);
+  return deriveShade(hex);
 }
 
 const SIZE_CLASSES: Record<
@@ -196,11 +200,11 @@ export function IconBadge({
   onChange,
 }: IconBadgeProps) {
   const hex = resolveColorHex(colorKey);
-  const lighter = deriveLighter(hex);
-  const foreground = deriveForeground(hex);
+  const tint = deriveTint(hex);
+  const foreground = deriveShade(hex);
   const { box, icon } = SIZE_CLASSES[size];
 
-  const style = { backgroundColor: hex, color: foreground, borderColor: lighter };
+  const style = { backgroundColor: tint, color: foreground, borderColor: tint };
 
   if (onChange) {
     return (

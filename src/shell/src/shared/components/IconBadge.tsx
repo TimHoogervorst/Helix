@@ -56,7 +56,7 @@ function getLuminance(hex: string): number {
   return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
 }
 
-const DERIVE_FACTOR = 0.35;
+const DERIVE_FACTOR = 0.6;
 
 export function deriveLighter(hex: string, factor: number = DERIVE_FACTOR): string {
   const [r, g, b] = hexToRgb(hex);

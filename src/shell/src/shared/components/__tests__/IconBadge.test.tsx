@@ -52,13 +52,13 @@ describe("IconBadge", () => {
     it("derives a darker foreground for light backgrounds", () => {
       render(<IconBadge iconKey="dna" colorKey="muted" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(141, 141, 141)");
+      expect(badge.style.color).toBe("rgb(87, 87, 87)");
     });
 
     it("derives a darker foreground for mid-tone backgrounds", () => {
       render(<IconBadge iconKey="dna" colorKey="primary" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(83, 116, 141)");
+      expect(badge.style.color).toBe("rgb(51, 72, 87)");
     });
   });
 

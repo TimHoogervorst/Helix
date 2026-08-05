@@ -27,10 +27,8 @@ const STANDARD_COLORS = [
   { key: "flask", label: "Flask", hex: "#b3d9e6" },
   { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
   { key: "warn", label: "Warn", hex: "#e6d9b3" },
-  { key: "primary", label: "Primary", hex: "#7fb3d9" },
-  { key: "success", label: "Success", hex: "#b3e6b3" },
-  { key: "destructive", label: "Destructive", hex: "#e6b3b3" },
   { key: "muted", label: "Muted", hex: "#d9d9d9" },
+  { key: "success", label: "Success", hex: "#b3e6b3" },
 ];
 
 const STANDARD_ICONS = [
@@ -88,7 +86,7 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
     id: "reference",
     displayName: "Reference",
     icon: "link",
-    color: "primary",
+    color: "flask",
     operandShape: "entity-picker",
     defaultValue: null,
     operators: [],

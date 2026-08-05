@@ -32,10 +32,9 @@ describe("TagPill", () => {
     expect(screen.getByTestId("tag-pill").dataset.tagId).toBe("42");
   });
 
-  it("renders all 8 colour classes correctly", () => {
+  it("renders all 6 colour classes correctly", () => {
     const colors = [
-      "enzyme", "flask", "solvent", "warn",
-      "primary", "success", "destructive", "muted",
+      "enzyme", "flask", "solvent", "warn", "muted", "success",
     ];
     for (const color of colors) {
       const { unmount } = render(

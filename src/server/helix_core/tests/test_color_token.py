@@ -154,8 +154,7 @@ class ColorTokenApiTests(TestCase):
 
 
 SEED_KEYS = frozenset({
-    "enzyme", "flask", "solvent", "warn",
-    "primary", "success", "destructive", "muted",
+    "enzyme", "flask", "solvent", "warn", "muted", "success",
 })
 
 SEED_HEXES = {
@@ -163,18 +162,16 @@ SEED_HEXES = {
     "flask": "#B3D9E6",
     "solvent": "#B3E6C8",
     "warn": "#E6D9B3",
-    "primary": "#7FB3D9",
-    "success": "#B3E6B3",
-    "destructive": "#E6B3B3",
     "muted": "#D9D9D9",
+    "success": "#B3E6B3",
 }
 
 
 class ColorTokenSeedTests(TestCase):
-    """Verify that the data migration seeded the 8 palette colours."""
+    """Verify that the data migration seeded the 6 palette colours."""
 
-    def test_all_eight_seeds_exist(self):
-        """All 8 palette colours exist after migrations run."""
+    def test_all_six_seeds_exist(self):
+        """All 6 palette colours exist after migrations run."""
         existing = set(
             ColorToken.objects.values_list("key", flat=True)
         )

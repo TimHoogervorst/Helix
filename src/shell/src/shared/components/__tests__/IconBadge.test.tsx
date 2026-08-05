@@ -7,7 +7,6 @@ const SEED_COLORS = [
   { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
   { key: "flask", label: "Flask", hex: "#b3d9e6" },
   { key: "muted", label: "Muted", hex: "#d9d9d9" },
-  { key: "primary", label: "Primary", hex: "#7fb3d9" },
 ];
 
 const SEED_ICONS = [
@@ -56,9 +55,9 @@ describe("IconBadge", () => {
     });
 
     it("derives a saturated shade for mid-tone backgrounds", () => {
-      render(<IconBadge iconKey="dna" colorKey="primary" />);
+      render(<IconBadge iconKey="dna" colorKey="flask" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(27, 79, 117)");
+      expect(badge.style.color).toBe("rgb(36, 110, 136)");
     });
   });
 

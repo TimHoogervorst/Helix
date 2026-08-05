@@ -1,8 +1,8 @@
-"""Create ColorToken model and seed the 8-token colour palette.
+"""Create ColorToken model and seed the 6-token colour palette.
 
 The seed data mirrors the current ``TAG_COLORS`` in
 ``src/mods/tags/constants.ts`` — the single source of truth for the
-eight colour hex values.  Repeated migration runs are safe
+six colour hex values.  Repeated migration runs are safe
 (idempotent: ``get_or_create`` on ``key``).
 
 Admin deletions of seeds **stick** — there is no boot-time upsert.
@@ -16,15 +16,13 @@ COLORS = [
     ("flask", "Flask", "#B3D9E6"),
     ("solvent", "Solvent", "#B3E6C8"),
     ("warn", "Warn", "#E6D9B3"),
-    ("primary", "Primary", "#7FB3D9"),
-    ("success", "Success", "#B3E6B3"),
-    ("destructive", "Destructive", "#E6B3B3"),
     ("muted", "Muted", "#D9D9D9"),
+    ("success", "Success", "#B3E6B3"),
 ]
 
 
 def seed_color_tokens(apps, schema_editor):
-    """Insert the eight palette colours if they don't already exist.
+    """Insert the six palette colours if they don't already exist.
 
     Uses ``get_or_create(key=…)`` so repeated migration runs are safe
     (no duplicates) and previously-deleted seeds are re-created (dev

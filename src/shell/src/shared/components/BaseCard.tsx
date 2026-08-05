@@ -105,7 +105,7 @@ export function BaseCard({
       {/* ── Icon ──────────────────────────────────────────────────── */}
       <span className="card-icon">
         {iconKey ? (
-          <IconBadge iconKey={iconKey} colorKey={colorKey} size="sm" />
+          <IconBadge iconKey={iconKey} colorKey={colorKey} size="lg" />
         ) : Icon ? (
           <Icon />
         ) : (

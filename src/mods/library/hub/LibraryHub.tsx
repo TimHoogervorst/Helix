@@ -68,7 +68,7 @@ function folderToEntryShape(folder: {
     tags: [],
     editors: [],
     icon: "folder",
-    color: "muted",
+    color: "warn",
     samples_count: null,
     attachments_count: null,
     property_fields: {},
@@ -258,7 +258,7 @@ function LibraryHub() {
           viewMode={viewMode}
           isSelected={data.selectedId === item.id}
           iconKey="folder"
-          colorKey="muted"
+          colorKey="warn"
           showDescription={false}
           showTags={false}
           showUpdatedAt={false}
@@ -278,7 +278,7 @@ function LibraryHub() {
         viewMode={viewMode}
         isSelected={isSelected}
         iconKey={item.icon || "file-text"}
-        colorKey={item.color || "muted"}
+        colorKey={item.color || "primary"}
         propertyFields={propertyFields}
         showDescription={true}
         showTags={true}

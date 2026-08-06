@@ -5,6 +5,7 @@ export interface ResolvedMention {
   title: string;
   type: string;
   icon: string;
+  color: string;
   /** The workspace that owns this entity, e.g. "eln" or "lims". */
   workspaceId: string | null;
 }
@@ -15,6 +16,7 @@ export interface SearchResult {
   title: string;
   type: string;
   icon: string;
+  color: string;
   /** The workspace that owns this entity, e.g. "eln" or "lims". */
   workspaceId: string | null;
 }

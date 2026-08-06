@@ -1,6 +1,11 @@
 from django.urls import include, path
 
-from helix_core.column_types import ColumnType, OperatorMeta, registry as column_type_registry
+from helix_core.column_types import (
+    AggregateMeta,
+    ColumnType,
+    OperatorMeta,
+    registry as column_type_registry,
+)
 from helix_core.mod_system.registry import registry
 
 
@@ -14,12 +19,19 @@ class TiptapContentColumnType(ColumnType):
     id = "tiptap_content"
     display_name = "TipTap Content"
     icon = "file-text"
+    color = "flask"
     operand_shape = "text"
 
     def get_operators(self) -> list[OperatorMeta]:
         return [
             OperatorMeta("contains", "Contains", "text", "icontains"),
             OperatorMeta("is_empty", "Is Empty", "none", "isnull"),
+        ]
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return [
+            AggregateMeta("count", "Count", "Count"),
+            AggregateMeta("count_distinct", "Count Distinct", "Count"),
         ]
 
     def validate(self, value, **context) -> bool | str:
@@ -104,6 +116,8 @@ def register():
         workspace_id="eln",
         model="mods.eln.models.NotebookEntry",
         prefix="E",
+        icon="notebook",
+        color="muted",
     )
     registry.register_signal(
         "eln", post_save, update_entity_status_from_entry, sender=NotebookEntry

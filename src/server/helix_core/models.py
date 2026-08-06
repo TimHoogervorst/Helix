@@ -159,6 +159,18 @@ class Schema(ContentHashedModel):
         blank=True,
         help_text="SHA-256 hash of column definitions.",
     )
+    icon = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Open key string referencing an IconLibraryEntry key. Soft reference with render-time fallback.",
+    )
+    color = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Open key string referencing a ColorToken key. Soft reference with render-time fallback.",
+    )
 
     class Meta:
         db_table = "helix_schema"
@@ -230,3 +242,70 @@ class EntityHubView(models.Model):
         managed = False
         db_table = "entity_hub_view"
         ordering = ["-updated_at"]
+
+
+# ── Color Token ─────────────────────────────────────────────────────────
+
+
+class ColorToken(models.Model):
+    """A named color in the platform palette.
+
+    Each ColorToken has a unique ``key`` (string identifier used by
+    referencing objects like tags and schemas), a human-readable
+    ``label``, and a ``hex`` color value.  Foreground / glyph colour
+    is derived from the hex by luminance at render time — never stored.
+    """
+
+    key = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=255)
+    hex = models.CharField(max_length=7)
+
+    class Meta:
+        db_table = "helix_color_token"
+        ordering = ["label"]
+
+    def __str__(self):
+        return f"{self.label} ({self.key})"
+
+
+# ── Icon Library Entry ─────────────────────────────────────────────────
+
+
+class IconLibraryEntry(models.Model):
+    """A curated icon available in the platform icon picker.
+
+    Each entry has a unique ``key`` used by referencing objects
+    (tags, cards, schemas).  ``kind`` is either ``"lucide"`` (a
+    Lucide icon reference with a kebab-case ``token``) or
+    ``"custom"`` (an uploaded SVG stored as sanitized markup in
+    ``svg``).
+    """
+
+    K_LUCIDE = "lucide"
+    K_CUSTOM = "custom"
+    KIND_CHOICES = [
+        (K_LUCIDE, "Lucide"),
+        (K_CUSTOM, "Custom"),
+    ]
+
+    key = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=255)
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    token = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Lucide kebab-case icon name (e.g. 'test-tube-2'). Only when kind=lucide.",
+    )
+    svg = models.TextField(
+        blank=True,
+        default="",
+        help_text="Sanitized SVG markup. Only when kind=custom.",
+    )
+
+    class Meta:
+        db_table = "helix_icon_library_entry"
+        ordering = ["label"]
+
+    def __str__(self):
+        return f"{self.label} ({self.key})"

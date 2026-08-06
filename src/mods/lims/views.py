@@ -8,13 +8,14 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
 
-from .models import Entity, Action, LimsView
+from .models import Entity, Action, LimsView, Metric
 from .serializers import (
     EntitySerializer,
     EntityBatchSerializer,
     EntityBatchRegisterSerializer,
     ActionSerializer,
     LimsViewSerializer,
+    MetricSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -362,3 +363,85 @@ class LimsViewViewSet(viewsets.ModelViewSet):
                     "You do not have permission to modify this view."
                 )
         return super().check_object_permissions(request, obj)
+
+
+class MetricViewSet(viewsets.ModelViewSet):
+    """API endpoint for live aggregate Metrics.
+
+    list:    GET    /api/lims/metrics/
+    create:  POST   /api/lims/metrics/
+    retrieve: GET   /api/lims/metrics/{id}/
+    update:  PUT    /api/lims/metrics/{id}/
+    partial_update: PATCH /api/lims/metrics/{id}/
+    destroy: DELETE /api/lims/metrics/{id}/
+    value:   GET    /api/lims/metrics/{id}/value/
+    """
+
+    serializer_class = MetricSerializer
+    permission_classes = []
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            from django.db.models import Q
+
+            return (
+                Metric.objects.filter(
+                    Q(owner=user) | Q(view__is_public=True)
+                )
+                .select_related("owner", "view")
+                .distinct()
+            )
+        return Metric.objects.filter(
+            view__is_public=True
+        ).select_related("owner", "view")
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+
+            raise NotAuthenticated("Authentication is required to create metrics.")
+        serializer.save(owner=self.request.user)
+
+    def check_object_permissions(self, request, obj):
+        if request.method in ("PUT", "PATCH", "DELETE"):
+            if not request.user.is_authenticated or obj.owner != request.user:
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied(
+                    "You do not have permission to modify this metric."
+                )
+        return super().check_object_permissions(request, obj)
+
+    @action(detail=True, methods=["get"])
+    def value(self, request, pk=None):
+        """Live scalar aggregate evaluation.
+
+        GET /api/lims/metrics/{id}/value/?me=<identity>
+
+        Re-runs the View's filter_state against the Entity Hub View and
+        returns the computed aggregate as ``{"value": <scalar>}``.
+
+        Query Parameters:
+            me (str): Optional user identity for ``is_me`` filter rewriting.
+        """
+        metric = self.get_object()
+        identity = request.query_params.get("me") or None
+
+        from helix_core.query_builder import build_metric_aggregation
+
+        try:
+            result = build_metric_aggregation(
+                metric.view,
+                metric.aggregate_function,
+                metric.column or None,
+                identity=identity,
+            )
+            return Response(result)
+        except Exception:
+            logger.exception("Metric value evaluation failed for metric %d", metric.pk)
+            return Response(
+                {"detail": "An internal error has occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

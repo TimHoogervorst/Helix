@@ -468,3 +468,19 @@ export interface RendererProps<T extends BaseBinding = BaseBinding> {
   /** Flat bag of metadata available to all blocks and buttons. */
   context: SlotContext;
 }
+
+// ── Icon Library & Color Palette ─────────────────────────────────────────
+
+export interface IconLibraryEntry {
+  key: string;
+  label: string;
+  kind: "lucide" | "custom";
+  token: string;
+  svg: string;
+}
+
+export interface ColorToken {
+  key: string;
+  label: string;
+  hex: string;
+}

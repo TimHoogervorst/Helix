@@ -4,6 +4,24 @@ import ColumnEditor from "../ColumnEditor";
 import { makeColumnDef } from "../../../../shell/src/test/factories";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
+import { resolveColorHex } from "../../../../shell/src/shared/components/IconBadge";
+
+const STANDARD_COLORS = [
+  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
+  { key: "flask", label: "Flask", hex: "#b3d9e6" },
+  { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
+  { key: "warn", label: "Warn", hex: "#e6d9b3" },
+  { key: "muted", label: "Muted", hex: "#d9d9d9" },
+  { key: "success", label: "Success", hex: "#b3e6b3" },
+];
+
+const STANDARD_ICONS = [
+  { key: "type", label: "Type", kind: "lucide" as const, token: "type", svg: "" },
+  { key: "hash", label: "Hash", kind: "lucide" as const, token: "hash", svg: "" },
+  { key: "calendar", label: "Calendar", kind: "lucide" as const, token: "calendar", svg: "" },
+  { key: "toggle-left", label: "Toggle Left", kind: "lucide" as const, token: "toggle-left", svg: "" },
+  { key: "link", label: "Link", kind: "lucide" as const, token: "link", svg: "" },
+];
 
 // ── Reset ModRegistry singleton before each test ──────────────────────────
 
@@ -19,7 +37,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "text",
     displayName: "Text",
-    icon: "Type",
+    icon: "type",
+    color: "flask",
     operandShape: "text",
     defaultValue: "",
     operators: [],
@@ -27,7 +46,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "number",
     displayName: "Number",
-    icon: "Hash",
+    icon: "hash",
+    color: "solvent",
     operandShape: "number",
     defaultValue: 0,
     operators: [],
@@ -35,7 +55,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "date",
     displayName: "Date",
-    icon: "Calendar",
+    icon: "calendar",
+    color: "warn",
     operandShape: "date",
     defaultValue: null,
     operators: [],
@@ -43,7 +64,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "boolean",
     displayName: "Boolean",
-    icon: "ToggleLeft",
+    icon: "toggle-left",
+    color: "success",
     operandShape: "boolean",
     defaultValue: false,
     operators: [],
@@ -51,7 +73,8 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
   {
     id: "reference",
     displayName: "Reference",
-    icon: "Link",
+    icon: "link",
+    color: "flask",
     operandShape: "entity-picker",
     defaultValue: null,
     operators: [],
@@ -66,7 +89,10 @@ const columns = [
 describe("ColumnEditor", () => {
   beforeEach(() => {
     const registry = resetRegistry();
-    // Hydrate column types into the registry
+    registry.hydrateFromBackend(
+      { colorPalette: STANDARD_COLORS, iconLibrary: STANDARD_ICONS },
+      new Map(),
+    );
     for (const ct of MOCK_COLUMN_TYPES) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (registry as any).columnTypes.set(ct.id, ct);
@@ -77,61 +103,28 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
     expect(screen.getByDisplayValue("volume")).toBeInTheDocument();
     expect(screen.getByDisplayValue("notes")).toBeInTheDocument();
   });
 
-  it("shows column heading", () => {
+  it("shows column header labels", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
-    expect(screen.getByText("Columns")).toBeInTheDocument();
-  });
-
-  it("calls onAdd when '+ Add Column' is clicked", () => {
-    const onAdd = vi.fn();
-    render(
-      <ColumnEditor
-        columns={columns}
-        onAdd={onAdd}
-        onUpdate={vi.fn()}
-        onRemove={vi.fn()}
-        onMove={vi.fn()}
-        onDiscard={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByText("+ Add Column"));
-    expect(onAdd).toHaveBeenCalledOnce();
-  });
-
-  it("calls onDiscard when 'Discard Changes' is clicked", () => {
-    const onDiscard = vi.fn();
-    render(
-      <ColumnEditor
-        columns={columns}
-        onAdd={vi.fn()}
-        onUpdate={vi.fn()}
-        onRemove={vi.fn()}
-        onMove={vi.fn()}
-        onDiscard={onDiscard}
-      />,
-    );
-    fireEvent.click(screen.getByText("Discard Changes"));
-    expect(onDiscard).toHaveBeenCalledOnce();
+    expect(screen.getByText("Field name")).toBeInTheDocument();
+    expect(screen.getByText("Field type")).toBeInTheDocument();
+    expect(screen.getByText("Constraints")).toBeInTheDocument();
+    expect(screen.getByText("Order")).toBeInTheDocument();
   });
 
   it("calls onUpdate when column name is changed", () => {
@@ -139,11 +132,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={onUpdate}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
     const input = screen.getByDisplayValue("volume");
@@ -151,20 +142,18 @@ describe("ColumnEditor", () => {
     expect(onUpdate).toHaveBeenCalledWith(0, "name", "new_name");
   });
 
-  it("calls onRemove when '×' button is clicked", () => {
+  it("calls onRemove when Delete button is clicked", () => {
     const onRemove = vi.fn();
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={onRemove}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
-    const removeButtons = screen.getAllByText("×");
-    fireEvent.click(removeButtons[0]);
+    const deleteButtons = screen.getAllByTitle("Delete");
+    fireEvent.click(deleteButtons[0]);
     expect(onRemove).toHaveBeenCalledWith(0);
   });
 
@@ -173,16 +162,13 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={onMove}
-        onDiscard={vi.fn()}
       />,
     );
-    // ▲ for the second user row — buttons order: [Name pseudo, user-0, user-1]
     const upButtons = screen.getAllByTitle("Move up");
-    fireEvent.click(upButtons[2]); // second user row
+    fireEvent.click(upButtons[1]);
     expect(onMove).toHaveBeenCalledWith(1, "up");
   });
 
@@ -191,15 +177,13 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={onMove}
-        onDiscard={vi.fn()}
       />,
     );
     const downButtons = screen.getAllByTitle("Move down");
-    fireEvent.click(downButtons[1]); // first user row (index 0 is Name pseudo-column)
+    fireEvent.click(downButtons[0]);
     expect(onMove).toHaveBeenCalledWith(0, "down");
   });
 
@@ -207,11 +191,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
     const upButtons = screen.getAllByTitle("Move up");
@@ -222,30 +204,25 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
     const downButtons = screen.getAllByTitle("Move down");
-    expect(downButtons[2]).toBeDisabled(); // second user row is last (index 2), index 0 is Name pseudo-column
+    expect(downButtons[1]).toBeDisabled();
   });
 
   it("renders empty column list without errors", () => {
     render(
       <ColumnEditor
         columns={[]}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
-    expect(screen.getByText("Columns")).toBeInTheDocument();
-    expect(screen.getByText("+ Add Column")).toBeInTheDocument();
+    expect(screen.getByText("Field name")).toBeInTheDocument();
   });
 
   // ── Name pseudo-column ──────────────────────────────────────────
@@ -254,11 +231,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
     const nameRow = screen.getByTestId("name-pseudo-column");
@@ -273,11 +248,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={[]}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
     expect(screen.getByTestId("name-pseudo-column")).toBeInTheDocument();
@@ -292,11 +265,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={onUpdate}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -316,11 +287,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={onUpdate}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -340,11 +309,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={onUpdate}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -363,11 +330,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={onUpdate}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -383,11 +348,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -406,11 +369,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -424,11 +385,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={vi.fn()}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 
@@ -447,11 +406,9 @@ describe("ColumnEditor", () => {
     render(
       <ColumnEditor
         columns={columns}
-        onAdd={vi.fn()}
         onUpdate={onUpdate}
         onRemove={vi.fn()}
         onMove={vi.fn()}
-        onDiscard={vi.fn()}
       />,
     );
 

@@ -1,8 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  FileText,
-  Folder,
   Search,
   ChevronDown,
   ArrowUpDown,
@@ -69,6 +67,8 @@ function folderToEntryShape(folder: {
     description: "",
     tags: [],
     editors: [],
+    icon: "folder",
+    color: "warn",
     samples_count: null,
     attachments_count: null,
     property_fields: {},
@@ -257,7 +257,8 @@ function LibraryHub() {
           item={adapted}
           viewMode={viewMode}
           isSelected={data.selectedId === item.id}
-          icon={Folder}
+          iconKey="folder"
+          colorKey="warn"
           showDescription={false}
           showTags={false}
           showUpdatedAt={false}
@@ -276,7 +277,8 @@ function LibraryHub() {
         item={item}
         viewMode={viewMode}
         isSelected={isSelected}
-        icon={FileText}
+        iconKey={item.icon || "file-text"}
+        colorKey={item.color === "muted" ? "flask" : item.color}
         propertyFields={propertyFields}
         showDescription={true}
         showTags={true}

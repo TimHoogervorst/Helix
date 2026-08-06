@@ -14,17 +14,18 @@
  * Schema is locked once loaded — no swap action.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Database, Loader, Trash2, Plus, RefreshCw, Upload, ArrowLeftRight } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn } from "../../../shell/src/shared/types/types";
-import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
+import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
+import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
+import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { listDropdowns } from "../../dropdowns/api";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
@@ -204,8 +205,18 @@ function renderColumnTypeBadge(columnType: string): React.ReactNode {
   const colType = resolveColumnType(columnType);
   if (colType) {
     const IconComponent = getColumnTypeIcon(colType.icon);
+    const colorKey = colType.color || "muted";
+    const bg = resolveColorHex(colorKey);
+    const fg = deriveForeground(bg);
     if (IconComponent) {
-      return <IconComponent className="h-3.5 w-3.5" aria-label={colType.displayName} />;
+      return (
+        <span
+          className="inline-flex items-center justify-center rounded"
+          style={{ backgroundColor: bg, color: fg, width: 18, height: 18 }}
+        >
+          <IconComponent className="h-3 w-3" aria-label={colType.displayName} />
+        </span>
+      );
     }
   }
   // Fallback: compact label for legacy types
@@ -351,15 +362,14 @@ export function RegistryTableContent({
   const [showPicker, setShowPicker] = useState(false);
   const [entityTypes, setEntityTypes] = useState<EntityTypeSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pickerPos, setPickerPos] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-  const loadBtnRef = useRef<HTMLButtonElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
   const newRowCounter = useRef(
     rows.filter((r) => !r.isRegistered).length + 1,
   );
+
+  const { triggerRef, panelRef, position } = usePickerPortal({
+    open: showPicker,
+    onClose: () => setShowPicker(false),
+  });
 
   // ── Resolve dropdown options for dropdown columns ──────────────────────
   const [dropdownOptionsMap, setDropdownOptionsMap] = useState<
@@ -418,37 +428,6 @@ export function RegistryTableContent({
       }
     }
   }, [entityTypes.length]);
-
-  // ── Position picker relative to the button ──────────────────────────
-  useEffect(() => {
-    if (!showPicker) {
-      setPickerPos(null);
-      return;
-    }
-    const recalc = () => {
-      const btn = loadBtnRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      setPickerPos({
-        top: rect.bottom + 4,
-        left: rect.left,
-      });
-    };
-    recalc();
-    window.addEventListener("scroll", recalc, { capture: true, passive: true });
-    window.addEventListener("resize", recalc, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", recalc, { capture: true });
-      window.removeEventListener("resize", recalc);
-    };
-  }, [showPicker]);
-
-  // ── Close picker on outside click ───────────────────────────────────
-  useClickOutside(
-    [loadBtnRef, pickerRef],
-    () => setShowPicker(false),
-    showPicker,
-  );
 
   // ── Select an entity type → snapshot schema into block attrs ────────
   const handleSelectEntityType = useCallback(
@@ -722,7 +701,7 @@ export function RegistryTableContent({
         </div>
         <div className="mt-3">
           <button
-            ref={loadBtnRef}
+            ref={triggerRef}
             type="button"
             className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-surface/80 hover:text-foreground transition-colors"
             onClick={handleOpenPicker}
@@ -732,48 +711,40 @@ export function RegistryTableContent({
           </button>
         </div>
 
-        {/* ── Picker popover — portaled to body ────────────────────── */}
-        {showPicker &&
-          pickerPos &&
-          createPortal(
-            <div
-              ref={pickerRef}
-              className="z-50 w-72 max-h-60 overflow-y-auto rounded-md border border-hairline bg-popover shadow-lg"
-              style={{
-                position: "fixed",
-                top: pickerPos.top,
-                left: pickerPos.left,
-              }}
-              data-testid="schema-picker"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-                  <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Loading schemas…
-                </div>
-              ) : entityTypes.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">
-                  No schemas available. Create one in LIMS → Entity Types.
-                </div>
-              ) : (
-                entityTypes.map((et) => (
-                  <button
-                    key={et.id}
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
-                    onClick={() => handleSelectEntityType(et)}
-                    data-testid={`schema-option-${et.id}`}
-                  >
-                    <span className="font-medium">{et.name}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      ({et.prefix})
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>,
-            document.body,
-          )}
+        {/* ── Picker popover ──────────────────────────────────────── */}
+        {showPicker && (
+          <PickerPortal
+            position={position}
+            panelRef={panelRef}
+            testId="schema-picker"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+                <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Loading schemas…
+              </div>
+            ) : entityTypes.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-muted-foreground">
+                No schemas available. Create one in LIMS → Entity Types.
+              </div>
+            ) : (
+              entityTypes.map((et) => (
+                <button
+                  key={et.id}
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
+                  onClick={() => handleSelectEntityType(et)}
+                  data-testid={`schema-option-${et.id}`}
+                >
+                  <span className="font-medium">{et.name}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    ({et.prefix})
+                  </span>
+                </button>
+              ))
+            )}
+          </PickerPortal>
+        )}
       </div>
     );
   }
@@ -1106,42 +1077,29 @@ export function RegistryTableContent({
  * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
  * provides one). Renders the same inner content.
  */
-export function RegistryTableBlockComponent({
-  instance,
-  context,
-  overrides = {},
-}: BlockComponentProps) {
-  const attrs = instance.attrs as Record<string, unknown>;
-  const schemaId = (attrs.schemaId as number | null) ?? null;
-  const schemaName = (attrs.schemaName as string | null) ?? null;
-  const schemaContentHash =
-    (attrs.schemaContentHash as string | null) ?? null;
-  const title = (attrs.title as string) || "Registry Table";
-  const columns: GridColumn[] = (attrs.columns as GridColumn[]) ?? [];
-  const rows: RegistryTableRow[] =
-    (attrs.rows as RegistryTableRow[]) ?? [];
-  const readOnly = context.viewMode === "view";
-  const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
+export const RegistryTableBlockComponent = createBlockAdapter(
+  RegistryTableContent,
+  ({ instance, context, overrides = {} }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
 
-  const handleToggleStretch = () => {
-    const nextMode = stretchMode === "auto" ? "full" : "auto";
-    instance.updateAttrs({ stretchMode: nextMode });
-  };
-
-  return (
-    <RegistryTableContent
-      schemaId={schemaId}
-      schemaName={schemaName}
-      schemaContentHash={schemaContentHash}
-      title={title}
-      columns={columns}
-      rows={rows}
-      updateAttrs={instance.updateAttrs}
-      readOnly={readOnly}
-      stretchMode={stretchMode}
-      onToggleStretch={handleToggleStretch}
-      showStretchToggle={overrides.stretch === true}
-      emitAction={context.emitAction}
-    />
-  );
-}
+    return {
+      schemaId: (attrs.schemaId as number | null) ?? null,
+      schemaName: (attrs.schemaName as string | null) ?? null,
+      schemaContentHash:
+        (attrs.schemaContentHash as string | null) ?? null,
+      title: (attrs.title as string) || "Registry Table",
+      columns: (attrs.columns as GridColumn[]) ?? [],
+      rows: (attrs.rows as RegistryTableRow[]) ?? [],
+      updateAttrs: instance.updateAttrs,
+      readOnly: context.viewMode === "view",
+      stretchMode,
+      onToggleStretch: () => {
+        const nextMode = stretchMode === "auto" ? "full" : "auto";
+        instance.updateAttrs({ stretchMode: nextMode });
+      },
+      showStretchToggle: overrides.stretch === true,
+      emitAction: context.emitAction,
+    };
+  },
+);

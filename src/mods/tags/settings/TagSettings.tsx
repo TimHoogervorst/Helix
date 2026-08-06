@@ -1,22 +1,82 @@
 import { useState, useEffect, useCallback } from "react";
-import { listTags, createTag, updateTag, deleteTag } from "../api";
+import { useSearchParams } from "react-router-dom";
+import { Trash2, X, Upload } from "lucide-react";
+import {
+  listTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  listColors,
+  createColor,
+  deleteColor,
+  listIcons,
+  createIcon,
+  deleteIcon,
+} from "../api";
 import type { Tag } from "../types";
-import { TagPill } from "../ui/TagPill";
-import { TagColorPicker } from "../ui/TagColorPicker";
-import { TagIconPopover } from "../ui/TagIconPopover";
-import { Trash2 } from "lucide-react";
+import type { ColorToken, IconLibraryEntry, DeleteResponse } from "../api";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
+import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
+import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
+import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
+import {
+  SettingsMasterList,
+  type MasterListRow,
+} from "../../../shell/src/shared/components/SettingsMasterList";
+import { SettingsCardGrid } from "../../../shell/src/shared/components/SettingsCardGrid";
+import { IconLibraryBrowser } from "./IconLibraryBrowser";
 
-function TagSettings() {
+type TabKind = "tags" | "colours" | "icons";
+
+type TagMutator = (tag: Tag) => Tag;
+
+// ── Tags tab hook ───────────────────────────────────────────────────────────
+
+interface TagsTabState {
+  tags: Tag[];
+  loading: boolean;
+  error: string | null;
+  selectedId: number | null;
+  dirtyEdits: Map<number, Tag>;
+  saving: boolean;
+  showNew: boolean;
+  newName: string;
+  newColor: string;
+  newIcon: string;
+  filterValue: string;
+  dirtyCount: number;
+  selectedTag: Tag | null;
+  editingTag: Tag | undefined;
+  masterRows: MasterListRow[];
+  fetchTags: () => Promise<void>;
+  handleSelect: (id: string | number) => void;
+  handleNameChange: (name: string) => void;
+  handleIconColorChange: (iconKey: string, colorKey: string) => void;
+  handleDelete: () => Promise<void>;
+  saveAllChanges: () => Promise<void>;
+  discardAllEdits: () => void;
+  handleCreate: () => Promise<void>;
+  setShowNew: (v: boolean) => void;
+  setNewName: (v: string) => void;
+  setNewColor: (v: string) => void;
+  setNewIcon: (v: string) => void;
+  setFilterValue: (v: string) => void;
+  setSelectedId: (id: number | null) => void;
+}
+
+function useTagsTabState(): TagsTabState {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dirtyEdits, setDirtyEdits] = useState<Map<number, Tag>>(new Map());
   const [saving, setSaving] = useState(false);
-
-  // ── New tag form ──
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("muted");
   const [newIcon, setNewIcon] = useState("circle");
+  const [filterValue, setFilterValue] = useState("");
 
   const fetchTags = useCallback(async () => {
     try {
@@ -32,6 +92,17 @@ function TagSettings() {
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
+
+  const updateEditingTag = (fn: TagMutator) => {
+    if (selectedId === null) return;
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const t = next.get(selectedId);
+      if (!t) return prev;
+      next.set(selectedId, fn({ ...t }));
+      return next;
+    });
+  };
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -51,99 +122,581 @@ function TagSettings() {
     }
   };
 
-  const handleUpdateColor = async (tagId: number, color: string) => {
-    try {
-      await updateTag(tagId, { color });
-      setTags((prev) =>
-        prev.map((t) => (t.id === tagId ? { ...t, color } : t)),
-      );
-    } catch {
-      // silently ignore
+  const handleSelect = (id: string | number) => {
+    const tagId = Number(id);
+    if (selectedId === tagId) {
+      setSelectedId(null);
+    } else {
+      setSelectedId(tagId);
+      setDirtyEdits((prev) => {
+        if (prev.has(tagId)) return prev;
+        const tag = tags.find((t) => t.id === tagId);
+        if (!tag) return prev;
+        const next = new Map(prev);
+        next.set(tagId, { ...tag });
+        return next;
+      });
     }
   };
 
-  const handleUpdateIcon = async (tagId: number, icon: string) => {
+  const handleNameChange = (name: string) => {
+    updateEditingTag((t) => ({ ...t, name }));
+  };
+
+  const handleIconColorChange = (iconKey: string, colorKey: string) => {
+    updateEditingTag((t) => ({ ...t, icon: iconKey, color: colorKey }));
+  };
+
+  const handleDelete = async () => {
+    if (selectedId === null) return;
+    const tag = tags.find((t) => t.id === selectedId);
+    if (!tag) return;
+    if (!window.confirm(`Delete tag "${tag.name}"? It will be removed from all entries.`)) return;
     try {
-      await updateTag(tagId, { icon });
-      setTags((prev) =>
-        prev.map((t) => (t.id === tagId ? { ...t, icon } : t)),
-      );
-    } catch {
-      // silently ignore
+      await deleteTag(selectedId);
+      setDirtyEdits((prev) => {
+        const next = new Map(prev);
+        next.delete(selectedId);
+        return next;
+      });
+      setSelectedId(null);
+      await fetchTags();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete tag");
     }
   };
 
-  const handleDelete = async (tagId: number) => {
-    if (!window.confirm("Delete this tag? It will be removed from all entries.")) return;
+  const saveAllChanges = async () => {
+    if (dirtyEdits.size === 0) return;
+    setSaving(true);
+    setError(null);
+    let failed = 0;
+    for (const [, t] of dirtyEdits) {
+      try {
+        await updateTag(t.id, { color: t.color, icon: t.icon });
+      } catch {
+        failed++;
+      }
+    }
+    setDirtyEdits(new Map());
+    await fetchTags();
+    if (failed > 0) {
+      setError(`Failed to save ${failed} tag${failed > 1 ? "s" : ""}`);
+    }
+    setSaving(false);
+  };
+
+  const discardAllEdits = () => {
+    setDirtyEdits(new Map());
+  };
+
+  const filteredTags = filterValue
+    ? tags.filter((t) =>
+        t.name.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : tags;
+
+  const masterRows: MasterListRow[] = filteredTags.map((t) => ({
+    id: t.id,
+    label: t.name,
+    secondary: t.color,
+    dirty: dirtyEdits.has(t.id),
+    icon: <IconBadge iconKey={t.icon} colorKey={t.color} size="sm" />,
+  }));
+
+  const selectedTag = selectedId
+    ? tags.find((t) => t.id === selectedId) ?? null
+    : null;
+  const editingTag = selectedId ? dirtyEdits.get(selectedId) : undefined;
+  const dirtyCount = dirtyEdits.size;
+
+  return {
+    tags,
+    loading,
+    error,
+    selectedId,
+    dirtyEdits,
+    saving,
+    showNew,
+    newName,
+    newColor,
+    newIcon,
+    filterValue,
+    dirtyCount,
+    selectedTag,
+    editingTag,
+    masterRows,
+    fetchTags,
+    handleSelect,
+    handleNameChange,
+    handleIconColorChange,
+    handleDelete,
+    saveAllChanges,
+    discardAllEdits,
+    handleCreate,
+    setShowNew,
+    setNewName,
+    setNewColor,
+    setNewIcon,
+    setFilterValue,
+    setSelectedId,
+  };
+}
+
+// ── Colours tab hook ────────────────────────────────────────────────────────
+
+interface ColoursTabState {
+  colours: ColorToken[];
+  loading: boolean;
+  error: string | null;
+  selectedId: number | null;
+  saving: boolean;
+  showNew: boolean;
+  newKey: string;
+  newLabel: string;
+  newHex: string;
+  filterValue: string;
+  selectedColour: ColorToken | null;
+  masterRows: MasterListRow[];
+  fetchColours: () => Promise<void>;
+  handleSelect: (id: string | number) => void;
+  handleDelete: () => Promise<void>;
+  handleDeleteItem: (id: number) => Promise<void>;
+  handleCreate: () => Promise<void>;
+  setShowNew: (v: boolean) => void;
+  setNewKey: (v: string) => void;
+  setNewLabel: (v: string) => void;
+  setNewHex: (v: string) => void;
+  setFilterValue: (v: string) => void;
+  setSelectedId: (id: number | null) => void;
+}
+
+function useColoursTabState(): ColoursTabState {
+  const [colours, setColours] = useState<ColorToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newHex, setNewHex] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+
+  const fetchColours = useCallback(async () => {
     try {
-      await deleteTag(tagId);
-      setTags((prev) => prev.filter((t) => t.id !== tagId));
-    } catch {
-      // silently ignore
+      const data = await listColors();
+      setColours(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load colours");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchColours();
+  }, [fetchColours]);
+
+  const handleCreate = async () => {
+    if (!newKey.trim() || !newLabel.trim() || !newHex.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createColor({
+        key: newKey.trim(),
+        label: newLabel.trim(),
+        hex: newHex.trim(),
+      });
+      setShowNew(false);
+      setNewKey("");
+      setNewLabel("");
+      setNewHex("");
+      await fetchColours();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create colour");
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (loading) {
-    return <p className="p-6 text-muted-foreground">Loading tags…</p>;
-  }
+  const handleSelect = (id: string | number) => {
+    const colourId = Number(id);
+    setSelectedId((prev) => (prev === colourId ? null : colourId));
+  };
 
-  return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Labelling</h2>
-        <button
-          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-          onClick={() => setShowNew(true)}
-          disabled={showNew}
-        >
-          + New Tag
-        </button>
-      </div>
+  const handleDelete = async () => {
+    if (selectedId === null) return;
+    const colour = colours.find((c) => c.id === selectedId);
+    if (!colour) return;
+    if (!window.confirm(`Delete colour "${colour.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteColor(selectedId);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} tag${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted colour "${colour.label}".${usageMsg}`);
+      setSelectedId(null);
+      await fetchColours();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete colour");
+    }
+  };
 
-      {error && (
-        <div className="mb-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+  const handleDeleteItem = async (id: number) => {
+    const colour = colours.find((c) => c.id === id);
+    if (!colour) return;
+    if (!window.confirm(`Delete colour "${colour.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteColor(id);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} tag${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted colour "${colour.label}".${usageMsg}`);
+      await fetchColours();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete colour");
+    }
+  };
 
-      {/* ── New tag form ── */}
-      {showNew && (
-        <div className="mb-6 rounded-md border border-hairline bg-panel p-4">
-          <div className="flex items-end gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Name</label>
+  const filteredColours = filterValue
+    ? colours.filter(
+        (c) =>
+          c.label.toLowerCase().includes(filterValue.toLowerCase()) ||
+          c.key.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : colours;
+
+  const masterRows: MasterListRow[] = filteredColours.map((c) => ({
+    id: c.id,
+    label: c.label,
+    secondary: c.key,
+    icon: (
+      <div
+        className="h-3 w-3 shrink-0 rounded-full border border-hairline"
+        style={{ backgroundColor: c.hex }}
+      />
+    ),
+  }));
+
+  const selectedColour = selectedId
+    ? colours.find((c) => c.id === selectedId) ?? null
+    : null;
+
+  return {
+    colours,
+    loading,
+    error,
+    selectedId,
+    saving,
+    showNew,
+    newKey,
+    newLabel,
+    newHex,
+    filterValue,
+    selectedColour,
+    masterRows,
+    fetchColours,
+    handleSelect,
+    handleDelete,
+    handleDeleteItem,
+    handleCreate,
+    setShowNew,
+    setNewKey,
+    setNewLabel,
+    setNewHex,
+    setFilterValue,
+    setSelectedId,
+  };
+}
+
+// ── Icons tab hook ──────────────────────────────────────────────────────────
+
+interface IconsTabState {
+  icons: IconLibraryEntry[];
+  loading: boolean;
+  error: string | null;
+  selectedId: number | null;
+  saving: boolean;
+  showLucideBrowser: boolean;
+  showSvgUpload: boolean;
+  newKey: string;
+  newLabel: string;
+  newSvgContent: string;
+  svgFileName: string;
+  filterValue: string;
+  selectedIcon: IconLibraryEntry | null;
+  masterRows: MasterListRow[];
+  fetchIcons: () => Promise<void>;
+  handleSelect: (id: string | number) => void;
+  handleDelete: () => Promise<void>;
+  handleDeleteItem: (id: number) => Promise<void>;
+  handleCreateFromLucide: (token: string, label: string) => Promise<void>;
+  handleUploadSvg: () => Promise<void>;
+  setShowLucideBrowser: (v: boolean) => void;
+  setShowSvgUpload: (v: boolean) => void;
+  setNewKey: (v: string) => void;
+  setNewLabel: (v: string) => void;
+  setNewSvgContent: (v: string) => void;
+  setSvgFileName: (v: string) => void;
+  setFilterValue: (v: string) => void;
+  setSelectedId: (id: number | null) => void;
+}
+
+function useIconsTabState(): IconsTabState {
+  const [icons, setIcons] = useState<IconLibraryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showLucideBrowser, setShowLucideBrowser] = useState(false);
+  const [showSvgUpload, setShowSvgUpload] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newSvgContent, setNewSvgContent] = useState("");
+  const [svgFileName, setSvgFileName] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+
+  const fetchIcons = useCallback(async () => {
+    try {
+      const data = await listIcons();
+      setIcons(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load icons");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIcons();
+  }, [fetchIcons]);
+
+  const handleCreateFromLucide = useCallback(
+    async (token: string, label: string) => {
+      setSaving(true);
+      setError(null);
+      try {
+        await createIcon({
+          key: token,
+          label,
+          kind: "lucide",
+          token,
+        });
+        setShowLucideBrowser(false);
+        await fetchIcons();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to add icon");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [fetchIcons],
+  );
+
+  const handleUploadSvg = async () => {
+    if (!newKey.trim() || !newLabel.trim() || !newSvgContent) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createIcon({
+        key: newKey.trim(),
+        label: newLabel.trim(),
+        kind: "custom",
+        svg: newSvgContent,
+      });
+      setShowSvgUpload(false);
+      setNewKey("");
+      setNewLabel("");
+      setNewSvgContent("");
+      setSvgFileName("");
+      await fetchIcons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload icon");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelect = (id: string | number) => {
+    const iconId = Number(id);
+    setSelectedId((prev) => (prev === iconId ? null : iconId));
+  };
+
+  const handleDelete = async () => {
+    if (selectedId === null) return;
+    const icon = icons.find((i) => i.id === selectedId);
+    if (!icon) return;
+    if (!window.confirm(`Delete icon "${icon.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteIcon(selectedId);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} object${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted icon "${icon.label}".${usageMsg}`);
+      setSelectedId(null);
+      await fetchIcons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete icon");
+    }
+  };
+
+  const handleDeleteItem = async (id: number) => {
+    const icon = icons.find((i) => i.id === id);
+    if (!icon) return;
+    if (!window.confirm(`Delete icon "${icon.label}"?`)) return;
+    try {
+      const result: DeleteResponse = await deleteIcon(id);
+      const usageMsg =
+        result.usage_count > 0
+          ? ` It was referenced by ${result.usage_count} object${result.usage_count !== 1 ? "s" : ""}.`
+          : "";
+      setError(`Deleted icon "${icon.label}".${usageMsg}`);
+      await fetchIcons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete icon");
+    }
+  };
+
+  const filteredIcons = filterValue
+    ? icons.filter(
+        (i) =>
+          i.label.toLowerCase().includes(filterValue.toLowerCase()) ||
+          i.key.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : icons;
+
+  const masterRows: MasterListRow[] = filteredIcons.map((i) => ({
+    id: i.id,
+    label: i.label,
+    secondary: i.key,
+    icon: <IconBadge iconKey={i.key} colorKey="muted" size="sm" />,
+  }));
+
+  const selectedIcon = selectedId
+    ? icons.find((i) => i.id === selectedId) ?? null
+    : null;
+
+  return {
+    icons,
+    loading,
+    error,
+    selectedId,
+    saving,
+    showLucideBrowser,
+    showSvgUpload,
+    newKey,
+    newLabel,
+    newSvgContent,
+    svgFileName,
+    filterValue,
+    selectedIcon,
+    masterRows,
+    fetchIcons,
+    handleSelect,
+    handleDelete,
+    handleDeleteItem,
+    handleCreateFromLucide,
+    handleUploadSvg,
+    setShowLucideBrowser,
+    setShowSvgUpload,
+    setNewKey,
+    setNewLabel,
+    setNewSvgContent,
+    setSvgFileName,
+    setFilterValue,
+    setSelectedId,
+  };
+}
+
+// ── Tab configuration ───────────────────────────────────────────────────────
+
+const TAB_CONFIG: Record<TabKind, { title: string; description: string }> = {
+  tags: {
+    title: "Tags",
+    description: "Create and manage tags to label and organize your entries.",
+  },
+  colours: {
+    title: "Colours",
+    description: "Manage the colour palette used across the platform.",
+  },
+  icons: {
+    title: "Icons",
+    description: "Manage the icon library — browse Lucide or upload custom SVGs.",
+  },
+};
+
+// ── Main component ──────────────────────────────────────────────────────────
+
+function TagSettings() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: TabKind =
+    (searchParams.get("tab") as TabKind) ?? "tags";
+
+  const tags = useTagsTabState();
+  const colours = useColoursTabState();
+  const icons = useIconsTabState();
+
+  const setActiveTab = (tab: TabKind) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", tab);
+    setSearchParams(params, { replace: true });
+  };
+
+  const config = TAB_CONFIG[activeTab];
+
+  // ── Hero create panel ────────────────────────────────────────────────
+
+  const heroCreatePanel = () => {
+    if (activeTab === "tags" && tags.showNew) {
+      return (
+        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Name</span>
               <input
                 type="text"
-                className="!w-48"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Tag name"
-                autoFocus
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                value={tags.newName}
+                onChange={(e) => tags.setNewName(e.target.value)}
+                placeholder="e.g., Urgent"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") tags.handleCreate();
+                }}
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Color</label>
-              <TagColorPicker value={newColor} onChange={setNewColor} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Icon</label>
-              <TagIconPopover value={newIcon} onChange={setNewIcon} />
-            </div>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Icon &amp; Colour</span>
+              <IconPickerPopover
+                iconKey={tags.newIcon}
+                colorKey={tags.newColor}
+                size="sm"
+                onChange={(iconKey, colorKey) => {
+                  tags.setNewIcon(iconKey);
+                  tags.setNewColor(colorKey);
+                }}
+              />
+            </label>
             <div className="flex gap-2">
               <button
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-                onClick={handleCreate}
-                disabled={saving || !newName.trim()}
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={tags.handleCreate}
+                disabled={tags.saving || !tags.newName.trim()}
               >
-                {saving ? "Creating…" : "Create"}
+                {tags.saving ? "Creating…" : "Create"}
               </button>
               <button
-                className="rounded-md border border-hairline px-3 py-1.5 text-sm hover:bg-muted"
+                type="button"
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
                 onClick={() => {
-                  setShowNew(false);
-                  setNewName("");
-                  setNewColor("muted");
-                  setNewIcon("circle");
+                  tags.setShowNew(false);
+                  tags.setNewName("");
+                  tags.setNewColor("muted");
+                  tags.setNewIcon("circle");
                 }}
               >
                 Cancel
@@ -151,57 +704,552 @@ function TagSettings() {
             </div>
           </div>
         </div>
-      )}
+      );
+    }
 
-      {/* ── Tag list ── */}
-      {/* ── Tags section ── */}
-      <h3 className="mb-3 text-sm font-medium text-muted-foreground">Tags</h3>
-      {tags.length === 0 ? (
-        <p className="text-muted-foreground">
-          No tags yet. Create your first tag above.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {tags.map((tag) => (
-            <div
-              key={tag.id}
-              className="group flex items-center gap-4 rounded-md border border-hairline bg-panel px-4 py-2.5"
-              data-testid="tag-settings-row"
-            >
-              {/* Tag pill display */}
-              <TagPill tag={tag} />
-
-              <TagColorPicker
-                value={tag.color}
-                onChange={(c) => handleUpdateColor(tag.id, c)}
-                size="xs"
+    if (activeTab === "colours" && colours.showNew) {
+      const hexValid = /^#[0-9A-Fa-f]{3,6}$/.test(colours.newHex.trim());
+      return (
+        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Key</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                value={colours.newKey}
+                onChange={(e) => colours.setNewKey(e.target.value)}
+                placeholder="e.g., crimson"
               />
-
-              <TagIconPopover
-                value={tag.icon}
-                onChange={(ico) => handleUpdateIcon(tag.id, ico)}
-                size="xs"
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Label</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                value={colours.newLabel}
+                onChange={(e) => colours.setNewLabel(e.target.value)}
+                placeholder="e.g., Crimson"
               />
-
-              {/* Delete button — ghost, only visible on row hover */}
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Hex</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  className="w-24 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                  value={colours.newHex}
+                  onChange={(e) => colours.setNewHex(e.target.value)}
+                  placeholder="#FF0000"
+                />
+                {hexValid && (
+                  <div
+                    className="h-7 w-7 shrink-0 rounded border border-hairline"
+                    style={{ backgroundColor: colours.newHex.trim() }}
+                    data-testid="hex-preview"
+                  />
+                )}
+              </div>
+            </label>
+            <div className="flex gap-2">
               <button
                 type="button"
-                className="ml-auto rounded p-1 !border-0 bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                title="Delete tag"
-                aria-label={`Delete tag "${tag.name}"`}
-                onClick={() => handleDelete(tag.id)}
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={colours.handleCreate}
+                disabled={
+                  colours.saving ||
+                  !colours.newKey.trim() ||
+                  !colours.newLabel.trim() ||
+                  !hexValid
+                }
               >
-                <Trash2 className="h-4 w-4" />
+                {colours.saving ? "Creating…" : "Create"}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                onClick={() => {
+                  colours.setShowNew(false);
+                  colours.setNewKey("");
+                  colours.setNewLabel("");
+                  colours.setNewHex("");
+                }}
+              >
+                Cancel
               </button>
             </div>
-          ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "icons" && icons.showSvgUpload) {
+      return (
+        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Key</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                value={icons.newKey}
+                onChange={(e) => icons.setNewKey(e.target.value)}
+                placeholder="e.g., petri-dish"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Label</span>
+              <input
+                type="text"
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                value={icons.newLabel}
+                onChange={(e) => icons.setNewLabel(e.target.value)}
+                placeholder="e.g., Petri Dish"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">SVG File</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  onClick={() => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = ".svg";
+                    input.onchange = (ev) => {
+                      const file = (ev.target as HTMLInputElement).files?.[0];
+                      if (!file) return;
+                      icons.setSvgFileName(file.name);
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        icons.setNewSvgContent(reader.result as string);
+                      };
+                      reader.readAsText(file);
+                    };
+                    input.click();
+                  }}
+                >
+                  {icons.svgFileName || "Choose SVG…"}
+                </button>
+                {icons.newSvgContent && (
+                  <div
+                    className="h-6 w-6 shrink-0"
+                    dangerouslySetInnerHTML={{ __html: icons.newSvgContent }}
+                  />
+                )}
+              </div>
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                onClick={icons.handleUploadSvg}
+                disabled={
+                  icons.saving ||
+                  !icons.newKey.trim() ||
+                  !icons.newLabel.trim() ||
+                  !icons.newSvgContent
+                }
+              >
+                {icons.saving ? "Uploading…" : "Upload"}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                onClick={() => {
+                  icons.setShowSvgUpload(false);
+                  icons.setNewKey("");
+                  icons.setNewLabel("");
+                  icons.setNewSvgContent("");
+                  icons.setSvgFileName("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // ── Hero actions ─────────────────────────────────────────────────────
+
+  const heroActions = () => {
+    if (activeTab === "tags") {
+      return (
+        <button
+          type="button"
+          data-testid="new-tag-button"
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => tags.setShowNew(!tags.showNew)}
+        >
+          {tags.showNew ? "Cancel" : "+ New Tag"}
+        </button>
+      );
+    }
+
+    if (activeTab === "colours") {
+      return (
+        <button
+          type="button"
+          data-testid="new-colour-button"
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => colours.setShowNew(!colours.showNew)}
+        >
+          {colours.showNew ? "Cancel" : "+ New Colour"}
+        </button>
+      );
+    }
+
+    if (activeTab === "icons") {
+      return (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="add-from-lucide-button"
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            onClick={() => icons.setShowLucideBrowser(true)}
+          >
+            + Add from Lucide
+          </button>
+          <button
+            type="button"
+            data-testid="upload-svg-button"
+            className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+            onClick={() => icons.setShowSvgUpload(!icons.showSvgUpload)}
+          >
+            <Upload size={12} className="inline mr-1" />
+            {icons.showSvgUpload ? "Cancel" : "Upload SVG"}
+          </button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // ── Bottom save bar ──────────────────────────────────────────────────
+
+  const bottomBar = () => {
+    if (activeTab === "tags" && tags.dirtyCount > 0) {
+      return (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {tags.dirtyCount} tag{tags.dirtyCount !== 1 ? "s" : ""} with
+            unsaved changes
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={tags.discardAllEdits}
+            >
+              Discard Changes
+            </button>
+            <button
+              type="button"
+              className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              onClick={tags.saveAllChanges}
+              disabled={tags.saving}
+            >
+              {tags.saving
+                ? "Saving…"
+                : `Save Changes (${tags.dirtyCount})`}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return undefined;
+  };
+
+  // ── Loading state ────────────────────────────────────────────────────
+
+  const activeLoading =
+    activeTab === "tags"
+      ? tags.loading
+      : activeTab === "colours"
+        ? colours.loading
+        : icons.loading;
+
+  const activeError =
+    activeTab === "tags"
+      ? tags.error
+      : activeTab === "colours"
+        ? colours.error
+        : icons.error;
+
+  if (activeLoading) {
+    return (
+      <p className="empty">
+        Loading {activeTab}…
+      </p>
+    );
+  }
+
+  // ── Tab-specific content ─────────────────────────────────────────────
+
+  const renderTagsContent = () => (
+    <div className={activeTab === "tags" ? "" : "hidden"}>
+      {tags.error && (
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+          {tags.error}
         </div>
       )}
 
-      {/* ── Icons section (placeholder) ── */}
-      <h3 className="mb-3 mt-8 text-sm font-medium text-muted-foreground">Icons</h3>
-      <p className="text-sm text-muted-foreground">Custom icons coming soon.</p>
+      <div className="flex min-h-0 gap-0">
+        <div className="w-64 shrink-0">
+          <SettingsMasterList
+            rows={tags.masterRows}
+            selectedId={tags.selectedId}
+            filterValue={tags.filterValue}
+            onFilterChange={tags.setFilterValue}
+            onSelect={tags.handleSelect}
+            filterPlaceholder="Filter tags"
+          />
+          {tags.masterRows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              No tags found.
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-4 p-6">
+          {tags.selectedTag && tags.editingTag ? (
+            <SettingsSectionCard
+              title="Tag identity"
+              subtitle={`#${tags.selectedTag.id}`}
+              actions={
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
+                    onClick={tags.handleDelete}
+                    title="Delete tag"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => tags.setSelectedId(null)}
+                    title="Close detail"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              }
+            >
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Name
+                  </span>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    value={tags.editingTag.name}
+                    onChange={(e) => tags.handleNameChange(e.target.value)}
+                    placeholder="Tag name"
+                  />
+                </label>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Icon &amp; Colour
+                  </span>
+                  <IconPickerPopover
+                    iconKey={tags.editingTag.icon}
+                    colorKey={tags.editingTag.color}
+                    size="md"
+                    onChange={tags.handleIconColorChange}
+                  />
+                </div>
+              </div>
+            </SettingsSectionCard>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Select a tag from the list to view or edit its details.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
+  );
+
+  const renderColoursContent = () => (
+    <div className={activeTab === "colours" ? "" : "hidden"}>
+      {colours.error && (
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+          {colours.error}
+        </div>
+      )}
+
+      <SettingsCardGrid
+        filterValue={colours.filterValue}
+        onFilterChange={colours.setFilterValue}
+        filterPlaceholder="Filter colours"
+        emptyMessage="No colours found."
+      >
+        {colours.colours
+          .filter(
+            (c) =>
+              !colours.filterValue ||
+              c.label
+                .toLowerCase()
+                .includes(colours.filterValue.toLowerCase()) ||
+              c.key.toLowerCase().includes(colours.filterValue.toLowerCase()),
+          )
+          .map((c) => (
+            <div
+              key={c.id}
+              className="group relative rounded-lg border border-hairline bg-panel p-4 transition-shadow hover:shadow-sm"
+            >
+              <button
+                type="button"
+                className="btn-ghost absolute right-2 top-2 gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-warn group-hover:opacity-100"
+                onClick={() => colours.handleDeleteItem(c.id)}
+                title={`Delete colour "${c.label}"`}
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div
+                  className="h-12 w-12 shrink-0 rounded border border-hairline"
+                  style={{ backgroundColor: c.hex }}
+                />
+                <div>
+                  <div className="text-[13px] font-medium text-foreground">
+                    {c.label}
+                  </div>
+                  <div className="font-mono text-[11px] text-muted-foreground">
+                    {c.hex}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+      </SettingsCardGrid>
+    </div>
+  );
+
+  const renderIconsContent = () => (
+    <div className={activeTab === "icons" ? "" : "hidden"}>
+      {icons.error && (
+        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+          {icons.error}
+        </div>
+      )}
+
+      <SettingsCardGrid
+        filterValue={icons.filterValue}
+        onFilterChange={icons.setFilterValue}
+        filterPlaceholder="Filter icons"
+        emptyMessage="No icons found."
+      >
+        {icons.icons
+          .filter(
+            (i) =>
+              !icons.filterValue ||
+              i.label
+                .toLowerCase()
+                .includes(icons.filterValue.toLowerCase()) ||
+              i.key.toLowerCase().includes(icons.filterValue.toLowerCase()),
+          )
+          .map((i) => (
+            <div
+              key={i.id}
+              className="group relative rounded-lg border border-hairline bg-panel p-4 transition-shadow hover:shadow-sm"
+            >
+              <button
+                type="button"
+                className="btn-ghost absolute right-2 top-2 gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-warn group-hover:opacity-100"
+                onClick={() => icons.handleDeleteItem(i.id)}
+                title={`Delete icon "${i.label}"`}
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+              <div className="flex flex-col items-center gap-2 text-center">
+                <IconBadge iconKey={i.key} colorKey="muted" size="lg" />
+                <div>
+                  <div className="text-[13px] font-medium text-foreground">
+                    {i.label}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {i.kind === "lucide" ? `Lucide · ${i.token}` : "Custom SVG"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+      </SettingsCardGrid>
+    </div>
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────
+
+  return (
+    <>
+      <IconLibraryBrowser
+        open={icons.showLucideBrowser}
+        onClose={() => icons.setShowLucideBrowser(false)}
+        onSelect={icons.handleCreateFromLucide}
+      />
+
+      <SettingsPageLayout
+        hero={
+          <>
+            <SettingsHeroHeader
+              eyebrow="labelling"
+              title={config.title}
+              description={config.description}
+              actions={heroActions()}
+            />
+
+            {heroCreatePanel()}
+          </>
+        }
+        tabs={
+          <div className="lims-tab-bar">
+            <button
+              type="button"
+              data-testid="tab-tags"
+              className={`lims-tab ${activeTab === "tags" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("tags")}
+            >
+              Tags
+            </button>
+            <button
+              type="button"
+              data-testid="tab-colours"
+              className={`lims-tab ${activeTab === "colours" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("colours")}
+            >
+              Colours
+            </button>
+            <button
+              type="button"
+              data-testid="tab-icons"
+              className={`lims-tab ${activeTab === "icons" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("icons")}
+            >
+              Icons
+            </button>
+          </div>
+        }
+        bottomBar={bottomBar()}
+      >
+        {renderTagsContent()}
+        {renderColoursContent()}
+        {renderIconsContent()}
+      </SettingsPageLayout>
+    </>
   );
 }
 

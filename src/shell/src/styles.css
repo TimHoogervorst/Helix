@@ -755,6 +755,47 @@ label {
   color: var(--color-primary);
 }
 
+/* ── Settings Tab Bar (sits on hero/content border, no borders, bold active) ── */
+
+.lims-tab-bar--settings {
+  display: flex;
+  gap: 0;
+  margin-bottom: -1px;
+}
+
+.lims-tab-bar--settings .lims-tab-bar {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.lims-tab-bar--settings .lims-tab {
+  margin-bottom: 0;
+  border: none;
+  border-bottom: none;
+  border-radius: 0;
+  background: var(--color-background);
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.lims-tab-bar--settings .lims-tab:hover {
+  color: var(--color-foreground);
+}
+
+.lims-tab-bar--settings .lims-tab.is-active {
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  font-weight: 700;
+}
+
+.lims-tab-bar--settings .lims-tab.is-active:hover {
+  color: var(--color-foreground);
+}
+
 /* Empty properties placeholder */
 .lims-properties-empty {
   color: var(--color-muted-foreground);

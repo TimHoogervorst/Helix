@@ -107,6 +107,8 @@ const _libraryEntryDefaults: LibraryEntryItem = {
   workspace_id: "eln",
   display_id: "E1",
   title: "PCR Results",
+  icon: "flask-conical",
+  color: "flask",
   folder: null,
   folder_name: null,
   author_username: null,
@@ -163,6 +165,7 @@ export function makeColumnDef(
 const _schemaDefaults: Schema = {
   id: 1,
   name: "Blood Sample",
+  description: undefined,
   prefix: "BLOOD",
   schema_type: 1,
   schema_type_display: "Entity",
@@ -170,6 +173,8 @@ const _schemaDefaults: Schema = {
   is_active: true,
   columns: [],
   content_hash: "",
+  icon: "",
+  color: "",
 };
 
 /** A single Schema row. */

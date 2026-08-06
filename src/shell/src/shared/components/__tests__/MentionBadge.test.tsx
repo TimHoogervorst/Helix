@@ -18,6 +18,7 @@ const resolvedEntry: BadgeResolved = {
   type: "entry",
   id: 1,
   icon: "📄",
+  color: "muted",
   workspaceId: "eln",
 };
 
@@ -27,6 +28,7 @@ const resolvedEntity: BadgeResolved = {
   type: "entity",
   id: 5,
   icon: "🩸",
+  color: "muted",
   workspaceId: "lims",
 };
 
@@ -57,7 +59,7 @@ describe("non-clickable (gray)", () => {
       clickable: false,
       resolved: resolvedEntry,
     });
-    expect(screen.getByText("📄")).toBeInTheDocument();
+    expect(screen.getByTestId("icon-badge")).toBeInTheDocument();
     expect(screen.getByText("E1")).toBeInTheDocument();
     expect(screen.getByText("PCR Protocol")).toBeInTheDocument();
     const badge = screen.getByText("E1").closest(".reference-badge")!;
@@ -73,7 +75,7 @@ describe("non-clickable (gray)", () => {
       clickable: false,
       resolved: resolvedEntity,
     });
-    expect(screen.getByText("🩸")).toBeInTheDocument();
+    expect(screen.getByTestId("icon-badge")).toBeInTheDocument();
   });
 });
 
@@ -120,6 +122,7 @@ describe("clickable (blue)", () => {
       type: "entity",
       id: 42,
       icon: "🧬",
+      color: "muted",
       workspaceId: "molBio",
     };
     renderBadge({
@@ -139,7 +142,7 @@ describe("clickable (blue)", () => {
       type: "entity",
       id: 5,
       icon: "🩸",
-      // no workspaceId
+      color: "muted",
     };
     renderBadge({
       displayId: "BLOOD1",
@@ -175,7 +178,7 @@ describe("compact mode", () => {
       resolved: resolvedEntry,
       compact: true,
     });
-    expect(screen.getByText("📄")).toBeInTheDocument();
+    expect(screen.getByTestId("icon-badge")).toBeInTheDocument();
     expect(screen.getByText("E1")).toBeInTheDocument();
     expect(screen.queryByText("PCR Protocol")).toBeNull();
     // Badge is still resolved-styled
@@ -191,7 +194,7 @@ describe("compact mode", () => {
       resolved: resolvedEntry,
       compact: true,
     });
-    expect(screen.getByText("📄")).toBeInTheDocument();
+    expect(screen.getByTestId("icon-badge")).toBeInTheDocument();
     expect(screen.getByText("E1")).toBeInTheDocument();
     expect(screen.queryByText("PCR Protocol")).toBeNull();
     const badge = screen.getByText("E1").closest(".reference-badge")!;

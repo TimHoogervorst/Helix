@@ -12,9 +12,8 @@ import { useState, useRef, useCallback } from "react";
 import { Circle, X } from "lucide-react";
 import type { Tag } from "../types";
 import { useTagSearch } from "../hooks/useTagSearch";
-import { getTagIcon } from "../constants";
-import { TagColorPicker } from "./TagColorPicker";
-import { TagIconPicker } from "./TagIconPicker";
+import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 
 export interface TagAutocompleteProps {
   /** IDs of tags already attached (filtered out of suggestions). */
@@ -70,14 +69,18 @@ export function TagAutocomplete({
     [onTagSelect, clearSearch],
   );
 
-  const handleColorPick = useCallback(
-    async (color: string) => {
-      const tag = await pickColor(color);
-      if (tag) {
-        setIsOpen(false);
+  const handlePickerChange = useCallback(
+    (icon: string, color: string) => {
+      pickIcon(icon);
+      if (color !== pendingColor) {
+        pickColor(color).then((tag) => {
+          if (tag) {
+            setIsOpen(false);
+          }
+        });
       }
     },
-    [pickColor],
+    [pickIcon, pickColor, pendingColor],
   );
 
   const handleBlur = useCallback(() => {
@@ -131,27 +134,20 @@ export function TagAutocomplete({
           data-testid="tag-autocomplete-dropdown"
         >
           {/* Existing tag suggestions (limit: 2) */}
-          {limited.map((t) => {
-            const ti = getTagIcon(t.icon);
-            const TagIcon = ti.Icon;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] border-transparent bg-transparent text-foreground hover:bg-muted"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelect(t);
-                }}
-              >
-                <TagIcon
-                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                {t.name}
-              </button>
-            );
-          })}
+          {limited.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] border-transparent bg-transparent text-foreground hover:bg-muted"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(t);
+              }}
+            >
+              <IconBadge iconKey={t.icon || "circle"} colorKey={t.color || "muted"} size="sm" />
+              {t.name}
+            </button>
+          ))}
 
           {/* "Create new" row */}
           {showCreateNew && (
@@ -191,27 +187,16 @@ export function TagAutocomplete({
             </button>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[0.65rem] text-muted-foreground w-8">
-                Color
-              </span>
-              <TagColorPicker
-                value={pendingColor}
-                onChange={handleColorPick}
-                size="xs"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[0.65rem] text-muted-foreground w-8">
-                Icon
-              </span>
-              <TagIconPicker
-                value={pendingIcon}
-                onChange={pickIcon}
-                size="xs"
-              />
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[0.65rem] text-muted-foreground">
+              Pick icon + colour to create
+            </span>
+            <IconPickerPopover
+              iconKey={pendingIcon}
+              colorKey={pendingColor}
+              size="sm"
+              onChange={handlePickerChange}
+            />
           </div>
         </div>
       )}

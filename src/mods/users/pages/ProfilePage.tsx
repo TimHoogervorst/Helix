@@ -1,5 +1,5 @@
+import { MetricCardsBar } from "../../../shell/src/shared/components/MetricCards";
 import { ProfileHeader } from "../components/ProfileHeader";
-import { StatsBar } from "../components/StatsBar";
 import { AboutSection } from "../components/AboutSection";
 import { NotebookActivity } from "../components/NotebookActivity";
 import { RecentActivity } from "../components/RecentActivity";
@@ -23,7 +23,7 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <ProfileHeader />
-      <StatsBar />
+      <MetricCardsBar surface="profile" />
 
       {/* Two-column content grid */}
       <section className="mx-auto w-full max-w-6xl px-6 py-8">

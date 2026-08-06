@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema
-from .models import Entity, Action, LimsView
+from .models import Entity, Action, LimsView, Metric
 
 
 def validate_prefix(value):
@@ -161,3 +161,48 @@ class ActionSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+
+class MetricSerializer(serializers.ModelSerializer):
+    """Serializer for live aggregate Metrics."""
+
+    owner_username = serializers.CharField(source="owner.username", read_only=True)
+    view_name = serializers.CharField(source="view.name", read_only=True)
+    name = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta:
+        model = Metric
+        fields = [
+            "id",
+            "owner",
+            "owner_username",
+            "name",
+            "view",
+            "view_name",
+            "aggregate_function",
+            "column",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "owner", "created_at", "updated_at"]
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            view = self.initial_data.get("view")
+            aggregate_fn = self.initial_data.get("aggregate_function", "")
+            if view:
+                try:
+                    from .models import LimsView
+                    view_obj = LimsView.objects.get(pk=view)
+                    return f"{aggregate_fn.capitalize()} — {view_obj.name}"
+                except (LimsView.DoesNotExist, ValueError):
+                    pass
+            return f"{aggregate_fn.capitalize()} — View"
+        return value
+
+    def create(self, validated_data):
+        if not validated_data.get("name"):
+            view = validated_data.get("view")
+            aggregate_fn = validated_data.get("aggregate_function", "")
+            validated_data["name"] = f"{aggregate_fn.capitalize()} — {view.name}"
+        return super().create(validated_data)

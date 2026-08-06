@@ -66,6 +66,8 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
       display_id: current.displayId,
       label,
       url: current.url,
+      icon: "",
+      color: "",
       created_at: new Date().toISOString(),
     };
 

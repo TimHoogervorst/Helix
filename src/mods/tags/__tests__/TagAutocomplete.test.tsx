@@ -4,7 +4,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TagAutocomplete } from "../ui/TagAutocomplete";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { Tag } from "../types";
+import type { ColorToken, IconLibraryEntry } from "../../../shell/src/mod-system/types";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -23,11 +25,32 @@ function makeTag(overrides?: Partial<Tag>): Tag {
 }
 
 describe("TagAutocomplete", () => {
+  const colorPalette: ColorToken[] = [
+    { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
+    { key: "flask", label: "Flask", hex: "#b3d9e6" },
+    { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
+    { key: "warn", label: "Warn", hex: "#e6d9b3" },
+    { key: "muted", label: "Muted", hex: "#d9d9d9" },
+    { key: "success", label: "Success", hex: "#b3e6b3" },
+  ];
+
+  const iconLibrary: IconLibraryEntry[] = [
+    { key: "circle", label: "Circle", kind: "lucide", token: "circle", svg: "" },
+    { key: "dna", label: "DNA", kind: "lucide", token: "dna", svg: "" },
+    { key: "flask-conical", label: "Flask", kind: "lucide", token: "flask-conical", svg: "" },
+  ];
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockListTags.mockReset();
     mockCreateTag.mockReset();
     mockListTags.mockResolvedValue([]);
+
+    const reg = ModRegistry.getInstance();
+    reg.hydrateFromBackend({
+      iconLibrary,
+      colorPalette,
+    }, []);
   });
 
   // ── Rendering ────────────────────────────────────────────────────────────
@@ -200,9 +223,12 @@ describe("TagAutocomplete", () => {
       expect(screen.getByTestId("tag-create-panel")).toBeInTheDocument();
     });
 
-    // Click an enzyme color dot (Label = "Enzyme")
-    // We need to wait for listTags inside pickColor to resolve
-    fireEvent.click(screen.getByLabelText("Enzyme"));
+    // Open the IconPickerPopover by clicking the badge
+    fireEvent.click(screen.getByTestId("icon-badge"));
+
+    // Switch to Colour tab and click the enzyme color
+    fireEvent.click(screen.getByTestId("tab-colour"));
+    fireEvent.click(screen.getByTestId("color-option-enzyme"));
 
     await waitFor(() => {
       expect(mockCreateTag).toHaveBeenCalledWith("NewTag", "enzyme", "circle");

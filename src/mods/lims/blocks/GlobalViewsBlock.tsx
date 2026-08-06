@@ -15,10 +15,10 @@ function buildViewURL(state: LimsViewItem["filter_state"]): string {
   if (state.schema) params.set("schema", state.schema);
   if (state.status) params.set("status", state.status);
   if (state.sort) params.set("sort", state.sort);
-  for (const f of state.fields) {
+  for (const f of state.fields ?? []) {
     params.append("f", f);
   }
-  if (state.columns.length > 0) {
+  if ((state.columns ?? []).length > 0) {
     params.set("columns", state.columns.join(","));
   }
   try {

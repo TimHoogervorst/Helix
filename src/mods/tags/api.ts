@@ -42,3 +42,62 @@ export function updateTag(tagId: number, data: { color?: string; icon?: string }
 export function deleteTag(tagId: number): Promise<void> {
   return del<void>(`/tags/${tagId}/`);
 }
+
+// ── Colour token API ────────────────────────────────────────────────────────
+
+export interface ColorToken {
+  id: number;
+  key: string;
+  label: string;
+  hex: string;
+}
+
+export interface DeleteResponse {
+  detail: string;
+  usage_count: number;
+}
+
+export function listColors(): Promise<ColorToken[]> {
+  return get<ColorToken[]>("/colors/");
+}
+
+export function createColor(data: {
+  key: string;
+  label: string;
+  hex: string;
+}): Promise<ColorToken> {
+  return post<ColorToken>("/colors/", data);
+}
+
+export function deleteColor(id: number): Promise<DeleteResponse> {
+  return del<DeleteResponse>(`/colors/${id}/`);
+}
+
+// ── Icon library API ────────────────────────────────────────────────────────
+
+export interface IconLibraryEntry {
+  id: number;
+  key: string;
+  label: string;
+  kind: "lucide" | "custom";
+  token: string;
+  svg: string;
+}
+
+export function listIcons(): Promise<IconLibraryEntry[]> {
+  return get<IconLibraryEntry[]>("/icons/");
+}
+
+export function createIcon(data: {
+  key: string;
+  label: string;
+  kind: "lucide" | "custom";
+  token?: string;
+  svg?: string;
+}): Promise<IconLibraryEntry> {
+  return post<IconLibraryEntry>("/icons/", data);
+}
+
+export function deleteIcon(id: number): Promise<DeleteResponse> {
+  return del<DeleteResponse>(`/icons/${id}/`);
+}

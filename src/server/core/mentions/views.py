@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .prefix_resolver import (
+    get_color,
     get_icon,
     get_model_type_map,
     get_prefix_map,
@@ -23,6 +24,7 @@ def _build_result(instance, model_type: str, workspace_id: str | None, *, includ
         "title": getattr(instance, "title", getattr(instance, "name", str(instance))),
         "type": model_type,
         "icon": get_icon(instance, model_type),
+        "color": get_color(instance, model_type),
         "workspaceId": workspace_id,
     }
     if include_id:

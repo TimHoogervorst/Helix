@@ -1,11 +1,14 @@
-"""Serializers for Schema and SchemaType API endpoints."""
+"""Serializers for Schema, SchemaType, and ColorToken API endpoints."""
+
+import re
 
 from rest_framework import serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from helix_core.column_types import registry as column_type_registry
-from helix_core.models import Schema, SchemaType, EntityHubView
+from helix_core.models import ColorToken, IconLibraryEntry, Schema, SchemaType, EntityHubView
+from helix_core.svg_sanitizer import sanitize_svg, SvgSanitizationError
 
 
 def validate_prefix(value):
@@ -89,6 +92,8 @@ class SchemaListSerializer(serializers.ModelSerializer):
             "is_default",
             "is_active",
             "content_hash",
+            "icon",
+            "color",
         ]
         read_only_fields = ["id", "content_hash"]
 
@@ -113,6 +118,8 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "is_default",
             "is_active",
             "content_hash",
+            "icon",
+            "color",
         ]
         read_only_fields = ["id", "is_default", "content_hash", "schema_type_display"]
 
@@ -144,6 +151,12 @@ class EntityHubSerializer(serializers.ModelSerializer):
     schema_prefix = serializers.CharField(
         source="schema.prefix", read_only=True
     )
+    schema_icon = serializers.CharField(
+        source="schema.icon", read_only=True, default=""
+    )
+    schema_color = serializers.CharField(
+        source="schema.color", read_only=True, default=""
+    )
     schema_type_display = serializers.SerializerMethodField()
     _expanded = serializers.SerializerMethodField()
 
@@ -158,6 +171,8 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "schema_id",
             "schema_name",
             "schema_prefix",
+            "schema_icon",
+            "schema_color",
             "status",
             "author",
             "author_username",
@@ -211,3 +226,78 @@ class EntityHubPaginator(PageNumberPagination):
             "page": self.page.number,
             "size": self.get_page_size(self.request),
         })
+
+
+# ── Color Token ─────────────────────────────────────────────────────────
+
+
+def validate_hex_color(value):
+    """Hex must be a valid #RRGGBB or #RGB colour string."""
+    if not re.match(r"^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$", value):
+        raise serializers.ValidationError(
+            "Hex must be a valid #RGB or #RRGGBB colour string."
+        )
+    return value
+
+
+class ColorTokenSerializer(serializers.ModelSerializer):
+    """Serializer for ColorToken — list, create, delete."""
+
+    hex = serializers.CharField(validators=[validate_hex_color])
+
+    class Meta:
+        model = ColorToken
+        fields = ["id", "key", "label", "hex"]
+        read_only_fields = ["id"]
+
+    def validate_hex(self, value):
+        """Normalise hex to uppercase for consistent storage."""
+        return value.upper()
+
+
+# ── Icon Library ───────────────────────────────────────────────────────
+
+
+class IconLibrarySerializer(serializers.ModelSerializer):
+    """Serializer for IconLibraryEntry — list, create (Lucide or custom SVG)."""
+
+    class Meta:
+        model = IconLibraryEntry
+        fields = ["id", "key", "label", "kind", "token", "svg"]
+        read_only_fields = ["id"]
+
+    def validate(self, data):
+        kind = data.get("kind")
+        token = data.get("token", "")
+        svg = data.get("svg", "")
+
+        if kind == IconLibraryEntry.K_LUCIDE:
+            if not token:
+                raise serializers.ValidationError(
+                    {"token": "Required when kind is 'lucide'."}
+                )
+            if svg:
+                raise serializers.ValidationError(
+                    {"svg": "Must be empty when kind is 'lucide'."}
+                )
+        elif kind == IconLibraryEntry.K_CUSTOM:
+            if not svg:
+                raise serializers.ValidationError(
+                    {"svg": "Required when kind is 'custom'."}
+                )
+            if token:
+                raise serializers.ValidationError(
+                    {"token": "Must be empty when kind is 'custom'."}
+                )
+            try:
+                data["svg"] = sanitize_svg(svg)
+            except SvgSanitizationError:
+                raise serializers.ValidationError(
+                    {"svg": "Invalid SVG content."}
+                )
+        else:
+            raise serializers.ValidationError(
+                {"kind": "Must be 'lucide' or 'custom'."}
+            )
+
+        return data

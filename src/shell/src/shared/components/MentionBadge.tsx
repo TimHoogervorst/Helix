@@ -13,6 +13,7 @@
 import { useEffect, useRef } from "react";
 import { useMentionContext } from "../../mentions/MentionProvider";
 import type { ResolvedMention } from "../../mentions/types";
+import { IconBadge } from "./IconBadge";
 
 // ── Public type ──────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ export interface BadgeResolved {
   type: "entry" | "entity";
   id: number;
   icon: string;
+  color: string;
   /** The workspace that owns this entity (e.g. "eln", "lims"). */
   workspaceId?: string | null;
 }
@@ -48,6 +50,7 @@ function toBadgeResolved(r: ResolvedMention): BadgeResolved {
     type: r.type as "entry" | "entity",
     id: r.id,
     icon: r.icon,
+    color: r.color,
     workspaceId: r.workspaceId,
   };
 }
@@ -101,7 +104,9 @@ function MentionBadge({
   if (!clickable && resolved) {
     return (
       <span className="reference-badge is-nonclickable is-resolved">
-        <span className="ref-badge-icon">{resolved.icon}</span>
+        <span className="ref-badge-icon">
+          <IconBadge iconKey={resolved.icon} colorKey={resolved.color || "muted"} size="sm" />
+        </span>
         <span className="ref-badge-id">{displayId}</span>
         {!compact && <span className="ref-badge-title">{resolved.title}</span>}
       </span>
@@ -124,7 +129,9 @@ function MentionBadge({
         className="reference-badge is-clickable is-resolved"
         href={badgeHref(resolved)}
       >
-        <span className="ref-badge-icon">{resolved.icon}</span>
+        <span className="ref-badge-icon">
+          <IconBadge iconKey={resolved.icon} colorKey={resolved.color || "muted"} size="sm" />
+        </span>
         <span className="ref-badge-id">{displayId}</span>
         {!compact && <span className="ref-badge-title">{resolved.title}</span>}
       </a>
@@ -159,7 +166,9 @@ function MentionBadge({
       className="reference-badge is-clickable is-resolved"
       href={badgeHref(resolvedData)}
     >
-      <span className="ref-badge-icon">{resolvedData.icon}</span>
+      <span className="ref-badge-icon">
+        <IconBadge iconKey={resolvedData.icon} colorKey={resolvedData.color || "muted"} size="sm" />
+      </span>
       <span className="ref-badge-id">{displayId}</span>
       {!compact && <span className="ref-badge-title">{resolvedData.title}</span>}
     </a>

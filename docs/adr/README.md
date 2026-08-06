@@ -22,6 +22,8 @@ and onboarding reference for contributors.
 | [0010](0010-column-type-registry.md) | Column Type Registry — backend-owned typed column definitions | 2026-07-24 | Accepted |
 | [0011](0011-declarative-bus-subscriptions.md) | Declarative Bus Subscriptions — `listensTo`/`onEvent` as canonical block API | 2026-07-30 | Accepted |
 | [0012](0012-tiptap-renderer-editor-host.md) | TipTapRenderer as Sole Editor Host — dissolving the host-component anti-pattern | 2026-07-30 | Accepted |
+| 0013 | Shell-Hosted Settings Layout Kit — composition primitives for coherent settings pages | 2026-08-03 | Accepted |
+| 0014 | Reference Columns Target a Schema — mirroring the dropdown precedent | 2026-08-03 | Accepted |
 
 ## Creating a New ADR
 

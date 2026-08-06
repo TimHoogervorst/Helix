@@ -40,6 +40,55 @@ class LimsView(models.Model):
         return f"{self.name} ({self.owner.username})"
 
 
+class Metric(models.Model):
+    """A live aggregate calculated from a saved View's filter_state.
+
+    Each Metric references a :class:`LimsView` and computes a scalar
+    aggregate (count, sum, avg, min, max, stdev, or count_distinct) over
+    the Entity Hub View for that View's current filter configuration.
+
+    Metrics are live — their value endpoint re-queries the database on
+    every request rather than caching a snapshot.
+    """
+
+    owner = models.ForeignKey(
+        "core.User",
+        on_delete=models.CASCADE,
+        related_name="lims_metrics",
+    )
+    name = models.CharField(max_length=255, blank=True)
+    view = models.ForeignKey(
+        LimsView,
+        on_delete=models.CASCADE,
+        related_name="metrics",
+    )
+    aggregate_function = models.CharField(
+        max_length=50,
+        help_text=(
+            "Aggregate ID from the column type registry: "
+            "count, count_distinct, sum, avg, min, max, stdev."
+        ),
+    )
+    column = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text=(
+            "Column key to aggregate over.  None/empty for a plain row "
+            "count (counts rows without a column target)."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "lims_metric"
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.aggregate_function} — {self.name}"
+
+
 class Entity(AbstractEntity):
     """A structured entity representing a physical sample or item.
 

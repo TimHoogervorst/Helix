@@ -5,7 +5,9 @@
  *  - Decorative header bar renders
  *  - Greeting section shows user's username from useCurrentUser
  *  - Greeting section includes the placeholder subtitle
- *  - Stats bar renders all four hardcoded metric tiles
+ *  - Metric Cards bar renders live cards with values from the API
+ *  - Metric Cards bar empty state when no cards exist
+ *  - Metric Cards bar loading skeleton
  *  - Jump Back In section heading with hub count
  *  - Hub cards for non-home hubs with labels, descriptions, and link targets
  *  - Home hub is excluded from cards
@@ -15,11 +17,19 @@
  *  - Both panels render side by side, no inspirational quote
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { BookOpen } from "lucide-react";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../../shell/src/mod-system/types";
+
+// Mock the Metric Cards API so the cards bar loads from seeded data
+vi.mock("../../../shell/src/shared/components/MetricCards/api", () => ({
+  getCards: vi.fn(),
+  getMetricValue: vi.fn(),
+}));
+
+import * as cardApi from "../../../shell/src/shared/components/MetricCards/api";
 
 // Mock useCurrentUser so the greeting renders with a known username
 vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
@@ -57,6 +67,10 @@ function registerHub(config: HubConfig): void {
 /** Clean slate before each test. */
 beforeEach(() => {
   ModRegistry._reset();
+  vi.mocked(cardApi.getCards).mockReset();
+  vi.mocked(cardApi.getMetricValue).mockReset();
+  vi.mocked(cardApi.getCards).mockResolvedValue([]);
+  vi.mocked(cardApi.getMetricValue).mockResolvedValue({ value: 0 });
 });
 
 /** Clean up after each test so singletons don't leak. */
@@ -116,36 +130,179 @@ describe("HomePage", () => {
     expect(greetingSection).toBeInTheDocument();
   });
 
-  // ── Stats bar ──────────────────────────────────────────────────────────
+  // ── Metric Cards bar ───────────────────────────────────────────────────
 
-  it("renders all four stat tiles", () => {
-    renderHomePage();
-    expect(screen.getByText("Experiments running")).toBeInTheDocument();
-    expect(screen.getByText("Entries this week")).toBeInTheDocument();
-    expect(screen.getByText("Freezer")).toBeInTheDocument();
-    expect(screen.getByText("Reagents low")).toBeInTheDocument();
-  });
+  describe("Metric Cards bar", () => {
+    const defaultCard = {
+      id: 1,
+      owner: null as number | null,
+      owner_username: null as string | null,
+      is_global: true,
+      metric: 1,
+      metric_name: "Count — In-progress entries",
+      surface: "home",
+      order: 0,
+      label: "In-progress entries",
+      icon: "scroll-text",
+      formatting: { rules: [], default: { color: "flask", icon: "flask-conical", text: null } },
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
 
-  it("renders the hardcoded stat values", () => {
-    renderHomePage();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("-79.4 °C")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-  });
-
-  it("renders the stat subtitles in mono font", () => {
-    renderHomePage();
-    const subtitles = [
-      screen.getByText("Across 2 labs"),
-      screen.getByText("Last 7 days"),
-      screen.getByText("All systems normal"),
-      screen.getByText("Reorder soon"),
-    ];
-    for (const subtitle of subtitles) {
-      expect(subtitle).toBeInTheDocument();
-      expect(subtitle).toHaveClass("font-mono");
+    function makeCard(overrides: Partial<typeof defaultCard> = {}) {
+      return { ...defaultCard, ...overrides };
     }
+
+    const seededCards = [
+      makeCard(),
+      makeCard({
+        id: 2,
+        metric: 2,
+        metric_name: "Count — My entities",
+        label: "Entities created",
+        icon: "test-tubes",
+        order: 1,
+      }),
+    ];
+
+    it("renders cards with live values from the API", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue(seededCards);
+      vi.mocked(cardApi.getMetricValue)
+        .mockResolvedValueOnce({ value: 7 })
+        .mockResolvedValueOnce({ value: 42 });
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("In-progress entries")).toBeInTheDocument();
+        expect(screen.getByText("Entities created")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("7")).toBeInTheDocument();
+      expect(screen.getByText("42")).toBeInTheDocument();
+    });
+
+    it("passes the current user's identity to getMetricValue for is_me resolution", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue([makeCard()]);
+      vi.mocked(cardApi.getMetricValue).mockResolvedValue({ value: 3 });
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(cardApi.getMetricValue).toHaveBeenCalledWith(1, "mkato");
+      });
+    });
+
+    it("shows a loading skeleton while cards are loading", () => {
+      vi.mocked(cardApi.getCards).mockReturnValue(new Promise(() => {}));
+
+      renderHomePage();
+
+      const skeletons = document.querySelectorAll(".animate-pulse");
+      expect(skeletons.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("shows empty state when no cards exist for the surface", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue([]);
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Pin a metric to see it here.")).toBeInTheDocument();
+      });
+    });
+
+    it("shows an error chip when a single metric value fails to load", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue([makeCard()]);
+      vi.mocked(cardApi.getMetricValue).mockRejectedValue(new Error("Network Error"));
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed to load")).toBeInTheDocument();
+      });
+    });
+
+    it("handles cards API failure gracefully (shows empty state)", async () => {
+      vi.mocked(cardApi.getCards).mockRejectedValue(new Error("Server Error"));
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Pin a metric to see it here.")).toBeInTheDocument();
+      });
+    });
+
+    it("paginates cards with arrows when there are more than 4 cards", async () => {
+      const manyCards = Array.from({ length: 6 }, (_, i) =>
+        makeCard({ id: i + 1, order: i, label: `Card ${i + 1}` }),
+      );
+      vi.mocked(cardApi.getCards).mockResolvedValue(manyCards);
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Card 1")).toBeInTheDocument();
+        expect(screen.getByText("Card 4")).toBeInTheDocument();
+      });
+
+      // Card 5 and 6 should not be visible on page 0
+      expect(screen.queryByText("Card 5")).not.toBeInTheDocument();
+      expect(screen.queryByText("Card 6")).not.toBeInTheDocument();
+
+      // No overflow-x-auto scroll container
+      const sections = document.querySelectorAll(
+        "section.border-y-1.border-border",
+      );
+      expect(sections.length).toBeGreaterThanOrEqual(1);
+      const cardsSection = sections[sections.length - 1];
+      expect(cardsSection.querySelector(".overflow-x-auto")).not.toBeInTheDocument();
+
+      // Navigation arrows should be present
+      const nextBtn = screen.getByLabelText("Show next cards");
+      const prevBtn = screen.getByLabelText("Show previous cards");
+      expect(nextBtn).toBeInTheDocument();
+      expect(prevBtn).toBeInTheDocument();
+      expect(prevBtn).toBeDisabled();
+
+      // Navigate to next page
+      fireEvent.click(nextBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText("Card 5")).toBeInTheDocument();
+        expect(screen.getByText("Card 6")).toBeInTheDocument();
+      });
+
+      // Cards from page 0 should be gone
+      expect(screen.queryByText("Card 1")).not.toBeInTheDocument();
+
+      // Add card button should be visible on the last page
+      expect(screen.getByLabelText("Add card")).toBeInTheDocument();
+
+      // Next button should now be disabled
+      expect(screen.getByLabelText("Show next cards")).toBeDisabled();
+
+      // Navigate back
+      fireEvent.click(screen.getByLabelText("Show previous cards"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Card 1")).toBeInTheDocument();
+        expect(screen.getByText("Card 4")).toBeInTheDocument();
+      });
+    });
+
+    it("falls back to metric_name when label is empty", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue([
+        makeCard({ label: "" }),
+      ]);
+      vi.mocked(cardApi.getMetricValue).mockResolvedValue({ value: 5 });
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Count — In-progress entries")).toBeInTheDocument();
+      });
+    });
   });
 
   // ── No leftover placeholder assertions ─────────────────────────────────

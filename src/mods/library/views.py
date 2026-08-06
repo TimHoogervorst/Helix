@@ -88,7 +88,7 @@ class LibraryContentsView(APIView):
         entries_qs = (
             apps.get_model("eln", "NotebookEntry")
             .objects.filter(folder=folder)
-            .select_related("author", "folder")
+            .select_related("author", "folder", "schema")
             .prefetch_related("tags")
             .order_by("-created_at")
         )
@@ -108,6 +108,8 @@ class LibraryContentsView(APIView):
                     "name": f.name,
                     "parent": f.parent_id,
                     "created_at": f.created_at,
+                    "icon": "folder",
+                    "color": "muted",
                 }
             )
         for e in entries_qs:
@@ -138,6 +140,8 @@ class LibraryContentsView(APIView):
                     "property_fields": {},
                     "created_at": e.created_at,
                     "updated_at": e.updated_at,
+                    "icon": e.schema.icon if e.schema else "",
+                    "color": e.schema.color if e.schema else "",
                 }
             )
 

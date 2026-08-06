@@ -140,6 +140,8 @@ class BackendModRegistry:
         columns: list[dict[str, Any]] | None = None,
         prefix: str,
         schema_name: str = "Default",
+        icon: str = "",
+        color: str = "",
     ) -> None:
         """Create-or-ensure a SchemaType row and a default Schema row.
 
@@ -158,6 +160,10 @@ class BackendModRegistry:
             prefix: Uppercase prefix for the default Schema's display-ID
                     generation (e.g. ``"E"``).
             schema_name: Name for the default Schema row (default ``"Default"``).
+            icon: Open key string referencing an IconLibraryEntry key
+                  (e.g. ``"notebook"``).
+            color: Open key string referencing a ColorToken key
+                   (e.g. ``"muted"``).
         """
         from django.db import OperationalError, ProgrammingError
 
@@ -183,6 +189,8 @@ class BackendModRegistry:
                     "name": schema_name,
                     "prefix": prefix,
                     "columns": columns,
+                    "icon": icon,
+                    "color": color,
                 },
             )
         except (OperationalError, ProgrammingError):
@@ -636,16 +644,14 @@ class BackendModRegistry:
           the action catalog for this mod.
 
         The top-level response also includes a ``columnTypes`` key with the
-        full column type registry payload.
-
-        The payload is built from already-populated ``SchemaType`` rows
-        (created by ``register_schema_type()`` calls in each mod's
-        ``mod.py.register()``) and registered action models.
+        full column type registry payload, an ``iconLibrary`` key with all
+        IconLibraryEntry rows, and a ``colorPalette`` key with all
+        ColorToken rows.
         """
         from django.db import OperationalError, ProgrammingError
 
         from helix_core.column_types import registry as column_type_registry
-        from helix_core.models import SchemaType
+        from helix_core.models import ColorToken, IconLibraryEntry, SchemaType
 
         try:
             schema_types = SchemaType.objects.filter(is_active=True).prefetch_related(
@@ -689,6 +695,8 @@ class BackendModRegistry:
                     "displayName": st.display_name,
                     "prefix": default_schema.prefix if default_schema else "",
                     "columns": st.columns or [],
+                    "icon": default_schema.icon if default_schema else "",
+                    "color": default_schema.color if default_schema else "",
                 }
                 schema_type_entries.append(entry)
 
@@ -752,6 +760,34 @@ class BackendModRegistry:
 
         # Insert columnTypes at the top level.
         payload["columnTypes"] = column_type_registry.get_registry_payload()
+
+        # ── icon library ──────────────────────────────────────────────
+        icon_entries: list[dict[str, Any]] = []
+        try:
+            for entry in IconLibraryEntry.objects.all():
+                icon_entries.append({
+                    "key": entry.key,
+                    "label": entry.label,
+                    "kind": entry.kind,
+                    "token": entry.token,
+                    "svg": entry.svg,
+                })
+        except (OperationalError, ProgrammingError):
+            pass
+        payload["iconLibrary"] = icon_entries
+
+        # ── color palette ─────────────────────────────────────────────
+        color_entries: list[dict[str, Any]] = []
+        try:
+            for ct in ColorToken.objects.all():
+                color_entries.append({
+                    "key": ct.key,
+                    "label": ct.label,
+                    "hex": ct.hex,
+                })
+        except (OperationalError, ProgrammingError):
+            pass
+        payload["colorPalette"] = color_entries
 
         return payload
 

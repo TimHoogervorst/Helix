@@ -36,6 +36,8 @@ export interface LibraryEntryItem {
   editors: string[];
   samples_count: number | null;
   attachments_count: number | null;
+  icon: string;
+  color: string;
   property_fields: Record<string, unknown>;
   created_at: string;
   updated_at: string;

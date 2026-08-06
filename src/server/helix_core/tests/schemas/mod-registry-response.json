@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://helix.example.com/schemas/mod-registry-response.json",
   "title": "Mod Registry Response",
-  "description": "Response shape for GET /api/mod-registry/. Includes a top-level columnTypes key plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns}), and actions (array of {id, label, action_type}).",
+  "description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, icon, color}), and actions (array of {id, label, action_type}).",
   "type": "object",
   "properties": {
     "columnTypes": {
@@ -23,6 +23,10 @@
             "type": "string",
             "description": "Lucide icon token for this column type."
           },
+          "color": {
+            "type": "string",
+            "description": "Color token key for this column type, e.g. 'flask', 'solvent'."
+          },
           "operandShape": {
             "type": "string",
             "description": "Primary operand shape for cell editing and rendering. Valid values: text, number, date, boolean, dropdown, entity-picker, range, none."
@@ -42,9 +46,50 @@
               },
               "required": ["id", "label", "operandShape", "djangoLookupName"]
             }
+          },
+          "aggregates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "djangoAggregateName": { "type": "string" },
+                "resultOperandShape": { "type": "string" }
+              },
+              "required": ["id", "label", "djangoAggregateName", "resultOperandShape"]
+            }
           }
         },
-        "required": ["id", "displayName", "icon", "operandShape", "defaultValue", "operators"]
+        "required": ["id", "displayName", "icon", "color", "operandShape", "defaultValue", "operators", "aggregates"]
+      }
+    },
+    "iconLibrary": {
+      "type": "array",
+      "description": "All IconLibraryEntry rows for the frontend lookup store.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "kind": { "type": "string", "enum": ["lucide", "custom"] },
+          "token": { "type": "string" },
+          "svg": { "type": "string" }
+        },
+        "required": ["key", "label", "kind", "token", "svg"]
+      }
+    },
+    "colorPalette": {
+      "type": "array",
+      "description": "All ColorToken rows for the frontend lookup store.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "hex": { "type": "string" }
+        },
+        "required": ["key", "label", "hex"]
       }
     }
   },
@@ -76,9 +121,17 @@
               "columns": {
                 "type": "array",
                 "description": "Column definitions for this schema type."
+              },
+              "icon": {
+                "type": "string",
+                "description": "Icon key from the default schema, e.g. 'notebook' or 'flask-conical'."
+              },
+              "color": {
+                "type": "string",
+                "description": "Color key from the default schema, e.g. 'muted' or 'success'."
               }
             },
-            "required": ["id", "displayName", "prefix", "columns"]
+            "required": ["id", "displayName", "prefix", "columns", "icon", "color"]
           }
         },
         "actions": {

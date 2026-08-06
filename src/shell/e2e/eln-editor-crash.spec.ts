@@ -16,7 +16,7 @@ import { test, expect } from "@playwright/test";
 async function loginViaApi(page: import("@playwright/test").Page) {
   // First, get a CSRF token by visiting the login page
   await page.goto("/login");
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
 
   // Fill and submit the login form
   await page.getByRole("textbox", { name: "Username" }).fill("admin");
@@ -42,7 +42,7 @@ test("typing / in ELN editor does not crash", async ({ page }) => {
 
   // Navigate to blank ELN entry E4
   await page.goto("/eln/E4");
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   // Allow time for editor to mount
   await page.waitForTimeout(1500);
 
@@ -79,7 +79,7 @@ test("typing # in ELN editor does not crash", async ({ page }) => {
   await loginViaApi(page);
 
   await page.goto("/eln/E4");
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(1500);
 
   const editor = page.locator(".ProseMirror").first();

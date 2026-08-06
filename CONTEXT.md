@@ -134,7 +134,7 @@ The navigation bar at the top of the Library hub showing the current folder path
 
 ### LIMS
 
-The LIMS domain comprises Entity Types, Entities, and Actions. There is no LIMS hub — entities are accessed directly via their workspace URLs (`/lims/:displayId`). The entity workspace provides a tabbed detail view (Activity, Insights, Storage). Entity types are managed through the Settings hub.
+The LIMS domain comprises Entity Types, Entities, and Actions. The LIMS mod registers the **Entities Hub** (`/entities`) — a flat, filterable, searchable table over every entity in the system, regardless of which mod owns the entity type. This is where saved Views are created and applied. Individual entities are accessed via their workspace URLs; the entity workspace provides a tabbed detail view (Activity, Insights, Storage). Entity types are managed through the Settings hub.
 
 **Synonyms:** entity management, sample database
 
@@ -312,7 +312,27 @@ A classification of Entities. Defines what kind of thing an Entity is (e.g., "DN
 
 Each EntityType has a unique `prefix` (e.g., "DNA", "BLOOD") used to auto-generate display IDs and route references.
 
-**Synonyms:** sample type (rejected — same reason as above), category, schema
+**Synonyms:** sample type (rejected — same reason as above), category
+
+### Schema
+
+The structure — name, prefix, and columns — that an Entity is created from. A Schema is owned by exactly one Entity Type. Entities FK to their Schema; the Schema's `columns` array defines the JSON properties an Entity of that Schema can hold. Concrete, queryable, and the unit of data modeling.
+
+A Schema also carries a **Dynamic Icon** and a **Color Token**, chosen by the user at creation time. They are the presentation identity of every instance of that Schema — shown on tabs, mention badges, library rows/cards, and the schema settings list. (The Schema Type deliberately carries no presentation — type-level displays use the default Schema's icon.)
+
+**Invariant:** An Entity's schema reference is immutable after creation (changing an entity's schema would break its stored properties).
+
+**Distinction from Entity Type:** Entity Type is the workspace-registered *category* (e.g. "DNA Sequence"). Schema is the *structure* you build entities from (e.g. "pUC19 Plasmid" with columns `[Resistance, Length, Sequence]`). One Entity Type can own many Schemas.
+
+**Synonyms:** blueprint, entity template, data structure
+
+### Schema Type
+
+The canonical term for a workspace-registered category that Schemas belong to. Declared by a mod via `register_schema_type()` and recorded in the backend `RegisteredEntityType` table. "Entity Type" is retained as a synonym — both refer to the same concept.
+
+**Invariant:** Every Schema belongs to exactly one Schema Type. The Schema Type owns the prefix allocation (e.g. `DNA`) used for display ID generation.
+
+**Synonyms:** entity type, registered entity type, content type
 
 ### Registered Entity Type
 
@@ -330,6 +350,60 @@ LIMS is the **gatekeeper** for all entity type registrations. Mods register thei
 **Invariant:** Every prefix is owned by exactly one entity type. The prefix `E` is reserved for ELN Entries (registered as a custom entity type). The backend `RegisteredEntityType.prefix` has a `unique=True` constraint.
 
 **Out of scope (for now):** custom entity behaviors (DNA sequence viewer, GC analysis), per-entity-type action sets, dynamic registration after boot.
+
+### View (Saved View)
+
+A named, saved filter configuration over the Entities Hub population. Has an owner, a name, and a filter state (search, schema, status, per-column filters, sort). Can be shared with all users (public) or kept private. A View defines *which* entities are in scope — and nothing else. It says nothing about how the population is displayed or reduced.
+
+**Synonyms:** saved view, saved filter
+
+### Metric
+
+A named reduction of a View to a quantitative result: an aggregate function (count, average, standard deviation, …) applied to one column over the View's population. References exactly one View. The Metric is the platform's unit of data display and monitoring — home-page cards render Metrics, and notification rules threshold Metrics.
+
+A Metric's result is a single **scalar** value. Other result shapes (see *Breakdown*) may be added later; the Metric concept is designed to admit new shapes.
+
+**Invariant:** A Metric always evaluates against the *current* definition of its View — editing a View immediately changes what its Metrics report. (Contrast with Protocol Blocks, which deliberately snapshot at insert time for traceability.)
+
+**Distinction from View:** a View answers "which entities?"; a Metric answers "how many / how much?".
+
+**Synonyms:** measure, aggregate (rejected as a noun — "aggregate" is the function, not the thing)
+
+### Breakdown *(deferred)*
+
+A future Metric result shape: the reduction is computed **per bucket** of a second column, yielding one value per bucket (e.g. average temperature *per freezer*, entity count *per status*) instead of a single scalar.
+
+**Synonyms:** group-by, per-bucket reduction
+
+### Metric Card
+
+A Metric pinned to a **surface** (the Home hub, the profile page) for display. The surface is part of the Card's identity — the same Metric-card system serves every surface, and a Card belongs to exactly one. Carries presentation configuration — a label, an icon, and **conditional formatting** rules that map the Metric's live value to colours, icons, and text (e.g. "below 5 → warning colour, 'Attention required'"). A Card references its Metric by identity; creating the Metric and creating the Card are separate steps, and one Metric can back many Cards.
+
+A Card is either **global** (system-seeded, shown to everyone, not user-editable — users *fork* a copy to customize) or **personal** (owned by one user). A surface shows the union of global cards and the viewer's own cards. Because "by me" filters resolve per viewer, one global card shows every user their own numbers.
+
+**Synonyms:** stat tile, dashboard card
+
+### Metric Reading *(deferred)*
+
+One recorded value of a Metric at a point in time. Today Metrics are computed **live** — the aggregate runs against current data on every read, and no history is kept. Recorded readings (periodically snapshotted by a scheduled process) are the deferred foundation for trend graphs and "changed by X% this week" displays.
+
+**Synonyms:** metric snapshot, data point
+
+### By Me Filter
+
+A filter on a user column that resolves to the **current viewer** rather than a fixed user. Stored unresolved; substituted with the viewer's identity at evaluation time. Makes any View, Metric, or Metric Card self-personalizing — one shared definition yields per-user results.
+
+**Synonyms:** current-user filter, "assigned to me"-style filter
+
+### Notification Rule *(deferred)*
+
+A threshold condition on a Metric that sends a message via a channel (email, ntfy, in-app) when crossed. Requires a periodic evaluation loop (no scheduler exists in the platform yet). Structurally, a Notification Rule's condition is the same predicate as a Metric Card's conditional-formatting rule — a future "promote this card rule to a notification" flow is the intended bridge. Deferred to its own PR, built on top of Metrics.
+
+### Current Value *(deferred)*
+
+A future aggregate-like function that returns the **raw value** of a column rather than reducing the population — meaningful when a View narrows to a single entity (e.g. "the current temperature of freezer 3"). Becomes useful once property values are maintained automatically (sensor integrations); until then, `avg` over a single-row View serves the same purpose.
+
+**Synonyms:** raw value, select value
 
 ### Entity Action
 
@@ -525,3 +599,29 @@ The set of six canonical font sizes expressed as CSS custom properties: `--text-
 The curated table that assigns exactly one Lucide icon to each user-facing action (e.g., Save → `Save`, Delete → `Trash2`, Settings → `Settings`). This mapping is authoritative — two different buttons for the same action must use the same icon. The mapping lives in the styling guide, not in code, so it can be consulted during design review before implementation.
 
 **Synonyms:** icon catalog, icon assignments
+
+### Icon Library
+
+The curated set of icons managed in Settings that users choose from when assigning an icon to a domain object (Schema, Tag, Metric Card). Contains Lucide icon references and uploaded custom icons (SVG-only, stored as sanitized markup in the database), indistinguishable to the picker. User-facing icon pickers offer **only** what is in the Icon Library — never the full Lucide catalog.
+
+**Invariant:** Deleting a library entry is always allowed, even while in use. Referencing objects keep the dangling key and render the hardcoded fallback (a neutral circle glyph, `muted` color). Re-adding an entry under the same key heals all references automatically.
+
+**Synonyms:** icon set, managed icons
+
+### Static Icon
+
+An icon assigned **in code** at registration time — column types, hubs, sidebar slots, buttons. May reference any Lucide icon directly; it is not drawn from the Icon Library and requires no curation step. Static Icons are display-only: users see them but can never change them.
+
+**Synonyms:** fixed icon, code-set icon
+
+### Dynamic Icon
+
+An icon chosen by a **user** from the Icon Library and stored on a domain object (Schema, Tag, Metric Card). Editable by the user at any time via the shared icon picker.
+
+**Synonyms:** picked icon, user-assigned icon
+
+### Color Token
+
+A named color in the platform palette, managed by admins in Settings (add, name, define). Every place that stores an icon may also store a Color Token alongside it — tags, schemas, metric cards, and code-level registrations alike. Pickers offer **only** palette colors; arbitrary hex input is not allowed. The default Color Token for new objects is **muted** (gray).
+
+**Synonyms:** palette color, named color

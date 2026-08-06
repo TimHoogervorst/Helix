@@ -21,11 +21,25 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
-from django.db.models import Q
+from django.contrib.auth import get_user_model
+from django.db.models import (
+    Q,
+    Count,
+    Sum,
+    Avg,
+    Min,
+    Max,
+    StdDev,
+)
+from django.db.models.functions import Cast
+from django.db.models import FloatField, DateTimeField
 
 from helix_core.column_types import registry as column_type_registry
+
+logger = logging.getLogger(__name__)
 
 
 # ── FilterSpec ──────────────────────────────────────────────────────────────
@@ -104,7 +118,7 @@ def _build_legacy_filter_q(raw_filter: str) -> Q:
 # ── Single filter → Q ──────────────────────────────────────────────────────
 
 
-def build_filter_q(spec: FilterSpec) -> Q:
+def build_filter_q(spec: FilterSpec, identity: str | None = None) -> Q:
     """Build a single Q object from a FilterSpec.
 
     Resolves the column type from the registry, validates the operator,
@@ -112,6 +126,10 @@ def build_filter_q(spec: FilterSpec) -> Q:
 
     Parameters:
         spec: The filter specification (column, operator, value).
+        identity: Optional user identifier for rewriting ``is_me``
+            operators.  When provided and the operator is ``is_me``, the
+            filter is rewritten to an ``exact`` match against *identity*.
+            When missing, ``is_me`` becomes a no-op (empty Q).
 
     Returns:
         A Django ``Q`` object.  Returns an empty ``Q()`` (always-true) when
@@ -124,6 +142,20 @@ def build_filter_q(spec: FilterSpec) -> Q:
     """
     field_path = _resolve_field_path(spec.column)
     is_system = _is_system_column(spec.column)
+
+    # ── Handle is_me operator (valueless, identity-driven) ─────────────
+    if spec.operator == "is_me":
+        if identity:
+            User = get_user_model()
+            user = User.objects.filter(username=identity).first()
+            if not user:
+                try:
+                    user = User.objects.filter(pk=int(identity)).first()
+                except (ValueError, TypeError):
+                    pass
+            if user:
+                return Q(**{f"{field_path}__exact": user.pk})
+        return Q()
 
     # ── Handle is_empty operator (doesn't use value) ───────────────────
     if spec.operator == "is_empty":
@@ -307,6 +339,7 @@ def _find_operator(column_type, operator_id: str):
 def build_entity_hub_filters(
     filter_specs: list[FilterSpec],
     legacy_filters: list[str] | None = None,
+    identity: str | None = None,
 ) -> Q:
     """Build a combined Q object from a list of filter specs.
 
@@ -314,6 +347,9 @@ def build_entity_hub_filters(
         filter_specs: List of structured filter specifications.
         legacy_filters: Legacy ``key:value`` field filters (for backward
             compatibility with the old ``?f=key:value`` format).
+        identity: Optional user identifier forwarded to
+            :func:`build_filter_q` for ``is_me`` rewriting.  See
+            :func:`build_filter_q` for details.
 
     Returns:
         A combined ``Q`` object.  Returns an empty ``Q()`` (always-true) when
@@ -322,7 +358,7 @@ def build_entity_hub_filters(
     q = Q()
 
     for spec in filter_specs:
-        q &= build_filter_q(spec)
+        q &= build_filter_q(spec, identity=identity)
 
     if legacy_filters:
         for lf in legacy_filters:
@@ -368,3 +404,213 @@ def parse_filter_params(
         # Single-part values with no colon are ignored
 
     return structured, legacy
+
+
+# ── Aggregate engine ─────────────────────────────────────────────────────────
+#
+# Builds a live scalar aggregate from a LimsView's filter_state against the
+# Entity Hub View.  Handles is_me rewriting, JSON property casting, and
+# column-type resolution for the aggregate target.
+
+
+# Mapping from user-facing aggregate IDs to (DjangoAggregateClass, distinct_flag).
+# distinct_flag is True for count_distinct, False for count, None for all others.
+_AGGREGATE_MAP: dict[str, tuple[type, bool | None]] = {
+    "count": (Count, False),
+    "count_distinct": (Count, True),
+    "sum": (Sum, None),
+    "avg": (Avg, None),
+    "min": (Min, None),
+    "max": (Max, None),
+    "stdev": (StdDev, None),
+}
+
+# Column types that require a Cast to FloatField before numeric aggregation.
+_NUMERIC_TYPE_IDS: frozenset[str] = frozenset({"number"})
+
+# Column types that require a Cast to DateTimeField for min/max.
+_DATETIME_TYPE_IDS: frozenset[str] = frozenset({"date", "datetime"})
+
+
+def _resolve_column_type_id(view, column_key: str) -> str | None:
+    """Resolve the column type ID for *column_key* from the View's schema/schema_type.
+
+    Returns the type ID string (e.g. ``"number"``, ``"text"``) or ``None``
+    when the column cannot be found.
+    """
+    if _is_system_column(column_key):
+        mapping = {
+            "display_id": "text",
+            "name": "text",
+            "schema_type_id": "text",
+            "status": "dropdown",
+            "author": "user",
+            "created_at": "datetime",
+            "updated_at": "datetime",
+        }
+        return mapping.get(column_key, "text")
+
+    if view is None:
+        return None
+
+    filter_state = view.filter_state or {}
+    schema_id = str(filter_state.get("schema", "")).strip()
+    schema_type_id = str(filter_state.get("schema_type", "")).strip()
+
+    columns: list[dict] = []
+
+    if schema_id:
+        try:
+            from helix_core.models import Schema
+            schema_obj = Schema.objects.filter(pk=int(schema_id), is_active=True).first()
+            if schema_obj:
+                columns = schema_obj.columns
+        except (ValueError, Schema.DoesNotExist):
+            pass
+
+    if not columns and schema_type_id:
+        try:
+            workspace_id = schema_type_id.split(".")[0]
+            from helix_core.models import SchemaType
+            st = SchemaType.objects.filter(workspace_id=workspace_id, is_active=True).first()
+            if st:
+                columns = st.columns
+        except (SchemaType.DoesNotExist, IndexError):
+            pass
+
+    for col in columns:
+        if isinstance(col, dict) and col.get("name") == column_key:
+            return col.get("type", "text")
+    return None
+
+
+def build_metric_aggregation(
+    view,
+    aggregate_function: str,
+    column: str | None = None,
+    identity: str | None = None,
+) -> dict:
+    """Build and execute a live scalar aggregate from a saved View.
+
+    Applies the View's ``filter_state`` to ``EntityHubView`` and computes the
+    requested aggregate function.
+
+    Parameters:
+        view: A :class:`LimsView` instance whose ``filter_state`` drives
+            the filtered queryset.
+        aggregate_function: The aggregate ID (e.g. ``"count"``, ``"sum"``,
+            ``"avg"``, ``"min"``, ``"max"``, ``"stdev"``,
+            ``"count_distinct"``).
+        column: The column key to aggregate over.  ``None`` for a row count
+            with no column target.
+        identity: Optional user identifier for ``is_me`` rewriting.  When
+            provided, ``is_me`` filters are rewritten to exact identity
+            matches.  When missing, they become no-ops.
+
+    Returns:
+        A dict with a single ``"value"`` key containing the scalar result:
+        ``{"value": 42}``.
+
+    Raises:
+        ValueError: If *aggregate_function* is unknown or the required
+            database objects cannot be resolved.
+    """
+    from helix_core.models import EntityHubView
+
+    agg_info = _AGGREGATE_MAP.get(aggregate_function)
+    if agg_info is None:
+        raise ValueError(f"Unknown aggregate function: {aggregate_function}")
+    agg_cls, distinct_flag = agg_info
+
+    qs = EntityHubView.objects.all()
+
+    if view is None:
+        return {"value": None}
+
+    filter_state = view.filter_state or {}
+
+    # ── Search ──────────────────────────────────────────────────────────
+    search = str(filter_state.get("search", "")).strip()
+    if search:
+        qs = qs.filter(
+            Q(name__icontains=search) | Q(display_id__icontains=search)
+        )
+
+    # ── Schema type ─────────────────────────────────────────────────────
+    schema_type = str(filter_state.get("schema_type", "")).strip()
+    if schema_type:
+        qs = qs.filter(schema_type_id=schema_type)
+
+    # ── Schema ──────────────────────────────────────────────────────────
+    schema = str(filter_state.get("schema", "")).strip()
+    if schema:
+        qs = qs.filter(schema_id=schema)
+
+    # ── Status ──────────────────────────────────────────────────────────
+    status = str(filter_state.get("status", "")).strip()
+    if status in ("in_progress", "finished"):
+        qs = qs.filter(status=status)
+
+    # ── Column filters ──────────────────────────────────────────────────
+    columns_filters = filter_state.get("columns", [])
+    if columns_filters:
+        specs: list[FilterSpec] = []
+        for col in columns_filters:
+            if isinstance(col, dict) and "column" in col and "operator" in col:
+                specs.append(
+                    FilterSpec(
+                        column=str(col["column"]),
+                        operator=str(col["operator"]),
+                        value=str(col.get("value", "")),
+                    )
+                )
+        if specs:
+            qs = qs.filter(build_entity_hub_filters(specs, identity=identity))
+
+    # ── Aggregate ───────────────────────────────────────────────────────
+    if not column:
+        result = qs.aggregate(value=Count("id"))
+        return {"value": result["value"]}
+
+    if _is_system_column(column):
+        field_path = _SYSTEM_COLUMN_FIELDS[column]
+        result = _aggregate_direct(qs, agg_cls, field_path, distinct_flag)
+    else:
+        field_path = f"properties__{column}"
+        col_type_id = _resolve_column_type_id(view, column)
+        result = _aggregate_json(
+            qs, agg_cls, field_path, distinct_flag, col_type_id
+        )
+
+    return {"value": result["value"]}
+
+
+def _aggregate_direct(qs, agg_cls, field_path: str, distinct_flag: bool | None) -> dict:
+    """Apply the aggregate directly to a system-column field path."""
+    if distinct_flag is True:
+        return qs.aggregate(value=agg_cls(field_path, distinct=True))
+    elif distinct_flag is False:
+        return qs.aggregate(value=agg_cls(field_path))
+    else:
+        return qs.aggregate(value=agg_cls(field_path))
+
+
+def _aggregate_json(
+    qs, agg_cls, field_path: str, distinct_flag: bool | None, col_type_id: str | None
+) -> dict:
+    """Apply the aggregate to a JSON property field path, casting if needed."""
+    if agg_cls is Count:
+        if distinct_flag is True:
+            return qs.aggregate(value=Count(field_path, distinct=True))
+        return qs.aggregate(value=Count(field_path))
+
+    if agg_cls in (Sum, Avg, Min, Max, StdDev):
+        if col_type_id in _DATETIME_TYPE_IDS:
+            return qs.aggregate(
+                value=agg_cls(Cast(field_path, DateTimeField()))
+            )
+        return qs.aggregate(
+            value=agg_cls(Cast(field_path, FloatField()))
+        )
+
+    return qs.aggregate(value=agg_cls(field_path))

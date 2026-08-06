@@ -19,6 +19,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from helix_core.column_types import (
+    AggregateMeta,
     BooleanColumnType,
     ColumnTypeRegistry,
     DateColumnType,
@@ -60,6 +61,11 @@ def _operator_ids(column_type) -> set[str]:
     return {op.id for op in column_type.get_operators()}
 
 
+def _aggregate_ids(column_type) -> set[str]:
+    """Return the set of aggregate IDs for a column type instance."""
+    return {agg.id for agg in column_type.get_aggregates()}
+
+
 # ── OperatorMeta tests ───────────────────────────────────────────────────────
 
 
@@ -82,6 +88,40 @@ class OperatorMetaTests(TestCase):
         a = OperatorMeta("eq", "Equals", "text", "exact")
         b = OperatorMeta("eq", "Equals", "text", "exact")
         c = OperatorMeta("neq", "Not Equals", "text", "exact")
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
+
+
+# ── AggregateMeta tests ─────────────────────────────────────────────────────
+
+
+class AggregateMetaTests(TestCase):
+    """Tests for the AggregateMeta dataclass."""
+
+    def test_aggregate_meta_fields(self):
+        agg = AggregateMeta("count", "Count", "Count")
+        self.assertEqual(agg.id, "count")
+        self.assertEqual(agg.label, "Count")
+        self.assertEqual(agg.django_aggregate_name, "Count")
+        self.assertEqual(agg.result_operand_shape, "number")
+
+    def test_aggregate_meta_with_custom_shape(self):
+        agg = AggregateMeta("custom", "Custom", "CustomAgg", result_operand_shape="date")
+        self.assertEqual(agg.result_operand_shape, "date")
+
+    def test_aggregate_meta_default_shape(self):
+        agg = AggregateMeta("sum", "Sum", "Sum")
+        self.assertEqual(agg.result_operand_shape, "number")
+
+    def test_aggregate_meta_is_frozen(self):
+        agg = AggregateMeta("count", "Count", "Count")
+        with self.assertRaises(Exception):
+            agg.id = "sum"  # type: ignore[misc]
+
+    def test_aggregate_meta_equality(self):
+        a = AggregateMeta("count", "Count", "Count")
+        b = AggregateMeta("count", "Count", "Count")
+        c = AggregateMeta("sum", "Sum", "Sum")
         self.assertEqual(a, b)
         self.assertNotEqual(a, c)
 
@@ -126,6 +166,20 @@ class TextColumnTypeTests(TestCase):
         result = self.ct.validate(42)
         self.assertIsInstance(result, str)
         self.assertIn("string", result)
+
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "count_distinct"})
+
+    def test_aggregate_structure(self):
+        aggregates = self.ct.get_aggregates()
+        self.assertGreater(len(aggregates), 0)
+        for agg in aggregates:
+            self.assertIsInstance(agg, AggregateMeta)
+            self.assertIsInstance(agg.id, str)
+            self.assertIsInstance(agg.label, str)
+            self.assertIsInstance(agg.django_aggregate_name, str)
+            self.assertIsInstance(agg.result_operand_shape, str)
 
 
 # ── Built-in type: Number ────────────────────────────────────────────────────
@@ -190,6 +244,10 @@ class NumberColumnTypeTests(TestCase):
         self.assertIsInstance(result, str)
         self.assertIn("not a valid number", result)
 
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "count_distinct", "sum", "avg", "min", "max", "stdev"})
+
 
 # ── Built-in type: Date ──────────────────────────────────────────────────────
 
@@ -246,6 +304,10 @@ class DateColumnTypeTests(TestCase):
         result = self.ct.validate(42)
         self.assertIsInstance(result, str)
 
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "min", "max"})
+
 
 # ── Built-in type: Datetime ──────────────────────────────────────────────────
 
@@ -289,8 +351,12 @@ class DatetimeColumnTypeTests(TestCase):
         self.assertIsInstance(result, str)
         self.assertIn("not a valid ISO 8601 datetime", result)
 
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "min", "max"})
 
-# ── Built-in type: Boolean ───────────────────────────────────────────────────
+
+# ── Built-in type: Boolean ────────────────────────────────────────────────────
 
 
 class BooleanColumnTypeTests(TestCase):
@@ -350,6 +416,10 @@ class BooleanColumnTypeTests(TestCase):
         result = self.ct.validate(1)
         self.assertIsInstance(result, str)
 
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count"})
+
 
 # ── Built-in type: Dropdown ──────────────────────────────────────────────────
 
@@ -400,6 +470,10 @@ class DropdownColumnTypeTests(TestCase):
     def test_validate_without_dropdown_options(self):
         """When dropdown_options are not provided, any string is accepted."""
         self.assertTrue(self.ct.validate("anything-goes"))
+
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "count_distinct"})
 
 
 # ── Built-in type: Reference ─────────────────────────────────────────────────
@@ -457,6 +531,10 @@ class ReferenceColumnTypeTests(TestCase):
         result = self.ct.validate([1, 2, 3])
         self.assertIsInstance(result, str)
 
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "count_distinct"})
+
 
 # ── Built-in type: User ──────────────────────────────────────────────────────
 
@@ -477,12 +555,19 @@ class UserColumnTypeTests(TestCase):
 
     def test_get_operators(self):
         ids = _operator_ids(self.ct)
-        self.assertEqual(ids, {"eq", "neq", "is_in_group"})
+        self.assertEqual(ids, {"eq", "neq", "is_in_group", "is_me"})
 
     def test_operator_operand_shapes(self):
         shapes = {op.id: op.operand_shape for op in self.ct.get_operators()}
         self.assertEqual(shapes["eq"], "entity-picker")
         self.assertEqual(shapes["is_in_group"], "dropdown")
+
+    def test_is_me_operator(self):
+        """The is_me operator has the correct label, shape, and lookup name."""
+        is_me = next(op for op in self.ct.get_operators() if op.id == "is_me")
+        self.assertEqual(is_me.label, "By Me")
+        self.assertEqual(is_me.operand_shape, "none")
+        self.assertEqual(is_me.django_lookup_name, "is_me")
 
     def test_validate_accepts_strings_and_ints(self):
         """User validate() accepts strings, ints, and None."""
@@ -496,6 +581,10 @@ class UserColumnTypeTests(TestCase):
         """User validate() rejects non-string/int types."""
         result = self.ct.validate([1, 2, 3])
         self.assertIsInstance(result, str)
+
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "count_distinct"})
 
 
 # ── ColumnTypeRegistry tests ─────────────────────────────────────────────────
@@ -587,6 +676,8 @@ class ColumnTypeRegistryPayloadTests(TestCase):
         self.assertEqual(entry["defaultValue"], "")
         self.assertIsInstance(entry["operators"], list)
         self.assertGreater(len(entry["operators"]), 0)
+        self.assertIsInstance(entry["aggregates"], list)
+        self.assertGreater(len(entry["aggregates"]), 0)
 
     def test_payload_operator_structure(self):
         self.registry.register_column_type(NumberColumnType())
@@ -596,6 +687,15 @@ class ColumnTypeRegistryPayloadTests(TestCase):
         self.assertIn("label", op)
         self.assertIn("operandShape", op)
         self.assertIn("djangoLookupName", op)
+
+    def test_payload_aggregate_structure(self):
+        self.registry.register_column_type(NumberColumnType())
+        payload = self.registry.get_registry_payload()
+        agg = payload[0]["aggregates"][0]
+        self.assertIn("id", agg)
+        self.assertIn("label", agg)
+        self.assertIn("djangoAggregateName", agg)
+        self.assertIn("resultOperandShape", agg)
 
     def test_payload_sorted_by_type_id(self):
         self.registry.register_column_type(BooleanColumnType())
@@ -610,6 +710,39 @@ class ColumnTypeRegistryPayloadTests(TestCase):
         payload = self.registry.get_registry_payload()
         op_ids = {op["id"] for op in payload[0]["operators"]}
         self.assertEqual(op_ids, {"eq", "neq", "contains", "starts_with", "ends_with", "is_empty"})
+
+    def test_payload_includes_all_aggregates_for_text(self):
+        self.registry.register_column_type(TextColumnType())
+        payload = self.registry.get_registry_payload()
+        agg_ids = {agg["id"] for agg in payload[0]["aggregates"]}
+        self.assertEqual(agg_ids, {"count", "count_distinct"})
+
+    def test_payload_includes_all_aggregates_for_number(self):
+        self.registry.register_column_type(NumberColumnType())
+        payload = self.registry.get_registry_payload()
+        agg_ids = {agg["id"] for agg in payload[0]["aggregates"]}
+        self.assertEqual(agg_ids, {"count", "count_distinct", "sum", "avg", "min", "max", "stdev"})
+
+    def test_payload_includes_all_aggregates_for_boolean(self):
+        self.registry.register_column_type(BooleanColumnType())
+        payload = self.registry.get_registry_payload()
+        agg_ids = {agg["id"] for agg in payload[0]["aggregates"]}
+        self.assertEqual(agg_ids, {"count"})
+
+    def test_payload_includes_all_aggregates_for_date(self):
+        self.registry.register_column_type(DateColumnType())
+        payload = self.registry.get_registry_payload()
+        agg_ids = {agg["id"] for agg in payload[0]["aggregates"]}
+        self.assertEqual(agg_ids, {"count", "min", "max"})
+
+    def test_payload_includes_is_me_operator_for_user(self):
+        self.registry.register_column_type(UserColumnType())
+        payload = self.registry.get_registry_payload()
+        op_ids = {op["id"] for op in payload[0]["operators"]}
+        self.assertIn("is_me", op_ids)
+        is_me = next(op for op in payload[0]["operators"] if op["id"] == "is_me")
+        self.assertEqual(is_me["label"], "By Me")
+        self.assertEqual(is_me["operandShape"], "none")
 
 
 # ── Built-in types list ──────────────────────────────────────────────────────
@@ -663,7 +796,7 @@ class ColumnTypesContractTests(TestCase):
         self.assertGreater(len(types), 0)
 
     def test_each_column_type_has_required_fields(self):
-        """Each column type entry has id, displayName, icon, operandShape, defaultValue, operators."""
+        """Each column type entry has id, displayName, icon, operandShape, defaultValue, operators, aggregates."""
         response = self.client.get("/api/mod-registry/")
         for ct in response.data["columnTypes"]:
             self.assertIn("id", ct)
@@ -672,6 +805,8 @@ class ColumnTypesContractTests(TestCase):
             self.assertIn("operandShape", ct)
             self.assertIn("defaultValue", ct)
             self.assertIsInstance(ct["operators"], list)
+            self.assertIn("aggregates", ct)
+            self.assertIsInstance(ct["aggregates"], list)
 
     def test_response_matches_json_schema(self):
         """The full response (including columnTypes) matches the JSON schema."""
@@ -705,3 +840,49 @@ class ColumnTypesContractTests(TestCase):
                     "dropdown", "entity-picker", "range", "none",
                 }
                 self.assertIn(op["operandShape"], valid_shapes)
+
+    def test_aggregates_have_correct_structure(self):
+        """Each aggregate has id, label, djangoAggregateName, resultOperandShape."""
+        response = self.client.get("/api/mod-registry/")
+        for ct in response.data["columnTypes"]:
+            for agg in ct["aggregates"]:
+                self.assertIn("id", agg)
+                self.assertIn("label", agg)
+                self.assertIn("djangoAggregateName", agg)
+                self.assertIn("resultOperandShape", agg)
+
+    def test_user_type_has_is_me_in_operators(self):
+        """The user column type includes is_me operator with label 'By Me' and operandShape 'none'."""
+        response = self.client.get("/api/mod-registry/")
+        user_type = next(ct for ct in response.data["columnTypes"] if ct["id"] == "user")
+        operator_ids = {op["id"] for op in user_type["operators"]}
+        self.assertIn("is_me", operator_ids)
+        is_me = next(op for op in user_type["operators"] if op["id"] == "is_me")
+        self.assertEqual(is_me["label"], "By Me")
+        self.assertEqual(is_me["operandShape"], "none")
+        self.assertEqual(is_me["djangoLookupName"], "is_me")
+
+    def test_aggregates_per_type_match_spec(self):
+        """Each column type's aggregates match the spec catalog."""
+        response = self.client.get("/api/mod-registry/")
+        types = {ct["id"]: ct for ct in response.data["columnTypes"]}
+
+        expected = {
+            "text": {"count", "count_distinct"},
+            "number": {"count", "count_distinct", "sum", "avg", "min", "max", "stdev"},
+            "date": {"count", "min", "max"},
+            "datetime": {"count", "min", "max"},
+            "boolean": {"count"},
+            "dropdown": {"count", "count_distinct"},
+            "reference": {"count", "count_distinct"},
+            "user": {"count", "count_distinct"},
+        }
+
+        for type_id, expected_agg_ids in expected.items():
+            ct = types.get(type_id)
+            self.assertIsNotNone(ct, f"Missing column type: {type_id}")
+            agg_ids = {agg["id"] for agg in ct["aggregates"]}
+            self.assertEqual(
+                agg_ids, expected_agg_ids,
+                f"Aggregates mismatch for type '{type_id}'",
+            )

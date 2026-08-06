@@ -10,13 +10,13 @@
  *    steps with toggleable circle/check icons and completion timestamps,
  *    notes without checkboxes, visually distinct.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Circle, CheckCircle, Plus, Loader } from "lucide-react";
 import { get } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
-import { useClickOutside } from "../../../shell/src/shared/hooks/useClickOutside";
+import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
+import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -75,12 +75,11 @@ export function ProtocolContent({
   const [showPicker, setShowPicker] = useState(false);
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pickerPos, setPickerPos] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-  const addBtnRef = useRef<HTMLButtonElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const { triggerRef, panelRef, position } = usePickerPortal({
+    open: showPicker,
+    onClose: () => setShowPicker(false),
+  });
 
   // ── Fetch protocols when picker opens ─────────────────────────────────
   const handleOpenPicker = useCallback(async () => {
@@ -88,7 +87,6 @@ export function ProtocolContent({
     if (protocols.length === 0) {
       setLoading(true);
       try {
-        // Fetch active protocols only
         const data = await get<{ results: Protocol[] }>(
           "/eln/protocols/?is_active=true",
         );
@@ -100,37 +98,6 @@ export function ProtocolContent({
       }
     }
   }, [protocols.length]);
-
-  // ── Position picker relative to the button ────────────────────────────
-  useEffect(() => {
-    if (!showPicker) {
-      setPickerPos(null);
-      return;
-    }
-    const recalc = () => {
-      const btn = addBtnRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      setPickerPos({
-        top: rect.bottom + 4,
-        left: rect.left,
-      });
-    };
-    recalc();
-    window.addEventListener("scroll", recalc, { capture: true, passive: true });
-    window.addEventListener("resize", recalc, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", recalc, { capture: true });
-      window.removeEventListener("resize", recalc);
-    };
-  }, [showPicker]);
-
-  // ── Close picker on outside click ─────────────────────────────────────
-  useClickOutside(
-    [addBtnRef, pickerRef],
-    () => setShowPicker(false),
-    showPicker,
-  );
 
   // ── Select a protocol → snapshot into node attrs ──────────────────────
   const handleSelectProtocol = useCallback(
@@ -180,7 +147,7 @@ export function ProtocolContent({
         </h2>
         <div className="mt-3">
           <button
-            ref={addBtnRef}
+            ref={triggerRef}
             type="button"
             className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-surface/80 hover:text-foreground transition-colors"
             onClick={handleOpenPicker}
@@ -191,45 +158,37 @@ export function ProtocolContent({
           </button>
         </div>
 
-        {/* ── Picker popover — portaled to body ──────────────────────── */}
-        {showPicker &&
-          pickerPos &&
-          createPortal(
-            <div
-              ref={pickerRef}
-              className="z-50 w-72 max-h-60 overflow-y-auto rounded-md border border-hairline bg-popover shadow-lg"
-              style={{
-                position: "fixed",
-                top: pickerPos.top,
-                left: pickerPos.left,
-              }}
-              data-testid="protocol-picker"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-                  <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Loading protocols…
-                </div>
-              ) : protocols.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">
-                  No protocols available. Create one in Settings → Protocols.
-                </div>
-              ) : (
-                protocols.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
-                    onClick={() => handleSelectProtocol(p)}
-                    data-testid={`protocol-option-${p.id}`}
-                  >
-                    {p.name}
-                  </button>
-                ))
-              )}
-            </div>,
-            document.body,
-          )}
+        {/* ── Picker popover ────────────────────────────────────────── */}
+        {showPicker && (
+          <PickerPortal
+            position={position}
+            panelRef={panelRef}
+            testId="protocol-picker"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+                <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Loading protocols…
+              </div>
+            ) : protocols.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-muted-foreground">
+                No protocols available. Create one in Settings → Protocols.
+              </div>
+            ) : (
+              protocols.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
+                  onClick={() => handleSelectProtocol(p)}
+                  data-testid={`protocol-option-${p.id}`}
+                >
+                  {p.name}
+                </button>
+              ))
+            )}
+          </PickerPortal>
+        )}
       </div>
     );
   }

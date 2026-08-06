@@ -179,7 +179,7 @@ class TestModManifestValidation:
             )
 
     def test_depends_on_dict_id_not_str_raises_type_error(self):
-        with pytest.raises(TypeError, match="\.id must be str"):
+        with pytest.raises(TypeError, match=r"\.id must be str"):
             ModManifest(
                 id="x",
                 display_name="X",
@@ -187,7 +187,7 @@ class TestModManifestValidation:
             )
 
     def test_depends_on_dict_version_not_str_raises_type_error(self):
-        with pytest.raises(TypeError, match="\.version must be str"):
+        with pytest.raises(TypeError, match=r"\.version must be str"):
             ModManifest(
                 id="x",
                 display_name="X",

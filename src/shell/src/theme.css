@@ -1,0 +1,120 @@
+/* Helix — design-system theme layer (throwaway prototype → issues #415/#416)
+   Duplication with styles.css is tolerated while the prototype lives. */
+
+@layer theme-tokens {
+  :root {
+    /* ── Five Theme Seeds ── */
+    --color-background: oklch(0.985 0.005 95);
+    --color-surface: oklch(0.975 0.008 95);
+    --color-ink: oklch(0.22 0.02 260);
+    --color-primary: oklch(0.42 0.08 195);
+    --color-accent: oklch(0.94 0.03 180);
+
+    /* ── Derived Shades: Background ── */
+    --color-background-hover: color-mix(in oklch, var(--color-background), #000 5%);
+    --color-background-active: color-mix(in oklch, var(--color-background), #000 10%);
+    --color-background-subtle: var(--color-background);
+    --color-background-foreground: var(--color-ink);
+
+    /* ── Derived Shades: Surface ── */
+    --color-surface-hover: color-mix(in oklch, var(--color-surface), #000 5%);
+    --color-surface-active: color-mix(in oklch, var(--color-surface), #000 10%);
+    --color-surface-subtle: var(--color-surface);
+    --color-surface-foreground: var(--color-ink);
+
+    /* ── Derived Shades: Ink ── */
+    --color-ink-hover: color-mix(in oklch, var(--color-ink), #000 18%);
+    --color-ink-active: color-mix(in oklch, var(--color-ink), #000 30%);
+    --color-ink-subtle: color-mix(in oklch, var(--color-ink), transparent 90%);
+    --color-ink-foreground: #fff;
+    --color-ink-border: color-mix(in oklch, var(--color-ink) 10%, var(--color-background));
+    --color-ink-hairline: color-mix(in oklch, var(--color-ink) 5%, var(--color-background));
+    --color-ink-muted-foreground: color-mix(in oklch, var(--color-ink) 50%, var(--color-background));
+
+    /* ── Derived Shades: Primary ── */
+    --color-primary-hover: color-mix(in oklch, var(--color-primary), #000 18%);
+    --color-primary-active: color-mix(in oklch, var(--color-primary), #000 30%);
+    --color-primary-subtle: color-mix(in oklch, var(--color-primary), transparent 85%);
+    --color-primary-foreground: #fff;
+
+    /* ── Derived Shades: Accent ── */
+    --color-accent-hover: color-mix(in oklch, var(--color-accent), #000 5%);
+    --color-accent-active: color-mix(in oklch, var(--color-accent), #000 10%);
+    --color-accent-subtle: color-mix(in oklch, var(--color-accent), transparent 40%);
+    --color-accent-foreground: var(--color-ink);
+
+    /* ── Fixed Semantic Colours (never user-customizable) ── */
+    --color-destructive: oklch(0.55 0.18 25);
+    --color-destructive-hover: color-mix(in oklch, var(--color-destructive), #000 18%);
+    --color-destructive-active: color-mix(in oklch, var(--color-destructive), #000 30%);
+    --color-destructive-subtle: color-mix(in oklch, var(--color-destructive), transparent 88%);
+    --color-destructive-foreground: #fff;
+
+    --color-success: oklch(0.55 0.12 155);
+    --color-success-hover: color-mix(in oklch, var(--color-success), #000 18%);
+    --color-success-active: color-mix(in oklch, var(--color-success), #000 30%);
+    --color-success-subtle: color-mix(in oklch, var(--color-success), transparent 88%);
+    --color-success-foreground: #fff;
+
+    --color-warning: oklch(0.6 0.12 70);
+    --color-warning-hover: color-mix(in oklch, var(--color-warning), #000 18%);
+    --color-warning-active: color-mix(in oklch, var(--color-warning), #000 30%);
+    --color-warning-subtle: color-mix(in oklch, var(--color-warning), transparent 88%);
+    --color-warning-foreground: #fff;
+
+    /* ── Focus & Disabled (rules, not tokens) ── */
+    --color-focus-ring: var(--color-accent);
+
+    /* ── Font Roles ── */
+    --font-label: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono",
+      "Cascadia Code", Consolas, monospace;
+    --font-body: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+
+    /* ── Typographic Scale (base = 13px deliberate deviation) ── */
+    --text-2xs: 0.625rem;   /* 10px */
+    --text-xs:  0.6875rem;   /* 11px */
+    --text-sm:  0.75rem;     /* 12px */
+    --text-base: 0.8125rem;  /* 13px */
+    --text-md: 0.875rem;     /* 14px */
+    --text-lg: 1rem;         /* 16px */
+    --text-xl: 1.125rem;     /* 18px */
+    --text-2xl: 1.375rem;    /* 22px */
+    --text-3xl: 1.75rem;     /* 28px */
+    --text-4xl: 2.625rem;    /* 42px */
+  }
+}
+
+/* ── Text Style Composites ── */
+.text-eyebrow {
+  font-family: var(--font-label);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted-foreground);
+}
+
+.text-title {
+  font-family: var(--font-label);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  line-height: 1.2;
+}
+
+.text-meta {
+  font-family: var(--font-label);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--color-ink-muted-foreground);
+}
+
+.text-data {
+  font-family: var(--font-label);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}

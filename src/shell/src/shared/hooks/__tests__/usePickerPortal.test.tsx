@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { usePickerPortal } from "../usePickerPortal";
 
@@ -12,7 +12,7 @@ function mockTriggerRect(overrides?: Partial<DOMRect>) {
 
 describe("usePickerPortal", () => {
   let trigger: HTMLElement;
-  let panel: HTMLElement;
+  let panel: HTMLDivElement;
 
   beforeEach(() => {
     trigger = document.createElement("button");

@@ -13,7 +13,7 @@ function RouteLoadingFallback() {
       className="flex min-h-[40vh] items-center justify-center"
       data-testid="route-loading-fallback"
     >
-      <p className="text-[13px] text-muted-foreground">Loading…</p>
+      <p className="text-base text-muted-foreground">Loading…</p>
     </div>
   );
 }

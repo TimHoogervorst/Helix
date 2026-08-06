@@ -183,7 +183,7 @@ export function Menu({ trigger, items, className = "" }: MenuProps) {
                 role="menuitem"
                 type="button"
                 title={item.title}
-                className={`border-0 bg-transparent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 font-[var(--font-body)] text-[13px] transition-colors ${
+                className={`border-0 bg-transparent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 font-[var(--font-body)] text-base transition-colors ${
                   item.disabled
                     ? "cursor-not-allowed opacity-50"
                     : item.danger

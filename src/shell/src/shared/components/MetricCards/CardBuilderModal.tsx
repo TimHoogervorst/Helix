@@ -581,7 +581,7 @@ function MetricStep({
 
       {metricSource === "existing" ? (
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Select metric
           </label>
           {metricsLoading ? (
@@ -611,7 +611,7 @@ function MetricStep({
         <div className="flex flex-col gap-3">
           {/* View Picker */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               View
             </label>
             {viewsLoading ? (
@@ -636,7 +636,7 @@ function MetricStep({
 
           {/* Aggregate Picker */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Aggregate
             </label>
             <select
@@ -655,7 +655,7 @@ function MetricStep({
           {/* Column Picker */}
           {showColumnPicker && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Column
               </label>
               {!selectedViewId ? (
@@ -730,7 +730,7 @@ function DisplayStep({
     <div className="flex flex-col gap-5">
       {/* Default */}
       <div className="flex flex-col gap-3">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Default
         </label>
         <div className="flex flex-col gap-3">
@@ -779,7 +779,7 @@ function DisplayStep({
       {/* Rules */}
       <div className="flex flex-col gap-2 border-t border-hairline pt-4">
         <div className="flex items-center justify-between">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Rules
           </label>
           <Button

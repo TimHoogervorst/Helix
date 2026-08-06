@@ -259,10 +259,10 @@ export function TableBlockContent({
 
         {/* ── Table ──────────────────────────────────────────────────── */}
         <div className="overflow-x-auto">
-          <table className="min-w-full text-[13px]">
+          <table className="min-w-full text-base">
             {/* ── Header ─────────────────────────────────────────────── */}
             <thead>
-              <tr className="border-b border-hairline bg-surface/60 text-left font-[var(--font-label)] text-[10px] uppercase tracking-widest text-muted-foreground">
+              <tr className="border-b border-hairline bg-surface/60 text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
                 {columns.map((col) => (
                   <th
                     key={col.id}
@@ -322,7 +322,7 @@ export function TableBlockContent({
                     onMouseLeave={() => setHoveredRow(null)}
                   >
                     {columns.map((col) => (
-                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-[var(--font-label)] text-[12px]">
+                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-[var(--font-label)] text-sm">
                         <InlineEdit
                           value={row.cells[col.id] ?? ""}
                           onCommit={(newValue) =>

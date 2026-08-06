@@ -29,7 +29,7 @@ export function TableRow({ children, className = "" }: { children: ReactNode; cl
 export function TableHeaderCell({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <th
-      className={`px-4 py-2.5 text-left font-[var(--font-label)] text-[11px] font-semibold text-[var(--color-ink-muted-foreground)] uppercase tracking-wider ${className}`}
+      className={`px-4 py-2.5 text-left font-[var(--font-label)] text-xs font-semibold text-[var(--color-ink-muted-foreground)] uppercase tracking-wider ${className}`}
     >
       {children}
     </th>
@@ -39,7 +39,7 @@ export function TableHeaderCell({ children, className = "" }: { children: ReactN
 export function TableCell({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <td
-      className={`px-4 py-2.5 font-[var(--font-body)] text-[13px] text-[var(--color-ink)] ${className}`}
+      className={`px-4 py-2.5 font-[var(--font-body)] text-base text-[var(--color-ink)] ${className}`}
     >
       {children}
     </td>

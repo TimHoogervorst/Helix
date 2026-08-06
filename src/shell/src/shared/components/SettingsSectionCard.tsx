@@ -24,12 +24,12 @@ export function SettingsSectionCard({
     <div className="rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)]">
       <button
         type="button"
-        className="border-0 bg-transparent flex w-full items-center gap-2 px-4 py-2.5 font-[var(--font-label)] text-[13px] font-medium text-[var(--color-ink)] hover:bg-[var(--color-background-hover)] transition-colors rounded-t-lg"
+        className="border-0 bg-transparent flex w-full items-center gap-2 px-4 py-2.5 font-[var(--font-label)] text-base font-medium text-[var(--color-ink)] hover:bg-[var(--color-background-hover)] transition-colors rounded-t-lg"
         onClick={collapsible ? () => setOpen(!open) : undefined}
       >
         <span>{title}</span>
         {subtitle && (
-          <span className="text-[11px] font-normal text-[var(--color-ink-muted-foreground)]">
+          <span className="text-xs font-normal text-[var(--color-ink-muted-foreground)]">
             {subtitle}
           </span>
         )}

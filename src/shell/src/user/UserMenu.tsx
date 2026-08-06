@@ -64,7 +64,7 @@ export function UserMenu({ compact = false }: UserMenuProps) {
         />
         {!compact && (
           <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-[13px] font-medium truncate">
+            <span className="text-base font-medium truncate">
               {user.username}
             </span>
           </div>
@@ -84,7 +84,7 @@ export function UserMenu({ compact = false }: UserMenuProps) {
           <div className="flex items-center gap-2 border-b border-hairline px-3 py-2.5">
             <Avatar initials={initials} color={user.color} size="md" />
             <div className="flex flex-col leading-tight min-w-0">
-              <span className="text-[13px] font-medium truncate">
+              <span className="text-base font-medium truncate">
                 {user.username}
               </span>
             </div>

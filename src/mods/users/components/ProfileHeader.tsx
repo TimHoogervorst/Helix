@@ -37,7 +37,7 @@ export function ProfileHeader() {
           <div className="flex min-h-20 flex-col justify-center">
             {/* Position in lab — smaller gray text */}
             {user.profile.position && (
-              <p className="text-[13px] text-muted-foreground">
+              <p className="text-base text-muted-foreground">
                 {user.profile.position}
               </p>
             )}
@@ -55,19 +55,19 @@ export function ProfileHeader() {
             {/* Icon row — location, ORCID, email */}
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               {user.profile.location && (
-                <span className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
                   <MapPin className="h-3 w-3" aria-hidden="true" />
                   {user.profile.location}
                 </span>
               )}
               {user.profile.orcid && (
-                <span className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
                   <Building2 className="h-3 w-3" aria-hidden="true" />
                   {user.profile.orcid}
                 </span>
               )}
               {user.email && (
-                <span className="inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
                   <Mail className="h-3 w-3" aria-hidden="true" />
                   {user.email}
                 </span>

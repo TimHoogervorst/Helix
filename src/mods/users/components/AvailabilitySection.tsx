@@ -13,7 +13,7 @@ export function AvailabilitySection() {
           Availability
         </h2>
       </div>
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-base text-muted-foreground">
         Availability information not yet configured.
       </p>
     </section>

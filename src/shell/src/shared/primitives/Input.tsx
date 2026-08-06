@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 
 const FIELD_BASE =
-  "w-full rounded-md border border-[var(--color-ink-border)] bg-[var(--color-surface)] text-[var(--color-ink)] font-[var(--font-body)] text-[13px] placeholder:text-[var(--color-ink-muted-foreground)] outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-focus-ring)] disabled:opacity-50 disabled:cursor-not-allowed";
+  "w-full rounded-md border border-[var(--color-ink-border)] bg-[var(--color-surface)] text-[var(--color-ink)] font-[var(--font-body)] text-base placeholder:text-[var(--color-ink-muted-foreground)] outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-focus-ring)] disabled:opacity-50 disabled:cursor-not-allowed";
 
 export function Input({
   className = "",

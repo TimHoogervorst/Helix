@@ -18,7 +18,7 @@ export function LoadingScreen() {
           <h1 className="font-[var(--font-label)] text-xl font-semibold tracking-tight">
             Helix
           </h1>
-          <p className="text-[13px] text-muted-foreground">Loading…</p>
+          <p className="text-base text-muted-foreground">Loading…</p>
         </div>
       </div>
     </div>

@@ -263,7 +263,7 @@ function DropdownSettings() {
             <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
               <div className="space-y-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">
                     Name
                   </span>
                   <Input
@@ -277,7 +277,7 @@ function DropdownSettings() {
                 </label>
 
                 <fieldset>
-                  <legend className="mb-1 text-[11px] text-[var(--color-ink-muted-foreground)]">
+                  <legend className="mb-1 text-xs text-[var(--color-ink-muted-foreground)]">
                     Options
                   </legend>
                   <div className="space-y-2">
@@ -414,7 +414,7 @@ function DropdownSettings() {
               >
                 <div className="space-y-3">
                   <label className="block">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Name
                     </span>
                     <Input
@@ -425,7 +425,7 @@ function DropdownSettings() {
                   </label>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Options
                       </span>
                       <span className="text-sm text-[var(--color-ink)]">
@@ -433,7 +433,7 @@ function DropdownSettings() {
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Created
                       </span>
                       <span className="text-sm text-[var(--color-ink)]">
@@ -443,7 +443,7 @@ function DropdownSettings() {
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Updated
                       </span>
                       <span className="text-sm text-[var(--color-ink)]">
@@ -454,7 +454,7 @@ function DropdownSettings() {
                     </div>
                   </div>
                   {dirtyEdits.has(selectedDropdown.id) && (
-                    <div className="rounded-md border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 px-3 py-1.5 text-[11px] text-[var(--color-primary)]">
+                    <div className="rounded-md border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 px-3 py-1.5 text-xs text-[var(--color-primary)]">
                       Unsaved changes — review and save when ready.
                     </div>
                   )}
@@ -499,7 +499,7 @@ function DropdownSettings() {
                             <IconButton
                               aria-label="Move up"
                               title="Move up"
-                              className="h-5 w-5 text-[10px] text-[var(--color-ink-muted-foreground)] disabled:opacity-30"
+                              className="h-5 w-5 text-2xs text-[var(--color-ink-muted-foreground)] disabled:opacity-30"
                               onClick={() => handleMoveOption(i, "up")}
                               disabled={i === 0}
                             >
@@ -508,7 +508,7 @@ function DropdownSettings() {
                             <IconButton
                               aria-label="Move down"
                               title="Move down"
-                              className="h-5 w-5 text-[10px] text-[var(--color-ink-muted-foreground)] disabled:opacity-30"
+                              className="h-5 w-5 text-2xs text-[var(--color-ink-muted-foreground)] disabled:opacity-30"
                               onClick={() => handleMoveOption(i, "down")}
                               disabled={
                                 i === editingDropdown.options.length - 1
@@ -520,7 +520,7 @@ function DropdownSettings() {
                               <IconButton
                                 aria-label="Remove option"
                                 title="Remove option"
-                                className="h-5 w-5 text-[10px] text-[var(--color-warning)]"
+                                className="h-5 w-5 text-2xs text-[var(--color-warning)]"
                                 onClick={() => handleRemoveOption(i)}
                               >
                                 ×

@@ -27,10 +27,10 @@ interface AvatarProps {
 }
 
 const sizeClasses = {
-  sm: "h-5 w-5 text-[8px]",
-  md: "h-7 w-7 text-[10px]",
-  lg: "h-9 w-9 text-[13px]",
-  xl: "h-20 w-20 text-[24px]",
+  sm: "h-5 w-5 text-2xs",
+  md: "h-7 w-7 text-2xs",
+  lg: "h-9 w-9 text-base",
+  xl: "h-20 w-20 text-2xl",
 };
 
 export function Avatar({ initials, color, size = "md" }: AvatarProps) {

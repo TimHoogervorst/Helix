@@ -78,7 +78,7 @@ export function Activity({
   if (isLoading) {
     return (
       <section>
-        <ul className="space-y-3 text-[12px]">
+        <ul className="space-y-3 text-sm">
           {Array.from({ length: 4 }).map((_, i) => (
             <li key={i} className="flex items-start gap-2 animate-pulse">
               <span
@@ -101,12 +101,12 @@ export function Activity({
     return (
       <section>
         <div data-testid="activity-error">
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Could not load activity
           </p>
           {onRetry && (
             <button
-              className="mt-1.5 text-[12px] text-primary hover:underline"
+              className="mt-1.5 text-sm text-primary hover:underline"
               onClick={onRetry}
               data-testid="activity-retry"
             >
@@ -123,7 +123,7 @@ export function Activity({
     return (
       <section>
         <p
-          className="text-[12px] text-muted-foreground/60 italic px-0.5"
+          className="text-sm text-muted-foreground/60 italic px-0.5"
           data-testid="activity-empty"
         >
           No activity yet
@@ -138,7 +138,7 @@ export function Activity({
 
   return (
     <section>
-      <ul className="space-y-2 text-[12px]">
+      <ul className="space-y-2 text-sm">
         {visible.map((item) =>
           isGroup(item) ? (
             <GroupedActivityItem key={item.id} group={item} />
@@ -181,7 +181,7 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
         data-testid="activity-group-toggle"
       >
         <span
-          className="mt-1.5 shrink-0 text-[10px] leading-none text-muted-foreground/70"
+          className="mt-1.5 shrink-0 text-2xs leading-none text-muted-foreground/70"
           aria-hidden="true"
         >
           {expanded ? "▾" : "▸"}

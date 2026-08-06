@@ -88,9 +88,9 @@ function avatarBackgroundStyle(color: string): React.CSSProperties {
 
 function avatarClasses(color: string): string {
   if (color.startsWith("#") || color.startsWith("rgb")) {
-    return "inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-[var(--font-label)] text-[11px] font-medium ring-2 ring-background";
+    return "inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-[var(--font-label)] text-xs font-medium ring-2 ring-background";
   }
-  return `inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-[var(--font-label)] text-[11px] font-medium text-white ring-2 ring-background ${AVATAR_BG_CLASS[color] ?? ""}`;
+  return `inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-[var(--font-label)] text-xs font-medium text-white ring-2 ring-background ${AVATAR_BG_CLASS[color] ?? ""}`;
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────

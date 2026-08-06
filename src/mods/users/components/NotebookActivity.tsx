@@ -13,7 +13,7 @@ export function NotebookActivity() {
           Notebook activity
         </h2>
       </div>
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-base text-muted-foreground">
         No recent notebook entries to display.
       </p>
     </section>

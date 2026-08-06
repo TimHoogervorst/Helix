@@ -53,7 +53,7 @@ export function Modal({
         aria-label={title}
       >
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[var(--color-ink-hairline)]">
-          <h2 className="flex-1 font-[var(--font-label)] text-[14px] font-semibold text-[var(--color-ink)]">
+          <h2 className="flex-1 font-[var(--font-label)] text-md font-semibold text-[var(--color-ink)]">
             {title}
           </h2>
           <IconButton aria-label="Close" onClick={onClose}>

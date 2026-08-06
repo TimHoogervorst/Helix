@@ -212,7 +212,7 @@ export function ProtocolContent({
                 className="rounded-md border border-hairline bg-panel px-3 py-2.5"
                 data-testid={`protocol-note-${index}`}
               >
-                <p className="text-[14px] leading-relaxed text-muted-foreground italic">
+                <p className="text-md leading-relaxed text-muted-foreground italic">
                   {item.text}
                 </p>
               </li>
@@ -258,7 +258,7 @@ export function ProtocolContent({
 
               {/* Step content */}
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-[var(--font-label)] uppercase tracking-widest text-muted-foreground">
+                <div className="text-2xs font-[var(--font-label)] uppercase tracking-widest text-muted-foreground">
                   Step {padStepNumber(stepNumber)}
                   {completed && completedAt && (
                     <span className="ml-2 text-success-foreground">
@@ -267,7 +267,7 @@ export function ProtocolContent({
                   )}
                 </div>
                 <p
-                  className={`text-[14px] leading-relaxed ${
+                  className={`text-md leading-relaxed ${
                     completed
                       ? "line-through decoration-muted-foreground/40 text-muted-foreground/60"
                       : ""

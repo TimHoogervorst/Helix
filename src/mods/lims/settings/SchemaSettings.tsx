@@ -291,7 +291,7 @@ function SettingsPage() {
                   }}
                 />
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Name</span>
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
                   <Input
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
@@ -299,7 +299,7 @@ function SettingsPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Prefix</span>
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Prefix</span>
                   <Input
                     value={newPrefix}
                     onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
@@ -310,7 +310,7 @@ function SettingsPage() {
                 </label>
                 {schemaTypes.length > 0 && (
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs text-[var(--color-ink-muted-foreground)]">
                       Schema Type
                     </span>
                     <Select
@@ -393,7 +393,7 @@ function SettingsPage() {
             actions={
               <button
                 type="button"
-                className={`rounded border-transparent bg-transparent px-1.5 py-0.5 font-[var(--font-label)] text-[10px] uppercase tracking-wider transition-colors ${
+                className={`rounded border-transparent bg-transparent px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase tracking-wider transition-colors ${
                   showArchived
                     ? "font-medium text-[var(--color-ink)]"
                     : "text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)]"
@@ -437,7 +437,7 @@ function SettingsPage() {
                     />
                     <div className="grid grid-cols-[1fr_auto] gap-4 flex-1">
                       <label className="block">
-                        <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                           Name
                         </span>
                         <Input
@@ -452,7 +452,7 @@ function SettingsPage() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                           Prefix
                         </span>
                         <Input
@@ -472,7 +472,7 @@ function SettingsPage() {
                     </div>
                   </div>
                   <label className="block">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Description
                     </span>
                     <Textarea

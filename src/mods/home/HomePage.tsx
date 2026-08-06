@@ -44,7 +44,7 @@ function GreetingSection() {
   return (
     <section className="grid-paper w-full px-6 py-10">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mt-3 font-[--font-label] text-[1rem] font-semibold leading-[1.05] tracking-tight md:text-[4rem]">
+        <h1 className="mt-3 font-[--font-label] text-lg font-semibold leading-[1.05] tracking-tight md:text-[4rem]">
           Good morning,{" "}
           <span className="italic text-primary">{userName}</span>
           .<br />
@@ -138,19 +138,19 @@ function HubCard({
       </h3>
 
       {/* Placeholder stats line (mono) */}
-      <p className="font-mono text-[11px] text-muted-foreground">
+      <p className="font-mono text-xs text-muted-foreground">
         {PLACEHOLDER_STATS}
       </p>
 
       {/* Description (muted) */}
       {hub.description && (
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-base leading-relaxed text-muted-foreground">
           {hub.description}
         </p>
       )}
 
       {/* Footer: status chip + timestamp */}
-      <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3 text-[11px] text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3 text-xs text-muted-foreground">
         <span className="chip">
           <Beaker className="h-3 w-3" aria-hidden="true" /> open
         </span>
@@ -181,7 +181,7 @@ function JumpBackIn() {
           <h2 className="font-[--font-label] text-2xl font-semibold tracking-tight">
             Jump back in
           </h2>
-          <span className="text-[12px] text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {nonHomeHubs.length}{" "}
             {nonHomeHubs.length === 1 ? "workspace" : "workspaces"}
           </span>
@@ -287,12 +287,12 @@ function ActivityRow({ item }: { item: RecentActivityItem }) {
 
       {/* Description + timestamp */}
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] leading-snug text-foreground">
+        <p className="text-base leading-snug text-foreground">
           <span className="font-semibold">{item.person}</span>{" "}
           {item.action}{" "}
           <span className="font-medium">{item.target}</span>
         </p>
-        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
           {item.timestamp} — {item.filePath}
         </p>
       </div>
@@ -370,7 +370,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
   return (
     <div className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
       {/* Time label */}
-      <span className="font-mono text-[11px] text-muted-foreground shrink-0 w-10">
+      <span className="font-mono text-xs text-muted-foreground shrink-0 w-10">
         {entry.time}
       </span>
 
@@ -381,7 +381,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
       />
 
       {/* Description */}
-      <p className="text-[13px] leading-snug text-foreground">
+      <p className="text-base leading-snug text-foreground">
         {entry.description}
       </p>
     </div>

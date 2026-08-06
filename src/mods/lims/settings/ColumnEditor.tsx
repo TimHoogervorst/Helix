@@ -72,16 +72,16 @@ function ColumnEditor({
   return (
     <div>
       <div className="grid grid-cols-1 gap-2 border-b border-[var(--color-ink-hairline)] bg-[var(--color-surface)]/60 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center">
-        <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Field name
         </span>
-        <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Field type
         </span>
-        <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Constraints
         </span>
-        <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Order
         </span>
       </div>
@@ -99,11 +99,11 @@ function ColumnEditor({
               type="text"
               value="Name"
               disabled
-              className="w-full rounded outline-none focus:outline-none focus:ring-0 bg-transparent px-1 py-1 text-[13px] text-[var(--color-ink-muted-foreground)]"
+              className="w-full rounded outline-none focus:outline-none focus:ring-0 bg-transparent px-1 py-1 text-base text-[var(--color-ink-muted-foreground)]"
               title="Name is an implicit column on every schema — it cannot be edited or removed."
             />
           </div>
-          <Select disabled className="border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-[12px] text-[var(--color-ink-muted-foreground)]">
+          <Select disabled className="border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm text-[var(--color-ink-muted-foreground)]">
             <option value="text">
               {textType?.displayName ?? "Text"}
             </option>
@@ -136,7 +136,7 @@ function ColumnEditor({
                     handleNameChange(i, "name", e.target.value)
                   }
                   placeholder="Column name"
-                  className="w-full border-0 bg-transparent px-1 py-1 text-[13px] outline-none focus:outline-none focus:ring-0 placeholder:text-[var(--color-ink-muted-foreground)]"
+                  className="w-full border-0 bg-transparent px-1 py-1 text-base outline-none focus:outline-none focus:ring-0 placeholder:text-[var(--color-ink-muted-foreground)]"
                 />
               </div>
               <div>
@@ -145,7 +145,7 @@ function ColumnEditor({
                   onChange={(e) =>
                     onUpdate(i, "type", e.target.value)
                   }
-                  className="rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-[12px]"
+                  className="rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                 >
                   {[...columnTypes.values()].map(renderTypeOption)}
                 </Select>
@@ -160,7 +160,7 @@ function ColumnEditor({
                         raw ? Number(raw) : "",
                       );
                     }}
-                    className="mt-1 rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-[12px]"
+                    className="mt-1 rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                     title="Dropdown (controlled vocabulary) for this column"
                     aria-label="Dropdown"
                   >
@@ -173,10 +173,10 @@ function ColumnEditor({
                   </Select>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[11px]">
+              <div className="flex items-center gap-2 text-xs">
                 <button
                   type="button"
-                  className={`rounded px-1.5 py-0.5 font-[var(--font-label)] text-[10px] uppercase transition-colors ${
+                  className={`rounded px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase transition-colors ${
                     col.required
                       ? "border-[var(--color-primary-subtle)] bg-[var(--color-primary-subtle)] font-medium text-[var(--color-ink)]"
                       : "bg-[var(--color-surface)] text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
@@ -189,7 +189,7 @@ function ColumnEditor({
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-1.5 py-0.5 font-[var(--font-label)] text-[10px] uppercase transition-colors ${
+                  className={`rounded px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase transition-colors ${
                     col.unique
                       ? "border-[var(--color-primary-subtle)] bg-[var(--color-primary-subtle)] font-medium text-[var(--color-ink)]"
                       : "bg-[var(--color-surface)] text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"

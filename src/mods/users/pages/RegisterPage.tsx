@@ -52,20 +52,20 @@ export default function RegisterPage() {
           <h1 className="font-[--font-label] text-xl font-semibold tracking-tight">
             Helix
           </h1>
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-base text-muted-foreground">
             Create a new account
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
               {error}
             </div>
           )}
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Username</span>
+            <span className="text-base font-medium">Username</span>
             <Input
               type="text"
               value={username}
@@ -78,7 +78,7 @@ export default function RegisterPage() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Email</span>
+            <span className="text-base font-medium">Email</span>
             <Input
               type="email"
               value={email}
@@ -89,7 +89,7 @@ export default function RegisterPage() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Password</span>
+            <span className="text-base font-medium">Password</span>
             <Input
               type="password"
               value={password}
@@ -106,7 +106,7 @@ export default function RegisterPage() {
             {isSubmitting ? "Creating account…" : "Create account"}
           </Button>
 
-          <p className="text-center text-[13px] text-muted-foreground">
+          <p className="text-center text-base text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="text-primary hover:underline">
               Sign in

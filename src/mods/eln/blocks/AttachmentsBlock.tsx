@@ -20,7 +20,7 @@ const PLACEHOLDER_ATTACHMENTS = [
 export function AttachmentsBlock(_props: BlockComponentProps) {
   return (
     <section>
-      <div className="space-y-1.5 text-[13px]">
+      <div className="space-y-1.5 text-base">
         {PLACEHOLDER_ATTACHMENTS.map((file) => (
           <div
             key={file.name}
@@ -33,7 +33,7 @@ export function AttachmentsBlock(_props: BlockComponentProps) {
             <span className="min-w-0 flex-1 truncate font-[var(--font-label)]">
               {file.name}
             </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
+            <span className="shrink-0 text-xs text-muted-foreground">
               {file.size}
             </span>
           </div>

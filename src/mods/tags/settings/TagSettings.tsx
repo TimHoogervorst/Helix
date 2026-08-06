@@ -660,7 +660,7 @@ function TagSettings() {
         <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Name</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
               <Input
                 value={tags.newName}
                 onChange={(e) => tags.setNewName(e.target.value)}
@@ -671,7 +671,7 @@ function TagSettings() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Icon &amp; Colour</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Icon &amp; Colour</span>
               <IconPickerPopover
                 iconKey={tags.newIcon}
                 colorKey={tags.newColor}
@@ -714,7 +714,7 @@ function TagSettings() {
         <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Key</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Key</span>
               <Input
                 className="font-[var(--font-label)]"
                 value={colours.newKey}
@@ -723,7 +723,7 @@ function TagSettings() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Label</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Label</span>
               <Input
                 value={colours.newLabel}
                 onChange={(e) => colours.setNewLabel(e.target.value)}
@@ -731,7 +731,7 @@ function TagSettings() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Hex</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Hex</span>
               <div className="flex items-center gap-2">
                 <Input
                   className="w-24 font-[var(--font-label)]"
@@ -784,7 +784,7 @@ function TagSettings() {
         <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Key</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Key</span>
               <Input
                 className="font-[var(--font-label)]"
                 value={icons.newKey}
@@ -793,7 +793,7 @@ function TagSettings() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Label</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">Label</span>
               <Input
                 value={icons.newLabel}
                 onChange={(e) => icons.setNewLabel(e.target.value)}
@@ -801,7 +801,7 @@ function TagSettings() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">SVG File</span>
+              <span className="text-xs text-[var(--color-ink-muted-foreground)]">SVG File</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1030,7 +1030,7 @@ function TagSettings() {
             >
               <div className="space-y-3">
                 <label className="block">
-                  <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                  <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                     Name
                   </span>
                   <Input
@@ -1040,7 +1040,7 @@ function TagSettings() {
                   />
                 </label>
                 <div className="flex flex-col gap-2">
-                  <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                  <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                     Icon &amp; Colour
                   </span>
                   <IconPickerPopover
@@ -1105,10 +1105,10 @@ function TagSettings() {
                   style={{ backgroundColor: c.hex }}
                 />
                 <div>
-                  <div className="text-[13px] font-medium text-[var(--color-ink)]">
+                  <div className="text-base font-medium text-[var(--color-ink)]">
                     {c.label}
                   </div>
-                  <div className="font-[var(--font-label)] text-[11px] text-[var(--color-ink-muted-foreground)]">
+                  <div className="font-[var(--font-label)] text-xs text-[var(--color-ink-muted-foreground)]">
                     {c.hex}
                   </div>
                 </div>
@@ -1159,10 +1159,10 @@ function TagSettings() {
               <div className="flex flex-col items-center gap-2 text-center">
                 <IconBadge iconKey={i.key} colorKey="muted" size="lg" />
                 <div>
-                  <div className="text-[13px] font-medium text-[var(--color-ink)]">
+                  <div className="text-base font-medium text-[var(--color-ink)]">
                     {i.label}
                   </div>
-                  <div className="text-[11px] text-[var(--color-ink-muted-foreground)]">
+                  <div className="text-xs text-[var(--color-ink-muted-foreground)]">
                     {i.kind === "lucide" ? `Lucide · ${i.token}` : "Custom SVG"}
                   </div>
                 </div>

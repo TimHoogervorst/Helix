@@ -17,7 +17,7 @@ import {
 function StatusChip({ active }: { active: boolean }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
         active
           ? "bg-[var(--color-success)]/15 text-[var(--color-success-foreground)]"
           : "bg-[var(--color-surface-hover)] text-[var(--color-ink-muted-foreground)]"
@@ -203,14 +203,14 @@ export default function UserManagement() {
           {showNew && (
             <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
               {createError && (
-                <div className="mb-3 rounded-md border border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/10 px-3 py-2 text-[13px] text-[var(--color-destructive)]">
+                <div className="mb-3 rounded-md border border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/10 px-3 py-2 text-base text-[var(--color-destructive)]">
                   {createError}
                 </div>
               )}
 
               <div className="flex flex-wrap items-end gap-4">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Username</span>
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Username</span>
                   <Input
                     className="w-48"
                     value={newUsername}
@@ -223,7 +223,7 @@ export default function UserManagement() {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Password</span>
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Password</span>
                   <Input
                     type="password"
                     className="w-48"
@@ -329,7 +329,7 @@ export default function UserManagement() {
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Username
                     </span>
                     <span className="text-sm text-[var(--color-ink)]">
@@ -337,7 +337,7 @@ export default function UserManagement() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Name
                     </span>
                     <span className="text-sm text-[var(--color-ink)]">
@@ -347,13 +347,13 @@ export default function UserManagement() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Status
                     </span>
                     <StatusChip active={selectedUser.is_active} />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Joined
                     </span>
                     <span className="text-sm text-[var(--color-ink)]">
@@ -372,14 +372,14 @@ export default function UserManagement() {
           <SettingsSectionCard title="Registration">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-medium">Allow self-registration</p>
-                <p className="text-[12px] text-[var(--color-ink-muted-foreground)]">
+                <p className="text-base font-medium">Allow self-registration</p>
+                <p className="text-sm text-[var(--color-ink-muted-foreground)]">
                   When enabled, anyone can create an account from the login page.
                 </p>
               </div>
 
               {toggleLoading ? (
-                <span className="text-[12px] text-[var(--color-ink-muted-foreground)]">Loading…</span>
+                <span className="text-sm text-[var(--color-ink-muted-foreground)]">Loading…</span>
               ) : (
                 <button
                   type="button"

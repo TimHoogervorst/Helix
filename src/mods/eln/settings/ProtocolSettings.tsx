@@ -238,7 +238,7 @@ function ProtocolSettings() {
             <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
               <div className="flex flex-wrap items-end gap-4">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Name</span>
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
                   <Input
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
@@ -344,7 +344,7 @@ function ProtocolSettings() {
               >
                 <div className="space-y-3">
                   <label className="block">
-                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Name
                     </span>
                     <Input
@@ -355,7 +355,7 @@ function ProtocolSettings() {
                   </label>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Status
                       </span>
                       <span className="text-sm text-[var(--color-ink)]">
@@ -363,7 +363,7 @@ function ProtocolSettings() {
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Items
                       </span>
                       <span className="text-sm text-[var(--color-ink)]">
@@ -371,7 +371,7 @@ function ProtocolSettings() {
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Updated
                       </span>
                       <span className="text-sm text-[var(--color-ink)]">
@@ -411,7 +411,7 @@ function ProtocolSettings() {
                         className="flex items-start gap-2 border-b border-[var(--color-ink-hairline)] px-3 py-2 last:border-b-0"
                       >
                         <span
-                          className="mt-1 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white"
+                          className="mt-1 shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-white"
                           style={{
                             backgroundColor:
                               item.type === "step"
@@ -438,7 +438,7 @@ function ProtocolSettings() {
                         <div className="flex shrink-0 items-center gap-0.5">
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
+                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-2xs text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                             onClick={() => handleMoveItem(i, "up")}
                             disabled={i === 0}
                             title="Move up"
@@ -447,7 +447,7 @@ function ProtocolSettings() {
                           </button>
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
+                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-2xs text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                             onClick={() => handleMoveItem(i, "down")}
                             disabled={i === editingProtocol.items.length - 1}
                             title="Move down"
@@ -456,7 +456,7 @@ function ProtocolSettings() {
                           </button>
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)]/50"
+                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-2xs text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)]/50"
                             onClick={() => handleRemoveItem(i)}
                             title="Remove item"
                           >

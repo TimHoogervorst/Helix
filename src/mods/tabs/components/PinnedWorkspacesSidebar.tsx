@@ -83,7 +83,7 @@ function PinnedWorkspacesSidebar() {
   return (
     <>
       {/* Workspace tree area */}
-      <div className="flex-1 overflow-y-auto px-2 pb-6 text-[13px]">
+      <div className="flex-1 overflow-y-auto px-2 pb-6 text-base">
         {/* Current workspace (temporary, not pinned) */}
         {current && !isCurrentPinned && (
           <div className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left">
@@ -96,7 +96,7 @@ function PinnedWorkspacesSidebar() {
             >
               <WorkspaceIcon workspaceId={current.icon} />
               <span className="truncate">{current.displayId}</span>
-              <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-[18px] text-muted-foreground">
+              <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-2xs leading-[18px] text-muted-foreground">
                 Current
               </span>
             </Button>
@@ -138,7 +138,7 @@ function PinnedWorkspacesSidebar() {
                 {p.label && p.label !== p.display_id ? (
                   <>
                     <span className="truncate">{p.label}</span>
-                    <span className="truncate text-[11px] text-muted-foreground">
+                    <span className="truncate text-xs text-muted-foreground">
                       {p.display_id}
                     </span>
                   </>
@@ -146,7 +146,7 @@ function PinnedWorkspacesSidebar() {
                   <span className="truncate">{p.display_id}</span>
                 )}
                 {isActive && (
-                  <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-[18px] text-muted-foreground">
+                  <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-2xs leading-[18px] text-muted-foreground">
                     Current
                   </span>
                 )}

@@ -32,12 +32,12 @@ export function AppErrorScreen({ message, onRetry }: AppErrorScreenProps) {
         <div className="flex flex-col gap-4">
           <div className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
-            <p className="text-[13px] text-destructive">{message}</p>
+            <p className="text-base text-destructive">{message}</p>
           </div>
 
           <Button
             variant="primary"
-            className="rounded-md py-2 text-[13px] font-medium"
+            className="rounded-md py-2 text-base font-medium"
             onClick={onRetry}
           >
             Try again
@@ -45,7 +45,7 @@ export function AppErrorScreen({ message, onRetry }: AppErrorScreenProps) {
 
           <a
             href="/login"
-            className="text-center text-[13px] text-primary hover:underline"
+            className="text-center text-base text-primary hover:underline"
           >
             Go to login
           </a>

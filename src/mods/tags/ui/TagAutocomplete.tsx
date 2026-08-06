@@ -139,7 +139,7 @@ export function TagAutocomplete({
             <button
               key={t.id}
               type="button"
-              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] border-transparent bg-transparent text-foreground hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-base border-transparent bg-transparent text-foreground hover:bg-muted"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleSelect(t);
@@ -154,7 +154,7 @@ export function TagAutocomplete({
           {showCreateNew && (
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] border-transparent bg-transparent text-foreground hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-base border-transparent bg-transparent text-foreground hover:bg-muted"
               onMouseDown={(e) => {
                 e.preventDefault();
                 startCreate(query.trim());
@@ -175,7 +175,7 @@ export function TagAutocomplete({
           data-testid="tag-create-panel"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="font-mono text-[0.7rem] text-muted-foreground">
+            <span className="font-mono text-xs text-muted-foreground">
               New tag: &ldquo;{pendingName}&rdquo;
             </span>
             <button
@@ -189,7 +189,7 @@ export function TagAutocomplete({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[0.65rem] text-muted-foreground">
+            <span className="font-mono text-2xs text-muted-foreground">
               Pick icon + colour to create
             </span>
             <IconPickerPopover

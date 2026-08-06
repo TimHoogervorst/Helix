@@ -9,7 +9,7 @@ function SettingsSectionFallback() {
       className="flex min-h-[40vh] items-center justify-center"
       data-testid="settings-section-loading-fallback"
     >
-      <p className="text-[13px] text-muted-foreground">Loading settings…</p>
+      <p className="text-base text-muted-foreground">Loading settings…</p>
     </div>
   );
 }

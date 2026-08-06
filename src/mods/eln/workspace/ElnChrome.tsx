@@ -164,7 +164,7 @@ function ElnChrome({
         {/* ── Top toolbar ── */}
         <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
           {/* Left: breadcrumbs */}
-          <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-base text-muted-foreground">
             <Folder
               className="h-3.5 w-3.5 text-muted-foreground"
               aria-hidden="true"
@@ -317,7 +317,7 @@ function ElnChrome({
                   />
                 ))}
                 {recentEditors.length > 3 && (
-                  <span className="inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted font-[var(--font-label)] text-[9.5px] font-medium text-muted-foreground ring-2 ring-background">
+                  <span className="inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted font-[var(--font-label)] text-2xs font-medium text-muted-foreground ring-2 ring-background">
                     …
                   </span>
                 )}
@@ -368,7 +368,7 @@ function ElnChrome({
                   {/* ── Locked banner ── */}
                   {isLockedByOther && (
                     <div
-                      className="mb-4 flex items-center gap-2 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-[13px] text-[var(--color-ink-muted-foreground)]"
+                      className="mb-4 flex items-center gap-2 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-base text-[var(--color-ink-muted-foreground)]"
                       data-testid="locked-banner"
                     >
                       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -385,7 +385,7 @@ function ElnChrome({
 
                     {/* Metadata line */}
                     <div
-                      className="mb-3 font-[var(--font-label)] text-[11px] uppercase tracking-widest text-muted-foreground"
+                      className="mb-3 font-[var(--font-label)] text-xs uppercase tracking-widest text-muted-foreground"
                       data-testid="metadata-line"
                     >
                       {entry ? (
@@ -427,14 +427,14 @@ function ElnChrome({
                       onBlur={() => {
                         if (!isLockedByOther && title.trim() !== title) onTitleChange(title.trim());
                       }}
-                      className="mb-3 font-[var(--font-body)] text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
+                      className="mb-3 font-[var(--font-body)] text-4xl font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
                       data-testid="title-display"
                     />
 
                     {/* Description */}
                     <textarea
                       ref={descriptionRef}
-                      className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
+                      className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-md leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
                       value={description}
                       onChange={(e) => {
                         if (!isLockedByOther) onDescriptionChange(e.target.value);

@@ -132,7 +132,7 @@ export function AboutSection() {
 
       {/* Error */}
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
@@ -142,12 +142,12 @@ export function AboutSection() {
         <div className="space-y-3">
           {FIELDS.map((field) => (
             <label key={field.key} className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium text-muted-foreground">
+              <span className="text-sm font-medium text-muted-foreground">
                 {field.label}
               </span>
               <Input
                 type={field.type ?? "text"}
-                className="text-[13px]"
+                className="text-base"
                 value={form[field.key]}
                 onChange={(e) => updateField(field.key, e.target.value)}
               />
@@ -156,11 +156,11 @@ export function AboutSection() {
 
           {/* Bio */}
           <label className="flex flex-col gap-1">
-            <span className="text-[12px] font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-muted-foreground">
               Bio
             </span>
             <Textarea
-              className="text-[13px]"
+              className="text-base"
               rows={4}
               value={form.bio}
               onChange={(e) => updateField("bio", e.target.value)}
@@ -192,11 +192,11 @@ export function AboutSection() {
         /* ── View mode — only bio text (fields shown in profile header) ── */
         <div>
           {user.profile.bio ? (
-            <p className="text-[13px] leading-relaxed text-foreground">
+            <p className="text-base leading-relaxed text-foreground">
               {user.profile.bio}
             </p>
           ) : (
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               No bio yet. Click Edit to add one.
             </p>
           )}

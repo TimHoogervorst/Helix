@@ -665,3 +665,39 @@ A state variant of a Theme Token that is **computed from the token** (via `color
 **The canonical ladder:** per seed — **hover**, **active**, **subtle** (a low-tint wash over Background), **foreground** (contrast-resolved text on the seed). From Ink specifically — **border**, **hairline**, **muted-foreground**. Focus indication and disabled state are *rules*, not tokens (Accent ring; reduced opacity).
 
 **Synonyms:** derived state, computed shade
+
+### Theme
+
+A named, user-pickable colour scheme: exactly the five Theme Seeds plus a name and description — never Derived Shades, which are always computed. The unit of choice in the Preferences Window.
+
+**Synonyms:** colour scheme, colour theme
+
+### Built-in Theme
+
+A Theme that ships with the platform (Original, Cyberpunk, Forest, Terminal, Lavender, GPT, Claude, Benchling, eLabFTW). Built-in Themes are read-only — editing one in the Customize tab saves a Custom Theme instead. Original is the default for new users.
+
+**Synonyms:** preset theme, shipped theme
+
+### Custom Theme
+
+A Theme authored by a user in the Customize tab and stored as part of their Preferences — per-user and per-device, never visible to other users.
+
+**Invariant:** deleting the Active Theme falls back to Original.
+
+**Synonyms:** user theme, saved theme
+
+### Active Theme
+
+The Theme currently applied to the platform. Exactly one at a time; defaults to Original.
+
+**Synonyms:** current theme, selected theme
+
+### Preferences Window
+
+The Modal — opened from the user menu — where a user manages their Preferences: picking a Theme (Themes tab) or editing the five Theme Seeds and saving them as a Custom Theme (Customize tab). Despite the casual name, it is a **Modal** (centered, overlay-backed), not a Popover — popovers in this codebase are anchored and non-modal.
+
+**Synonyms:** preferences modal, preferences dialog
+
+### Preferences vs Settings
+
+**Preferences** are per-user, cosmetic choices stored on the user's own device — the theme today, density and similar later. They never touch the server and are never visible to other users. **Settings** are server-backed configuration shared with the workspace (Icon Library, Color Tokens, dropdowns). If a choice is about how the platform *looks to one user*, it is a Preference; if it configures *shared data or behavior*, it is a Setting.

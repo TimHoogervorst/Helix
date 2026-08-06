@@ -22,7 +22,7 @@ export function Collapsible({
     >
       <button
         type="button"
-        className="border-0 bg-transparent flex w-full items-center justify-between px-4 py-2.5 font-[var(--font-label)] text-[13px] font-medium text-[var(--color-ink)] hover:bg-[var(--color-background-hover)] transition-colors rounded-t-lg"
+        className="border-0 bg-transparent flex w-full items-center justify-between px-4 py-2.5 font-[var(--font-label)] text-base font-medium text-[var(--color-ink)] hover:bg-[var(--color-background-hover)] transition-colors rounded-t-lg"
         onClick={() => setOpen(!open)}
       >
         <span>{title}</span>

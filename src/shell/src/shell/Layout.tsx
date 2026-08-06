@@ -26,10 +26,10 @@ function BrandHeader() {
         <Dna className="h-4 w-4" aria-hidden="true" />
       </div>
       <div className="flex flex-1 flex-col leading-tight">
-        <span className="font-[var(--font-label)] text-[15px] font-semibold tracking-tight">
+        <span className="font-[var(--font-label)] text-md font-semibold tracking-tight">
           Helix
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        <span className="font-mono text-2xs uppercase tracking-widest text-muted-foreground">
           Alpha
         </span>
       </div>
@@ -163,7 +163,7 @@ function Layout() {
                       <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
                         <Link
                           to="/library"
-                          className="inline-flex items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-[13px] text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]"
+                          className="inline-flex items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-base text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]"
                           aria-label="Back to Home"
                         >
                           <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -181,7 +181,7 @@ function Layout() {
                             <Link
                               key={s.id}
                               to={`/settings?section=${s.id}`}
-                              className={`inline-flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-[13px] text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]${isActive ? " bg-muted font-medium text-foreground" : ""}`}
+                              className={`inline-flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-base text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]${isActive ? " bg-muted font-medium text-foreground" : ""}`}
                               title={s.label}
                               aria-label={s.label}
                             >
@@ -204,7 +204,7 @@ function Layout() {
                             <Link
                               key={h.id}
                               to={h.route}
-                              className={`inline-flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-[13px] text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]${currentPath.startsWith(h.route) ? " bg-muted font-medium text-foreground" : ""}`}
+                              className={`inline-flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-base text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]${currentPath.startsWith(h.route) ? " bg-muted font-medium text-foreground" : ""}`}
                               title={h.label}
                               aria-label={h.label}
                             >

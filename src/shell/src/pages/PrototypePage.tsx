@@ -63,7 +63,7 @@ function SeedSwitcher() {
           key={f.key}
           className="flex flex-col gap-1 min-w-[140px] flex-1"
         >
-          <span className="font-[var(--font-label)] text-[10px] uppercase tracking-wider text-[var(--color-ink-muted-foreground)]">
+          <span className="font-[var(--font-label)] text-2xs uppercase tracking-wider text-[var(--color-ink-muted-foreground)]">
             {f.label}
           </span>
           <div className="flex items-center gap-1.5">
@@ -73,7 +73,7 @@ function SeedSwitcher() {
             />
             <input
               type="text"
-              className="flex-1 h-8 rounded border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 font-[var(--font-label)] text-[11px] text-[var(--color-ink)] outline-none focus:border-[var(--color-primary)]"
+              className="flex-1 h-8 rounded border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 font-[var(--font-label)] text-xs text-[var(--color-ink)] outline-none focus:border-[var(--color-primary)]"
               value={seeds[f.key]}
               onChange={(e) => handleChange(f.key, e.target.value)}
             />
@@ -105,7 +105,7 @@ function Card({ children }: { children: ReactNode }) {
 
 function CardTitle({ children }: { children: string }) {
   return (
-    <h3 className="font-[var(--font-label)] text-[11px] uppercase tracking-wider text-[var(--color-ink-muted-foreground)] mb-4">
+    <h3 className="font-[var(--font-label)] text-xs uppercase tracking-wider text-[var(--color-ink-muted-foreground)] mb-4">
       {children}
     </h3>
   );
@@ -141,7 +141,7 @@ export default function PrototypePage() {
           <div>
             <span className="text-eyebrow">Prototype</span>
             <h1 className="text-title mt-1">Design-System Gallery</h1>
-            <p className="mt-2 font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)] max-w-2xl">
+            <p className="mt-2 font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)] max-w-2xl">
               Every primitive, variant, size, and state. The seed switcher
               below live-applies theme changes — this is the alignment surface
               for issues #415/#416. This page is throwaway code.
@@ -169,25 +169,25 @@ export default function PrototypePage() {
                 <CardTitle>Label Hero (mono, left-align)</CardTitle>
                 <div className="space-y-4">
                   <div>
-                    <span className="font-[var(--font-label)] text-[10px] uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
+                    <span className="font-[var(--font-label)] text-2xs uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
                       Settings
                     </span>
                     <h2 className="font-[var(--font-label)] text-[var(--text-3xl)] font-semibold tracking-tight text-[var(--color-ink)] leading-tight mt-1">
                       Protocol Templates
                     </h2>
-                    <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)] mt-1.5">
+                    <p className="font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)] mt-1.5">
                       Define reusable step sequences for your notebook entries
                       using the Label (mono) voice for UI chrome.
                     </p>
                   </div>
                   <div>
-                    <span className="font-[var(--font-label)] text-[10px] uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
+                    <span className="font-[var(--font-label)] text-2xs uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
                       Library
                     </span>
                     <h2 className="font-[var(--font-label)] text-[var(--text-xl)] font-semibold tracking-tight text-[var(--color-ink)] leading-tight mt-1">
                       Polyclonal Antibody Production
                     </h2>
-                    <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)] mt-1.5">
+                    <p className="font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)] mt-1.5">
                       This is the Label voice applied to a page title — the
                       mono font gives a lab-console feel.
                     </p>
@@ -198,25 +198,25 @@ export default function PrototypePage() {
                 <CardTitle>Body Entry Title (sans, right-align)</CardTitle>
                 <div className="space-y-4">
                   <div>
-                    <span className="font-[var(--font-label)] text-[10px] uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
+                    <span className="font-[var(--font-label)] text-2xs uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
                       Aug 6, 2026
                     </span>
                     <h3 className="font-[var(--font-body)] text-[var(--text-2xl)] font-semibold text-[var(--color-ink)] leading-tight mt-1">
                       Western Blot — Anti-GFP on HEK293 lysate
                     </h3>
-                    <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)] mt-1.5">
+                    <p className="font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)] mt-1.5">
                       Content names use the Body (Inter) voice — this is an
                       entry title, not UI chrome.
                     </p>
                   </div>
                   <div>
-                    <span className="font-[var(--font-label)] text-[10px] uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
+                    <span className="font-[var(--font-label)] text-2xs uppercase tracking-widest text-[var(--color-ink-muted-foreground)]">
                       Jul 12, 2026
                     </span>
                     <h3 className="font-[var(--font-body)] text-[var(--text-lg)] font-semibold text-[var(--color-ink)] leading-tight mt-1">
                       Plasmid midiprep — pET28a-GFP
                     </h3>
-                    <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)] mt-1.5">
+                    <p className="font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)] mt-1.5">
                       Body titles are at home in the editor narrative, card
                       headers, and lists of named content.
                     </p>
@@ -370,19 +370,19 @@ export default function PrototypePage() {
                 <CardTitle>Input</CardTitle>
                 <div className="space-y-3">
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       Name
                     </label>
                     <Input placeholder="Enter a name" />
                   </div>
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       Email (disabled)
                     </label>
                     <Input placeholder="email@example.com" disabled />
                   </div>
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       With value
                     </label>
                     <Input defaultValue="pET28a-GFP" />
@@ -393,13 +393,13 @@ export default function PrototypePage() {
                 <CardTitle>Textarea</CardTitle>
                 <div className="space-y-3">
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       Description
                     </label>
                     <Textarea placeholder="Enter a description…" />
                   </div>
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       Disabled
                     </label>
                     <Textarea
@@ -413,7 +413,7 @@ export default function PrototypePage() {
                 <CardTitle>Select</CardTitle>
                 <div className="space-y-3">
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       Priority
                     </label>
                     <Select
@@ -426,7 +426,7 @@ export default function PrototypePage() {
                     </Select>
                   </div>
                   <div>
-                    <label className="block font-[var(--font-label)] text-[11px] font-medium text-[var(--color-ink)] mb-1">
+                    <label className="block font-[var(--font-label)] text-xs font-medium text-[var(--color-ink)] mb-1">
                       Disabled
                     </label>
                     <Select disabled>
@@ -448,7 +448,7 @@ export default function PrototypePage() {
               <Card>
                 <CardTitle>Default closed</CardTitle>
                 <Collapsible title="Advanced Settings">
-                  <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)]">
+                  <p className="font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)]">
                     These settings are hidden by default. Click the header to
                     expand.
                   </p>
@@ -460,7 +460,7 @@ export default function PrototypePage() {
               <Card>
                 <CardTitle>Default open</CardTitle>
                 <Collapsible title="Protocol Steps" defaultOpen>
-                  <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink-muted-foreground)]">
+                  <p className="font-[var(--font-body)] text-base text-[var(--color-ink-muted-foreground)]">
                     This section starts expanded so important content is
                     visible immediately.
                   </p>
@@ -506,7 +506,7 @@ export default function PrototypePage() {
                       <Badge variant="success">Ready</Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="font-[var(--font-label)] text-[12px] text-[var(--color-ink-muted-foreground)]">
+                      <span className="font-[var(--font-label)] text-sm text-[var(--color-ink-muted-foreground)]">
                         Aug 6, 2026
                       </span>
                     </TableCell>
@@ -522,7 +522,7 @@ export default function PrototypePage() {
                       <Badge variant="warning">Pending</Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="font-[var(--font-label)] text-[12px] text-[var(--color-ink-muted-foreground)]">
+                      <span className="font-[var(--font-label)] text-sm text-[var(--color-ink-muted-foreground)]">
                         Jul 28, 2026
                       </span>
                     </TableCell>
@@ -538,7 +538,7 @@ export default function PrototypePage() {
                       <Badge variant="neutral">Archived</Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="font-[var(--font-label)] text-[12px] text-[var(--color-ink-muted-foreground)]">
+                      <span className="font-[var(--font-label)] text-sm text-[var(--color-ink-muted-foreground)]">
                         Jun 15, 2026
                       </span>
                     </TableCell>
@@ -562,7 +562,7 @@ export default function PrototypePage() {
                 onTabChange={setActiveTab}
               />
               <div className="mt-4 p-4 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-background)]">
-                <p className="font-[var(--font-label)] text-[12px] text-[var(--color-ink-muted-foreground)]">
+                <p className="font-[var(--font-label)] text-sm text-[var(--color-ink-muted-foreground)]">
                   Active tab:{" "}
                   <span className="text-[var(--color-ink)] font-semibold">
                     {activeTab}
@@ -602,7 +602,7 @@ export default function PrototypePage() {
                 onClose={() => setModalOpen(false)}
                 title="Delete Entry"
               >
-                <p className="font-[var(--font-body)] text-[13px] text-[var(--color-ink)] mb-4">
+                <p className="font-[var(--font-body)] text-base text-[var(--color-ink)] mb-4">
                   Are you sure you want to delete{" "}
                   <strong>Western Blot — Anti-GFP</strong>? This action cannot
                   be undone.

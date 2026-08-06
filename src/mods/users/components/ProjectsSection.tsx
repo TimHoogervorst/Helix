@@ -16,7 +16,7 @@ export function ProjectsSection() {
           Projects
         </h2>
       </div>
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-base text-muted-foreground">
         No projects to display yet.
       </p>
     </section>

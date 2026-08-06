@@ -13,7 +13,7 @@ export function RecentActivity() {
           Recent activity
         </h2>
       </div>
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-base text-muted-foreground">
         No recent activity to display yet.
       </p>
     </section>

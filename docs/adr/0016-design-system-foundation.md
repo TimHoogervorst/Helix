@@ -50,7 +50,7 @@ A throwaway `/prototype` route (hidden from nav) showcases every primitive × va
 
 ### What this PR is not
 
-This PR ships `applyThemeSeeds({ background, surface, ink, primary, accent })` and nothing more. Theme-JSON storage on the User record and boot-time application are the **next PR** — the Preferences module itself.
+This PR ships `applyThemeSeeds({ background, surface, ink, primary, accent })` and nothing more. Boot-time application and persistence are the **next PR** — the Preferences module itself (see ADR-0017: localStorage, not the User record).
 
 ---
 
@@ -96,6 +96,6 @@ A half-wired persistence layer in this PR would be re-done by the Preferences PR
 
 ### Future considerations
 
-- **Preferences PR**: theme JSON on the User record (five seeds), boot-time `applyThemeSeeds()`, and the Preferences UI replacing the disabled placeholder in `UserMenu.tsx`. Dark schemes are nearly free (Surface is already an explicit seed).
+- **Preferences PR** ([ADR-0017](0017-preferences-window-localstorage-themes.md)): themes as five-seed JSON bundles persisted in localStorage, boot-time `applyThemeSeeds()`, and the Preferences Window replacing the disabled placeholder in `UserMenu.tsx`. Dark schemes are nearly free (Surface is already an explicit seed).
 - **Density/typography preferences** remain possible later but are out of the current plan.
 - **CellEditors** (table-cell editing) and TipTap-internal styling are deliberately excluded from the primitive set; revisit if a third consumer appears.

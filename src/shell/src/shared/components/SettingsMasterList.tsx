@@ -44,7 +44,7 @@ export function SettingsMasterList({
         <Search size={12} className="shrink-0 text-[var(--color-ink-muted-foreground)]" />
         <input
           type="text"
-          className="w-full bg-transparent text-[13px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted-foreground)] outline-none"
+          className="w-full bg-transparent text-base text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted-foreground)] outline-none"
           placeholder={filterPlaceholder}
           value={localFilter}
           onChange={(e) => handleFilterChange(e.target.value)}
@@ -57,7 +57,7 @@ export function SettingsMasterList({
             <button
               key={row.id}
               type="button"
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors border-0 bg-transparent ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-0 bg-transparent ${
                 i < rows.length - 1 ? "border-b border-[var(--color-ink-hairline)]" : ""
               } ${
                 selectedId === row.id
@@ -75,7 +75,7 @@ export function SettingsMasterList({
               )}
               <span className="flex-1 truncate">{row.label}</span>
               {row.secondary && (
-                <span className="shrink-0 font-[var(--font-label)] text-[10px] text-[var(--color-ink-muted-foreground)]">
+                <span className="shrink-0 font-[var(--font-label)] text-2xs text-[var(--color-ink-muted-foreground)]">
                   {row.secondary}
                 </span>
               )}

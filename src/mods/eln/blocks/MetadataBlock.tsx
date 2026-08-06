@@ -54,7 +54,7 @@ export function MetadataBlock({ context }: BlockComponentProps) {
 
   return (
     <section>
-      <dl className="space-y-2.5 text-[13px]">
+      <dl className="space-y-2.5 text-base">
         <div className="flex items-start justify-between gap-3">
           <dt className="text-muted-foreground">Author</dt>
           <dd className="text-right">

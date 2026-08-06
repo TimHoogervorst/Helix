@@ -134,13 +134,13 @@ export function RecognitionsSection() {
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
 
       {items.length === 0 && mode.type !== "adding" ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           No recognitions yet.
         </p>
       ) : (
@@ -163,10 +163,10 @@ export function RecognitionsSection() {
                 className="group/row flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-foreground">
+                  <p className="text-base font-medium text-foreground">
                     {item.title}
                   </p>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {[item.issuer, item.date].filter(Boolean).join(" · ")}
                   </p>
                 </div>
@@ -224,34 +224,34 @@ function RecognitionEditRow({
     <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Title
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.title}
             onChange={(e) => onChange({ ...form, title: e.target.value })}
             placeholder="e.g. Best Poster Award"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Issuer
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.issuer}
             onChange={(e) => onChange({ ...form, issuer: e.target.value })}
             placeholder="e.g. ACS"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Date
           </span>
           <Input
             type="date"
-            className="text-[13px]"
+            className="text-base"
             value={form.date}
             onChange={(e) => onChange({ ...form, date: e.target.value })}
           />

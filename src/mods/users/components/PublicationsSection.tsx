@@ -137,13 +137,13 @@ export function PublicationsSection() {
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
 
       {items.length === 0 && mode.type !== "adding" ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           No publications yet.
         </p>
       ) : (
@@ -167,7 +167,7 @@ export function PublicationsSection() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[13px] font-medium text-foreground truncate">
+                    <p className="text-base font-medium text-foreground truncate">
                       {item.title}
                     </p>
                     {item.url && (
@@ -182,7 +182,7 @@ export function PublicationsSection() {
                       </a>
                     )}
                   </div>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {[item.journal, item.role, item.year]
                       .filter(Boolean)
                       .join(" · ")}
@@ -242,57 +242,57 @@ function PublicationEditRow({
     <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-0.5 sm:col-span-2">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Title
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.title}
             onChange={(e) => onChange({ ...form, title: e.target.value })}
             placeholder="e.g. A novel approach to..."
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Journal
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.journal}
             onChange={(e) => onChange({ ...form, journal: e.target.value })}
             placeholder="e.g. Nature"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Year
           </span>
           <Input
             type="number"
-            className="text-[13px]"
+            className="text-base"
             value={form.year}
             onChange={(e) => onChange({ ...form, year: e.target.value })}
             placeholder="2026"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Role
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.role}
             onChange={(e) => onChange({ ...form, role: e.target.value })}
             placeholder="e.g. First author"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             URL
           </span>
           <Input
             type="url"
-            className="text-[13px]"
+            className="text-base"
             value={form.url}
             onChange={(e) => onChange({ ...form, url: e.target.value })}
             placeholder="https://doi.org/..."

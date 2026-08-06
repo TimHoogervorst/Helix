@@ -137,13 +137,13 @@ export function AffiliationsSection() {
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
 
       {items.length === 0 && mode.type !== "adding" ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           No affiliations yet.
         </p>
       ) : (
@@ -166,15 +166,15 @@ export function AffiliationsSection() {
                 className="group/row flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-foreground">
+                  <p className="text-base font-medium text-foreground">
                     {item.institution}
                   </p>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {item.role}
                     {item.department ? `, ${item.department}` : ""}
                   </p>
                   {(item.start_date || item.end_date) && (
-                    <p className="font-mono text-[11px] text-muted-foreground">
+                    <p className="font-mono text-xs text-muted-foreground">
                       {[item.start_date, item.end_date]
                         .filter(Boolean)
                         .join(" – ")}
@@ -235,33 +235,33 @@ function AffiliationEditRow({
     <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Institution
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.institution}
             onChange={(e) => onChange({ ...form, institution: e.target.value })}
             placeholder="e.g. Stanford University"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Role
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.role}
             onChange={(e) => onChange({ ...form, role: e.target.value })}
             placeholder="e.g. Postdoc"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Department
           </span>
           <Input
-            className="text-[13px]"
+            className="text-base"
             value={form.department}
             onChange={(e) => onChange({ ...form, department: e.target.value })}
             placeholder="e.g. Chemistry"
@@ -269,12 +269,12 @@ function AffiliationEditRow({
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-medium text-muted-foreground">
+            <span className="text-xs font-medium text-muted-foreground">
               Start
             </span>
             <Input
               type="date"
-              className="text-[13px]"
+              className="text-base"
               value={form.start_date}
               onChange={(e) =>
                 onChange({ ...form, start_date: e.target.value })
@@ -282,12 +282,12 @@ function AffiliationEditRow({
             />
           </label>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-medium text-muted-foreground">
+            <span className="text-xs font-medium text-muted-foreground">
               End
             </span>
             <Input
               type="date"
-              className="text-[13px]"
+              className="text-base"
               value={form.end_date}
               onChange={(e) =>
                 onChange({ ...form, end_date: e.target.value })

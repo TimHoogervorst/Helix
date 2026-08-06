@@ -73,7 +73,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
       {/* Top row: icon + label */}
       <div className="flex items-center gap-1.5">
         <IconBadge iconKey={iconToken} colorKey={colorKey} size="sm" />
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground leading-snug">
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground leading-snug">
           {label}
         </span>
       </div>
@@ -88,7 +88,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
         ) : valueError ? (
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            <span className="font-mono text-[11px]">Failed to load</span>
+            <span className="font-mono text-xs">Failed to load</span>
           </span>
         ) : (
           <span
@@ -101,7 +101,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
 
       {/* Subtitle — fixed height keeps number from shifting */}
       <div className="h-4">
-        <span className="font-mono text-[11px] text-muted-foreground">
+        <span className="font-mono text-xs text-muted-foreground">
           {subtitle ?? ""}
         </span>
       </div>
@@ -285,7 +285,7 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
                         aria-hidden="true"
                       />
                     </span>
-                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Add card
                     </span>
                   </button>

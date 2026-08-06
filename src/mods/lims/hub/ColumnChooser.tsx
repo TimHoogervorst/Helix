@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Columns2, Lock, LockOpen } from "lucide-react";
 import type { AvailableColumn } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 
 // ── Column definition with visibility & lock metadata ───────────────────
 
@@ -139,14 +140,14 @@ export function ColumnChooser({
 
   return (
     <div className="entities-filter-columns-wrap" ref={popoverRef}>
-      <button
-        className={`entities-filter-columns-btn${open ? " is-active" : ""}`}
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
+      <IconButton
+        className={open ? "is-active" : ""}
+        aria-label="Column visibility"
         title="Column visibility"
+        onClick={() => setOpen((prev) => !prev)}
       >
         <Columns2 size={14} />
-      </button>
+      </IconButton>
 
       {open && (
         <div className="entities-column-chooser-popover">
@@ -175,9 +176,9 @@ export function ColumnChooser({
                     </span>
                   </label>
                   {col.hideable && (
-                    <button
+                    <IconButton
                       className={`entities-column-chooser-lock${isLocked ? " is-locked" : ""}`}
-                      type="button"
+                      aria-label={isLocked ? "Unlock column" : "Lock column"}
                       title={isLocked ? "Unlock column" : "Lock column"}
                       onClick={() => onToggleLock(idx)}
                     >
@@ -186,7 +187,7 @@ export function ColumnChooser({
                       ) : (
                         <LockOpen size={13} />
                       )}
-                    </button>
+                    </IconButton>
                   )}
                 </div>
               );

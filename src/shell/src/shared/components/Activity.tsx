@@ -7,6 +7,7 @@ import type {
 } from "../types/actions";
 import { relativeTime, humanizeActionType } from "../format";
 import { isGroup } from "../groupActions";
+import { Button } from "../primitives/Button";
 
 /**
  * Derive a display name from an action's `performedBy` user.
@@ -147,13 +148,15 @@ export function Activity({
         )}
       </ul>
       {hasMore && (
-        <button
-          className="btn-ghost mt-2 rounded-md px-2 py-1 text-[12px]"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2"
           onClick={() => setShowAll((prev) => !prev)}
           data-testid="activity-show-all"
         >
           {showAll ? "Show less" : `Show all (${actions.length})`}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -170,9 +173,9 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
 
   return (
     <li data-testid="activity-item" data-state={group.state}>
-      <button
-        type="button"
-        className="btn-ghost flex w-full items-start gap-2 p-0 text-left"
+      <Button
+        variant="ghost"
+        className="w-full justify-start p-0 text-left"
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
         data-testid="activity-group-toggle"
@@ -196,7 +199,7 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
         <span className="shrink-0 text-muted-foreground/70">
           · {relativeTime(group.createdAt)}
         </span>
-      </button>
+      </Button>
       {expanded && (
         <ul className="mt-1 space-y-1">
           {group.children.map((child) => (

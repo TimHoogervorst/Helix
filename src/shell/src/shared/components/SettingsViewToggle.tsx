@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { TabBar } from "../primitives/TabBar";
 
 export interface ViewToggleSegment {
   value: string;
@@ -17,18 +18,10 @@ export function SettingsViewToggle({
   onChange,
 }: SettingsViewToggleProps) {
   return (
-    <div className="library-view-toggle-group" role="group" aria-label="View toggle">
-      {segments.map((segment) => (
-        <button
-          key={segment.value}
-          className={`library-view-toggle${segment.value === value ? " is-active" : ""}`}
-          type="button"
-          onClick={() => onChange(segment.value)}
-          aria-pressed={segment.value === value}
-        >
-          {segment.label}
-        </button>
-      ))}
-    </div>
+    <TabBar
+      tabs={segments.map((s) => ({ id: s.value, label: s.label }))}
+      activeTab={value}
+      onTabChange={onChange}
+    />
   );
 }

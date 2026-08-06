@@ -28,10 +28,10 @@ export function SettingsCardGrid({
   return (
     <div className="flex flex-col min-h-0">
       <div className="flex items-center gap-2 py-2">
-        <Search size={12} className="shrink-0 text-muted-foreground" />
+        <Search size={12} className="shrink-0 text-[var(--color-ink-muted-foreground)]" />
         <input
           type="text"
-          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          className="w-full bg-transparent text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted-foreground)] outline-none"
           placeholder={filterPlaceholder}
           value={localFilter}
           onChange={(e) => handleFilterChange(e.target.value)}
@@ -43,7 +43,7 @@ export function SettingsCardGrid({
             {children}
           </div>
         ) : (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="py-4 text-center text-xs text-[var(--color-ink-muted-foreground)]">
             {emptyMessage}
           </p>
         )}

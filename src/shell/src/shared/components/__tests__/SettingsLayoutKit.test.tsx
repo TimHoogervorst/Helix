@@ -97,20 +97,19 @@ describe("SettingsPageLayout", () => {
 // ── SettingsHeroHeader ────────────────────────────────────────────────────
 
 describe("SettingsHeroHeader", () => {
-  it("renders the eyebrow in mono font", () => {
+  it("renders the eyebrow with text-eyebrow composite style", () => {
     render(<SettingsHeroHeader eyebrow="schema directory" title="Schemas" />);
     const eyebrow = screen.getByText("schema directory");
     expect(eyebrow).toBeInTheDocument();
-    expect(eyebrow.className).toContain("font-mono");
-    expect(eyebrow.className).toContain("uppercase");
+    expect(eyebrow.className).toContain("text-eyebrow");
   });
 
-  it("renders the title in serif font", () => {
+  it("renders the title with text-title composite style", () => {
     render(<SettingsHeroHeader eyebrow="schema directory" title="Schemas" />);
     const title = screen.getByText("Schemas");
     expect(title).toBeInTheDocument();
     expect(title.tagName).toBe("H1");
-    expect(title.className).toContain("font-serif");
+    expect(title.className).toContain("text-title");
   });
 
   it("renders description when provided", () => {
@@ -194,14 +193,14 @@ describe("SettingsSectionCard", () => {
     expect(screen.getByTestId("inner")).toBeInTheDocument();
   });
 
-  it("renders as a section element", () => {
+  it("renders the card with rounded border styling", () => {
     render(
       <SettingsSectionCard title="Details">
         <div>Content</div>
       </SettingsSectionCard>,
     );
-    const section = document.querySelector("section");
-    expect(section).not.toBeNull();
+    const card = document.querySelector(".rounded-lg");
+    expect(card).not.toBeNull();
   });
 });
 
@@ -274,9 +273,9 @@ describe("SettingsMasterList", () => {
   it("highlights the selected row", () => {
     render(<SettingsMasterList {...baseProps} selectedId="b" />);
     const betaBtn = screen.getByText("Beta").closest("button");
-    expect(betaBtn?.className.split(/\s+/)).toContain("bg-[#E7F7F3]");
+    expect(betaBtn?.className.split(/\s+/)).toContain("bg-[var(--color-primary-subtle)]");
     const alphaBtn = screen.getByText("Alpha").closest("button");
-    expect(alphaBtn?.className.split(/\s+/)).not.toContain("bg-[#E7F7F3]");
+    expect(alphaBtn?.className.split(/\s+/)).not.toContain("bg-[var(--color-primary-subtle)]");
   });
 
   it("renders a filter search input", () => {
@@ -320,7 +319,7 @@ describe("SettingsMasterList", () => {
       />,
     );
     const dirtyRow = screen.getByText("Dirty").closest("button");
-    const dot = dirtyRow?.querySelector(".bg-primary");
+    const dot = dirtyRow?.querySelector(".bg-\\[var\\(--color-primary\\)\\]");
     expect(dot).not.toBeNull();
   });
 
@@ -367,7 +366,7 @@ describe("SettingsViewToggle", () => {
     expect(screen.getByText("Relationship map")).toBeInTheDocument();
   });
 
-  it("applies is-active to the selected segment", () => {
+  it("styles selected segment differently", () => {
     render(
       <SettingsViewToggle
         segments={segments}
@@ -375,10 +374,10 @@ describe("SettingsViewToggle", () => {
         onChange={vi.fn()}
       />,
     );
-    const editorBtn = screen.getByText("Editor");
-    const mapBtn = screen.getByText("Relationship map");
-    expect(editorBtn.className).toContain("is-active");
-    expect(mapBtn.className).not.toContain("is-active");
+    const editorBtn = screen.getByRole("tab", { name: "Editor" });
+    const mapBtn = screen.getByRole("tab", { name: "Relationship map" });
+    expect(editorBtn.getAttribute("aria-selected")).toBe("true");
+    expect(mapBtn.getAttribute("aria-selected")).toBe("false");
   });
 
   it("calls onChange when a segment is clicked", () => {
@@ -394,7 +393,7 @@ describe("SettingsViewToggle", () => {
     expect(onChange).toHaveBeenCalledWith("map");
   });
 
-  it("uses the library-view-toggle CSS classes", () => {
+  it("uses the TabBar role and styling", () => {
     render(
       <SettingsViewToggle
         segments={segments}
@@ -402,13 +401,13 @@ describe("SettingsViewToggle", () => {
         onChange={vi.fn()}
       />,
     );
-    const group = document.querySelector(".library-view-toggle-group");
-    expect(group).not.toBeNull();
-    const toggle = document.querySelector(".library-view-toggle");
-    expect(toggle).not.toBeNull();
+    const tablist = screen.getByRole("tablist");
+    expect(tablist).not.toBeNull();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.length).toBeGreaterThan(0);
   });
 
-  it("has correct ARIA attributes for the toggle group", () => {
+  it("has correct ARIA attributes for the tab bar", () => {
     render(
       <SettingsViewToggle
         segments={segments}
@@ -416,22 +415,10 @@ describe("SettingsViewToggle", () => {
         onChange={vi.fn()}
       />,
     );
-    const group = screen.getByRole("group");
-    expect(group).toHaveAttribute("aria-label", "View toggle");
-  });
-
-  it("sets aria-pressed on buttons", () => {
-    render(
-      <SettingsViewToggle
-        segments={segments}
-        value="editor"
-        onChange={vi.fn()}
-      />,
-    );
-    const editorBtn = screen.getByRole("button", { name: "Editor" });
-    const mapBtn = screen.getByRole("button", { name: "Relationship map" });
-    expect(editorBtn).toHaveAttribute("aria-pressed", "true");
-    expect(mapBtn).toHaveAttribute("aria-pressed", "false");
+    const editorTab = screen.getByRole("tab", { name: "Editor" });
+    const mapTab = screen.getByRole("tab", { name: "Relationship map" });
+    expect(editorTab).toHaveAttribute("aria-selected", "true");
+    expect(mapTab).toHaveAttribute("aria-selected", "false");
   });
 
   it("renders a two-segment toggle", () => {
@@ -442,8 +429,8 @@ describe("SettingsViewToggle", () => {
         onChange={vi.fn()}
       />,
     );
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(2);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(2);
   });
 
   it("renders a three-segment toggle", () => {
@@ -459,7 +446,7 @@ describe("SettingsViewToggle", () => {
         onChange={vi.fn()}
       />,
     );
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(3);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(3);
   });
 });

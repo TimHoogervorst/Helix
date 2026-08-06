@@ -8,6 +8,9 @@ import {
 } from "../api";
 import { deriveDropdownColor } from "../colourUtils";
 import type { Dropdown } from "../types";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
 import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
 import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
@@ -247,26 +250,23 @@ function DropdownSettings() {
             title="Dropdowns"
             description="Manage controlled vocabularies for dropdown columns. Option colours are derived automatically from the option text."
             actions={
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              <Button
+                size="sm"
                 onClick={() => setShowNew(!showNew)}
               >
                 {showNew ? "Cancel" : "+ New Dropdown"}
-              </button>
+              </Button>
             }
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
               <div className="space-y-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">
                     Name
                   </span>
-                  <input
-                    type="text"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                  <Input
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder='e.g. "Priority", "Department"'
@@ -277,16 +277,14 @@ function DropdownSettings() {
                 </label>
 
                 <fieldset>
-                  <legend className="mb-1 text-[11px] text-muted-foreground">
+                  <legend className="mb-1 text-[11px] text-[var(--color-ink-muted-foreground)]">
                     Options
                   </legend>
                   <div className="space-y-2">
                     {newOptions.map((opt, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <OptionColorDot value={opt || "(empty)"} />
-                        <input
-                          type="text"
-                          className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                        <Input
                           value={opt}
                           onChange={(e) =>
                             updateNewOption(i, e.target.value)
@@ -296,7 +294,7 @@ function DropdownSettings() {
                         {newOptions.length > 1 && (
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
+                            className="rounded border-transparent bg-transparent p-1 text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-warning)]"
                             title="Remove option"
                             onClick={() => removeNewOption(i)}
                           >
@@ -308,7 +306,7 @@ function DropdownSettings() {
                   </div>
                   <button
                     type="button"
-                    className="mt-2 rounded-md border border-hairline px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted"
+                    className="mt-2 rounded-md border border-[var(--color-ink-hairline)] px-2 py-1 text-[11px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)]"
                     onClick={addNewOption}
                   >
                     <Plus className="mr-1 inline h-3 w-3" />
@@ -317,17 +315,16 @@ function DropdownSettings() {
                 </fieldset>
 
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  <Button
+                    size="sm"
                     onClick={handleCreate}
                     disabled={saving || !newName.trim()}
                   >
                     {saving ? "Creating…" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setShowNew(false);
                       setNewName("");
@@ -335,7 +332,7 @@ function DropdownSettings() {
                     }}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -345,33 +342,28 @@ function DropdownSettings() {
       bottomBar={
         dirtyCount > 0 ? (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-[var(--color-ink-muted-foreground)]">
               {dirtyCount} dropdown{dirtyCount !== 1 ? "s" : ""} with unsaved
               changes
             </span>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={discardAllEdits}
-              >
+              <Button variant="ghost" size="sm" onClick={discardAllEdits}>
                 Discard Changes
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              </Button>
+              <Button
+                size="sm"
                 onClick={saveAllChanges}
                 disabled={saving}
               >
                 {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
-              </button>
+              </Button>
             </div>
           </div>
         ) : undefined
       }
     >
       {error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {error}
         </div>
       )}
@@ -387,7 +379,7 @@ function DropdownSettings() {
             filterPlaceholder="Filter dropdowns"
           />
           {masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
               No dropdowns found.
             </p>
           )}
@@ -401,33 +393,30 @@ function DropdownSettings() {
                 subtitle={`#${selectedDropdown.id}`}
                 actions={
                   <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                      onClick={handleDelete}
+                    <IconButton
+                      aria-label="Delete dropdown"
                       title="Delete dropdown"
+                      onClick={handleDelete}
+                      className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
                     >
                       <Trash2 size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => setSelectedId(null)}
+                    </IconButton>
+                    <IconButton
+                      aria-label="Close detail"
                       title="Close detail"
+                      onClick={() => setSelectedId(null)}
                     >
                       <X size={14} />
-                    </button>
+                    </IconButton>
                   </div>
                 }
               >
                 <div className="space-y-3">
                   <label className="block">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                       Name
                     </span>
-                    <input
-                      type="text"
-                      className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    <Input
                       value={editingDropdown.name}
                       onChange={(e) => handleNameChange(e.target.value)}
                       placeholder="Dropdown name"
@@ -435,28 +424,28 @@ function DropdownSettings() {
                   </label>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                         Options
                       </span>
-                      <span className="text-sm text-foreground">
+                      <span className="text-sm text-[var(--color-ink)]">
                         {editingDropdown.options.length}
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                         Created
                       </span>
-                      <span className="text-sm text-foreground">
+                      <span className="text-sm text-[var(--color-ink)]">
                         {new Date(
                           selectedDropdown.created_at,
                         ).toLocaleDateString()}
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                      <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                         Updated
                       </span>
-                      <span className="text-sm text-foreground">
+                      <span className="text-sm text-[var(--color-ink)]">
                         {new Date(
                           selectedDropdown.updated_at,
                         ).toLocaleDateString()}
@@ -464,7 +453,7 @@ function DropdownSettings() {
                     </div>
                   </div>
                   {dirtyEdits.has(selectedDropdown.id) && (
-                    <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5 text-[11px] text-primary">
+                    <div className="rounded-md border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 px-3 py-1.5 text-[11px] text-[var(--color-primary)]">
                       Unsaved changes — review and save when ready.
                     </div>
                   )}
@@ -476,18 +465,14 @@ function DropdownSettings() {
                 title="Options"
                 subtitle={`${editingDropdown.options.length} option${editingDropdown.options.length !== 1 ? "s" : ""}`}
                 actions={
-                  <button
-                    type="button"
-                    className="rounded-md border-transparent bg-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={handleAddOption}
-                  >
+                  <Button variant="ghost" size="sm" onClick={handleAddOption}>
                     + Add Option
-                  </button>
+                  </Button>
                 }
               >
                 <div className="px-4 pb-4">
                   {editingDropdown.options.length === 0 && (
-                    <p className="py-4 text-center text-xs text-muted-foreground">
+                    <p className="py-4 text-center text-xs text-[var(--color-ink-muted-foreground)]">
                       No options yet. Add an option to get started.
                     </p>
                   )}
@@ -498,12 +483,11 @@ function DropdownSettings() {
                       return (
                         <div
                           key={i}
-                          className="flex items-center gap-2 border-b border-hairline px-3 py-2 last:border-b-0"
+                          className="flex items-center gap-2 border-b border-[var(--color-ink-hairline)] px-3 py-2 last:border-b-0"
                         >
                           <OptionColorDot value={opt || "(empty)"} />
-                          <input
-                            type="text"
-                            className="min-w-0 flex-1 bg-transparent py-0.5 text-[13px] text-foreground placeholder:text-muted-foreground outline-none"
+                          <Input
+                            className="min-w-0 flex-1 bg-transparent py-0.5 text-[var(--color-ink)]"
                             value={opt}
                             onChange={(e) =>
                               handleOptionChange(i, e.target.value)
@@ -513,7 +497,7 @@ function DropdownSettings() {
                           <div className="flex shrink-0 items-center gap-0.5">
                             <button
                               type="button"
-                              className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+                              className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                               onClick={() => handleMoveOption(i, "up")}
                               disabled={i === 0}
                               title="Move up"
@@ -522,7 +506,7 @@ function DropdownSettings() {
                             </button>
                             <button
                               type="button"
-                              className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+                              className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                               onClick={() => handleMoveOption(i, "down")}
                               disabled={
                                 i === editingDropdown.options.length - 1
@@ -534,7 +518,7 @@ function DropdownSettings() {
                             {editingDropdown.options.length > 1 && (
                               <button
                                 type="button"
-                                className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-warn transition-colors hover:bg-muted/50"
+                                className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)]/50"
                                 onClick={() => handleRemoveOption(i)}
                                 title="Remove option"
                               >
@@ -550,7 +534,7 @@ function DropdownSettings() {
               </SettingsSectionCard>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
               Select a dropdown from the list to view or edit its details.
             </div>
           )}

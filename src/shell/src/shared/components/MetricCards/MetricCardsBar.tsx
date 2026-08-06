@@ -18,6 +18,8 @@ import {
 import type { CardState, CardData } from "./types";
 import { CardBuilderModal } from "./CardBuilderModal";
 import { IconBadge } from "../IconBadge";
+import { IconButton } from "../../primitives/IconButton";
+import { Button } from "../../primitives/Button";
 
 // ── Loading Skeleton ───────────────────────────────────────────────────────
 
@@ -59,15 +61,14 @@ function CardTile({ state, onEdit }: CardTileProps) {
   return (
     <div className="group relative flex-shrink-0 w-1/4 min-w-[180px] flex flex-col bg-card px-4 py-3">
       {/* Hover edit button */}
-      <button
-        type="button"
-        className="btn-icon absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
+      <IconButton
+        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => onEdit(card)}
         title="Edit card"
         aria-label="Edit card"
       >
         <Pencil className="h-3.5 w-3.5" />
-      </button>
+      </IconButton>
 
       {/* Top row: icon + label */}
       <div className="flex items-center gap-1.5">
@@ -91,7 +92,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
           </span>
         ) : (
           <span
-            className="font-serif text-3xl font-semibold tracking-tight"
+            className="font-[var(--font-body)] text-3xl font-semibold tracking-tight"
           >
             {value !== null ? value : "\u2014"}
           </span>
@@ -116,14 +117,14 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <p className="text-sm text-muted-foreground">
         Pin a metric to see it here.
       </p>
-      <button
-        type="button"
-        className="btn-ghost mt-2"
+      <Button
+        variant="ghost"
+        className="mt-2"
         onClick={onAdd}
       >
         <Plus className="h-4 w-4" />
         Add card
-      </button>
+      </Button>
     </div>
   );
 }
@@ -238,24 +239,22 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
         <div className="mx-auto max-w-4xl relative">
           {totalPages > 1 && (
             <>
-              <button
-                type="button"
-                className="btn-icon absolute -left-6 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity disabled:opacity-20"
+              <IconButton
+                className="absolute -left-6 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity disabled:opacity-20"
                 onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
                 disabled={currentPage === 0}
                 aria-label="Show previous cards"
               >
                 <ChevronLeft className="h-4 w-4 text-muted-foreground/60" />
-              </button>
-              <button
-                type="button"
-                className="btn-icon absolute -right-6 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity disabled:opacity-20"
+              </IconButton>
+              <IconButton
+                className="absolute -right-6 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity disabled:opacity-20"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={currentPage >= totalPages - 1}
                 aria-label="Show next cards"
               >
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </button>
+              </IconButton>
             </>
           )}
           <div className="flex gap-px overflow-x-hidden items-stretch">

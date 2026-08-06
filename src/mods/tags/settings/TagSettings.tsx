@@ -15,6 +15,10 @@ import {
 } from "../api";
 import type { Tag } from "../types";
 import type { ColorToken, IconLibraryEntry, DeleteResponse } from "../api";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
@@ -653,13 +657,11 @@ function TagSettings() {
   const heroCreatePanel = () => {
     if (activeTab === "tags" && tags.showNew) {
       return (
-        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Name</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Name</span>
+              <Input
                 value={tags.newName}
                 onChange={(e) => tags.setNewName(e.target.value)}
                 placeholder="e.g., Urgent"
@@ -669,7 +671,7 @@ function TagSettings() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Icon &amp; Colour</span>
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Icon &amp; Colour</span>
               <IconPickerPopover
                 iconKey={tags.newIcon}
                 colorKey={tags.newColor}
@@ -681,17 +683,16 @@ function TagSettings() {
               />
             </label>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              <Button
+                size="sm"
                 onClick={tags.handleCreate}
                 disabled={tags.saving || !tags.newName.trim()}
               >
                 {tags.saving ? "Creating…" : "Create"}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   tags.setShowNew(false);
                   tags.setNewName("");
@@ -700,7 +701,7 @@ function TagSettings() {
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -710,41 +711,37 @@ function TagSettings() {
     if (activeTab === "colours" && colours.showNew) {
       const hexValid = /^#[0-9A-Fa-f]{3,6}$/.test(colours.newHex.trim());
       return (
-        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Key</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Key</span>
+              <Input
+                className="font-[var(--font-label)]"
                 value={colours.newKey}
                 onChange={(e) => colours.setNewKey(e.target.value)}
                 placeholder="e.g., crimson"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Label</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Label</span>
+              <Input
                 value={colours.newLabel}
                 onChange={(e) => colours.setNewLabel(e.target.value)}
                 placeholder="e.g., Crimson"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Hex</span>
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Hex</span>
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  className="w-24 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+                <Input
+                  className="w-24 font-[var(--font-label)]"
                   value={colours.newHex}
                   onChange={(e) => colours.setNewHex(e.target.value)}
                   placeholder="#FF0000"
                 />
                 {hexValid && (
                   <div
-                    className="h-7 w-7 shrink-0 rounded border border-hairline"
+                    className="h-7 w-7 shrink-0 rounded border border-[var(--color-ink-hairline)]"
                     style={{ backgroundColor: colours.newHex.trim() }}
                     data-testid="hex-preview"
                   />
@@ -752,9 +749,8 @@ function TagSettings() {
               </div>
             </label>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              <Button
+                size="sm"
                 onClick={colours.handleCreate}
                 disabled={
                   colours.saving ||
@@ -764,10 +760,10 @@ function TagSettings() {
                 }
               >
                 {colours.saving ? "Creating…" : "Create"}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   colours.setShowNew(false);
                   colours.setNewKey("");
@@ -776,7 +772,7 @@ function TagSettings() {
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -785,34 +781,31 @@ function TagSettings() {
 
     if (activeTab === "icons" && icons.showSvgUpload) {
       return (
-        <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Key</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm font-mono outline-none focus:border-primary/50"
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Key</span>
+              <Input
+                className="font-[var(--font-label)]"
                 value={icons.newKey}
                 onChange={(e) => icons.setNewKey(e.target.value)}
                 placeholder="e.g., petri-dish"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Label</span>
-              <input
-                type="text"
-                className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Label</span>
+              <Input
                 value={icons.newLabel}
                 onChange={(e) => icons.setNewLabel(e.target.value)}
                 placeholder="e.g., Petri Dish"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">SVG File</span>
+              <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">SVG File</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  className="rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)]"
                   onClick={() => {
                     const input = document.createElement("input");
                     input.type = "file";
@@ -841,9 +834,8 @@ function TagSettings() {
               </div>
             </label>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              <Button
+                size="sm"
                 onClick={icons.handleUploadSvg}
                 disabled={
                   icons.saving ||
@@ -853,10 +845,10 @@ function TagSettings() {
                 }
               >
                 {icons.saving ? "Uploading…" : "Upload"}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   icons.setShowSvgUpload(false);
                   icons.setNewKey("");
@@ -866,7 +858,7 @@ function TagSettings() {
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -881,50 +873,47 @@ function TagSettings() {
   const heroActions = () => {
     if (activeTab === "tags") {
       return (
-        <button
-          type="button"
+        <Button
           data-testid="new-tag-button"
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          size="sm"
           onClick={() => tags.setShowNew(!tags.showNew)}
         >
           {tags.showNew ? "Cancel" : "+ New Tag"}
-        </button>
+        </Button>
       );
     }
 
     if (activeTab === "colours") {
       return (
-        <button
-          type="button"
+        <Button
           data-testid="new-colour-button"
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          size="sm"
           onClick={() => colours.setShowNew(!colours.showNew)}
         >
           {colours.showNew ? "Cancel" : "+ New Colour"}
-        </button>
+        </Button>
       );
     }
 
     if (activeTab === "icons") {
       return (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
             data-testid="add-from-lucide-button"
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            size="sm"
             onClick={() => icons.setShowLucideBrowser(true)}
           >
             + Add from Lucide
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             data-testid="upload-svg-button"
-            className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
             onClick={() => icons.setShowSvgUpload(!icons.showSvgUpload)}
           >
-            <Upload size={12} className="inline mr-1" />
+            <Upload size={12} className="mr-1" />
             {icons.showSvgUpload ? "Cancel" : "Upload SVG"}
-          </button>
+          </Button>
         </div>
       );
     }
@@ -938,28 +927,23 @@ function TagSettings() {
     if (activeTab === "tags" && tags.dirtyCount > 0) {
       return (
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-[var(--color-ink-muted-foreground)]">
             {tags.dirtyCount} tag{tags.dirtyCount !== 1 ? "s" : ""} with
             unsaved changes
           </span>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              onClick={tags.discardAllEdits}
-            >
+            <Button variant="ghost" size="sm" onClick={tags.discardAllEdits}>
               Discard Changes
-            </button>
-            <button
-              type="button"
-              className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            </Button>
+            <Button
+              size="sm"
               onClick={tags.saveAllChanges}
               disabled={tags.saving}
             >
               {tags.saving
                 ? "Saving…"
                 : `Save Changes (${tags.dirtyCount})`}
-            </button>
+            </Button>
           </div>
         </div>
       );
@@ -997,7 +981,7 @@ function TagSettings() {
   const renderTagsContent = () => (
     <div className={activeTab === "tags" ? "" : "hidden"}>
       {tags.error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {tags.error}
         </div>
       )}
@@ -1013,7 +997,7 @@ function TagSettings() {
             filterPlaceholder="Filter tags"
           />
           {tags.masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
               No tags found.
             </p>
           )}
@@ -1026,40 +1010,37 @@ function TagSettings() {
               subtitle={`#${tags.selectedTag.id}`}
               actions={
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                    onClick={tags.handleDelete}
+                  <IconButton
+                    aria-label="Delete tag"
                     title="Delete tag"
+                    onClick={tags.handleDelete}
+                    className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
                   >
                     <Trash2 size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() => tags.setSelectedId(null)}
+                  </IconButton>
+                  <IconButton
+                    aria-label="Close detail"
                     title="Close detail"
+                    onClick={() => tags.setSelectedId(null)}
                   >
                     <X size={14} />
-                  </button>
+                  </IconButton>
                 </div>
               }
             >
               <div className="space-y-3">
                 <label className="block">
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                  <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                     Name
                   </span>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                  <Input
                     value={tags.editingTag.name}
                     onChange={(e) => tags.handleNameChange(e.target.value)}
                     placeholder="Tag name"
                   />
                 </label>
                 <div className="flex flex-col gap-2">
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                  <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                     Icon &amp; Colour
                   </span>
                   <IconPickerPopover
@@ -1072,7 +1053,7 @@ function TagSettings() {
               </div>
             </SettingsSectionCard>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
               Select a tag from the list to view or edit its details.
             </div>
           )}
@@ -1084,7 +1065,7 @@ function TagSettings() {
   const renderColoursContent = () => (
     <div className={activeTab === "colours" ? "" : "hidden"}>
       {colours.error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {colours.error}
         </div>
       )}
@@ -1107,11 +1088,11 @@ function TagSettings() {
           .map((c) => (
             <div
               key={c.id}
-              className="group relative rounded-lg border border-hairline bg-panel p-4 transition-shadow hover:shadow-sm"
+              className="group relative rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm"
             >
               <button
                 type="button"
-                className="btn-ghost absolute right-2 top-2 gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-warn group-hover:opacity-100"
+                className="absolute right-2 top-2 flex items-center gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-[var(--color-warning)] group-hover:opacity-100 border-0 bg-transparent text-[var(--color-ink)]"
                 onClick={() => colours.handleDeleteItem(c.id)}
                 title={`Delete colour "${c.label}"`}
               >
@@ -1120,14 +1101,14 @@ function TagSettings() {
               </button>
               <div className="flex flex-col items-center gap-2 text-center">
                 <div
-                  className="h-12 w-12 shrink-0 rounded border border-hairline"
+                  className="h-12 w-12 shrink-0 rounded border border-[var(--color-ink-hairline)]"
                   style={{ backgroundColor: c.hex }}
                 />
                 <div>
-                  <div className="text-[13px] font-medium text-foreground">
+                  <div className="text-[13px] font-medium text-[var(--color-ink)]">
                     {c.label}
                   </div>
-                  <div className="font-mono text-[11px] text-muted-foreground">
+                  <div className="font-[var(--font-label)] text-[11px] text-[var(--color-ink-muted-foreground)]">
                     {c.hex}
                   </div>
                 </div>
@@ -1141,7 +1122,7 @@ function TagSettings() {
   const renderIconsContent = () => (
     <div className={activeTab === "icons" ? "" : "hidden"}>
       {icons.error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {icons.error}
         </div>
       )}
@@ -1164,11 +1145,11 @@ function TagSettings() {
           .map((i) => (
             <div
               key={i.id}
-              className="group relative rounded-lg border border-hairline bg-panel p-4 transition-shadow hover:shadow-sm"
+              className="group relative rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm"
             >
               <button
                 type="button"
-                className="btn-ghost absolute right-2 top-2 gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-warn group-hover:opacity-100"
+                className="absolute right-2 top-2 flex items-center gap-1.5 rounded px-2 py-1 text-xs opacity-0 transition-opacity hover:text-[var(--color-warning)] group-hover:opacity-100 border-0 bg-transparent text-[var(--color-ink)]"
                 onClick={() => icons.handleDeleteItem(i.id)}
                 title={`Delete icon "${i.label}"`}
               >
@@ -1178,10 +1159,10 @@ function TagSettings() {
               <div className="flex flex-col items-center gap-2 text-center">
                 <IconBadge iconKey={i.key} colorKey="muted" size="lg" />
                 <div>
-                  <div className="text-[13px] font-medium text-foreground">
+                  <div className="text-[13px] font-medium text-[var(--color-ink)]">
                     {i.label}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-[11px] text-[var(--color-ink-muted-foreground)]">
                     {i.kind === "lucide" ? `Lucide · ${i.token}` : "Custom SVG"}
                   </div>
                 </div>
@@ -1216,32 +1197,15 @@ function TagSettings() {
           </>
         }
         tabs={
-          <div className="lims-tab-bar">
-            <button
-              type="button"
-              data-testid="tab-tags"
-              className={`lims-tab ${activeTab === "tags" ? "is-active" : ""}`}
-              onClick={() => setActiveTab("tags")}
-            >
-              Tags
-            </button>
-            <button
-              type="button"
-              data-testid="tab-colours"
-              className={`lims-tab ${activeTab === "colours" ? "is-active" : ""}`}
-              onClick={() => setActiveTab("colours")}
-            >
-              Colours
-            </button>
-            <button
-              type="button"
-              data-testid="tab-icons"
-              className={`lims-tab ${activeTab === "icons" ? "is-active" : ""}`}
-              onClick={() => setActiveTab("icons")}
-            >
-              Icons
-            </button>
-          </div>
+          <TabBar
+            tabs={[
+              { id: "tags", label: "Tags", testId: "tab-tags" },
+              { id: "colours", label: "Colours", testId: "tab-colours" },
+              { id: "icons", label: "Icons", testId: "tab-icons" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(tab) => setActiveTab(tab as TabKind)}
+          />
         }
         bottomBar={bottomBar()}
       >

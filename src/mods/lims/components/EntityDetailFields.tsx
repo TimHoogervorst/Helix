@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import type { EntityListItem } from "../types";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
+import {
+  Table,
+  TableHead,
+  TableRow,
+  TableHeaderCell,
+  TableCell,
+} from "../../../shell/src/shared/primitives/Table";
 
 export interface EntityDetailFieldsProps {
   entity: EntityListItem;
@@ -51,28 +58,28 @@ function EntityDetailFields({
         (entity.properties && Object.keys(entity.properties).length > 0 ? (
           <div className="detail-properties">
             <h3>Properties</h3>
-            <table className="properties-table">
-              <thead>
-                <tr>
-                  <th>Field</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Field</TableHeaderCell>
+                  <TableHeaderCell>Value</TableHeaderCell>
+                </TableRow>
+              </TableHead>
               <tbody>
                 {Object.entries(entity.properties).map(([key, value]) => (
-                  <tr key={key}>
-                    <td className="prop-key">{key}</td>
-                    <td className="prop-value">
+                  <TableRow key={key}>
+                    <TableCell className="prop-key">{key}</TableCell>
+                    <TableCell className="prop-value">
                       {typeof value === "boolean"
                         ? value
                           ? "✓"
                           : "✗"
                         : String(value ?? "—")}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         ) : (
           <div className="detail-properties">

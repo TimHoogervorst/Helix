@@ -1,6 +1,7 @@
 import { Component } from "react";
 import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Button } from "../primitives/Button";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -55,7 +56,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
             </div>
 
-            <h2 className="mb-2 font-serif text-[15px] font-semibold tracking-tight text-foreground">
+            <h2 className="mb-2 font-[var(--font-label)] text-[15px] font-semibold tracking-tight text-foreground">
               Something went wrong
             </h2>
 
@@ -75,14 +76,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </pre>
             </details>
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              className="rounded-md px-4 py-1.5 text-[13px] font-medium"
               onClick={this.handleRetry}
-              className="btn-primary rounded-md px-4 py-1.5 text-[13px] font-medium"
               data-testid="error-boundary-retry"
             >
               Try again
-            </button>
+            </Button>
           </div>
         </div>
       );

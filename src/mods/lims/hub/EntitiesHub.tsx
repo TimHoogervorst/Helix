@@ -53,6 +53,11 @@ import {
   deserializeFilter,
   type FilterRow,
 } from "./FilterBar";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Select } from "../../../shell/src/shared/primitives/Input";
+import { TableHead } from "../../../shell/src/shared/primitives/Table";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -752,22 +757,22 @@ function EntitiesHub() {
               role="group"
               aria-label="View mode"
             >
-              <button
-                className={`entities-view-toggle${viewMode === "compact" ? " is-active" : ""}`}
+              <IconButton
+                className={viewMode === "compact" ? "is-active" : ""}
+                aria-label="Compact view"
                 title="Compact view"
-                type="button"
                 onClick={() => handleViewModeChange("compact")}
               >
                 <AlignJustify size={15} />
-              </button>
-              <button
-                className={`entities-view-toggle${viewMode === "list" ? " is-active" : ""}`}
+              </IconButton>
+              <IconButton
+                className={viewMode === "list" ? "is-active" : ""}
+                aria-label="List view"
                 title="List view"
-                type="button"
                 onClick={() => handleViewModeChange("list")}
               >
                 <LayoutList size={15} />
-              </button>
+              </IconButton>
             </div>
           </div>
         </div>
@@ -777,9 +782,8 @@ function EntitiesHub() {
           {/* Search */}
           <div className="entities-filter-search-wrap">
             <Search size={15} className="entities-filter-search-icon" />
-            <input
+            <Input
               className="entities-filter-search"
-              type="text"
               placeholder="Search…"
               value={searchRaw}
               onChange={(e) => updateParam("search", e.target.value || null)}
@@ -793,7 +797,7 @@ function EntitiesHub() {
                 size={14}
                 className="entities-filter-select-icon"
               />
-              <select
+              <Select
                 className="entities-filter-select"
                 value={
                   schemaParam
@@ -837,7 +841,7 @@ function EntitiesHub() {
                     ))}
                   </optgroup>
                 ))}
-              </select>
+              </Select>
             </div>
 
             {/* Status dropdown */}
@@ -846,7 +850,7 @@ function EntitiesHub() {
                 size={14}
                 className="entities-filter-select-icon"
               />
-              <select
+              <Select
                 className="entities-filter-select"
                 value={statusParam}
                 onChange={(e) =>
@@ -856,13 +860,14 @@ function EntitiesHub() {
                 <option value="">All statuses</option>
                 <option value="in_progress">In Progress</option>
                 <option value="finished">Finished</option>
-              </select>
+              </Select>
             </div>
 
             {/* Sort button */}
-            <button
-              className={`entities-filter-sort-btn${sortParam ? " is-active" : ""}`}
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
+              className={sortParam ? "is-active" : ""}
               onClick={() => {
                 // Cycle through fields: each field asc → desc, then next field
                 if (!sort.field) {
@@ -896,7 +901,7 @@ function EntitiesHub() {
                   Sort
                 </>
               )}
-            </button>
+            </Button>
 
             {/* Column visibility chooser */}
             <ColumnChooser
@@ -931,13 +936,14 @@ function EntitiesHub() {
                 : "No entities found."}
             </p>
             {hasActiveFilters && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 className="entities-filter-clear-link"
-                type="button"
                 onClick={() => setSearchParams({})}
               >
                 Clear all filters
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -949,7 +955,7 @@ function EntitiesHub() {
               className={`entities-table-wrap view-${viewMode}`}
             >
               <table className="entities-table">
-                <thead>
+                <TableHead>
                   <tr>
                     {validVisibleColumns.map((col, idx) => {
                       const isLocked = isColumnLocked(lockedColumns, idx);
@@ -976,9 +982,9 @@ function EntitiesHub() {
                             </span>
                             {renderSortIcon(col.key)}
                             {col.hideable && (
-                              <button
-                                className={`entities-lock-btn${isLocked ? " is-locked" : ""}`}
-                                type="button"
+                              <IconButton
+                                className={isLocked ? "is-locked" : ""}
+                                aria-label={isLocked ? "Unlock column" : "Lock column"}
                                 title={isLocked ? "Unlock column" : "Lock column"}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -986,14 +992,14 @@ function EntitiesHub() {
                                 }}
                               >
                                 <Lock size={11} />
-                              </button>
+                              </IconButton>
                             )}
                           </span>
                         </th>
                       );
                     })}
                   </tr>
-                </thead>
+                </TableHead>
                 <tbody>
                   {data.results.map((item) => (
                     <tr
@@ -1041,7 +1047,7 @@ function EntitiesHub() {
                     size={14}
                     className="entities-filter-select-icon"
                   />
-                  <select
+                  <Select
                     id="entities-page-size"
                     className="entities-filter-select"
                     value={size}
@@ -1054,7 +1060,7 @@ function EntitiesHub() {
                         {s}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
 
@@ -1068,15 +1074,16 @@ function EntitiesHub() {
                       …
                     </span>
                   ) : (
-                    <button
+                    <Button
                       key={p}
-                      className={`entities-page-btn${p === page ? " is-active" : ""}`}
-                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={p === page ? "is-active" : ""}
                       onClick={() => handlePageChange(p)}
                       disabled={p === page}
                     >
                       {p}
-                    </button>
+                    </Button>
                   ),
                 )}
               </div>

@@ -1,4 +1,5 @@
 import { Dna, AlertTriangle } from "lucide-react";
+import { Button } from "../shared/primitives/Button";
 
 interface AppErrorScreenProps {
   /** The error message to display. */
@@ -22,7 +23,7 @@ export function AppErrorScreen({ message, onRetry }: AppErrorScreenProps) {
           <div className="grid h-10 w-10 place-items-center rounded-md bg-primary text-primary-foreground">
             <Dna className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h1 className="font-serif text-xl font-semibold tracking-tight">
+          <h1 className="font-[var(--font-label)] text-xl font-semibold tracking-tight">
             Helix
           </h1>
         </div>
@@ -34,13 +35,13 @@ export function AppErrorScreen({ message, onRetry }: AppErrorScreenProps) {
             <p className="text-[13px] text-destructive">{message}</p>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            className="rounded-md py-2 text-[13px] font-medium"
             onClick={onRetry}
-            className="btn-primary rounded-md py-2 text-[13px] font-medium"
           >
             Try again
-          </button>
+          </Button>
 
           <a
             href="/login"

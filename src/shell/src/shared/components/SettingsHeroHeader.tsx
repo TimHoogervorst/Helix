@@ -15,14 +15,14 @@ export function SettingsHeroHeader({
 }: SettingsHeroHeaderProps) {
   return (
     <div className="flex flex-col gap-2 pb-6">
-      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+      <span className="text-eyebrow">
         {eyebrow}
       </span>
-      <h1 className="font-serif text-3xl tracking-tight text-foreground">
+      <h1 className="text-title">
         {title}
       </h1>
       {description && (
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+        <p className="text-sm text-[var(--color-ink-muted-foreground)] leading-relaxed max-w-2xl">
           {description}
         </p>
       )}

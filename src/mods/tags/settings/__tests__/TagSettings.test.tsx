@@ -128,7 +128,7 @@ describe("TagSettings", () => {
   it("renders Tags tab as active by default", async () => {
     renderWithRouter(<TagSettings />);
     await waitFor(() => {
-      expect(screen.getByTestId("tab-tags").className).toContain("is-active");
+      expect(screen.getByTestId("tab-tags").getAttribute("aria-selected")).toBe("true");
     });
   });
 
@@ -160,7 +160,7 @@ describe("TagSettings", () => {
     renderWithRouter(<TagSettings />, ["/settings?section=tags.manage&tab=colours"]);
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Colours" })).toBeInTheDocument();
-      expect(screen.getByTestId("tab-colours").className).toContain("is-active");
+      expect(screen.getByTestId("tab-colours").getAttribute("aria-selected")).toBe("true");
     });
   });
 

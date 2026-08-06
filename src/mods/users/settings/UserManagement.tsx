@@ -3,6 +3,9 @@ import { User, Trash2, X } from "lucide-react";
 import { listUsers, createUser, deactivateUser, deleteUser, fetchCoreSetting, updateCoreSetting } from "../api";
 import { formatDate } from "../../../shell/src/shared/format";
 import type { CurrentUser } from "../types";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
 import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
 import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
@@ -16,8 +19,8 @@ function StatusChip({ active }: { active: boolean }) {
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
         active
-          ? "bg-success/15 text-success-foreground"
-          : "bg-muted text-muted-foreground"
+          ? "bg-[var(--color-success)]/15 text-[var(--color-success-foreground)]"
+          : "bg-[var(--color-surface-hover)] text-[var(--color-ink-muted-foreground)]"
       }`}
     >
       {active ? "Active" : "Inactive"}
@@ -188,30 +191,28 @@ export default function UserManagement() {
             title="Users"
             description="Manage user accounts, create new users, and control self-registration settings."
             actions={
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              <Button
+                size="sm"
                 onClick={() => setShowNew(!showNew)}
               >
                 {showNew ? "Cancel" : "+ New User"}
-              </button>
+              </Button>
             }
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
               {createError && (
-                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+                <div className="mb-3 rounded-md border border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/10 px-3 py-2 text-[13px] text-[var(--color-destructive)]">
                   {createError}
                 </div>
               )}
 
               <div className="flex flex-wrap items-end gap-4">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Username</span>
-                  <input
-                    type="text"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50 w-48"
+                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Username</span>
+                  <Input
+                    className="w-48"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
                     autoComplete="off"
@@ -222,10 +223,10 @@ export default function UserManagement() {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Password</span>
-                  <input
+                  <span className="text-[11px] text-[var(--color-ink-muted-foreground)]">Password</span>
+                  <Input
                     type="password"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50 w-48"
+                    className="w-48"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoComplete="new-password"
@@ -235,17 +236,16 @@ export default function UserManagement() {
                   />
                 </label>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  <Button
+                    size="sm"
                     onClick={handleCreate}
                     disabled={creating}
                   >
                     {creating ? "Creating…" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setShowNew(false);
                       setNewUsername("");
@@ -254,7 +254,7 @@ export default function UserManagement() {
                     }}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -263,7 +263,7 @@ export default function UserManagement() {
       }
     >
       {error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {error}
           <button
             className="ml-3 underline"
@@ -285,7 +285,7 @@ export default function UserManagement() {
             filterPlaceholder="Filter users"
           />
           {masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
               No users found.
             </p>
           )}
@@ -301,63 +301,61 @@ export default function UserManagement() {
                   {selectedUser.is_active ? (
                     <button
                       type="button"
-                      className="rounded border-transparent bg-transparent px-2 py-1 text-[11px] text-warn transition-colors hover:bg-muted hover:text-destructive"
+                      className="rounded border-transparent bg-transparent px-2 py-1 text-[11px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-destructive)]"
                       onClick={() => handleDeactivate(selectedUser)}
                     >
                       Deactivate
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                      onClick={() => handleDelete(selectedUser)}
+                    <IconButton
+                      aria-label="Delete user"
                       title="Delete user"
+                      onClick={() => handleDelete(selectedUser)}
+                      className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </IconButton>
                   )}
-                  <button
-                    type="button"
-                    className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  <IconButton
+                    aria-label="Close detail"
                     onClick={() => setSelectedId(null)}
-                    title="Close detail"
                   >
                     <X size={14} />
-                  </button>
+                  </IconButton>
                 </div>
               }
             >
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                       Username
                     </span>
-                    <span className="text-sm text-foreground">
+                    <span className="text-sm text-[var(--color-ink)]">
                       {selectedUser.username}
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                       Name
                     </span>
-                    <span className="text-sm text-foreground">
+                    <span className="text-sm text-[var(--color-ink)]">
                       {[selectedUser.first_name, selectedUser.last_name]
                         .filter(Boolean)
                         .join(" ") || "—"}
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                       Status
                     </span>
                     <StatusChip active={selectedUser.is_active} />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-[11px] font-medium text-[var(--color-ink-muted-foreground)]">
                       Joined
                     </span>
-                    <span className="text-sm text-foreground">
+                    <span className="text-sm text-[var(--color-ink)]">
                       {formatDate(selectedUser.date_joined)}
                     </span>
                   </div>
@@ -365,7 +363,7 @@ export default function UserManagement() {
               </div>
             </SettingsSectionCard>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
               Select a user from the list to view or edit their details.
             </div>
           )}
@@ -374,13 +372,13 @@ export default function UserManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[13px] font-medium">Allow self-registration</p>
-                <p className="text-[12px] text-muted-foreground">
+                <p className="text-[12px] text-[var(--color-ink-muted-foreground)]">
                   When enabled, anyone can create an account from the login page.
                 </p>
               </div>
 
               {toggleLoading ? (
-                <span className="text-[12px] text-muted-foreground">Loading…</span>
+                <span className="text-[12px] text-[var(--color-ink-muted-foreground)]">Loading…</span>
               ) : (
                 <button
                   type="button"
@@ -390,7 +388,7 @@ export default function UserManagement() {
                   disabled={toggleSaving}
                   onClick={handleToggleRegistration}
                   className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-                    allowRegistration ? "bg-primary" : "bg-muted-foreground/25"
+                    allowRegistration ? "bg-[var(--color-primary)]" : "bg-[var(--color-ink-muted-foreground)]/25"
                   } ${toggleSaving ? "opacity-50" : ""}`}
                 >
                   <span

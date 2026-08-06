@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export interface Tab {
   id: string;
   label: ReactNode;
+  testId?: string;
 }
 
 interface TabBarProps {
@@ -28,6 +29,7 @@ export function TabBar({
           key={tab.id}
           type="button"
           role="tab"
+          data-testid={tab.testId}
           aria-selected={tab.id === activeTab}
           className={`border-0 px-4 py-2 font-[var(--font-label)] text-[12px] font-medium transition-colors first:rounded-l-lg last:rounded-r-lg ${
             tab.id === activeTab

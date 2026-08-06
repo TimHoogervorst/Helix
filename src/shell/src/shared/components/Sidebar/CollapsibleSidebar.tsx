@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSidebar } from "../../../workspace/SidebarContext";
+import { IconButton } from "../../primitives/IconButton";
 import { IconStrip, type IconStripGroup, type IconStripIcon } from "./IconStrip";
 
 // ── Props ───────────────────────────────────────────────────────────────
@@ -121,14 +122,14 @@ export function CollapsibleSidebar({
         aria-label={side === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)"}
         style={footer ? { overflow: "visible" } : undefined}
       >
-        <button
-          className="btn-icon sidebar-toggle"
+        <IconButton
+          className="sidebar-toggle"
           onClick={toggleSidebar}
           title={toggleLabel}
           aria-label={toggleLabel}
         >
           <ToggleIcon size={16} />
-        </button>
+        </IconButton>
         {collapsedContent}
         {footer && <div className="mt-auto">{footer}</div>}
       </aside>
@@ -155,8 +156,8 @@ export function CollapsibleSidebar({
       >
         {/* Logo-as-toggle (left sidebar only): clickable, shows chevron on hover */}
         {logoIcon && (
-          <button
-            className="btn-icon sidebar-logo-toggle"
+          <IconButton
+            className="sidebar-logo-toggle"
             onClick={toggleSidebar}
             title={toggleLabel}
             aria-label={toggleLabel}
@@ -167,7 +168,7 @@ export function CollapsibleSidebar({
               className="sidebar-logo-toggle-chevron"
               aria-hidden="true"
             />
-          </button>
+          </IconButton>
         )}
 
         {/* Remaining icon groups (without the logo when logo-as-toggle) */}
@@ -177,14 +178,14 @@ export function CollapsibleSidebar({
 
         {/* Fallback toggle — shown only when there's no logo to act as toggle */}
         {!logoIcon && (
-          <button
-            className="btn-icon sidebar-toggle"
+          <IconButton
+            className="sidebar-toggle"
             onClick={toggleSidebar}
             title={toggleLabel}
             aria-label={toggleLabel}
           >
             <ToggleIcon size={16} />
-          </button>
+          </IconButton>
         )}
 
         {/* Dynamic collapsed content (e.g. pinned workspace icons) */}
@@ -211,14 +212,14 @@ export function CollapsibleSidebar({
       <div className="sidebar-content">
         {!hideToggle && (
           <div className="sidebar-toggle-row" data-side={side}>
-            <button
-              className="btn-icon sidebar-toggle"
-              onClick={toggleSidebar}
-              title={toggleLabel}
-              aria-label={toggleLabel}
-            >
-              <ToggleIcon size={16} />
-            </button>
+              <IconButton
+                className="sidebar-toggle"
+                onClick={toggleSidebar}
+                title={toggleLabel}
+                aria-label={toggleLabel}
+              >
+                <ToggleIcon size={16} />
+              </IconButton>
           </div>
         )}
         {children}

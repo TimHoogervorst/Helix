@@ -284,7 +284,7 @@ describe("SchemaSettings", () => {
       expect(screen.getByText("Schema definition")).toBeInTheDocument();
     });
     const dirtyRow = screen.getByText("Blood Sample").closest("button");
-    const dot = dirtyRow?.querySelector(".bg-primary");
+    const dot = dirtyRow?.querySelector(".bg-\\[var\\(--color-primary\\)\\]");
     expect(dot).not.toBeNull();
   });
 

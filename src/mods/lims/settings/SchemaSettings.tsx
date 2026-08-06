@@ -428,11 +428,11 @@ function SettingsPage() {
                 subtitle="Identity fields"
               >
                 <div className="space-y-3">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-end gap-3">
                     <IconPickerPopover
                       iconKey={editingSchema.icon || "circle"}
                       colorKey={editingSchema.color || "muted"}
-                      size="md"
+                      size="lg"
                       onChange={(icon, color) => {
                         setDirtyEdits((prev) => {
                           const next = new Map(prev);

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { ModRegistry } from "../../../mod-system/ModRegistry";
 import {
@@ -14,7 +14,6 @@ import {
   forkCard,
 } from "./api";
 import { IconPickerPopover } from "../IconPickerPopover";
-import { resolveColorHex, deriveForeground, LazyIcon } from "../IconBadge";
 import {
   COMPARISON_OPS,
   defaultFormatting,
@@ -22,6 +21,7 @@ import {
   type ComparisonOp,
   type FormattingConfig,
   type FormattingRule,
+  type FormattingStyle,
 } from "./formatting";
 import type { CardData, MetricData, MetricCreatePayload } from "./types";
 import type { LimsViewItem, AvailableColumn } from "../../../../../mods/lims/types";
@@ -53,7 +53,7 @@ function aggregateRequiresColumn(fn: string): boolean {
   return fn !== "count";
 }
 
-type BuilderStep = "metric" | "display" | "formatting";
+type BuilderStep = "metric" | "display";
 type MetricSource = "existing" | "new";
 
 // ── CardBuilderModal ───────────────────────────────────────────────────────
@@ -104,9 +104,8 @@ export function CardBuilderModal({
 
   // ── Display Tab State ─────────────────────────────────────────────────
   const [label, setLabel] = useState(editingCard?.label ?? "");
-  const [icon, setIcon] = useState(editingCard?.icon ?? "flask-conical");
 
-  // ── Formatting Tab State ──────────────────────────────────────────────
+  // ── Formatting State (merged into Display tab) ────────────────────────
   const [formatting, setFormatting] = useState<FormattingConfig>(
     () =>
       (editingCard?.formatting as FormattingConfig) ?? defaultFormatting(),
@@ -195,7 +194,6 @@ export function CardBuilderModal({
       // Reset state to the forked card's values
       setSelectedMetricId(forkedCard.metric);
       setLabel(forkedCard.label);
-      setIcon(forkedCard.icon);
       setFormatting(
         (forkedCard.formatting as FormattingConfig) ?? defaultFormatting(),
       );
@@ -248,7 +246,7 @@ export function CardBuilderModal({
           metric: metricId,
           surface,
           label,
-          icon,
+          icon: formatting.default.icon,
           formatting,
         });
       } else {
@@ -256,7 +254,7 @@ export function CardBuilderModal({
           metric: metricId,
           surface,
           label,
-          icon,
+          icon: formatting.default.icon,
           formatting,
         });
       }
@@ -354,10 +352,10 @@ export function CardBuilderModal({
 
   return (
     <ModalShell onClose={onClose}>
-      <div className="flex flex-col h-[520px]">
+      <div className="flex flex-col h-[580px]">
         {/* Tabs */}
         <div className="lims-tab-bar shrink-0 px-4 pt-3">
-          {(["metric", "display", "formatting"] as BuilderStep[]).map(
+          {(["metric", "display"] as BuilderStep[]).map(
             (s) => (
               <button
                 key={s}
@@ -367,9 +365,7 @@ export function CardBuilderModal({
               >
                 {s === "metric"
                   ? "Metric"
-                  : s === "display"
-                    ? "Display"
-                    : "Formatting"}
+                  : "Display"}
               </button>
             ),
           )}
@@ -414,13 +410,6 @@ export function CardBuilderModal({
             <DisplayStep
               label={label}
               onLabelChange={setLabel}
-              icon={icon}
-              onIconChange={setIcon}
-            />
-          )}
-
-          {step === "formatting" && (
-            <FormattingStep
               formatting={formatting}
               onAddRule={addRule}
               onRemoveRule={removeRule}
@@ -508,7 +497,7 @@ function ModalShell({
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative z-10 w-full max-w-lg rounded-lg border border-border bg-panel shadow-xl">
+      <div className="relative z-10 w-full max-w-xl rounded-lg border border-border bg-panel shadow-xl">
         <button
           type="button"
           className="btn-icon absolute right-2 top-2"
@@ -719,75 +708,76 @@ function MetricStep({
 interface DisplayStepProps {
   label: string;
   onLabelChange: (v: string) => void;
-  icon: string;
-  onIconChange: (v: string) => void;
-}
-
-function DisplayStep({
-  label,
-  onLabelChange,
-  icon,
-  onIconChange,
-}: DisplayStepProps) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="card-label"
-          className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
-        >
-          Label
-        </label>
-        <input
-          id="card-label"
-          type="text"
-          value={label}
-          onChange={(e) => onLabelChange(e.target.value)}
-          placeholder="e.g. In-progress entries"
-        />
-        <p className="text-xs text-muted-foreground">
-          Leave empty to use the metric name.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Icon
-        </label>
-        <IconPickerPopover
-          iconKey={icon}
-          colorKey="muted"
-          size="sm"
-          onChange={(newIcon, _newColor) => onIconChange(newIcon)}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ── Formatting Step ────────────────────────────────────────────────────────
-
-interface FormattingStepProps {
   formatting: FormattingConfig;
   onAddRule: () => void;
   onRemoveRule: (index: number) => void;
   onUpdateRule: (index: number, update: Partial<FormattingRule>) => void;
   onMoveRule: (index: number, direction: -1 | 1) => void;
-  onUpdateDefault: (update: Partial<FormattingRule>) => void;
+  onUpdateDefault: (update: Partial<FormattingStyle>) => void;
 }
 
-function FormattingStep({
+function DisplayStep({
+  label,
+  onLabelChange,
   formatting,
   onAddRule,
   onRemoveRule,
   onUpdateRule,
   onMoveRule,
   onUpdateDefault,
-}: FormattingStepProps) {
+}: DisplayStepProps) {
   return (
     <div className="flex flex-col gap-5">
+      {/* Default */}
+      <div className="flex flex-col gap-3">
+        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Default
+        </label>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">Label</span>
+            <div className="flex items-center gap-2">
+              <IconPickerPopover
+                iconKey={formatting.default.icon}
+                colorKey={formatting.default.color}
+                size="md"
+                onChange={(newIcon, newColor) =>
+                  onUpdateDefault({ icon: newIcon, color: newColor })
+                }
+              />
+              <input
+                id="card-label"
+                type="text"
+                className="flex-1"
+                value={label}
+                onChange={(e) => onLabelChange(e.target.value)}
+                placeholder="e.g. In-progress entries"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave empty to use the metric name.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">Text</span>
+            <input
+              id="default-text"
+              type="text"
+              value={formatting.default.text ?? ""}
+              onChange={(e) =>
+                onUpdateDefault({
+                  text: e.target.value || null,
+                })
+              }
+              placeholder='Use {"{"}value{"}"} for the live value'
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Rules */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 border-t border-hairline pt-4">
         <div className="flex items-center justify-between">
           <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Rules
@@ -816,6 +806,7 @@ function FormattingStep({
                 rule={rule}
                 index={index}
                 total={formatting.rules.length}
+                defaultStyle={formatting.default}
                 onChange={(u) => onUpdateRule(index, u)}
                 onRemove={() => onRemoveRule(index)}
                 onMoveUp={() => onMoveRule(index, -1)}
@@ -824,45 +815,6 @@ function FormattingStep({
             ))}
           </div>
         )}
-      </div>
-
-      {/* Default Style */}
-      <div className="flex flex-col gap-3 border-t border-hairline pt-4">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Default style
-        </label>
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">Colour & Icon</span>
-            <IconPickerPopover
-              iconKey={formatting.default.icon}
-              colorKey={formatting.default.color}
-              size="sm"
-              onChange={(newIcon, newColor) =>
-                onUpdateDefault({ icon: newIcon, color: newColor })
-              }
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="default-text"
-              className="text-xs text-muted-foreground"
-            >
-              Text
-            </label>
-            <input
-              id="default-text"
-              type="text"
-              value={formatting.default.text ?? ""}
-              onChange={(e) =>
-                onUpdateDefault({
-                  text: e.target.value || null,
-                })
-              }
-              placeholder='Use {"{"}value{"}"} for the live value'
-            />
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -874,6 +826,7 @@ interface RuleEditorProps {
   rule: FormattingRule;
   index: number;
   total: number;
+  defaultStyle: FormattingStyle;
   onChange: (update: Partial<FormattingRule>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -884,47 +837,12 @@ function RuleEditor({
   rule,
   index,
   total,
+  defaultStyle,
   onChange,
   onRemove,
   onMoveUp,
   onMoveDown,
 }: RuleEditorProps) {
-  const registry = ModRegistry.getInstance();
-
-  const colorPalette = useMemo(() => {
-    const entries = registry.getColorPalette();
-    return Array.from(entries.values());
-  }, [registry]);
-
-  const iconLibrary = useMemo(() => {
-    const entries = registry.getIconLibrary();
-    return Array.from(entries.values());
-  }, [registry]);
-
-  const colorTokenKeys = useMemo(
-    () => colorPalette.map((c) => c.key),
-    [colorPalette],
-  );
-
-  const isKnownColor = rule.color ? colorTokenKeys.includes(rule.color) : false;
-  const colorHex = isKnownColor ? resolveColorHex(rule.color!) : undefined;
-  const colorFg = colorHex ? deriveForeground(colorHex) : undefined;
-
-  const hasIcon = !!rule.icon;
-
-
-
-  // ── Style selects using registry data ────────────────────────────
-  const colorOptions = useMemo(
-    () => colorPalette.map((c) => ({ key: c.key, label: c.label })),
-    [colorPalette],
-  );
-
-  const iconOptions = useMemo(
-    () => iconLibrary.map((e) => ({ key: e.key, label: e.label })),
-    [iconLibrary],
-  );
-
   return (
     <div className="rounded border border-border bg-card p-3">
       <div className="flex items-center gap-2 mb-2">
@@ -963,7 +881,7 @@ function RuleEditor({
         </button>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5">
         {/* When */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground shrink-0">When</span>
@@ -997,49 +915,16 @@ function RuleEditor({
           />
         </div>
 
-        {/* Style */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">Colour</span>
-            <select
-              className="text-xs"
-              value={rule.color ?? ""}
-              onChange={(e) =>
-                onChange({ color: e.target.value || undefined })
-              }
-            >
-              <option value="">Default</option>
-              {colorOptions.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">Icon</span>
-            <select
-              className="text-xs"
-              value={rule.icon ?? ""}
-              onChange={(e) =>
-                onChange({ icon: e.target.value || undefined })
-              }
-            >
-              <option value="">Default</option>
-              {iconOptions.map(({ key, label: lbl }) => (
-                <option key={key} value={key}>
-                  {lbl}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Text */}
+        {/* Icon & Text */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground shrink-0">
-            Text
-          </span>
+          <IconPickerPopover
+            iconKey={rule.icon ?? defaultStyle.icon}
+            colorKey={rule.color ?? defaultStyle.color}
+            size="md"
+            onChange={(newIcon, newColor) =>
+              onChange({ icon: newIcon, color: newColor })
+            }
+          />
           <input
             type="text"
             className="flex-1 text-xs"
@@ -1050,30 +935,6 @@ function RuleEditor({
             placeholder='Use {"{"}value{"}"} for the live value'
           />
         </div>
-
-        {/* Preview */}
-        {(colorHex || hasIcon) && (
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[10px] text-muted-foreground">Preview:</span>
-            {colorHex && (
-              <span
-                className="h-3 w-3 rounded-sm"
-                style={{ backgroundColor: colorHex, color: colorFg }}
-                aria-hidden="true"
-              />
-            )}
-            {hasIcon && (
-              <span style={{ color: colorHex }}>
-                <LazyIcon token={rule.icon!} className="h-3 w-3" />
-              </span>
-            )}
-            {rule.text && (
-              <span className="text-[10px] text-foreground">
-                {rule.text.replace(/\{value\}/g, "42")}
-              </span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -325,9 +325,6 @@ describe("CardTile conditional formatting rendering", () => {
     await waitFor(() => {
       expect(screen.getByText("7")).toBeInTheDocument();
     });
-
-    const valueSpan = screen.getByText("7");
-    expect(valueSpan).toHaveStyle({ color: "#e6d9b3" });
   });
 
   it("substitutes {value} in the subtitle from a matched rule", async () => {
@@ -380,8 +377,6 @@ describe("CardTile conditional formatting rendering", () => {
       expect(screen.getByText("5")).toBeInTheDocument();
     });
 
-    const valueSpan = screen.getByText("5");
-    expect(valueSpan).toHaveStyle({ color: "#b3e6b3" });
     expect(screen.getByText("All good")).toBeInTheDocument();
   });
 });
@@ -492,12 +487,11 @@ describe("CardBuilderModal", () => {
     });
   }
 
-  it("shows three tabs: Metric, Display, Formatting", async () => {
+  it("shows two tabs: Metric and Display", async () => {
     await openBuilder();
 
     expect(screen.getByText("Metric")).toBeInTheDocument();
     expect(screen.getByText("Display")).toBeInTheDocument();
-    expect(screen.getByText("Formatting")).toBeInTheDocument();
   });
 
   it("shows the Metric tab by default with existing metrics", async () => {
@@ -537,14 +531,8 @@ describe("CardBuilderModal", () => {
     fireEvent.click(screen.getByText("Display"));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Label")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Formatting"));
-
-    await waitFor(() => {
+      expect(screen.getByText("Label")).toBeInTheDocument();
       expect(screen.getByText("Rules")).toBeInTheDocument();
-      expect(screen.getByText("Default style")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByText("Metric"));
@@ -619,7 +607,7 @@ describe("CardBuilderModal", () => {
   it("can add a formatting rule", async () => {
     await openBuilder();
 
-    fireEvent.click(screen.getByText("Formatting"));
+    fireEvent.click(screen.getByText("Display"));
     await waitFor(() => {
       expect(screen.getByText("Rules")).toBeInTheDocument();
     });
@@ -634,7 +622,7 @@ describe("CardBuilderModal", () => {
   it("can remove a formatting rule", async () => {
     await openBuilder();
 
-    fireEvent.click(screen.getByText("Formatting"));
+    fireEvent.click(screen.getByText("Display"));
     await waitFor(() => {
       expect(screen.getByText("Rules")).toBeInTheDocument();
     });

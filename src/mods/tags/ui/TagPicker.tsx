@@ -9,6 +9,7 @@ import type { Tag } from "../types";
 import { useTagSearch } from "../hooks/useTagSearch";
 import { getTagIcon } from "../constants";
 import { TagPill } from "./TagPill";
+import { Input } from "../../../shell/src/shared/primitives";
 
 export interface TagPickerProps {
   /** Currently selected tags. */
@@ -76,7 +77,7 @@ export function TagPicker({
         ))}
 
         {/* ── Search input ── */}
-        <input
+        <Input
           ref={inputRef}
           type="text"
           className="!w-36 !py-0.5 !text-xs"

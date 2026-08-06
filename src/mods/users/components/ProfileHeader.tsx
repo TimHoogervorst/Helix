@@ -43,7 +43,7 @@ export function ProfileHeader() {
             )}
 
             {/* Title + Name (pronouns) — big bold black */}
-            <h1 className="font-serif text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="font-[--font-body] text-3xl font-bold tracking-tight text-foreground">
               {titledName}
               {user.profile.pronouns && (
                 <span className="ml-2 text-lg font-normal text-muted-foreground">

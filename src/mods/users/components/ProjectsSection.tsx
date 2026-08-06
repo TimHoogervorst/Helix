@@ -12,7 +12,7 @@ export function ProjectsSection() {
           className="h-4 w-4 text-muted-foreground"
           aria-hidden="true"
         />
-        <h2 className="font-serif text-lg font-semibold tracking-tight">
+        <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
           Projects
         </h2>
       </div>

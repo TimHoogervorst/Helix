@@ -140,16 +140,14 @@ describe("CommentBlockComponent — visibility toggle", () => {
       expect(screen.queryByText("Alice Smith")).toBeNull();
     });
 
-    it("renders ghost as a btn-ghost button", () => {
+    it("renders ghost as an icon button", () => {
       const thread = [makeCommentEntry()];
       const props = makeBlockComponentProps({ resolved: false, thread });
       renderCommentBlockComponent(props, false);
 
-      // The ghost is a button element with btn-ghost class
       const ghost = screen.getByTestId("comment-ghost");
       expect(ghost).toBeDefined();
       expect(ghost.tagName).toBe("BUTTON");
-      expect(ghost.className).toContain("btn-ghost");
     });
   });
 

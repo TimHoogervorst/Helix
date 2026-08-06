@@ -44,7 +44,7 @@ function GreetingSection() {
   return (
     <section className="grid-paper w-full px-6 py-10">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mt-3 font-serif text-[1rem] font-semibold leading-[1.05] tracking-tight md:text-[4rem]">
+        <h1 className="mt-3 font-[--font-label] text-[1rem] font-semibold leading-[1.05] tracking-tight md:text-[4rem]">
           Good morning,{" "}
           <span className="italic text-primary">{userName}</span>
           .<br />
@@ -133,7 +133,7 @@ function HubCard({
       </div>
 
       {/* Hub label */}
-      <h3 className="mt-4 font-serif text-lg font-semibold tracking-tight">
+      <h3 className="mt-4 font-[--font-body] text-lg font-semibold tracking-tight">
         {hub.label}
       </h3>
 
@@ -178,7 +178,7 @@ function JumpBackIn() {
       <div className="mx-auto max-w-4xl">
         {/* Section heading */}
         <div className="mb-5 flex items-baseline justify-between">
-          <h2 className="font-serif text-2xl font-semibold tracking-tight">
+          <h2 className="font-[--font-label] text-2xl font-semibold tracking-tight">
             Jump back in
           </h2>
           <span className="text-[12px] text-muted-foreground">
@@ -309,7 +309,7 @@ function RecentActivity() {
     <section className="rounded-lg border border-border bg-panel p-5">
       {/* Heading row */}
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="font-serif text-lg font-semibold tracking-tight">
+        <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
           Recent activity
         </h2>
         <span className="chip">
@@ -397,7 +397,7 @@ function TodayInTheLab() {
     <section className="rounded-lg border border-border bg-panel p-5">
       {/* Heading row */}
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="font-serif text-lg font-semibold tracking-tight">
+        <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
           Today in the lab
         </h2>
         <TrendingUp

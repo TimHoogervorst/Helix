@@ -53,7 +53,7 @@ export function LinkedEntitiesBlock({ context }: BlockComponentProps) {
                   {title}
                 </span>
                 {displayId && (
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  <span className="shrink-0 font-[var(--font-label)] text-[11px] text-muted-foreground">
                     {displayId}
                   </span>
                 )}

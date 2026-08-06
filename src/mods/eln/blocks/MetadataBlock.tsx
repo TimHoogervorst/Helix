@@ -15,6 +15,7 @@ import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "./sidebarData";
 import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
 import { listDropdowns } from "../../dropdowns/api";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 
 /** Format a snake_case status value for display (e.g. "in_progress" → "In Progress"). */
 function formatStatusLabel(status: string): string {
@@ -112,11 +113,11 @@ export function MetadataBlock({ context }: BlockComponentProps) {
         <div className="flex items-start justify-between gap-3">
           <dt className="text-muted-foreground">Status</dt>
           <dd className="text-right">
-            <select
+            <Select
               value={data?.status ?? "in_progress"}
               onChange={(e) => data?.onStatusChange?.(e.target.value)}
               disabled={data?.isLockedByOther}
-              className="!w-auto !min-w-[120px] !py-0.5 !text-xs"
+              className="!h-auto !w-auto !min-w-[120px] !py-0.5 !text-xs"
               data-testid="status-select"
             >
               {statusOptions.map((opt) => (
@@ -124,13 +125,13 @@ export function MetadataBlock({ context }: BlockComponentProps) {
                   {formatStatusLabel(opt)}
                 </option>
               ))}
-            </select>
+            </Select>
           </dd>
         </div>
         <div className="flex items-start justify-between gap-3">
           <dt className="text-muted-foreground">Folder</dt>
           <dd className="text-right">
-            <select
+            <Select
               value={data?.folderId ?? ""}
               onChange={(e) =>
                 data?.onFolderChange?.(
@@ -138,7 +139,7 @@ export function MetadataBlock({ context }: BlockComponentProps) {
                 )
               }
               disabled={data?.isLockedByOther}
-              className="!w-auto !min-w-[140px] !py-0.5 !text-xs"
+              className="!h-auto !w-auto !min-w-[140px] !py-0.5 !text-xs"
               data-testid="folder-select"
             >
               <option value="">Folder…</option>
@@ -147,7 +148,7 @@ export function MetadataBlock({ context }: BlockComponentProps) {
                   {f.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </dd>
         </div>
       </dl>

@@ -8,6 +8,7 @@ import {
 } from "../api";
 import { ApiError } from "../../../shell/src/api/client";
 import type { Recognition } from "../../../shell/src/user/types";
+import { Button, IconButton, Input } from "../../../shell/src/shared/primitives";
 
 /**
  * Recognitions section with:
@@ -115,19 +116,20 @@ export function RecognitionsSection() {
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Award className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="font-serif text-lg font-semibold tracking-tight">
+          <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
             Recognitions
           </h2>
         </div>
         {!editing && (
-          <button
-            type="button"
-            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground opacity-0 group-hover/section:opacity-100 transition-opacity"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover/section:opacity-100 transition-opacity"
             onClick={() => setMode({ type: "adding" })}
           >
             <Plus className="h-3.5 w-3.5" />
             Add
-          </button>
+          </Button>
         )}
       </div>
 
@@ -170,22 +172,19 @@ export function RecognitionsSection() {
                 </div>
                 {mode.type === "view" && (
                   <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      className="btn-icon rounded text-muted-foreground hover:text-foreground"
-                      onClick={() => handleEdit(item)}
+                    <IconButton
                       aria-label="Edit recognition"
+                      onClick={() => handleEdit(item)}
                     >
                       <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-icon rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => handleDelete(item.id)}
+                    </IconButton>
+                    <IconButton
                       aria-label="Delete recognition"
+                      className="text-[--color-ink-muted-foreground] hover:bg-[--color-destructive]/10 hover:text-[--color-destructive]"
+                      onClick={() => handleDelete(item.id)}
                     >
                       <Trash2 className="h-3 w-3" />
-                    </button>
+                    </IconButton>
                   </div>
                 )}
               </div>
@@ -228,8 +227,8 @@ function RecognitionEditRow({
           <span className="text-[11px] font-medium text-muted-foreground">
             Title
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-[13px]"
             value={form.title}
             onChange={(e) => onChange({ ...form, title: e.target.value })}
             placeholder="e.g. Best Poster Award"
@@ -239,8 +238,8 @@ function RecognitionEditRow({
           <span className="text-[11px] font-medium text-muted-foreground">
             Issuer
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-[13px]"
             value={form.issuer}
             onChange={(e) => onChange({ ...form, issuer: e.target.value })}
             placeholder="e.g. ACS"
@@ -250,31 +249,32 @@ function RecognitionEditRow({
           <span className="text-[11px] font-medium text-muted-foreground">
             Date
           </span>
-          <input
+          <Input
             type="date"
-            className="input rounded-md text-[13px]"
+            className="text-[13px]"
             value={form.date}
             onChange={(e) => onChange({ ...form, date: e.target.value })}
           />
         </label>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onSave}
           disabled={saving}
         >
           {saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-[--color-ink-muted-foreground]"
           onClick={onCancel}
           disabled={saving}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

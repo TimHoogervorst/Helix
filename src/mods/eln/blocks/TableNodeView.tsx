@@ -13,6 +13,7 @@
 import { useCallback, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
+import { Button } from "../../../shell/src/shared/primitives/Button";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ export function TableBlockContent({
           <table className="min-w-full text-[13px]">
             {/* ── Header ─────────────────────────────────────────────── */}
             <thead>
-              <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              <tr className="border-b border-hairline bg-surface/60 text-left font-[var(--font-label)] text-[10px] uppercase tracking-widest text-muted-foreground">
                 {columns.map((col) => (
                   <th
                     key={col.id}
@@ -321,7 +322,7 @@ export function TableBlockContent({
                     onMouseLeave={() => setHoveredRow(null)}
                   >
                     {columns.map((col) => (
-                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-mono text-[12px]">
+                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-[var(--font-label)] text-[12px]">
                         <InlineEdit
                           value={row.cells[col.id] ?? ""}
                           onCommit={(newValue) =>
@@ -368,16 +369,17 @@ export function TableBlockContent({
       </div>
 
       {/* ── Ghost "+ New Row" button below the card ──────────────────── */}
-      <button
-        type="button"
-        className="btn-ghost mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-2"
         onClick={handleAddRow}
         aria-label="Add new row"
         data-testid="add-row-btn"
       >
         <Plus className="h-3 w-3" />
         <span>New Row</span>
-      </button>
+      </Button>
     </>
   );
 }

@@ -14,6 +14,7 @@ import type { Tag } from "../types";
 import { useTagSearch } from "../hooks/useTagSearch";
 import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { Input } from "../../../shell/src/shared/primitives";
 
 export interface TagAutocompleteProps {
   /** IDs of tags already attached (filtered out of suggestions). */
@@ -105,7 +106,7 @@ export function TagAutocomplete({
   return (
     <div className="relative" data-testid="tag-autocomplete">
       {/* ── Search input ── */}
-      <input
+      <Input
         ref={inputRef}
         type="text"
         className="!w-36 !py-0.5 !text-xs !bg-transparent !border-0"

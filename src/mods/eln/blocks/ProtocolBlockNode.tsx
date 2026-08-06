@@ -17,6 +17,7 @@ import { get } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
 import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
 import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ export function ProtocolContent({
         className="rounded-lg border border-hairline bg-panel p-4"
         data-testid="protocol-placeholder"
       >
-        <h2 className="font-serif text-2xl font-semibold tracking-tight">
+        <h2 className="font-[var(--font-label)] text-2xl font-semibold tracking-tight">
           Protocol
         </h2>
         <div className="mt-3">
@@ -199,7 +200,7 @@ export function ProtocolContent({
 
   return (
     <div className="my-4" data-testid="protocol-card">
-      <h2 className="font-serif text-2xl font-semibold tracking-tight">
+      <h2 className="font-[var(--font-label)] text-2xl font-semibold tracking-tight">
         {name}
       </h2>
       <ol className="mt-4 space-y-2">
@@ -234,9 +235,8 @@ export function ProtocolContent({
               data-testid={`protocol-step-${stepIndex}`}
             >
               {/* Toggle button — ghost icon-only */}
-              <button
-                type="button"
-                className={`btn-icon mt-0.5 shrink-0 transition-colors ${
+              <IconButton
+                className={`mt-0.5 shrink-0 ${
                   completed
                     ? "text-success hover:text-success/80"
                     : "text-muted-foreground hover:text-foreground"
@@ -254,11 +254,11 @@ export function ProtocolContent({
                 ) : (
                   <Circle className="h-5 w-5" aria-hidden="true" />
                 )}
-              </button>
+              </IconButton>
 
               {/* Step content */}
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                <div className="text-[10px] font-[var(--font-label)] uppercase tracking-widest text-muted-foreground">
                   Step {padStepNumber(stepNumber)}
                   {completed && completedAt && (
                     <span className="ml-2 text-success-foreground">

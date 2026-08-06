@@ -292,26 +292,27 @@ function DropdownSettings() {
                           placeholder={`Option ${i + 1}`}
                         />
                         {newOptions.length > 1 && (
-                          <button
-                            type="button"
-                            className="rounded border-transparent bg-transparent p-1 text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-warning)]"
+                          <IconButton
+                            aria-label="Remove option"
                             title="Remove option"
+                            className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
                             onClick={() => removeNewOption(i)}
                           >
                             <X className="h-3.5 w-3.5" />
-                          </button>
+                          </IconButton>
                         )}
                       </div>
                     ))}
                   </div>
-                  <button
-                    type="button"
-                    className="mt-2 rounded-md border border-[var(--color-ink-hairline)] px-2 py-1 text-[11px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)]"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2"
                     onClick={addNewOption}
                   >
-                    <Plus className="mr-1 inline h-3 w-3" />
+                    <Plus className="mr-1 h-3 w-3" />
                     Add option
-                  </button>
+                  </Button>
                 </fieldset>
 
                 <div className="flex gap-2">
@@ -495,35 +496,35 @@ function DropdownSettings() {
                             placeholder={`Option ${i + 1}`}
                           />
                           <div className="flex shrink-0 items-center gap-0.5">
-                            <button
-                              type="button"
-                              className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
+                            <IconButton
+                              aria-label="Move up"
+                              title="Move up"
+                              className="h-5 w-5 text-[10px] text-[var(--color-ink-muted-foreground)] disabled:opacity-30"
                               onClick={() => handleMoveOption(i, "up")}
                               disabled={i === 0}
-                              title="Move up"
                             >
                               ↑
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
+                            </IconButton>
+                            <IconButton
+                              aria-label="Move down"
+                              title="Move down"
+                              className="h-5 w-5 text-[10px] text-[var(--color-ink-muted-foreground)] disabled:opacity-30"
                               onClick={() => handleMoveOption(i, "down")}
                               disabled={
                                 i === editingDropdown.options.length - 1
                               }
-                              title="Move down"
                             >
                               ↓
-                            </button>
+                            </IconButton>
                             {editingDropdown.options.length > 1 && (
-                              <button
-                                type="button"
-                                className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)]/50"
-                                onClick={() => handleRemoveOption(i)}
+                              <IconButton
+                                aria-label="Remove option"
                                 title="Remove option"
+                                className="h-5 w-5 text-[10px] text-[var(--color-warning)]"
+                                onClick={() => handleRemoveOption(i)}
                               >
                                 ×
-                              </button>
+                              </IconButton>
                             )}
                           </div>
                         </div>

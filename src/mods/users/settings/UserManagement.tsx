@@ -299,13 +299,14 @@ export default function UserManagement() {
               actions={
                 <div className="flex items-center gap-1">
                   {selectedUser.is_active ? (
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent px-2 py-1 text-[11px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-destructive)]"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[--color-warning] hover:text-[--color-destructive]"
                       onClick={() => handleDeactivate(selectedUser)}
                     >
                       Deactivate
-                    </button>
+                    </Button>
                   ) : (
                     <IconButton
                       aria-label="Delete user"

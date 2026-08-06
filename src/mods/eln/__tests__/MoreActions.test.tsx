@@ -64,9 +64,10 @@ describe("MoreActions", () => {
       renderMoreActions();
       const trigger = screen.getByLabelText("More actions");
       expect(trigger).toBeDefined();
-      expect(trigger.getAttribute("aria-expanded")).toBe("false");
-      expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
-      expect(trigger.className).toContain("btn-icon");
+      expect(trigger.tagName).toBe("BUTTON");
+      // ARIA attributes are on the wrapper div
+      expect(trigger.parentElement?.getAttribute("aria-expanded")).toBe("false");
+      expect(trigger.parentElement?.getAttribute("aria-haspopup")).toBe("menu");
     });
 
     it("opens the menu on click and sets aria-expanded to true", () => {
@@ -75,7 +76,7 @@ describe("MoreActions", () => {
 
       fireEvent.click(trigger);
 
-      expect(trigger.getAttribute("aria-expanded")).toBe("true");
+      expect(trigger.parentElement?.getAttribute("aria-expanded")).toBe("true");
       // Menu should be in the DOM (portaled to body)
       expect(screen.getByRole("menu")).toBeDefined();
     });
@@ -89,7 +90,7 @@ describe("MoreActions", () => {
 
       fireEvent.click(trigger);
       expect(screen.queryByRole("menu")).toBeNull();
-      expect(trigger.getAttribute("aria-expanded")).toBe("false");
+      expect(trigger.parentElement?.getAttribute("aria-expanded")).toBe("false");
     });
 
     it("opens and closes menu on Enter key (native button activation)", () => {
@@ -102,7 +103,7 @@ describe("MoreActions", () => {
       fireEvent.click(trigger);
 
       expect(screen.getByRole("menu")).toBeDefined();
-      expect(trigger.getAttribute("aria-expanded")).toBe("true");
+      expect(trigger.parentElement?.getAttribute("aria-expanded")).toBe("true");
     });
 
     it("opens and closes menu on Space key (native button activation)", () => {
@@ -113,7 +114,7 @@ describe("MoreActions", () => {
       fireEvent.click(trigger);
 
       expect(screen.getByRole("menu")).toBeDefined();
-      expect(trigger.getAttribute("aria-expanded")).toBe("true");
+      expect(trigger.parentElement?.getAttribute("aria-expanded")).toBe("true");
     });
   });
 
@@ -134,7 +135,7 @@ describe("MoreActions", () => {
       openMenu();
 
       const deleteBtn = screen.getByText("Delete");
-      expect(deleteBtn.className).toContain("text-destructive");
+      expect(deleteBtn.className).toContain("--color-destructive");
     });
 
     it("renders non-destructive items with foreground color class", () => {
@@ -142,7 +143,7 @@ describe("MoreActions", () => {
       openMenu();
 
       const duplicateBtn = screen.getByText("Duplicate");
-      expect(duplicateBtn.className).toContain("text-foreground");
+      expect(duplicateBtn.className).toContain("--color-ink");
     });
 
     it("renders tooltips on menu items", () => {

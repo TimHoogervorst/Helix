@@ -1,5 +1,5 @@
 # Dev/test dependencies — install with: pip install -r requirements-dev.txt
 coverage>=7.0
 pytest>=8.0
-pytest-django>=4.12.0
+pytest-django==4.12.0
 jsonschema>=4.20

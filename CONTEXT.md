@@ -590,7 +590,9 @@ The hard rule that every icon-only button must have a `title` attribute (native 
 
 ### Typographic Scale
 
-The set of six canonical font sizes expressed as CSS custom properties: `--text-xs` (12px) through `--text-2xl` (24px). Every component references a scale token rather than a raw size. The scale uses `rem` units, so it respects the user's browser font size preference.
+The set of ten canonical font sizes expressed as CSS custom properties: `--text-2xs` (10px), `--text-xs` (11px), `--text-sm` (12px), `--text-base` (13px), `--text-md` (14px), `--text-lg` (16px), `--text-xl` (20px), `--text-2xl` (24px), `--text-3xl` (30px), `--text-4xl` (42px). Every component references a scale token rather than a raw size. The scale uses `rem` units, so it respects the user's browser font size preference.
+
+**Deliberate deviation:** `--text-base` is 13px — the platform's dominant UI density — not the 16px framework default. Sizes below 12px exist for eyebrows, table headers, and badges; sizes above 24px exist for display titles.
 
 **Synonyms:** type scale, font size tokens
 
@@ -625,3 +627,35 @@ An icon chosen by a **user** from the Icon Library and stored on a domain object
 A named color in the platform palette, managed by admins in Settings (add, name, define). Every place that stores an icon may also store a Color Token alongside it — tags, schemas, metric cards, and code-level registrations alike. Pickers offer **only** palette colors; arbitrary hex input is not allowed. The default Color Token for new objects is **muted** (gray).
 
 **Synonyms:** palette color, named color
+
+### Theme Token
+
+A CSS custom property that defines one slot of the application's own visual theme (e.g. Primary, Accent). Theme Tokens color the **app chrome and components** — never domain objects. This is the hard distinction from **Color Token**: a Color Token is *data* stored on a domain object (tag, schema, metric card); a Theme Token is *styling* applied to the platform itself. Theme Tokens are the layer that user Preferences will override.
+
+**Synonyms:** design token, CSS variable, theme variable
+
+### Theme Seed
+
+A Theme Token that is **set directly** — never derived — and anchors one family of Derived Shades. The five canonical seeds: **Background** (app canvas), **Surface** (raised panels and cards), **Ink** (text; also the source of borders, hairlines, and muted text), **Primary**, **Accent**. Semantic colors (destructive, success, warning) are platform-fixed: they are not seeds and cannot be user-customized. A user colour scheme is exactly a choice of five seeds — every other color in the app derives from them.
+
+**Synonyms:** seed color, scheme seed
+
+### Primary
+
+The Theme Token for the **action color** — buttons, links, and active states. Deep teal in the default theme.
+
+**Distinction from Accent:** Primary marks what you can *do*; Accent marks what is *selected*.
+
+### Accent
+
+The Theme Token for the **highlight color** — selection backgrounds, hover tints, and emphasized areas. Light teal in the default theme.
+
+**Distinction from Primary:** Accent marks what is *selected*; Primary marks what you can *do*.
+
+### Derived Shade
+
+A state variant of a Theme Token that is **computed from the token** (via `color-mix()` in OKLCH space) rather than stored as an independent value — hover, active, and subtle-tint shades. Because a Derived Shade is computed, changing a Theme Token (e.g. from Preferences) updates its entire state ladder automatically. Hardcoding a shade that could be derived is a defect.
+
+**The canonical ladder:** per seed — **hover**, **active**, **subtle** (a low-tint wash over Background), **foreground** (contrast-resolved text on the seed). From Ink specifically — **border**, **hairline**, **muted-foreground**. Focus indication and disabled state are *rules*, not tokens (Accent ring; reduced opacity).
+
+**Synonyms:** derived state, computed shade

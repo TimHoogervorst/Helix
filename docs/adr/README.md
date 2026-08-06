@@ -24,6 +24,8 @@ and onboarding reference for contributors.
 | [0012](0012-tiptap-renderer-editor-host.md) | TipTapRenderer as Sole Editor Host — dissolving the host-component anti-pattern | 2026-07-30 | Accepted |
 | 0013 | Shell-Hosted Settings Layout Kit — composition primitives for coherent settings pages | 2026-08-03 | Accepted |
 | 0014 | Reference Columns Target a Schema — mirroring the dropdown precedent | 2026-08-03 | Accepted |
+| [0015](0015-icon-color-library-ownership.md) | Icon and Color Library Ownership Split | 2026-08-04 | Accepted |
+| [0016](0016-design-system-foundation.md) | Design-System Foundation — Theme Seeds, Derived Shades, and the Label/Body Type System | 2026-08-06 | Proposed |
 
 ## Creating a New ADR
 

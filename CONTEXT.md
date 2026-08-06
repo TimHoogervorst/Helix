@@ -596,6 +596,12 @@ The set of ten canonical font sizes expressed as CSS custom properties: `--text-
 
 **Synonyms:** type scale, font size tokens
 
+### Font Role
+
+The rule that text uses one of two canonical font families by **role**, never a raw `font-family` value. **Label** (`--font-label`, JetBrains Mono) is the voice of the interface: sidebar section headers, table headers, tabs, eyebrows, settings labels, display IDs, data cells, badges — and page/UI titles (settings heroes, hub heroes, login titles). **Body** (`--font-body`, Inter) is the voice of content: names of things (entry titles, entity names, profile names), editor narrative, button labels, and prose. There is no serif role — the former `--font-serif` token was removed; titles are typeset by role and scale, not by a third family.
+
+**Synonyms:** font family role, type role
+
 ### Action → Icon Mapping
 
 The curated table that assigns exactly one Lucide icon to each user-facing action (e.g., Save → `Save`, Delete → `Trash2`, Settings → `Settings`). This mapping is authoritative — two different buttons for the same action must use the same icon. The mapping lives in the styling guide, not in code, so it can be consulted during design review before implementation.

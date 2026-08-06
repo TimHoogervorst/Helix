@@ -1,0 +1,12 @@
+{
+  "id": "lavender",
+  "name": "Lavender",
+  "description": "Soft purple on cloudy white",
+  "seeds": {
+    "background": "#F4F1FA",
+    "surface": "#FFFFFF",
+    "ink": "#3B3153",
+    "primary": "#6B5CA5",
+    "accent": "#E3DCF6"
+  }
+}

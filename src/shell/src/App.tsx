@@ -1,12 +1,15 @@
 import { ModLoader } from "./mod-system";
 import Router from "./shell/Router";
 import { CurrentUserProvider } from "./user/CurrentUserProvider";
+import { ThemeProvider } from "./preferences";
 
 function App() {
   return (
     <CurrentUserProvider>
       <ModLoader>
-        <Router />
+        <ThemeProvider>
+          <Router />
+        </ThemeProvider>
       </ModLoader>
     </CurrentUserProvider>
   );

@@ -1,0 +1,12 @@
+{
+  "id": "elabftw",
+  "name": "eLabFTW",
+  "description": "Light grey with academic blue",
+  "seeds": {
+    "background": "#F2F2F2",
+    "surface": "#FFFFFF",
+    "ink": "#343434",
+    "primary": "#0C58AB",
+    "accent": "#EBFBFF"
+  }
+}

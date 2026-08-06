@@ -1,0 +1,12 @@
+{
+  "id": "cyberpunk",
+  "name": "Cyberpunk",
+  "description": "Neon purple on deep indigo",
+  "seeds": {
+    "background": "#150A28",
+    "surface": "#201040",
+    "ink": "#A8BFFF",
+    "primary": "#FF2E88",
+    "accent": "#B967FF"
+  }
+}

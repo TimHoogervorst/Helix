@@ -1,0 +1,12 @@
+{
+  "id": "original",
+  "name": "Original",
+  "description": "Light teal — the Helix default",
+  "seeds": {
+    "background": "oklch(0.985 0.005 95)",
+    "surface": "oklch(0.975 0.008 95)",
+    "ink": "oklch(0.22 0.02 260)",
+    "primary": "oklch(0.42 0.08 195)",
+    "accent": "oklch(0.94 0.03 180)"
+  }
+}

@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Settings, LogOut, Crown } from "lucide-react";
+import { User, Settings, LogOut, SlidersHorizontal } from "lucide-react";
 import { useCurrentUser } from "./CurrentUserProvider";
 import { Avatar, getInitials } from "./Avatar";
 import { logout } from "./api";
 import { useClickOutside } from "../shared/hooks/useClickOutside";
 import { Button } from "../shared/primitives/Button";
+import { PreferencesWindow } from "../preferences";
 
 export interface UserMenuProps {
   /**
@@ -20,12 +21,13 @@ export interface UserMenuProps {
  * Popover card triggered by clicking the sidebar avatar.
  *
  * Shows a mini header (avatar + username) and four items:
- *   Profile, Preferences (placeholder), Settings, Logout.
+ *   Profile, Preferences, Settings, Logout.
  */
 export function UserMenu({ compact = false }: UserMenuProps) {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -106,11 +108,13 @@ export function UserMenu({ compact = false }: UserMenuProps) {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              disabled
-              title="Coming soon"
-              aria-label="Preferences — coming soon"
+              onClick={() => {
+                setOpen(false);
+                setPrefsOpen(true);
+              }}
+              aria-label="Preferences"
             >
-              <Crown className="h-3.5 w-3.5" aria-hidden="true" />
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
               Preferences
             </Button>
             <Button
@@ -136,6 +140,7 @@ export function UserMenu({ compact = false }: UserMenuProps) {
           </div>
         </div>
       )}
+      <PreferencesWindow open={prefsOpen} onClose={() => setPrefsOpen(false)} />
     </div>
   );
 }

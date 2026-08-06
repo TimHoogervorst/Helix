@@ -1,0 +1,12 @@
+{
+  "id": "claude",
+  "name": "Claude",
+  "description": "Warm paper with coral highlights",
+  "seeds": {
+    "background": "#FAF9F5",
+    "surface": "#FFFFFF",
+    "ink": "#141413",
+    "primary": "#D97757",
+    "accent": "#F5F4ED"
+  }
+}

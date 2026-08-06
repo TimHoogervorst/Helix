@@ -1,0 +1,12 @@
+{
+  "id": "benchling",
+  "name": "Benchling",
+  "description": "Bright white with midnight-blue accents",
+  "seeds": {
+    "background": "#FFFFFF",
+    "surface": "#F0F6FE",
+    "ink": "#000650",
+    "primary": "#000DB5",
+    "accent": "#A9CAFB"
+  }
+}

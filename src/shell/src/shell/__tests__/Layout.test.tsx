@@ -46,11 +46,14 @@ vi.mock("../../user/api", () => ({
 }));
 
 import Layout from "../Layout";
+import { ThemeProvider } from "../../preferences";
 
 function renderLayout(initialRoute = "/library") {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
-      <Layout />
+      <ThemeProvider>
+        <Layout />
+      </ThemeProvider>
     </MemoryRouter>,
   );
 }
@@ -279,7 +282,9 @@ describe("Layout settings sidebar", () => {
   it("shows settings sections in the sidebar when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -290,7 +295,9 @@ describe("Layout settings sidebar", () => {
   it("shows a 'Settings' section label when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -300,7 +307,9 @@ describe("Layout settings sidebar", () => {
   it("shows a 'Back to Home' link that navigates to /library when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -312,7 +321,9 @@ describe("Layout settings sidebar", () => {
   it("highlights the active settings section based on search param", () => {
     render(
       <MemoryRouter initialEntries={["/settings?section=lims.schema-settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -324,7 +335,9 @@ describe("Layout settings sidebar", () => {
   it("the first section is active when no section param is given", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -336,7 +349,9 @@ describe("Layout settings sidebar", () => {
   it("hides hub links when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -347,7 +362,9 @@ describe("Layout settings sidebar", () => {
   it("hides Workspace section when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -357,7 +374,9 @@ describe("Layout settings sidebar", () => {
   it("still shows brand and user menu on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -454,7 +473,9 @@ describe("CollapsibleSidebar integration", () => {
   it("hides Workspace section on settings pages", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
-        <Layout />
+        <ThemeProvider>
+          <Layout />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 

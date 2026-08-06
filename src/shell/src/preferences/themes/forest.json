@@ -1,0 +1,12 @@
+{
+  "id": "forest",
+  "name": "Forest",
+  "description": "Dark pine with mint highlights",
+  "seeds": {
+    "background": "#0D1B12",
+    "surface": "#16291D",
+    "ink": "#D2E8D4",
+    "primary": "#2E7D4F",
+    "accent": "#66BB6A"
+  }
+}

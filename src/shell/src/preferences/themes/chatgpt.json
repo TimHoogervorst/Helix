@@ -1,0 +1,12 @@
+{
+  "id": "gpt",
+  "name": "GPT",
+  "description": "Clean white with the ChatGPT teal",
+  "seeds": {
+    "background": "#FFFFFF",
+    "surface": "#F9F9F9",
+    "ink": "#0D0D0D",
+    "primary": "#10A37F",
+    "accent": "#E6F4EF"
+  }
+}

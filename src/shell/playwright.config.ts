@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   webServer: {
     command: "npm run dev",
+    cwd: "../..",
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
   },

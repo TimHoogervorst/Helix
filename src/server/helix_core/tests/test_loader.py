@@ -873,6 +873,7 @@ class TestAutoDiscoverWithJsonManifest:
         server_dir.mkdir()
         mod_dir = mods_dir / "bad-json"
         mod_dir.mkdir()
+        (mod_dir / "__init__.py").write_text("")
         (mod_dir / "modManifest.json").write_text("{ not json")
 
         with pytest.raises(ValueError, match="not valid JSON"):

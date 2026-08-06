@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("body uses Inter font", async ({ page }) => {
   await page.goto("/");
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   const fontFamily = await page.evaluate(() =>
     getComputedStyle(document.body).fontFamily,
   );
@@ -11,7 +11,7 @@ test("body uses Inter font", async ({ page }) => {
 
 test("code element uses JetBrains Mono font", async ({ page }) => {
   await page.goto("/");
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
 
   // Dynamically add a <code> inside .ProseMirror to match the CSS selector
   const fontFamily = await page.evaluate(() => {

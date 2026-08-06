@@ -31,7 +31,7 @@ import type { SearchResult } from "../../../../shell/src/mentions/types";
 const UNIFIED_SUGGESTION_KEY = new PluginKey("unified-suggestion");
 
 /** Pattern: exact display ID match (e.g. "E1", "S42"). */
-const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
+export const DISPLAY_ID_PATTERN = /^[A-Z]\d+$/i;
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -42,9 +42,9 @@ interface SlashCommand {
   action: (editor: any, range: { from: number; to: number }) => void;
 }
 
-// ── Slash-command helpers (extracted from SlashCommands.ts) ─────────
+// ── Slash-command helpers ──────────────────────────────────────────
 
-function getCommands(): SlashCommand[] {
+export function getCommands(): SlashCommand[] {
   const blocks = ModRegistry.getInstance().getBlocks();
   const commands: SlashCommand[] = [];
 
@@ -73,7 +73,7 @@ function getCommands(): SlashCommand[] {
   return commands;
 }
 
-function fuzzyMatch(text: string, query: string): boolean {
+export function fuzzyMatch(text: string, query: string): boolean {
   const t = text.toLowerCase();
   const q = query.toLowerCase();
   let qi = 0;
@@ -83,9 +83,9 @@ function fuzzyMatch(text: string, query: string): boolean {
   return qi === q.length;
 }
 
-// ── Mention-search helper (extracted from MentionSuggestion.ts) ──────
+// ── Mention-search helper ──────────────────────────────────────────
 
-async function fetchItems(query: string): Promise<SearchResult[]> {
+export async function fetchItems(query: string): Promise<SearchResult[]> {
   if (!query) return [];
   try {
     const data = await get<{ results: SearchResult[] }>(

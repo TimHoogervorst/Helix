@@ -19,83 +19,113 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* ── Typography fonts ── */
-  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono",
-    "Cascadia Code", Consolas, monospace;
-  --font-serif: "Fraunces", ui-serif, Georgia, Cambria, "Times New Roman", serif;
-
-  /* ── Semantic colours (named by role, not by value) ── */
-  /* Warm paper background, deep ink text — lab notebook feel */
+  /* ── Five Theme Seeds ── */
   --color-background: oklch(0.985 0.005 95);
-  --color-foreground: oklch(0.22 0.02 260);
-  --color-border: oklch(0.9 0.01 90);
-  --color-hairline: oklch(0.93 0.008 90);
   --color-surface: oklch(0.975 0.008 95);
-  --color-panel: oklch(1 0 0);
-  --color-card: oklch(1 0 0);
-  --color-muted: oklch(0.955 0.008 95);
-  --color-muted-foreground: oklch(0.48 0.02 260);
-
-  /* Deep teal primary — scientific, calm */
+  --color-ink: oklch(0.22 0.02 260);
   --color-primary: oklch(0.42 0.08 195);
-  --color-primary-foreground: oklch(0.985 0.005 95);
-
   --color-accent: oklch(0.94 0.03 180);
-  --color-accent-foreground: oklch(0.28 0.05 200);
 
+  /* ── Derived Shades: Background ── */
+  --color-background-hover: color-mix(in oklch, var(--color-background), #000 5%);
+  --color-background-active: color-mix(in oklch, var(--color-background), #000 10%);
+  --color-background-subtle: var(--color-background);
+  --color-background-foreground: var(--color-ink);
+
+  /* ── Derived Shades: Surface ── */
+  --color-surface-hover: color-mix(in oklch, var(--color-surface), #000 5%);
+  --color-surface-active: color-mix(in oklch, var(--color-surface), #000 10%);
+  --color-surface-subtle: var(--color-surface);
+  --color-surface-foreground: var(--color-ink);
+
+  /* ── Derived Shades: Ink ── */
+  --color-ink-hover: color-mix(in oklch, var(--color-ink), #000 18%);
+  --color-ink-active: color-mix(in oklch, var(--color-ink), #000 30%);
+  --color-ink-subtle: color-mix(in oklch, var(--color-ink), transparent 90%);
+  --color-ink-foreground: #fff;
+  --color-ink-border: color-mix(in oklch, var(--color-ink) 10%, var(--color-background));
+  --color-ink-hairline: color-mix(in oklch, var(--color-ink) 5%, var(--color-background));
+  --color-ink-muted-foreground: color-mix(in oklch, var(--color-ink) 50%, var(--color-background));
+
+  /* ── Derived Shades: Primary ── */
+  --color-primary-hover: color-mix(in oklch, var(--color-primary), #000 18%);
+  --color-primary-active: color-mix(in oklch, var(--color-primary), #000 30%);
+  --color-primary-subtle: color-mix(in oklch, var(--color-primary), transparent 85%);
+  --color-primary-foreground: #fff;
+
+  /* ── Derived Shades: Accent ── */
+  --color-accent-hover: color-mix(in oklch, var(--color-accent), #000 5%);
+  --color-accent-active: color-mix(in oklch, var(--color-accent), #000 10%);
+  --color-accent-subtle: color-mix(in oklch, var(--color-accent), transparent 40%);
+  --color-accent-foreground: var(--color-ink);
+
+  /* ── Fixed Semantic Colours (never user-customizable) ── */
   --color-destructive: oklch(0.55 0.18 25);
-  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-destructive-hover: color-mix(in oklch, var(--color-destructive), #000 18%);
+  --color-destructive-active: color-mix(in oklch, var(--color-destructive), #000 30%);
+  --color-destructive-subtle: color-mix(in oklch, var(--color-destructive), transparent 88%);
+  --color-destructive-foreground: #fff;
 
-  /* Semantic entity chip colours (Benchling-ish) */
+  --color-success: oklch(0.55 0.12 155);
+  --color-success-hover: color-mix(in oklch, var(--color-success), #000 18%);
+  --color-success-active: color-mix(in oklch, var(--color-success), #000 30%);
+  --color-success-subtle: color-mix(in oklch, var(--color-success), transparent 88%);
+  --color-success-foreground: #fff;
+
+  --color-warning: oklch(0.6 0.12 70);
+  --color-warning-hover: color-mix(in oklch, var(--color-warning), #000 18%);
+  --color-warning-active: color-mix(in oklch, var(--color-warning), #000 30%);
+  --color-warning-subtle: color-mix(in oklch, var(--color-warning), transparent 88%);
+  --color-warning-foreground: #fff;
+
+  /* ── Domain Colours (entity chips — Color Tokens, not themeable) ── */
   --color-enzyme: oklch(0.94 0.07 300);
   --color-enzyme-foreground: oklch(0.34 0.13 300);
   --color-flask: oklch(0.94 0.06 200);
   --color-flask-foreground: oklch(0.32 0.09 220);
   --color-solvent: oklch(0.94 0.07 130);
   --color-solvent-foreground: oklch(0.32 0.1 150);
-  --color-warn: oklch(0.93 0.09 80);
-  --color-warn-foreground: oklch(0.4 0.12 60);
-  --color-success: oklch(0.93 0.08 150);
-  --color-success-foreground: oklch(0.36 0.1 155);
+
+  /* ── Focus & Disabled (rules, not tokens) ── */
+  --color-focus-ring: var(--color-accent);
+
+  /* ── Backward-compatible bridges (mapped to seed-derived tokens) ── */
+  --color-foreground: var(--color-ink);
+  --color-border: var(--color-ink-border);
+  --color-hairline: var(--color-ink-hairline);
+  --color-panel: var(--color-surface);
+  --color-card: var(--color-surface);
+  --color-muted: var(--color-surface-hover);
+  --color-muted-foreground: var(--color-ink-muted-foreground);
+  --color-warn: var(--color-warning);
+  --color-warn-foreground: var(--color-warning-foreground);
+
+  /* ── Font Roles ── */
+  --font-label: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono",
+    "Cascadia Code", Consolas, monospace;
+  --font-body: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+
+  /* ── Legacy font aliases ── */
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-label);
+
+  /* ── Typographic Scale (base = 13px deliberate deviation) ── */
+  --text-2xs: 0.625rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.375rem;
+  --text-3xl: 1.75rem;
+  --text-4xl: 2.625rem;
 
   /* ── Layout ── */
   --sidebar-width: 256px;
 
-  /* ── Legacy palette (mapped to teal-aligned values) ── */
-  --blue-50: #f0fdfa;
-  --blue-100: #ccfbf1;
-  --blue-200: #99f6e4;
-  --blue-300: #5eead4;
-  --blue-400: #2dd4bf;
-  --blue-500: #14b8a6;
-  --blue-600: #0d9488;
-  --blue-700: #0f766e;
-  --blue-800: #115e59;
-  --blue-900: #134e4a;
-  --white: #ffffff;
-
-  --gray-50: #fafaf9;
-  --gray-100: #f5f5f4;
-  --gray-200: #e7e5e4;
-  --gray-300: #d6d3d1;
-  --gray-400: #a8a29e;
-  --gray-500: #78716c;
-  --gray-600: #57534e;
-  --gray-700: #44403c;
-  --gray-800: #292524;
-  --gray-900: #1c1917;
-
-  /* ── Legacy typographic scale (rem-based) ── */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-
-  /* ── Legacy icon sizes ── */
+  /* ── Icon sizes ── */
   --icon-sm: 14px;
   --icon-md: 18px;
   --icon-lg: 24px;
@@ -126,7 +156,7 @@
     text-decoration: none;
   }
   a:hover {
-    color: oklch(0.34 0.07 195);
+    color: var(--color-primary-hover);
     text-decoration: underline;
   }
 
@@ -149,8 +179,8 @@
   }
   button:hover,
   input[type="submit"]:hover {
-    background: oklch(0.34 0.07 195);
-    border-color: oklch(0.34 0.07 195);
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
   }
   button:disabled,
   input[type="submit"]:disabled {
@@ -158,7 +188,7 @@
     cursor: not-allowed;
   }
   button:active {
-    background: oklch(0.34 0.07 195);
+    background: var(--color-primary-hover);
   }
 }
 
@@ -299,7 +329,7 @@ label {
   outline: none;
   min-height: 60vh;
   padding: 0;
-  color: var(--color-foreground, oklch(0.22 0.02 260));
+  color: var(--color-foreground);
   /* Per-child centering replaces the old container-level max-width
      (see .ProseMirror > * below).  Stretch blocks use
      .block-node-view-wrapper--stretch to go full-width. */
@@ -367,7 +397,7 @@ label {
 /* ── ProseMirror Typography (PRD #4) ── */
 
 .ProseMirror h1 {
-  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-family: var(--font-label, "JetBrains Mono Variable", "JetBrains Mono", monospace);
   font-size: 2.625rem;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -377,7 +407,7 @@ label {
 }
 
 .ProseMirror h2 {
-  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-family: var(--font-label, "JetBrains Mono Variable", "JetBrains Mono", monospace);
   font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -399,24 +429,24 @@ label {
 }
 
 .ProseMirror blockquote {
-  border-left: 2px solid var(--color-primary, oklch(0.42 0.08 195));
+  border-left: 2px solid var(--color-primary);
   padding-left: 1rem;
   font-style: italic;
-  color: var(--color-muted-foreground, oklch(0.48 0.02 260));
+  color: var(--color-muted-foreground);
   margin-left: 0;
 }
 
 .ProseMirror code {
   font-family: var(--font-mono, "JetBrains Mono Variable", "JetBrains Mono", monospace);
-  background: var(--color-muted, oklch(0.955 0.008 95));
+  background: var(--color-muted);
   border-radius: 0.25rem;
   padding: 0.1em 0.25em;
   font-size: 0.9em;
 }
 
 .ProseMirror pre {
-  background: var(--color-foreground, oklch(0.22 0.02 260));
-  color: var(--color-background, oklch(0.985 0.005 95));
+  background: var(--color-foreground);
+  color: var(--color-background);
   border-radius: 0.5rem;
   padding: 1rem;
   overflow-x: auto;
@@ -438,22 +468,22 @@ label {
 }
 
 .ProseMirror a {
-  color: var(--color-primary, oklch(0.42 0.08 195));
+  color: var(--color-primary);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--color-primary, oklch(0.42 0.08 195)) 30%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
   text-underline-offset: 2px;
 }
 
 .ProseMirror hr {
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
-  border-color: var(--color-hairline, oklch(0.93 0.008 90));
+  border-color: var(--color-hairline);
 }
 
 /* Inline formatting */
 .ProseMirror strong {
   font-weight: 600;
-  color: var(--color-foreground, oklch(0.22 0.02 260));
+  color: var(--color-foreground);
 }
 
 
@@ -473,8 +503,8 @@ label {
     "Cascadia Code", Consolas, monospace;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--gray-500);
-  background: var(--gray-100);
+  color: var(--color-ink-muted-foreground);
+  background: var(--color-surface-hover);
   border-radius: 4px;
   padding: 0.1em 0.45em;
   margin-right: 0.5em;
@@ -485,14 +515,14 @@ label {
   font-family: inherit;
   font-weight: 500;
   padding: 0.05em 0.4em;
-  color: var(--gray-500);
-  background: var(--gray-100);
+  color: var(--color-ink-muted-foreground);
+  background: var(--color-surface-hover);
   text-decoration: none;
 }
 
 /* Clickable (blue) — loading state: plain text */
 .reference-badge.is-clickable {
-  color: var(--gray-700);
+  color: var(--color-ink);
 }
 
 /* Clickable — resolved: blue pill with link */
@@ -502,20 +532,20 @@ label {
   gap: 0.25rem;
   padding: 0.05em 0.4em;
   font-size: 0.9em;
-  background: var(--blue-50);
-  border: 1px solid var(--blue-200);
+  background: var(--color-primary-subtle);
+  border: 1px solid var(--color-primary);
   border-radius: 4px;
-  color: var(--blue-700);
+  color: var(--color-primary);
   text-decoration: none;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   vertical-align: baseline;
 }
 .reference-badge.is-clickable.is-resolved:hover {
-  background: var(--blue-100);
-  border-color: var(--blue-500);
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary);
   text-decoration: none;
-  color: var(--blue-700);
+  color: var(--color-primary);
 }
 
 /* Clickable — broken: red pill */
@@ -565,8 +595,8 @@ label {
 .reference-dropdown {
   position: absolute;
   z-index: 1000;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--color-surface);
+  border: 1px solid var(--color-ink-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   max-height: 240px;
@@ -587,10 +617,10 @@ label {
 }
 .reference-dropdown-item:hover,
 .reference-dropdown-item.is-selected {
-  background: var(--blue-50);
+  background: var(--color-primary-subtle);
 }
 .reference-dropdown-item.is-empty {
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 .reference-dropdown-item.is-empty:hover {
@@ -602,12 +632,12 @@ label {
     "Cascadia Code", Consolas, monospace;
   font-weight: 600;
   font-size: 0.85em;
-  color: var(--gray-700);
+  color: var(--color-ink);
   flex-shrink: 0;
 }
 
 .ref-dropdown-title {
-  color: var(--gray-700);
+  color: var(--color-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -618,8 +648,8 @@ label {
 .slash-dropdown {
   position: absolute;
   z-index: 1001;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--color-surface);
+  border: 1px solid var(--color-ink-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   max-height: 300px;
@@ -640,10 +670,10 @@ label {
 }
 .slash-dropdown-item:hover,
 .slash-dropdown-item.is-selected {
-  background: var(--blue-50);
+  background: var(--color-primary-subtle);
 }
 .slash-dropdown-item.is-empty {
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 .slash-dropdown-item.is-empty:hover {
@@ -666,13 +696,13 @@ label {
 
 .slash-item-label {
   font-weight: 600;
-  color: var(--gray-800);
+  color: var(--color-ink);
   font-size: 0.9rem;
 }
 
 .slash-item-desc {
   font-size: 0.8rem;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -804,7 +834,7 @@ label {
 .detail-properties h3 {
   font-size: 1rem;
   margin: 0 0 0.5rem;
-  font-family: var(--font-serif, ui-serif, Georgia, Cambria, "Times New Roman", serif);
+  font-family: var(--font-label, "JetBrains Mono Variable", "JetBrains Mono", monospace);
   color: var(--color-foreground);
 }
 
@@ -833,7 +863,7 @@ label {
   font-family: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono",
     "Cascadia Code", Consolas, monospace;
   font-size: 0.85em;
-  color: var(--gray-700);
+  color: var(--color-ink);
   width: 40%;
 }
 
@@ -852,7 +882,7 @@ label {
   align-items: center;
   gap: 0.1rem;
   font-size: 0.75rem;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   flex-wrap: wrap;
   margin-right: auto;
   line-height: 1.2;
@@ -869,7 +899,7 @@ label {
   padding: 0;
   background: none;
   border: none;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   font-size: 0.7rem;
   cursor: pointer;
   transition: color 0.15s;
@@ -877,7 +907,7 @@ label {
 }
 
 .breadcrumb-btn:hover:not(:disabled) {
-  color: var(--gray-700);
+  color: var(--color-ink);
 }
 
 .breadcrumb-btn:disabled {
@@ -887,18 +917,18 @@ label {
 
 .breadcrumb-seg {
   cursor: pointer;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   white-space: nowrap;
 }
 
 .breadcrumb-seg:hover {
   text-decoration: underline;
-  color: var(--gray-700);
+  color: var(--color-ink);
 }
 
 .breadcrumb-seg.is-current {
   font-weight: 600;
-  color: var(--gray-700);
+  color: var(--color-ink);
   cursor: default;
 }
 
@@ -907,13 +937,13 @@ label {
 }
 
 .breadcrumb-folder-icon {
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   flex-shrink: 0;
   margin-right: 0.15rem;
 }
 
 .breadcrumb-sep {
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   user-select: none;
 }
 
@@ -976,8 +1006,8 @@ label {
   right: 0;
   z-index: 500;
   min-width: 180px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--color-surface);
+  border: 1px solid var(--color-ink-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   padding: 4px;
@@ -992,13 +1022,13 @@ label {
   background: transparent;
   text-align: left;
   font-size: 0.9rem;
-  color: var(--gray-700);
+  color: var(--color-ink);
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .library-new-menu-item:hover {
-  background: var(--gray-50);
+  background: var(--color-surface-hover);
 }
 
 .library-new-folder-form {
@@ -1009,16 +1039,16 @@ input.library-new-folder-input {
   width: 100%;
   padding: 6px 10px;
   font-size: 0.9rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
   outline: none;
-  background: var(--white);
-  color: var(--gray-900);
+  background: var(--color-surface);
+  color: var(--color-ink);
 }
 
 input.library-new-folder-input:focus {
-  border-color: var(--blue-500);
-  box-shadow: 0 0 0 2px var(--blue-100);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-subtle);
 }
 
 .library-new-error {
@@ -1065,9 +1095,9 @@ input.library-new-folder-input:focus {
   display: flex;
   gap: 1px;
   padding: 2px;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--color-ink-border);
   border-radius: 5px;
-  background: var(--gray-100);
+  background: var(--color-surface-hover);
 }
 
 .library-view-toggle {
@@ -1078,18 +1108,18 @@ input.library-new-folder-input:focus {
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .library-view-toggle:hover {
-  color: var(--gray-600);
+  color: var(--color-ink);
 }
 
 .library-view-toggle.is-active {
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
@@ -1099,16 +1129,16 @@ input.library-new-folder-input:focus {
   gap: 0.25rem;
   padding: 0.2rem 0.65rem;
   font-size: 0.78rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .library-export-btn:hover:not(:disabled) {
-  background: var(--gray-50);
+  background: var(--color-surface-hover);
 }
 
 .library-export-btn:disabled {
@@ -1151,28 +1181,28 @@ input.library-new-folder-input:focus {
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
 }
 
 .library-filter-search {
   width: 100%;
   padding: 0.35rem 0.65rem 0.35rem 2.1rem;
   font-size: 0.82rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   outline: none;
 }
 
 .library-filter-search:focus {
-  border-color: var(--blue-500);
-  box-shadow: 0 0 0 2px var(--blue-100);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-subtle);
 }
 
 .library-filter-search:disabled {
-  background: var(--gray-50);
-  color: var(--gray-400);
+  background: var(--color-surface-hover);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 
@@ -1189,16 +1219,16 @@ input.library-new-folder-input:focus {
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
 }
 
 .library-filter-select {
   padding: 0.35rem 2rem 0.35rem 0.5rem;
   font-size: 0.82rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   outline: none;
   appearance: none;
   -webkit-appearance: none;
@@ -1206,8 +1236,8 @@ input.library-new-folder-input:focus {
 }
 
 .library-filter-select:disabled {
-  background: var(--gray-50);
-  color: var(--gray-400);
+  background: var(--color-surface-hover);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 
@@ -1216,17 +1246,17 @@ input.library-new-folder-input:focus {
   align-items: center;
   padding: 0.35rem 0.75rem;
   font-size: 0.82rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .library-filter-sort-btn:disabled {
-  background: var(--gray-50);
-  color: var(--gray-400);
+  background: var(--color-surface-hover);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 
@@ -1463,7 +1493,7 @@ input.library-new-folder-input:focus {
 
 .library-sidebar-placeholder {
   font-size: 0.8rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   margin: 0;
 }
 
@@ -1480,7 +1510,7 @@ input.library-new-folder-input:focus {
   font-size: 0.82rem;
   padding: 0.3rem 0.5rem;
   border-radius: 4px;
-  color: var(--gray-600);
+  color: var(--color-ink);
   cursor: default;
   transition: background 0.1s, color 0.1s;
 }
@@ -1533,7 +1563,7 @@ input.library-new-folder-input:focus {
   padding: 0;
   background: none;
   border: none;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
@@ -1555,8 +1585,8 @@ input.library-new-folder-input:focus {
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  background: var(--gray-100);
-  color: var(--gray-600);
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
   flex-shrink: 0;
   font-size: 1rem;
 }
@@ -1580,7 +1610,7 @@ input.library-new-folder-input:focus {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--blue-600);
+  color: var(--color-primary);
 }
 
 .card-status-chip {
@@ -1606,12 +1636,12 @@ input.library-new-folder-input:focus {
 .card-title {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--gray-800);
+  color: var(--color-ink);
 }
 
 .card-description {
   font-size: 0.8rem;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1623,16 +1653,16 @@ input.library-new-folder-input:focus {
   display: flex;
   align-items: center;
   font-size: 0.75rem;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
 }
 
 .metadata-sep {
-  color: var(--gray-300);
+  color: var(--color-ink-border);
 }
 
 .card-updated {
   font-size: 0.7rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
 }
 
 .card-tags {
@@ -1699,7 +1729,7 @@ input.library-new-folder-input:focus {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.72rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -1727,11 +1757,11 @@ input.library-new-folder-input:focus {
   padding: 1rem;
   border: 1px solid var(--color-hairline);
   border-radius: 8px;
-  background: var(--white);
+  background: var(--color-surface);
 }
 
 .library-card-list.view-grid .base-library-card:hover {
-  border-color: var(--gray-300);
+  border-color: var(--color-ink-border);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
@@ -1829,16 +1859,16 @@ input.library-new-folder-input:focus {
 .hub-load-more button {
   padding: 0.4rem 1.25rem;
   font-size: 0.85rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 6px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .hub-load-more button:hover:not(:disabled) {
-  background: var(--gray-50);
+  background: var(--color-surface-hover);
 }
 
 .hub-load-more button:disabled {
@@ -1950,10 +1980,10 @@ input.library-new-folder-input:focus {
 .entities-view-toggle-group {
   display: flex;
   gap: 1px;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
   overflow: hidden;
-  background: var(--gray-200);
+  background: var(--color-ink-border);
 }
 
 .entities-view-toggle {
@@ -1963,19 +1993,19 @@ input.library-new-folder-input:focus {
   padding: 0.35rem 0.5rem;
   background: transparent;
   border: none;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .entities-view-toggle:hover {
-  background: var(--gray-100);
-  color: var(--gray-600);
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
 }
 
 .entities-view-toggle.is-active {
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
@@ -2002,7 +2032,7 @@ input.library-new-folder-input:focus {
 .entities-filter-search-icon {
   position: absolute;
   left: 0.5rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   pointer-events: none;
 }
 
@@ -2010,16 +2040,16 @@ input.entities-filter-search {
   width: 100%;
   padding: 0.4rem 0.5rem 0.4rem 2.25rem;
   font-size: 0.82rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   outline: none;
 }
 
 .entities-filter-search:disabled {
-  background: var(--gray-50);
-  color: var(--gray-400);
+  background: var(--color-surface-hover);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 
@@ -2040,17 +2070,17 @@ input.entities-filter-search {
 .entities-filter-select-icon {
   position: absolute;
   right: 0.5rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   pointer-events: none;
 }
 
 .entities-filter-select {
   padding: 0.35rem 1.75rem 0.35rem 0.65rem;
   font-size: 0.82rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   outline: none;
   appearance: none;
   -webkit-appearance: none;
@@ -2058,8 +2088,8 @@ input.entities-filter-search {
 }
 
 .entities-filter-select:disabled {
-  background: var(--gray-50);
-  color: var(--gray-400);
+  background: var(--color-surface-hover);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 
@@ -2070,18 +2100,18 @@ input.entities-filter-search {
   gap: 0.35rem;
   padding: 0.35rem 0.75rem;
   font-size: 0.82rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .entities-filter-sort-btn:disabled,
 .entities-filter-columns-btn:disabled {
-  background: var(--gray-50);
-  color: var(--gray-400);
+  background: var(--color-surface-hover);
+  color: var(--color-ink-muted-foreground);
   cursor: default;
 }
 
@@ -2092,7 +2122,7 @@ input.entities-filter-search {
 }
 
 .entities-filter-sort-btn:hover:not(:disabled) {
-  background: var(--gray-50);
+  background: var(--color-surface-hover);
 }
 
 .entities-filter-sort-btn.is-active:hover {
@@ -2127,8 +2157,8 @@ input.entities-filter-search {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  background: var(--color-muted, #f3f4f6);
-  border: 1px solid var(--color-hairline, #e5e7eb);
+  background: var(--color-muted);
+  border: 1px solid var(--color-hairline);
   border-radius: 9999px;
   font-size: 0.78rem;
   line-height: 1.4;
@@ -2150,7 +2180,7 @@ input.entities-filter-search {
   padding: 0.25rem 0.45rem;
   border: none;
   background: transparent;
-  color: var(--color-foreground, #111827);
+  color: var(--color-foreground);
   font-size: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -2160,7 +2190,7 @@ input.entities-filter-search {
 
 .entities-filter-pill-field:hover,
 .entities-filter-pill-operator:hover:not(:disabled) {
-  background: var(--gray-200, #e5e7eb);
+  background: var(--color-ink-border, #e5e7eb);
 }
 
 .entities-filter-pill-operator:disabled {
@@ -2169,17 +2199,17 @@ input.entities-filter-search {
 }
 
 .entities-filter-pill-field.is-set {
-  color: var(--color-foreground, #111827);
+  color: var(--color-foreground);
   font-weight: 600;
 }
 
 .entities-filter-pill-operator.is-set {
-  color: var(--color-foreground, #111827);
+  color: var(--color-foreground);
 }
 
 /* Colon separator */
 .entities-filter-pill-colon {
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--color-muted-foreground);
   font-weight: 600;
   padding: 0 0.05rem;
 }
@@ -2201,13 +2231,13 @@ input.entities-filter-search {
   box-shadow: none !important;
   border-radius: 4px !important;
   width: auto;
-  color: var(--color-foreground, #111827);
+  color: var(--color-foreground);
 }
 
 .entities-filter-pill-value-wrap input:focus,
 .entities-filter-pill-value-wrap select:focus {
-  background: var(--white, #fff) !important;
-  box-shadow: 0 0 0 1px var(--color-accent, #2563eb) !important;
+  background: var(--color-surface, #fff) !important;
+  box-shadow: 0 0 0 1px var(--color-accent) !important;
 }
 
 .entities-filter-pill-value-wrap input:disabled,
@@ -2241,7 +2271,7 @@ input.entities-filter-search {
 .entities-filter-pill-none-value {
   display: flex;
   align-items: center;
-  color: var(--color-muted-foreground, #888);
+  color: var(--color-muted-foreground);
   font-size: 0.8125rem;
   white-space: nowrap;
 }
@@ -2254,13 +2284,13 @@ input.entities-filter-search {
   padding: 0.25rem 0.4rem 0.25rem 0.2rem;
   border: none;
   background: transparent;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--color-muted-foreground);
   cursor: pointer;
   border-radius: 0 9999px 9999px 0;
 }
 
 .entities-filter-pill-remove:hover {
-  color: var(--color-destructive, #ef4444);
+  color: var(--color-destructive);
 }
 
 /* ── Filter pill popover (field / operator dropdown) ───────────────────── */
@@ -2274,8 +2304,8 @@ input.entities-filter-search {
   min-width: 140px;
   max-height: 220px;
   overflow-y: auto;
-  background: var(--color-panel, #fff);
-  border: 1px solid var(--color-hairline, #e5e7eb);
+  background: var(--color-panel);
+  border: 1px solid var(--color-hairline);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 0.25rem;
@@ -2287,7 +2317,7 @@ input.entities-filter-search {
   padding: 0.35rem 0.6rem;
   border: none;
   background: transparent;
-  color: var(--color-foreground, #111827);
+  color: var(--color-foreground);
   font-size: 0.78rem;
   text-align: left;
   cursor: pointer;
@@ -2296,12 +2326,12 @@ input.entities-filter-search {
 }
 
 .entities-filter-pill-option:hover {
-  background: var(--color-muted, #f3f4f6);
+  background: var(--color-muted);
 }
 
 .entities-filter-pill-option.is-selected {
-  background: var(--color-accent-muted, #dbeafe);
-  color: var(--color-accent, #2563eb);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
   font-weight: 600;
 }
 
@@ -2312,19 +2342,19 @@ input.entities-filter-search {
   align-items: center;
   gap: 0.3rem;
   padding: 0.3rem 0.5rem;
-  border: 1px dashed var(--gray-300, #d1d5db);
+  border: 1px dashed var(--color-ink-border, #d1d5db);
   border-radius: 9999px;
   background: transparent;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--color-muted-foreground);
   font-size: 0.78rem;
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
 .entities-filter-add-btn:hover {
-  background: var(--color-muted, #f3f4f6);
-  color: var(--color-foreground, #111827);
-  border-color: var(--gray-400, #9ca3af);
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  border-color: var(--color-ink-muted-foreground, #9ca3af);
 }
 
 /* ── Clear all link ─────────────────────────────────────────────────────── */
@@ -2334,14 +2364,14 @@ input.entities-filter-search {
   border: none;
   background: transparent;
   font-size: 0.75rem;
-  color: var(--color-muted-foreground, #6b7280);
+  color: var(--color-muted-foreground);
   cursor: pointer;
   text-decoration: underline;
   white-space: nowrap;
 }
 
 .entities-filter-clear-all-btn:hover {
-  color: var(--color-foreground, #111827);
+  color: var(--color-foreground);
 }
 
 /* ── Data Table ──────────────────────────────────────────────────────────────── */
@@ -2462,7 +2492,7 @@ input.entities-filter-search {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--blue-600);
+  color: var(--color-primary);
 }
 
 /* Schema type badge */
@@ -2544,16 +2574,16 @@ input.entities-filter-search {
   height: 28px;
   padding: 0 0.35rem;
   font-size: 0.8rem;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--color-ink-border);
   border-radius: 4px;
-  background: var(--white);
-  color: var(--gray-700);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .entities-page-btn:hover:not(:disabled) {
-  background: var(--gray-50);
+  background: var(--color-surface-hover);
 }
 
 .entities-page-btn.is-active {
@@ -2573,7 +2603,7 @@ input.entities-filter-search {
   justify-content: center;
   min-width: 28px;
   height: 28px;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   font-size: 0.8rem;
   user-select: none;
 }
@@ -2603,8 +2633,8 @@ input.entities-filter-search {
   z-index: 50;
   min-width: 240px;
   max-height: 360px;
-  background: var(--white);
-  border: 1px solid var(--gray-300);
+  background: var(--color-surface);
+  border: 1px solid var(--color-ink-border);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   display: flex;
@@ -2637,7 +2667,7 @@ input.entities-filter-search {
 }
 
 .entities-column-chooser-row:hover {
-  background: var(--gray-50);
+  background: var(--color-surface-hover);
 }
 
 .entities-column-chooser-label {
@@ -2666,7 +2696,7 @@ input.entities-filter-search {
   padding: 2px;
   border: none;
   background: transparent;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   cursor: pointer;
   border-radius: 3px;
   opacity: 0;
@@ -2679,7 +2709,7 @@ input.entities-filter-search {
 
 .entities-column-chooser-lock:hover {
   color: var(--color-foreground);
-  background: var(--gray-100);
+  background: var(--color-surface-hover);
 }
 
 .entities-column-chooser-lock.is-locked {
@@ -2696,7 +2726,7 @@ input.entities-filter-search {
   padding: 1px;
   border: none;
   background: transparent;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   cursor: pointer;
   border-radius: 2px;
   opacity: 0;
@@ -2710,7 +2740,7 @@ input.entities-filter-search {
 
 .entities-lock-btn:hover {
   color: var(--color-foreground);
-  background: var(--gray-100);
+  background: var(--color-surface-hover);
 }
 
 .entities-lock-btn.is-locked {
@@ -2721,20 +2751,20 @@ input.entities-filter-search {
 /* ── Locked (sticky) column styling ──────────────────────────────────────────── */
 
 .entities-th.is-locked {
-  border-right: 1px solid var(--gray-300);
-  background: var(--gray-50);
+  border-right: 1px solid var(--color-ink-border);
+  background: var(--color-surface-hover);
 }
 
 .entities-td.is-locked {
   border-right: 1px solid var(--color-hairline);
-  background: var(--gray-25, #fafbfc);
+  background: var(--color-surface, #fff);
 }
 
 /* ── Sidebar placeholders ───────────────────────────────────────────────────── */
 
 .entities-sidebar-placeholder {
   font-size: 0.8rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   margin: 0;
 }
 
@@ -2751,7 +2781,7 @@ input.entities-filter-search {
   font-size: 0.82rem;
   padding: 0.3rem 0.5rem;
   border-radius: 4px;
-  color: var(--gray-600);
+  color: var(--color-ink);
   cursor: default;
   transition: background 0.1s, color 0.1s;
 }
@@ -2761,7 +2791,7 @@ input.entities-filter-search {
 }
 
 .entities-sidebar-view-item.is-empty {
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   font-style: italic;
 }
 
@@ -2783,7 +2813,7 @@ input.entities-filter-search {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.78rem;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   background: none;
   border: 1px dashed var(--color-hairline);
   border-radius: 4px;
@@ -2795,7 +2825,7 @@ input.entities-filter-search {
 
 .entities-views-save-btn:hover:not(:disabled) {
   border-color: var(--color-accent);
-  background: var(--color-accent-subtle, rgba(59, 130, 246, 0.06));
+  background: var(--color-accent-subtle);
 }
 
 .entities-views-save-btn:disabled {
@@ -2818,8 +2848,8 @@ input.entities-filter-search {
   border: 1px solid var(--color-accent);
   border-radius: 4px;
   outline: none;
-  background: var(--color-bg);
-  color: var(--gray-800);
+  background: var(--color-surface);
+  color: var(--color-ink);
 }
 
 .entities-views-name-input:focus {
@@ -2843,7 +2873,7 @@ input.entities-filter-search {
 
 .entities-views-action-btn.is-save {
   background: var(--color-accent);
-  color: #fff;
+  var(--color-primary-foreground)
   border-color: var(--color-accent);
 }
 
@@ -2858,7 +2888,7 @@ input.entities-filter-search {
 
 .entities-views-action-btn.is-cancel {
   background: transparent;
-  color: var(--gray-500);
+  color: var(--color-ink-muted-foreground);
   border-color: var(--color-hairline);
 }
 
@@ -2872,7 +2902,7 @@ input.entities-filter-search {
   text-align: left;
   justify-content: flex-start;
   font-size: 0.82rem;
-  color: var(--gray-600);
+  color: var(--color-ink);
   background: none;
   border: none;
   padding: 0;
@@ -2891,14 +2921,14 @@ input.entities-filter-search {
 
 /* Public icon (globe) */
 .entities-views-public-icon {
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   flex-shrink: 0;
 }
 
 /* Owner label in global views */
 .entities-views-owner {
   font-size: 0.7rem;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   font-weight: 400;
   flex-shrink: 0;
 }
@@ -2925,7 +2955,7 @@ input.entities-filter-search {
   height: 22px;
   border: none;
   background: transparent;
-  color: var(--gray-400);
+  color: var(--color-ink-muted-foreground);
   border-radius: 3px;
   cursor: pointer;
   opacity: 0;
@@ -2938,7 +2968,7 @@ input.entities-filter-search {
 
 .entities-views-menu-trigger:hover {
   background: var(--color-muted);
-  color: var(--gray-600);
+  color: var(--color-ink);
 }
 
 /* Dropdown menu */
@@ -2965,7 +2995,7 @@ input.entities-filter-search {
   padding: 0.35rem 0.5rem;
   border: none;
   background: transparent;
-  color: var(--gray-600);
+  color: var(--color-ink);
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
@@ -2977,11 +3007,11 @@ input.entities-filter-search {
 }
 
 .entities-views-menu-item.is-destructive {
-  color: var(--color-danger, #dc2626);
+  color: var(--color-destructive);
 }
 
 .entities-views-menu-item.is-destructive:hover {
-  background: rgba(220, 38, 38, 0.08);
+  background: var(--color-destructive-subtle);
 }
 
 /* ── Empty state with clear link ──────────────────────────────────────────── */

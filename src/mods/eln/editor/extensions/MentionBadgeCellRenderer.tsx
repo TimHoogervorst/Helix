@@ -55,7 +55,7 @@ export function MentionCellRenderer({ value }: CustomCellRendererProps) {
   const displayId = String(value ?? "");
 
   if (!displayId) {
-    return <span style={{ color: "var(--gray-400)" }}>—</span>;
+    return <span style={{ color: "var(--color-ink-muted-foreground)" }}>—</span>;
   }
 
   return <MentionBadge displayId={displayId} clickable />;

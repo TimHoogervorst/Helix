@@ -1,5 +1,6 @@
 /**
- * AG Grid cell renderers that wrap MentionBadge for table display.
+ * Cell renderers that wrap MentionBadge for table display.
+ * (Legacy from the AG Grid era — currently unused, kept for future grids.)
  *
  * Two use cases:
  *   displayId column  — IF value matches /^[A-Z]\\d+$/ → clickable badge; else plain text
@@ -8,7 +9,14 @@
  * Requires MentionProvider to be in the component tree (provided at Layout level).
  */
 import MentionBadge from "../../../../shell/src/shared/components/MentionBadge";
-import type { CustomCellRendererProps } from "ag-grid-react";
+
+/**
+ * Local replacement for ag-grid-react's CustomCellRendererProps.
+ * AG Grid is no longer a dependency; only `value` is consumed here.
+ */
+interface CustomCellRendererProps {
+  value?: unknown;
+}
 
 /**
  * Cell renderer for the ``displayId`` index column.

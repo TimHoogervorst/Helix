@@ -12,7 +12,7 @@
  * via ``updateAttributes``.
  */
 import { useCallback, useRef, useState } from "react";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Check, ChevronDown, ChevronRight, MessageSquare, Undo2 } from "lucide-react";
 import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
@@ -502,16 +502,14 @@ export function CommentContent({
  * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
  * provides one). Renders the same inner content as the legacy NodeView.
  */
-export function CommentBlockComponent({ instance }: BlockComponentProps) {
-  const attrs = instance.attrs as Record<string, unknown>;
-  const resolved = (attrs.resolved as boolean) ?? false;
-  const thread: CommentEntry[] = (attrs.thread as CommentEntry[]) ?? [];
-
-  return (
-    <CommentContent
-      resolved={resolved}
-      thread={thread}
-      updateAttrs={instance.updateAttrs}
-    />
-  );
-}
+export const CommentBlockComponent = createBlockAdapter(
+  CommentContent,
+  ({ instance }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    return {
+      resolved: (attrs.resolved as boolean) ?? false,
+      thread: (attrs.thread as CommentEntry[]) ?? [],
+      updateAttrs: instance.updateAttrs,
+    };
+  },
+);

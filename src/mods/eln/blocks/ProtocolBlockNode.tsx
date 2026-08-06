@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Circle, CheckCircle, Plus, Loader } from "lucide-react";
 import { get } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
@@ -341,21 +341,17 @@ export function ProtocolContent({
  * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
  * provides one). Renders the same inner content as the legacy NodeView.
  */
-export function ProtocolBlockComponent({ instance }: BlockComponentProps) {
-  const attrs = instance.attrs as Record<string, unknown>;
-  const protocolId = (attrs.protocolId as number | null) ?? null;
-  const name = (attrs.name as string) || "Protocol";
-  const items: ProtocolItem[] = (attrs.items as ProtocolItem[]) ?? [];
-  const stepStates: Record<number, StepState> =
-    (attrs.stepStates as Record<number, StepState>) ?? {};
-
-  return (
-    <ProtocolContent
-      protocolId={protocolId}
-      name={name}
-      items={items}
-      stepStates={stepStates}
-      updateAttrs={instance.updateAttrs}
-    />
-  );
-}
+export const ProtocolBlockComponent = createBlockAdapter(
+  ProtocolContent,
+  ({ instance }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    return {
+      protocolId: (attrs.protocolId as number | null) ?? null,
+      name: (attrs.name as string) || "Protocol",
+      items: (attrs.items as ProtocolItem[]) ?? [],
+      stepStates:
+        (attrs.stepStates as Record<number, StepState>) ?? {},
+      updateAttrs: instance.updateAttrs,
+    };
+  },
+);

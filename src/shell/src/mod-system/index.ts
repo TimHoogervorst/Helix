@@ -2,6 +2,7 @@ export { ModLoader } from "./ModLoader";
 export { Mod } from "./Mod";
 export { BlockEvent } from "./BlockEvent";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
+export { createBlockAdapter } from "./createBlockAdapter";
 export type {
   ModManifest,
   BlockHandle,

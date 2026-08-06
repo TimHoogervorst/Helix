@@ -14,12 +14,13 @@
 2. [Core Concepts](#core-concepts)
 3. [Slot Lifecycle](#slot-lifecycle)
 4. [Registration API](#registration-api)
-5. [Renderers](#renderers)
-6. [Workspace Event Bus](#workspace-event-bus)
-7. [Block Serialization](#block-serialization)
-8. [Defaults & Overrides](#defaults--overrides)
-9. [Block-Level Action Logging](#block-level-action-logging)
-10. [Validation](#validation)
+5. [Writing a Block Component](#writing-a-block-component)
+6. [Renderers](#renderers)
+7. [Workspace Event Bus](#workspace-event-bus)
+8. [Block Serialization](#block-serialization)
+9. [Defaults & Overrides](#defaults--overrides)
+10. [Block-Level Action Logging](#block-level-action-logging)
+11. [Validation](#validation)
 
 ---
 
@@ -155,6 +156,41 @@ registerIntoSlot(
 ```
 
 Overrides are merged with slot defaults; binding overrides win on a per-key basis.
+
+---
+
+## Writing a Block Component
+
+The idiomatic way to write a block component is with `createBlockAdapter`:
+
+```ts
+import { createBlockAdapter } from "@/shell/src/mod-system/createBlockAdapter";
+
+const MyBlockContent = ({ title, items, updateAttrs }: MyBlockContentProps) => {
+  // Pure rendering logic — no attrs extraction, no BlockComponentProps.
+  return <div>...</div>;
+};
+
+export const MyBlockComponent = createBlockAdapter(
+  MyBlockContent,
+  ({ instance }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    return {
+      title: (attrs.title as string) ?? "Default Title",
+      items: (attrs.items as MyItem[]) ?? [],
+      updateAttrs: instance.updateAttrs,
+    };
+  },
+);
+```
+
+The factory receives your inner content component and an extractor that maps full `BlockComponentProps` to the inner component's typed props. It returns a `ComponentType<BlockComponentProps>` — what `registerBlock()` expects.
+
+**Why the extractor sees full props.** Most blocks only destructure `instance`, but some (like the registry table) need `context` (for `viewMode`, `emitAction`) or `overrides`. The full-props extractor keeps the same idiom for all blocks.
+
+**`updateAttrs` is explicit.** The extractor must return `updateAttrs` — the factory does not auto-inject it. This keeps the factory generic over any inner-props shape.
+
+**For anchored popovers**, use `PickerPortal` (from shell shared components) alongside `usePickerPortal` (from shell shared hooks) — the documented convention for pickers that portal to the document body, positioned relative to a trigger button.
 
 ---
 

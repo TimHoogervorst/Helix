@@ -11,7 +11,7 @@
  * All edits sync back to node attributes via ``updateAttributes``.
  */
 import { useCallback, useState } from "react";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -387,18 +387,15 @@ export function TableBlockContent({
  * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
  * provides one). Renders the same inner content as the legacy NodeView.
  */
-export function TableBlockComponent({ instance }: BlockComponentProps) {
-  const attrs = instance.attrs as Record<string, unknown>;
-  const title = (attrs.title as string) ?? DEFAULT_TITLE;
-  const columns: TableColumn[] = (attrs.columns as TableColumn[]) ?? [];
-  const rows: TableRow[] = (attrs.rows as TableRow[]) ?? [];
-
-  return (
-    <TableBlockContent
-      title={title}
-      columns={columns}
-      rows={rows}
-      updateAttrs={instance.updateAttrs}
-    />
-  );
-}
+export const TableBlockComponent = createBlockAdapter(
+  TableBlockContent,
+  ({ instance }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    return {
+      title: (attrs.title as string) ?? DEFAULT_TITLE,
+      columns: (attrs.columns as TableColumn[]) ?? [],
+      rows: (attrs.rows as TableRow[]) ?? [],
+      updateAttrs: instance.updateAttrs,
+    };
+  },
+);

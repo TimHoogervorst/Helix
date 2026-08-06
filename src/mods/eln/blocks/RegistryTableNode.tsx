@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Database, Loader, Trash2, Plus, RefreshCw, Upload, ArrowLeftRight } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
@@ -1117,42 +1117,29 @@ export function RegistryTableContent({
  * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
  * provides one). Renders the same inner content.
  */
-export function RegistryTableBlockComponent({
-  instance,
-  context,
-  overrides = {},
-}: BlockComponentProps) {
-  const attrs = instance.attrs as Record<string, unknown>;
-  const schemaId = (attrs.schemaId as number | null) ?? null;
-  const schemaName = (attrs.schemaName as string | null) ?? null;
-  const schemaContentHash =
-    (attrs.schemaContentHash as string | null) ?? null;
-  const title = (attrs.title as string) || "Registry Table";
-  const columns: GridColumn[] = (attrs.columns as GridColumn[]) ?? [];
-  const rows: RegistryTableRow[] =
-    (attrs.rows as RegistryTableRow[]) ?? [];
-  const readOnly = context.viewMode === "view";
-  const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
+export const RegistryTableBlockComponent = createBlockAdapter(
+  RegistryTableContent,
+  ({ instance, context, overrides = {} }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
 
-  const handleToggleStretch = () => {
-    const nextMode = stretchMode === "auto" ? "full" : "auto";
-    instance.updateAttrs({ stretchMode: nextMode });
-  };
-
-  return (
-    <RegistryTableContent
-      schemaId={schemaId}
-      schemaName={schemaName}
-      schemaContentHash={schemaContentHash}
-      title={title}
-      columns={columns}
-      rows={rows}
-      updateAttrs={instance.updateAttrs}
-      readOnly={readOnly}
-      stretchMode={stretchMode}
-      onToggleStretch={handleToggleStretch}
-      showStretchToggle={overrides.stretch === true}
-      emitAction={context.emitAction}
-    />
-  );
-}
+    return {
+      schemaId: (attrs.schemaId as number | null) ?? null,
+      schemaName: (attrs.schemaName as string | null) ?? null,
+      schemaContentHash:
+        (attrs.schemaContentHash as string | null) ?? null,
+      title: (attrs.title as string) || "Registry Table",
+      columns: (attrs.columns as GridColumn[]) ?? [],
+      rows: (attrs.rows as RegistryTableRow[]) ?? [],
+      updateAttrs: instance.updateAttrs,
+      readOnly: context.viewMode === "view",
+      stretchMode,
+      onToggleStretch: () => {
+        const nextMode = stretchMode === "auto" ? "full" : "auto";
+        instance.updateAttrs({ stretchMode: nextMode });
+      },
+      showStretchToggle: overrides.stretch === true,
+      emitAction: context.emitAction,
+    };
+  },
+);

@@ -25,8 +25,9 @@ and onboarding reference for contributors.
 | 0013 | Shell-Hosted Settings Layout Kit — composition primitives for coherent settings pages | 2026-08-03 | Accepted |
 | 0014 | Reference Columns Target a Schema — mirroring the dropdown precedent | 2026-08-03 | Accepted |
 | [0015](0015-icon-color-library-ownership.md) | Icon and Color Library Ownership Split | 2026-08-04 | Accepted |
-| [0016](0016-design-system-foundation.md) | Design-System Foundation — Theme Seeds, Derived Shades, and the Label/Body Type System | 2026-08-06 | Proposed |
-| [0017](0017-preferences-window-localstorage-themes.md) | Preferences Window — Themes as Seed Bundles, Persisted in localStorage | 2026-08-06 | Proposed |
+| [0016](0016-design-system-foundation.md) | Design-System Foundation — Theme Seeds, Derived Shades, and the Label/Body Type System | 2026-08-06 | Superseded by [0018](0018-design-system-and-preferences.md) |
+| [0017](0017-preferences-window-localstorage-themes.md) | Preferences Window — Themes as Seed Bundles, Persisted in localStorage | 2026-08-06 | Superseded by [0018](0018-design-system-and-preferences.md) |
+| [0018](0018-design-system-and-preferences.md) | Design System and Preferences — Seeds, Derived Overrides, Fonts, and localStorage | 2026-08-09 | Proposed |
 
 ## Creating a New ADR
 

@@ -66,7 +66,7 @@ export function CustomizeTab() {
             <button
               type="button"
               onClick={handleSaveAsTheme}
-              className="flex items-center gap-1.5 font-[var(--font-label)] text-2xs text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors"
+              className="flex items-center gap-1.5 font-[var(--font-label)] text-2xs text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)] transition-colors"
             >
               <Save className="h-3 w-3" />
               Save as theme…
@@ -74,7 +74,7 @@ export function CustomizeTab() {
             <button
               type="button"
               onClick={handleReset}
-              className="flex items-center gap-1.5 font-[var(--font-label)] text-2xs text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors"
+              className="flex items-center gap-1.5 font-[var(--font-label)] text-2xs text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)] transition-colors"
             >
               <RotateCcw className="h-3 w-3" />
               Reset

@@ -268,11 +268,6 @@ function ElnChrome({
               aria-pressed={showComments}
               title={showComments ? "Hide comments" : "Show comments"}
               onClick={() => setShowComments((prev) => !prev)}
-              className={
-                showComments
-                  ? "!bg-primary !text-primary-foreground hover:!bg-primary/90"
-                  : ""
-              }
             >
               {showComments ? (
                 <MessageSquare className="h-4 w-4" aria-hidden="true" />

@@ -35,10 +35,10 @@ function ThemeCard({
         title={theme.description || theme.name}
         onClick={() => onApply(theme.id)}
         className={
-          "flex flex-col gap-2 rounded-lg border p-3 text-left w-full transition-colors " +
+          "flex flex-col gap-2 rounded-lg border p-3 text-left w-full transition-colors text-[var(--color-ink)] " +
           (isActive
-            ? "border-[var(--color-primary)] bg-[var(--color-accent)]"
-            : "border-[var(--color-ink-hairline)] hover:border-[var(--color-ink-border)]")
+            ? "border-[var(--color-ink-hairline)] bg-transparent hover:bg-[var(--color-surface-hover)]"
+            : "border-transparent bg-transparent hover:bg-[var(--color-surface-hover)]")
         }
       >
         <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ function ThemeCard({
             {theme.name}
           </span>
           {isActive && (
-            <span className="font-[var(--font-label)] text-2xs text-[var(--color-primary)] shrink-0">
+            <span className="font-[var(--font-label)] text-2xs text-[var(--color-ink-muted-foreground)] shrink-0">
               Active
             </span>
           )}
@@ -113,7 +113,7 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
               className={
                 "flex items-center gap-2 px-2 py-1.5 rounded-md font-[var(--font-label)] text-xs font-semibold transition-colors " +
                 (tab === id
-                  ? "bg-[var(--color-accent)]"
+                  ? "bg-[var(--color-surface)]"
                   : "hover:bg-[var(--color-ink-subtle)]")
               }
             >

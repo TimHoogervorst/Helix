@@ -54,7 +54,7 @@ export function UserMenu({ compact = false }: UserMenuProps) {
         className={
           compact
             ? "w-full justify-center py-2 px-0"
-            : "w-full gap-2 border-t border-hairline px-3 py-2.5"
+            : "w-full !justify-start gap-2 border-t border-hairline px-3 py-2.5"
         }
         onClick={() => setOpen((prev) => !prev)}
         aria-label="User menu"

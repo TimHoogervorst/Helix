@@ -1,7 +1,7 @@
 # ADR-0017: Preferences Window — Themes as Seed Bundles, Persisted in localStorage
 
 > Date: 2026-08-06
-> Status: Proposed
+> Status: Superseded by [ADR-0018](0018-design-system-and-preferences.md)
 > Supersedes: the persistence assumption in [ADR-0016](0016-design-system-foundation.md) ("theme JSON on the User record")
 
 ---

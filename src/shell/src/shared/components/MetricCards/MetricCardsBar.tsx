@@ -29,7 +29,7 @@ function LoadingSkeleton() {
       {Array.from({ length: 4 }).map((_, i) => (
         <div
           key={i}
-          className="flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-start gap-1.5 bg-card px-5 py-3"
+          className="flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-start gap-1.5 bg-background px-5 py-3"
         >
           <span className="h-4 w-4 animate-pulse rounded bg-muted" />
           <span className="h-3 w-24 animate-pulse rounded bg-muted" />
@@ -59,7 +59,7 @@ function CardTile({ state, onEdit }: CardTileProps) {
   const subtitle = applyValueTemplate(style.text, value);
 
   return (
-    <div className="group relative flex-shrink-0 w-1/4 min-w-[180px] flex flex-col bg-card px-4 py-3">
+    <div className="group relative flex-shrink-0 w-1/4 min-w-[180px] flex flex-col bg-background px-4 py-3">
       {/* Hover edit button */}
       <IconButton
         className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -235,7 +235,7 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
 
   return (
     <>
-      <section className="border-y-1 border-border bg-surface group/bar">
+      <section className="border-y-1 border-border bg-background group/bar">
         <div className="mx-auto max-w-4xl relative">
           {totalPages > 1 && (
             <>
@@ -274,7 +274,7 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
                 {showAddButton && (
                   <button
                     type="button"
-                    className="flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-center justify-center gap-1 bg-card px-5 py-3 group hover:bg-muted/50 transition"
+                    className="flex-shrink-0 w-1/4 min-w-[180px] flex flex-col items-center justify-center gap-1 bg-background px-5 py-3 group hover:bg-muted/50 transition"
                     onClick={() => openBuilder(null)}
                     title="Add card"
                     aria-label="Add card"

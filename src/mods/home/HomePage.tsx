@@ -120,7 +120,7 @@ function HubCard({
   return (
     <Link
       to={hub.route}
-      className="group flex flex-col rounded-lg border border-border bg-panel p-5 transition hover:border-primary/40 hover:shadow-sm"
+      className="group flex flex-col rounded-lg border border-border bg-background p-5 transition hover:border-primary/40 hover:shadow-sm"
     >
       {/* Top row: coloured icon square + arrow */}
       <div className="flex items-center justify-between">
@@ -306,7 +306,7 @@ function ActivityRow({ item }: { item: RecentActivityItem }) {
  */
 function RecentActivity() {
   return (
-    <section className="rounded-lg border border-border bg-panel p-5">
+    <section className="rounded-lg border border-border bg-background p-5">
       {/* Heading row */}
       <div className="mb-4 flex items-center gap-2">
         <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
@@ -394,7 +394,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
  */
 function TodayInTheLab() {
   return (
-    <section className="rounded-lg border border-border bg-panel p-5">
+    <section className="rounded-lg border border-border bg-background p-5">
       {/* Heading row */}
       <div className="mb-4 flex items-center gap-2">
         <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">

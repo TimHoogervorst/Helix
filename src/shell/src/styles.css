@@ -1097,7 +1097,7 @@ input.library-new-folder-input:focus {
   padding: 2px;
   border: 1px solid var(--color-ink-border);
   border-radius: 5px;
-  background: var(--color-surface-hover);
+  background: var(--color-background);
 }
 
 .library-view-toggle {

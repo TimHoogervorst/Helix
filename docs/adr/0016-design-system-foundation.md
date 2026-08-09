@@ -1,7 +1,7 @@
 # ADR-0016: Design-System Foundation — Theme Seeds, Derived Shades, and the Label/Body Type System
 
 > Date: 2026-08-06
-> Status: Proposed
+> Status: Superseded by [ADR-0018](0018-design-system-and-preferences.md)
 > Companion spec: [Spec: Design-system foundation — theme tokens, font roles, UI primitives](https://github.com/TimHoogervorst/Helix/issues/415)
 
 ---

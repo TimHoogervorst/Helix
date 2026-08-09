@@ -243,7 +243,7 @@ export function TableBlockContent({
   return (
     <>
       <div
-        className="rounded-lg border border-hairline bg-panel"
+        className="rounded-lg border border-hairline bg-background"
         data-testid="eln-table"
       >
         {/* ── Title bar ──────────────────────────────────────────────── */}
@@ -262,7 +262,7 @@ export function TableBlockContent({
           <table className="min-w-full text-base">
             {/* ── Header ─────────────────────────────────────────────── */}
             <thead>
-              <tr className="border-b border-hairline bg-surface/60 text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
+              <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
                 {columns.map((col) => (
                   <th
                     key={col.id}
@@ -317,7 +317,7 @@ export function TableBlockContent({
                 rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-hairline last:border-b-0 hover:bg-surface/60 transition-colors"
+                    className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors"
                     onMouseEnter={() => setHoveredRow(row.id)}
                     onMouseLeave={() => setHoveredRow(null)}
                   >

@@ -22,11 +22,13 @@ function ThemeCard({
   isActive,
   onApply,
   onDelete,
+  cardColor,
 }: {
   theme: { id: string; name: string; description: string; seeds: { background: string; surface: string; card: string; ink: string; primary: string; accent: string } };
   isActive: boolean;
   onApply: (id: string) => void;
   onDelete?: (id: string) => void;
+  cardColor: string;
 }) {
   return (
     <div className="relative">
@@ -34,11 +36,12 @@ function ThemeCard({
         type="button"
         title={theme.description || theme.name}
         onClick={() => onApply(theme.id)}
+        style={{ backgroundColor: cardColor }}
         className={
           "flex flex-col gap-2 rounded-lg border p-3 text-left w-full transition-colors text-[var(--color-ink)] " +
           (isActive
-            ? "border-[var(--color-ink-hairline)] bg-transparent hover:bg-[var(--color-surface-hover)]"
-            : "border-transparent bg-transparent hover:bg-[var(--color-surface-hover)]")
+            ? "border-[var(--color-ink-hairline)]"
+            : "border-transparent hover:brightness-105")
         }
       >
         <div className="flex items-center gap-2">
@@ -59,10 +62,6 @@ function ThemeCard({
           <span
             className="h-4 w-4 rounded-full border border-[var(--color-ink-hairline)] shrink-0"
             style={{ backgroundColor: theme.seeds.surface }}
-          />
-          <span
-            className="h-4 w-4 rounded-full border border-[var(--color-ink-hairline)] shrink-0"
-            style={{ backgroundColor: theme.seeds.card }}
           />
           <span
             className="h-4 w-4 rounded-full border border-[var(--color-ink-hairline)] shrink-0"
@@ -99,6 +98,8 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
 
   const builtinThemes = themes.filter((t) => !t.id.startsWith("custom-"));
   const customThemes = themes.filter((t) => t.id.startsWith("custom-"));
+  const activeCardColor =
+    themes.find((t) => t.id === activeThemeId)?.seeds.card ?? "transparent";
 
   return (
     <Modal
@@ -115,10 +116,10 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
               type="button"
               onClick={() => setTab(id)}
               className={
-                "flex items-center gap-2 px-2 py-1.5 rounded-md font-[var(--font-label)] text-xs font-semibold transition-colors " +
+                "flex items-center gap-2 px-2 py-1.5 rounded-md font-[var(--font-label)] text-xs font-semibold transition-colors bg-transparent border-transparent text-[var(--color-ink)] " +
                 (tab === id
-                  ? "bg-[var(--color-card)]"
-                  : "hover:bg-[var(--color-ink-subtle)]")
+                  ? "bg-[var(--color-surface-active)]"
+                  : "hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]")
               }
             >
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -140,6 +141,7 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
                     theme={theme}
                     isActive={theme.id === activeThemeId}
                     onApply={applyTheme}
+                    cardColor={activeCardColor}
                   />
                 ))}
               </div>
@@ -156,6 +158,7 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
                         isActive={theme.id === activeThemeId}
                         onApply={applyTheme}
                         onDelete={deleteCustomTheme}
+                        cardColor={activeCardColor}
                       />
                     ))}
                   </div>

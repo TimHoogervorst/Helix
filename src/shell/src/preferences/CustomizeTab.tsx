@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ChangeEvent } from "react";
-import { RotateCcw, Save, RefreshCw, Pencil } from "lucide-react";
+import { RotateCcw, Save, RefreshCw } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import {
   getActiveTheme,
@@ -362,23 +362,21 @@ export function CustomizeTab() {
                 <span className="w-[55px] shrink-0 font-[var(--font-label)] text-2xs text-[var(--color-ink-muted)] truncate">
                   {DERIVED_LABELS[key] ?? suffix}
                 </span>
-                <span
-                  className="h-3.5 w-3.5 shrink-0 rounded-full border border-[var(--color-ink-hairline)]"
-                  style={{ backgroundColor: entry.autoValue }}
-                  title={entry.autoValue}
-                />
                 <button
                   type="button"
-                  title="Pick override color"
+                  title={`Pick override color (${entry.autoValue})`}
                   onClick={() => {
                     const picker = document.getElementById(
                       `derived-picker-${key}`,
                     ) as HTMLInputElement | null;
                     picker?.click();
                   }}
-                  className="shrink-0 flex items-center justify-center h-4 w-4 rounded hover:bg-[var(--color-surface-hover)]"
+                  className="shrink-0 cursor-pointer p-0 border-0 bg-transparent"
                 >
-                  <Pencil className="h-2.5 w-2.5 text-[var(--color-ink-muted-foreground)]" />
+                  <span
+                    className="h-3.5 w-3.5 block rounded-full border border-[var(--color-ink-hairline)] hover:border-[var(--color-primary)] transition-colors"
+                    style={{ backgroundColor: entry.autoValue }}
+                  />
                 </button>
                 {entry.isDirty && (
                   <span className="shrink-0">
@@ -574,31 +572,21 @@ export function CustomizeTab() {
                   <span className="w-[55px] shrink-0 font-[var(--font-label)] text-2xs text-[var(--color-ink-muted)] truncate">
                     {label}
                   </span>
-                  <span
-                    className="h-3.5 w-3.5 shrink-0 rounded-full border border-[var(--color-ink-hairline)]"
-                    style={{ backgroundColor: override ?? hex }}
-                    title={hex}
-                  />
-                  {override && (
-                    <span className="shrink-0">
-                      <span
-                        className="h-3 w-3 rounded border border-[var(--color-ink-hairline)] inline-block align-middle"
-                        style={{ backgroundColor: override }}
-                      />
-                    </span>
-                  )}
                   <button
                     type="button"
-                    title="Pick override color"
+                    title={`Pick override color (${hex})`}
                     onClick={() => {
                       const picker = document.getElementById(
                         `label-picker-${key}`,
                       ) as HTMLInputElement | null;
                       picker?.click();
                     }}
-                    className="shrink-0 flex items-center justify-center h-4 w-4 rounded hover:bg-[var(--color-surface-hover)]"
+                    className="shrink-0 cursor-pointer p-0 border-0 bg-transparent"
                   >
-                    <Pencil className="h-2.5 w-2.5 text-[var(--color-ink-muted-foreground)]" />
+                    <span
+                      className="h-3.5 w-3.5 block rounded-full border border-[var(--color-ink-hairline)] hover:border-[var(--color-primary)] transition-colors"
+                      style={{ backgroundColor: override ?? hex }}
+                    />
                   </button>
                   <input
                     id={`label-picker-${key}`}

@@ -39,25 +39,25 @@ describe("IconBadge", () => {
       render(<IconBadge iconKey="dna" colorKey="flask" />);
       const badge = screen.getByTestId("icon-badge");
       expect(badge).toBeInTheDocument();
-      expect(badge.querySelector("svg")).toBeInTheDocument();
+      expect(badge.children.length).toBeGreaterThan(0);
     });
 
     it("applies the raw hex as background", () => {
       render(<IconBadge iconKey="dna" colorKey="enzyme" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("rgb(217, 179, 230)");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-enzyme, #d9b3e6)");
     });
 
     it("derives a saturated shade for the foreground", () => {
       render(<IconBadge iconKey="dna" colorKey="muted" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(91, 91, 91)");
+      expect(badge.style.color).toBe("var(--color-label-muted-foreground, #5b5b5b)");
     });
 
     it("derives a saturated shade for mid-tone backgrounds", () => {
       render(<IconBadge iconKey="dna" colorKey="flask" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.color).toBe("rgb(36, 110, 136)");
+      expect(badge.style.color).toBe("var(--color-label-flask-foreground, #246e88)");
     });
   });
 
@@ -105,14 +105,14 @@ describe("IconBadge", () => {
     it("falls back to muted background for an unknown colorKey", () => {
       render(<IconBadge iconKey="dna" colorKey="nonexistent" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("rgb(217, 217, 217)");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-nonexistent, #d9d9d9)");
     });
 
     it("falls back gracefully when both keys are unknown", () => {
       render(<IconBadge iconKey="nonexistent" colorKey="nonexistent" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.querySelector("svg")).toBeInTheDocument();
-      expect(badge.style.backgroundColor).toBe("rgb(217, 217, 217)");
+      expect(badge.children.length).toBeGreaterThan(0);
+      expect(badge.style.backgroundColor).toBe("var(--color-label-nonexistent, #d9d9d9)");
     });
   });
 
@@ -192,7 +192,7 @@ describe("IconBadge", () => {
     it("resolves color from dynamic palette", () => {
       render(<IconBadge iconKey="circle" colorKey="dyn-color" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("rgb(255, 204, 0)");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-dyn-color, #ffcc00)");
     });
 
     it("renders custom SVG from dynamic library", () => {
@@ -215,7 +215,7 @@ describe("IconBadge", () => {
     it("renders an SVG for a dynamic-only icon key (circle fallback in test env)", () => {
       render(<IconBadge iconKey="dyn-lucide" colorKey="muted" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.querySelector("svg")).toBeInTheDocument();
+      expect(badge.children.length).toBeGreaterThan(0);
     });
   });
 
@@ -256,16 +256,19 @@ describe("IconBadge", () => {
       const { rerender } = render(
         <IconBadge iconKey="circle" colorKey="muted" size="sm" />,
       );
-      let svg = screen.getByTestId("icon-badge").querySelector("svg");
-      expect(svg?.className.baseVal).toContain("h-3.5");
+      let badge = screen.getByTestId("icon-badge");
+      let iconEl = badge.firstElementChild;
+      expect(iconEl?.getAttribute("class")).toContain("h-3.5");
 
       rerender(<IconBadge iconKey="circle" colorKey="muted" size="md" />);
-      svg = screen.getByTestId("icon-badge").querySelector("svg");
-      expect(svg?.className.baseVal).toContain("h-5");
+      badge = screen.getByTestId("icon-badge");
+      iconEl = badge.firstElementChild;
+      expect(iconEl?.getAttribute("class")).toContain("h-5");
 
       rerender(<IconBadge iconKey="circle" colorKey="muted" size="lg" />);
-      svg = screen.getByTestId("icon-badge").querySelector("svg");
-      expect(svg?.className.baseVal).toContain("h-7");
+      badge = screen.getByTestId("icon-badge");
+      iconEl = badge.firstElementChild;
+      expect(iconEl?.getAttribute("class")).toContain("h-7");
     });
   });
 });

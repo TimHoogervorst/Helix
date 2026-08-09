@@ -11,3 +11,7 @@ Uses the default five-label vocabulary (`needs-triage`, `needs-info`, `ready-for
 ### Domain docs
 
 Single-context repo — one `CONTEXT.md` + `docs/adr/` at the root. See `docs/agents/domain.md`.
+
+### Coding standards
+
+Coding standards live under `docs/standards/`. Currently: `styling-standard.md` (theme tokens, component colour roles, typography, button hierarchy). The review skill (`/review`) picks these up automatically as standards sources.

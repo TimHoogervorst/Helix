@@ -1,10 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { Suspense } from "react";
 import Layout from "./Layout";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { ErrorBoundary } from "../shared/components/ErrorBoundary";
-
-const PrototypePage = lazy(() => import("../pages/PrototypePage"));
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -90,8 +88,6 @@ function Router() {
         <Route path="/eln" element={<Navigate to="/library" replace />} />
         {hubRoutes}
         {layoutRoutes}
-        {/* ── Throwaway prototype route (issue #416) ── */}
-        <Route path="/prototype" element={wrapRoute(PrototypePage)} />
       </Route>
     </Routes>
   );

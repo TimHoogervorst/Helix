@@ -1,6 +1,3 @@
-/* Helix — design-system theme layer (throwaway prototype → issues #415/#416)
-   Duplication with styles.css is tolerated while the prototype lives. */
-
 @layer theme-tokens {
   :root {
     /* ── Six Theme Seeds ── */

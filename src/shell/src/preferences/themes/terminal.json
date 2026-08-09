@@ -2,6 +2,7 @@
   "id": "terminal",
   "name": "Terminal",
   "description": "Black screen with phosphor-green text",
+  "mode": "dark",
   "fonts": {
     "label": "\"Courier New\", Courier, monospace",
     "body": "\"Courier New\", Courier, monospace"

@@ -784,6 +784,8 @@ class BackendModRegistry:
                     "key": ct.key,
                     "label": ct.label,
                     "hex": ct.hex,
+                    "hexDark": ct.hex_dark,
+                    "hexLight": ct.hex_light,
                 })
         except (OperationalError, ProgrammingError):
             pass

@@ -37,7 +37,7 @@ function makeTheme(name: string, seeds: {
   background: string; surface: string; card: string; ink: string;
   primary: string; accent: string;
 }) {
-  return { id: "", name, description: "", seeds };
+  return { id: "", name, description: "", mode: "light" as const, seeds };
 }
 
 beforeEach(() => {

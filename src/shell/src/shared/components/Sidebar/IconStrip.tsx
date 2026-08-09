@@ -44,7 +44,7 @@ export function IconStrip({ groups }: IconStripProps) {
             item.onClick ? (
               <IconButton
                 key={ii}
-                className="flex items-center justify-center w-8 h-8 rounded-md"
+                className="flex items-center justify-center w-9 h-9 rounded-md"
                 onClick={item.onClick}
                 title={item.label}
                 aria-label={item.label}
@@ -54,7 +54,7 @@ export function IconStrip({ groups }: IconStripProps) {
             ) : (
               <span
                 key={ii}
-                className="flex items-center justify-center w-8 h-8 text-muted-foreground"
+                className="flex items-center justify-center w-9 h-9 text-muted-foreground"
                 aria-hidden="true"
               >
                 {item.icon}

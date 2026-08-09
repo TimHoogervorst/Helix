@@ -2,6 +2,7 @@
   "id": "original",
   "name": "Original",
   "description": "Light teal — the Helix default",
+  "mode": "light",
   "fonts": {
     "label": "\"JetBrains Mono Variable\", \"JetBrains Mono\", \"SF Mono\", \"Cascadia Code\", Consolas, monospace",
     "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"

@@ -50,6 +50,8 @@ export interface ColorToken {
   key: string;
   label: string;
   hex: string;
+  hex_dark: string;
+  hex_light: string;
 }
 
 export interface DeleteResponse {

@@ -18,6 +18,7 @@ function validateTheme(raw: unknown): Theme | null {
   if (typeof obj.id !== "string") return null;
   if (typeof obj.name !== "string") return null;
   if (typeof obj.description !== "string") return null;
+  if (obj.mode !== "light" && obj.mode !== "dark") return null;
   if (typeof obj.seeds !== "object" || obj.seeds === null) return null;
   const seeds = obj.seeds as Record<string, unknown>;
   if (
@@ -77,6 +78,7 @@ function validateTheme(raw: unknown): Theme | null {
     id: obj.id,
     name: obj.name,
     description: obj.description,
+    mode: obj.mode as "light" | "dark",
     seeds: {
       background: seeds.background,
       surface: seeds.surface,
@@ -132,14 +134,19 @@ function readCustomThemes(): Theme[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item: unknown): item is Theme =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as Record<string, unknown>).id === "string" &&
-        typeof (item as Record<string, unknown>).name === "string" &&
-        typeof (item as Record<string, unknown>).seeds === "object",
-    );
+    return parsed
+      .filter(
+        (item: unknown): item is Theme =>
+          typeof item === "object" &&
+          item !== null &&
+          typeof (item as Record<string, unknown>).id === "string" &&
+          typeof (item as Record<string, unknown>).name === "string" &&
+          typeof (item as Record<string, unknown>).seeds === "object",
+      )
+      .map((t) => ({
+        ...t,
+        mode: (t.mode && (t.mode === "light" || t.mode === "dark")) ? t.mode : "light",
+      }));
   } catch {
     return [];
   }
@@ -241,3 +248,5 @@ export function deleteCustomTheme(id: string): void {
     applyTheme(DEFAULT_ID);
   }
 }
+
+bootActiveTheme();

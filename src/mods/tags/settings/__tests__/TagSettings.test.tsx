@@ -85,6 +85,8 @@ function seedRegistry() {
         key: c.key,
         label: c.label,
         hex: c.hex,
+        hexDark: c.hexDark,
+        hexLight: c.hexLight,
       })),
     },
     new Map(),

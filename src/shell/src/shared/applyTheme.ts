@@ -21,6 +21,7 @@ export interface Theme {
   id: string;
   name: string;
   description: string;
+  mode: "light" | "dark";
   seeds: ThemeSeeds;
   derived?: Record<string, DerivedOverride>;
   fonts?: ThemeFonts;
@@ -80,6 +81,14 @@ const DERIVED_CSS_VAR_PREFIX = "--color-";
 
 let _currentLabelKeys: Set<string> = new Set();
 
+export type ThemeMode = "light" | "dark";
+
+export function getThemeMode(): ThemeMode {
+  const root = document.documentElement;
+  const mode = root.getAttribute("data-color-mode") as ThemeMode | null;
+  return mode === "dark" ? "dark" : "light";
+}
+
 function clearDerivedOverrides(root: HTMLElement): void {
   for (const key of DERIVED_KEYS) {
     root.style.removeProperty(`${DERIVED_CSS_VAR_PREFIX}${key}`);
@@ -107,6 +116,8 @@ export function applyTheme(theme: Theme, onAdjusted?: (keys: string[]) => void):
 
   root.style.setProperty("--font-label", theme.fonts?.label ?? DEFAULT_FONTS.label);
   root.style.setProperty("--font-body", theme.fonts?.body ?? DEFAULT_FONTS.body);
+
+  root.setAttribute("data-color-mode", theme.mode);
 
   for (const key of _currentLabelKeys) {
     root.style.removeProperty(`--color-label-${key}`);

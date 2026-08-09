@@ -4,9 +4,9 @@ import { IconBadge, warnMissingIcon } from "../IconBadge";
 import { ModRegistry } from "../../../mod-system/ModRegistry";
 
 const SEED_COLORS = [
-  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
-  { key: "flask", label: "Flask", hex: "#b3d9e6" },
-  { key: "muted", label: "Muted", hex: "#d9d9d9" },
+  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6", hexDark: "#EBC8F2", hexLight: "#D9B3E6" },
+  { key: "flask", label: "Flask", hex: "#b3d9e6", hexDark: "#C8EBF2", hexLight: "#B3D9E6" },
+  { key: "muted", label: "Muted", hex: "#d9d9d9", hexDark: "#E8E8E8", hexLight: "#D9D9D9" },
 ];
 
 const SEED_ICONS = [
@@ -25,8 +25,17 @@ function seedRegistry(icons = SEED_ICONS, colors = SEED_COLORS) {
   );
 }
 
+function setThemeMode(mode: "light" | "dark") {
+  document.documentElement.setAttribute("data-color-mode", mode);
+}
+
+function clearThemeMode() {
+  document.documentElement.removeAttribute("data-color-mode");
+}
+
 afterEach(() => {
   ModRegistry._reset();
+  clearThemeMode();
 });
 
 describe("IconBadge", () => {
@@ -45,7 +54,7 @@ describe("IconBadge", () => {
     it("applies the raw hex as background", () => {
       render(<IconBadge iconKey="dna" colorKey="enzyme" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("var(--color-label-enzyme, #d9b3e6)");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-enzyme, #D9B3E6)");
     });
 
     it("derives a saturated shade for the foreground", () => {
@@ -61,12 +70,38 @@ describe("IconBadge", () => {
     });
   });
 
+  describe("theme mode", () => {
+    beforeEach(() => {
+      seedRegistry();
+    });
+
+    it("uses hexDark for dark theme mode", () => {
+      setThemeMode("dark");
+      render(<IconBadge iconKey="dna" colorKey="enzyme" />);
+      const badge = screen.getByTestId("icon-badge");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-enzyme, #EBC8F2)");
+    });
+
+    it("uses hexLight for light theme mode", () => {
+      setThemeMode("light");
+      render(<IconBadge iconKey="dna" colorKey="enzyme" />);
+      const badge = screen.getByTestId("icon-badge");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-enzyme, #D9B3E6)");
+    });
+
+    it("falls back to hexLight when no mode is set", () => {
+      render(<IconBadge iconKey="dna" colorKey="enzyme" />);
+      const badge = screen.getByTestId("icon-badge");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-enzyme, #D9B3E6)");
+    });
+  });
+
   describe("unknown keys", () => {
     beforeEach(() => {
       seedRegistry(
         // Don't seed "nonexistent" or "unknown-a" — they should remain unknown
         [{ key: "dna", label: "DNA", kind: "lucide" as const, token: "dna", svg: "" }],
-        [{ key: "flask", label: "Flask", hex: "#b3d9e6" }],
+        [{ key: "flask", label: "Flask", hex: "#b3d9e6", hexDark: "#C8EBF2", hexLight: "#B3D9E6" }],
       );
       vi.spyOn(console, "warn").mockImplementation(() => {});
     });
@@ -182,7 +217,7 @@ describe("IconBadge", () => {
             },
           ],
           colorPalette: [
-            { key: "dyn-color", label: "Dynamic Color", hex: "#ffcc00" },
+            { key: "dyn-color", label: "Dynamic Color", hex: "#ffcc00", hexDark: "#FFE080", hexLight: "#FFCC00" },
           ],
         },
         new Map(),
@@ -192,7 +227,7 @@ describe("IconBadge", () => {
     it("resolves color from dynamic palette", () => {
       render(<IconBadge iconKey="circle" colorKey="dyn-color" />);
       const badge = screen.getByTestId("icon-badge");
-      expect(badge.style.backgroundColor).toBe("var(--color-label-dyn-color, #ffcc00)");
+      expect(badge.style.backgroundColor).toBe("var(--color-label-dyn-color, #FFCC00)");
     });
 
     it("renders custom SVG from dynamic library", () => {

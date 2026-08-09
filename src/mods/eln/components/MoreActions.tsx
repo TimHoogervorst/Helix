@@ -21,7 +21,7 @@ function MoreActions({ items }: MoreActionsProps) {
     <Menu
       trigger={
         <IconButton aria-label="More actions">
-          <EllipsisVertical className="h-4 w-4" aria-hidden="true" />
+          <EllipsisVertical className="h-5 w-5" aria-hidden="true" />
         </IconButton>
       }
       items={items.map((item) => ({

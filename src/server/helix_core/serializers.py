@@ -244,11 +244,13 @@ class ColorTokenSerializer(serializers.ModelSerializer):
     """Serializer for ColorToken — list, create, delete."""
 
     hex = serializers.CharField(validators=[validate_hex_color])
+    hex_dark = serializers.CharField(read_only=True)
+    hex_light = serializers.CharField(read_only=True)
 
     class Meta:
         model = ColorToken
-        fields = ["id", "key", "label", "hex"]
-        read_only_fields = ["id"]
+        fields = ["id", "key", "label", "hex", "hex_dark", "hex_light"]
+        read_only_fields = ["id", "hex_dark", "hex_light"]
 
     def validate_hex(self, value):
         """Normalise hex to uppercase for consistent storage."""

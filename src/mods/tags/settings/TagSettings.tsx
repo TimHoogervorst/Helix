@@ -15,6 +15,7 @@ import {
 } from "../api";
 import type { Tag } from "../types";
 import type { ColorToken, IconLibraryEntry, DeleteResponse } from "../api";
+import { getThemeMode } from "../../../shell/src/shared/applyTheme";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { Input } from "../../../shell/src/shared/primitives/Input";
@@ -34,6 +35,10 @@ import { IconLibraryBrowser } from "./IconLibraryBrowser";
 type TabKind = "tags" | "colours" | "icons";
 
 type TagMutator = (tag: Tag) => Tag;
+
+function effectiveHex(c: ColorToken): string {
+  return getThemeMode() === "dark" ? c.hex_dark : c.hex_light;
+}
 
 // ── Tags tab hook ───────────────────────────────────────────────────────────
 
@@ -380,7 +385,7 @@ function useColoursTabState(): ColoursTabState {
     icon: (
       <div
         className="h-3 w-3 shrink-0 rounded-full border border-hairline"
-        style={{ backgroundColor: c.hex }}
+        style={{ backgroundColor: effectiveHex(c) }}
       />
     ),
   }));
@@ -1102,7 +1107,7 @@ function TagSettings() {
               <div className="flex flex-col items-center gap-2 text-center">
                 <div
                   className="h-12 w-12 shrink-0 rounded border border-[var(--color-ink-hairline)]"
-                  style={{ backgroundColor: c.hex }}
+                  style={{ backgroundColor: effectiveHex(c) }}
                 />
                 <div>
                   <div className="text-base font-medium text-[var(--color-ink)]">

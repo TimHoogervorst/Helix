@@ -219,7 +219,7 @@ function ElnChrome({
                     aria-label={lockLabel}
                     title={lockLabel}
                   >
-                    <Lock className="h-4 w-4 text-[var(--color-warning)]" aria-hidden="true" />
+                    <Lock className="h-5 w-5 text-[var(--color-warning)]" aria-hidden="true" />
                   </IconButton>
                 );
               }
@@ -234,15 +234,15 @@ function ElnChrome({
               if (isError) {
                 Icon = AlertTriangle;
                 label = "Save failed — click to retry";
-                iconClass = "h-4 w-4 text-destructive";
+                iconClass = "h-5 w-5 text-destructive";
               } else if (isSaving) {
                 Icon = Loader2;
                 label = "Saving…";
-                iconClass = "h-4 w-4 animate-spin text-muted-foreground";
+                iconClass = "h-5 w-5 animate-spin text-muted-foreground";
               } else {
                 Icon = Check;
                 label = "Saved";
-                iconClass = "h-4 w-4 text-muted-foreground";
+                iconClass = "h-5 w-5 text-muted-foreground";
               }
 
               return (
@@ -260,7 +260,7 @@ function ElnChrome({
               aria-label="History"
               title="Placeholder — version history coming soon"
             >
-              <History className="h-4 w-4" aria-hidden="true" />
+              <History className="h-5 w-5" aria-hidden="true" />
             </IconButton>
             {/* ── Global comment toggle ── */}
             <IconButton
@@ -270,16 +270,16 @@ function ElnChrome({
               onClick={() => setShowComments((prev) => !prev)}
             >
               {showComments ? (
-                <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                <MessageSquare className="h-5 w-5" aria-hidden="true" />
               ) : (
-                <MessageSquareOff className="h-4 w-4" aria-hidden="true" />
+                <MessageSquareOff className="h-5 w-5" aria-hidden="true" />
               )}
             </IconButton>
             <IconButton
               aria-label="Star"
               title="Placeholder — bookmark coming soon"
             >
-              <Star className="h-4 w-4" aria-hidden="true" />
+              <Star className="h-5 w-5" aria-hidden="true" />
             </IconButton>
 
             {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}

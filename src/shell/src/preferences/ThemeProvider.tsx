@@ -1,17 +1,17 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   useCallback,
   type ReactNode,
 } from "react";
+import type { ThemeMode } from "../shared/applyTheme";
 import type { Theme } from "./themeStore";
 import {
   getThemes,
   getActiveThemeId,
+  getThemeForTheme,
   applyTheme as storeApplyTheme,
-  bootActiveTheme,
   saveCustomTheme as storeSaveCustomTheme,
   deleteCustomTheme as storeDeleteCustomTheme,
 } from "./themeStore";
@@ -19,6 +19,7 @@ import {
 interface ThemeContextValue {
   activeThemeId: string;
   themes: Theme[];
+  mode: ThemeMode;
   applyTheme: (id: string) => void;
   saveCustomTheme: (theme: Theme) => void;
   deleteCustomTheme: (id: string) => void;
@@ -26,24 +27,27 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [activeThemeId, setActiveThemeId] = useState<string>(() =>
-    getActiveThemeId(),
-  );
+function getModeForId(id: string): ThemeMode {
+  const theme = getThemeForTheme(id);
+  return theme?.mode ?? "light";
+}
 
-  useEffect(() => {
-    bootActiveTheme();
-  }, []);
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const initialId = getActiveThemeId();
+  const [activeThemeId, setActiveThemeId] = useState<string>(initialId);
+  const [mode, setMode] = useState<ThemeMode>(() => getModeForId(initialId));
 
   const applyTheme = useCallback((id: string) => {
     storeApplyTheme(id);
     setActiveThemeId(id);
+    setMode(getModeForId(id));
   }, []);
 
   const saveCustomTheme = useCallback(
     (theme: Theme) => {
       const id = storeSaveCustomTheme(theme);
       setActiveThemeId(id);
+      setMode(getModeForId(id));
     },
     [],
   );
@@ -51,6 +55,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const deleteCustomTheme = useCallback((id: string) => {
     storeDeleteCustomTheme(id);
     setActiveThemeId(getActiveThemeId());
+    setMode(getModeForId(getActiveThemeId()));
   }, []);
 
   return (
@@ -58,6 +63,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       value={{
         activeThemeId,
         themes: getThemes(),
+        mode,
         applyTheme,
         saveCustomTheme,
         deleteCustomTheme,

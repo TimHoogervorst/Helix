@@ -2,6 +2,7 @@
   "id": "lavender",
   "name": "Lavender",
   "description": "Soft purple on cloudy white",
+  "mode": "light",
   "fonts": {
     "label": "\"JetBrains Mono Variable\", \"JetBrains Mono\", \"SF Mono\", \"Cascadia Code\", Consolas, monospace",
     "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"

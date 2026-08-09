@@ -2,6 +2,7 @@
   "id": "forest",
   "name": "Forest",
   "description": "Dark pine with mint highlights",
+  "mode": "dark",
   "fonts": {
     "label": "\"JetBrains Mono Variable\", \"JetBrains Mono\", \"SF Mono\", \"Cascadia Code\", Consolas, monospace",
     "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"

@@ -2,6 +2,7 @@ import { Circle } from "lucide-react";
 import type { ComponentType } from "react";
 import { useMemo, lazy, Suspense } from "react";
 import { ModRegistry } from "../../mod-system/ModRegistry";
+import { getThemeMode } from "../applyTheme";
 
 export interface IconBadgeProps {
   iconKey: string;
@@ -33,7 +34,10 @@ export function resolveColorForeground(key: string): string {
 function resolveColorRaw(key: string): string {
   try {
     const entry = ModRegistry.getInstance().getColorPalette().get(key);
-    if (entry) return entry.hex;
+    if (entry) {
+      const mode = getThemeMode();
+      return mode === "dark" ? entry.hexDark : entry.hexLight;
+    }
   } catch {
     // registry not available
   }

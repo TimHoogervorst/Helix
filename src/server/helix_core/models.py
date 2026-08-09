@@ -280,9 +280,12 @@ class ColorToken(models.Model):
 def _derive_variants(hex_color: str) -> tuple[str, str]:
     """Derive dark-theme and light-theme hex variants.
 
-    ``hex_dark`` boosts lightness and saturation so the colour stands
-    out on dark backgrounds.  ``hex_light`` is the original colour
-    (assumed to have been chosen for light-background contexts).
+    ``hex_dark`` darkens the colour for depth on dark backgrounds
+    (except for very dark colours, which get a tiny lift so they
+    remain visible).  Saturation is boosted for vibrancy.
+
+    ``hex_light`` is the original colour (assumed to have been
+    chosen for light-background contexts).
     """
     import colorsys
 
@@ -299,8 +302,12 @@ def _derive_variants(hex_color: str) -> tuple[str, str]:
 
     h, l, s = colorsys.rgb_to_hls(r, g, b)
 
-    l_dark = min(0.88, l * 1.3)
-    s_dark = min(1.0, s * 1.15)
+    if l < 0.30:
+        l_dark = l * 1.1
+    else:
+        l_dark = l * 0.82
+
+    s_dark = min(1.0, s * 1.3)
     rd, gd, bd = colorsys.hls_to_rgb(h, l_dark, s_dark)
     hex_dark = "#{:02X}{:02X}{:02X}".format(
         round(rd * 255), round(gd * 255), round(bd * 255)

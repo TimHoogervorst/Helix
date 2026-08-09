@@ -27,11 +27,13 @@ class ColorTokenModelTests(TestCase):
         self.assertTrue(ct.hex_light)
         self.assertNotEqual(ct.hex_dark, ct.hex_light)
 
-    def test_derive_variants_dark_has_higher_lightness(self):
-        """Dark variant boosts lightness."""
-        ct = ColorToken.objects.create(
-            key="crimson", label="Crimson", hex="#DC143C"
-        )
+    def test_derive_variants_dark_adjusts_lightness(self):
+        """Dark variant darkens most colours; only very dark ones get a tiny lift.
+
+        Colours with L >= 0.30 are darkened for depth on dark
+        backgrounds.  Only colours below L=0.30 get a small
+        lightness boost for visibility.
+        """
         import colorsys
 
         def hsl_l(hex_str):
@@ -42,7 +44,23 @@ class ColorTokenModelTests(TestCase):
             _, l, _ = colorsys.rgb_to_hls(r, g, b)
             return l
 
-        self.assertGreater(hsl_l(ct.hex_dark), hsl_l(ct.hex_light))
+        # Light colour: dark variant is deeper
+        ct_flask = ColorToken.objects.create(
+            key="flask", label="Flask", hex="#B3D9E6"
+        )
+        self.assertLess(hsl_l(ct_flask.hex_dark), hsl_l(ct_flask.hex_light))
+
+        # Mid-range colour: dark variant is also darker
+        ct_crimson = ColorToken.objects.create(
+            key="crimson", label="Crimson", hex="#DC143C"
+        )
+        self.assertLess(hsl_l(ct_crimson.hex_dark), hsl_l(ct_crimson.hex_light))
+
+        # Very dark colour: gets a tiny lift for visibility
+        ct_navy = ColorToken.objects.create(
+            key="navy", label="Navy", hex="#1A2B4C"
+        )
+        self.assertGreater(hsl_l(ct_navy.hex_dark), hsl_l(ct_navy.hex_light))
 
     def test_color_token_str(self):
         """__str__ includes label and key."""

@@ -1,23 +1,15 @@
-"""Add hex_dark and hex_light fields to ColorToken and backfill existing rows.
+"""Re-derive hex_dark with improved algorithm that avoids wash-out.
 
-Adds two new char columns (``hex_dark``, ``hex_light``) that are
-auto-derived from ``hex`` on every model save.  The backfill data
-migration derives the values for any existing rows.
+The original algorithm boosted lightness unconditionally (+30 %),
+which made already-light colours nearly white on dark backgrounds.
+The improved algorithm darkens all colours for depth on dark
+backgrounds with a stronger saturation boost.
 """
 
-from django.db import migrations, models
+from django.db import migrations
 
 
 def _derive_variants(hex_color: str):
-    """Derive dark-theme and light-theme hex variants.
-
-    ``hex_dark`` darkens the colour for depth on dark backgrounds
-    (except for very dark colours, which get a tiny lift so they
-    remain visible).  Saturation is boosted for vibrancy.
-
-    ``hex_light`` is the original colour (assumed to have been
-    chosen for light-background contexts).
-    """
     import colorsys
 
     hex_color = hex_color.lstrip("#")
@@ -51,7 +43,7 @@ def _derive_variants(hex_color: str):
     return hex_dark, hex_light
 
 
-def backfill_variants(apps, schema_editor):
+def rebalance_variants(apps, schema_editor):
     ColorToken = apps.get_model("helix_core", "ColorToken")
     for ct in ColorToken.objects.all():
         ct.hex_dark, ct.hex_light = _derive_variants(ct.hex)
@@ -61,24 +53,12 @@ def backfill_variants(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("helix_core", "0008_add_schema_icon_color"),
+        ("helix_core", "0009_color_token_variants"),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="colortoken",
-            name="hex_dark",
-            field=models.CharField(max_length=7, default=""),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name="colortoken",
-            name="hex_light",
-            field=models.CharField(max_length=7, default=""),
-            preserve_default=False,
-        ),
         migrations.RunPython(
-            code=backfill_variants,
+            code=rebalance_variants,
             reverse_code=migrations.RunPython.noop,
         ),
     ]

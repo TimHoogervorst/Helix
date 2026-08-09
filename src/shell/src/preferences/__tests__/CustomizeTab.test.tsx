@@ -2,7 +2,7 @@
  * CustomizeTab component tests.
  *
  * Asserts:
- *  - Five seed rows render with label, color picker, and hex text input
+ *  - Six seed rows render with label, color picker, and hex text input
  *  - Each field is initialized from the Active Theme's seeds
  *  - Editing a seed applies CSS variables live without writing to localStorage
  *  - Reset restores the Active Theme's canonical seeds
@@ -24,6 +24,7 @@ function readSeeds() {
   return {
     background: root.style.getPropertyValue("--color-background"),
     surface: root.style.getPropertyValue("--color-surface"),
+    card: root.style.getPropertyValue("--color-card"),
     ink: root.style.getPropertyValue("--color-ink"),
     primary: root.style.getPropertyValue("--color-primary"),
     accent: root.style.getPropertyValue("--color-accent"),
@@ -55,11 +56,11 @@ describe("CustomizeTab", () => {
     Storage.prototype.setItem = originalSetItem;
   });
 
-  it("renders five seed rows with labels", () => {
+  it("renders six seed rows with labels", () => {
     renderCustomize();
-    const labels = ["Background", "Surface", "Ink", "Primary", "Accent"];
+    const labels = ["Background", "Surface", "Card", "Ink", "Primary", "Accent"];
     for (const label of labels) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(1);
     }
   });
 
@@ -73,6 +74,7 @@ describe("CustomizeTab", () => {
     expect(
       screen.getByLabelText("Surface hex value"),
     ).toHaveValue(seeds.surface);
+    expect(screen.getByLabelText("Card hex value")).toHaveValue(seeds.card);
     expect(screen.getByLabelText("Ink hex value")).toHaveValue(seeds.ink);
     expect(
       screen.getByLabelText("Primary hex value"),
@@ -115,6 +117,7 @@ describe("CustomizeTab", () => {
     const seeds = readSeeds();
     expect(seeds.background).toBe(originalSeeds.background);
     expect(seeds.surface).toBe(originalSeeds.surface);
+    expect(seeds.card).toBe(originalSeeds.card);
     expect(seeds.ink).toBe(originalSeeds.ink);
     expect(seeds.primary).toBe(originalSeeds.primary);
     expect(seeds.accent).toBe(originalSeeds.accent);

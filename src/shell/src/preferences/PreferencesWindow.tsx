@@ -23,7 +23,7 @@ function ThemeCard({
   onApply,
   onDelete,
 }: {
-  theme: { id: string; name: string; description: string; seeds: { background: string; surface: string; ink: string; primary: string; accent: string } };
+  theme: { id: string; name: string; description: string; seeds: { background: string; surface: string; card: string; ink: string; primary: string; accent: string } };
   isActive: boolean;
   onApply: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -59,6 +59,10 @@ function ThemeCard({
           <span
             className="h-4 w-4 rounded-full border border-[var(--color-ink-hairline)] shrink-0"
             style={{ backgroundColor: theme.seeds.surface }}
+          />
+          <span
+            className="h-4 w-4 rounded-full border border-[var(--color-ink-hairline)] shrink-0"
+            style={{ backgroundColor: theme.seeds.card }}
           />
           <span
             className="h-4 w-4 rounded-full border border-[var(--color-ink-hairline)] shrink-0"
@@ -101,9 +105,9 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
       open={open}
       onClose={onClose}
       title="Preferences"
-      className="max-w-3xl"
+      className="max-w-5xl"
     >
-      <div className="flex gap-4 min-h-[300px]">
+      <div className="flex gap-4 min-h-[300px] max-h-[calc(80vh-8rem)]">
         <nav className="w-[150px] shrink-0 border-r border-[var(--color-ink-hairline)] pr-4 flex flex-col gap-1">
           {TABS.map(({ id, label, Icon }) => (
             <button
@@ -113,7 +117,7 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
               className={
                 "flex items-center gap-2 px-2 py-1.5 rounded-md font-[var(--font-label)] text-xs font-semibold transition-colors " +
                 (tab === id
-                  ? "bg-[var(--color-surface)]"
+                  ? "bg-[var(--color-card)]"
                   : "hover:bg-[var(--color-ink-subtle)]")
               }
             >
@@ -123,7 +127,7 @@ export function PreferencesWindow({ open, onClose }: PreferencesWindowProps) {
           ))}
         </nav>
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 min-h-0 overflow-y-auto">
           {tab === "themes" ? (
             <>
               <h3 className="font-[var(--font-label)] text-xs text-[var(--color-ink-muted)] mb-3">

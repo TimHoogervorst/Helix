@@ -279,7 +279,7 @@ function SettingsPage() {
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
               <div className="flex flex-wrap items-end gap-4">
                 <IconPickerPopover
                   iconKey={newIcon}

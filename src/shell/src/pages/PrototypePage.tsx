@@ -8,7 +8,7 @@ import {
   Italic,
   List,
 } from "lucide-react";
-import { applyThemeSeeds, DEFAULT_SEEDS } from "../shared/applyThemeSeeds";
+import { applyThemeSeeds, DEFAULT_SEEDS } from "../shared/applyTheme";
 import {
   Button,
   IconButton,
@@ -51,13 +51,14 @@ function SeedSwitcher() {
   const fields: { key: keyof typeof seeds; label: string }[] = [
     { key: "background", label: "Background" },
     { key: "surface", label: "Surface" },
+    { key: "card", label: "Card" },
     { key: "ink", label: "Ink" },
     { key: "primary", label: "Primary" },
     { key: "accent", label: "Accent" },
   ];
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-5">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
       {fields.map((f) => (
         <label
           key={f.key}
@@ -97,7 +98,7 @@ function SectionHeading({ children }: { children: string }) {
 
 function Card({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-5">
+    <div className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
       {children}
     </div>
   );

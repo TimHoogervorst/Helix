@@ -6,7 +6,7 @@ import { Clock } from "lucide-react";
  */
 export function AvailabilitySection() {
   return (
-    <section className="rounded-lg border border-border bg-panel p-5">
+    <section className="rounded-lg border border-border bg-card p-5">
       <div className="mb-4 flex items-center gap-2">
         <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">

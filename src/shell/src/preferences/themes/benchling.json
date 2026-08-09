@@ -2,9 +2,14 @@
   "id": "benchling",
   "name": "Benchling",
   "description": "Bright white with midnight-blue accents",
+  "fonts": {
+    "label": "\"JetBrains Mono Variable\", \"JetBrains Mono\", \"SF Mono\", \"Cascadia Code\", Consolas, monospace",
+    "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
   "seeds": {
     "background": "#FFFFFF",
     "surface": "#F0F6FE",
+    "card": "#F8FAFE",
     "ink": "#000650",
     "primary": "#000DB5",
     "accent": "#A9CAFB"

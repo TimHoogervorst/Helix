@@ -23,6 +23,7 @@ function readSeeds() {
   return {
     background: root.style.getPropertyValue("--color-background"),
     surface: root.style.getPropertyValue("--color-surface"),
+    card: root.style.getPropertyValue("--color-card"),
     ink: root.style.getPropertyValue("--color-ink"),
     primary: root.style.getPropertyValue("--color-primary"),
     accent: root.style.getPropertyValue("--color-accent"),
@@ -65,7 +66,7 @@ describe("themeStore", () => {
     expect(ids).toContain("elabftw");
   });
 
-  it("each theme has id, name, description, and five seeds", () => {
+  it("each theme has id, name, description, and six seeds", () => {
     for (const theme of getThemes()) {
       expect(theme).toHaveProperty("id");
       expect(typeof theme.id).toBe("string");
@@ -76,6 +77,7 @@ describe("themeStore", () => {
       expect(theme).toHaveProperty("seeds");
       expect(theme.seeds).toHaveProperty("background");
       expect(theme.seeds).toHaveProperty("surface");
+      expect(theme.seeds).toHaveProperty("card");
       expect(theme.seeds).toHaveProperty("ink");
       expect(theme.seeds).toHaveProperty("primary");
       expect(theme.seeds).toHaveProperty("accent");
@@ -112,6 +114,7 @@ describe("themeStore", () => {
     const seeds = readSeeds();
     expect(seeds.background).toBe("#150A28");
     expect(seeds.surface).toBe("#201040");
+    expect(seeds.card).toBe("#1A0D30");
     expect(seeds.ink).toBe("#A8BFFF");
     expect(seeds.primary).toBe("#FF2E88");
     expect(seeds.accent).toBe("#B967FF");
@@ -152,6 +155,7 @@ describe("themeStore", () => {
       expect(theme).toHaveProperty("seeds");
       expect(theme.seeds).toHaveProperty("background");
       expect(theme.seeds).toHaveProperty("surface");
+      expect(theme.seeds).toHaveProperty("card");
       expect(theme.seeds).toHaveProperty("ink");
       expect(theme.seeds).toHaveProperty("primary");
       expect(theme.seeds).toHaveProperty("accent");
@@ -160,38 +164,48 @@ describe("themeStore", () => {
 
   // ── Custom themes: save / list / delete round-trip ───────────────────────
 
+  function makeTheme(name: string, seeds: {
+    background: string; surface: string; card: string; ink: string;
+    primary: string; accent: string;
+  }) {
+    return { id: "", name, description: "", seeds };
+  }
+
   it("saveCustomTheme persists to helix-custom-themes", () => {
-    saveCustomTheme("My Theme", {
+    saveCustomTheme(makeTheme("My Theme", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     const raw = JSON.parse(store["helix-custom-themes"]);
     expect(raw).toHaveLength(1);
     expect(raw[0].name).toBe("My Theme");
   });
 
   it("saveCustomTheme generates a custom- prefixed id", () => {
-    const id = saveCustomTheme("My Theme", {
+    const id = saveCustomTheme(makeTheme("My Theme", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     expect(id).toMatch(/^custom-my-theme-/);
   });
 
   it("getThemes includes saved custom themes", () => {
-    saveCustomTheme("My Theme", {
+    saveCustomTheme(makeTheme("My Theme", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     const themes = getThemes();
     const custom = themes.find((t) => t.name === "My Theme");
     expect(custom).toBeDefined();
@@ -199,13 +213,14 @@ describe("themeStore", () => {
   });
 
   it("deleteCustomTheme removes the theme from storage and getThemes", () => {
-    const id = saveCustomTheme("Delete Me", {
+    const id = saveCustomTheme(makeTheme("Delete Me", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     deleteCustomTheme(id);
     const themes = getThemes();
     const custom = themes.find((t) => t.id === id);
@@ -215,13 +230,14 @@ describe("themeStore", () => {
   });
 
   it("deleting the active custom theme falls back to Original", () => {
-    const id = saveCustomTheme("Active Custom", {
+    const id = saveCustomTheme(makeTheme("Active Custom", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     expect(store["helix-active-theme"]).toBe(id);
 
     deleteCustomTheme(id);
@@ -233,13 +249,14 @@ describe("themeStore", () => {
   });
 
   it("getSeedsForTheme returns seeds for a custom theme", () => {
-    saveCustomTheme("Seed Test", {
+    saveCustomTheme(makeTheme("Seed Test", {
       background: "#aaaabb",
       surface: "#bbbbcc",
+      card: "#b6b6c6",
       ink: "#ccccdd",
       primary: "#ddddee",
       accent: "#eeefff",
-    });
+    }));
     const seeds = getSeedsForTheme(
       getThemes().find((t) => t.name === "Seed Test")!.id,
     );
@@ -247,32 +264,35 @@ describe("themeStore", () => {
   });
 
   it("getActiveThemeId recognizes a custom theme id", () => {
-    saveCustomTheme("Recognized", {
+    saveCustomTheme(makeTheme("Recognized", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     const id = store["helix-active-theme"];
     expect(getActiveThemeId()).toBe(id);
   });
 
   it("duplicate saveCustomTheme names are allowed", () => {
-    const id1 = saveCustomTheme("Duplicate", {
+    const id1 = saveCustomTheme(makeTheme("Duplicate", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
-    const id2 = saveCustomTheme("Duplicate", {
+    }));
+    const id2 = saveCustomTheme(makeTheme("Duplicate", {
       background: "#aaaabb",
       surface: "#bbbbcc",
+      card: "#b6b6c6",
       ink: "#ccccdd",
       primary: "#ddddee",
       accent: "#eeefff",
-    });
+    }));
     expect(id1).not.toBe(id2);
     expect(id1.startsWith("custom-duplicate-")).toBe(true);
     expect(id2.startsWith("custom-duplicate-")).toBe(true);

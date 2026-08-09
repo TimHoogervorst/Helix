@@ -111,7 +111,7 @@ export function RecognitionsSection() {
   const editing = mode.type !== "view";
 
   return (
-    <section className="group/section rounded-lg border border-border bg-panel p-5">
+    <section className="group/section rounded-lg border border-border bg-card p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">

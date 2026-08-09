@@ -1,18 +1,7 @@
-import type { ThemeSeeds } from "../shared/applyThemeSeeds";
-import { applyThemeSeeds, DEFAULT_SEEDS } from "../shared/applyThemeSeeds";
+import type { ThemeSeeds, Theme, DerivedOverride } from "../shared/applyTheme";
+import { applyTheme as applyThemeUnified, DEFAULT_SEEDS } from "../shared/applyTheme";
 
-export interface Theme {
-  id: string;
-  name: string;
-  description: string;
-  seeds: ThemeSeeds;
-}
-
-interface CustomTheme {
-  id: string;
-  name: string;
-  seeds: ThemeSeeds;
-}
+export type { Theme } from "../shared/applyTheme";
 
 const STORAGE_KEY = "helix-active-theme";
 const CUSTOM_STORAGE_KEY = "helix-custom-themes";
@@ -34,11 +23,56 @@ function validateTheme(raw: unknown): Theme | null {
   if (
     typeof seeds.background !== "string" ||
     typeof seeds.surface !== "string" ||
+    typeof seeds.card !== "string" ||
     typeof seeds.ink !== "string" ||
     typeof seeds.primary !== "string" ||
     typeof seeds.accent !== "string"
   )
     return null;
+
+  let derived: Record<string, DerivedOverride> | undefined;
+  if (obj.derived !== undefined) {
+    if (typeof obj.derived !== "object" || obj.derived === null) return null;
+    const derivedObj = obj.derived as Record<string, unknown>;
+    derived = {};
+    for (const key of Object.keys(derivedObj)) {
+      const val = derivedObj[key];
+      if (
+        typeof val !== "object" ||
+        val === null ||
+        typeof (val as Record<string, unknown>).expected !== "string" ||
+        typeof (val as Record<string, unknown>).value !== "string"
+      )
+        return null;
+      derived[key] = {
+        expected: (val as Record<string, string>).expected,
+        value: (val as Record<string, string>).value,
+      };
+    }
+  }
+
+  let fonts: { label: string; body: string } | undefined;
+  if (obj.fonts !== undefined) {
+    if (typeof obj.fonts !== "object" || obj.fonts === null) return null;
+    const fontsObj = obj.fonts as Record<string, unknown>;
+    if (
+      typeof fontsObj.label !== "string" ||
+      typeof fontsObj.body !== "string"
+    )
+      return null;
+    fonts = { label: fontsObj.label, body: fontsObj.body };
+  }
+
+  let labels: Record<string, string> | undefined;
+  if (obj.labels !== undefined) {
+    if (typeof obj.labels !== "object" || obj.labels === null) return null;
+    labels = {};
+    for (const [k, v] of Object.entries(obj.labels)) {
+      if (typeof k !== "string" || typeof v !== "string") return null;
+      labels[k] = v;
+    }
+  }
+
   return {
     id: obj.id,
     name: obj.name,
@@ -46,10 +80,14 @@ function validateTheme(raw: unknown): Theme | null {
     seeds: {
       background: seeds.background,
       surface: seeds.surface,
+      card: seeds.card,
       ink: seeds.ink,
       primary: seeds.primary,
       accent: seeds.accent,
     },
+    derived,
+    fonts,
+    labels,
   };
 }
 
@@ -88,14 +126,14 @@ function writeActiveId(id: string): void {
   }
 }
 
-function readCustomThemes(): CustomTheme[] {
+function readCustomThemes(): Theme[] {
   try {
     const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
-      (item: unknown): item is CustomTheme =>
+      (item: unknown): item is Theme =>
         typeof item === "object" &&
         item !== null &&
         typeof (item as Record<string, unknown>).id === "string" &&
@@ -107,7 +145,7 @@ function readCustomThemes(): CustomTheme[] {
   }
 }
 
-function writeCustomThemes(themes: CustomTheme[]): void {
+function writeCustomThemes(themes: Theme[]): void {
   try {
     localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(themes));
   } catch {
@@ -115,7 +153,7 @@ function writeCustomThemes(themes: CustomTheme[]): void {
   }
 }
 
-function getCustomById(id: string): CustomTheme | undefined {
+function getCustomById(id: string): Theme | undefined {
   return readCustomThemes().find((t) => t.id === id);
 }
 
@@ -132,6 +170,10 @@ export function getSeedsForTheme(id: string): ThemeSeeds {
   if (theme) return theme.seeds;
   const fallback = getBuiltinById(DEFAULT_ID);
   return fallback ? fallback.seeds : DEFAULT_SEEDS;
+}
+
+export function getThemeForTheme(id: string): Theme | undefined {
+  return getThemeById(id);
 }
 
 export function getActiveThemeId(): string {
@@ -152,12 +194,18 @@ export function getThemes(): Theme[] {
 
 export function getActiveTheme(): Theme {
   const id = getActiveThemeId();
-  return getBuiltinById(id) ?? getBuiltinById(DEFAULT_ID)!;
+  const builtin = getBuiltinById(id);
+  if (builtin) return builtin;
+  const custom = getCustomById(id);
+  if (custom) return { ...custom, description: "" };
+  return getBuiltinById(DEFAULT_ID)!;
 }
 
 export function applyTheme(id: string): void {
-  const seeds = getSeedsForTheme(id);
-  applyThemeSeeds(seeds);
+  const theme = getThemeById(id);
+  if (theme) {
+    applyThemeUnified(theme);
+  }
   writeActiveId(id);
 }
 
@@ -174,12 +222,12 @@ function slugify(name: string): string {
     .slice(0, 40);
 }
 
-export function saveCustomTheme(name: string, seeds: ThemeSeeds): string {
-  const slug = slugify(name);
+export function saveCustomTheme(theme: Theme): string {
+  const slug = slugify(theme.name);
   const random = Math.random().toString(36).slice(2, 8);
   const id = `custom-${slug}-${random}`;
   const customs = readCustomThemes();
-  customs.push({ id, name, seeds });
+  customs.push({ ...theme, id });
   writeCustomThemes(customs);
   applyTheme(id);
   return id;

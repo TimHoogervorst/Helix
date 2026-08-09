@@ -657,7 +657,7 @@ function TagSettings() {
   const heroCreatePanel = () => {
     if (activeTab === "tags" && tags.showNew) {
       return (
-        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
+        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
@@ -711,7 +711,7 @@ function TagSettings() {
     if (activeTab === "colours" && colours.showNew) {
       const hexValid = /^#[0-9A-Fa-f]{3,6}$/.test(colours.newHex.trim());
       return (
-        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
+        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--color-ink-muted-foreground)]">Key</span>
@@ -781,7 +781,7 @@ function TagSettings() {
 
     if (activeTab === "icons" && icons.showSvgUpload) {
       return (
-        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
+        <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--color-ink-muted-foreground)]">Key</span>
@@ -1088,7 +1088,7 @@ function TagSettings() {
           .map((c) => (
             <div
               key={c.id}
-              className="group relative rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm"
+              className="group relative rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4 transition-shadow hover:shadow-sm"
             >
               <button
                 type="button"
@@ -1145,7 +1145,7 @@ function TagSettings() {
           .map((i) => (
             <div
               key={i.id}
-              className="group relative rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm"
+              className="group relative rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4 transition-shadow hover:shadow-sm"
             >
               <button
                 type="button"

@@ -3,9 +3,10 @@
 
 @layer theme-tokens {
   :root {
-    /* ── Five Theme Seeds ── */
+    /* ── Six Theme Seeds ── */
     --color-background: oklch(0.985 0.005 95);
     --color-surface: oklch(0.975 0.008 95);
+    --color-card: oklch(0.982 0.006 95);
     --color-ink: oklch(0.22 0.02 260);
     --color-primary: oklch(0.42 0.08 195);
     --color-accent: oklch(0.94 0.03 180);
@@ -21,6 +22,12 @@
     --color-surface-active: color-mix(in oklch, var(--color-surface), #000 10%);
     --color-surface-subtle: var(--color-surface);
     --color-surface-foreground: var(--color-ink);
+
+    /* ── Derived Shades: Card ── */
+    --color-card-hover: color-mix(in oklch, var(--color-card), #000 5%);
+    --color-card-active: color-mix(in oklch, var(--color-card), #000 10%);
+    --color-card-subtle: var(--color-card);
+    --color-card-foreground: var(--color-ink);
 
     /* ── Derived Shades: Ink ── */
     --color-ink-hover: color-mix(in oklch, var(--color-ink), #000 18%);

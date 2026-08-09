@@ -31,7 +31,7 @@ export function SettingsPageLayout({
         </div>
       </div>
       {bottomBar && (
-        <div className="border-t border-[var(--color-ink-hairline)] bg-[var(--color-surface)]/95 backdrop-blur-sm">
+        <div className="border-t border-[var(--color-ink-hairline)] bg-[var(--color-card)]/95 backdrop-blur-sm">
           <div className="mx-auto max-w-6xl px-8 py-3">
             {bottomBar}
           </div>

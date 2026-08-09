@@ -260,7 +260,7 @@ function DropdownSettings() {
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
               <div className="space-y-3">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-[var(--color-ink-muted-foreground)]">

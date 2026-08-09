@@ -2,9 +2,14 @@
   "id": "terminal",
   "name": "Terminal",
   "description": "Black screen with phosphor-green text",
+  "fonts": {
+    "label": "\"Courier New\", Courier, monospace",
+    "body": "\"Courier New\", Courier, monospace"
+  },
   "seeds": {
     "background": "#0A0F0A",
     "surface": "#121A12",
+    "card": "#0C110C",
     "ink": "#33FF33",
     "primary": "#1B7A3D",
     "accent": "#66FF66"

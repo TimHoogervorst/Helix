@@ -6,7 +6,6 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { ThemeSeeds } from "../shared/applyThemeSeeds";
 import type { Theme } from "./themeStore";
 import {
   getThemes,
@@ -21,7 +20,7 @@ interface ThemeContextValue {
   activeThemeId: string;
   themes: Theme[];
   applyTheme: (id: string) => void;
-  saveCustomTheme: (name: string, seeds: ThemeSeeds) => void;
+  saveCustomTheme: (theme: Theme) => void;
   deleteCustomTheme: (id: string) => void;
 }
 
@@ -42,8 +41,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveCustomTheme = useCallback(
-    (name: string, seeds: ThemeSeeds) => {
-      const id = storeSaveCustomTheme(name, seeds);
+    (theme: Theme) => {
+      const id = storeSaveCustomTheme(theme);
       setActiveThemeId(id);
     },
     [],

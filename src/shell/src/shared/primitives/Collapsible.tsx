@@ -18,7 +18,7 @@ export function Collapsible({
 
   return (
     <div
-      className={`rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] ${className}`}
+      className={`rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] ${className}`}
     >
       <button
         type="button"

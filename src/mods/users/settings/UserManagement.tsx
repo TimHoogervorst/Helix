@@ -201,7 +201,7 @@ export default function UserManagement() {
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
               {createError && (
                 <div className="mb-3 rounded-md border border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/10 px-3 py-2 text-base text-[var(--color-destructive)]">
                   {createError}

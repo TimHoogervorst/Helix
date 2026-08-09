@@ -167,7 +167,7 @@ export function Menu({ trigger, items, className = "" }: MenuProps) {
           <div
             ref={menuRef}
             role="menu"
-            className="z-50 min-w-[160px] overflow-hidden rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] p-1 shadow-lg"
+            className="z-50 min-w-[160px] overflow-hidden rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-1 shadow-lg"
             style={position}
           >
             {items.map((item) => (

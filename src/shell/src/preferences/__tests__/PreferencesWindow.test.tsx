@@ -33,6 +33,13 @@ function renderPreferences() {
   return { onClose, ...result };
 }
 
+function makeTheme(name: string, seeds: {
+  background: string; surface: string; card: string; ink: string;
+  primary: string; accent: string;
+}) {
+  return { id: "", name, description: "", seeds };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   store = {};
@@ -132,7 +139,7 @@ describe("PreferencesWindow", () => {
     fireEvent.click(terminalCard);
     const terminalButton = terminalCard.closest("button");
     expect(terminalButton).toBeInTheDocument();
-    expect(terminalButton!.className).toContain("border-[var(--color-primary)]");
+    expect(terminalButton!.className).toContain("border-[var(--color-ink-hairline)]");
   });
 
   // ── Title ─────────────────────────────────────────────────────────────────
@@ -145,13 +152,14 @@ describe("PreferencesWindow", () => {
   // ── Custom themes integration ────────────────────────────────────────────
 
   it("shows 'Your themes' group when custom themes exist", () => {
-    saveCustomTheme("My Cust", {
+    saveCustomTheme(makeTheme("My Cust", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     renderPreferences();
     expect(screen.getByText("Your themes")).toBeInTheDocument();
     expect(screen.getByText("My Cust")).toBeInTheDocument();
@@ -163,13 +171,14 @@ describe("PreferencesWindow", () => {
   });
 
   it("custom theme card has a delete button with tooltip and aria-label", () => {
-    saveCustomTheme("My Cust", {
+    saveCustomTheme(makeTheme("My Cust", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     renderPreferences();
     const deleteBtn = screen.getByRole("button", { name: "Delete My Cust" });
     expect(deleteBtn).toBeInTheDocument();
@@ -177,13 +186,14 @@ describe("PreferencesWindow", () => {
   });
 
   it("delete removes the custom theme from the list", () => {
-    saveCustomTheme("My Cust", {
+    saveCustomTheme(makeTheme("My Cust", {
       background: "#111111",
       surface: "#222222",
+      card: "#181818",
       ink: "#ffffff",
       primary: "#ff0000",
       accent: "#00ff00",
-    });
+    }));
     renderPreferences();
     expect(screen.getByText("My Cust")).toBeInTheDocument();
 

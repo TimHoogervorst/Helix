@@ -15,7 +15,7 @@ export function Modal({
   onClose,
   title,
   children,
-  className = "",
+  className = "max-w-lg",
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +47,7 @@ export function Modal({
       }}
     >
       <div
-        className={`w-full max-w-lg rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] shadow-xl ${className}`}
+        className={`w-full rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] shadow-xl ${className}`}
         role="dialog"
         aria-modal
         aria-label={title}

@@ -539,7 +539,7 @@ describe("HomePage", () => {
       expect(section).toHaveClass("rounded-lg");
       expect(section).toHaveClass("border");
       expect(section).toHaveClass("border-border");
-      expect(section).toHaveClass("bg-background");
+      expect(section).toHaveClass("bg-card");
     });
   });
 
@@ -596,7 +596,7 @@ describe("HomePage", () => {
       expect(section).toHaveClass("rounded-lg");
       expect(section).toHaveClass("border");
       expect(section).toHaveClass("border-border");
-      expect(section).toHaveClass("bg-background");
+      expect(section).toHaveClass("bg-card");
     });
   });
 

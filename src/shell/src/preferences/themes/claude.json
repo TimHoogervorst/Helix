@@ -2,9 +2,14 @@
   "id": "claude",
   "name": "Claude",
   "description": "Warm paper with coral highlights",
+  "fonts": {
+    "label": "\"JetBrains Mono Variable\", \"JetBrains Mono\", \"SF Mono\", \"Cascadia Code\", Consolas, monospace",
+    "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
   "seeds": {
     "background": "#FAF9F5",
     "surface": "#FFFFFF",
+    "card": "#FBFAF8",
     "ink": "#141413",
     "primary": "#D97757",
     "accent": "#F5F4ED"

@@ -117,7 +117,7 @@ export function AffiliationsSection() {
   const editing = mode.type !== "view";
 
   return (
-    <section className="group/section rounded-lg border border-border bg-panel p-5">
+    <section className="group/section rounded-lg border border-border bg-card p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">

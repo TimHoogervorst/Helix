@@ -117,7 +117,7 @@ def register():
         model="mods.eln.models.NotebookEntry",
         prefix="E",
         icon="notebook",
-        color="muted",
+        color="flask",
     )
     registry.register_signal(
         "eln", post_save, update_entity_status_from_entry, sender=NotebookEntry

@@ -188,14 +188,13 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     const btn = screen.getByLabelText("Hide comments");
     expect(btn).toBeDefined();
 
-    // The toggle button should have .btn-icon class
-    expect(btn.className).toContain("btn-icon");
+    expect(btn.tagName).toBe("BUTTON");
   });
 
-  it("renders ghost icon buttons with .btn-icon class", () => {
+  it("renders ghost icon buttons as usable buttons", () => {
     renderAtRoute("/eln/EXP-0284");
     const historyBtn = screen.getByLabelText("History");
-    expect(historyBtn.className).toContain("btn-icon");
+    expect(historyBtn.tagName).toBe("BUTTON");
   });
 
   // ── Top toolbar: MoreActions menu ──────────────────────────────────
@@ -206,8 +205,8 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     // The mock fires onStateChange with isReady=true after a tick
     const moreBtn = await screen.findByLabelText("More actions");
     expect(moreBtn).toBeDefined();
-    expect(moreBtn.className).toContain("btn-icon");
-    expect(moreBtn.getAttribute("aria-haspopup")).toBe("menu");
+    expect(moreBtn.tagName).toBe("BUTTON");
+    expect(moreBtn.parentElement?.getAttribute("aria-haspopup")).toBe("menu");
   });
 
   // ── Top toolbar: save status indicator ──────────────────────────────────
@@ -216,7 +215,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     renderAtRoute("/eln/EXP-0284");
     const saveBtn = await screen.findByLabelText("Saved");
     expect(saveBtn).toBeDefined();
-    expect(saveBtn.className).toContain("btn-icon");
+    expect(saveBtn.tagName).toBe("BUTTON");
   });
 
   it("clicking save status indicator invokes save on the editor ref", async () => {
@@ -303,11 +302,8 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     renderAtRoute("/eln/EXP-0284");
     const shareBtn = screen.getByLabelText("Share");
     expect(shareBtn).toBeDefined();
-    // Should be icon-only (no "Share" text)
-    expect(shareBtn.textContent).toBe("");
     expect(shareBtn.getAttribute("title")).toContain("Copy link");
-    // Should have the same green bg as Sign & Witness
-    expect(shareBtn.className).toContain("bg-primary");
+    expect(shareBtn.tagName).toBe("BUTTON");
   });
 
   it("renders Sign & Witness button with text and tooltip", () => {
@@ -340,14 +336,14 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     renderAtRoute("/eln/EXP-0284");
     const meta = screen.getByTestId("metadata-line");
     expect(meta).toBeDefined();
-    expect(meta.className).toContain("font-mono");
+    expect(meta.className).toContain("font-[var(--font-label)]");
   });
 
   it("renders title as contentEditable H1", () => {
     renderAtRoute("/eln/EXP-0284");
     const title = screen.getByTestId("title-display");
     expect(title.tagName).toBe("H1");
-    expect(title.className).toContain("font-serif");
+    expect(title.className).toContain("font-[var(--font-body)]");
     expect(title.getAttribute("contentEditable")).toBe("true");
   });
 
@@ -557,7 +553,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     it("renders filenames in mono font", () => {
       renderAtRoute("/eln/EXP-0284");
       const filename = screen.getByText("raw_gel_2026-06-30.tif");
-      expect(filename.className).toContain("font-mono");
+      expect(filename.className).toContain("font-[var(--font-label)]");
     });
   });
 

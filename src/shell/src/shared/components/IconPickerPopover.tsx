@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { IconBadge, LazyIcon, deriveForeground } from "./IconBadge";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { ModRegistry } from "../../mod-system/ModRegistry";
+import { getThemeMode } from "../applyTheme";
 
 const ICONS_PER_PAGE = 20;
 
@@ -13,7 +14,8 @@ interface IconLibraryEntry {
 interface ColorEntry {
   key: string;
   label: string;
-  hex: string;
+  hexDark: string;
+  hexLight: string;
 }
 
 export interface IconPickerPopoverProps {
@@ -38,7 +40,8 @@ function getColorPalette(): ColorEntry[] {
   return Array.from(entries.values()).map((e) => ({
     key: e.key,
     label: e.label,
-    hex: e.hex,
+    hexDark: e.hexDark,
+    hexLight: e.hexLight,
   }));
 }
 
@@ -239,7 +242,9 @@ export function IconPickerPopover({
               {filteredColors.length > 0 && (
                 <div className="grid grid-cols-4 gap-2">
                   {filteredColors.map((c) => {
-                    const foreground = deriveForeground(c.hex);
+                    const mode = getThemeMode();
+                    const effectiveHex = mode === "dark" ? c.hexDark : c.hexLight;
+                    const foreground = deriveForeground(effectiveHex);
                     return (
                       <button
                         key={c.key}
@@ -251,7 +256,7 @@ export function IconPickerPopover({
                             : "border-transparent"
                         }`}
                         style={{
-                          backgroundColor: c.hex,
+                          backgroundColor: effectiveHex,
                           color: foreground,
                         }}
                         title={c.label}

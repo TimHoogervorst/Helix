@@ -252,13 +252,18 @@ class ColorToken(models.Model):
 
     Each ColorToken has a unique ``key`` (string identifier used by
     referencing objects like tags and schemas), a human-readable
-    ``label``, and a ``hex`` color value.  Foreground / glyph colour
-    is derived from the hex by luminance at render time — never stored.
+    ``label``, and a ``hex`` color value.
+
+    ``hex_dark`` and ``hex_light`` are automatically derived from
+    ``hex`` on every save.  When the active theme is dark the UI uses
+    ``hex_dark``; when light it uses ``hex_light``.
     """
 
     key = models.CharField(max_length=100, unique=True)
     label = models.CharField(max_length=255)
     hex = models.CharField(max_length=7)
+    hex_dark = models.CharField(max_length=7)
+    hex_light = models.CharField(max_length=7)
 
     class Meta:
         db_table = "helix_color_token"
@@ -266,6 +271,53 @@ class ColorToken(models.Model):
 
     def __str__(self):
         return f"{self.label} ({self.key})"
+
+    def save(self, *args, **kwargs):
+        self.hex_dark, self.hex_light = _derive_variants(self.hex)
+        super().save(*args, **kwargs)
+
+
+def _derive_variants(hex_color: str) -> tuple[str, str]:
+    """Derive dark-theme and light-theme hex variants.
+
+    ``hex_dark`` darkens the colour for depth on dark backgrounds
+    (except for very dark colours, which get a tiny lift so they
+    remain visible).  Saturation is boosted for vibrancy.
+
+    ``hex_light`` is the original colour (assumed to have been
+    chosen for light-background contexts).
+    """
+    import colorsys
+
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) not in (3, 6):
+        return hex_color, hex_color
+
+    if len(hex_color) == 3:
+        hex_color = "".join(c * 2 for c in hex_color)
+
+    r = int(hex_color[0:2], 16) / 255.0
+    g = int(hex_color[2:4], 16) / 255.0
+    b = int(hex_color[4:6], 16) / 255.0
+
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+
+    if l < 0.30:
+        l_dark = l * 1.1
+    else:
+        l_dark = l * 0.82
+
+    s_dark = min(1.0, s * 1.3)
+    rd, gd, bd = colorsys.hls_to_rgb(h, l_dark, s_dark)
+    hex_dark = "#{:02X}{:02X}{:02X}".format(
+        round(rd * 255), round(gd * 255), round(bd * 255)
+    )
+
+    hex_light = "#{:02X}{:02X}{:02X}".format(
+        round(r * 255), round(g * 255), round(b * 255)
+    )
+
+    return hex_dark, hex_light
 
 
 # ── Icon Library Entry ─────────────────────────────────────────────────

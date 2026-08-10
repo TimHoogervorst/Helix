@@ -1,6 +1,7 @@
 import { Component } from "react";
 import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Button } from "../primitives/Button";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -55,11 +56,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
             </div>
 
-            <h2 className="mb-2 font-serif text-[15px] font-semibold tracking-tight text-foreground">
+            <h2 className="mb-2 font-[var(--font-label)] text-md font-semibold tracking-tight text-foreground">
               Something went wrong
             </h2>
 
-            <p className="mb-4 text-[13px] text-muted-foreground">
+            <p className="mb-4 text-base text-muted-foreground">
               An unexpected error occurred while rendering this section.
             </p>
 
@@ -67,22 +68,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               className="mb-4 text-left"
               data-testid="error-boundary-details"
             >
-              <summary className="cursor-pointer text-[11px] font-mono uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground">
+              <summary className="cursor-pointer text-xs font-mono uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground">
                 Error details
               </summary>
-              <pre className="mt-2 overflow-auto rounded-md bg-muted/50 px-3 py-2 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+              <pre className="mt-2 overflow-auto rounded-md bg-muted/50 px-3 py-2 text-xs font-mono text-muted-foreground whitespace-pre-wrap">
                 {this.state.error.message}
               </pre>
             </details>
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              className="rounded-md px-4 py-1.5 text-base font-medium"
               onClick={this.handleRetry}
-              className="btn-primary rounded-md px-4 py-1.5 text-[13px] font-medium"
               data-testid="error-boundary-retry"
             >
               Try again
-            </button>
+            </Button>
           </div>
         </div>
       );

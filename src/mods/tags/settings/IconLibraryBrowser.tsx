@@ -199,7 +199,7 @@ export function IconLibraryBrowser({
                   onClick={() => handleSelect(ico.token, ico.label)}
                 >
                   <LazyIconPreview token={ico.token} />
-                  <span className="truncate text-[10px] text-muted-foreground max-w-full">
+                  <span className="truncate text-2xs text-muted-foreground max-w-full">
                     {ico.label}
                   </span>
                 </button>

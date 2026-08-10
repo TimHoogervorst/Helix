@@ -6,7 +6,7 @@
  *  - Popover opens/closes on avatar click
  *  - Popover header shows avatar + username
  *  - Profile item navigates to /profile
- *  - Preferences item is disabled with "Coming soon" tooltip
+ *  - Preferences item is enabled and opens the PreferencesWindow
  *  - Settings item navigates to /settings
  *  - Logout item calls logout API and redirects to /login
  *  - Popover closes on outside click
@@ -41,6 +41,7 @@ vi.mock("../api", () => ({
 }));
 
 import { UserMenu } from "../UserMenu";
+import { ThemeProvider } from "../../preferences";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,9 @@ function renderUserMenu() {
   return render(
     <MemoryRouter>
       <CurrentUserProvider>
-        <UserMenu />
+        <ThemeProvider>
+          <UserMenu />
+        </ThemeProvider>
       </CurrentUserProvider>
     </MemoryRouter>,
   );
@@ -144,12 +147,16 @@ describe("UserMenu items", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/settings");
   });
 
-  it("Preferences is disabled with 'Coming soon' tooltip", async () => {
+  it("Preferences is enabled and opens the PreferencesWindow", async () => {
     const prefsBtn = screen.getByRole("button", {
-      name: "Preferences — coming soon",
+      name: "Preferences",
     });
-    expect(prefsBtn).toBeDisabled();
-    expect(prefsBtn).toHaveAttribute("title", "Coming soon");
+    expect(prefsBtn).not.toBeDisabled();
+
+    fireEvent.click(prefsBtn);
+    // The PreferencesWindow is a Modal with role="dialog"
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Preferences")).toBeInTheDocument();
   });
 
   it("Logout calls logout API and redirects to /login", async () => {

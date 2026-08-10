@@ -8,6 +8,7 @@ import {
 } from "../api";
 import { ApiError } from "../../../shell/src/api/client";
 import type { Recognition } from "../../../shell/src/user/types";
+import { Button, IconButton, Input } from "../../../shell/src/shared/primitives";
 
 /**
  * Recognitions section with:
@@ -110,35 +111,36 @@ export function RecognitionsSection() {
   const editing = mode.type !== "view";
 
   return (
-    <section className="group/section rounded-lg border border-border bg-panel p-5">
+    <section className="group/section rounded-lg border border-border bg-card p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Award className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="font-serif text-lg font-semibold tracking-tight">
+          <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
             Recognitions
           </h2>
         </div>
         {!editing && (
-          <button
-            type="button"
-            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground opacity-0 group-hover/section:opacity-100 transition-opacity"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover/section:opacity-100 transition-opacity"
             onClick={() => setMode({ type: "adding" })}
           >
             <Plus className="h-3.5 w-3.5" />
             Add
-          </button>
+          </Button>
         )}
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
 
       {items.length === 0 && mode.type !== "adding" ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           No recognitions yet.
         </p>
       ) : (
@@ -161,31 +163,28 @@ export function RecognitionsSection() {
                 className="group/row flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-foreground">
+                  <p className="text-base font-medium text-foreground">
                     {item.title}
                   </p>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {[item.issuer, item.date].filter(Boolean).join(" · ")}
                   </p>
                 </div>
                 {mode.type === "view" && (
                   <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      className="btn-icon rounded text-muted-foreground hover:text-foreground"
-                      onClick={() => handleEdit(item)}
+                    <IconButton
                       aria-label="Edit recognition"
+                      onClick={() => handleEdit(item)}
                     >
                       <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-icon rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => handleDelete(item.id)}
+                    </IconButton>
+                    <IconButton
                       aria-label="Delete recognition"
+                      className="text-[--color-ink-muted-foreground] hover:bg-[--color-destructive]/10 hover:text-[--color-destructive]"
+                      onClick={() => handleDelete(item.id)}
                     >
                       <Trash2 className="h-3 w-3" />
-                    </button>
+                    </IconButton>
                   </div>
                 )}
               </div>
@@ -225,56 +224,57 @@ function RecognitionEditRow({
     <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Title
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-base"
             value={form.title}
             onChange={(e) => onChange({ ...form, title: e.target.value })}
             placeholder="e.g. Best Poster Award"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Issuer
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-base"
             value={form.issuer}
             onChange={(e) => onChange({ ...form, issuer: e.target.value })}
             placeholder="e.g. ACS"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Date
           </span>
-          <input
+          <Input
             type="date"
-            className="input rounded-md text-[13px]"
+            className="text-base"
             value={form.date}
             onChange={(e) => onChange({ ...form, date: e.target.value })}
           />
         </label>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onSave}
           disabled={saving}
         >
           {saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-[--color-ink-muted-foreground]"
           onClick={onCancel}
           disabled={saving}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 import Router from "../Router";
+import { ThemeProvider } from "../../preferences";
 import type { HubConfig, RouteConfig } from "../../mod-system/types";
 
 // Provide a mock user context so Layout (which renders UserMenu) doesn't crash
@@ -91,7 +92,9 @@ function makeRoute(overrides?: Partial<RouteConfig>): RouteConfig {
 function renderRouter(initialRoute = "/") {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
-      <Router />
+      <ThemeProvider>
+        <Router />
+      </ThemeProvider>
     </MemoryRouter>,
   );
 }

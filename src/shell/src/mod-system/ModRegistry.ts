@@ -226,11 +226,13 @@ export class ModRegistry {
       if (key === "colorPalette" && Array.isArray(value)) {
         this.colorPalette.clear();
         for (const entry of value) {
-          const e = entry as { key: string; label: string; hex: string };
+          const e = entry as { key: string; label: string; hex: string; hexDark: string; hexLight: string };
           this.colorPalette.set(e.key, {
             key: e.key,
             label: e.label,
             hex: e.hex,
+            hexDark: e.hexDark ?? e.hex,
+            hexLight: e.hexLight ?? e.hex,
           });
         }
         continue;

@@ -1,0 +1,18 @@
+{
+  "id": "lavender",
+  "name": "Lavender",
+  "description": "Soft purple on cloudy white",
+  "mode": "light",
+  "fonts": {
+    "label": "\"JetBrains Mono Variable\", \"JetBrains Mono\", \"SF Mono\", \"Cascadia Code\", Consolas, monospace",
+    "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  "seeds": {
+    "background": "#F4F1FA",
+    "surface": "#FFFFFF",
+    "card": "#F7F4FC",
+    "ink": "#3B3153",
+    "primary": "#6B5CA5",
+    "accent": "#E3DCF6"
+  }
+}

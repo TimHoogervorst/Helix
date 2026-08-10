@@ -9,6 +9,7 @@ import type { Tag } from "../types";
 import { useTagSearch } from "../hooks/useTagSearch";
 import { getTagIcon } from "../constants";
 import { TagPill } from "./TagPill";
+import { Input } from "../../../shell/src/shared/primitives";
 
 export interface TagPickerProps {
   /** Currently selected tags. */
@@ -76,7 +77,7 @@ export function TagPicker({
         ))}
 
         {/* ── Search input ── */}
-        <input
+        <Input
           ref={inputRef}
           type="text"
           className="!w-36 !py-0.5 !text-xs"
@@ -102,7 +103,7 @@ export function TagPicker({
           data-testid="tag-picker-dropdown"
         >
           {suggestions.length === 0 ? (
-            <div className="px-2.5 py-1.5 text-[13px] text-muted-foreground">
+            <div className="px-2.5 py-1.5 text-base text-muted-foreground">
               No matching tags
             </div>
           ) : (
@@ -113,7 +114,7 @@ export function TagPicker({
                 <button
                   key={t.id}
                   type="button"
-                  className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] hover:bg-muted"
+                  className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-base hover:bg-muted"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     handleSelect(t);

@@ -483,4 +483,6 @@ export interface ColorToken {
   key: string;
   label: string;
   hex: string;
+  hexDark: string;
+  hexLight: string;
 }

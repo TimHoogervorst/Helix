@@ -5,6 +5,8 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Button } from "../../../shell/src/shared/primitives/Button";
 
 /**
  * Render the icon for a workspace, falling back to a generic Box icon.
@@ -38,14 +40,14 @@ function PinnedWorkspacesSidebar() {
       <div className="flex flex-col items-center gap-1 py-2">
         {/* Current workspace (temporary, not pinned) */}
         {current && !isCurrentPinned && (
-          <button
-            className="btn-icon flex items-center justify-center w-8 h-8 rounded-md"
+          <IconButton
+            className="flex items-center justify-center w-8 h-8 rounded-md"
             onClick={() => handleRowClick(current.url)}
             title={current.displayId}
             aria-label={`Current workspace: ${current.displayId}`}
           >
             <WorkspaceIcon workspaceId={current.icon} />
-          </button>
+          </IconButton>
         )}
 
         {/* Pinned workspaces */}
@@ -56,9 +58,9 @@ function PinnedWorkspacesSidebar() {
               ? `${p.label} — ${p.display_id}`
               : p.display_id;
           return (
-            <button
+            <IconButton
               key={p.id}
-              className="btn-icon flex items-center justify-center w-8 h-8 rounded-md"
+              className="flex items-center justify-center w-8 h-8 rounded-md"
               onClick={() => handleRowClick(p.url)}
               title={tooltip}
               aria-label={`Open workspace: ${p.display_id}`}
@@ -70,7 +72,7 @@ function PinnedWorkspacesSidebar() {
               ) : (
                 <Box className="h-4 w-4" aria-hidden="true" />
               )}
-            </button>
+            </IconButton>
           );
         })}
       </div>
@@ -81,24 +83,25 @@ function PinnedWorkspacesSidebar() {
   return (
     <>
       {/* Workspace tree area */}
-      <div className="flex-1 overflow-y-auto px-2 pb-6 text-[13px]">
+      <div className="flex-1 overflow-y-auto px-2 pb-6 text-base">
         {/* Current workspace (temporary, not pinned) */}
         {current && !isCurrentPinned && (
           <div className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left">
-            <button
-              className="btn-ghost flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-0.5 pl-2 text-left"
+            <Button
+              variant="ghost"
+              className="min-w-0 flex-1 justify-start rounded-md py-0.5 pl-2 text-left"
               title={current.displayId}
               aria-label={`Current workspace: ${current.displayId}`}
               onClick={() => handleRowClick(current.url)}
             >
               <WorkspaceIcon workspaceId={current.icon} />
               <span className="truncate">{current.displayId}</span>
-              <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-[18px] text-muted-foreground">
+              <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-2xs leading-[18px] text-muted-foreground">
                 Current
               </span>
-            </button>
-            <button
-              className="btn-ghost grid h-6 w-6 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100"
+            </Button>
+            <IconButton
+              className="grid h-6 w-6 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100"
               title="Pin this workspace"
               aria-label="Pin current workspace"
               onClick={(e) => {
@@ -107,7 +110,7 @@ function PinnedWorkspacesSidebar() {
               }}
             >
               <Pin className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            </IconButton>
           </div>
         )}
 
@@ -119,8 +122,9 @@ function PinnedWorkspacesSidebar() {
               key={p.id}
               className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left"
             >
-              <button
-                className={`btn-ghost flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-0.5 pl-2 text-left${isActive ? " bg-muted font-medium text-foreground" : ""}`}
+              <Button
+                variant="ghost"
+                className={`min-w-0 flex-1 justify-start rounded-md py-0.5 pl-2 text-left${isActive ? " bg-muted font-medium text-foreground" : ""}`}
                 title={`${p.display_id} — ${p.label}`}
                 aria-label={`Open workspace: ${p.display_id}`}
                 onClick={() => handleRowClick(p.url)}
@@ -134,7 +138,7 @@ function PinnedWorkspacesSidebar() {
                 {p.label && p.label !== p.display_id ? (
                   <>
                     <span className="truncate">{p.label}</span>
-                    <span className="truncate text-[11px] text-muted-foreground">
+                    <span className="truncate text-xs text-muted-foreground">
                       {p.display_id}
                     </span>
                   </>
@@ -142,13 +146,13 @@ function PinnedWorkspacesSidebar() {
                   <span className="truncate">{p.display_id}</span>
                 )}
                 {isActive && (
-                  <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-[18px] text-muted-foreground">
+                  <span className="ml-1 shrink-0 rounded bg-muted px-1 font-mono text-2xs leading-[18px] text-muted-foreground">
                     Current
                   </span>
                 )}
-              </button>
-              <button
-                className="btn-ghost grid h-6 w-6 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100"
+              </Button>
+              <IconButton
+                className="grid h-6 w-6 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100"
                 title="Unpin this workspace"
                 aria-label={`Unpin workspace: ${p.display_id}`}
                 onClick={(e) => {
@@ -157,7 +161,7 @@ function PinnedWorkspacesSidebar() {
                 }}
               >
                 <PinOff className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+              </IconButton>
             </div>
           );
         })}

@@ -22,37 +22,13 @@ import MoreActions from "../components/MoreActions";
 import ContentLoadingSkeleton from "../components/ContentLoadingSkeleton";
 import { TagPill } from "../../tags/ui";
 import { TagAutocomplete } from "../../tags/ui";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import type { EntryDetail, Tag, ElnAction } from "../types";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
 function formatDateShort(iso: string): string {
   return new Date(iso).toISOString().split("T")[0];
-}
-
-function IconButton({
-  icon: Icon,
-  label,
-  tooltip,
-  disabled,
-  onClick,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  tooltip: string;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      className="btn-icon rounded-md"
-      aria-label={label}
-      title={tooltip}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-    </button>
-  );
 }
 
 export interface ElnChromeProps {
@@ -188,7 +164,7 @@ function ElnChrome({
         {/* ── Top toolbar ── */}
         <div className="flex items-center justify-between border-b border-hairline px-6 py-2.5">
           {/* Left: breadcrumbs */}
-          <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-base text-muted-foreground">
             <Folder
               className="h-3.5 w-3.5 text-muted-foreground"
               aria-hidden="true"
@@ -239,13 +215,12 @@ function ElnChrome({
               if (isLockedByOther) {
                 const lockLabel = `Locked by ${lockHeldBy || "another user"} — read-only`;
                 return (
-                  <span
-                    className="btn-icon rounded-md"
+                  <IconButton
                     aria-label={lockLabel}
                     title={lockLabel}
                   >
-                    <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                  </span>
+                    <Lock className="h-5 w-5 text-[var(--color-warning)]" aria-hidden="true" />
+                  </IconButton>
                 );
               }
 
@@ -259,57 +234,53 @@ function ElnChrome({
               if (isError) {
                 Icon = AlertTriangle;
                 label = "Save failed — click to retry";
-                iconClass = "h-4 w-4 text-destructive";
+                iconClass = "h-5 w-5 text-destructive";
               } else if (isSaving) {
                 Icon = Loader2;
                 label = "Saving…";
-                iconClass = "h-4 w-4 animate-spin text-muted-foreground";
+                iconClass = "h-5 w-5 animate-spin text-muted-foreground";
               } else {
                 Icon = Check;
                 label = "Saved";
-                iconClass = "h-4 w-4 text-muted-foreground";
+                iconClass = "h-5 w-5 text-muted-foreground";
               }
 
               return (
-                <button
-                  className="btn-icon rounded-md"
+                <IconButton
                   aria-label={label}
                   title={label}
                   onClick={onSave}
                 >
                   <Icon className={iconClass} aria-hidden="true" />
-                </button>
+                </IconButton>
               );
             })()}
 
             <IconButton
-              icon={History}
-              label="History"
-              tooltip="Placeholder — version history coming soon"
-            />
+              aria-label="History"
+              title="Placeholder — version history coming soon"
+            >
+              <History className="h-5 w-5" aria-hidden="true" />
+            </IconButton>
             {/* ── Global comment toggle ── */}
-            <button
-              className={`btn-icon rounded-md ${
-                showComments
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : ""
-              }`}
+            <IconButton
               aria-label={showComments ? "Hide comments" : "Show comments"}
               aria-pressed={showComments}
               title={showComments ? "Hide comments" : "Show comments"}
               onClick={() => setShowComments((prev) => !prev)}
             >
               {showComments ? (
-                <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                <MessageSquare className="h-5 w-5" aria-hidden="true" />
               ) : (
-                <MessageSquareOff className="h-4 w-4" aria-hidden="true" />
+                <MessageSquareOff className="h-5 w-5" aria-hidden="true" />
               )}
-            </button>
+            </IconButton>
             <IconButton
-              icon={Star}
-              label="Star"
-              tooltip="Placeholder — bookmark coming soon"
-            />
+              aria-label="Star"
+              title="Placeholder — bookmark coming soon"
+            >
+              <Star className="h-5 w-5" aria-hidden="true" />
+            </IconButton>
 
             {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}
             {isReady && !isLockedByOther && (
@@ -341,7 +312,7 @@ function ElnChrome({
                   />
                 ))}
                 {recentEditors.length > 3 && (
-                  <span className="inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted font-mono text-[9.5px] font-medium text-muted-foreground ring-2 ring-background">
+                  <span className="inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted font-[var(--font-label)] text-2xs font-medium text-muted-foreground ring-2 ring-background">
                     …
                   </span>
                 )}
@@ -349,12 +320,9 @@ function ElnChrome({
             )}
 
             {/* Share button */}
-            <button
-              className={`ml-2 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] transition-colors ${
-                shareClicked
-                  ? "bg-success text-success-foreground"
-                  : "bg-primary text-primary-foreground hover:opacity-90"
-              }`}
+            <Button
+              variant="primary"
+              className={`ml-2 ${shareClicked ? "!bg-[var(--color-success)] !text-[var(--color-success-foreground)] !border-[var(--color-success)]" : ""}`}
               aria-label={shareClicked ? "Copied!" : "Share"}
               title={shareClicked ? "Copied!" : "Copy link to clipboard"}
               onClick={handleShare}
@@ -364,17 +332,17 @@ function ElnChrome({
               ) : (
                 <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-            </button>
+            </Button>
 
             {/* Sign & Witness button */}
-            <button
-              className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover:opacity-90"
+            <Button
+              variant="primary"
               aria-label="Sign & Witness"
               title="Placeholder — sign & witness coming soon"
             >
               <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
               Sign &amp; witness
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -395,7 +363,7 @@ function ElnChrome({
                   {/* ── Locked banner ── */}
                   {isLockedByOther && (
                     <div
-                      className="mb-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2.5 text-[13px] text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200"
+                      className="mb-4 flex items-center gap-2 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-base text-[var(--color-ink-muted-foreground)]"
                       data-testid="locked-banner"
                     >
                       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -412,7 +380,7 @@ function ElnChrome({
 
                     {/* Metadata line */}
                     <div
-                      className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
+                      className="mb-3 font-[var(--font-label)] text-xs uppercase tracking-widest text-muted-foreground"
                       data-testid="metadata-line"
                     >
                       {entry ? (
@@ -454,14 +422,14 @@ function ElnChrome({
                       onBlur={() => {
                         if (!isLockedByOther && title.trim() !== title) onTitleChange(title.trim());
                       }}
-                      className="mb-3 font-serif text-[42px] font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
+                      className="mb-3 font-[var(--font-body)] text-4xl font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
                       data-testid="title-display"
                     />
 
                     {/* Description */}
                     <textarea
                       ref={descriptionRef}
-                      className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-[15px] leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
+                      className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-md leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
                       value={description}
                       onChange={(e) => {
                         if (!isLockedByOther) onDescriptionChange(e.target.value);

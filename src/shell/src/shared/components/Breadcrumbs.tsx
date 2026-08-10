@@ -1,4 +1,5 @@
 import { ArrowUp, Folder } from "lucide-react";
+import { IconButton } from "../primitives/IconButton";
 
 export interface BreadcrumbSegment {
   label: string;
@@ -18,15 +19,14 @@ function Breadcrumbs({ segments, onNavigate, onUp }: BreadcrumbsProps) {
 
   return (
     <nav className="breadcrumbs" aria-label="Breadcrumb path">
-      <button
-        className="breadcrumb-btn"
+      <IconButton
         onClick={onUp}
         disabled={atRoot}
-        title="Go up"
         aria-label="Go up"
+        title="Go up"
       >
         <ArrowUp size={14} />
-      </button>
+      </IconButton>
       {/* Folder icon preceding the path — matches prototype */}
       <Folder
         size={13}

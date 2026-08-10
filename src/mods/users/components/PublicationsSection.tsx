@@ -8,6 +8,7 @@ import {
 } from "../api";
 import { ApiError } from "../../../shell/src/api/client";
 import type { Publication } from "../../../shell/src/user/types";
+import { Button, IconButton, Input } from "../../../shell/src/shared/primitives";
 
 /**
  * Publications section with:
@@ -116,32 +117,33 @@ export function PublicationsSection() {
   const editing = mode.type !== "view";
 
   return (
-    <section className="group/section rounded-lg border border-border bg-panel p-5">
+    <section className="group/section rounded-lg border border-border bg-card p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold tracking-tight">
+        <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
           Publications
         </h2>
         {!editing && (
-          <button
-            type="button"
-            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground opacity-0 group-hover/section:opacity-100 transition-opacity"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover/section:opacity-100 transition-opacity"
             onClick={() => setMode({ type: "adding" })}
           >
             <Plus className="h-3.5 w-3.5" />
             Add
-          </button>
+          </Button>
         )}
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
 
       {items.length === 0 && mode.type !== "adding" ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           No publications yet.
         </p>
       ) : (
@@ -165,7 +167,7 @@ export function PublicationsSection() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[13px] font-medium text-foreground truncate">
+                    <p className="text-base font-medium text-foreground truncate">
                       {item.title}
                     </p>
                     {item.url && (
@@ -180,7 +182,7 @@ export function PublicationsSection() {
                       </a>
                     )}
                   </div>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {[item.journal, item.role, item.year]
                       .filter(Boolean)
                       .join(" · ")}
@@ -188,22 +190,19 @@ export function PublicationsSection() {
                 </div>
                 {mode.type === "view" && (
                   <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      className="btn-icon rounded text-muted-foreground hover:text-foreground"
-                      onClick={() => handleEdit(item)}
+                    <IconButton
                       aria-label="Edit publication"
+                      onClick={() => handleEdit(item)}
                     >
                       <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-icon rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => handleDelete(item.id)}
+                    </IconButton>
+                    <IconButton
                       aria-label="Delete publication"
+                      className="text-[--color-ink-muted-foreground] hover:bg-[--color-destructive]/10 hover:text-[--color-destructive]"
+                      onClick={() => handleDelete(item.id)}
                     >
                       <Trash2 className="h-3 w-3" />
-                    </button>
+                    </IconButton>
                   </div>
                 )}
               </div>
@@ -243,57 +242,57 @@ function PublicationEditRow({
     <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-0.5 sm:col-span-2">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Title
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-base"
             value={form.title}
             onChange={(e) => onChange({ ...form, title: e.target.value })}
             placeholder="e.g. A novel approach to..."
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Journal
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-base"
             value={form.journal}
             onChange={(e) => onChange({ ...form, journal: e.target.value })}
             placeholder="e.g. Nature"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Year
           </span>
-          <input
+          <Input
             type="number"
-            className="input rounded-md text-[13px]"
+            className="text-base"
             value={form.year}
             onChange={(e) => onChange({ ...form, year: e.target.value })}
             placeholder="2026"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Role
           </span>
-          <input
-            className="input rounded-md text-[13px]"
+          <Input
+            className="text-base"
             value={form.role}
             onChange={(e) => onChange({ ...form, role: e.target.value })}
             placeholder="e.g. First author"
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             URL
           </span>
-          <input
+          <Input
             type="url"
-            className="input rounded-md text-[13px]"
+            className="text-base"
             value={form.url}
             onChange={(e) => onChange({ ...form, url: e.target.value })}
             placeholder="https://doi.org/..."
@@ -301,22 +300,23 @@ function PublicationEditRow({
         </label>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onSave}
           disabled={saving}
         >
           {saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          className="btn-ghost rounded-md px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-[--color-ink-muted-foreground]"
           onClick={onCancel}
           disabled={saving}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -6,6 +6,8 @@ import { listDropdowns } from "../../dropdowns/api";
 import type { Dropdown } from "../../dropdowns/types";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 
 function resolveTypeColor(typeId: string): { bg: string; fg: string } {
   const ct = ModRegistry.getInstance().getColumnType(typeId);
@@ -69,46 +71,43 @@ function ColumnEditor({
 
   return (
     <div>
-      <div className="grid grid-cols-1 gap-2 border-b border-hairline bg-surface/60 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center">
-        <span className="text-[11px] font-medium text-muted-foreground">
+      <div className="grid grid-cols-1 gap-2 border-b border-[var(--color-ink-hairline)] bg-[var(--color-surface)]/60 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Field name
         </span>
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Field type
         </span>
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Constraints
         </span>
-        <span className="text-[11px] font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
           Order
         </span>
       </div>
 
       <div
-        className="border-b border-hairline"
+        className="border-b border-[var(--color-ink-hairline)]"
         data-testid="name-pseudo-column"
       >
         <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center">
           <div className="flex items-center gap-2">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-muted text-muted-foreground">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-[var(--color-surface-hover)] text-[var(--color-ink-muted-foreground)]">
               <Type size={12} />
             </span>
             <input
               type="text"
               value="Name"
               disabled
-              className="w-full rounded outline-none focus:outline-none focus:ring-0 bg-transparent px-1 py-1 text-[13px] text-muted-foreground"
+              className="w-full rounded outline-none focus:outline-none focus:ring-0 bg-transparent px-1 py-1 text-base text-[var(--color-ink-muted-foreground)]"
               title="Name is an implicit column on every schema — it cannot be edited or removed."
             />
           </div>
-          <select
-            disabled
-            className="rounded-md border border-hairline bg-background px-2 py-1 text-[12px] text-muted-foreground"
-          >
+          <Select disabled className="border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm text-[var(--color-ink-muted-foreground)]">
             <option value="text">
               {textType?.displayName ?? "Text"}
             </option>
-          </select>
+          </Select>
           <div />
           <div />
         </div>
@@ -121,9 +120,9 @@ function ColumnEditor({
         return (
           <div
             key={i}
-            className="border-b border-hairline last:border-b-0"
+            className="border-b border-[var(--color-ink-hairline)] last:border-b-0"
           >
-            <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center hover:bg-muted/40">
+            <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_120px_92px] md:items-center hover:bg-[var(--color-surface-hover)]">
               <div className="flex items-center gap-2">
                 <span
                   className="grid h-6 w-6 shrink-0 place-items-center rounded"
@@ -131,28 +130,27 @@ function ColumnEditor({
                 >
                   <Icon size={12} />
                 </span>
-                <input
-                  type="text"
+                <Input
                   value={col.name}
                   onChange={(e) =>
                     handleNameChange(i, "name", e.target.value)
                   }
                   placeholder="Column name"
-                  className="w-full border-0 bg-transparent px-1 py-1 text-[13px] outline-none focus:outline-none focus:ring-0 placeholder:text-muted-foreground"
+                  className="w-full border-0 bg-transparent px-1 py-1 text-base outline-none focus:outline-none focus:ring-0 placeholder:text-[var(--color-ink-muted-foreground)]"
                 />
               </div>
               <div>
-                <select
+                <Select
                   value={col.type}
                   onChange={(e) =>
                     onUpdate(i, "type", e.target.value)
                   }
-                  className="rounded-md border border-hairline bg-background px-2 py-1 text-[12px]"
+                  className="rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                 >
                   {[...columnTypes.values()].map(renderTypeOption)}
-                </select>
+                </Select>
                 {col.type === "dropdown" && (
-                  <select
+                  <Select
                     value={col.dropdownId ?? ""}
                     onChange={(e) => {
                       const raw = e.target.value;
@@ -162,7 +160,7 @@ function ColumnEditor({
                         raw ? Number(raw) : "",
                       );
                     }}
-                    className="mt-1 rounded-md border border-hairline bg-background px-2 py-1 text-[12px]"
+                    className="mt-1 rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                     title="Dropdown (controlled vocabulary) for this column"
                     aria-label="Dropdown"
                   >
@@ -172,16 +170,16 @@ function ColumnEditor({
                         {d.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[11px]">
+              <div className="flex items-center gap-2 text-xs">
                 <button
                   type="button"
-                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase transition-colors ${
+                  className={`rounded px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase transition-colors ${
                     col.required
-                      ? "border-[#b8dfd0] bg-[#E7F7F3] font-medium text-foreground"
-                      : "border-gray-200 bg-white text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "border-[var(--color-primary-subtle)] bg-[var(--color-primary-subtle)] font-medium text-[var(--color-ink)]"
+                      : "bg-[var(--color-surface)] text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
                   }`}
                   onClick={() =>
                     onUpdate(i, "required", !col.required)
@@ -191,10 +189,10 @@ function ColumnEditor({
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase transition-colors ${
+                  className={`rounded px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase transition-colors ${
                     col.unique
-                      ? "border-[#b8dfd0] bg-[#E7F7F3] font-medium text-foreground"
-                      : "border-gray-200 bg-white text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "border-[var(--color-primary-subtle)] bg-[var(--color-primary-subtle)] font-medium text-[var(--color-ink)]"
+                      : "bg-[var(--color-surface)] text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
                   }`}
                   onClick={() =>
                     onUpdate(i, "unique", !col.unique)
@@ -206,7 +204,7 @@ function ColumnEditor({
               <div className="flex items-center justify-end gap-0.5">
                 <button
                   title="Move up"
-                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                   disabled={i === 0}
                   onClick={() => onMove(i, "up")}
                 >
@@ -214,7 +212,7 @@ function ColumnEditor({
                 </button>
                 <button
                   title="Move down"
-                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                   disabled={i === columns.length - 1}
                   onClick={() => onMove(i, "down")}
                 >
@@ -222,16 +220,16 @@ function ColumnEditor({
                 </button>
                 <button
                   title="Options"
-                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
                 >
                   <Settings2 size={12} />
                 </button>
                 <button
                   title="Delete"
-                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
                   onClick={() => onRemove(i)}
                 >
-                  <Trash2 size={12} className="text-destructive" />
+                  <Trash2 size={12} className="text-[var(--color-destructive)]" />
                 </button>
               </div>
             </div>

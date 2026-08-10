@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Dna } from "lucide-react";
 import { register } from "../../../shell/src/user/api";
+import { Button, Input } from "../../../shell/src/shared/primitives";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -48,26 +49,25 @@ export default function RegisterPage() {
           <div className="grid h-10 w-10 place-items-center rounded-md bg-primary text-primary-foreground">
             <Dna className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h1 className="font-serif text-xl font-semibold tracking-tight">
+          <h1 className="font-[--font-label] text-xl font-semibold tracking-tight">
             Helix
           </h1>
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-base text-muted-foreground">
             Create a new account
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
               {error}
             </div>
           )}
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Username</span>
-            <input
+            <span className="text-base font-medium">Username</span>
+            <Input
               type="text"
-              className="input rounded-md"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
@@ -78,10 +78,9 @@ export default function RegisterPage() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Email</span>
-            <input
+            <span className="text-base font-medium">Email</span>
+            <Input
               type="email"
-              className="input rounded-md"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -90,10 +89,9 @@ export default function RegisterPage() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium">Password</span>
-            <input
+            <span className="text-base font-medium">Password</span>
+            <Input
               type="password"
-              className="input rounded-md"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
@@ -101,15 +99,14 @@ export default function RegisterPage() {
             />
           </label>
 
-          <button
+          <Button
             type="submit"
-            className="btn-primary rounded-md py-2 text-[13px] font-medium"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Creating account…" : "Create account"}
-          </button>
+          </Button>
 
-          <p className="text-center text-[13px] text-muted-foreground">
+          <p className="text-center text-base text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="text-primary hover:underline">
               Sign in

@@ -20,7 +20,7 @@ export function LinkedEntitiesBlock({ context }: BlockComponentProps) {
 
   return (
     <section>
-      <div className="space-y-1.5 text-[13px]">
+      <div className="space-y-1.5 text-base">
         {mentions.length > 0 ? (
           mentions.map((mention) => {
             const displayId = mention.target_display_id;
@@ -53,7 +53,7 @@ export function LinkedEntitiesBlock({ context }: BlockComponentProps) {
                   {title}
                 </span>
                 {displayId && (
-                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  <span className="shrink-0 font-[var(--font-label)] text-xs text-muted-foreground">
                     {displayId}
                   </span>
                 )}
@@ -61,7 +61,7 @@ export function LinkedEntitiesBlock({ context }: BlockComponentProps) {
             );
           })
         ) : (
-          <p className="text-muted-foreground/60 text-[12px] italic px-0.5">
+          <p className="text-muted-foreground/60 text-sm italic px-0.5">
             No linked entities
           </p>
         )}

@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { get, post, put } from "../../../shell/src/api/client";
 import type { Schema, SchemaPayload, SchemaTypeItem, ColumnDef } from "../types";
 import ColumnEditor from "./ColumnEditor";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Textarea } from "../../../shell/src/shared/primitives/Input";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
 import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
 import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
@@ -259,9 +263,8 @@ function SettingsPage() {
             title="Registry schemas"
             description="Define the schemas that structure your entity data. Each schema controls what columns appear on entities created from it."
             actions={
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              <Button
+                size="sm"
                 onClick={() => {
                   setShowNew(!showNew);
                   if (!showNew) {
@@ -271,12 +274,12 @@ function SettingsPage() {
                 }}
               >
                 + New schema
-              </button>
+              </Button>
             }
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
               <div className="flex flex-wrap items-end gap-4">
                 <IconPickerPopover
                   iconKey={newIcon}
@@ -288,20 +291,16 @@ function SettingsPage() {
                   }}
                 />
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Name</span>
-                  <input
-                    type="text"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
+                  <Input
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder="e.g., Blood Sample"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Prefix</span>
-                  <input
-                    type="text"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Prefix</span>
+                  <Input
                     value={newPrefix}
                     onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
                     placeholder="e.g., BLOOD"
@@ -311,11 +310,10 @@ function SettingsPage() {
                 </label>
                 {schemaTypes.length > 0 && (
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-[var(--color-ink-muted-foreground)]">
                       Schema Type
                     </span>
-                    <select
-                      className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    <Select
                       value={newSchemaType ?? ""}
                       onChange={(e) => setNewSchemaType(Number(e.target.value))}
                     >
@@ -324,13 +322,12 @@ function SettingsPage() {
                           {st.display_name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  <Button
+                    size="sm"
                     onClick={handleCreate}
                     disabled={
                       saving ||
@@ -340,14 +337,14 @@ function SettingsPage() {
                     }
                   >
                     {saving ? "Creating…" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setShowNew(false)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -357,33 +354,28 @@ function SettingsPage() {
       bottomBar={
         dirtyCount > 0 ? (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-[var(--color-ink-muted-foreground)]">
               {dirtyCount} schema{dirtyCount !== 1 ? "s" : ""} with unsaved
               changes
             </span>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={discardAllEdits}
-              >
+              <Button variant="ghost" size="sm" onClick={discardAllEdits}>
                 Discard Changes
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              </Button>
+              <Button
+                size="sm"
                 onClick={saveAllChanges}
                 disabled={saving}
               >
                 {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
-              </button>
+              </Button>
             </div>
           </div>
         ) : undefined
       }
     >
       {error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {error}
         </div>
       )}
@@ -401,10 +393,10 @@ function SettingsPage() {
             actions={
               <button
                 type="button"
-                className={`rounded border-transparent bg-transparent px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                className={`rounded border-transparent bg-transparent px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase tracking-wider transition-colors ${
                   showArchived
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "font-medium text-[var(--color-ink)]"
+                    : "text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)]"
                 }`}
                 onClick={() => setShowArchived(!showArchived)}
                 title={showArchived ? "Hide archived" : "Show archived"}
@@ -414,7 +406,7 @@ function SettingsPage() {
             }
           />
           {masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
               No schemas found.
             </p>
           )}
@@ -445,12 +437,10 @@ function SettingsPage() {
                     />
                     <div className="grid grid-cols-[1fr_auto] gap-4 flex-1">
                       <label className="block">
-                        <span className="text-[11px] font-medium text-muted-foreground">
+                        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                           Name
                         </span>
-                        <input
-                          type="text"
-                          className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                        <Input
                           value={editingSchema.name}
                           onChange={(e) =>
                             updateSchemaField(
@@ -462,12 +452,11 @@ function SettingsPage() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] font-medium text-muted-foreground">
+                        <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                           Prefix
                         </span>
-                        <input
-                          type="text"
-                          className="mt-1 block rounded-md border border-hairline bg-muted px-2.5 py-1.5 font-mono text-sm outline-none focus:border-primary/50"
+                        <Input
+                          className="font-[var(--font-label)]"
                           style={{ width: 120 }}
                           value={editingSchema.prefix}
                           onChange={(e) =>
@@ -483,11 +472,10 @@ function SettingsPage() {
                     </div>
                   </div>
                   <label className="block">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Description
                     </span>
-                    <textarea
-                      className="mt-1 block w-full resize-none rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    <Textarea
                       rows={2}
                       value={editingSchema.description ?? ""}
                       onChange={(e) =>
@@ -508,13 +496,9 @@ function SettingsPage() {
                 title="Columns"
                 subtitle={`${editingSchema.columns.length} user-defined`}
                 actions={
-                  <button
-                    type="button"
-                    className="rounded-md border-transparent bg-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() => addColumn(editingSchema.id)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => addColumn(editingSchema.id)}>
                     + Add Column
-                  </button>
+                  </Button>
                 }
               >
                 <ColumnEditor
@@ -530,7 +514,7 @@ function SettingsPage() {
               </SettingsSectionCard>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
               Select a schema from the list to view or edit its details.
             </div>
           )}

@@ -18,6 +18,9 @@ import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
 import { relativeTime } from "../../../shell/src/shared/format";
 import { getInitials } from "../../../shell/src/shared/Avatar";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Textarea } from "../../../shell/src/shared/primitives/Input";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -85,9 +88,9 @@ function avatarBackgroundStyle(color: string): React.CSSProperties {
 
 function avatarClasses(color: string): string {
   if (color.startsWith("#") || color.startsWith("rgb")) {
-    return "inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium ring-2 ring-background";
+    return "inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-[var(--font-label)] text-xs font-medium ring-2 ring-background";
   }
-  return `inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium text-white ring-2 ring-background ${AVATAR_BG_CLASS[color] ?? ""}`;
+  return `inline-grid h-7 w-7 shrink-0 place-items-center rounded-full font-[var(--font-label)] text-xs font-medium text-white ring-2 ring-background ${AVATAR_BG_CLASS[color] ?? ""}`;
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────
@@ -281,9 +284,7 @@ export function CommentContent({
   if (!showComments) {
     return (
       <div className="flex justify-end">
-        <button
-          type="button"
-          className="btn-ghost rounded-md"
+        <IconButton
           aria-label={resolved ? "Resolved comment" : "Comment"}
           data-testid="comment-ghost"
         >
@@ -292,7 +293,7 @@ export function CommentContent({
           ) : (
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
           )}
-        </button>
+        </IconButton>
       </div>
     );
   }
@@ -342,41 +343,41 @@ export function CommentContent({
 
         {/* Collapse toggle (visible when expanded, hidden when resolved) */}
         {!resolved && hasReplies && !isCollapsed && (
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleToggleCollapse}
             aria-label="Collapse replies"
             data-testid="collapse-toggle"
           >
             <ChevronDown className="h-3.5 w-3.5" />
             <span>Hide replies</span>
-          </button>
+          </Button>
         )}
 
         {/* Resolve / Unresolve button */}
         {resolved ? (
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleUnresolve}
             aria-label="Unresolve thread"
             data-testid="unresolve-btn"
           >
             <Undo2 className="h-3.5 w-3.5" />
             <span>Unresolve</span>
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-success"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleResolve}
             aria-label="Resolve thread"
             data-testid="resolve-btn"
           >
             <Check className="h-3.5 w-3.5" />
             <span>Resolve</span>
-          </button>
+          </Button>
         )}
       </div>
 
@@ -428,9 +429,9 @@ export function CommentContent({
       {/* ── "Show N replies" when collapsed ────────────────────────── */}
       {hasReplies && isCollapsed && (
         <div className="mt-3 border-t border-hairline pt-3">
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleToggleCollapse}
             aria-label={`Show ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
             data-testid="show-replies-btn"
@@ -439,32 +440,31 @@ export function CommentContent({
             <span>
               Show {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </span>
-          </button>
+          </Button>
         </div>
       )}
 
       {/* ── Reply button (hidden when resolved) ────────────────────── */}
       {!resolved && !isReplying && (
         <div className="mt-3 border-t border-hairline pt-3">
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={openReply}
             aria-label="Reply to comment"
             data-testid="reply-btn"
           >
             <MessageSquare className="h-3.5 w-3.5" />
             <span>Reply</span>
-          </button>
+          </Button>
         </div>
       )}
 
       {/* ── Inline reply input ─────────────────────────────────────── */}
       {isReplying && (
         <div className="mt-3 border-t border-hairline pt-3" data-testid="reply-input-container">
-          <textarea
-            ref={replyRef}
-            className="w-full rounded-md border border-hairline bg-surface/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-y min-h-[60px]"
+          <Textarea
+            className="min-h-[60px] focus:border-[var(--color-primary)]/50 focus:ring-1 focus:ring-[var(--color-primary)]/20"
             placeholder="Write a reply…"
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
@@ -473,23 +473,23 @@ export function CommentContent({
             data-testid="reply-input"
           />
           <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={submitReply}
               disabled={!replyText.trim()}
               data-testid="submit-reply-btn"
             >
               Reply
-            </button>
-            <button
-              type="button"
-              className="btn-ghost rounded-md px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={cancelReply}
               data-testid="cancel-reply-btn"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}

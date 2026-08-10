@@ -20,6 +20,10 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { SlotContext, SchemaColumnDef } from "../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -319,40 +323,40 @@ function LibraryHub() {
               role="group"
               aria-label="View mode"
             >
-              <button
-                className={`library-view-toggle${viewMode === "compact" ? " is-active" : ""}`}
+              <IconButton
+                className={viewMode === "compact" ? "is-active" : ""}
+                aria-label="Compact view"
                 title="Compact view"
-                type="button"
                 onClick={() => handleViewModeChange("compact")}
               >
                 <AlignJustify size={15} />
-              </button>
-              <button
-                className={`library-view-toggle${viewMode === "list" ? " is-active" : ""}`}
+              </IconButton>
+              <IconButton
+                className={viewMode === "list" ? "is-active" : ""}
+                aria-label="List view"
                 title="List view"
-                type="button"
                 onClick={() => handleViewModeChange("list")}
               >
                 <LayoutList size={15} />
-              </button>
-              <button
-                className={`library-view-toggle${viewMode === "grid" ? " is-active" : ""}`}
+              </IconButton>
+              <IconButton
+                className={viewMode === "grid" ? "is-active" : ""}
+                aria-label="Grid view"
                 title="Grid view"
-                type="button"
                 onClick={() => handleViewModeChange("grid")}
               >
                 <LayoutGrid size={15} />
-              </button>
+              </IconButton>
             </div>
 
-            <button
-              className="library-export-btn"
+            <Button
+              variant="ghost"
+              size="sm"
               title="Export"
-              type="button"
               disabled
             >
               Export
-            </button>
+            </Button>
 
             <LibraryNewDropdown
               currentPath={currentPath}
@@ -366,9 +370,8 @@ function LibraryHub() {
         <div className="library-filter-bar">
           <div className="library-filter-search-wrap">
             <Search size={15} className="library-filter-search-icon" />
-            <input
+            <Input
               className="library-filter-search"
-              type="text"
               placeholder="Search…"
               disabled
             />
@@ -376,36 +379,36 @@ function LibraryHub() {
           <div className="library-filter-actions">
             <div className="library-filter-select-wrap">
               <ChevronDown size={14} className="library-filter-select-icon" />
-              <select className="library-filter-select" disabled>
+              <Select className="library-filter-select" disabled>
                 <option>Type</option>
-              </select>
+              </Select>
             </div>
             <div className="library-filter-select-wrap">
               <ChevronDown size={14} className="library-filter-select-icon" />
-              <select className="library-filter-select" disabled>
+              <Select className="library-filter-select" disabled>
                 <option>Status</option>
-              </select>
+              </Select>
             </div>
             <div className="library-filter-select-wrap">
               <ChevronDown size={14} className="library-filter-select-icon" />
-              <select className="library-filter-select" disabled>
+              <Select className="library-filter-select" disabled>
                 <option>Owner</option>
-              </select>
+              </Select>
             </div>
             <div className="library-filter-select-wrap">
               <ChevronDown size={14} className="library-filter-select-icon" />
-              <select className="library-filter-select" disabled>
+              <Select className="library-filter-select" disabled>
                 <option>Time</option>
-              </select>
+              </Select>
             </div>
-            <button
-              className="library-filter-sort-btn"
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               disabled
             >
               <ArrowUpDown size={14} />
               Last updated
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -432,12 +435,13 @@ function LibraryHub() {
 
           {data.nextUrl && (
             <div className="hub-load-more">
-              <button
+              <Button
+                variant="ghost"
                 onClick={data.handleLoadMore}
                 disabled={data.loading}
               >
                 {data.loading ? "Loading…" : "Load More"}
-              </button>
+              </Button>
             </div>
           )}
         </div>

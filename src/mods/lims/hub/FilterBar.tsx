@@ -17,6 +17,8 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { BackendOperator } from "../../../shell/src/mod-system/ModRegistry";
 import type { AvailableColumn } from "../types";
 import { ValueInput } from "./ValueInput";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 
 // ── Filter row state ────────────────────────────────────────────────────────
 
@@ -135,26 +137,26 @@ export function FilterBar({
 
       {/* + Add Filter ghost button */}
       {filterableColumns.length > 0 && (
-        <button
-          className="entities-filter-add-btn"
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleAddFilter}
           title="Add filter"
         >
           <Plus size={14} />
           Add Filter
-        </button>
+        </Button>
       )}
 
       {/* Clear all link when filters are active */}
       {filters.filter((f) => f.column && f.operator).length > 0 && (
-        <button
-          className="entities-filter-clear-all-btn"
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => onFiltersChange([])}
         >
           Clear all
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -330,14 +332,14 @@ function FilterPill({
       </div>
 
       {/* ── Remove button ──────────────────────────────────────────────── */}
-      <button
+      <IconButton
         className="entities-filter-pill-remove"
-        type="button"
-        onClick={onRemove}
+        aria-label="Remove filter"
         title="Remove filter"
+        onClick={onRemove}
       >
         <X size={11} />
-      </button>
+      </IconButton>
     </div>
   );
 }

@@ -103,6 +103,15 @@ export default defineConfig({
       "prosemirror-transform",
     ],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/lucide-react")) return "lucide-icons";
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,

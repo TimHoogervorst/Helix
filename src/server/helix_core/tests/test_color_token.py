@@ -16,13 +16,51 @@ class ColorTokenModelTests(TestCase):
         ColorToken.objects.all().delete()
 
     def test_create_color_token(self):
-        """ColorToken can be created with key, label, hex."""
+        """ColorToken can be created with key, label, hex — variants auto-derived."""
         ct = ColorToken.objects.create(
             key="enzyme", label="Enzyme", hex="#D9B3E6"
         )
         self.assertEqual(ct.key, "enzyme")
         self.assertEqual(ct.label, "Enzyme")
         self.assertEqual(ct.hex, "#D9B3E6")
+        self.assertTrue(ct.hex_dark)
+        self.assertTrue(ct.hex_light)
+        self.assertNotEqual(ct.hex_dark, ct.hex_light)
+
+    def test_derive_variants_dark_adjusts_lightness(self):
+        """Dark variant darkens most colours; only very dark ones get a tiny lift.
+
+        Colours with L >= 0.30 are darkened for depth on dark
+        backgrounds.  Only colours below L=0.30 get a small
+        lightness boost for visibility.
+        """
+        import colorsys
+
+        def hsl_l(hex_str):
+            hex_str = hex_str.lstrip("#")
+            r = int(hex_str[0:2], 16) / 255.0
+            g = int(hex_str[2:4], 16) / 255.0
+            b = int(hex_str[4:6], 16) / 255.0
+            _, l, _ = colorsys.rgb_to_hls(r, g, b)
+            return l
+
+        # Light colour: dark variant is deeper
+        ct_flask = ColorToken.objects.create(
+            key="flask", label="Flask", hex="#B3D9E6"
+        )
+        self.assertLess(hsl_l(ct_flask.hex_dark), hsl_l(ct_flask.hex_light))
+
+        # Mid-range colour: dark variant is also darker
+        ct_crimson = ColorToken.objects.create(
+            key="crimson", label="Crimson", hex="#DC143C"
+        )
+        self.assertLess(hsl_l(ct_crimson.hex_dark), hsl_l(ct_crimson.hex_light))
+
+        # Very dark colour: gets a tiny lift for visibility
+        ct_navy = ColorToken.objects.create(
+            key="navy", label="Navy", hex="#1A2B4C"
+        )
+        self.assertGreater(hsl_l(ct_navy.hex_dark), hsl_l(ct_navy.hex_light))
 
     def test_color_token_str(self):
         """__str__ includes label and key."""
@@ -70,19 +108,20 @@ class ColorTokenApiTests(TestCase):
         )
 
     def test_list_colors(self):
-        """GET /api/colors/ returns all ColorTokens."""
+        """GET /api/colors/ returns all ColorTokens with derived variants."""
         response = self.client.get("/api/colors/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 2)
         keys = {c["key"] for c in response.data}
         self.assertIn("enzyme", keys)
         self.assertIn("muted", keys)
-        # Verify field shape
         for c in response.data:
             self.assertIn("id", c)
             self.assertIn("key", c)
             self.assertIn("label", c)
             self.assertIn("hex", c)
+            self.assertIn("hex_dark", c)
+            self.assertIn("hex_light", c)
 
     def test_create_color(self):
         """POST /api/colors/ creates a new ColorToken."""

@@ -41,48 +41,48 @@ export function SettingsMasterList({
   return (
     <div className="flex flex-col min-h-0">
       <div className="flex items-center gap-2 py-2">
-          <Search size={12} className="shrink-0 text-muted-foreground" />
-          <input
-            type="text"
-            className="w-full bg-transparent text-[6px] text-foreground placeholder:text-muted-foreground outline-none"
-            placeholder={filterPlaceholder}
-            value={localFilter}
-            onChange={(e) => handleFilterChange(e.target.value)}
-          />
+        <Search size={12} className="shrink-0 text-[var(--color-ink-muted-foreground)]" />
+        <input
+          type="text"
+          className="w-full bg-transparent text-base text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted-foreground)] outline-none"
+          placeholder={filterPlaceholder}
+          value={localFilter}
+          onChange={(e) => handleFilterChange(e.target.value)}
+        />
         {actions}
       </div>
       <div className="flex-1 overflow-y-auto py-1">
-        <div className="overflow-hidden rounded-lg border border-hairline bg-white">
+        <div className="overflow-hidden rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)]">
           {rows.map((row, i) => (
             <button
               key={row.id}
               type="button"
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors border-transparent ${
-                i < rows.length - 1 ? "border-b border-hairline" : ""
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-0 bg-transparent ${
+                i < rows.length - 1 ? "border-b border-[var(--color-ink-hairline)]" : ""
               } ${
                 selectedId === row.id
-                  ? "bg-[#E7F7F3] font-medium text-foreground"
-                  : "bg-white hover:bg-muted/40 text-muted-foreground"
+                  ? "bg-[var(--color-primary-subtle)] font-medium text-[var(--color-ink)]"
+                  : "text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)]"
               }`}
               onClick={() => onSelect(row.id)}
             >
-            {row.icon && (
-              <span
-                className={`grid h-6 w-6 shrink-0 place-items-center ${row.iconBg ?? "bg-muted"} ${row.iconFg ?? "text-muted-foreground"}`}
-              >
-                {row.icon}
-              </span>
-            )}
-            <span className="flex-1 truncate">{row.label}</span>
-            {row.secondary && (
-              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                {row.secondary}
-              </span>
-            )}
-            {row.dirty && (
-              <span className="h-1.5 w-1.5 shrink-0 bg-primary" />
-            )}
-          </button>
+              {row.icon && (
+                <span
+                  className={`grid h-6 w-6 shrink-0 place-items-center ${row.iconBg ?? "bg-[var(--color-surface-hover)]"} ${row.iconFg ?? "text-[var(--color-ink-muted-foreground)]"}`}
+                >
+                  {row.icon}
+                </span>
+              )}
+              <span className="flex-1 truncate">{row.label}</span>
+              {row.secondary && (
+                <span className="shrink-0 font-[var(--font-label)] text-2xs text-[var(--color-ink-muted-foreground)]">
+                  {row.secondary}
+                </span>
+              )}
+              {row.dirty && (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-primary)]" />
+              )}
+            </button>
           ))}
         </div>
       </div>

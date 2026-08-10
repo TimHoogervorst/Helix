@@ -2,6 +2,7 @@ import { Circle } from "lucide-react";
 import type { ComponentType } from "react";
 import { useMemo, lazy, Suspense } from "react";
 import { ModRegistry } from "../../mod-system/ModRegistry";
+import { getThemeMode } from "../applyTheme";
 
 export interface IconBadgeProps {
   iconKey: string;
@@ -22,9 +23,21 @@ export function warnMissingIcon(key: string) {
 }
 
 export function resolveColorHex(key: string): string {
+  return `var(--color-label-${key}, ${resolveColorRaw(key)})`;
+}
+
+export function resolveColorForeground(key: string): string {
+  const shade = deriveShade(resolveColorRaw(key));
+  return `var(--color-label-${key}-foreground, ${shade})`;
+}
+
+function resolveColorRaw(key: string): string {
   try {
     const entry = ModRegistry.getInstance().getColorPalette().get(key);
-    if (entry) return entry.hex;
+    if (entry) {
+      const mode = getThemeMode();
+      return mode === "dark" ? entry.hexDark : entry.hexLight;
+    }
   } catch {
     // registry not available
   }
@@ -71,11 +84,6 @@ function hslToHex(h: number, s: number, l: number): string {
 
   const clamp = (n: number) => Math.max(0, Math.min(255, Math.round((n + m) * 255)));
   return "#" + rgb.map((c) => clamp(c).toString(16).padStart(2, "0")).join("");
-}
-
-export function deriveTint(hex: string): string {
-  const [h, s] = hexToHsl(hex);
-  return hslToHex(h, s * 0.35, 92);
 }
 
 export function deriveShade(hex: string): string {
@@ -200,18 +208,17 @@ export function IconBadge({
   onChange,
 }: IconBadgeProps) {
   const hex = resolveColorHex(colorKey);
-  const foreground = deriveShade(hex);
-  const borderHex = deriveTint(hex);
+  const foreground = resolveColorForeground(colorKey);
   const { box, icon } = SIZE_CLASSES[size];
 
-  const style = { backgroundColor: hex, color: foreground, borderColor: borderHex };
+  const style = { backgroundColor: hex, color: foreground };
 
   if (onChange) {
     return (
       <button
         type="button"
         data-testid="icon-badge"
-        className={`${box} rounded border flex shrink-0 items-center justify-center cursor-pointer`}
+        className={`${box} rounded flex shrink-0 items-center justify-center cursor-pointer`}
         style={style}
         onClick={onChange}
         aria-label="Change icon"
@@ -224,7 +231,7 @@ export function IconBadge({
   return (
     <div
       data-testid="icon-badge"
-      className={`${box} rounded border flex shrink-0 items-center justify-center`}
+      className={`${box} rounded flex shrink-0 items-center justify-center`}
       style={style}
     >
       {resolveDynamicIcon(iconKey, icon)}

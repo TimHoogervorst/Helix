@@ -4,6 +4,7 @@ import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { updateMe } from "../../../shell/src/user/api";
 import { ApiError } from "../../../shell/src/api/client";
 import type { UserProfile } from "../../../shell/src/user/types";
+import { Button, Input, Textarea } from "../../../shell/src/shared/primitives";
 
 /**
  * Section card for the user's bio.
@@ -110,27 +111,28 @@ export function AboutSection() {
   };
 
   return (
-    <section className="group rounded-lg border border-border bg-panel p-5">
+    <section className="group rounded-lg border border-border bg-card p-5">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold tracking-tight">
+        <h2 className="font-[--font-label] text-lg font-semibold tracking-tight">
           About
         </h2>
         {!editing && (
-          <button
-            type="button"
-            className="btn-ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={handleEdit}
           >
             <Pencil className="h-3 w-3" />
             Edit
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
           {error}
         </div>
       )}
@@ -140,12 +142,12 @@ export function AboutSection() {
         <div className="space-y-3">
           {FIELDS.map((field) => (
             <label key={field.key} className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium text-muted-foreground">
+              <span className="text-sm font-medium text-muted-foreground">
                 {field.label}
               </span>
-              <input
+              <Input
                 type={field.type ?? "text"}
-                className="input rounded-md text-[13px]"
+                className="text-base"
                 value={form[field.key]}
                 onChange={(e) => updateField(field.key, e.target.value)}
               />
@@ -154,11 +156,11 @@ export function AboutSection() {
 
           {/* Bio */}
           <label className="flex flex-col gap-1">
-            <span className="text-[12px] font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-muted-foreground">
               Bio
             </span>
-            <textarea
-              className="input rounded-md text-[13px]"
+            <Textarea
+              className="text-base"
               rows={4}
               value={form.bio}
               onChange={(e) => updateField("bio", e.target.value)}
@@ -167,33 +169,34 @@ export function AboutSection() {
 
           {/* Save / Cancel */}
           <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              className="btn-ghost rounded-md px-3 py-1.5 text-[13px] font-medium disabled:opacity-50"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleSave}
               disabled={saving}
             >
               {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost rounded-md px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[--color-ink-muted-foreground]"
               onClick={handleCancel}
               disabled={saving}
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         /* ── View mode — only bio text (fields shown in profile header) ── */
         <div>
           {user.profile.bio ? (
-            <p className="text-[13px] leading-relaxed text-foreground">
+            <p className="text-base leading-relaxed text-foreground">
               {user.profile.bio}
             </p>
           ) : (
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               No bio yet. Click Edit to add one.
             </p>
           )}

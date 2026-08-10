@@ -27,6 +27,8 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { listDropdowns } from "../../dropdowns/api";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -165,11 +167,11 @@ function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boole
 }
 
 const DOT_COLORS: Record<DotColor, string> = {
-  red: "#ef4444",
-  yellow: "#eab308",
-  orange: "#f97316",
-  blue: "#3b82f6",
-  green: "#22c55e",
+  red: "var(--color-destructive)",
+  yellow: "var(--color-warning)",
+  orange: "var(--color-warning-active)",
+  blue: "var(--color-primary)",
+  green: "var(--color-success)",
 };
 
 const DOT_LABELS: Record<DotColor, string> = {
@@ -683,7 +685,7 @@ export function RegistryTableContent({
   if (schemaId === null) {
     return (
       <div
-        className="rounded-lg border border-hairline bg-panel p-4"
+        className="rounded-lg border border-hairline bg-background p-4"
         data-testid="registry-table-placeholder"
       >
         <div className="flex items-center gap-2.5">
@@ -753,7 +755,7 @@ export function RegistryTableContent({
   return (
     <>
       <div
-        className="rounded-lg border border-hairline bg-panel w-full"
+        className="rounded-lg border border-hairline bg-background w-full"
         data-testid="registry-table-loaded"
       >
       {/* Title bar — always full width, matching the workspace content container. */}
@@ -761,9 +763,7 @@ export function RegistryTableContent({
         <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         {/* Stretch toggle — only rendered when overrides.stretch is truthy */}
         {showStretchToggle && (
-          <button
-            type="button"
-            className="btn-icon rounded-md"
+          <IconButton
             onClick={onToggleStretch}
             title={
               stretchMode === "auto"
@@ -779,7 +779,7 @@ export function RegistryTableContent({
             data-testid="stretch-toggle-btn"
           >
             <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
         {readOnly ? (
           <span
@@ -814,9 +814,7 @@ export function RegistryTableContent({
         )}
         {!readOnly && (
           <>
-            <button
-              type="button"
-              className="btn-ghost grid place-items-center rounded p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+            <IconButton
               onClick={handleRefreshSchema}
               disabled={refreshing}
               title="Refresh schema"
@@ -824,10 +822,8 @@ export function RegistryTableContent({
               data-testid="refresh-schema-btn"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="btn-ghost grid place-items-center rounded p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+            </IconButton>
+            <IconButton
               onClick={handleRegister}
               disabled={registering}
               title="Register entities"
@@ -839,7 +835,7 @@ export function RegistryTableContent({
               ) : (
                 <Upload className="h-4 w-4" aria-hidden="true" />
               )}
-            </button>
+            </IconButton>
           </>
         )}
       </div>
@@ -859,9 +855,9 @@ export function RegistryTableContent({
       <div className={`overflow-x-auto scrollbar-on-hover ${
         stretchMode === "auto" ? "-ml-[19rem] -mr-[19rem] pl-[19rem] pr-[19rem]" : ""
       }`}>
-        <table className={`text-[13px] bg-panel ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
-          <thead className={stretchMode === "auto" ? "bg-panel" : ""}>
-            <tr className="border-b border-hairline bg-surface/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        <table className={`text-base bg-background ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
+          <thead className={stretchMode === "auto" ? "bg-background" : ""}>
+            <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
               <th
                 className="px-2 py-2 whitespace-nowrap"
@@ -883,7 +879,7 @@ export function RegistryTableContent({
                   data-testid={`registry-table-header-${col.name}`}
                 >
                   {col.name}
-                  <span className="ml-1 inline-flex items-center text-[10px] text-muted-foreground font-normal align-middle">
+                  <span className="ml-1 inline-flex items-center text-2xs text-muted-foreground font-normal align-middle">
                     {renderColumnTypeBadge(col.type)}
                   </span>
                 </th>
@@ -917,7 +913,7 @@ export function RegistryTableContent({
                 return (
                 <tr
                   key={row.displayId}
-                  className="border-b border-hairline last:border-b-0 hover:bg-surface/60 transition-colors group"
+                  className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors group"
                   data-testid={`registry-table-row-${row.displayId}`}
                 >
                   {/* Status bar + entity pill */}
@@ -949,7 +945,7 @@ export function RegistryTableContent({
                   </td>
 
                   {/* Name column */}
-                  <td className="align-middle font-mono text-[12px] whitespace-nowrap">
+                  <td className="align-middle font-[var(--font-label)] text-sm whitespace-nowrap">
                     {readOnly ? (
                       <span
                         data-testid={`name-cell-${row.displayId}`}
@@ -959,7 +955,7 @@ export function RegistryTableContent({
                       </span>
                     ) : (
                       <span
-                        className={`outline-none min-w-[100px] inline-block px-4 py-2 rounded hover:bg-surface/50 focus:bg-surface/80 ${!row.__name ? "name-cell-placeholder" : ""}`}
+                        className={`outline-none min-w-[100px] inline-block px-4 py-2 rounded hover:bg-surface focus:bg-surface ${!row.__name ? "name-cell-placeholder" : ""}`}
                         contentEditable
                         suppressContentEditableWarning
                         data-placeholder="Enter name…"
@@ -997,7 +993,7 @@ export function RegistryTableContent({
                   {columns.map((col) => (
                     <td
                       key={col.name}
-                      className="align-middle font-mono text-[12px] whitespace-nowrap"
+                      className="align-middle font-[var(--font-label)] text-sm whitespace-nowrap"
                       data-testid={`cell-${row.displayId}-${col.name}`}
                     >
                       <EditableCell
@@ -1053,16 +1049,17 @@ export function RegistryTableContent({
           ? "max-w-3xl"
           : "max-w-3xl mx-auto"
       }`}>
-        <button
-          type="button"
-          className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2"
           onClick={handleAddRow}
           aria-label="Add new row"
           data-testid="add-row-btn"
         >
           <Plus className="h-3 w-3" />
           <span>New Row</span>
-        </button>
+        </Button>
       </div>
     )}
     </>

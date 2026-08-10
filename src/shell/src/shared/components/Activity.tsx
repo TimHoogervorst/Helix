@@ -7,6 +7,7 @@ import type {
 } from "../types/actions";
 import { relativeTime, humanizeActionType } from "../format";
 import { isGroup } from "../groupActions";
+import { Button } from "../primitives/Button";
 
 /**
  * Derive a display name from an action's `performedBy` user.
@@ -77,7 +78,7 @@ export function Activity({
   if (isLoading) {
     return (
       <section>
-        <ul className="space-y-3 text-[12px]">
+        <ul className="space-y-3 text-sm">
           {Array.from({ length: 4 }).map((_, i) => (
             <li key={i} className="flex items-start gap-2 animate-pulse">
               <span
@@ -100,12 +101,12 @@ export function Activity({
     return (
       <section>
         <div data-testid="activity-error">
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Could not load activity
           </p>
           {onRetry && (
             <button
-              className="mt-1.5 text-[12px] text-primary hover:underline"
+              className="mt-1.5 text-sm text-primary hover:underline"
               onClick={onRetry}
               data-testid="activity-retry"
             >
@@ -122,7 +123,7 @@ export function Activity({
     return (
       <section>
         <p
-          className="text-[12px] text-muted-foreground/60 italic px-0.5"
+          className="text-sm text-muted-foreground/60 italic px-0.5"
           data-testid="activity-empty"
         >
           No activity yet
@@ -137,7 +138,7 @@ export function Activity({
 
   return (
     <section>
-      <ul className="space-y-2 text-[12px]">
+      <ul className="space-y-2 text-sm">
         {visible.map((item) =>
           isGroup(item) ? (
             <GroupedActivityItem key={item.id} group={item} />
@@ -147,13 +148,15 @@ export function Activity({
         )}
       </ul>
       {hasMore && (
-        <button
-          className="btn-ghost mt-2 rounded-md px-2 py-1 text-[12px]"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2"
           onClick={() => setShowAll((prev) => !prev)}
           data-testid="activity-show-all"
         >
           {showAll ? "Show less" : `Show all (${actions.length})`}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -170,15 +173,15 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
 
   return (
     <li data-testid="activity-item" data-state={group.state}>
-      <button
-        type="button"
-        className="btn-ghost flex w-full items-start gap-2 p-0 text-left"
+      <Button
+        variant="ghost"
+        className="w-full justify-start p-0 text-left"
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
         data-testid="activity-group-toggle"
       >
         <span
-          className="mt-1.5 shrink-0 text-[10px] leading-none text-muted-foreground/70"
+          className="mt-1.5 shrink-0 text-2xs leading-none text-muted-foreground/70"
           aria-hidden="true"
         >
           {expanded ? "▾" : "▸"}
@@ -196,7 +199,7 @@ function GroupedActivityItem({ group }: GroupedActivityItemProps) {
         <span className="shrink-0 text-muted-foreground/70">
           · {relativeTime(group.createdAt)}
         </span>
-      </button>
+      </Button>
       {expanded && (
         <ul className="mt-1 space-y-1">
           {group.children.map((child) => (

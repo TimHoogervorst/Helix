@@ -14,6 +14,8 @@ import {
   forkCard,
 } from "./api";
 import { IconPickerPopover } from "../IconPickerPopover";
+import { IconButton } from "../../primitives/IconButton";
+import { Button } from "../../primitives/Button";
 import {
   COMPARISON_OPS,
   defaultFormatting,
@@ -317,7 +319,7 @@ export function CardBuilderModal({
     return (
       <ModalShell onClose={onClose}>
         <div className="flex flex-col items-center gap-4 p-8 text-center">
-          <h3 className="font-serif text-lg font-semibold tracking-tight">
+          <h3 className="font-[var(--font-label)] text-lg font-semibold tracking-tight">
             Global Card
           </h3>
           <p className="text-sm text-muted-foreground max-w-sm">
@@ -325,20 +327,19 @@ export function CardBuilderModal({
             create your own personal copy that you can customise.
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn-ghost"
+            <Button
+              variant="ghost"
               onClick={onClose}
             >
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleFork}
               disabled={saving}
             >
               {saving ? "Forking…" : "Fork to edit"}
-            </button>
+            </Button>
           </div>
           {error && (
             <p className="text-sm text-warn-foreground bg-warn rounded px-3 py-1.5">
@@ -429,9 +430,9 @@ export function CardBuilderModal({
         <div className="shrink-0 border-t border-hairline px-4 py-3 flex items-center justify-between">
           <div className="flex gap-2">
             {isEditing && !isGlobal && (
-              <button
-                type="button"
-                className="btn-ghost text-destructive hover:bg-warn/20"
+              <Button
+                variant="ghost"
+                className="text-destructive hover:bg-warn/20"
                 onClick={async () => {
                   const { deleteCard } = await import("./api");
                   if (confirm("Delete this card?")) {
@@ -449,18 +450,18 @@ export function CardBuilderModal({
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
             {error && (
               <p className="text-sm text-warn-foreground">{error}</p>
             )}
-            <button type="button" className="btn-ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSave}
               disabled={saving}
             >
@@ -469,7 +470,7 @@ export function CardBuilderModal({
                 : isEditing
                   ? "Save"
                   : "Create card"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -498,15 +499,14 @@ function ModalShell({
         aria-hidden="true"
       />
       <div className="relative z-10 w-full max-w-xl rounded-lg border border-border bg-panel shadow-xl">
-        <button
-          type="button"
-          className="btn-icon absolute right-2 top-2"
+        <IconButton
+          className="absolute right-2 top-2"
           onClick={onClose}
           title="Close"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
-        </button>
+        </IconButton>
         {children}
       </div>
     </div>
@@ -581,7 +581,7 @@ function MetricStep({
 
       {metricSource === "existing" ? (
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Select metric
           </label>
           {metricsLoading ? (
@@ -611,7 +611,7 @@ function MetricStep({
         <div className="flex flex-col gap-3">
           {/* View Picker */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               View
             </label>
             {viewsLoading ? (
@@ -636,7 +636,7 @@ function MetricStep({
 
           {/* Aggregate Picker */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Aggregate
             </label>
             <select
@@ -655,7 +655,7 @@ function MetricStep({
           {/* Column Picker */}
           {showColumnPicker && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Column
               </label>
               {!selectedViewId ? (
@@ -730,7 +730,7 @@ function DisplayStep({
     <div className="flex flex-col gap-5">
       {/* Default */}
       <div className="flex flex-col gap-3">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Default
         </label>
         <div className="flex flex-col gap-3">
@@ -779,19 +779,19 @@ function DisplayStep({
       {/* Rules */}
       <div className="flex flex-col gap-2 border-t border-hairline pt-4">
         <div className="flex items-center justify-between">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Rules
           </label>
-          <button
-            type="button"
-            className="btn-ghost text-xs"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onAddRule}
             title="Add rule"
             aria-label="Add rule"
           >
             <Plus className="h-3.5 w-3.5" />
             Add rule
-          </button>
+          </Button>
         </div>
 
         {formatting.rules.length === 0 ? (
@@ -850,35 +850,30 @@ function RuleEditor({
           Rule {index + 1}
         </span>
         <div className="flex-1" />
-        <button
-          type="button"
-          className="btn-icon"
+        <IconButton
           onClick={onMoveUp}
           disabled={index === 0}
           title="Move up"
           aria-label="Move up"
         >
           <ChevronUp className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          className="btn-icon"
+        </IconButton>
+        <IconButton
           onClick={onMoveDown}
           disabled={index === total - 1}
           title="Move down"
           aria-label="Move down"
         >
           <ChevronDown className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          className="btn-icon text-destructive"
+        </IconButton>
+        <IconButton
+          className="text-destructive"
           onClick={onRemove}
           title="Remove rule"
           aria-label="Remove rule"
         >
           <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        </IconButton>
       </div>
 
       <div className="flex flex-col gap-2.5">

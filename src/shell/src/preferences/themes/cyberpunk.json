@@ -1,0 +1,18 @@
+{
+  "id": "cyberpunk",
+  "name": "Cyberpunk",
+  "description": "Neon purple on deep indigo",
+  "mode": "dark",
+  "fonts": {
+    "label": "\"Fira Code Variable\", \"Fira Code\", \"SF Mono\", Consolas, monospace",
+    "body": "\"Inter Variable\", \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  "seeds": {
+    "background": "#150A28",
+    "surface": "#201040",
+    "card": "#1A0D30",
+    "ink": "#A8BFFF",
+    "primary": "#FF2E88",
+    "accent": "#B967FF"
+  }
+}

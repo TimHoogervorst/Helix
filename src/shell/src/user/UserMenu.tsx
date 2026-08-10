@@ -1,10 +1,12 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Settings, LogOut, Crown } from "lucide-react";
+import { User, Settings, LogOut, SlidersHorizontal } from "lucide-react";
 import { useCurrentUser } from "./CurrentUserProvider";
 import { Avatar, getInitials } from "./Avatar";
 import { logout } from "./api";
 import { useClickOutside } from "../shared/hooks/useClickOutside";
+import { Button } from "../shared/primitives/Button";
+import { PreferencesWindow } from "../preferences";
 
 export interface UserMenuProps {
   /**
@@ -19,12 +21,13 @@ export interface UserMenuProps {
  * Popover card triggered by clicking the sidebar avatar.
  *
  * Shows a mini header (avatar + username) and four items:
- *   Profile, Preferences (placeholder), Settings, Logout.
+ *   Profile, Preferences, Settings, Logout.
  */
 export function UserMenu({ compact = false }: UserMenuProps) {
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -46,11 +49,12 @@ export function UserMenu({ compact = false }: UserMenuProps) {
   return (
     <div className="relative" ref={menuRef}>
       {/* ── Trigger button ──────────────────────────────────────────── */}
-      <button
+      <Button
+        variant="ghost"
         className={
           compact
-            ? "btn-ghost flex items-center justify-center w-full py-2 hover:bg-muted transition-colors"
-            : "btn-ghost w-full gap-2 border-t border-hairline px-3 py-2.5 hover:bg-muted transition-colors"
+            ? "w-full justify-center py-2 px-0"
+            : "w-full !justify-start gap-2 border-t border-hairline px-3 py-2.5"
         }
         onClick={() => setOpen((prev) => !prev)}
         aria-label="User menu"
@@ -62,12 +66,12 @@ export function UserMenu({ compact = false }: UserMenuProps) {
         />
         {!compact && (
           <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-[13px] font-medium truncate">
+            <span className="text-base font-medium truncate">
               {user.username}
             </span>
           </div>
         )}
-      </button>
+      </Button>
 
       {/* ── Popover card ────────────────────────────────────────────── */}
       {open && (
@@ -82,7 +86,7 @@ export function UserMenu({ compact = false }: UserMenuProps) {
           <div className="flex items-center gap-2 border-b border-hairline px-3 py-2.5">
             <Avatar initials={initials} color={user.color} size="md" />
             <div className="flex flex-col leading-tight min-w-0">
-              <span className="text-[13px] font-medium truncate">
+              <span className="text-base font-medium truncate">
                 {user.username}
               </span>
             </div>
@@ -90,8 +94,9 @@ export function UserMenu({ compact = false }: UserMenuProps) {
 
           {/* Menu items */}
           <div className="py-1">
-            <button
-              className="btn-ghost w-full"
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
               onClick={() => {
                 navigate("/profile");
                 setOpen(false);
@@ -99,18 +104,22 @@ export function UserMenu({ compact = false }: UserMenuProps) {
             >
               <User className="h-3.5 w-3.5" aria-hidden="true" />
               Profile
-            </button>
-            <button
-              className="btn-ghost w-full cursor-not-allowed"
-              disabled
-              title="Coming soon"
-              aria-label="Preferences — coming soon"
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                setOpen(false);
+                setPrefsOpen(true);
+              }}
+              aria-label="Preferences"
             >
-              <Crown className="h-3.5 w-3.5" aria-hidden="true" />
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
               Preferences
-            </button>
-            <button
-              className="btn-ghost w-full"
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
               onClick={() => {
                 navigate("/settings");
                 setOpen(false);
@@ -118,18 +127,20 @@ export function UserMenu({ compact = false }: UserMenuProps) {
             >
               <Settings className="h-3.5 w-3.5" aria-hidden="true" />
               Settings
-            </button>
+            </Button>
             <div className="my-1 border-t border-hairline" />
-            <button
-              className="btn-ghost w-full !text-destructive"
+            <Button
+              variant="destructive"
+              className="w-full justify-start"
               onClick={handleLogout}
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
               Logout
-            </button>
+            </Button>
           </div>
         </div>
       )}
+      <PreferencesWindow open={prefsOpen} onClose={() => setPrefsOpen(false)} />
     </div>
   );
 }

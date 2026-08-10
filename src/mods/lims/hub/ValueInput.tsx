@@ -17,6 +17,7 @@
  */
 
 import { useState, useCallback, type InputHTMLAttributes } from "react";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 
 // ── Auto-sizing input ───────────────────────────────────────────────────────
 // Uses a hidden <span> in the same CSS grid cell to measure text width.
@@ -117,7 +118,7 @@ export function ValueInput({
 
     case "boolean":
       return (
-        <select
+        <Select
           className="entities-filter-select"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -126,13 +127,13 @@ export function ValueInput({
           <option value="">--</option>
           <option value="true">Yes</option>
           <option value="false">No</option>
-        </select>
+        </Select>
       );
 
     case "dropdown":
       if (dropdownOptions && dropdownOptions.length > 0) {
         return (
-          <select
+          <Select
             className="entities-filter-select"
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -144,7 +145,7 @@ export function ValueInput({
                 {opt}
               </option>
             ))}
-          </select>
+          </Select>
         );
       }
       // Fallback: comma-separated values entered as text when no dropdown

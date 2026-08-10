@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { FlaskConical, Trash2, X } from "lucide-react";
 import { get, post, put, del } from "../../../shell/src/api/client";
 import type { Protocol, ProtocolItem } from "../types";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Textarea } from "../../../shell/src/shared/primitives/Input";
 import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
 import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
 import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
@@ -221,24 +225,21 @@ function ProtocolSettings() {
             title="Protocol settings"
             description="Define reusable protocol templates. Each protocol contains an ordered list of steps and notes that can be inserted into entries."
             actions={
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              <Button
+                size="sm"
                 onClick={() => setShowNew(!showNew)}
               >
                 {showNew ? "Cancel" : "+ New Protocol"}
-              </button>
+              </Button>
             }
           />
 
           {showNew && (
-            <div className="mb-6 rounded-lg border border-hairline bg-panel p-4">
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
               <div className="flex flex-wrap items-end gap-4">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-muted-foreground">Name</span>
-                  <input
-                    type="text"
-                    className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
+                  <Input
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder="e.g., CRISPR RNP Transfection"
@@ -248,21 +249,20 @@ function ProtocolSettings() {
                   />
                 </label>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  <Button
+                    size="sm"
                     onClick={handleCreate}
                     disabled={saving || !newName.trim()}
                   >
                     {saving ? "Creating…" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setShowNew(false)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -272,33 +272,28 @@ function ProtocolSettings() {
       bottomBar={
         dirtyCount > 0 ? (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-[var(--color-ink-muted-foreground)]">
               {dirtyCount} protocol{dirtyCount !== 1 ? "s" : ""} with unsaved
               changes
             </span>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-md border-transparent bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={discardAllEdits}
-              >
+              <Button variant="ghost" size="sm" onClick={discardAllEdits}>
                 Discard Changes
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              </Button>
+              <Button
+                size="sm"
                 onClick={saveAllChanges}
                 disabled={saving}
               >
                 {saving ? "Saving…" : `Save Changes (${dirtyCount})`}
-              </button>
+              </Button>
             </div>
           </div>
         ) : undefined
       }
     >
       {error && (
-        <div className="mb-4 rounded-md border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
           {error}
         </div>
       )}
@@ -314,7 +309,7 @@ function ProtocolSettings() {
             filterPlaceholder="Filter protocols"
           />
           {masterRows.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
               No protocols found.
             </p>
           )}
@@ -329,34 +324,30 @@ function ProtocolSettings() {
                 actions={
                   <div className="flex items-center gap-1">
                     {selectedProtocol.is_active && (
-                      <button
-                        type="button"
-                        className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warn"
-                        onClick={() => handleDelete(selectedProtocol)}
+                      <IconButton
+                        aria-label="Deactivate protocol"
                         title="Deactivate protocol"
+                        onClick={() => handleDelete(selectedProtocol)}
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </IconButton>
                     )}
-                    <button
-                      type="button"
-                      className="rounded border-transparent bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => setSelectedId(null)}
+                    <IconButton
+                      aria-label="Close detail"
                       title="Close detail"
+                      onClick={() => setSelectedId(null)}
                     >
                       <X size={14} />
-                    </button>
+                    </IconButton>
                   </div>
                 }
               >
                 <div className="space-y-3">
                   <label className="block">
-                    <span className="text-[11px] font-medium text-muted-foreground">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                       Name
                     </span>
-                    <input
-                      type="text"
-                      className="mt-1 block w-full rounded-md border border-hairline bg-muted px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+                    <Input
                       value={editingProtocol.name}
                       onChange={(e) => handleNameChange(e.target.value)}
                       placeholder="Protocol name"
@@ -364,26 +355,26 @@ function ProtocolSettings() {
                   </label>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Status
                       </span>
-                      <span className="text-sm text-foreground">
+                      <span className="text-sm text-[var(--color-ink)]">
                         {selectedProtocol.is_active ? "Active" : "Inactive"}
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Items
                       </span>
-                      <span className="text-sm text-foreground">
+                      <span className="text-sm text-[var(--color-ink)]">
                         {editingProtocol.items.length}
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
                         Updated
                       </span>
-                      <span className="text-sm text-foreground">
+                      <span className="text-sm text-[var(--color-ink)]">
                         {new Date(selectedProtocol.updated_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -397,26 +388,18 @@ function ProtocolSettings() {
                 subtitle={`${editingProtocol.items.length} item${editingProtocol.items.length !== 1 ? "s" : ""}`}
                 actions={
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded-md border-transparent bg-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => handleAddItem("step")}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => handleAddItem("step")}>
                       + Step
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border-transparent bg-transparent px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => handleAddItem("note")}
-                    >
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleAddItem("note")}>
                       + Note
-                    </button>
+                    </Button>
                   </div>
                 }
               >
                 <div className="px-4 pb-4">
                   {editingProtocol.items.length === 0 && (
-                    <p className="py-4 text-center text-xs text-muted-foreground">
+                    <p className="py-4 text-center text-xs text-[var(--color-ink-muted-foreground)]">
                       No items yet. Add a step or note to get started.
                     </p>
                   )}
@@ -425,23 +408,22 @@ function ProtocolSettings() {
                     {editingProtocol.items.map((item, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-2 border-b border-hairline px-3 py-2 last:border-b-0"
+                        className="flex items-start gap-2 border-b border-[var(--color-ink-hairline)] px-3 py-2 last:border-b-0"
                       >
                         <span
-                          className="mt-1 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white"
+                          className="mt-1 shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-white"
                           style={{
                             backgroundColor:
                               item.type === "step"
                                 ? "var(--color-accent, #3b82f6)"
-                                : "var(--color-muted, #6b7280)",
+                                : "var(--color-surface-hover, #6b7280)",
                           }}
                         >
                           {item.type}
                         </span>
 
-                        <input
-                          type="text"
-                          className="min-w-0 flex-1 bg-transparent py-0.5 text-[13px] text-foreground placeholder:text-muted-foreground outline-none"
+                        <Input
+                          className="min-w-0 flex-1 bg-transparent py-0.5 text-[var(--color-ink)]"
                           value={item.text}
                           onChange={(e) =>
                             handleUpdateItem(i, "text", e.target.value)
@@ -456,7 +438,7 @@ function ProtocolSettings() {
                         <div className="flex shrink-0 items-center gap-0.5">
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-2xs text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                             onClick={() => handleMoveItem(i, "up")}
                             disabled={i === 0}
                             title="Move up"
@@ -465,7 +447,7 @@ function ProtocolSettings() {
                           </button>
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-2xs text-[var(--color-ink-muted-foreground)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                             onClick={() => handleMoveItem(i, "down")}
                             disabled={i === editingProtocol.items.length - 1}
                             title="Move down"
@@ -474,7 +456,7 @@ function ProtocolSettings() {
                           </button>
                           <button
                             type="button"
-                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-[10px] text-warn transition-colors hover:bg-muted/50"
+                            className="rounded border-transparent bg-transparent px-1 py-0.5 text-2xs text-[var(--color-warning)] transition-colors hover:bg-[var(--color-surface-hover)]/50"
                             onClick={() => handleRemoveItem(i)}
                             title="Remove item"
                           >
@@ -490,7 +472,7 @@ function ProtocolSettings() {
               </SettingsSectionCard>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
               Select a protocol from the list to view or edit its details.
             </div>
           )}

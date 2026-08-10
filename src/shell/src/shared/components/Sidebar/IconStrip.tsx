@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { IconButton } from "../../primitives/IconButton";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -41,19 +42,19 @@ export function IconStrip({ groups }: IconStripProps) {
           )}
           {group.icons.map((item, ii) =>
             item.onClick ? (
-              <button
+              <IconButton
                 key={ii}
-                className="btn-icon flex items-center justify-center w-8 h-8 rounded-md"
+                className="flex items-center justify-center w-9 h-9 rounded-md"
                 onClick={item.onClick}
                 title={item.label}
                 aria-label={item.label}
               >
                 {item.icon}
-              </button>
+              </IconButton>
             ) : (
               <span
                 key={ii}
-                className="flex items-center justify-center w-8 h-8 text-muted-foreground"
+                className="flex items-center justify-center w-9 h-9 text-muted-foreground"
                 aria-hidden="true"
               >
                 {item.icon}

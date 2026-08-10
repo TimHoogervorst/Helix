@@ -4,12 +4,12 @@ import { IconPickerPopover } from "../IconPickerPopover";
 import { ModRegistry } from "../../../mod-system/ModRegistry";
 
 const TEST_COLORS = [
-  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6" },
-  { key: "flask", label: "Flask", hex: "#b3d9e6" },
-  { key: "solvent", label: "Solvent", hex: "#b3e6c8" },
-  { key: "warn", label: "Warn", hex: "#e6d9b3" },
-  { key: "muted", label: "Muted", hex: "#d9d9d9" },
-  { key: "success", label: "Success", hex: "#b3e6b3" },
+  { key: "enzyme", label: "Enzyme", hex: "#d9b3e6", hexDark: "#EBC8F2", hexLight: "#D9B3E6" },
+  { key: "flask", label: "Flask", hex: "#b3d9e6", hexDark: "#C8EBF2", hexLight: "#B3D9E6" },
+  { key: "solvent", label: "Solvent", hex: "#b3e6c8", hexDark: "#C8F2D9", hexLight: "#B3E6C8" },
+  { key: "warn", label: "Warn", hex: "#e6d9b3", hexDark: "#F2EBC8", hexLight: "#E6D9B3" },
+  { key: "muted", label: "Muted", hex: "#d9d9d9", hexDark: "#E8E8E8", hexLight: "#D9D9D9" },
+  { key: "success", label: "Success", hex: "#b3e6b3", hexDark: "#C8F2C8", hexLight: "#B3E6B3" },
 ];
 
 const TEST_ICON_KEYS = [
@@ -38,6 +38,8 @@ function seedRegistry() {
         key: c.key,
         label: c.label,
         hex: c.hex,
+        hexDark: c.hexDark,
+        hexLight: c.hexLight,
       })),
     },
     new Map(),

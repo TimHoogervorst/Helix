@@ -15,10 +15,10 @@ export function LoadingScreen() {
           <div className="grid h-10 w-10 place-items-center rounded-md bg-primary text-primary-foreground">
             <Dna className="h-5 w-5 animate-pulse" aria-hidden="true" />
           </div>
-          <h1 className="font-serif text-xl font-semibold tracking-tight">
+          <h1 className="font-[var(--font-label)] text-xl font-semibold tracking-tight">
             Helix
           </h1>
-          <p className="text-[13px] text-muted-foreground">Loading…</p>
+          <p className="text-base text-muted-foreground">Loading…</p>
         </div>
       </div>
     </div>

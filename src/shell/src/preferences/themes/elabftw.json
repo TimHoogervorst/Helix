@@ -1,0 +1,18 @@
+{
+  "id": "elabftw",
+  "name": "eLabFTW",
+  "description": "Light grey with academic blue",
+  "mode": "light",
+  "fonts": {
+    "label": "\"SF Mono\", Consolas, \"Courier New\", monospace",
+    "body": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  "seeds": {
+    "background": "#F2F2F2",
+    "surface": "#FFFFFF",
+    "card": "#F5F5F5",
+    "ink": "#343434",
+    "primary": "#0C58AB",
+    "accent": "#EBFBFF"
+  }
+}

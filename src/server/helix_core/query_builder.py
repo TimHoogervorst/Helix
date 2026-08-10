@@ -118,7 +118,11 @@ def _build_legacy_filter_q(raw_filter: str) -> Q:
 # ── Single filter → Q ──────────────────────────────────────────────────────
 
 
-def build_filter_q(spec: FilterSpec, identity: str | None = None) -> Q:
+def build_filter_q(
+    spec: FilterSpec,
+    identity: str | None = None,
+    column_type_map: dict[str, str] | None = None,
+) -> Q:
     """Build a single Q object from a FilterSpec.
 
     Resolves the column type from the registry, validates the operator,
@@ -130,6 +134,10 @@ def build_filter_q(spec: FilterSpec, identity: str | None = None) -> Q:
             operators.  When provided and the operator is ``is_me``, the
             filter is rewritten to an ``exact`` match against *identity*.
             When missing, ``is_me`` becomes a no-op (empty Q).
+        column_type_map: Optional ``{property_key: type_id}`` map built
+            from schema column definitions.  When provided, property
+            columns are resolved via direct registry lookup instead of
+            heuristic operator scanning.
 
     Returns:
         A Django ``Q`` object.  Returns an empty ``Q()`` (always-true) when
@@ -168,22 +176,13 @@ def build_filter_q(spec: FilterSpec, identity: str | None = None) -> Q:
 
     # ── Resolve the column type for the operator lookup ────────────────
     if is_system:
-        # System columns use the column key to look up their type.
-        # We need to know the column type to get the operator's lookup name.
         column_type = _resolve_system_column_type(spec.column)
     else:
-        # Schema properties — look up the column type from the registry.
-        # The column definition (from Schema/SchemaType) carries a ``type``
-        # field.  We don't have access to that here, so we infer the type from
-        # the value's format.  But the operator provides ``django_lookup_name``
-        # directly from the registry.  We need the column type to look up the
-        # operator's django_lookup_name.
-        #
-        # Since we don't have the column definition here, we use a fallback:
-        # try common types (text, number, date, etc.) and use the first one
-        # that has the operator. This is imperfect but works because
-        # django_lookup_name is the same across types for shared operator IDs.
-        column_type = _resolve_property_column_type(spec.column, spec.operator)
+        column_type = _resolve_property_column_type(
+            spec.column,
+            column_type_map=column_type_map,
+            operator_id=spec.operator,
+        )
 
     if column_type is None:
         # Fallback: treat as text with exact match
@@ -304,17 +303,25 @@ def _resolve_system_column_type(column_key: str):
     return column_type_registry.get_column_type(type_id)
 
 
-def _resolve_property_column_type(column_key: str, operator_id: str):
+def _resolve_property_column_type(
+    column_key: str,
+    column_type_map: dict[str, str] | None = None,
+    operator_id: str = "",
+):
     """Resolve the ColumnType for a schema property column.
 
-    Since we don't have access to the column definition's ``type`` field in
-    this context, we search the registry for any type that supports the given
-    operator.  This works because ``django_lookup_name`` is consistent across
-    types for the same operator ID.
+    When *column_type_map* is provided, performs a direct lookup of
+    ``column_key`` in the map and resolves via ``registry.get_column_type``.
+    Falls back to ``"text"`` if the key is not in the map.
 
-    Falls back to the ``text`` type if no match is found.
+    When *column_type_map* is ``None`` (legacy path), scans all registered
+    types for one that supports *operator_id*.  This is kept for backward
+    compatibility with callers that don't have access to column definitions.
     """
-    # Search all registered types for one that supports this operator
+    if column_type_map is not None:
+        type_id = column_type_map.get(column_key, "text")
+        return column_type_registry.get_column_type(type_id)
+
     for ct in column_type_registry:
         for op in ct.get_operators():
             if op.id == operator_id:
@@ -340,6 +347,7 @@ def build_entity_hub_filters(
     filter_specs: list[FilterSpec],
     legacy_filters: list[str] | None = None,
     identity: str | None = None,
+    column_type_map: dict[str, str] | None = None,
 ) -> Q:
     """Build a combined Q object from a list of filter specs.
 
@@ -350,6 +358,9 @@ def build_entity_hub_filters(
         identity: Optional user identifier forwarded to
             :func:`build_filter_q` for ``is_me`` rewriting.  See
             :func:`build_filter_q` for details.
+        column_type_map: Optional ``{property_key: type_id}`` map for
+            direct column type resolution, forwarded to
+            :func:`build_filter_q`.
 
     Returns:
         A combined ``Q`` object.  Returns an empty ``Q()`` (always-true) when
@@ -358,7 +369,7 @@ def build_entity_hub_filters(
     q = Q()
 
     for spec in filter_specs:
-        q &= build_filter_q(spec, identity=identity)
+        q &= build_filter_q(spec, identity=identity, column_type_map=column_type_map)
 
     if legacy_filters:
         for lf in legacy_filters:

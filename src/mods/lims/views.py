@@ -3,6 +3,7 @@ import logging
 from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
 from helix_core.actions.logger import log_action
@@ -19,6 +20,12 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ReferentialConflict(APIException):
+    status_code = 409
+    default_detail = "Entity is referenced by other entities and cannot be deleted."
+    default_code = "referential_conflict"
 
 
 def _get_dropdown_options(dropdown_id: str) -> list[str] | None:
@@ -65,6 +72,46 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         "partial_update": {"action": "lims.entity.edited"},
         "destroy": {"action": "lims.entity.deleted"},
     }
+
+    def perform_destroy(self, instance):
+        referencing_schemas = self._find_referencing_schemas(instance.display_id)
+        if referencing_schemas:
+            raise ReferentialConflict(
+                f"Cannot delete '{instance.display_id}' — it is referenced "
+                f"by entities in the following schemas: "
+                f"{', '.join(referencing_schemas)}. "
+                f"Clear or reassign those references before deleting."
+            )
+        super().perform_destroy(instance)
+
+    def _find_referencing_schemas(self, display_id):
+        """Return sorted unique schema names whose reference columns
+        point to *display_id*.
+
+        Scans every Schema for reference-type columns (both targeted and
+        open references) and checks whether any Entity holds the given
+        display_id in that column's property slot.
+        """
+        from helix_core.models import Schema
+
+        referencing: set[str] = set()
+
+        for schema in Schema.objects.exclude(columns=[]):
+            for col_def in schema.columns:
+                if col_def.get("type") != "reference":
+                    continue
+                col_name = col_def.get("name")
+                if not col_name:
+                    continue
+
+                refs_exist = Entity.objects.filter(
+                    **{f"properties__{col_name}": display_id}
+                ).exists()
+
+                if refs_exist:
+                    referencing.add(schema.name)
+
+        return sorted(referencing)
 
     def perform_create(self, serializer):
         if not self.request.user.is_authenticated:

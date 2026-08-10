@@ -8,6 +8,7 @@ Covers:
 * Backward compatibility with legacy ?f=key:value format
 * System column filtering
 * Schema property (JSON field) filtering
+* Direct column type resolution via column_type_map
 """
 
 from __future__ import annotations
@@ -499,6 +500,145 @@ class SystemColumnMappingTests(TestCase):
         for key, field in _SYSTEM_COLUMN_FIELDS.items():
             self.assertTrue(_is_system_column(key))
             self.assertEqual(_resolve_field_path(key), field)
+
+
+# ── Direct column type resolution via column_type_map ────────────────────
+
+
+class ColumnTypeMapResolutionTests(TestCase):
+    """Tests for direct column type resolution using a column_type_map.
+
+    When a ``{property_key: type_id}`` map is provided, property columns
+    are resolved via direct ``registry.get_column_type`` lookup instead of
+    heuristic operator scanning.
+    """
+
+    def test_number_column_resolves_to_number_type(self):
+        """concentration mapped to 'number' resolves with numeric coercion."""
+        from django.db.models import Q
+        column_type_map = {"concentration": "number"}
+        q = build_filter_q(
+            FilterSpec("concentration", "eq", "50"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__concentration__exact=50.0)
+        self.assertEqual(q, expected)
+
+    def test_number_gt_with_map(self):
+        """gt on a number column coerces value to float."""
+        from django.db.models import Q
+        column_type_map = {"concentration": "number"}
+        q = build_filter_q(
+            FilterSpec("concentration", "gt", "100"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__concentration__gt=100.0)
+        self.assertEqual(q, expected)
+
+    def test_text_column_resolves_to_text_type(self):
+        """A text column keeps values as strings."""
+        from django.db.models import Q
+        column_type_map = {"sample_type": "text"}
+        q = build_filter_q(
+            FilterSpec("sample_type", "eq", "A"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__sample_type__exact="A")
+        self.assertEqual(q, expected)
+
+    def test_dropdown_column_resolves_correctly(self):
+        """A dropdown column resolves with its operators."""
+        from django.db.models import Q
+        column_type_map = {"status": "dropdown"}
+        q = build_filter_q(
+            FilterSpec("status", "in", "active,archived"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__status__in=["active", "archived"])
+        self.assertEqual(q, expected)
+
+    def test_reference_column_resolves_to_reference_type(self):
+        """A reference column uses reference type operators (exact, in, isnull)."""
+        from django.db.models import Q
+        column_type_map = {"parent_sample": "reference"}
+        q = build_filter_q(
+            FilterSpec("parent_sample", "eq", "BLOOD1"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__parent_sample__exact="BLOOD1")
+        self.assertEqual(q, expected)
+
+    def test_reference_is_any_of_with_map(self):
+        """is_any_of on a reference column resolves to __in lookup."""
+        from django.db.models import Q
+        column_type_map = {"parent_sample": "reference"}
+        q = build_filter_q(
+            FilterSpec("parent_sample", "is_any_of", "BLOOD1,BLOOD2"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__parent_sample__in=["BLOOD1", "BLOOD2"])
+        self.assertEqual(q, expected)
+
+    def test_reference_is_empty_with_map(self):
+        """is_empty on a reference column resolves to __isnull."""
+        from django.db.models import Q
+        column_type_map = {"parent_sample": "reference"}
+        q = build_filter_q(
+            FilterSpec("parent_sample", "is_empty", ""),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__parent_sample__isnull=True)
+        self.assertEqual(q, expected)
+
+    def test_unknown_column_falls_back_to_text(self):
+        """A column not in the map falls back to 'text' type."""
+        from django.db.models import Q
+        column_type_map: dict[str, str] = {}
+        q = build_filter_q(
+            FilterSpec("unknown_field", "eq", "hello"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__unknown_field__exact="hello")
+        self.assertEqual(q, expected)
+
+    def test_user_column_resolves_with_map(self):
+        """A user column resolves with user type operators."""
+        from django.db.models import Q
+        column_type_map = {"assigned_to": "user"}
+        q = build_filter_q(
+            FilterSpec("assigned_to", "is_in_group", "admins"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(properties__assigned_to__in=["admins"])
+        self.assertEqual(q, expected)
+
+    def test_map_does_not_affect_system_columns(self):
+        """System columns still resolve via _resolve_system_column_type."""
+        from django.db.models import Q
+        column_type_map = {"name": "number"}
+        q = build_filter_q(
+            FilterSpec("name", "eq", "PCR"),
+            column_type_map=column_type_map,
+        )
+        expected = Q(name__exact="PCR")
+        self.assertEqual(q, expected)
+
+    def test_build_entity_hub_filters_with_map(self):
+        """build_entity_hub_filters forwards column_type_map."""
+        from django.db.models import Q
+        column_type_map = {"concentration": "number", "sample_type": "text"}
+        q = build_entity_hub_filters(
+            [
+                FilterSpec("concentration", "gt", "50"),
+                FilterSpec("sample_type", "eq", "A"),
+            ],
+            column_type_map=column_type_map,
+        )
+        expected = (
+            Q(properties__concentration__gt=50.0)
+            & Q(properties__sample_type__exact="A")
+        )
+        self.assertEqual(q, expected)
 
 
 # ── Django ORM integration test ────────────────────────────────────────────

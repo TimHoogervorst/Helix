@@ -157,6 +157,8 @@ export interface SchemaColumnDef {
   default?: string;
   units?: string;
   description?: string;
+  /** ID of the target Schema when type is "reference". */
+  referenceSchemaId?: number;
 }
 
 /**

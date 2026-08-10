@@ -102,6 +102,9 @@ def _enrich_schema_column(col: dict, source: str) -> dict:
     dropdown_id = col.get("dropdownId")
     if dropdown_id is not None:
         result["dropdownId"] = dropdown_id
+    reference_schema_id = col.get("referenceSchemaId")
+    if reference_schema_id is not None:
+        result["referenceSchemaId"] = reference_schema_id
     return result
 
 SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})

@@ -10,6 +10,8 @@ export interface ColumnDef {
   description?: string;
   /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
   dropdownId?: number;
+  /** ID of the target Schema when type is "reference". */
+  referenceSchemaId?: number;
 }
 
 // ── Schema (new shared model) ───────────────────────────────────────────
@@ -115,6 +117,8 @@ export interface AvailableColumn {
   width: number | null;
   /** ID of the Dropdown (controlled vocabulary) to use when type is "dropdown". */
   dropdownId?: number;
+  /** ID of the target Schema when type is "reference". */
+  referenceSchemaId?: number;
 }
 
 /** Paginated response from GET /api/registry/entities. */

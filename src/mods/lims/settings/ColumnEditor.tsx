@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowUp, ArrowDown, Trash2, Settings2, Type, Circle } from "lucide-react";
 import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../dropdowns/api";
 import type { Dropdown } from "../../dropdowns/types";
+import { getSchemas, getSchemaTypes } from "../hub/api";
+import type { Schema, SchemaTypeItem } from "../types";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { Input } from "../../../shell/src/shared/primitives/Input";
@@ -41,12 +43,34 @@ function ColumnEditor({
   const columnTypes = ModRegistry.getInstance().getColumnTypes();
   const textType = columnTypes.get("text");
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([]);
+  const [schemas, setSchemas] = useState<Schema[]>([]);
+  const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
 
   useEffect(() => {
     listDropdowns()
       .then(setDropdowns)
       .catch(() => setDropdowns([]));
   }, []);
+
+  useEffect(() => {
+    getSchemas()
+      .then(setSchemas)
+      .catch(() => setSchemas([]));
+    getSchemaTypes()
+      .then(setSchemaTypes)
+      .catch(() => setSchemaTypes([]));
+  }, []);
+
+  const schemaTypeGroups = useMemo(() => {
+    const stMap = new Map(schemaTypes.map((st) => [st.id, st.display_name]));
+    const groups = new Map<string, Schema[]>();
+    for (const s of schemas) {
+      const typeName = stMap.get(s.schema_type) || "Other";
+      if (!groups.has(typeName)) groups.set(typeName, []);
+      groups.get(typeName)!.push(s);
+    }
+    return [...groups.entries()];
+  }, [schemas, schemaTypes]);
 
   const handleNameChange = (
     index: number,
@@ -169,6 +193,33 @@ function ColumnEditor({
                       <option key={d.id} value={d.id}>
                         {d.name}
                       </option>
+                    ))}
+                  </Select>
+                )}
+                {col.type === "reference" && (
+                  <Select
+                    value={col.referenceSchemaId ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      onUpdate(
+                        i,
+                        "referenceSchemaId",
+                        raw ? Number(raw) : "",
+                      );
+                    }}
+                    className="mt-1 rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
+                    title="Target schema for this reference column"
+                    aria-label="Target schema"
+                  >
+                    <option value="">No target</option>
+                    {schemaTypeGroups.map(([typeName, typeSchemas]) => (
+                      <optgroup key={typeName} label={typeName}>
+                        {typeSchemas.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.prefix})
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </Select>
                 )}

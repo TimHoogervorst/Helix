@@ -78,6 +78,93 @@ class EntitySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
 
+    def validate_properties(self, properties):
+        """Validate reference column values against their target schemas.
+
+        For each property whose column definition includes
+        ``referenceSchemaId``, the referenced entity must exist and its
+        ``schema_id`` must match the target.  Open references (no
+        ``referenceSchemaId``) only receive format validation.
+        """
+        if not properties:
+            return properties
+
+        schema_instance = self._resolve_schema_for_validation()
+        if schema_instance is None:
+            return properties
+
+        column_defs = schema_instance.columns
+        if not column_defs:
+            return properties
+
+        from .models import Entity as EntityModel
+
+        for col_def in column_defs:
+            if col_def.get("type") != "reference":
+                continue
+            col_name = col_def.get("name")
+            if not col_name or col_name not in properties:
+                continue
+            value = properties[col_name]
+            if value is None or value == "":
+                continue
+
+            expected_schema_id = col_def.get("referenceSchemaId")
+            ct = column_type_registry.get_column_type("reference")
+            if ct is None:
+                continue
+            result = ct.validate(value, reference_schema_id=expected_schema_id)
+            if result is not True:
+                raise serializers.ValidationError({
+                    f"properties.{col_name}": result,
+                })
+
+            if expected_schema_id is not None and isinstance(value, str):
+                try:
+                    ref = (
+                        EntityModel.objects
+                        .only("schema_id", "schema__name")
+                        .select_related("schema")
+                        .get(display_id=value)
+                    )
+                except EntityModel.DoesNotExist:
+                    raise serializers.ValidationError({
+                        f"properties.{col_name}": (
+                            f"Referenced entity '{value}' does not exist."
+                        ),
+                    })
+                if ref.schema_id != expected_schema_id:
+                    target_schema = Schema.objects.get(pk=expected_schema_id)
+                    raise serializers.ValidationError({
+                        f"properties.{col_name}": (
+                            f"Referenced entity '{value}' belongs to schema "
+                            f"'{ref.schema.name}' but the column expects "
+                            f"'{target_schema.name}'."
+                        ),
+                    })
+
+        return properties
+
+    def _resolve_schema_for_validation(self):
+        """Return the Schema instance for property validation.
+
+        For updates the instance carries the schema.  For creates we read
+        the schema from the raw payload (still an int at this point because
+        field-to-internal conversion happens after field validation).
+        """
+        if self.instance is not None:
+            return self.instance.schema
+
+        schema_raw = self.initial_data.get("schema")
+        if isinstance(schema_raw, Schema):
+            return schema_raw
+        if isinstance(schema_raw, int):
+            try:
+                return Schema.objects.get(pk=schema_raw)
+            except Schema.DoesNotExist:
+                return None
+        return None
+
     def validate(self, data):
         """Resolve the default Schema when none is provided on create."""
         if self.instance is None and ("schema" not in data or data["schema"] is None):

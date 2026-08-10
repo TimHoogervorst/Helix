@@ -26,7 +26,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useClickOutside } from "../hooks/useClickOutside";
-import MentionBadge from "./MentionBadge";
 import { EntityPickerPopover } from "./EntityPickerPopover";
 
 // ── Shared props ────────────────────────────────────────────────────────────
@@ -234,28 +233,44 @@ function ReferenceCell({
   workspaceId,
 }: CellEditorProps) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleSelect = useCallback(
     (displayId: string) => {
-      onCommit(displayId);
+      if (!readOnly) {
+        onCommit(displayId);
+      }
     },
-    [onCommit],
+    [onCommit, readOnly],
   );
 
   const handleClear = useCallback(() => {
     onCommit("");
   }, [onCommit]);
 
+  const handlePick = useCallback(() => {
+    setOpen(true);
+  }, []);
+
   return (
     <div className="relative inline-flex items-center gap-1 px-4 py-2">
       {Boolean(value) ? (
-        <div className="flex items-center gap-1">
-          <MentionBadge displayId={value as string} clickable />
+        <div className="group flex items-center gap-1">
+          <button
+            ref={buttonRef}
+            type="button"
+            className="reference-badge is-nonclickable border-none cursor-pointer hover:brightness-95 appearance-none"
+            onClick={handlePick}
+            title={readOnly ? `Go to ${value}` : "Change reference"}
+            aria-label={readOnly ? `Go to ${value}` : "Change reference"}
+            data-testid="ref-edit-btn"
+          >
+            <span className="ref-badge-id">{value as string}</span>
+          </button>
           {!readOnly && (
             <button
               type="button"
-              className="text-muted-foreground hover:text-destructive text-xs leading-none px-0.5"
+              className="opacity-0 group-hover:opacity-100 border-0 bg-transparent text-muted-foreground hover:text-destructive text-xs leading-none px-0.5 transition-opacity"
               onClick={handleClear}
               title="Clear reference"
               aria-label="Clear reference"
@@ -268,7 +283,7 @@ function ReferenceCell({
       ) : (
         !readOnly && (
           <button
-            ref={triggerRef}
+            ref={buttonRef}
             type="button"
             className="bg-transparent border-transparent text-xs text-muted-foreground italic px-1 py-0.5 rounded hover:bg-muted hover:text-muted-foreground"
             onClick={() => setOpen(true)}
@@ -285,7 +300,7 @@ function ReferenceCell({
         open={open}
         onOpenChange={setOpen}
         onSelect={handleSelect}
-        onClear={Boolean(value) ? handleClear : undefined}
+        anchorRef={buttonRef}
       />
     </div>
   );

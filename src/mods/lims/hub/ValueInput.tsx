@@ -344,7 +344,6 @@ function EntityPickerFilter({
         open={open}
         onOpenChange={setOpen}
         onSelect={handleSelect}
-        onClear={value ? handleClear : undefined}
       />
     </span>
   );

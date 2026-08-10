@@ -9,7 +9,7 @@
  * component.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Loader } from "lucide-react";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -38,8 +38,8 @@ export interface EntityPickerPopoverProps {
   onOpenChange: (open: boolean) => void;
   /** Called with the selected entity's display_id. */
   onSelect: (displayId: string) => void;
-  /** Called when the user clears the reference (optional — omit to hide the clear row). */
-  onClear?: () => void;
+  /** Ref to the trigger element so the popover positions below it. */
+  anchorRef?: RefObject<HTMLElement | null>;
 }
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ export function EntityPickerPopover({
   open,
   onOpenChange,
   onSelect,
-  onClear,
+  anchorRef,
 }: EntityPickerPopoverProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<EntitySearchResult[]>([]);
@@ -113,7 +113,11 @@ export function EntityPickerPopover({
     <div
       ref={popoverRef}
       className="z-50 w-72 rounded-md border border-hairline bg-popover shadow-lg"
-      style={{ position: "fixed" }}
+      style={{
+        position: "fixed",
+        top: (anchorRef?.current?.getBoundingClientRect().bottom ?? 0) + 4,
+        left: anchorRef?.current?.getBoundingClientRect().left ?? 0,
+      }}
       data-testid="ref-popover"
     >
       <div className="p-2 border-b border-hairline">
@@ -144,7 +148,7 @@ export function EntityPickerPopover({
             <button
               key={r.display_id}
               type="button"
-              className="w-full px-3 py-2 text-left text-sm hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
+              className="w-full px-3 py-2 text-left text-sm border-0 bg-transparent text-[var(--color-ink)] hover:bg-muted transition-colors"
               onClick={() => handleSelect(r.display_id)}
               data-testid={`ref-result-${r.display_id}`}
             >
@@ -158,21 +162,7 @@ export function EntityPickerPopover({
           ))
         )}
       </div>
-      {onClear && (
-        <div className="border-t border-hairline p-1">
-          <button
-            type="button"
-            className="w-full text-left px-2 py-1 text-xs text-destructive hover:bg-surface/60 rounded"
-            onClick={() => {
-              onClear();
-              onOpenChange(false);
-            }}
-            data-testid="ref-clear-option"
-          >
-            Clear reference
-          </button>
-        </div>
-      )}
+
     </div>,
     document.body,
   );

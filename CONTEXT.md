@@ -326,6 +326,16 @@ A Schema also carries a **Dynamic Icon** and a **Color Token**, chosen by the us
 
 **Synonyms:** blueprint, entity template, data structure
 
+### Reference Column
+
+A schema column of type `"reference"` whose value points at an entity from another schema. Declared with an optional `referenceSchemaId` that constrains the target to a specific Schema — when set, the server validates that referenced entities belong to that schema. When unset, the reference is open to any entity. Values are stored as display-ID strings in the entity's JSON `properties` field.
+
+Reference columns establish **logical links** between schemas — a "parent sample" column on a DNA schema pointing at a Blood schema. The relationship map renders these as edges between schema cards.
+
+A reference column's value is a **soft reference** — no FK constraint. Deleting the target entity leaves a dangling reference; the UI tolerates this (showing a stale indicator) until a full schema-lifecycle system addresses cascading behavior.
+
+**Synonyms:** cross-schema reference, soft reference, entity reference
+
 ### Schema Type
 
 The canonical term for a workspace-registered category that Schemas belong to. Declared by a mod via `register_schema_type()` and recorded in the backend `RegisteredEntityType` table. "Entity Type" is retained as a synonym — both refer to the same concept.
@@ -497,6 +507,8 @@ Action ──▶ NotebookEntry (N:1 — action optionally recorded in an entry)
 EntityType ──▶ Entity (1:N — type classifies many entities)
 RegisteredEntityType ──▶ EntityType (1:1 — registration links an entity type to a workspace)
 RegisteredEntityType ──▶ Workspace (N:1 — registration declares which workspace owns the entity type)
+
+Schema.referenceColumn ──▶ Entity (soft reference via display ID in properties JSON, constrained by referenceSchemaId)
 
 Slot ──▶ BlockBinding | ButtonBinding (1:N — slot resolves to ordered bindings)
 Block ──▶ SlotBinding (M:N — block can be bound into many slots)

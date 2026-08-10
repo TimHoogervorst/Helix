@@ -55,11 +55,11 @@ All mutating operations are automatically logged for CFR Part 11 audit complianc
 
 ### Folder
 
-A hierarchical container that owns Notebook Entries, Entities, and child Folders. Folders form a tree — the primary organizational structure of the system. Permissions are assigned to Folders and inherit downward. Users navigate the folder tree through the Library console.
+A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs to exactly one Project — either its hidden root folder or a descendant of it. Folders form a tree within a Project — the organizational structure beneath the Project level. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
 
 Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items live.
 
-**Synonyms:** directory, project (rejected — "project" implies a temporary endeavor; Folders are a permanent organizational structure)
+**Synonyms:** directory
 
 ### User
 
@@ -81,9 +81,37 @@ A structured entry in a User's publication list. Has a `title`, `journal`, `year
 
 A structured entry in a User's honors and awards list. Has a `title`, `issuer` (e.g. "EMBO"), `date` (free-text string, e.g. "2024" or "Q2 2026"), and an `order`. Owned by exactly one User.
 
-### Group
+### Organization
 
-A named collection of Users. Groups are the unit of permission assignment — permissions are granted to Groups on Folders, not directly to Users.
+The single lab or company this deployment serves. Exactly one per deployment — every User, Team, and Project belongs to it. The Organization exists to own Organization Roles and org-wide settings; there is no org switching and no cross-org concept.
+
+### Team
+
+A named collection of Users within the Organization. Teams are granted Project Roles — a Grant to a Team covers every member. Users can belong to many Teams.
+
+**Synonyms:** group
+
+### Project
+
+A first-class container that owns exactly one hidden root Folder — its folder tree — and every Entry and Entity within it. Has a name, a Dynamic Icon, and a Color Token. Projects are the access boundary of the system: all permissions are expressed as Grants on Projects. The Library root lists Projects; opening a Project navigates its folder tree.
+
+**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Projects are created by Organization Admins only.
+
+### Project Role
+
+A fixed access level on a Project, granted to a User or Team: **Read** (browse and open content), **Edit** (create and modify content), or **Admin** (manage Grants, share Folders, edit Project identity). A fixed enum — users cannot define new Project Roles. (Editable, user-defined Profiles are a deferred future extension.)
+
+### Organization Role
+
+A fixed access level on the Organization: **User** (normal day-to-day work) or **Admin** (manage users, teams, projects, schemas, and all org-wide settings). A fixed enum, never editable — unlike Project Roles, no future configurability is planned.
+
+### Grant
+
+The assignment of a Project Role to a User or Team on a Project. A User's effective role on a Project is the strongest across their direct Grants and all their Teams' Grants.
+
+### Shared Folder
+
+A Folder made visible to Projects other than the Project that owns it. Appears at the root of each Project it is shared with. Each share carries an access level — **Read** or **Read + Write** — granted to the sharee Project's members. Ownership never moves: the Folder and its contents keep their original Project.
 
 ---
 
@@ -95,7 +123,7 @@ The platform uses a **Hub → Workspace** navigation model. Hubs are free-form b
 |------|-----------|
 | **Hub** | A free-form browsing page at a route like `/library` or `/home`. Each hub has complete layout freedom — card grids, stat tiles, tree views. Its job is to help users find the right thing. Hubs link outward to Workspaces at dedicated URLs. |
 | **Hub Registration** | Hubs are registered via `registerHub({ id, label, icon, route, component, order })`. Automatically adds a sidebar nav item. |
-| **Library Hub** | The hub at `/library`, registered by the Library mod. Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
+| **Library Hub** | The hub at `/library`, registered by the Library mod. Root lists Projects; inside a Project, a card-grid view over its Folder hierarchy showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
 | **Home Hub** | The hub at `/home`, registered by the Home mod (`order: 0` — first in sidebar). Landing page. |
 | **Settings Hub** | The hub at `/settings`, registered by the Settings mod. Renders settings sections from all mods, sorted by `order`. |
 
@@ -115,7 +143,7 @@ Sidebar (dynamic: registry.getHubs())
 
 ### Library
 
-The **hub** at `/library` that presents a unified, filesystem-like view over the Folder hierarchy. At any folder level, both child Folders and Entries appear together in a single card grid, sorted with folders first. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of the Folder tree.
+The **hub** at `/library` that presents a unified, filesystem-like view over Projects and their Folder hierarchies. At the root, the Library lists the Projects the user can see. Inside a Project, both child Folders and Entries appear together in a single card grid at any folder level, sorted with folders first; Folders shared with the Project appear at its root. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of Projects and the Folder tree.
 
 The Library renders two Item types: **Folders** (navigated into) and **Entries** (selected for navigation to workspace). When new content types are added, they appear in the same mixed grid with their own type icon and label.
 
@@ -125,9 +153,9 @@ The Library renders two Item types: **Folders** (navigated into) and **Entries**
 
 ### Breadcrumb
 
-The navigation bar at the top of the Library hub showing the current folder path as clickable segments. Each segment is a link to that folder level. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
+The navigation bar at the top of the Library hub showing the current location as clickable segments: the Project name, then `root`, then each Folder along the path. Each segment is a link to that level — the Project name returns to the Projects listing (the Library root), `root` returns to the Project's root folder. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
 
-**Invariant:** The breadcrumb always reflects the current `?path=` URL parameter. Clicking a breadcrumb segment updates the path and reloads the card grid.
+**Invariant:** The breadcrumb always reflects the current `?project=` and `?path=` URL parameters. Clicking a segment updates them and reloads the card grid.
 
 ---
 
@@ -486,7 +514,16 @@ A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs 
 ## Relationship Summary
 
 ```
-Library Hub ──▶ Folder tree (the Library is the browsing surface for the folder hierarchy)
+Library Hub ──▶ Projects ──▶ Folder tree (the Library is the browsing surface; root lists Projects)
+
+Organization ──▶ Team (1:N — org has many teams)
+Organization ──▶ Project (1:N — org has many projects)
+Team ──▶ User (M:N — teams have many users; users can be in many teams)
+Project ──1:1──▶ Folder (hidden root folder — the project's folder tree hangs off it)
+Project ──▶ Grant ──▶ User | Team (Project Roles granted to users and teams)
+Folder ──▶ Shared Folder ──▶ Project (M:N — a folder shared into other projects' roots, per-share access level)
+NotebookEntry ──▶ Project (N:1 — entry belongs to exactly one project)
+Entity ──▶ Project (N:1 — entity belongs to exactly one project)
 
 Folder ──┬── Folder (parent/child, recursive)
          ├── NotebookEntry (1:N — entry lives in one folder)
@@ -559,6 +596,10 @@ A **Slot** is a named placeholder inside a workspace for embedded UI extension. 
 ### Library vs Folder
 
 A **Folder** is a data-model concept — a node in the folder tree with a parent, a name, and contents. The **Library** is the console that lets users navigate, search, and open items within the folder hierarchy. The Library shows a mixed list of folders and entries at any path; folders are navigated *into*, entries are opened.
+
+### Project vs Folder
+
+A **Project** is the access boundary: it carries a Dynamic Icon and Color Token, owns Grants, and appears at the Library root. Projects are few and curated — created by Organization Admins only. A **Folder** is a plain container inside a Project's tree: many, free-form, carrying no permissions of its own (a Folder only affects access when it becomes a Shared Folder).
 
 ### Entry vs Entity
 

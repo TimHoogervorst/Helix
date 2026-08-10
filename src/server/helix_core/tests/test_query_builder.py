@@ -549,12 +549,12 @@ class ColumnTypeMapResolutionTests(TestCase):
     def test_dropdown_column_resolves_correctly(self):
         """A dropdown column resolves with its operators."""
         from django.db.models import Q
-        column_type_map = {"status": "dropdown"}
+        column_type_map = {"category": "dropdown"}
         q = build_filter_q(
-            FilterSpec("status", "in", "active,archived"),
+            FilterSpec("category", "in", "active,archived"),
             column_type_map=column_type_map,
         )
-        expected = Q(properties__status__in=["active", "archived"])
+        expected = Q(properties__category__in=["active", "archived"])
         self.assertEqual(q, expected)
 
     def test_reference_column_resolves_to_reference_type(self):

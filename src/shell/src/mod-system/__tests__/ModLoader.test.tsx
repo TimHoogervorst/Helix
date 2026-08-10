@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import {
   topologicalSort,
@@ -512,19 +512,22 @@ describe("topologicalSort", () => {
 describe("ModLoader", () => {
   beforeEach(() => {
     resetRegistry();
+    vi.spyOn(ModRegistry.prototype, "syncActions").mockResolvedValue(undefined);
+    vi.spyOn(ModRegistry, "loadFromBackend").mockResolvedValue(undefined);
   });
 
-  it("renders children when no mods are discovered (empty glob)", () => {
+  it("renders children when no mods are discovered (empty glob)", async () => {
     render(
       <ModLoader>
         <div data-testid="child">Hello World</div>
       </ModLoader>,
     );
-    expect(screen.getByTestId("child")).toBeInTheDocument();
+    const child = await screen.findByTestId("child");
+    expect(child).toBeInTheDocument();
     expect(screen.getByText("Hello World")).toBeInTheDocument();
   });
 
-  it("renders children tree correctly", () => {
+  it("renders children tree correctly", async () => {
     render(
       <ModLoader>
         <div>
@@ -532,6 +535,186 @@ describe("ModLoader", () => {
         </div>
       </ModLoader>,
     );
-    expect(screen.getByTestId("nested")).toBeInTheDocument();
+    const nested = await screen.findByTestId("nested");
+    expect(nested).toBeInTheDocument();
+  });
+});
+
+// ── Hydration Gate Tests ───────────────────────────────────────────────
+
+describe("ModLoader hydration gate", () => {
+  beforeEach(() => {
+    resetRegistry();
+    vi.restoreAllMocks();
+  });
+
+  it("shows loading screen while hydration is in flight, children absent", async () => {
+    // syncActions never resolves — hydration stays in flight forever
+    vi.spyOn(ModRegistry.prototype, "syncActions").mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    render(
+      <ModLoader>
+        <div data-testid="child">Hello World</div>
+      </ModLoader>,
+    );
+
+    // Loading screen should be visible
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    // Children should NOT be in the document
+    expect(screen.queryByTestId("child")).not.toBeInTheDocument();
+  });
+
+  it("renders children after hydration with hydrated maps already populated", async () => {
+    vi.spyOn(ModRegistry.prototype, "syncActions").mockResolvedValue(undefined);
+
+    // Mock loadFromBackend to populate the registry before resolving,
+    // simulating a successful backend hydration.
+    vi.spyOn(ModRegistry, "loadFromBackend").mockImplementation(
+      async (manifests) => {
+        const registry = ModRegistry.getInstance();
+        const payload = {
+          columnTypes: [
+            {
+              id: "text",
+              displayName: "Text",
+              icon: "type",
+              color: "blue",
+              operandShape: "scalar",
+              defaultValue: "",
+              operators: [],
+              aggregates: [],
+            },
+          ],
+          iconLibrary: [
+            {
+              key: "type",
+              label: "Type",
+              kind: "lucide",
+              token: "type",
+              svg: "<svg/>",
+            },
+          ],
+          colorPalette: [
+            { key: "blue", label: "Blue", hex: "#0000FF" },
+          ],
+        };
+        registry.hydrateFromBackend(payload, manifests);
+      },
+    );
+
+    render(
+      <ModLoader>
+        <div data-testid="child">Hello World</div>
+      </ModLoader>,
+    );
+
+    // Wait for children to render after hydration resolves
+    const child = await screen.findByTestId("child");
+    expect(child).toBeInTheDocument();
+
+    // Verify the registry's hydrated maps are already populated
+    // before the first child render completes
+    const registry = ModRegistry.getInstance();
+    expect(registry.getColumnType("text")?.icon).toBe("type");
+    expect(registry.getIconLibrary().get("type")?.key).toBe("type");
+    expect(registry.getColorPalette().get("blue")?.hex).toBe("#0000FF");
+  });
+
+  it("renders children when registry fetch fails, logs warning, no unhandled rejection", async () => {
+    vi.spyOn(ModRegistry.prototype, "syncActions").mockResolvedValue(undefined);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // loadFromBackend catches errors internally and logs a warning.
+    // Simulate an internal fetch failure by mocking it to log and resolve.
+    vi.spyOn(ModRegistry, "loadFromBackend").mockImplementation(async () => {
+      console.warn(
+        "Failed to fetch /api/mod-registry/ (status 500). Workspaces won't be hydrated from backend.",
+      );
+    });
+
+    render(
+      <ModLoader>
+        <div data-testid="child">Hello World</div>
+      </ModLoader>,
+    );
+
+    // Children should still render (fail-soft)
+    const child = await screen.findByTestId("child");
+    expect(child).toBeInTheDocument();
+
+    // Warning should have been logged
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to fetch"),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("attempts registry fetch after action sync fails, still renders children", async () => {
+    const syncWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Action sync fails
+    const syncSpy = vi
+      .spyOn(ModRegistry.prototype, "syncActions")
+      .mockRejectedValue(new Error("Sync failed"));
+
+    // loadFromBackend is still called (icons/colors/column types
+    // don't depend on action sync)
+    const loadSpy = vi
+      .spyOn(ModRegistry, "loadFromBackend")
+      .mockResolvedValue(undefined);
+
+    render(
+      <ModLoader>
+        <div data-testid="child">Hello World</div>
+      </ModLoader>,
+    );
+
+    // Children should render despite sync failure
+    const child = await screen.findByTestId("child");
+    expect(child).toBeInTheDocument();
+
+    // syncActions was called
+    expect(syncSpy).toHaveBeenCalled();
+
+    // loadFromBackend was still attempted
+    expect(loadSpy).toHaveBeenCalled();
+
+    // Sync failure warning was logged
+    expect(syncWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Action sync"),
+      expect.any(Error),
+    );
+
+    syncWarnSpy.mockRestore();
+  });
+
+  it("completes all action-sync POSTs before the registry GET fires", async () => {
+    const callOrder: string[] = [];
+
+    vi.spyOn(ModRegistry.prototype, "syncActions").mockImplementation(
+      async () => {
+        callOrder.push("sync");
+      },
+    );
+
+    vi.spyOn(ModRegistry, "loadFromBackend").mockImplementation(async () => {
+      callOrder.push("fetch");
+    });
+
+    render(
+      <ModLoader>
+        <div data-testid="child">Hello World</div>
+      </ModLoader>,
+    );
+
+    // Wait for hydration to complete
+    await screen.findByTestId("child");
+
+    // sync must complete before fetch
+    expect(callOrder).toEqual(["sync", "fetch"]);
   });
 });

@@ -328,6 +328,10 @@ function FilterPill({
           disabled={!row.operator}
           placeholder={row.operator ? "value…" : "select field first"}
           dropdownOptions={dropdownOptionsMap?.get(row.column)}
+          referenceSchemaId={
+            columns.find((c) => c.key === row.column)?.referenceSchemaId
+          }
+          workspaceId={undefined}
         />
       </div>
 

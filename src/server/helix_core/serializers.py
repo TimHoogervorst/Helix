@@ -151,10 +151,10 @@ class EntityHubSerializer(serializers.ModelSerializer):
     schema_prefix = serializers.CharField(
         source="schema.prefix", read_only=True
     )
-    schema_icon = serializers.CharField(
+    icon = serializers.CharField(
         source="schema.icon", read_only=True, default=""
     )
-    schema_color = serializers.CharField(
+    color = serializers.CharField(
         source="schema.color", read_only=True, default=""
     )
     schema_type_display = serializers.SerializerMethodField()
@@ -171,8 +171,8 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "schema_id",
             "schema_name",
             "schema_prefix",
-            "schema_icon",
-            "schema_color",
+            "icon",
+            "color",
             "status",
             "author",
             "author_username",

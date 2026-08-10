@@ -102,9 +102,50 @@ def _enrich_schema_column(col: dict, source: str) -> dict:
     dropdown_id = col.get("dropdownId")
     if dropdown_id is not None:
         result["dropdownId"] = dropdown_id
+    reference_schema_id = col.get("referenceSchemaId")
+    if reference_schema_id is not None:
+        result["referenceSchemaId"] = reference_schema_id
     return result
 
 SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})
+
+
+def _build_column_type_map(schema_id: str, schema_type_id: str) -> dict[str, str]:
+    """Build a ``{column_name: type_id}`` map from schema column definitions.
+
+    Columns whose ``name`` is empty or whose ``type`` is missing fall back
+    to ``"text"``.
+    """
+    column_type_map: dict[str, str] = {}
+
+    if schema_id:
+        try:
+            schema_obj = Schema.objects.get(
+                pk=int(schema_id), is_active=True
+            )
+            for col in schema_obj.columns:
+                name = col.get("name", "")
+                col_type = col.get("type", "text")
+                if name:
+                    column_type_map[name] = col_type
+        except (Schema.DoesNotExist, ValueError):
+            pass
+
+    if not column_type_map and schema_type_id:
+        try:
+            workspace_id = schema_type_id.split(".")[0]
+            schema_type_obj = SchemaType.objects.get(
+                workspace_id=workspace_id, is_active=True
+            )
+            for col in schema_type_obj.columns:
+                name = col.get("name", "")
+                col_type = col.get("type", "text")
+                if name:
+                    column_type_map[name] = col_type
+        except (SchemaType.DoesNotExist, IndexError):
+            pass
+
+    return column_type_map
 
 
 class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -163,6 +204,11 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
             "filter_specs": structured,
             # Legacy exact-match field filters (key:value)
             "field_filters": legacy,
+            # Column type map for direct column type resolution
+            "column_type_map": _build_column_type_map(
+                request.query_params.get("schema", "").strip(),
+                request.query_params.get("schema_type", "").strip(),
+            ),
         }
         return self._filter_params
 
@@ -191,7 +237,10 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
         # ── Structured field filters (new ?f=column:operator:value) ───
         if params["filter_specs"]:
             qs = qs.filter(
-                build_entity_hub_filters(params["filter_specs"])
+                build_entity_hub_filters(
+                    params["filter_specs"],
+                    column_type_map=params["column_type_map"],
+                )
             )
 
         # ── Legacy field filters (repeatable ?f=key:value) ─────────────
@@ -336,7 +385,10 @@ class EntityHubQueryView(APIView):
 
         # Structured filters from POST body
         if filter_specs:
-            qs = qs.filter(build_entity_hub_filters(filter_specs))
+            column_type_map = _build_column_type_map(schema, schema_type)
+            qs = qs.filter(
+                build_entity_hub_filters(filter_specs, column_type_map=column_type_map)
+            )
 
         # Sort
         sort = request.data.get("sort", "").strip()

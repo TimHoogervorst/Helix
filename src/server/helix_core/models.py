@@ -32,7 +32,7 @@ class ContentHashedModel(models.Model):
     are included in the hash.
     """
 
-    _HASH_FIELDS = ("id", "name", "type", "required", "default", "units", "dropdownId")
+    _HASH_FIELDS = ("id", "name", "type", "required", "default", "units", "dropdownId", "referenceSchemaId")
 
     class Meta:
         abstract = True

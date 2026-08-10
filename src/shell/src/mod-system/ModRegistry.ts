@@ -629,7 +629,7 @@ export class ModRegistry {
    * Compute action IDs from block emits and lifecycle actions, then
    * sync them to the backend via ``POST /api/mod-registry/sync-actions/``.
    *
-   * Called by ModLoader during async hydration **before**
+   * Called by ModLoader during boot **before**
    * ``loadFromBackend`` so the backend catalog is up-to-date when the
    * frontend fetches it.
    *
@@ -643,11 +643,13 @@ export class ModRegistry {
    * bus and never hit the database.
    *
    * Actions are grouped by mod (first ``"."``-separated segment of the
-   * block ID) and sent to the backend one mod at a time.
+   * block ID) and POSTed to the backend.  Per-mod POSTs are
+   * parallelized via ``Promise.all`` — each mod's sync is independent.
    *
-   * **Hard-fail**: throws an ``Error`` when the backend returns a
-   * validation mismatch, preventing boot from proceeding with a stale
-   * action catalog.
+   * Returns a rejected promise when any mod's backend POST returns a
+   * validation mismatch (non-OK response).  The caller (ModLoader)
+   * catches this and boots fail-soft, proceeding to the registry fetch
+   * without a fresh action catalog.
    */
   async syncActions(): Promise<void> {
     // Step 1 — identify editor-slot-bound block IDs.
@@ -701,32 +703,33 @@ export class ModRegistry {
       }
     }
 
-    // Step 3 — POST each mod's actions to the backend.
-    for (const [modId, actions] of actionsByMod) {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      const csrfToken = getCsrfCookie();
-      if (csrfToken) {
-        headers["X-CSRFToken"] = csrfToken;
-      }
-      const response = await fetch("/api/mod-registry/sync-actions/", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ mod_id: modId, actions }),
-      });
+    // Step 3 — POST each mod's actions to the backend in parallel.
+    await Promise.all(
+      Array.from(actionsByMod.entries()).map(async ([modId, actions]) => {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        const csrfToken = getCsrfCookie();
+        if (csrfToken) {
+          headers["X-CSRFToken"] = csrfToken;
+        }
+        const response = await fetch("/api/mod-registry/sync-actions/", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ mod_id: modId, actions }),
+        });
 
-      if (!response.ok) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = (await response.json()) as any;
-        throw new Error(
-          `Action sync failed for mod '${modId}': ` +
-            (result.missing
-              ? `Missing actions: ${result.missing.join(", ")}`
-              : result.error || `HTTP ${response.status}`),
-        );
-      }
-    }
+        if (!response.ok) {
+          const result = (await response.json()) as any;
+          throw new Error(
+            `Action sync failed for mod '${modId}': ` +
+              (result.missing
+                ? `Missing actions: ${result.missing.join(", ")}`
+                : result.error || `HTTP ${response.status}`),
+          );
+        }
+      }),
+    );
   }
 
   // ── Backend hydration ─────────────────────────────────────────────────
@@ -734,14 +737,19 @@ export class ModRegistry {
   /**
    * Fetch ``GET /api/mod-registry/`` and hydrate the registry.
    *
-   * Called by ModLoader during async boot.  In production this replaces
+   * Called by ModLoader during boot.  In production this replaces
    * the inline fetch logic in ModLoader so the registry is the single
    * owner of its hydration strategy.
    *
+   * Uses raw ``fetch`` (not the API client) so a 401 does not trigger
+   * a login redirect — the login page is rendered promptly via the
+   * fail-soft path instead.
+   *
    * @param manifests - Mod manifests already collected from JSON globs.
    *   Used to supply ``displayName`` for each workspace.
-   * @returns A promise that resolves when hydration completes.  Errors
-   *   are caught and logged — hydration failure does not block boot.
+   * @returns A promise that resolves when hydration completes (even on
+   *   failure — errors are caught and logged as warnings, keeping the
+   *   promise resolved so boot is never permanently blocked).
    */
   static async loadFromBackend(
     manifests: ReadonlyMap<string, ModManifest>,

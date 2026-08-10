@@ -977,8 +977,8 @@ function EntitiesHub() {
                         >
                           <span className="entities-th-content">
                             <span className="entities-th-label">
-                              {resolveColumnIcon(col)}
                               {col.label}
+                              {resolveColumnIcon(col)}
                             </span>
                             {renderSortIcon(col.key)}
                             {col.hideable && (

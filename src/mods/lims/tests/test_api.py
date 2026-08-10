@@ -1542,6 +1542,437 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         self.assertEqual(response.data["errors"][0]["field"], "count")
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# Entity reference validation tests — entity create (POST) and update (PUT)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class EntityReferenceValidationCreateTests(BaseTestCase):
+    """Reference validation on entity creation via EntitySerializer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.target_schema = Schema.objects.create(
+            name="Target", prefix="TGT", schema_type=self.schema_type,
+            columns=[],
+        )
+        self.ref_schema = Schema.objects.create(
+            name="ReferenceSource", prefix="REF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaId": self.target_schema.id,
+            }],
+        )
+        self.open_ref_schema = Schema.objects.create(
+            name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
+            columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_create_reference_matching_schema_succeeds(self):
+        """Reference value pointing at an entity in the target schema passes."""
+        target = Entity.objects.create(
+            name="Target Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": target.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_reference_wrong_schema_rejected(self):
+        """Reference to an entity of a different schema returns a 400 error."""
+        other_entity = Entity.objects.create(
+            name="Other", schema=self.open_ref_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": other_entity.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        err = response.data["properties"]["linked_entity"]
+        self.assertIn(other_entity.schema.name, str(err))
+        self.assertIn(self.target_schema.name, str(err))
+
+    def test_create_reference_nonexistent_rejected(self):
+        """Reference to a display_id that does not exist returns a 400 error."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": "NONEXIST42"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        err = response.data["properties"]["linked_entity"]
+        self.assertIn("does not exist", str(err))
+
+    def test_create_open_reference_accepts_any_valid_display_id(self):
+        """Open reference (no referenceSchemaId) accepts any valid display_id."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.open_ref_schema.id,
+                "properties": {"any_entity": "ANYTHING42"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_reference_empty_value_accepted(self):
+        """Empty or missing reference values are not validated."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": ""},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_reference_none_value_accepted(self):
+        """None reference values are not validated."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": None},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_reference_missing_property_accepted(self):
+        """Entity creates without providing the reference property succeed."""
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "schema": self.ref_schema.id,
+                "properties": {},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+
+class EntityReferenceValidationUpdateTests(BaseTestCase):
+    """Reference validation on entity update (PUT) via EntitySerializer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.target_schema = Schema.objects.create(
+            name="Target", prefix="TGT", schema_type=self.schema_type,
+            columns=[],
+        )
+        self.ref_schema = Schema.objects.create(
+            name="ReferenceSource", prefix="REF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaId": self.target_schema.id,
+            }],
+        )
+        self.open_ref_schema = Schema.objects.create(
+            name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
+            columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_update_reference_matching_schema_succeeds(self):
+        """PUT entity with reference to a target-schema entity passes."""
+        target = Entity.objects.create(
+            name="Target", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        entity = Entity.objects.create(
+            name="Test", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        target2 = Entity.objects.create(
+            name="Target 2", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (updated)",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": target2.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_update_reference_wrong_schema_rejected(self):
+        """PUT entity with wrong-schema reference returns 400."""
+        target = Entity.objects.create(
+            name="Target", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        entity = Entity.objects.create(
+            name="Test", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        other = Entity.objects.create(
+            name="Other", schema=self.open_ref_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (updated)",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": other.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        err = response.data["properties"]["linked_entity"]
+        self.assertIn(other.schema.name, str(err))
+        self.assertIn(self.target_schema.name, str(err))
+
+    def test_update_reference_nonexistent_rejected(self):
+        """PUT entity referencing a nonexistent display_id returns 400."""
+        target = Entity.objects.create(
+            name="Target", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        entity = Entity.objects.create(
+            name="Test", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (updated)",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": "NONEXIST42"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        err = response.data["properties"]["linked_entity"]
+        self.assertIn("does not exist", str(err))
+
+    def test_update_open_reference_accepts_any_valid_display_id(self):
+        """PUT entity with open reference accepts any valid display_id."""
+        entity = Entity.objects.create(
+            name="Test", schema=self.open_ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"any_entity": "OLD42"},
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (updated)",
+                "schema": self.open_ref_schema.id,
+                "properties": {"any_entity": "NEW42"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_update_non_reference_property_unchanged(self):
+        """PUT preserves the schema and still validates reference columns."""
+        # Creating a single target entity that will be used for both
+        # the initial reference and the updated reference.
+        target = Entity.objects.create(
+            name="Only Target", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        entity = Entity.objects.create(
+            name="Test", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (unchanged ref)",
+                "schema": self.ref_schema.id,
+                "properties": {"linked_entity": target.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+
+class EntityDeleteReferentialIntegrityTests(BaseTestCase):
+    """Soft-rejection on entity delete when referenced by other entities."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.target_schema = Schema.objects.create(
+            name="Target", prefix="TGT", schema_type=self.schema_type,
+            columns=[],
+        )
+        self.ref_schema = Schema.objects.create(
+            name="ReferenceSource", prefix="REF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaId": self.target_schema.id,
+            }],
+        )
+        self.open_ref_schema = Schema.objects.create(
+            name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
+            columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.other_ref_schema = Schema.objects.create(
+            name="OtherRef", prefix="OTH", schema_type=self.schema_type,
+            columns=[{"name": "partner", "type": "reference"}],
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_delete_unreferenced_entity_succeeds(self):
+        """Entity with no incoming references deletes normally (204)."""
+        entity = Entity.objects.create(
+            name="Free Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.delete(f"/api/lims/entities/{entity.display_id}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=entity.pk).exists())
+
+    def test_delete_referenced_by_targeted_reference_rejected(self):
+        """409 when a targeted reference column points at the entity."""
+        target = Entity.objects.create(
+            name="Target Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        Entity.objects.create(
+            name="Referencing Entity", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
+        self.assertEqual(response.status_code, 409)
+        detail = str(response.data["detail"])
+        self.assertIn(str(target.display_id), detail)
+        self.assertIn(self.ref_schema.name, detail)
+        self.assertTrue(Entity.objects.filter(pk=target.pk).exists())
+
+    def test_delete_referenced_by_open_reference_rejected(self):
+        """409 when an open reference column (no referenceSchemaId) points
+        at the entity."""
+        target = Entity.objects.create(
+            name="Target Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        Entity.objects.create(
+            name="Open Referencer", schema=self.open_ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"any_entity": target.display_id},
+        )
+        response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
+        self.assertEqual(response.status_code, 409)
+        detail = str(response.data["detail"])
+        self.assertIn(self.open_ref_schema.name, detail)
+        self.assertTrue(Entity.objects.filter(pk=target.pk).exists())
+
+    def test_delete_referenced_by_multiple_schemas_lists_all(self):
+        """409 message includes every schema that references the entity."""
+        target = Entity.objects.create(
+            name="Target Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        Entity.objects.create(
+            name="Ref 1", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        Entity.objects.create(
+            name="Ref 2", schema=self.other_ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"partner": target.display_id},
+        )
+        response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
+        self.assertEqual(response.status_code, 409)
+        detail = str(response.data["detail"])
+        self.assertIn(self.ref_schema.name, detail)
+        self.assertIn(self.other_ref_schema.name, detail)
+
+    def test_delete_succeeds_after_reference_cleared(self):
+        """Delete proceeds after all referencing entities clear their
+        references."""
+        target = Entity.objects.create(
+            name="Target Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        referencer = Entity.objects.create(
+            name="Referencing Entity", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        # Clear the reference
+        referencer.properties["linked_entity"] = None
+        referencer.save(update_fields=["properties"])
+
+        response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
+
+    def test_delete_unrelated_reference_column_schema_not_checked(self):
+        """Schema that has a reference column but no matching values does
+        not block deletion."""
+        target = Entity.objects.create(
+            name="Target Entity", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        # ref_schema has a linked_entity column, but no entity links to target
+        Entity.objects.create(
+            name="Other Referencer", schema=self.ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": "UNRELATED99"},
+        )
+        response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
+        self.assertEqual(response.status_code, 204)
+
+
 # ── Metric API tests ────────────────────────────────────────────────────────
 
 

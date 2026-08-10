@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ModRegistry } from "./ModRegistry";
+import { LoadingScreen } from "../user/LoadingScreen";
 import type { ModManifest } from "./types";
 
 // ── Mod module shape ────────────────────────────────────────────────────
@@ -39,14 +40,28 @@ interface ModLoaderProps {
  *
  * Boot sequence:
  *   1. Auto-discover all mods via glob
- *   2. Import each, read meta -- validate no duplicate IDs
- *   3. Topological sort by dependsOn -- detect cycles, detect missing deps
+ *   2. Import each, read meta — validate no duplicate IDs
+ *   3. Topological sort by dependsOn — detect cycles, detect missing deps
  *   4. Call each mod's register() in sorted order (mods call register*())
- *   5. Validate registry -- all cross-references resolve
- *   6. Render children
+ *   5. Validate registry — all cross-references resolve
+ *   6. Sync action catalog to backend (per-mod POSTs, parallelized),
+ *      then fetch GET /api/mod-registry/ to hydrate icon library,
+ *      color palette, column types, workspaces, and action catalogs
+ *   7. Render children — every icon, color, and column type is correct
+ *      on first paint
  *
- * All errors are terminal (fail-fast) -- they propagate to React's error
- * boundary. No degraded mode.
+ * Hydration is fail-soft: if action sync fails, the registry fetch is
+ * still attempted (icons/colors/column types don't depend on sync); if
+ * the fetch fails, boot proceeds into documented fallbacks (circle
+ * glyph, muted grey).  Failures are logged as warnings and never escape
+ * as unhandled promise rejections.
+ *
+ * While boot is gated (steps 2–6), the branded LoadingScreen is shown
+ * so startup is one continuous branded loading state through session
+ * check, sync boot, and hydration.
+ *
+ * Sync-boot errors are terminal (fail-fast) and propagate to React's
+ * error boundary.  No degraded mode.
  *
  * Manifest precedence: when a mod directory contains both ``index.ts``
  * (with inline ``meta``) and ``modManifest.json``, the JSON file wins
@@ -56,29 +71,28 @@ export function ModLoader({ children }: ModLoaderProps) {
   // Boot runs exactly once on mount.  useRef gate prevents duplicate
   // registration when React StrictMode double-invokes the effect body.
   const didBoot = useRef(false);
-  const [booted, setBooted] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (didBoot.current) return;
     didBoot.current = true;
 
     // Phase 1: Sync boot — manifests, sort, register, validate.
-    // This gates rendering so consumers never see an empty registry.
     bootModSystem(modModules, jsonManifestModules);
-    setBooted(true);
 
-    // Phase 2: Async hydration — fetch backend mod-registry data.
-    // Non-blocking; errors are caught and logged. Workspace icons may
-    // briefly show the Box fallback until hydration completes.
-    void hydrateRegistryFromApi(modModules, jsonManifestModules);
+    // Phase 2: Async hydration — gate on it so consumers never see
+    // fallback icons or colors on first paint.
+    hydrateRegistryFromApi(modModules, jsonManifestModules).finally(() => {
+      setReady(true);
+    });
   }, []);
 
-  // When mods exist, block children until sync boot completes.  This
-  // prevents Layout / Router from rendering with an empty registry on
-  // the first paint (the singleton mutation does not trigger a React
-  // re-render).
   const hasMods = Object.keys(modModules).length > 0;
-  if (hasMods && !booted) return null;
+  // When mods exist, gate children until both sync boot and hydration
+  // (action sync + backend fetch) complete.  Show the branded loading
+  // screen — same one CurrentUserProvider uses during session check —
+  // so startup is one continuous branded loading state.
+  if (hasMods && !ready) return <LoadingScreen />;
 
   return <>{children}</>;
 }
@@ -167,15 +181,17 @@ function bootModSystem(
 // ── Async hydration ────────────────────────────────────────────────────
 
 /**
- * Fetch ``GET /api/mod-registry/`` and hydrate workspace + action catalog
- * data into the registry.
+ * Fetch ``GET /api/mod-registry/`` and hydrate workspace, icon library,
+ * color palette, column type, and action catalog data into the registry.
  *
- * Delegates to {@link ModRegistry.loadFromBackend} so the registry is the
- * single owner of its hydration strategy.
+ * Syncs per-mod action IDs to the backend first (POSTs parallelized via
+ * ``Promise.all``) so the action catalog is fresh when fetched, then
+ * fetches GET /api/mod-registry/ to hydrate all backend-populated stores.
  *
- * Runs asynchronously after synchronous boot so it doesn't block
- * rendering.  Errors are non-fatal — the app boots without hydrated
- * workspaces (sidebar falls back to the Box icon).
+ * Fail-soft: if action sync fails, the registry fetch is still attempted
+ * (icons, colors, column types don't depend on action sync).  If the
+ * fetch fails, boot proceeds into documented fallbacks.  Failures are
+ * logged as warnings and never escape as unhandled rejections.
  */
 async function hydrateRegistryFromApi(
   modules: Record<string, ModModule>,
@@ -193,20 +209,21 @@ async function hydrateRegistryFromApi(
   const registry = ModRegistry.getInstance();
 
   // Step 1: Sync frontend-computed action IDs to the backend so the
-  // action catalog is up-to-date before we fetch it.  Hard-fails on
-  // validation mismatch — boot does not proceed with a stale catalog.
+  // action catalog is up-to-date before we fetch it.  Fail-soft —
+  // icons, colors, and column types don't depend on action sync.
   try {
     await registry.syncActions();
   } catch (err) {
-    console.error(
-      "Action sync to backend failed. Boot cannot proceed with a stale action catalog.",
+    console.warn(
+      "Action sync to backend failed. Boot proceeding with existing action catalog.",
       err,
     );
-    throw err;
   }
 
   // Step 2: Fetch GET /api/mod-registry/ and hydrate workspace +
-  // action catalog data from the backend response.
+  // icon library + color palette + column type + action catalog data
+  // from the backend response.  Fail-soft — boot proceeds with
+  // documented fallback rendering.
   await ModRegistry.loadFromBackend(manifests);
 }
 

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Columns2, Lock, LockOpen } from "lucide-react";
 import type { AvailableColumn } from "../types";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 
 // ── Column definition with visibility & lock metadata ───────────────────
@@ -27,28 +26,19 @@ export interface HubColumn {
 
 // ── Default common columns in display order ─────────────────────────────
 //
-// Icon metadata is sourced from the column type registry at runtime.
-// Each entry's ``type`` maps to a registered ColumnType whose ``icon``
-// token is resolved to a Lucide icon via ``getColumnTypeIcon`` at render
-// time.  See ``EntitiesHub.tsx`` for the header icon rendering.
-
-/** Resolve the icon token for a column type ID from the registry. */
-function resolveColumnIcon(typeId: string): string | null {
-  try {
-    return ModRegistry.getInstance().getColumnType(typeId)?.icon ?? null;
-  } catch {
-    return null;
-  }
-}
+// Icon metadata is resolved at render time from the column type registry
+// (see EntitiesHub.tsx resolveColumnIcon).  The ``icon`` field is seeded
+// as null — ``col.icon ?? ct?.icon`` resolves through to the hydrated
+// column type's icon token.
 
 export const COMMON_COLUMNS: HubColumn[] = [
-  { key: "display_id", label: "ID", source: "common", hideable: false, sortable: false, type: "text", icon: resolveColumnIcon("text"), filterable: true, width: null },
-  { key: "name", label: "Name", source: "common", hideable: true, sortable: true, type: "text", icon: resolveColumnIcon("text"), filterable: true, width: null },
-  { key: "schema_type_id", label: "Schema Type", source: "common", hideable: true, sortable: false, type: "text", icon: resolveColumnIcon("text"), filterable: true, width: null },
-  { key: "status", label: "Status", source: "common", hideable: true, sortable: true, type: "dropdown", icon: resolveColumnIcon("dropdown"), filterable: true, width: null },
-  { key: "author", label: "Author", source: "common", hideable: true, sortable: false, type: "user", icon: resolveColumnIcon("user"), filterable: true, width: null },
-  { key: "created_at", label: "Created", source: "common", hideable: true, sortable: true, type: "datetime", icon: resolveColumnIcon("datetime"), filterable: true, width: null },
-  { key: "updated_at", label: "Updated", source: "common", hideable: true, sortable: true, type: "datetime", icon: resolveColumnIcon("datetime"), filterable: true, width: null },
+  { key: "display_id", label: "ID", source: "common", hideable: false, sortable: false, type: "text", icon: null, filterable: true, width: null },
+  { key: "name", label: "Name", source: "common", hideable: true, sortable: true, type: "text", icon: null, filterable: true, width: null },
+  { key: "schema_type_id", label: "Schema Type", source: "common", hideable: true, sortable: false, type: "text", icon: null, filterable: true, width: null },
+  { key: "status", label: "Status", source: "common", hideable: true, sortable: true, type: "dropdown", icon: null, filterable: true, width: null },
+  { key: "author", label: "Author", source: "common", hideable: true, sortable: false, type: "user", icon: null, filterable: true, width: null },
+  { key: "created_at", label: "Created", source: "common", hideable: true, sortable: true, type: "datetime", icon: null, filterable: true, width: null },
+  { key: "updated_at", label: "Updated", source: "common", hideable: true, sortable: true, type: "datetime", icon: null, filterable: true, width: null },
 ];
 
 /** Keys of columns visible by default. */
@@ -89,7 +79,7 @@ export function buildColumns(
       hideable: true,
       sortable: false, // Properties columns not sortable in v1
       type: col.type,
-      icon: resolveColumnIcon(col.type),
+      icon: null,
       filterable: col.filterable,
       width: col.width,
     };

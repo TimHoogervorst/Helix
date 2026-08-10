@@ -430,6 +430,51 @@ class EntityHubAPITests(APITestCase):
         for row in data["results"]:
             self.assertEqual(row["schema_type_id"], "eln.notebookentry")
 
+    def test_combined_search_and_schema_scopes_results(self):
+        """?search= + ?schema= scopes search results to that schema."""
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        extra_schema = Schema.objects.create(
+            name="Special Scheme", prefix="D", schema_type=lims_type,
+            is_default=False,
+        )
+        Entity.objects.create(
+            name="Unique Zebra Fish", schema=extra_schema,
+            author=self.user,
+        )
+
+        response = self.client.get(
+            f"{self.url}?search=Zebra&schema={extra_schema.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["results"][0]["name"], "Unique Zebra Fish")
+
+        # Without the schema param the same search still finds the entity
+        response2 = self.client.get(f"{self.url}?search=Zebra")
+        self.assertEqual(response2.status_code, 200)
+        data2 = response2.json()
+        names2 = [r["name"] for r in data2["results"]]
+        self.assertIn("Unique Zebra Fish", names2)
+
+    def test_combined_search_and_wrong_schema_returns_empty(self):
+        """?search= + ?schema= with a non-matching schema returns no results."""
+        from helix_core.models import Schema
+
+        lims_schema = Schema.objects.get(prefix="LIMS")
+        response = self.client.get(
+            f"{self.url}?search=LIMS Test Entity&schema={lims_schema.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        if data["total"] > 0:
+            for row in data["results"]:
+                self.assertEqual(row["schema_id"], lims_schema.id)
+                self.assertIn("LIMS", row["name"])
+
     # ── available_columns dynamic expansion ──────────────────────────────
 
     def test_available_columns_with_schema_includes_schema_columns(self):

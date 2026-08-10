@@ -63,6 +63,8 @@ export interface EntityTypeSummary {
     default?: string;
     units?: string;
     description?: string;
+    dropdownId?: number;
+    referenceSchemaId?: number;
   }[];
   is_active: boolean;
   content_hash: string; // SHA-256 of column definitions (#252)

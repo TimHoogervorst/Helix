@@ -140,10 +140,38 @@ describe("ValueInput — dropdown shape", () => {
 // ── Entity-picker shape ────────────────────────────────────────────────────
 
 describe("ValueInput — entity-picker shape", () => {
-  it("renders a text input with Display ID placeholder", () => {
+  it("renders a trigger button with 'Select entity…' when no value", () => {
     setup({ operandShape: "entity-picker" });
-    const input = screen.getByPlaceholderText("Display ID…");
-    expect(input.tagName).toBe("INPUT");
+    const trigger = screen.getByTestId("entity-picker-trigger");
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.textContent).toContain("Select entity");
+  });
+
+  it("shows current value in the trigger button", () => {
+    setup({ operandShape: "entity-picker", value: "DNA42" });
+    const trigger = screen.getByTestId("entity-picker-trigger");
+    expect(trigger.textContent).toContain("DNA42");
+  });
+
+  it("shows a clear button when value is set", () => {
+    setup({ operandShape: "entity-picker", value: "DNA42" });
+    const clearBtn = screen.getByTestId("entity-picker-clear");
+    expect(clearBtn).toBeInTheDocument();
+  });
+
+  it("does not show clear button when value is empty", () => {
+    setup({ operandShape: "entity-picker", value: "" });
+    expect(
+      screen.queryByTestId("entity-picker-clear"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the value when clear button is clicked", () => {
+    const onChange = vi.fn();
+    setup({ operandShape: "entity-picker", value: "DNA42", onChange });
+    const clearBtn = screen.getByTestId("entity-picker-clear");
+    fireEvent.click(clearBtn);
+    expect(onChange).toHaveBeenCalledWith("");
   });
 });
 

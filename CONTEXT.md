@@ -13,7 +13,8 @@
 | **Mod** | A self-contained unit of functionality registered into the Shell. Owns hubs, workspaces, blocks, buttons, settings, routes, and library items. Lives under `src/mods/<id>/` — frontend and backend code together. |
 | **Shell** | The immutable app frame at `src/shell/` (frontend) and `src/server/` (backend): Layout, Router, Mod Loader, Mod Registry, mention resolution, API client, slot resolution. The shell provides the frame; mods provide the content. |
 | **Core Mod** | A built-in mod under `src/mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
-| **Mod Registry** | Central data structure populated at boot by all `register*()` calls. Drives route generation, sidebar nav, hub content, slot resolution, and workspace identity. |
+| **Mod Registry** | Central data structure populated at boot. Has two populations: **registrations** (synchronous `register*()` calls during mod loading — hubs, routes, blocks, slots, settings sections) and **hydrated data** (fetched from `GET /api/mod-registry/` — icon library, color token palette, column types, workspaces, action catalogs). First render is gated until both populations are loaded; no component ever reads an empty registry. The registry is a non-reactive singleton — it must not trigger re-renders. |
+| **Hydration** | The async boot phase that fetches `GET /api/mod-registry/` and populates the registry's backend-sourced stores (icon library, color palette, column types, workspaces, action catalogs). Runs after action sync (per-mod `POST /api/mod-registry/sync-actions/`) so the action catalog is fresh when fetched. Gated — children do not render until hydration resolves or fails. |
 | **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
 | **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
 | **Workspace** | A mod's dedicated work surface for a type of content. The `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Workspaces are backend-declared and frontend-discovered at boot via the mod registry API. Any mod that declares a schema type is automatically discoverable by the mention system and the Tabs (bookmarks) system. Workspace pages are registered separately as frontend routes. |
@@ -326,6 +327,16 @@ A Schema also carries a **Dynamic Icon** and a **Color Token**, chosen by the us
 
 **Synonyms:** blueprint, entity template, data structure
 
+### Reference Column
+
+A schema column of type `"reference"` whose value points at an entity from another schema. Declared with an optional `referenceSchemaId` that constrains the target to a specific Schema — when set, the server validates that referenced entities belong to that schema. When unset, the reference is open to any entity. Values are stored as display-ID strings in the entity's JSON `properties` field.
+
+Reference columns establish **logical links** between schemas — a "parent sample" column on a DNA schema pointing at a Blood schema. The relationship map renders these as edges between schema cards.
+
+A reference column's value is a **soft reference** — no FK constraint. Deleting the target entity leaves a dangling reference; the UI tolerates this (showing a stale indicator) until a full schema-lifecycle system addresses cascading behavior.
+
+**Synonyms:** cross-schema reference, soft reference, entity reference
+
 ### Schema Type
 
 The canonical term for a workspace-registered category that Schemas belong to. Declared by a mod via `register_schema_type()` and recorded in the backend `RegisteredEntityType` table. "Entity Type" is retained as a synonym — both refer to the same concept.
@@ -497,6 +508,8 @@ Action ──▶ NotebookEntry (N:1 — action optionally recorded in an entry)
 EntityType ──▶ Entity (1:N — type classifies many entities)
 RegisteredEntityType ──▶ EntityType (1:1 — registration links an entity type to a workspace)
 RegisteredEntityType ──▶ Workspace (N:1 — registration declares which workspace owns the entity type)
+
+Schema.referenceColumn ──▶ Entity (soft reference via display ID in properties JSON, constrained by referenceSchemaId)
 
 Slot ──▶ BlockBinding | ButtonBinding (1:N — slot resolves to ordered bindings)
 Block ──▶ SlotBinding (M:N — block can be bound into many slots)

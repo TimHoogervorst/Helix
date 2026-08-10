@@ -94,6 +94,8 @@ function toGridColumns(entityType: EntityTypeSummary): GridColumn[] {
     default: c.default,
     units: c.units,
     description: c.description,
+    dropdownId: c.dropdownId,
+    referenceSchemaId: c.referenceSchemaId,
   }));
 }
 
@@ -167,11 +169,11 @@ function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boole
 }
 
 const DOT_COLORS: Record<DotColor, string> = {
-  red: "var(--color-destructive)",
-  yellow: "var(--color-warning)",
-  orange: "var(--color-warning-active)",
-  blue: "var(--color-primary)",
-  green: "var(--color-success)",
+  red: "var(--color-status-red)",
+  yellow: "var(--color-status-yellow)",
+  orange: "var(--color-status-orange)",
+  blue: "var(--color-status-blue)",
+  green: "var(--color-status-green)",
 };
 
 const DOT_LABELS: Record<DotColor, string> = {
@@ -192,6 +194,8 @@ interface EditableCellProps {
   readOnly?: boolean;
   /** Resolved dropdown options for dropdown-type columns. */
   dropdownOptions?: string[];
+  /** Target schema ID for reference columns. */
+  referenceSchemaId?: number;
 }
 
 /** Resolve the operand_shape for a column type string from the registry. */
@@ -240,6 +244,7 @@ function EditableCell({
   onCommit,
   readOnly = false,
   dropdownOptions,
+  referenceSchemaId,
 }: EditableCellProps) {
   const operandShape = resolveOperandShape(columnType);
   const CellEditor: CellEditorComponent = getCellEditor(operandShape);
@@ -253,6 +258,7 @@ function EditableCell({
           value={value}
           onCommit={(v) => onCommit(columnName, v)}
           readOnly
+          referenceSchemaId={referenceSchemaId}
         />
       );
     }
@@ -285,6 +291,7 @@ function EditableCell({
       value={value}
       onCommit={(v) => onCommit(columnName, v)}
       dropdownOptions={dropdownOptions}
+      referenceSchemaId={referenceSchemaId}
     />
   );
 }
@@ -1005,6 +1012,7 @@ export function RegistryTableContent({
                         }
                         readOnly={readOnly}
                         dropdownOptions={dropdownOptionsMap.get(col.name)}
+                        referenceSchemaId={col.referenceSchemaId}
                       />
                     </td>
                   ))}

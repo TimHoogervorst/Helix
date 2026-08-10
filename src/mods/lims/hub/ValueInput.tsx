@@ -16,8 +16,9 @@
  * | none            | No input (e.g. is_empty)|
  */
 
-import { useState, useCallback, type InputHTMLAttributes } from "react";
+import { useState, useCallback, useRef, type InputHTMLAttributes } from "react";
 import { Select } from "../../../shell/src/shared/primitives/Input";
+import { EntityPickerPopover } from "../../../shell/src/shared/components/EntityPickerPopover";
 
 // ── Auto-sizing input ───────────────────────────────────────────────────────
 // Uses a hidden <span> in the same CSS grid cell to measure text width.
@@ -59,6 +60,11 @@ export interface ValueInputProps {
    *  operandShape is "dropdown", renders a multi-select dropdown instead of a
    *  text input. */
   dropdownOptions?: string[];
+  /** ID of the target Schema when the column type is "reference". Scopes the
+   *  entity picker search to entities of that schema. */
+  referenceSchemaId?: number;
+  /** Workspace context for entity search. */
+  workspaceId?: string;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -70,6 +76,8 @@ export function ValueInput({
   disabled = false,
   placeholder = "Value…",
   dropdownOptions,
+  referenceSchemaId,
+  workspaceId,
 }: ValueInputProps) {
   switch (operandShape) {
     case "text":
@@ -166,16 +174,12 @@ export function ValueInput({
 
     case "entity-picker":
       return (
-        <AutoSizeInput
-          className="entities-filter-search"
-          sizerText={value || "Display ID…"}
-          inputProps={{
-            type: "text",
-            placeholder: "Display ID…",
-            value,
-            onChange: (e) => onChange(e.target.value),
-            disabled,
-          }}
+        <EntityPickerFilter
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          referenceSchemaId={referenceSchemaId}
+          workspaceId={workspaceId}
         />
       );
 
@@ -274,5 +278,73 @@ function RangeInput({
         }}
       />
     </div>
+  );
+}
+
+// ── Entity Picker Filter ──────────────────────────────────────────────────
+
+function EntityPickerFilter({
+  value,
+  onChange,
+  disabled = false,
+  referenceSchemaId,
+  workspaceId,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  referenceSchemaId?: number;
+  workspaceId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const handleSelect = useCallback(
+    (displayId: string) => {
+      onChange(displayId);
+    },
+    [onChange],
+  );
+
+  const handleClear = useCallback(() => {
+    onChange("");
+  }, [onChange]);
+
+  const handleToggle = useCallback(() => {
+    if (!disabled) setOpen((prev) => !prev);
+  }, [disabled]);
+
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 2 }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="entities-filter-pill-field"
+        onClick={handleToggle}
+        disabled={disabled}
+        data-testid="entity-picker-trigger"
+      >
+        {value || "Select entity\u2026"}
+      </button>
+      {!disabled && value && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="entities-filter-pill-remove"
+          title="Clear"
+          aria-label="Clear entity"
+          data-testid="entity-picker-clear"
+        >
+          ×
+        </button>
+      )}
+      <EntityPickerPopover
+        referenceSchemaId={referenceSchemaId}
+        workspaceId={workspaceId}
+        open={open}
+        onOpenChange={setOpen}
+        onSelect={handleSelect}
+      />
+    </span>
   );
 }

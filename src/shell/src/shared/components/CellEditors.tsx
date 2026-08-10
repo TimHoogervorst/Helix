@@ -14,7 +14,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Loader,
   Type,
   Hash,
   Calendar,
@@ -27,8 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useClickOutside } from "../hooks/useClickOutside";
-import { get } from "../../api/client";
-import MentionBadge from "./MentionBadge";
+import { EntityPickerPopover } from "./EntityPickerPopover";
 
 // ── Shared props ────────────────────────────────────────────────────────────
 
@@ -44,6 +42,11 @@ export interface CellEditorProps {
   /** Dropdown options for dropdown-type cells. When provided, the cell renders
    *  as a popover picker. When omitted or empty, falls back to text editing. */
   dropdownOptions?: string[];
+  /** ID of the target Schema when the column type is "reference". Scopes the
+   *  entity picker search to entities of that schema. */
+  referenceSchemaId?: number;
+  /** Workspace context for the consuming cell (e.g. "eln", "lims"). */
+  workspaceId?: string;
 }
 
 /** Signature of a cell editor React component. */
@@ -222,83 +225,52 @@ function BooleanCell({ value, onCommit }: CellEditorProps) {
 
 // ── Reference Cell ─────────────────────────────────────────────────────────
 
-interface SearchResult {
-  display_id: string;
-  title: string;
-  type: string;
-  icon: string;
-  workspaceId: string | null;
-}
-
 function ReferenceCell({
   value,
   onCommit,
   readOnly = false,
+  referenceSchemaId,
+  workspaceId,
 }: CellEditorProps) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // ── Close on outside click ────────────────────────────────────────────
-  useClickOutside([triggerRef, popoverRef], () => setOpen(false), open);
-
-  // ── Focus input when popover opens ────────────────────────────────────
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      setQuery("");
-      setResults([]);
-    }
-  }, [open]);
-
-  // ── Search entities as user types ─────────────────────────────────────
-  const handleSearch = useCallback(async (q: string) => {
-    setQuery(q);
-    if (q.trim().length < 1) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await get<SearchResult[]>(
-        `/lims/entities/?search=${encodeURIComponent(q)}`,
-      );
-      setResults(data.slice(0, 10));
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ── Select an entity ──────────────────────────────────────────────────
   const handleSelect = useCallback(
     (displayId: string) => {
-      onCommit(displayId);
-      setOpen(false);
+      if (!readOnly) {
+        onCommit(displayId);
+      }
     },
-    [onCommit],
+    [onCommit, readOnly],
   );
 
-  // ── Clear the reference ───────────────────────────────────────────────
   const handleClear = useCallback(() => {
     onCommit("");
-    setOpen(false);
   }, [onCommit]);
+
+  const handlePick = useCallback(() => {
+    setOpen(true);
+  }, []);
 
   return (
     <div className="relative inline-flex items-center gap-1 px-4 py-2">
       {Boolean(value) ? (
-        <div className="flex items-center gap-1">
-          <MentionBadge displayId={value as string} clickable />
+        <div className="group flex items-center gap-1">
+          <button
+            ref={buttonRef}
+            type="button"
+            className="reference-badge is-nonclickable border-none cursor-pointer hover:brightness-95 appearance-none"
+            onClick={handlePick}
+            title={readOnly ? `Go to ${value}` : "Change reference"}
+            aria-label={readOnly ? `Go to ${value}` : "Change reference"}
+            data-testid="ref-edit-btn"
+          >
+            <span className="ref-badge-id">{value as string}</span>
+          </button>
           {!readOnly && (
             <button
               type="button"
-              className="text-muted-foreground hover:text-destructive text-xs leading-none px-0.5"
+              className="opacity-0 group-hover:opacity-100 border-0 bg-transparent text-muted-foreground hover:text-destructive text-xs leading-none px-0.5 transition-opacity"
               onClick={handleClear}
               title="Clear reference"
               aria-label="Clear reference"
@@ -311,7 +283,7 @@ function ReferenceCell({
       ) : (
         !readOnly && (
           <button
-            ref={triggerRef}
+            ref={buttonRef}
             type="button"
             className="bg-transparent border-transparent text-xs text-muted-foreground italic px-1 py-0.5 rounded hover:bg-muted hover:text-muted-foreground"
             onClick={() => setOpen(true)}
@@ -322,77 +294,14 @@ function ReferenceCell({
         )
       )}
 
-      {/* ── Popover — portaled to body ────────────────────────────────── */}
-      {open &&
-        createPortal(
-          <div
-            ref={popoverRef}
-            className="z-50 w-72 rounded-md border border-hairline bg-popover shadow-lg"
-            style={{
-              position: "fixed",
-              top:
-                (triggerRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-              left: triggerRef.current?.getBoundingClientRect().left ?? 0,
-            }}
-            data-testid="ref-popover"
-          >
-            <div className="p-2 border-b border-hairline">
-              <input
-                ref={inputRef}
-                type="text"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                placeholder="Search entities…"
-                value={query}
-                onChange={(e) => handleSearch(e.target.value)}
-                data-testid="ref-search-input"
-              />
-            </div>
-            <div className="max-h-48 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-                  <Loader className="h-4 w-4 animate-spin" />
-                  Searching…
-                </div>
-              ) : results.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">
-                  {query.length > 0
-                    ? "No entities found."
-                    : "Type to search entities."}
-                </div>
-              ) : (
-                results.map((r) => (
-                  <button
-                    key={r.display_id}
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-surface/60 transition-colors first:rounded-t-md last:rounded-b-md"
-                    onClick={() => handleSelect(r.display_id)}
-                    data-testid={`ref-result-${r.display_id}`}
-                  >
-                    <span className="font-medium">{r.display_id}</span>
-                    {r.title && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {r.title}
-                      </span>
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-            {Boolean(value) && (
-              <div className="border-t border-hairline p-1">
-                <button
-                  type="button"
-                  className="w-full text-left px-2 py-1 text-xs text-destructive hover:bg-surface/60 rounded"
-                  onClick={handleClear}
-                  data-testid="ref-clear-option"
-                >
-                  Clear reference
-                </button>
-              </div>
-            )}
-          </div>,
-          document.body,
-        )}
+      <EntityPickerPopover
+        referenceSchemaId={referenceSchemaId}
+        workspaceId={workspaceId}
+        open={open}
+        onOpenChange={setOpen}
+        onSelect={handleSelect}
+        anchorRef={buttonRef}
+      />
     </div>
   );
 }

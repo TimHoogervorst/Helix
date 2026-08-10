@@ -169,11 +169,11 @@ function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boole
 }
 
 const DOT_COLORS: Record<DotColor, string> = {
-  red: "var(--color-destructive)",
-  yellow: "var(--color-warning)",
-  orange: "var(--color-warning-active)",
-  blue: "var(--color-primary)",
-  green: "var(--color-success)",
+  red: "var(--color-status-red)",
+  yellow: "var(--color-status-yellow)",
+  orange: "var(--color-status-orange)",
+  blue: "var(--color-status-blue)",
+  green: "var(--color-status-green)",
 };
 
 const DOT_LABELS: Record<DotColor, string> = {

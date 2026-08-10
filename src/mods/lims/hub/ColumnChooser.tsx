@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Columns2, Lock, LockOpen } from "lucide-react";
 import type { AvailableColumn } from "../types";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 
 // ── Column definition with visibility & lock metadata ───────────────────
@@ -31,15 +30,6 @@ export interface HubColumn {
 // (see EntitiesHub.tsx resolveColumnIcon).  The ``icon`` field is seeded
 // as null — ``col.icon ?? ct?.icon`` resolves through to the hydrated
 // column type's icon token.
-
-/** Resolve the icon token for a column type ID from the registry. */
-function resolveColumnIcon(typeId: string): string | null {
-  try {
-    return ModRegistry.getInstance().getColumnType(typeId)?.icon ?? null;
-  } catch {
-    return null;
-  }
-}
 
 export const COMMON_COLUMNS: HubColumn[] = [
   { key: "display_id", label: "ID", source: "common", hideable: false, sortable: false, type: "text", icon: null, filterable: true, width: null },
@@ -89,7 +79,7 @@ export function buildColumns(
       hideable: true,
       sortable: false, // Properties columns not sortable in v1
       type: col.type,
-      icon: resolveColumnIcon(col.type),
+      icon: null,
       filterable: col.filterable,
       width: col.width,
     };

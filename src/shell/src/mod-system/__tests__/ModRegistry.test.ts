@@ -1641,5 +1641,62 @@ describe("ModRegistry", () => {
       expect(actionMap.get("eln.table.edited")).toBe("edited");
       expect(actionMap.get("eln.table.deleted")).toBe("deleted");
     });
+
+    it("fires all per-mod POSTs concurrently before any resolves", async () => {
+      registry.declareSlot({
+        id: "eln.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+      registry.declareSlot({
+        id: "lims.editor",
+        accepts: "block",
+        renderer: TipTapRenderer,
+        layout: "vertical",
+        order: 0,
+        defaults: {},
+      });
+
+      registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
+      registry.registerBlock(makeBlockRegistration({ id: "lims.sample" }));
+      registry.registerIntoSlot("eln.editor", "eln.table");
+      registry.registerIntoSlot("lims.editor", "lims.sample");
+
+      let resolveEln: (value: Response) => void;
+      let resolveLims: (value: Response) => void;
+      const elnPromise = new Promise<Response>((r) => {
+        resolveEln = r;
+      });
+      const limsPromise = new Promise<Response>((r) => {
+        resolveLims = r;
+      });
+
+      let callCount = 0;
+      fetchSpy.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return elnPromise;
+        return limsPromise;
+      });
+
+      const syncPromise = registry.syncActions();
+
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      resolveEln!({
+        ok: true,
+        json: () => Promise.resolve({ status: "ok" }),
+      } as Response);
+      resolveLims!({
+        ok: true,
+        json: () => Promise.resolve({ status: "ok" }),
+      } as Response);
+
+      await syncPromise;
+    });
   });
 });

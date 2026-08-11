@@ -9,6 +9,7 @@ import {
   AlignJustify,
   Folder,
   ArrowUp,
+  Share2,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem, LibraryProjectItem } from "../types";
 import type { Project } from "../../access/types";
@@ -54,6 +55,11 @@ function folderToEntryShape(folder: {
   name: string;
   parent: number | null;
   created_at: string;
+  is_shared?: boolean;
+  source_project_id?: number;
+  source_project_name?: string;
+  source_project_icon?: string;
+  source_project_color?: string;
 }): LibraryEntryItem {
   return {
     type: "entry",
@@ -63,13 +69,21 @@ function folderToEntryShape(folder: {
     title: folder.name,
     folder: folder.parent,
     folder_name: null,
-    author_username: null,
-    author_info: null,
+    author_username: folder.source_project_name ?? null,
+    author_info: folder.is_shared
+      ? {
+          id: folder.source_project_id ?? 0,
+          username: folder.source_project_name ?? "Unknown Project",
+          first_name: "",
+          last_name: "",
+          color: folder.source_project_color ?? "#666",
+        }
+      : null,
     status: "",
     description: "",
     tags: [],
     editors: [],
-    icon: "folder",
+    icon: folder.is_shared ? "" : "folder",
     color: "warn",
     samples_count: null,
     attachments_count: null,
@@ -484,17 +498,19 @@ function LibraryHub() {
   const renderCard = (item: LibraryItem) => {
     if (item.type === "folder") {
       const adapted = folderToEntryShape(item);
+      const isShared = !!item.is_shared;
       return (
         <BaseCard
           key={`folder-${item.id}`}
           item={adapted}
           viewMode={viewMode}
           isSelected={data.selectedId === item.id}
-          iconKey="folder"
+          iconKey={isShared ? "" : "folder"}
           colorKey="warn"
           showDescription={false}
           showTags={false}
           showUpdatedAt={false}
+          Icon={isShared ? Share2 : undefined}
           onClick={() => handleCardClick(item)}
         />
       );

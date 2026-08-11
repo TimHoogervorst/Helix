@@ -579,4 +579,104 @@ describe("LibraryHub", () => {
       expect(screen.getByText("SELECTION")).toBeInTheDocument();
     });
   });
+
+  // ── Shared folders ───────────────────────────────────────────────
+
+  it("renders shared folder with dedicated icon and source project name in card", async () => {
+    const sharedResponse = makeLibraryContents(
+      [
+        makeLibraryFolder({
+          id: 1,
+          name: "Shared Protocols",
+          is_shared: true,
+          source_project_id: 2,
+          source_project_name: "Source Lab",
+          source_project_icon: "flask",
+          source_project_color: "crimson",
+        }),
+        makeLibraryFolder({ id: 2, name: "Experiments" }),
+      ],
+      [],
+      {
+        project_uid: "proj-001",
+        project_name: "Test Project",
+        project_is_archived: false,
+      },
+    );
+    mockGetLibraryContents.mockResolvedValue(sharedResponse);
+    renderLibrary("/library?project=proj-001");
+    await waitFor(() => {
+      expect(screen.getByText("Shared Protocols")).toBeInTheDocument();
+      expect(screen.getByText("Source Lab")).toBeInTheDocument();
+    });
+  });
+
+  it("navigates into shared folder by path-based URL", async () => {
+    mockGetLibraryContents.mockResolvedValue(
+      makeLibraryContents(
+        [makeLibraryFolder({ id: 3, name: "Nested Child" })],
+        [],
+        {
+          project_uid: "proj-001",
+          project_name: "Test Project",
+          project_is_archived: false,
+        },
+      ),
+    );
+    renderLibrary("/library?project=proj-001&path=/SharedFolder");
+    await waitFor(() => {
+      expect(mockGetLibraryContents).toHaveBeenCalledWith(
+        "proj-001",
+        "/SharedFolder",
+        undefined,
+      );
+    });
+  });
+
+  it("shows plain folder name in breadcrumb for shared folders", async () => {
+    mockGetLibraryContents.mockResolvedValue(
+      makeLibraryContents(
+        [makeLibraryFolder({ id: 3, name: "Child" })],
+        [],
+        {
+          project_uid: "proj-001",
+          project_name: "Test Project",
+          project_is_archived: false,
+        },
+      ),
+    );
+    renderLibrary("/library?project=proj-001&path=/SharedFolder");
+    await waitFor(() => {
+      expect(screen.getByText("SharedFolder")).toBeInTheDocument();
+      expect(screen.getByText("Test Project")).toBeInTheDocument();
+    });
+  });
+
+  it("renders shared folders sorted alphabetically among owned folders", async () => {
+    const mixedResponse = makeLibraryContents(
+      [
+        makeLibraryFolder({ id: 1, name: "A Folder" }),
+        makeLibraryFolder({
+          id: 2,
+          name: "B Shared",
+          is_shared: true,
+          source_project_name: "Source",
+        }),
+        makeLibraryFolder({ id: 3, name: "C Owned" }),
+      ],
+      [],
+      {
+        project_uid: "proj-001",
+        project_name: "Test Project",
+        project_is_archived: false,
+      },
+    );
+    mockGetLibraryContents.mockResolvedValue(mixedResponse);
+    renderLibrary("/library?project=proj-001");
+    await waitFor(() => {
+      expect(screen.getByText("A Folder")).toBeInTheDocument();
+      expect(screen.getByText("B Shared")).toBeInTheDocument();
+      expect(screen.getByText("C Owned")).toBeInTheDocument();
+    });
+  });
 });

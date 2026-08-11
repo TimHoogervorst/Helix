@@ -6,7 +6,7 @@ from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
 from mods.eln.models import NotebookEntry
 from mods.tags.models import Tag
-from mods.access.models import Grant, ProjectRole, Organization, OrganizationMembership, OrganizationRole
+from mods.access.models import Grant, ProjectRole, Organization, OrganizationMembership, OrganizationRole, FolderShare, ShareLevel
 
 
 class LibraryApiTests(BaseTestCase):
@@ -367,6 +367,177 @@ class LibraryApiTests(BaseTestCase):
         ).delete()
         response = self.client.get(self._url())
         self.assertEqual(response.status_code, 404)
+
+    # ── Shared folders ───────────────────────────────────────────────
+
+    def test_shared_folders_appear_at_target_root(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=source_root, project=source_project,
+        )
+        target_project = self.project
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=target_project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        shared = [r for r in response.data["results"] if r.get("is_shared")]
+        self.assertEqual(len(shared), 1)
+        self.assertEqual(shared[0]["name"], "SrcFolder")
+        self.assertEqual(shared[0]["type"], "folder")
+        self.assertTrue(shared[0]["is_shared"])
+        self.assertEqual(shared[0]["source_project_name"], "Source")
+
+    def test_shared_folders_not_in_subfolders(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=source_root, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&path=/Experiments",
+        )
+        self.assertEqual(response.status_code, 200)
+        shared = [r for r in response.data["results"] if r.get("is_shared")]
+        self.assertEqual(len(shared), 0)
+
+    def test_navigate_into_shared_folder(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=source_root, project=source_project,
+        )
+        source_child = Folder.objects.create(
+            name="Child", parent=source_folder, project=source_project,
+        )
+        source_entry = NotebookEntry.objects.create(
+            name="Shared Entry",
+            content=EMPTY_DOC,
+            folder=source_child,
+            project=source_project,
+            author=self.user,
+            schema=self.schema,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&path=/SrcFolder",
+        )
+        self.assertEqual(response.status_code, 200)
+        folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
+        self.assertIn("Child", folder_names)
+
+    def test_navigate_into_shared_subfolder(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=source_root, project=source_project,
+        )
+        source_child = Folder.objects.create(
+            name="Child", parent=source_folder, project=source_project,
+        )
+        source_entry = NotebookEntry.objects.create(
+            name="Deep Entry",
+            content=EMPTY_DOC,
+            folder=source_child,
+            project=source_project,
+            author=self.user,
+            schema=self.schema,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&path=/SrcFolder/Child",
+        )
+        self.assertEqual(response.status_code, 200)
+        entry_titles = [r["title"] for r in response.data["results"] if r["type"] == "entry"]
+        self.assertIn("Deep Entry", entry_titles)
+
+    def test_shared_folders_sort_alphabetically_with_owned(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        Folder.objects.create(
+            name="B Shared", parent=source_root, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=Folder.objects.get(name="B Shared", project=source_project),
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(self._url())
+        folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
+        sorted_names = sorted(folder_names, key=str.lower)
+        self.assertEqual(folder_names, sorted_names)
+
+    def test_search_covers_shared_subtree_at_root(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        source_folder = Folder.objects.create(
+            name="UniqueShare", parent=source_root, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&search=Unique"
+        )
+        self.assertEqual(response.status_code, 200)
+        folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
+        self.assertIn("UniqueShare", folder_names)
+
+    def test_search_excludes_shared_when_not_matching(self):
+        source_project = Project.objects.create(name="Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=source_root, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&search=ZZZDoesNotExist"
+        )
+        shared = [r for r in response.data["results"] if r.get("is_shared")]
+        self.assertEqual(len(shared), 0)
 
 
 class AccessibleProjectsApiTests(BaseTestCase):

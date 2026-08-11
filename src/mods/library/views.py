@@ -40,18 +40,41 @@ def _resolve_project(project_uid: str) -> Project:
 def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | None:
     """Resolve a ``/``-separated path beneath *project*'s hidden root.
 
-    Returns ``None`` for the project root (hidden root folder).
-    Raises ``Http404`` if any segment does not match an existing folder
-    belonging to *project*.
+    Returns the hidden root folder for an empty path.
+    Raises ``Http404`` if any segment does not match an existing folder.
+
+    The first segment at the target project root may resolve to a shared
+    folder from a different project.  Once inside a shared folder the
+    remaining segments are resolved from the source project's foldertree.
     """
+    from mods.access.models import FolderShare
+
     if not path_str or path_str == "/":
         return project.folders.get(parent__isnull=True)
 
     segments = [s for s in path_str.strip("/").split("/") if s]
     parent = project.folders.get(parent__isnull=True)
-    for segment in segments:
+
+    for i, segment in enumerate(segments):
+        if parent.is_hidden_root:
+            try:
+                folder = Folder.objects.get(
+                    parent=parent, name=segment, project=project,
+                )
+                parent = folder
+                continue
+            except Folder.DoesNotExist:
+                share = FolderShare.objects.filter(
+                    target_project=project,
+                    source_folder__name=segment,
+                ).select_related("source_folder").first()
+                if share:
+                    parent = share.source_folder
+                    continue
+                raise Http404(f"Folder not found: {path_str}")
+
         try:
-            folder = Folder.objects.get(parent=parent, name=segment, project=project)
+            folder = Folder.objects.get(parent=parent, name=segment)
             parent = folder
         except Folder.DoesNotExist:
             raise Http404(f"Folder not found: {path_str}")
@@ -144,7 +167,7 @@ class LibraryContentsView(APIView):
 
         # ── Folders ──────────────────────────────────────────────────
         folders_qs = Folder.objects.filter(
-            parent=folder, project=project,
+            parent=folder,
         ).exclude(parent__isnull=True).order_by("name")
 
         if is_at_root:
@@ -155,7 +178,7 @@ class LibraryContentsView(APIView):
         # ── Entries ──────────────────────────────────────────────────
         entries_qs = (
             apps.get_model("eln", "NotebookEntry")
-            .objects.filter(folder=folder, project=project)
+            .objects.filter(folder=folder)
             .select_related("author", "folder", "schema")
             .prefetch_related("tags")
             .order_by("-created_at")

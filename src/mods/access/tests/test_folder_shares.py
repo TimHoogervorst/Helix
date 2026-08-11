@@ -441,6 +441,48 @@ class FolderShareApiTests(TestCase):
         response = self.client.get(self._shares_url)
         self.assertEqual(len(response.data), 0)
 
+    # ── name collision rejection (API level) ──────────────────────────────
+
+    def test_create_share_rejects_name_collision_with_existing_share(self):
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=self.project_b,
+            level=ShareLevel.READ,
+        )
+        third_project = _make_project_with_root("Third Project")
+        duplicate_name = _add_child_folder(third_project, "Shared Folder")
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            self._shares_url,
+            {"source_folder": duplicate_name.pk, "level": "read"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_share_rejects_name_collision_with_own_root_child(self):
+        _add_child_folder(self.project_b, "Conflicting")
+        third_project = _make_project_with_root("Third Project")
+        source = _add_child_folder(third_project, "Conflicting")
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            self._shares_url,
+            {"source_folder": source.pk, "level": "read"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_share_allows_different_name_no_collision(self):
+        _add_child_folder(self.project_b, "Existing")
+        third_project = _make_project_with_root("Third Project")
+        source = _add_child_folder(third_project, "Different Name")
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            self._shares_url,
+            {"source_folder": source.pk, "level": "read"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 # ── shared access policy intersection tests ────────────────────────────────
 

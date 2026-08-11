@@ -11,5 +11,5 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Folder)
 class FolderAdmin(admin.ModelAdmin):
-    list_display = ["name", "parent", "created_at"]
+    list_display = ["name", "project", "parent", "created_at"]
     search_fields = ["name"]

@@ -18,10 +18,37 @@ export interface Person {
   created_at: string;
 }
 
+export interface TeamMember {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  color: string;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  icon_key: string;
+  color_key: string;
+  members: TeamMember[];
+  blocked_from_deletion: boolean;
+}
+
 export interface AccessPolicy {
   id: string;
   core_action: string;
   resource: string;
   resource_label: string;
   required_level: string;
+}
+
+export interface Project {
+  id: number;
+  uid: string;
+  name: string;
+  icon_key: string;
+  color_key: string;
+  is_archived: boolean;
+  created_at: string;
 }

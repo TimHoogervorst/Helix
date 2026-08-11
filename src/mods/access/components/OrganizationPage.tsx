@@ -3,8 +3,8 @@ import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
 import { Avatar, getInitials } from "../../../shell/src/user/Avatar";
 import { Button } from "../../../shell/src/shared/primitives/Button";
-import { fetchOrganization, fetchPeople, fetchPolicies, updateOrganization } from "../api";
-import type { AccessPolicy, Organization, Person } from "../types";
+import { fetchOrganization, fetchPeople, fetchPolicies, fetchTeams, updateOrganization } from "../api";
+import type { AccessPolicy, Organization, Person, Team } from "../types";
 import { Pencil, Check, X } from "lucide-react";
 
 const CORE_ACTION_LABELS: Record<string, string> = {
@@ -27,6 +27,7 @@ export default function OrganizationPage() {
   const { user } = useCurrentUser();
   const [org, setOrg] = useState<Organization | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [policies, setPolicies] = useState<AccessPolicy[]>([]);
   const [activeTab, setActiveTab] = useState("people");
   const [loading, setLoading] = useState(true);
@@ -42,13 +43,15 @@ export default function OrganizationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [orgData, peopleData, policiesData] = await Promise.all([
+      const [orgData, peopleData, teamsData, policiesData] = await Promise.all([
         fetchOrganization(),
         fetchPeople(),
+        fetchTeams(),
         fetchPolicies(),
       ]);
       setOrg(orgData);
       setPeople(peopleData);
+      setTeams(teamsData);
       setPolicies(policiesData);
     } catch (err) {
       setError("Failed to load organization data.");
@@ -78,6 +81,7 @@ export default function OrganizationPage() {
   }
 
   const isAdmin = user?.organization_role === "admin";
+  const currentUserId = user?.id;
 
   const handleEdit = () => {
     setDraft({
@@ -101,6 +105,13 @@ export default function OrganizationPage() {
       // keep editing state on failure
     }
   };
+
+  const yourTeams = teams.filter((team) =>
+    team.members.some((m) => m.id === currentUserId),
+  );
+  const otherTeams = teams.filter(
+    (team) => !team.members.some((m) => m.id === currentUserId),
+  );
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -183,6 +194,7 @@ export default function OrganizationPage() {
         <TabBar
           tabs={[
             { id: "people", label: "People" },
+            { id: "teams", label: "Teams" },
             { id: "policies", label: "Access Policies" },
           ]}
           activeTab={activeTab}
@@ -227,6 +239,36 @@ export default function OrganizationPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {activeTab === "teams" && (
+          <div className="space-y-8">
+            {yourTeams.length > 0 && (
+              <div>
+                <h2 className="mb-4 text-lg font-semibold text-[var(--color-ink)]">
+                  Your Teams
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {yourTeams.map((team) => renderTeamCard(team))}
+                </div>
+              </div>
+            )}
+            {otherTeams.length > 0 && (
+              <div>
+                <h2 className="mb-4 text-lg font-semibold text-[var(--color-ink)]">
+                  Other Teams
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {otherTeams.map((team) => renderTeamCard(team))}
+                </div>
+              </div>
+            )}
+            {teams.length === 0 && (
+              <p className="text-sm text-[var(--color-ink-muted-foreground)]">
+                No Teams have been created yet.
+              </p>
+            )}
           </div>
         )}
 
@@ -284,6 +326,52 @@ export default function OrganizationPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function renderTeamCard(team: Team) {
+  return (
+    <div
+      key={team.id}
+      className="rounded-lg border border-hairline bg-panel p-3"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-sm font-medium text-[var(--color-ink)]">
+          {team.name}
+        </span>
+      </div>
+      {team.members.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {team.members.map((member) => {
+            const displayName =
+              member.first_name || member.last_name
+                ? `${member.first_name} ${member.last_name}`.trim()
+                : member.username;
+            return (
+              <span
+                key={member.id}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--color-panel-subtle)] px-2 py-0.5 text-xs text-[var(--color-ink)]"
+              >
+                <Avatar
+                  initials={getInitials({
+                    first_name: member.first_name,
+                    last_name: member.last_name,
+                    username: member.username,
+                  })}
+                  color={member.color}
+                  size="sm"
+                />
+                {displayName}
+              </span>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-[var(--color-ink-muted-foreground)]">
+          No members
+        </p>
+      )}
     </div>
   );
 }

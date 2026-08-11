@@ -1,5 +1,5 @@
-import { get, patch } from "../../shell/src/api/client";
-import type { AccessPolicy, Organization, Person } from "./types";
+import { get, patch, post, del } from "../../shell/src/api/client";
+import type { AccessPolicy, Organization, Person, Project, Team } from "./types";
 
 export function fetchOrganization(): Promise<Organization> {
   return get<Organization>("/access/organization/");
@@ -17,4 +17,65 @@ export function fetchPeople(): Promise<Person[]> {
 
 export function fetchPolicies(): Promise<AccessPolicy[]> {
   return get<AccessPolicy[]>("/access/policies/");
+}
+
+export function fetchTeams(): Promise<Team[]> {
+  return get<Team[]>("/access/teams/");
+}
+
+export function fetchTeam(id: number): Promise<Team> {
+  return get<Team>(`/access/teams/${id}/`);
+}
+
+export function createTeam(
+  data: { name: string; icon_key?: string; color_key?: string },
+): Promise<Team> {
+  return post<Team>("/access/teams/", data);
+}
+
+export function updateTeam(
+  id: number,
+  data: Partial<Pick<Team, "name" | "icon_key" | "color_key">>,
+): Promise<Team> {
+  return patch<Team>(`/access/teams/${id}/`, data);
+}
+
+export function deleteTeam(id: number): Promise<void> {
+  return del<void>(`/access/teams/${id}/`);
+}
+
+export function addTeamMember(teamId: number, userId: number): Promise<Team> {
+  return post<Team>(`/access/teams/${teamId}/add_member/`, { user_id: userId });
+}
+
+export function removeTeamMember(teamId: number, userId: number): Promise<Team> {
+  return post<Team>(`/access/teams/${teamId}/remove_member/`, { user_id: userId });
+}
+
+export function fetchProjects(
+  includeArchived?: boolean,
+): Promise<Project[]> {
+  const params = includeArchived ? "?include_archived=1" : "";
+  return get<Project[]>(`/access/projects/${params}`);
+}
+
+export function fetchProject(id: number): Promise<Project> {
+  return get<Project>(`/access/projects/${id}/`);
+}
+
+export function createProject(
+  data: { name: string; icon_key?: string; color_key?: string },
+): Promise<Project> {
+  return post<Project>("/access/projects/", data);
+}
+
+export function updateProject(
+  id: number,
+  data: Partial<Pick<Project, "name" | "icon_key" | "color_key" | "is_archived">>,
+): Promise<Project> {
+  return patch<Project>(`/access/projects/${id}/`, data);
+}
+
+export function deleteProject(id: number): Promise<void> {
+  return del<void>(`/access/projects/${id}/`);
 }

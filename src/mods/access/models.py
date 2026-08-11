@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -29,6 +30,50 @@ class Organization(models.Model):
                 "Only one Organization may exist per deployment."
             )
         super().save(*args, **kwargs)
+
+
+class Team(models.Model):
+    """A named collection of Users within the Organization.
+
+    Wraps a Django Group one-to-one for canonical membership storage.
+    There is no Team Admin role — only Organization Admins can mutate
+    Teams or their membership.
+    """
+
+    _policy_resource_category = "organization_admin"
+
+    group = models.OneToOneField(
+        Group,
+        on_delete=models.PROTECT,
+        related_name="team",
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="teams",
+    )
+    icon_key = models.CharField(max_length=100, blank=True, default="")
+    color_key = models.CharField(max_length=100, blank=True, default="")
+
+    class Meta:
+        db_table = "access_team"
+
+    def __str__(self):
+        return self.group.name if self.group_id else f"Team {self.pk}"
+
+    @property
+    def name(self):
+        return self.group.name if self.group_id else ""
+
+    @property
+    def blocked_from_deletion(self) -> bool:
+        """Reserved for Grant slice — returns ``False`` until Grants exist.
+
+        When Grants reference Teams, this property will check whether the
+        Team is referenced by any active Grant.  Deletion should be blocked
+        while ``blocked_from_deletion`` is ``True``.
+        """
+        return False
 
 
 class OrganizationMembership(models.Model):

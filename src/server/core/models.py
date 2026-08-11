@@ -1,6 +1,8 @@
 import random
+import uuid
 
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 
 # 8-color palette for avatar backgrounds — randomly assigned at user creation
@@ -56,13 +58,24 @@ class CoreSetting(models.Model):
 
 
 class Project(models.Model):
-    """Placeholder project model — groups folders, entries, and entities.
+    """First-class container owning one hidden root Folder and every Entry
+    and Entity within it.
 
-    This is a minimal placeholder.  Full project membership and permission
-    logic will be added in a future iteration (see issue #297).
+    Projects are the access boundary of the system — all permissions are
+    expressed as Grants on Projects.  Only Organization Admins create,
+    rename, archive, restore, recolor, or re-icon Projects.
+
+    The ``uid`` is the immutable generated ID used in URLs; renaming a
+    Project keeps its UID stable.
     """
 
+    _policy_resource_category = "organization_admin"
+
+    uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField(max_length=255)
+    icon_key = models.CharField(max_length=100, blank=True, default="")
+    color_key = models.CharField(max_length=100, blank=True, default="")
+    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -74,7 +87,13 @@ class Project(models.Model):
 
 
 class Folder(models.Model):
-    """Hierarchical folder for organizing entries and entities."""
+    """Hierarchical folder for organizing entries and entities.
+
+    Every Folder belongs to exactly one Project.  The Folder whose
+    ``parent`` is ``None`` within a given Project is the hidden root —
+    it exists for data integrity and is never surfaced as ordinary user
+    content.
+    """
 
     name = models.CharField(max_length=255)
     parent = models.ForeignKey(
@@ -84,11 +103,43 @@ class Folder(models.Model):
         blank=True,
         related_name="children",
     )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="folders",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "core_folder"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project"],
+                condition=models.Q(parent__isnull=True),
+                name="uq_one_root_per_project",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.pk is not None and self.project_id is not None and self.parent_id is None:
+            existing = (
+                Folder.objects
+                .filter(project=self.project, parent__isnull=True)
+                .exclude(pk=self.pk)
+                .exists()
+            )
+            if existing:
+                raise ValidationError(
+                    "A root Folder (parent is null) already exists for this Project."
+                )
+
+    @property
+    def is_hidden_root(self) -> bool:
+        return self.parent_id is None and self.project_id is not None
 
     @property
     def path(self) -> str:

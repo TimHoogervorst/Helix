@@ -51,3 +51,4 @@ docs/protoypes/
 .docs
 src/shell/test-results/.last-run.json
 .opencode/*
+src/server/test.db

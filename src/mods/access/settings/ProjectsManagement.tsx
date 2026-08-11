@@ -1,6 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Check, X, Archive, ArchiveRestore, Users } from "lucide-react";
+import {
+  FolderKanban,
+  Trash2,
+  X,
+  Check,
+  Archive,
+  ArchiveRestore,
+} from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
+import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
+import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
+import {
+  SettingsMasterList,
+  type MasterListRow,
+} from "../../../shell/src/shared/components/SettingsMasterList";
 import {
   fetchProjects,
   createProject,
@@ -18,19 +34,19 @@ export default function ProjectsManagement() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [filterValue, setFilterValue] = useState("");
 
-  const [expandedGrantsId, setExpandedGrantsId] = useState<number | null>(null);
   const [grants, setGrants] = useState<Record<number, Grant[]>>({});
   const [teams, setTeams] = useState<Team[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
-  const [addingGrantProjectId, setAddingGrantProjectId] = useState<number | null>(null);
+  const [addingGrant, setAddingGrant] = useState(false);
   const [grantRole, setGrantRole] = useState<"read" | "edit">("read");
   const [grantUserId, setGrantUserId] = useState<number | null>(null);
   const [grantTeamId, setGrantTeamId] = useState<number | null>(null);
@@ -67,464 +83,486 @@ export default function ProjectsManagement() {
     }
   };
 
-  const toggleGrants = async (projectId: number) => {
-    if (expandedGrantsId === projectId) {
-      setExpandedGrantsId(null);
-      return;
-    }
-    setExpandedGrantsId(projectId);
-    await loadGrants(projectId);
-  };
-
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    setActionError(null);
+    setSaving(true);
+    setError(null);
     try {
       await createProject({ name: newName.trim() });
       setNewName("");
-      setCreating(false);
+      setShowNew(false);
       await load();
     } catch {
-      setActionError("Failed to create Project.");
+      setError("Failed to create Project.");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const handleSelect = (id: string | number) => {
+    const projectId = Number(id);
+    if (projectId === selectedId) {
+      setSelectedId(null);
+    } else {
+      setSelectedId(projectId);
+      const project = projects.find((p) => p.id === projectId);
+      if (project) setNameDraft(project.name);
+      loadGrants(projectId);
+    }
+    setAddingGrant(false);
+    setGrantUserId(null);
+    setGrantTeamId(null);
+    setDeleteConfirmId(null);
+  };
+
   const handleRename = async (projectId: number) => {
-    if (!draftName.trim()) return;
-    setActionError(null);
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      const project = projects.find((p) => p.id === projectId);
+      if (project) setNameDraft(project.name);
+      return;
+    }
+    setError(null);
     try {
-      await updateProject(projectId, { name: draftName.trim() });
-      setEditingId(null);
+      await updateProject(projectId, { name: trimmed });
       await load();
     } catch {
-      setActionError("Failed to rename Project.");
+      setError("Failed to rename Project.");
     }
   };
 
   const handleDelete = async (projectId: number) => {
-    setActionError(null);
+    setError(null);
     try {
       await deleteProject(projectId);
       setDeleteConfirmId(null);
+      if (selectedId === projectId) setSelectedId(null);
       await load();
     } catch {
-      setActionError("Failed to delete Project.");
+      setError("Failed to delete Project.");
     }
   };
 
   const handleArchiveToggle = async (project: Project) => {
-    setActionError(null);
+    setError(null);
     try {
       await updateProject(project.id, { is_archived: !project.is_archived });
+      if (!project.is_archived) {
+        // Project is being archived — deselect if selected
+        if (selectedId === project.id) setSelectedId(null);
+      }
       await load();
     } catch {
-      setActionError("Failed to update Project.");
+      setError("Failed to update Project.");
     }
   };
 
   const handleAddGrant = async (projectId: number) => {
     if (!grantUserId && !grantTeamId) return;
-    setActionError(null);
+    setError(null);
     try {
       await createGrant(projectId, {
         role: grantRole,
         ...(grantUserId ? { user: grantUserId } : {}),
         ...(grantTeamId ? { team: grantTeamId } : {}),
       });
-      setAddingGrantProjectId(null);
+      setAddingGrant(false);
       setGrantUserId(null);
       setGrantTeamId(null);
       await loadGrants(projectId);
     } catch {
-      setActionError("Failed to add Grant.");
+      setError("Failed to add Grant.");
     }
   };
 
   const handleRemoveGrant = async (projectId: number, grantId: number) => {
-    setActionError(null);
+    setError(null);
     try {
       await deleteGrant(projectId, grantId);
       await loadGrants(projectId);
     } catch {
-      setActionError("Failed to remove Grant.");
+      setError("Failed to remove Grant.");
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-base text-muted-foreground">Loading…</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-base text-muted-foreground">{error}</p>
-      </div>
-    );
-  }
 
   const visibleProjects = showArchived
     ? projects
     : projects.filter((p) => !p.is_archived);
 
+  const filteredProjects = filterValue
+    ? visibleProjects.filter((p) =>
+        p.name.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : visibleProjects;
+
+  const masterRows: MasterListRow[] = filteredProjects.map((p) => ({
+    id: p.id,
+    label: p.name,
+    secondary: p.is_archived ? "Archived" : undefined,
+    icon: <FolderKanban size={13} />,
+  }));
+
+  const selectedProject = selectedId
+    ? projects.find((p) => p.id === selectedId) ?? null
+    : null;
+
+  const projectGrants = selectedId ? grants[selectedId] ?? [] : [];
+
   const peopleNotGranted = (projectId: number) => {
-    const projectGrants = grants[projectId] || [];
-    return people.filter(
-      (p) => !projectGrants.some((g) => g.user === p.user),
-    );
+    const pg = grants[projectId] || [];
+    return people.filter((p) => !pg.some((g) => g.user === p.user));
   };
 
   const teamsNotGranted = (projectId: number) => {
-    const projectGrants = grants[projectId] || [];
-    return teams.filter(
-      (t) => !projectGrants.some((g) => g.team === t.id),
-    );
+    const pg = grants[projectId] || [];
+    return teams.filter((t) => !pg.some((g) => g.team === t.id));
   };
 
+  if (loading) return <p className="empty">Loading…</p>;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">
-            Projects
-          </h2>
-          <p className="text-sm text-[var(--color-ink-muted-foreground)]">
-            Create and manage Projects. Each Project is an access boundary
-            with its own hidden root Folder.
-          </p>
+    <SettingsPageLayout
+      hero={
+        <>
+          <SettingsHeroHeader
+            eyebrow="access control"
+            title="Projects"
+            description="Create and manage Projects. Each Project is an access boundary with its own hidden root Folder."
+            actions={
+              <Button size="sm" onClick={() => setShowNew(!showNew)}>
+                {showNew ? "Cancel" : "+ New Project"}
+              </Button>
+            }
+          />
+
+          {showNew && (
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                    Name
+                  </span>
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Project name"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreate();
+                    }}
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleCreate}
+                    disabled={saving || !newName.trim()}
+                  >
+                    {saving ? "Creating…" : "Create"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowNew(false);
+                      setNewName("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      }
+    >
+      {error && (
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
+          {error}
         </div>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-[var(--color-ink-muted-foreground)]">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 rounded border-hairline"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />
-            Show archived
-          </label>
-          {!creating && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setCreating(true)}
-              aria-label="Create a new Project"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Create Project
-            </Button>
+      )}
+
+      <div className="flex min-h-0 gap-0">
+        <div className="w-64 shrink-0">
+          <SettingsMasterList
+            rows={masterRows}
+            selectedId={selectedId}
+            filterValue={filterValue}
+            onFilterChange={setFilterValue}
+            onSelect={handleSelect}
+            filterPlaceholder="Filter projects"
+            actions={
+              <button
+                type="button"
+                className={`rounded border-transparent bg-transparent px-1.5 py-0.5 font-[var(--font-label)] text-2xs uppercase tracking-wider transition-colors ${
+                  showArchived
+                    ? "font-medium text-[var(--color-ink)]"
+                    : "text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)]"
+                }`}
+                onClick={() => setShowArchived(!showArchived)}
+                title={showArchived ? "Hide archived" : "Show archived"}
+              >
+                {showArchived ? "Active" : "All"}
+              </button>
+            }
+          />
+          {masterRows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
+              No projects found.
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-4 p-6">
+          {selectedProject ? (
+            <>
+              <SettingsSectionCard
+                title="Project identity"
+                subtitle={selectedProject.is_archived ? "Archived" : "Active"}
+                actions={
+                  <div className="flex items-center gap-1">
+                    <IconButton
+                      aria-label={
+                        selectedProject.is_archived ? "Restore project" : "Archive project"
+                      }
+                      title={
+                        selectedProject.is_archived ? "Restore project" : "Archive project"
+                      }
+                      onClick={() => handleArchiveToggle(selectedProject)}
+                      className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)]"
+                    >
+                      {selectedProject.is_archived ? (
+                        <ArchiveRestore size={14} />
+                      ) : (
+                        <Archive size={14} />
+                      )}
+                    </IconButton>
+                    {deleteConfirmId === selectedProject.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                          Delete "{selectedProject.name}"?
+                        </span>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(selectedProject.id)}
+                        >
+                          Delete
+                        </Button>
+                        <IconButton
+                          aria-label="Cancel delete"
+                          onClick={() => setDeleteConfirmId(null)}
+                        >
+                          <X size={14} />
+                        </IconButton>
+                      </div>
+                    ) : (
+                      <>
+                        <IconButton
+                          aria-label="Delete project"
+                          title="Delete project"
+                          onClick={() => setDeleteConfirmId(selectedProject.id)}
+                          className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
+                        >
+                          <Trash2 size={14} />
+                        </IconButton>
+                        <IconButton
+                          aria-label="Close detail"
+                          title="Close detail"
+                          onClick={() => setSelectedId(null)}
+                        >
+                          <X size={14} />
+                        </IconButton>
+                      </>
+                    )}
+                  </div>
+                }
+              >
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
+                      Name
+                    </span>
+                    <Input
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onBlur={() => handleRename(selectedProject.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleRename(selectedProject.id);
+                        }
+                      }}
+                      placeholder="Project name"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
+                        UID
+                      </span>
+                      <span className="font-[var(--font-label)] text-sm text-[var(--color-ink)]">
+                        {selectedProject.uid}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
+                        Created
+                      </span>
+                      <span className="text-sm text-[var(--color-ink)]">
+                        {new Date(selectedProject.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </SettingsSectionCard>
+
+              <SettingsSectionCard
+                title="Grants"
+                subtitle={`${projectGrants.length} grant${projectGrants.length !== 1 ? "s" : ""}`}
+                actions={
+                  !addingGrant ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddingGrant(true)}
+                    >
+                      + Add Grant
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <div className="space-y-2">
+                  {projectGrants.length === 0 && !addingGrant && (
+                    <p className="text-xs text-[var(--color-ink-muted-foreground)]">
+                      No Grants assigned yet.
+                    </p>
+                  )}
+
+                  {projectGrants.map((grant) => (
+                    <div
+                      key={grant.id}
+                      className="flex items-center justify-between rounded bg-[var(--color-panel-subtle)] px-3 py-1.5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-[var(--color-ink)]">
+                          {grant.grantee_name}
+                        </span>
+                        <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                          ({grant.grantee_type})
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            grant.role === "edit"
+                              ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                              : "bg-[var(--color-panel)] text-[var(--color-ink)]"
+                          }`}
+                        >
+                          {grant.role === "edit" ? "Edit" : "Read"}
+                        </span>
+                      </div>
+                      <IconButton
+                        aria-label={`Remove grant for ${grant.grantee_name}`}
+                        title="Remove grant"
+                        onClick={() =>
+                          handleRemoveGrant(selectedProject.id, grant.id)
+                        }
+                        className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
+                      >
+                        <X size={14} />
+                      </IconButton>
+                    </div>
+                  ))}
+
+                  {addingGrant && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <select
+                          aria-label="Grant role"
+                          className="rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                          value={grantRole}
+                          onChange={(e) =>
+                            setGrantRole(e.target.value as "read" | "edit")
+                          }
+                        >
+                          <option value="read">Read</option>
+                          <option value="edit">Edit</option>
+                        </select>
+                        <select
+                          aria-label="Grant to user"
+                          className="flex-1 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                          value={grantUserId ?? ""}
+                          onChange={(e) => {
+                            setGrantUserId(
+                              e.target.value ? Number(e.target.value) : null,
+                            );
+                            setGrantTeamId(null);
+                          }}
+                        >
+                          <option value="">Select a user…</option>
+                          {peopleNotGranted(selectedProject.id).map((p) => (
+                            <option key={p.user} value={p.user}>
+                              {p.first_name || p.last_name
+                                ? `${p.first_name} ${p.last_name}`.trim()
+                                : p.username}{" "}
+                              (@{p.username})
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="Grant to team"
+                          className="flex-1 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                          value={grantTeamId ?? ""}
+                          onChange={(e) => {
+                            setGrantTeamId(
+                              e.target.value ? Number(e.target.value) : null,
+                            );
+                            setGrantUserId(null);
+                          }}
+                        >
+                          <option value="">Select a team…</option>
+                          {teamsNotGranted(selectedProject.id).map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleAddGrant(selectedProject.id)}
+                          disabled={!grantUserId && !grantTeamId}
+                          aria-label="Add grant"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Add Grant
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setAddingGrant(false);
+                            setGrantUserId(null);
+                            setGrantTeamId(null);
+                          }}
+                          aria-label="Cancel add grant"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SettingsSectionCard>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
+              Select a project from the list to view or edit its details.
+            </div>
           )}
         </div>
       </div>
-
-      {actionError && (
-        <p className="text-sm text-[var(--color-destructive)]">{actionError}</p>
-      )}
-
-      {creating && (
-        <div className="flex items-center gap-2 rounded-lg border border-hairline bg-panel p-3">
-          <input
-            aria-label="New Project name"
-            className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-            placeholder="Project name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            autoFocus
-          />
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleCreate}
-            aria-label="Confirm create project"
-          >
-            <Check className="h-3.5 w-3.5" aria-hidden="true" />
-            Create
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setCreating(false); setNewName(""); }}
-            aria-label="Cancel create project"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-        </div>
-      )}
-
-      {visibleProjects.length === 0 && !creating && (
-        <p className="text-sm text-[var(--color-ink-muted-foreground)]">
-          No Projects have been created yet.
-        </p>
-      )}
-
-      <div className="space-y-3">
-        {visibleProjects.map((project) => (
-          <div
-            key={project.id}
-            className={`rounded-lg border p-4 ${
-              project.is_archived
-                ? "border-hairline bg-[var(--color-panel-subtle)]"
-                : "border-hairline bg-panel"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              {editingId === project.id ? (
-                <div className="flex flex-1 items-center gap-2">
-                  <input
-                    aria-label="Rename Project"
-                    className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    autoFocus
-                  />
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleRename(project.id)}
-                    aria-label="Confirm rename"
-                  >
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditingId(null)}
-                    aria-label="Cancel rename"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-              ) : deleteConfirmId === project.id ? (
-                <div className="flex flex-1 items-center gap-2">
-                  <span className="text-sm text-[var(--color-ink)]">
-                    Delete <strong>{project.name}</strong>?
-                  </span>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(project.id)}
-                    aria-label="Confirm delete"
-                  >
-                    Delete
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteConfirmId(null)}
-                    aria-label="Cancel delete"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="cursor-pointer text-sm font-medium text-[var(--color-ink)] hover:text-[var(--color-primary)]"
-                      onClick={() => {
-                        setEditingId(project.id);
-                        setDraftName(project.name);
-                      }}
-                      title="Click to rename"
-                    >
-                      {project.name}
-                    </span>
-                    {project.is_archived && (
-                      <span className="shrink-0 rounded-full bg-[var(--color-primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--color-primary)]">
-                        Archived
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleGrants(project.id)}
-                      aria-label={`Manage grants for ${project.name}`}
-                      title="Manage Grants"
-                    >
-                      <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                      Grants
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingId(project.id);
-                        setDraftName(project.name);
-                      }}
-                      aria-label={`Rename ${project.name}`}
-                      title="Rename"
-                    >
-                      Rename
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleArchiveToggle(project)}
-                      aria-label={
-                        project.is_archived
-                          ? `Restore ${project.name}`
-                          : `Archive ${project.name}`
-                      }
-                      title={project.is_archived ? "Restore" : "Archive"}
-                    >
-                      {project.is_archived ? (
-                        <ArchiveRestore className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : (
-                        <Archive className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteConfirmId(project.id)}
-                      aria-label={`Delete ${project.name}`}
-                      title="Delete"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {expandedGrantsId === project.id && (
-              <div className="mt-3 border-t border-hairline pt-3">
-                <h4 className="mb-2 text-sm font-medium text-[var(--color-ink)]">
-                  Grants
-                </h4>
-
-                {(grants[project.id] || []).length === 0 && !addingGrantProjectId && (
-                  <p className="text-xs text-[var(--color-ink-muted-foreground)] mb-2">
-                    No Grants assigned yet.
-                  </p>
-                )}
-
-                {(grants[project.id] || []).map((grant) => (
-                  <div
-                    key={grant.id}
-                    className="flex items-center justify-between rounded bg-[var(--color-panel-subtle)] px-3 py-1.5 mb-1"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-[var(--color-ink)]">
-                        {grant.grantee_name}
-                      </span>
-                      <span className="text-xs text-[var(--color-ink-muted-foreground)]">
-                        ({grant.grantee_type})
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        grant.role === "edit"
-                          ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                          : "bg-[var(--color-panel)] text-[var(--color-ink)]"
-                      }`}>
-                        {grant.role === "edit" ? "Edit" : "Read"}
-                      </span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveGrant(project.id, grant.id)}
-                      aria-label={`Remove grant for ${grant.grantee_name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
-
-                {addingGrantProjectId === project.id ? (
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <select
-                        aria-label="Grant role"
-                        className="rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                        value={grantRole}
-                        onChange={(e) => setGrantRole(e.target.value as "read" | "edit")}
-                      >
-                        <option value="read">Read</option>
-                        <option value="edit">Edit</option>
-                      </select>
-                      <select
-                        aria-label="Grant to user"
-                        className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                        value={grantUserId ?? ""}
-                        onChange={(e) => {
-                          setGrantUserId(e.target.value ? Number(e.target.value) : null);
-                          setGrantTeamId(null);
-                        }}
-                      >
-                        <option value="">Select a user…</option>
-                        {peopleNotGranted(project.id).map((p) => (
-                          <option key={p.user} value={p.user}>
-                            {p.first_name || p.last_name
-                              ? `${p.first_name} ${p.last_name}`.trim()
-                              : p.username}{" "}
-                            (@{p.username})
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        aria-label="Grant to team"
-                        className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                        value={grantTeamId ?? ""}
-                        onChange={(e) => {
-                          setGrantTeamId(e.target.value ? Number(e.target.value) : null);
-                          setGrantUserId(null);
-                        }}
-                      >
-                        <option value="">Select a team…</option>
-                        {teamsNotGranted(project.id).map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleAddGrant(project.id)}
-                        disabled={!grantUserId && !grantTeamId}
-                        aria-label="Add grant"
-                      >
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                        Add Grant
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setAddingGrantProjectId(null);
-                          setGrantUserId(null);
-                          setGrantTeamId(null);
-                        }}
-                        aria-label="Cancel add grant"
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAddingGrantProjectId(project.id)}
-                    className="mt-2 text-xs"
-                    aria-label={`Add grant to ${project.name}`}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Grant
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+    </SettingsPageLayout>
   );
 }

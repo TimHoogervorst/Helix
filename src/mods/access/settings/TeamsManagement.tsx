@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Check, X, UserPlus } from "lucide-react";
+import { Users, Trash2, X, Check } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../shell/src/shared/primitives/Input";
+import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
+import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
+import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
+import {
+  SettingsMasterList,
+  type MasterListRow,
+} from "../../../shell/src/shared/components/SettingsMasterList";
 import {
   fetchTeams,
   createTeam,
@@ -17,13 +26,15 @@ export default function TeamsManagement() {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [addingMemberId, setAddingMemberId] = useState<number | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [filterValue, setFilterValue] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,24 +59,47 @@ export default function TeamsManagement() {
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
+    setSaving(true);
+    setError(null);
     try {
       await createTeam({ name: newName.trim() });
       setNewName("");
-      setCreating(false);
+      setShowNew(false);
       await load();
     } catch {
-      // keep form on failure
+      setError("Failed to create Team.");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const handleSelect = (id: string | number) => {
+    const teamId = Number(id);
+    if (teamId === selectedId) {
+      setSelectedId(null);
+    } else {
+      setSelectedId(teamId);
+      const team = teams.find((t) => t.id === teamId);
+      if (team) setNameDraft(team.name);
+    }
+    setAddingMember(false);
+    setSelectedUserId(null);
+    setDeleteConfirmId(null);
+  };
+
   const handleRename = async (teamId: number) => {
-    if (!draftName.trim()) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      const team = teams.find((t) => t.id === teamId);
+      if (team) setNameDraft(team.name);
+      return;
+    }
+    setError(null);
     try {
-      await updateTeam(teamId, { name: draftName.trim() });
-      setEditingId(null);
+      await updateTeam(teamId, { name: trimmed });
       await load();
     } catch {
-      // keep editing on failure
+      setError("Failed to rename Team.");
     }
   };
 
@@ -73,6 +107,7 @@ export default function TeamsManagement() {
     try {
       await deleteTeam(teamId);
       setDeleteConfirmId(null);
+      if (selectedId === teamId) setSelectedId(null);
       await load();
     } catch {
       setError("Failed to delete Team.");
@@ -83,7 +118,7 @@ export default function TeamsManagement() {
     if (selectedUserId === null) return;
     try {
       await addTeamMember(teamId, selectedUserId);
-      setAddingMemberId(null);
+      setAddingMember(false);
       setSelectedUserId(null);
       await load();
     } catch {
@@ -100,224 +135,283 @@ export default function TeamsManagement() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-base text-muted-foreground">Loading…</p>
-      </div>
-    );
-  }
+  const filteredTeams = filterValue
+    ? teams.filter((t) =>
+        t.name.toLowerCase().includes(filterValue.toLowerCase()),
+      )
+    : teams;
 
-  if (error) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-base text-muted-foreground">{error}</p>
-      </div>
-    );
-  }
+  const masterRows: MasterListRow[] = filteredTeams.map((t) => ({
+    id: t.id,
+    label: t.name,
+    secondary: `${t.members.length} member${t.members.length !== 1 ? "s" : ""}`,
+    icon: <Users size={13} />,
+  }));
+
+  const selectedTeam = selectedId
+    ? teams.find((t) => t.id === selectedId) ?? null
+    : null;
 
   const teamMembersNot = (team: Team) =>
     people.filter((p) => !team.members.some((m) => m.id === p.user));
 
+  if (loading) return <p className="empty">Loading…</p>;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">
-            Teams
-          </h2>
-          <p className="text-sm text-[var(--color-ink-muted-foreground)]">
-            Create and manage Teams. Team membership determines Project access
-            through Grants.
-          </p>
-        </div>
-        {!creating && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setCreating(true)}
-            aria-label="Create a new Team"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Create Team
-          </Button>
-        )}
-      </div>
-
-      {creating && (
-        <div className="flex items-center gap-2 rounded-lg border border-hairline bg-panel p-3">
-          <input
-            aria-label="New Team name"
-            className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-            placeholder="Team name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            autoFocus
+    <SettingsPageLayout
+      hero={
+        <>
+          <SettingsHeroHeader
+            eyebrow="access control"
+            title="Teams"
+            description="Create and manage Teams. Team membership determines Project access through Grants."
+            actions={
+              <Button size="sm" onClick={() => setShowNew(!showNew)}>
+                {showNew ? "Cancel" : "+ New Team"}
+              </Button>
+            }
           />
-          <Button variant="primary" size="sm" onClick={handleCreate} aria-label="Confirm create team">
-            <Check className="h-3.5 w-3.5" aria-hidden="true" />
-            Create
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setCreating(false); setNewName(""); }} aria-label="Cancel create team">
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-        </div>
-      )}
 
-      {teams.length === 0 && !creating && (
-        <p className="text-sm text-[var(--color-ink-muted-foreground)]">
-          No Teams have been created yet.
-        </p>
-      )}
-
-      <div className="space-y-3">
-        {teams.map((team) => (
-          <div
-            key={team.id}
-            className="rounded-lg border border-hairline bg-panel p-4"
-          >
-            <div className="flex items-center justify-between">
-              {editingId === team.id ? (
-                <div className="flex flex-1 items-center gap-2">
-                  <input
-                    aria-label="Rename Team"
-                    className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    autoFocus
+          {showNew && (
+            <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                    Name
+                  </span>
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Team name"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreate();
+                    }}
                   />
-                  <Button variant="primary" size="sm" onClick={() => handleRename(team.id)} aria-label="Confirm rename">
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} aria-label="Cancel rename">
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-              ) : deleteConfirmId === team.id ? (
-                <div className="flex flex-1 items-center gap-2">
-                  <span className="text-sm text-[var(--color-ink)]">
-                    Delete <strong>{team.name}</strong>?
-                  </span>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(team.id)} aria-label="Confirm delete">
-                    Delete
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(null)} aria-label="Cancel delete">
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <span
-                    className="cursor-pointer text-sm font-medium text-[var(--color-ink)] hover:text-[var(--color-primary)]"
-                    onClick={() => { setEditingId(team.id); setDraftName(team.name); }}
-                    title="Click to rename"
-                  >
-                    {team.name}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => { setEditingId(team.id); setDraftName(team.name); }}
-                      aria-label={`Rename ${team.name}`}
-                      title="Rename"
-                    >
-                      Rename
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteConfirmId(team.id)}
-                      aria-label={`Delete ${team.name}`}
-                      title="Delete"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="mt-3">
-              <div className="flex flex-wrap items-center gap-1">
-                {team.members.map((member) => {
-                  const displayName =
-                    member.first_name || member.last_name
-                      ? `${member.first_name} ${member.last_name}`.trim()
-                      : member.username;
-                  return (
-                    <span
-                      key={member.id}
-                      className="inline-flex items-center gap-1 rounded bg-[var(--color-panel-subtle)] px-2 py-0.5 text-xs text-[var(--color-ink)]"
-                    >
-                      {displayName}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMember(team.id, member.id)}
-                        className="ml-0.5 rounded-full p-0.5 text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
-                        aria-label={`Remove ${displayName} from ${team.name}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-
-              {addingMemberId === team.id ? (
-                <div className="mt-2 flex items-center gap-2">
-                  <select
-                    aria-label="Select user to add"
-                    className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
-                    value={selectedUserId ?? ""}
-                    onChange={(e) =>
-                      setSelectedUserId(e.target.value ? Number(e.target.value) : null)
-                    }
-                  >
-                    <option value="">Select a user…</option>
-                    {teamMembersNot(team).map((p) => (
-                      <option key={p.user} value={p.user}>
-                        {p.first_name || p.last_name
-                          ? `${p.first_name} ${p.last_name}`.trim()
-                          : p.username}{" "}
-                        (@{p.username})
-                      </option>
-                    ))}
-                  </select>
+                </label>
+                <div className="flex gap-2">
                   <Button
-                    variant="primary"
                     size="sm"
-                    onClick={() => handleAddMember(team.id)}
-                    disabled={selectedUserId === null}
-                    aria-label="Add member"
+                    onClick={handleCreate}
+                    disabled={saving || !newName.trim()}
                   >
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                    Add
+                    {saving ? "Creating…" : "Create"}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => { setAddingMemberId(null); setSelectedUserId(null); }}
-                    aria-label="Cancel add member"
+                    onClick={() => {
+                      setShowNew(false);
+                      setNewName("");
+                    }}
                   >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Cancel
                   </Button>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAddingMemberId(team.id)}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-ink)]"
-                  aria-label={`Add member to ${team.name}`}
-                >
-                  <UserPlus className="h-3 w-3" />
-                  Add member
-                </button>
-              )}
+              </div>
             </div>
-          </div>
-        ))}
+          )}
+        </>
+      }
+    >
+      {error && (
+        <div className="mb-4 rounded-md border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-2.5 text-sm text-[var(--color-warning)]">
+          {error}
+        </div>
+      )}
+
+      <div className="flex min-h-0 gap-0">
+        <div className="w-64 shrink-0">
+          <SettingsMasterList
+            rows={masterRows}
+            selectedId={selectedId}
+            filterValue={filterValue}
+            onFilterChange={setFilterValue}
+            onSelect={handleSelect}
+            filterPlaceholder="Filter teams"
+          />
+          {masterRows.length === 0 && (
+            <p className="px-3 py-2 text-xs text-[var(--color-ink-muted-foreground)]">
+              No teams found.
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-4 p-6">
+          {selectedTeam ? (
+            <>
+              <SettingsSectionCard
+                title="Team details"
+                subtitle={`${selectedTeam.members.length} member${selectedTeam.members.length !== 1 ? "s" : ""}`}
+                actions={
+                  <div className="flex items-center gap-1">
+                    {deleteConfirmId === selectedTeam.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                          Delete "{selectedTeam.name}"?
+                        </span>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(selectedTeam.id)}
+                        >
+                          Delete
+                        </Button>
+                        <IconButton
+                          aria-label="Cancel delete"
+                          onClick={() => setDeleteConfirmId(null)}
+                        >
+                          <X size={14} />
+                        </IconButton>
+                      </div>
+                    ) : (
+                      <>
+                        <IconButton
+                          aria-label="Delete team"
+                          title="Delete team"
+                          onClick={() => setDeleteConfirmId(selectedTeam.id)}
+                          className="text-[var(--color-ink-muted-foreground)] hover:text-[var(--color-warning)]"
+                          disabled={selectedTeam.blocked_from_deletion}
+                        >
+                          <Trash2 size={14} />
+                        </IconButton>
+                        <IconButton
+                          aria-label="Close detail"
+                          title="Close detail"
+                          onClick={() => setSelectedId(null)}
+                        >
+                          <X size={14} />
+                        </IconButton>
+                      </>
+                    )}
+                  </div>
+                }
+              >
+                <label className="block">
+                  <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
+                    Name
+                  </span>
+                  <Input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onBlur={() => handleRename(selectedTeam.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleRename(selectedTeam.id);
+                      }
+                    }}
+                    placeholder="Team name"
+                  />
+                </label>
+                {selectedTeam.blocked_from_deletion && (
+                  <p className="mt-2 text-xs text-[var(--color-ink-muted-foreground)]">
+                    This team cannot be deleted because it has active Grants.
+                  </p>
+                )}
+              </SettingsSectionCard>
+
+              <SettingsSectionCard
+                title="Members"
+                subtitle={`${selectedTeam.members.length} member${selectedTeam.members.length !== 1 ? "s" : ""}`}
+                actions={
+                  !addingMember ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddingMember(true)}
+                    >
+                      + Add Member
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {selectedTeam.members.map((member) => {
+                      const displayName =
+                        member.first_name || member.last_name
+                          ? `${member.first_name} ${member.last_name}`.trim()
+                          : member.username;
+                      return (
+                        <span
+                          key={member.id}
+                          className="inline-flex items-center gap-1 rounded bg-[var(--color-panel-subtle)] px-2 py-0.5 text-xs text-[var(--color-ink)]"
+                        >
+                          {displayName}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveMember(selectedTeam.id, member.id)
+                            }
+                            className="ml-0.5 rounded-full p-0.5 text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
+                            aria-label={`Remove ${displayName} from ${selectedTeam.name}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    {selectedTeam.members.length === 0 && (
+                      <p className="text-xs text-[var(--color-ink-muted-foreground)]">
+                        No members yet.
+                      </p>
+                    )}
+                  </div>
+
+                  {addingMember && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label="Select user to add"
+                        className="flex-1 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                        value={selectedUserId ?? ""}
+                        onChange={(e) =>
+                          setSelectedUserId(
+                            e.target.value ? Number(e.target.value) : null,
+                          )
+                        }
+                      >
+                        <option value="">Select a user…</option>
+                        {teamMembersNot(selectedTeam).map((p) => (
+                          <option key={p.user} value={p.user}>
+                            {p.first_name || p.last_name
+                              ? `${p.first_name} ${p.last_name}`.trim()
+                              : p.username}{" "}
+                            (@{p.username})
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleAddMember(selectedTeam.id)}
+                        disabled={selectedUserId === null}
+                        aria-label="Add member"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Add
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAddingMember(false);
+                          setSelectedUserId(null);
+                        }}
+                        aria-label="Cancel add member"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </SettingsSectionCard>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">
+              Select a team from the list to view or edit its details.
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </SettingsPageLayout>
   );
 }

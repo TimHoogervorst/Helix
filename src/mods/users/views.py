@@ -10,6 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from helix_core.actions.logger import log_action
 from core.models import CoreSetting, User
+from mods.access.policies import can as can_access
 
 from .models import Affiliation, Publication, Recognition
 from .serializers import (
@@ -136,12 +137,22 @@ class UserViewSet(viewsets.ModelViewSet):
     update:   PUT    /api/core/users/{id}/  — update a user
     partial_update: PATCH /api/core/users/{id}/ — partial update (e.g. deactivate)
     destroy:  DELETE /api/core/users/{id}/  — delete a user
+
+    All actions are restricted to Organization Admins.
     """
 
     queryset = User.objects.all().order_by("-date_joined")
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if not can_access(request.user, "edited"):
+            self.permission_denied(
+                request,
+                message="Only Organization Admins can manage users.",
+            )
 
     def get_serializer_class(self):
         if self.action == "create":

@@ -44,6 +44,8 @@ POLICY_MATRIX: dict[tuple[str, str], str] = {
     ("created", "project_resource"): "edit",
     ("edited", "project_resource"): "edit",
     ("deleted", "project_resource"): "edit",
+    # Organization information is readable by all authenticated users.
+    ("read", "organization_admin"): "authenticated",
     # Organization administration mutations require Admin.
     ("created", "organization_admin"): "admin",
     ("edited", "organization_admin"): "admin",
@@ -223,11 +225,15 @@ def _classify_resource(resource, via_project=None) -> str:
     ``"personal"``, or ``"public"``.
 
     Heuristics (crude for now — refined when Projects carry model FKs):
+      * *resource* has a ``_policy_resource_category`` attribute → use it
       * ``via_project`` is set → ``"project_resource"``
       * *resource* has a ``project_id`` attribute → ``"project_resource"``
       * *resource* has an ``owner_id`` attribute → ``"personal"``
       * Fallback → ``"public"``
     """
+    if resource is not None and hasattr(resource, "_policy_resource_category"):
+        return resource._policy_resource_category
+
     if via_project is not None:
         return "project_resource"
 

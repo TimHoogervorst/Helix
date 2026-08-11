@@ -26,18 +26,23 @@ vi.mock("react-router-dom", async () => {
 });
 
 const mockLogout = vi.fn();
+
+const { mockUser } = vi.hoisted(() => ({
+  mockUser: {
+    id: 1,
+    username: "mkato",
+    first_name: "Mira",
+    last_name: "Kato",
+    color: "#4A90D9",
+    is_active: true,
+    date_joined: "2025-01-15T00:00:00Z",
+    organization_role: "user" as string,
+  },
+}));
+
 vi.mock("../api", () => ({
   logout: (...args: unknown[]) => mockLogout(...args),
-  fetchMe: () =>
-    Promise.resolve({
-      id: 1,
-      username: "mkato",
-      first_name: "Mira",
-      last_name: "Kato",
-      color: "#4A90D9",
-      is_active: true,
-      date_joined: "2025-01-15T00:00:00Z",
-    }),
+  fetchMe: () => Promise.resolve(mockUser),
 }));
 
 import { UserMenu } from "../UserMenu";
@@ -60,6 +65,7 @@ function renderUserMenu() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUser.organization_role = "user";
 });
 
 // ── Render tests ──────────────────────────────────────────────────────────
@@ -140,11 +146,6 @@ describe("UserMenu items", () => {
   it("Profile navigates to /profile", async () => {
     fireEvent.click(screen.getByRole("button", { name: "Profile" }));
     expect(mockNavigate).toHaveBeenCalledWith("/profile");
-  });
-
-  it("Settings navigates to /settings", async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(mockNavigate).toHaveBeenCalledWith("/settings");
   });
 
   it("Preferences is enabled and opens the PreferencesWindow", async () => {
@@ -228,5 +229,56 @@ describe("UserMenu popover header", () => {
     // getAllByText returns all instances.
     const usernames = screen.getAllByText("mkato");
     expect(usernames.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── Role-based gating ─────────────────────────────────────────────────────
+
+describe("UserMenu role-based gating", () => {
+  it("shows Settings for admin users", async () => {
+    mockUser.organization_role = "admin";
+    renderUserMenu();
+    const trigger = await screen.findByRole("button", {
+      name: "User menu",
+    });
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("button", { name: "Settings" }),
+    ).toBeInTheDocument();
+  });
+
+  it("Settings button navigates to /settings for admin users", async () => {
+    mockUser.organization_role = "admin";
+    renderUserMenu();
+    const trigger = await screen.findByRole("button", {
+      name: "User menu",
+    });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/settings");
+  });
+
+  it("hides Settings for non-admin users", async () => {
+    mockUser.organization_role = "user";
+    renderUserMenu();
+    const trigger = await screen.findByRole("button", {
+      name: "User menu",
+    });
+    fireEvent.click(trigger);
+    expect(
+      screen.queryByRole("button", { name: "Settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Settings for users with null organization_role", async () => {
+    mockUser.organization_role = null;
+    renderUserMenu();
+    const trigger = await screen.findByRole("button", {
+      name: "User menu",
+    });
+    fireEvent.click(trigger);
+    expect(
+      screen.queryByRole("button", { name: "Settings" }),
+    ).not.toBeInTheDocument();
   });
 });

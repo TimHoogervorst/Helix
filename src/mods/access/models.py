@@ -9,6 +9,8 @@ class OrganizationRole(models.TextChoices):
 
 
 class Organization(models.Model):
+    _policy_resource_category = "organization_admin"
+
     name = models.CharField(max_length=255)
     short_description = models.TextField(blank=True, default="")
     address = models.TextField(blank=True, default="")

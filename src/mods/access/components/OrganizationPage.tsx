@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
 import { Avatar, getInitials } from "../../../shell/src/user/Avatar";
-import { fetchOrganization, fetchPeople, fetchPolicies } from "../api";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import { fetchOrganization, fetchPeople, fetchPolicies, updateOrganization } from "../api";
 import type { AccessPolicy, Organization, Person } from "../types";
+import { Pencil, Check, X } from "lucide-react";
 
 const CORE_ACTION_LABELS: Record<string, string> = {
   read: "Read",
@@ -29,6 +31,12 @@ export default function OrganizationPage() {
   const [activeTab, setActiveTab] = useState("people");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Pick<Organization, "name" | "short_description" | "address">>({
+    name: "",
+    short_description: "",
+    address: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,25 +77,107 @@ export default function OrganizationPage() {
     );
   }
 
-  const isAdmin = user != null && people.some(
-    (p) => p.user === user.id && p.role === "admin"
-  );
+  const isAdmin = user?.organization_role === "admin";
+
+  const handleEdit = () => {
+    setDraft({
+      name: org.name,
+      short_description: org.short_description,
+      address: org.address,
+    });
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+  };
+
+  const handleSave = async () => {
+    try {
+      const updated = await updateOrganization(draft);
+      setOrg(updated);
+      setEditing(false);
+    } catch {
+      // keep editing state on failure
+    }
+  };
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-4xl px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[var(--color-ink)]">{org.name}</h1>
-          {org.short_description && (
-            <p className="mt-2 text-base text-[var(--color-ink-muted-foreground)]">
-              {org.short_description}
-            </p>
-          )}
-          {org.address && (
-            <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">
-              {org.address}
-            </p>
-          )}
+          <div className="flex items-center gap-3">
+            {editing ? (
+              <div className="flex-1 space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-[var(--color-ink)]" htmlFor="org-name">
+                    Name
+                  </label>
+                  <input
+                    id="org-name"
+                    aria-label="Name"
+                    className="w-full rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-[var(--color-ink)]" htmlFor="org-short-description">
+                    Short description
+                  </label>
+                  <input
+                    id="org-short-description"
+                    aria-label="Short description"
+                    className="w-full rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                    value={draft.short_description}
+                    onChange={(e) => setDraft({ ...draft, short_description: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-[var(--color-ink)]" htmlFor="org-address">
+                    Address
+                  </label>
+                  <input
+                    id="org-address"
+                    aria-label="Address"
+                    className="w-full rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                    value={draft.address}
+                    onChange={(e) => setDraft({ ...draft, address: e.target.value })}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={handleSave} aria-label="Save changes">
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    Save changes
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleCancel} aria-label="Cancel editing">
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Cancel editing
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1">
+                <h1 className="text-2xl font-bold text-[var(--color-ink)]">{org.name}</h1>
+                {org.short_description && (
+                  <p className="mt-2 text-base text-[var(--color-ink-muted-foreground)]">
+                    {org.short_description}
+                  </p>
+                )}
+                {org.address && (
+                  <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">
+                    {org.address}
+                  </p>
+                )}
+              </div>
+            )}
+            {isAdmin && !editing && (
+              <Button variant="secondary" size="sm" onClick={handleEdit} aria-label="Edit organization">
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                Edit organization
+              </Button>
+            )}
+          </div>
         </div>
 
         <TabBar

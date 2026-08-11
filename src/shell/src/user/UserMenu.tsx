@@ -128,17 +128,19 @@ export function UserMenu({ compact = false }: UserMenuProps) {
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
               Preferences
             </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start"
-              onClick={() => {
-                navigate("/settings");
-                setOpen(false);
-              }}
-            >
-              <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-              Settings
-            </Button>
+            {user.organization_role === "admin" && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  navigate("/settings");
+                  setOpen(false);
+                }}
+              >
+                <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+                Settings
+              </Button>
+            )}
             <div className="my-1 border-t border-hairline" />
             <Button
               variant="destructive"

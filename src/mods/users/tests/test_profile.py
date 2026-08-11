@@ -2,6 +2,11 @@
 
 from core.models import CoreSetting, User
 from core.tests.base import BaseTestCase
+from mods.access.models import (
+    Organization,
+    OrganizationMembership,
+    OrganizationRole,
+)
 from mods.users.models import Affiliation, Publication, Recognition
 
 
@@ -32,6 +37,21 @@ class MeEndpointTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["profile"], {})
+
+    def test_get_me_includes_organization_role(self):
+        """GET /api/core/me/ includes organization_role field."""
+        response = self.client.get("/api/core/me/")
+        self.assertIn("organization_role", response.data)
+        self.assertIsNone(response.data["organization_role"])
+
+    def test_get_me_organization_role_reflects_membership(self):
+        """GET /api/core/me/ returns the user's organization role."""
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.create(
+            user=self.user, organization=org, role=OrganizationRole.ADMIN,
+        )
+        response = self.client.get("/api/core/me/")
+        self.assertEqual(response.data["organization_role"], "admin")
 
     def test_patch_me_updates_profile(self):
         """PATCH /api/core/me/ with a profile blob persists correctly."""

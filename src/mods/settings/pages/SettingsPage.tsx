@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { Suspense } from "react";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { ErrorBoundary } from "../../../shell/src/shared/components/ErrorBoundary";
+import { AdminGuard } from "../../../shell/src/user/AdminGuard";
 
 function SettingsSectionFallback() {
   return (
@@ -36,13 +37,15 @@ function SettingsPage() {
   const SelectedComponent = selectedSection.component;
 
   return (
-    <div className="flex flex-1 flex-col min-h-0">
-      <ErrorBoundary key={sectionId}>
-        <Suspense fallback={<SettingsSectionFallback />}>
-          <SelectedComponent />
-        </Suspense>
-      </ErrorBoundary>
-    </div>
+    <AdminGuard>
+      <div className="flex flex-1 flex-col min-h-0">
+        <ErrorBoundary key={sectionId}>
+          <Suspense fallback={<SettingsSectionFallback />}>
+            <SelectedComponent />
+          </Suspense>
+        </ErrorBoundary>
+      </div>
+    </AdminGuard>
   );
 }
 

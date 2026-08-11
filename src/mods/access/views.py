@@ -2,19 +2,9 @@ from rest_framework import status, views
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Organization, OrganizationMembership, OrganizationRole
-from .policies import get_policy_matrix
+from .models import Organization, OrganizationMembership
+from .policies import can as can_access, get_policy_matrix
 from .serializers import OrganizationMembershipSerializer, OrganizationSerializer
-
-
-def _is_admin(user) -> bool:
-    if not user.is_authenticated:
-        return False
-    return OrganizationMembership.objects.filter(
-        user=user,
-        role=OrganizationRole.ADMIN,
-        user__is_active=True,
-    ).exists()
 
 
 class OrganizationView(views.APIView):
@@ -30,16 +20,16 @@ class OrganizationView(views.APIView):
         return Response(OrganizationSerializer(org).data)
 
     def patch(self, request):
-        if not _is_admin(request.user):
-            return Response(
-                {"detail": "Only Organization Admins can edit organization details."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         org = Organization.objects.first()
         if org is None:
             return Response(
                 {"detail": "No Organization exists."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "edited", resource=org):
+            return Response(
+                {"detail": "Only Organization Admins can edit organization details."},
+                status=status.HTTP_403_FORBIDDEN,
             )
         serializer = OrganizationSerializer(org, data=request.data, partial=True)
         if not serializer.is_valid():

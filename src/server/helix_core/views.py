@@ -519,8 +519,8 @@ class ActionCreateView(APIView):
 
     * ``action`` — triple-dotted action identifier (e.g.
       ``"eln.entry.created"``).
-    * ``action_type`` — core CRUD verb (``"created"``, ``"edited"``, or
-      ``"deleted"``).
+    * ``action_type`` — core action verb (``"created"``, ``"edited"``,
+      or ``"deleted"``; ``"read"`` is rejected — see below).
     * ``target_type`` — namespaced target, e.g. ``"eln.entry"``.
     * ``target_id`` — primary key of the target record.
     * ``workspace_id`` — the owning mod / workspace identifier.
@@ -528,14 +528,20 @@ class ActionCreateView(APIView):
     * ``timestamp`` — optional ISO 8601 datetime (accepted, currently
       ignored).
 
+    ``action_type: "read"`` is **rejected** with a 400 error.
+    Read participates in authorization and the policy catalog but
+    never creates an Action Log Entry and never appears in Activity.
+
     The backend:
 
-    1. Resolves ``workspace_id`` to the owning mod.
-    2. Validates ``action`` against that mod's registered action catalog.
-    3. Routes to the correct mod action table.
-    4. Creates a single action row with both ``action`` and
+    1. Rejects ``action_type: "read"`` immediately.
+    2. Resolves ``workspace_id`` to the owning mod.
+    3. Validates ``action`` against that mod's registered action
+       catalog.
+    4. Routes to the correct mod action table.
+    5. Creates a single action row with both ``action`` and
        ``action_type`` populated.
-    5. Returns ``201 Created`` with the created action row as a JSON
+    6. Returns ``201 Created`` with the created action row as a JSON
        array.
     """
 
@@ -559,6 +565,14 @@ class ActionCreateView(APIView):
         target_id: int = validated["target_id"]
         workspace_id: str = validated["workspace_id"]
         metadata: dict = validated.get("metadata", {})
+
+        # ── reject read actions — they are authorization-only ─────────
+        if action_type == "read":
+            raise serializers.ValidationError(
+                "'read' actions are not persisted.  Read participates "
+                "in authorization and policy discovery but never creates "
+                "an Action Log Entry and never appears in Activity."
+            )
 
         # ── validate action against the workspace's catalog ─────────────
         catalog = get_action_catalog(workspace_id)

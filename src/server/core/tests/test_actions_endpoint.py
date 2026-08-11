@@ -581,3 +581,52 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             str(row.request_id),
             "550e8400-e29b-41d4-a716-446655440000",
         )
+
+    # ── read action rejection ──────────────────────────────────────────────
+
+    def test_read_action_type_is_rejected_by_endpoint(self):
+        """action_type='read' is rejected — read is authorization-only."""
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+
+        response = self.client.post(
+            "/api/actions/",
+            {
+                "action": "read",
+                "action_type": "read",
+                "target_type": "eln.entry",
+                "target_id": 42,
+                "workspace_id": "eln",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("read", str(response.data).lower())
+        self.assertEqual(ElnAction.objects.count(), 0)
+
+    def test_read_action_is_discoverable_in_catalog(self):
+        """The 'read' core action verb appears in the action catalog."""
+        from helix_core.mod_system.registry import registry
+
+        from mods.eln.models import ElnAction
+
+        saved_models = dict(registry._action_models)
+        saved_core = dict(registry._core_actions)
+        try:
+            registry._action_models.clear()
+            registry._core_actions.clear()
+            register_action_model("eln", ElnAction)
+
+            catalog = registry.get_action_catalog("eln")
+            verb_ids = {entry["id"] for entry in catalog}
+            self.assertIn("read", verb_ids)
+            self.assertIn("created", verb_ids)
+            self.assertIn("edited", verb_ids)
+            self.assertIn("deleted", verb_ids)
+        finally:
+            registry._action_models.clear()
+            registry._action_models.update(saved_models)
+            registry._core_actions.clear()
+            registry._core_actions.update(saved_core)

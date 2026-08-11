@@ -17,3 +17,11 @@ export interface Person {
   role: "user" | "admin";
   created_at: string;
 }
+
+export interface AccessPolicy {
+  id: string;
+  core_action: string;
+  resource: string;
+  resource_label: string;
+  required_level: string;
+}

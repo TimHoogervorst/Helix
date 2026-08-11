@@ -26,11 +26,12 @@ User = get_user_model()
 
 
 def resolve_action_type(action: str) -> str:
-    """Return the core CRUD verb for *action*.
+    """Return the core action verb for *action*.
 
-    For core actions (the last dot-segment is ``created``, ``edited``,
-    or ``deleted``), extracts the last segment directly.  For custom
-    actions, looks up the catalog to find the registered core mapping.
+    For core actions (the last dot-segment is ``read``, ``created``,
+    ``edited``, or ``deleted``), extracts the last segment directly.
+    For custom actions, looks up the catalog to find the registered
+    core mapping.
 
     Raises:
         ValueError: If *action* does not resolve to a known core verb.
@@ -124,6 +125,13 @@ def bulk_log_actions(
             if action_type is None:
                 action_type = resolve_action_type(action)
 
+            if action_type == "read":
+                raise ValueError(
+                    "'read' actions are not persisted.  Read participates "
+                    "in authorization and policy discovery but never creates "
+                    "an Action Log Entry."
+                )
+
             instances.append(
                 model_class(
                     performed_by=user,
@@ -171,8 +179,10 @@ def log_action(
             ``"eln.entry.created"``.
         target_type: Namespaced target, e.g. ``"eln.entry"``.
         target_id: Primary key of the target record.
-        action_type: Core CRUD verb (``"created"``, ``"edited"``, or
-            ``"deleted"``).  Auto-resolved from *action* when omitted.
+        action_type: Core action verb (``"created"``, ``"edited"``,
+            ``"deleted"``, or ``"read"``).  Auto-resolved from *action*
+            when omitted.  ``"read"`` raises ``ValueError`` — it is
+            authorization-only and never persisted.
         metadata: Optional free-form payload (stored as JSON).
         version: Optional content version produced by this action.
         request_id: Correlation UUID tying together actions from the
@@ -183,11 +193,20 @@ def log_action(
         The newly created action instance.
 
     Raises:
-        ValueError: If no model is registered for the derived mod, or
-            if *action_type* cannot be resolved.
+        ValueError: If no model is registered for the derived mod, if
+            *action_type* cannot be resolved, or if *action_type* is
+            ``"read"`` (authorization-only).
     """
     if action_type is None:
         action_type = resolve_action_type(action)
+
+    # Read is authorization-only — never persist.
+    if action_type == "read":
+        raise ValueError(
+            "'read' actions are not persisted.  Read participates "
+            "in authorization and policy discovery but never creates "
+            "an Action Log Entry."
+        )
 
     mod_id = target_type.split(".")[0]
     model_class = get_action_model(mod_id)

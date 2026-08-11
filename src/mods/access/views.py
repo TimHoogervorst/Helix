@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Organization, OrganizationMembership, OrganizationRole
+from .policies import get_policy_matrix
 from .serializers import OrganizationMembershipSerializer, OrganizationSerializer
 
 
@@ -56,3 +57,16 @@ class PeopleView(views.APIView):
         ).select_related("user").order_by("user__username")
         serializer = OrganizationMembershipSerializer(memberships, many=True)
         return Response(serializer.data)
+
+
+class PolicyView(views.APIView):
+    """Expose the hardcoded Core Action policy matrix.
+
+    ``GET /api/access/policies/`` returns the authorization matrix as a
+    list of policy entries.  Every active User can read it.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(get_policy_matrix())

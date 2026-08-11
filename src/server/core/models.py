@@ -106,8 +106,6 @@ class Folder(models.Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name="folders",
     )
     created_at = models.DateTimeField(auto_now_add=True)

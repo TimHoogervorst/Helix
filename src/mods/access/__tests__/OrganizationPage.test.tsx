@@ -16,6 +16,7 @@ const mockFetchOrganization = vi.fn();
 const mockFetchPeople = vi.fn();
 const mockFetchPolicies = vi.fn();
 const mockFetchTeams = vi.fn();
+const mockFetchProjectsWithRole = vi.fn();
 const mockUpdateOrganization = vi.fn();
 
 vi.mock("../api", () => ({
@@ -23,6 +24,7 @@ vi.mock("../api", () => ({
   fetchPeople: (...args: unknown[]) => mockFetchPeople(...args),
   fetchPolicies: (...args: unknown[]) => mockFetchPolicies(...args),
   fetchTeams: (...args: unknown[]) => mockFetchTeams(...args),
+  fetchProjectsWithRole: (...args: unknown[]) => mockFetchProjectsWithRole(...args),
   updateOrganization: (...args: unknown[]) => mockUpdateOrganization(...args),
 }));
 
@@ -135,6 +137,7 @@ beforeEach(() => {
   mockFetchOrganization.mockResolvedValue(defaultOrg);
   mockFetchPeople.mockResolvedValue(defaultPeople);
   mockFetchTeams.mockResolvedValue(defaultTeams);
+  mockFetchProjectsWithRole.mockResolvedValue([]);
   mockFetchPolicies.mockResolvedValue(defaultPolicies);
 });
 

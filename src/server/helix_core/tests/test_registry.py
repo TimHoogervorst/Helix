@@ -1152,7 +1152,7 @@ class TestRegisterCustomAction:
 
         catalog = reg.get_action_catalog("lims")
         # Custom actions: id not in the three core verb names.
-        custom_actions = [a for a in catalog if a["id"] not in ("created", "edited", "deleted")]
+        custom_actions = [a for a in catalog if a["id"] not in ("read", "created", "edited", "deleted")]
         assert len(custom_actions) == 2
 
     def test_register_custom_action_different_mods(self):
@@ -1179,8 +1179,8 @@ class TestRegisterCustomAction:
         eln_catalog = reg.get_action_catalog("eln")
         lims_catalog = reg.get_action_catalog("lims")
         # Custom actions have id != action_type.
-        eln_custom = [a for a in eln_catalog if a["id"] not in ("created", "edited", "deleted")]
-        lims_custom = [a for a in lims_catalog if a["id"] not in ("created", "edited", "deleted")]
+        eln_custom = [a for a in eln_catalog if a["id"] not in ("read", "created", "edited", "deleted")]
+        lims_custom = [a for a in lims_catalog if a["id"] not in ("read", "created", "edited", "deleted")]
         assert len(eln_custom) == 1
         assert len(lims_custom) == 1
         assert eln_custom[0]["id"] == "eln.entry.exported"
@@ -1203,7 +1203,7 @@ class TestCoreActionAutoDerivation:
         catalog = reg.get_action_catalog("eln")
         # Core actions have id == action_type (self-referential — both are the verb).
         core_action_types = {a["action_type"] for a in catalog if a["id"] == a["action_type"]}
-        assert core_action_types == {"created", "edited", "deleted"}
+        assert core_action_types == {"read", "created", "edited", "deleted"}
 
     def test_core_actions_have_correct_labels(self):
         """Core actions have human-readable labels."""
@@ -1268,8 +1268,8 @@ class TestGetActionCatalog:
         )
 
         catalog = reg.get_action_catalog("lims")
-        # 3 core + 1 custom = 4 actions
-        assert len(catalog) == 4
+        # 4 core (read, created, edited, deleted) + 1 custom = 5 actions
+        assert len(catalog) == 5
         action_ids = {a["id"] for a in catalog}
         assert "created" in action_ids
         assert "edited" in action_ids
@@ -1306,7 +1306,7 @@ class TestGetActionCatalog:
         catalog.append({"id": "fake", "label": "Fake", "action_type": "created", "target_model": None})
 
         catalog2 = reg.get_action_catalog("eln")
-        assert len(catalog2) == 3  # Only the 3 core actions
+        assert len(catalog2) == 4  # Only the 4 core actions
 
 
 class TestValidateAction:
@@ -1642,7 +1642,7 @@ class TestSyncActions:
         # Only core actions remain.
         custom_actions = [
             a for a in catalog
-            if a["id"] not in ("created", "edited", "deleted")
+            if a["id"] not in ("read", "created", "edited", "deleted")
         ]
         assert len(custom_actions) == 0
 
@@ -1730,6 +1730,6 @@ class TestSyncActions:
         catalog = reg.get_action_catalog("eln")
         custom_ids = [
             a["id"] for a in catalog
-            if a["id"] not in ("created", "edited", "deleted")
+            if a["id"] not in ("read", "created", "edited", "deleted")
         ]
         assert sorted(custom_ids) == ["eln.table.created", "eln.table.edited"]

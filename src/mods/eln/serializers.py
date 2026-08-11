@@ -72,6 +72,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     folder_path = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     schema_prefix = serializers.CharField(source="schema.prefix", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
     mentions = MentionSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
 
@@ -85,6 +86,8 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "folder",
             "folder_name",
             "folder_path",
+            "project",
+            "project_name",
             "author",
             "author_username",
             "author_info",
@@ -97,7 +100,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "mentions",
             "tags",
         ]
-        read_only_fields = ["id", "display_id", "author", "created_at", "updated_at", "schema"]
+        read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
@@ -109,10 +112,10 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
 
 
 class NotebookEntryCreateSerializer(serializers.ModelSerializer):
-    """Write-only serializer. Folder defaults to 'Default' if omitted."""
+    """Write-only serializer. Folder is required — project is derived from it."""
 
     folder = serializers.PrimaryKeyRelatedField(
-        queryset=Folder.objects.all(), required=False, allow_null=True
+        queryset=Folder.objects.all(), required=True, allow_null=False
     )
     content = serializers.JSONField(validators=[validate_tiptap_json])
     status = serializers.ChoiceField(choices=["in_progress", "finished"], required=False)

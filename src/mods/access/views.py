@@ -7,13 +7,16 @@ from rest_framework.response import Response
 
 from core.models import Folder, Project
 
-from .models import Organization, OrganizationMembership, Team
-from .policies import can as can_access, get_policy_matrix
+from .models import FolderShare, Grant, Organization, OrganizationMembership, Team
+from .policies import can as can_access, get_policy_matrix, role as get_role
 from .serializers import (
+    FolderShareSerializer,
+    GrantSerializer,
     MemberUpdateSerializer,
     OrganizationMembershipSerializer,
     OrganizationSerializer,
     ProjectSerializer,
+    ProjectWithGrantsSerializer,
     TeamSerializer,
 )
 
@@ -161,8 +164,9 @@ class TeamDetailView(views.APIView):
                 {"detail": "Cannot delete a Team that is referenced by Grants."},
                 status=status.HTTP_409_CONFLICT,
             )
-        team.group.delete()
+        group = team.group
         team.delete()
+        group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -248,7 +252,10 @@ class ProjectListView(views.APIView):
         include_archived = request.query_params.get("include_archived") == "1"
         if not include_archived:
             qs = qs.filter(is_archived=False)
-        return Response(ProjectSerializer(qs, many=True).data)
+        serializer = ProjectSerializer(
+            qs, many=True, context={"request": request},
+        )
+        return Response(serializer.data)
 
     def post(self, request):
         if not can_access(request.user, "created", resource=Project()):
@@ -324,4 +331,181 @@ class ProjectDetailView(views.APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         project.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProjectGrantListView(views.APIView):
+    """List all Grants for a Project.
+
+    ``GET /api/access/projects/<pk>/grants/`` — Org Admins only.
+    ``POST /api/access/projects/<pk>/grants/`` — Org Admins only
+        (create or replace a Grant).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_project(self, pk):
+        try:
+            return Project.objects.get(pk=pk)
+        except Project.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        project = self._get_project(pk)
+        if project is None:
+            return Response(
+                {"detail": "Project not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "created", resource=Grant()):
+            return Response(
+                {"detail": "Only Organization Admins can view Grants."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        grants = Grant.objects.filter(project=project).select_related(
+            "user", "team__group",
+        ).order_by("-role", "user__username", "team__group__name")
+        return Response(GrantSerializer(grants, many=True).data)
+
+    def post(self, request, pk):
+        project = self._get_project(pk)
+        if project is None:
+            return Response(
+                {"detail": "Project not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "created", resource=project):
+            return Response(
+                {"detail": "Only Organization Admins can manage Grants."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        data = {
+            "project": project.pk,
+            "role": request.data.get("role"),
+            "user": request.data.get("user"),
+            "team": request.data.get("team"),
+        }
+        serializer = GrantSerializer(data=data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        grant = serializer.save()
+        return Response(GrantSerializer(grant).data, status=status.HTTP_201_CREATED)
+
+
+class ProjectGrantDetailView(views.APIView):
+    """Delete a single Grant.
+
+    ``DELETE /api/access/projects/<project_pk>/grants/<pk>/``
+        — Org Admins only.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, project_pk, pk):
+        try:
+            project = Project.objects.get(pk=project_pk)
+        except Project.DoesNotExist:
+            return Response(
+                {"detail": "Project not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "deleted", resource=project):
+            return Response(
+                {"detail": "Only Organization Admins can manage Grants."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            grant = Grant.objects.get(pk=pk, project=project)
+        except Grant.DoesNotExist:
+            return Response(
+                {"detail": "Grant not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        grant.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FolderShareListView(views.APIView):
+    """List or create Folder Shares for a Project.
+
+    ``GET /api/access/projects/<pk>/folder_shares/`` — Org Admins only.
+    ``POST /api/access/projects/<pk>/folder_shares/`` — Org Admins only.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_project(self, pk):
+        try:
+            return Project.objects.get(pk=pk)
+        except Project.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        project = self._get_project(pk)
+        if project is None:
+            return Response(
+                {"detail": "Project not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "created", resource=FolderShare()):
+            return Response(
+                {"detail": "Only Organization Admins can view Folder Shares."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        shares = FolderShare.objects.filter(
+            target_project=project,
+        ).select_related(
+            "source_folder__project", "target_project",
+        ).order_by("source_folder__name")
+        return Response(FolderShareSerializer(shares, many=True).data)
+
+    def post(self, request, pk):
+        project = self._get_project(pk)
+        if project is None:
+            return Response(
+                {"detail": "Project not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "created", resource=FolderShare()):
+            return Response(
+                {"detail": "Only Organization Admins can create Folder Shares."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        data = {
+            "source_folder": request.data.get("source_folder"),
+            "target_project": project.pk,
+            "level": request.data.get("level"),
+        }
+        serializer = FolderShareSerializer(data=data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        share = serializer.save()
+        return Response(
+            FolderShareSerializer(share).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class FolderShareDetailView(views.APIView):
+    """Delete a single Folder Share (revoke).
+
+    ``DELETE /api/access/folder_shares/<pk>/`` — Org Admins only.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            share = FolderShare.objects.get(pk=pk)
+        except FolderShare.DoesNotExist:
+            return Response(
+                {"detail": "Folder Share not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "deleted", resource=FolderShare()):
+            return Response(
+                {"detail": "Only Organization Admins can revoke Folder Shares."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        share.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

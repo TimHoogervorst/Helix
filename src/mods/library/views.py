@@ -148,7 +148,6 @@ class LibraryContentsView(APIView):
         paginator = MixedListPagination()
         page_items = paginator.paginate_queryset(items, request)
         response = paginator.get_paginated_response(page_items)
-        # Include the resolved folder ID so the frontend can create items
-        # at the current path without re-resolving it.
         response.data["current_folder_id"] = folder.id if folder else None
+        response.data["current_project_id"] = folder.project_id if folder else None
         return response

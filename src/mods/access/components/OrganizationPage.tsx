@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
 import { Avatar, getInitials } from "../../../shell/src/user/Avatar";
 import { Button } from "../../../shell/src/shared/primitives/Button";
-import { fetchOrganization, fetchPeople, fetchPolicies, fetchTeams, updateOrganization } from "../api";
-import type { AccessPolicy, Organization, Person, Team } from "../types";
+import { fetchOrganization, fetchPeople, fetchPolicies, fetchTeams, fetchProjectsWithRole, updateOrganization } from "../api";
+import type { AccessPolicy, Organization, Person, Project, Team } from "../types";
 import { Pencil, Check, X } from "lucide-react";
 
 const CORE_ACTION_LABELS: Record<string, string> = {
@@ -25,9 +26,11 @@ const LEVEL_LABELS: Record<string, string> = {
 
 export default function OrganizationPage() {
   const { user } = useCurrentUser();
+  const navigate = useNavigate();
   const [org, setOrg] = useState<Organization | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [policies, setPolicies] = useState<AccessPolicy[]>([]);
   const [activeTab, setActiveTab] = useState("people");
   const [loading, setLoading] = useState(true);
@@ -43,15 +46,17 @@ export default function OrganizationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [orgData, peopleData, teamsData, policiesData] = await Promise.all([
+      const [orgData, peopleData, teamsData, projectsData, policiesData] = await Promise.all([
         fetchOrganization(),
         fetchPeople(),
         fetchTeams(),
+        fetchProjectsWithRole(),
         fetchPolicies(),
       ]);
       setOrg(orgData);
       setPeople(peopleData);
       setTeams(teamsData);
+      setProjects(projectsData);
       setPolicies(policiesData);
     } catch (err) {
       setError("Failed to load organization data.");
@@ -195,6 +200,7 @@ export default function OrganizationPage() {
           tabs={[
             { id: "people", label: "People" },
             { id: "teams", label: "Teams" },
+            { id: "projects", label: "Projects" },
             { id: "policies", label: "Access Policies" },
           ]}
           activeTab={activeTab}
@@ -269,6 +275,53 @@ export default function OrganizationPage() {
                 No Teams have been created yet.
               </p>
             )}
+          </div>
+        )}
+
+        {activeTab === "projects" && (
+          <div className="space-y-8">
+            {(() => {
+              const yourProjects = projects.filter(
+                (p) => isAdmin || p.current_user_role,
+              );
+              const otherProjects = projects.filter(
+                (p) => !isAdmin && !p.current_user_role,
+              );
+
+              return (
+                <>
+                  {yourProjects.length > 0 && (
+                    <div>
+                      <h2 className="mb-4 text-lg font-semibold text-[var(--color-ink)]">
+                        Your Projects
+                      </h2>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {yourProjects.map((project) =>
+                          renderProjectCard(project, true, navigate),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {otherProjects.length > 0 && (
+                    <div>
+                      <h2 className="mb-4 text-lg font-semibold text-[var(--color-ink)]">
+                        Other Projects
+                      </h2>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {otherProjects.map((project) =>
+                          renderProjectCard(project, false, navigate),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {projects.length === 0 && (
+                    <p className="text-sm text-[var(--color-ink-muted-foreground)]">
+                      No Projects have been created yet.
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -372,6 +425,52 @@ function renderTeamCard(team: Team) {
           No members
         </p>
       )}
+    </div>
+  );
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  read: "Read",
+  edit: "Edit",
+};
+
+function renderProjectCard(
+  project: Project,
+  isAccessible: boolean,
+  navigate: ReturnType<typeof useNavigate>,
+) {
+  const handleClick = () => {
+    if (isAccessible) {
+      navigate(`/library?project=${project.uid}`);
+    }
+  };
+
+  return (
+    <div
+      key={project.id}
+      className={`rounded-lg border border-hairline bg-panel p-3 ${
+        isAccessible ? "cursor-pointer hover:border-[var(--color-primary)]" : ""
+      }`}
+      onClick={handleClick}
+      role={isAccessible ? "link" : undefined}
+      tabIndex={isAccessible ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (isAccessible && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-[var(--color-ink)]">
+          {project.name}
+        </span>
+        {isAccessible && project.current_user_role && (
+          <span className="shrink-0 rounded-full bg-[var(--color-primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--color-primary)]">
+            {ROLE_LABELS[project.current_user_role] || project.current_user_role}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

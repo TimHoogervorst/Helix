@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from core.models import Folder, Project, User
 
-from .models import Organization, OrganizationMembership, Team
+from .models import FolderShare, Grant, Organization, OrganizationMembership, Team
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -107,13 +107,25 @@ class MemberUpdateSerializer(serializers.Serializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    current_user_role = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
         fields = [
             "id", "uid", "name", "icon_key", "color_key",
-            "is_archived", "created_at",
+            "is_archived", "created_at", "current_user_role",
         ]
-        read_only_fields = ["id", "uid", "created_at"]
+        read_only_fields = ["id", "uid", "created_at", "current_user_role"]
+
+    def get_current_user_role(self, obj):
+        request = self.context.get("request")
+        if request is None:
+            return None
+        with_role = request.query_params.get("with_role") == "1"
+        if not with_role:
+            return None
+        from .policies import role
+        return role(request.user, obj)
 
     @transaction.atomic
     def create(self, validated_data):
@@ -124,3 +136,112 @@ class ProjectSerializer(serializers.ModelSerializer):
             project=project,
         )
         return project
+
+
+class GrantSerializer(serializers.ModelSerializer):
+    grantee_type = serializers.SerializerMethodField()
+    grantee_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Grant
+        fields = [
+            "id", "project", "role", "user", "team",
+            "grantee_type", "grantee_name",
+        ]
+        read_only_fields = ["id"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("user", "team"):
+            if name in self.fields:
+                self.fields[name].required = False
+                self.fields[name].allow_null = True
+
+    def run_validators(self, value):
+        return value
+
+    def get_grantee_type(self, obj):
+        if obj.user_id:
+            return "user"
+        if obj.team_id:
+            return "team"
+        return None
+
+    def get_grantee_name(self, obj):
+        if obj.user_id:
+            return obj.user.username
+        if obj.team_id:
+            return obj.team.name
+        return None
+
+    def validate(self, data):
+        user = data.get("user")
+        team = data.get("team")
+        if user and team:
+            raise serializers.ValidationError(
+                "A Grant must reference exactly one grantee (User or Team)."
+            )
+        if not user and not team:
+            raise serializers.ValidationError(
+                "A Grant must reference a User or a Team."
+            )
+        return data
+
+    def create(self, validated_data):
+        project = validated_data["project"]
+        user = validated_data.get("user")
+        team = validated_data.get("team")
+        role = validated_data["role"]
+
+        if user:
+            grant, _ = Grant.objects.update_or_create(
+                project=project,
+                user=user,
+                defaults={"role": role},
+            )
+        else:
+            grant, _ = Grant.objects.update_or_create(
+                project=project,
+                team=team,
+                defaults={"role": role},
+            )
+        return grant
+
+
+class ProjectWithGrantsSerializer(serializers.ModelSerializer):
+    grants = GrantSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Project
+        fields = [
+            "id", "uid", "name", "icon_key", "color_key",
+            "is_archived", "created_at", "grants",
+        ]
+        read_only_fields = ["id", "uid", "created_at"]
+
+
+class FolderShareSerializer(serializers.ModelSerializer):
+    source_folder_name = serializers.CharField(source="source_folder.name", read_only=True)
+    source_folder_path = serializers.CharField(source="source_folder.path", read_only=True)
+    source_project_id = serializers.IntegerField(source="source_folder.project_id", read_only=True)
+    source_project_name = serializers.SerializerMethodField()
+    target_project_name = serializers.CharField(source="target_project.name", read_only=True)
+
+    class Meta:
+        model = FolderShare
+        fields = [
+            "id", "source_folder", "source_folder_name", "source_folder_path",
+            "source_project_id", "source_project_name",
+            "target_project", "target_project_name", "level",
+        ]
+        read_only_fields = ["id"]
+
+    def get_source_project_name(self, obj):
+        if obj.source_folder_id and obj.source_folder.project_id:
+            return obj.source_folder.project.name
+        return None
+
+    def validate(self, data):
+        instance = FolderShare(**data)
+        instance.clean()
+        return data

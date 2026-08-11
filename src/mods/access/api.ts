@@ -1,5 +1,5 @@
 import { get, patch, post, del } from "../../shell/src/api/client";
-import type { AccessPolicy, Organization, Person, Project, Team } from "./types";
+import type { AccessPolicy, Grant, Organization, Person, Project, Team } from "./types";
 
 export function fetchOrganization(): Promise<Organization> {
   return get<Organization>("/access/organization/");
@@ -59,6 +59,13 @@ export function fetchProjects(
   return get<Project[]>(`/access/projects/${params}`);
 }
 
+export function fetchProjectsWithRole(
+  includeArchived?: boolean,
+): Promise<Project[]> {
+  const params = includeArchived ? "?include_archived=1&with_role=1" : "?with_role=1";
+  return get<Project[]>(`/access/projects/${params}`);
+}
+
 export function fetchProject(id: number): Promise<Project> {
   return get<Project>(`/access/projects/${id}/`);
 }
@@ -78,4 +85,22 @@ export function updateProject(
 
 export function deleteProject(id: number): Promise<void> {
   return del<void>(`/access/projects/${id}/`);
+}
+
+export function fetchGrants(projectId: number): Promise<Grant[]> {
+  return get<Grant[]>(`/access/projects/${projectId}/grants/`);
+}
+
+export function createGrant(
+  projectId: number,
+  data: { role: "read" | "edit"; user?: number; team?: number },
+): Promise<Grant> {
+  return post<Grant>(`/access/projects/${projectId}/grants/`, data);
+}
+
+export function deleteGrant(
+  projectId: number,
+  grantId: number,
+): Promise<void> {
+  return del<void>(`/access/projects/${projectId}/grants/${grantId}/`);
 }

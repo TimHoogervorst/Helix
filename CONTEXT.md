@@ -59,6 +59,8 @@ A hierarchical container that owns Notebook Entries, Entities, and child Folders
 
 Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items live.
 
+Deleting a Folder permanently deletes everything inside it — child Folders, Entries, and Entities — under the pre-v1 lifecycle. There is no trash or recovery.
+
 **Synonyms:** directory
 
 ### User
@@ -159,7 +161,7 @@ Sidebar (dynamic: registry.getHubs())
 
 ### Library
 
-The **hub** at `/library` that presents a unified, filesystem-like view over Projects and their Folder hierarchies. At the root, the Library lists the Projects the user can see. Inside a Project, both child Folders and Entries appear together in a single card grid at any folder level, sorted with folders first; Folders shared with the Project appear at its root. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of Projects and the Folder tree.
+The **hub** at `/library` that presents a unified, filesystem-like view over Projects and their Folder hierarchies. At the root, the Library lists only the Projects the user has access to — an effective Project Role through a direct Grant, a Team Grant, or the Organization Admin override. Archived Projects are hidden from the root but their content remains reachable by members through a direct URL. Inside a Project, both child Folders and Entries appear together in a single card grid at any folder level, sorted with folders first; Folders shared with the Project appear at its root. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of Projects and the Folder tree.
 
 The Library renders two Item types: **Folders** (navigated into) and **Entries** (selected for navigation to workspace). When new content types are added, they appear in the same mixed grid with their own type icon and label.
 
@@ -172,6 +174,28 @@ The Library renders two Item types: **Folders** (navigated into) and **Entries**
 The navigation bar at the top of the Library hub showing the current location as clickable segments: the Project name, then `root`, then each Folder along the path. Each segment is a link to that level — the Project name returns to the Projects listing (the Library root), `root` returns to the Project's root folder. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
 
 **Invariant:** The breadcrumb always reflects the current `?project=` and `?path=` URL parameters. The `project` parameter contains the Project's immutable generated ID while the breadcrumb displays its name. Clicking a segment updates the parameters and reloads the card grid.
+
+### Row Menu
+
+The hover-revealed three-dot menu at the right end of every Library row (Folders and Entries, all three view modes). Always opens a menu — never a direct action — with **Properties** (always) and **Delete** (only when the viewer can modify the row: Edit access, Organization Admin override, or a Read + Write share for rows inside a shared subtree). Rows whose only action is Properties still show a menu — predictability beats shortcut. The button stays in the DOM; reveal is pure CSS, so keyboard focus reaches it. Library rows only — the Entities hub has no Row Menu.
+
+**Synonyms:** row actions, three-dot menu, kebab menu
+
+### Properties Modal
+
+The standard modal opened from a Row Menu's **Properties** action, built on the shared Modal primitive. Shows the metadata of one Folder or Entry; what is editable follows access — viewers without Edit see the same modal read-only. Changes **apply instantly** — no Save button, no dirty state.
+
+**Entry properties:** status (with a note that it cascades to entities created in the entry), move-to-folder (a searchable list of folder paths, excluding the current folder; constrained to the shared subtree when the entry is reached through a share), and read-only project, author, created, and updated dates. The header carries the display ID and title; the title is read-only — it is edited in the workspace, not here. Tags are absent — they are managed inline on the entry page. Editable fields are disabled while the entry is locked by another user.
+
+**Folder properties:** rename and the read-only created date. Top-level Folders in their owning Project additionally carry the Sharing Panel (Organization Admins only); nested Folders show a hint that only top-level Folders can be shared. A shared Folder opened through a sharee Project is read-only — it cannot be renamed through the share.
+
+**Synonyms:** row properties, item properties
+
+### Sharing Panel
+
+The Organization Admin-only section of a top-level Folder's Properties Modal, shown only in the Folder's owning Project. Lists the Folder's shares — target Project identity, a **Read / Read + Write** level dropdown (changes apply instantly), and revoke (confirmed). New shares are added inline: a picker of non-archived Projects excluding the owner and already-shared targets, a level, and Add. Share constraints (one share per pair, overlap rejection, target-root name collisions) are enforced server-side and surfaced inline.
+
+**Synonyms:** share management, folder shares panel
 
 ---
 
@@ -443,6 +467,12 @@ A Card is either **global** (system-seeded, shown to everyone, not user-editable
 One recorded value of a Metric at a point in time. Today Metrics are computed **live** — the aggregate runs against current data on every read, and no history is kept. Recorded readings (periodically snapshotted by a scheduled process) are the deferred foundation for trend graphs and "changed by X% this week" displays.
 
 **Synonyms:** metric snapshot, data point
+
+### Project Filter
+
+A filter on the Entities Hub that narrows rows by Project. A multi-select over the Projects the viewer can access (effective Project Role or Organization Admin override); archived Projects are not offered. Participates in the standard field-filter machinery (`?f=`), saved Views, and Metrics like any other column filter. Absence of a Project Filter means all Projects — saved Views created before the filter existed keep their meaning.
+
+**Synonyms:** project column filter
 
 ### By Me Filter
 

@@ -119,7 +119,8 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         author = self.request.user if self.request.user.is_authenticated else None
         schema = self._get_default_schema()
-        instance = serializer.save(author=author, schema=schema)
+        folder = serializer.validated_data["folder"]
+        instance = serializer.save(author=author, schema=schema, project=folder.project)
         sync_entry_content(instance)
         self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
 
@@ -128,12 +129,13 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         Flow:
         0. Check lock — reject 423 if another user holds a non-stale lock.
-        1. Hash incoming content, compare with latest ContentVersion.
+        1. Validate same-project move — reject cross-Project folder changes.
+        2. Hash incoming content, compare with latest ContentVersion.
            If hash matches AND no other fields changed → return early (no-op).
-        2. Save the entry via the serializer.
-        3. Run the sync pipeline.
-        4. Create a ContentVersion only if content actually changed.
-        5. Log an "edited" action with version metadata (if content changed).
+        3. Save the entry via the serializer.
+        4. Run the sync pipeline.
+        5. Create a ContentVersion only if content actually changed.
+        6. Log an "edited" action with version metadata (if content changed).
         """
         instance = serializer.instance
         validated_data = serializer.validated_data
@@ -148,6 +150,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         if lock is not None and not lock.is_stale() and lock.held_by != self.request.user:
             raise LockedException()
+
+        # ── Cross-Project move rejection ───────────────────────────────────
+        if "folder" in validated_data:
+            new_folder = validated_data["folder"]
+            if new_folder.project_id != instance.project_id:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError(
+                    {"folder": "Entries cannot be moved to a different Project."}
+                )
 
         # Determine save_mode from request header.
         valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}

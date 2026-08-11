@@ -15,84 +15,93 @@ class LibraryApiTests(BaseTestCase):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
-        # Create folder structure:
-        #   root/
-        #     Experiments/
-        #       Q1/
-        #     Protocols/
         self.experiments_folder = Folder.objects.create(
-            name="Experiments", parent=None
+            name="Experiments", parent=self.root_folder, project=self.project,
         )
         self.nested_folder = Folder.objects.create(
-            name="Q1", parent=self.experiments_folder
+            name="Q1", parent=self.experiments_folder, project=self.project,
         )
-        Folder.objects.create(name="Protocols", parent=None)
+        Folder.objects.create(
+            name="Protocols", parent=self.root_folder, project=self.project,
+        )
 
-        # Entry at root (folder=None)
         self.root_entry = NotebookEntry.objects.create(
             title="Root Entry",
             content=EMPTY_DOC,
-            folder=None,
+            folder=self.root_folder,
+            project=self.project,
             author=self.user,
+            schema=self.schema,
         )
 
-        # Entries in Experiments/
         self.exp_entry = NotebookEntry.objects.create(
             title="PCR Results",
             content=EMPTY_DOC,
             folder=self.experiments_folder,
+            project=self.project,
             author=self.user,
+            schema=self.schema,
         )
 
-        # Entries in Experiments/Q1/
         self.nested_entry = NotebookEntry.objects.create(
             title="Q1 Analysis",
             content=EMPTY_DOC,
             folder=self.nested_folder,
+            project=self.project,
             author=self.user,
+            schema=self.schema,
         )
+
+        self._schema = None
+
+    @property
+    def schema(self):
+        if self._schema is None:
+            from mods.eln.tests.factories import get_or_create_default_eln_schema
+            self._schema = get_or_create_default_eln_schema()
+        return self._schema
+
+    def _root_path(self):
+        return f"/{self.root_folder.name}"
 
     # ── Basic responses ──────────────────────────────────────────────
 
     def test_root_returns_200(self):
         """GET /api/library/contents/ returns 200 with results."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         self.assertEqual(response.status_code, 200)
         self.assertIn("results", response.data)
         self.assertIn("count", response.data)
 
     def test_type_discriminator_present(self):
         """Every item in results has a ``type`` field."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         for item in response.data["results"]:
             self.assertIn("type", item)
             self.assertIn(item["type"], ["folder", "entry"])
 
     def test_folders_sorted_before_entries(self):
         """All folder items precede all entry items."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         results = response.data["results"]
         types = [item["type"] for item in results]
-        # All folders should come before all entries
         if "entry" in types and "folder" in types:
             last_folder_idx = max(i for i, t in enumerate(types) if t == "folder")
             first_entry_idx = min(i for i, t in enumerate(types) if t == "entry")
             self.assertLess(last_folder_idx, first_entry_idx)
 
     def test_root_shows_top_level_items_only(self):
-        """Root listing only shows items with parent=None."""
-        response = self.client.get("/api/library/contents/")
+        """Root listing only shows items inside the project root."""
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         results = response.data["results"]
 
         folder_names = [r["name"] for r in results if r["type"] == "folder"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
 
-        # Should include root-level folders and entries
         self.assertIn("Experiments", folder_names)
         self.assertIn("Protocols", folder_names)
         self.assertIn("Root Entry", entry_titles)
 
-        # Should NOT include nested items
         self.assertNotIn("Q1", folder_names)
         self.assertNotIn("PCR Results", entry_titles)
         self.assertNotIn("Q1 Analysis", entry_titles)
@@ -100,9 +109,9 @@ class LibraryApiTests(BaseTestCase):
     # ── Path navigation ──────────────────────────────────────────────
 
     def test_nested_path_returns_correct_items(self):
-        """?path=/Experiments returns only items inside that folder."""
+        """?path=/root/Experiments returns only items inside that folder."""
         response = self.client.get(
-            "/api/library/contents/?path=/Experiments"
+            f"/api/library/contents/?path={self._root_path()}/Experiments"
         )
         results = response.data["results"]
 
@@ -111,13 +120,13 @@ class LibraryApiTests(BaseTestCase):
 
         self.assertIn("Q1", folder_names)
         self.assertIn("PCR Results", entry_titles)
-        self.assertNotIn("Experiments", folder_names)  # parent
+        self.assertNotIn("Experiments", folder_names)
         self.assertNotIn("Root Entry", entry_titles)
 
     def test_empty_folder_returns_empty_list(self):
         """Empty folder returns 200 with empty results."""
         response = self.client.get(
-            "/api/library/contents/?path=/Protocols"
+            f"/api/library/contents/?path={self._root_path()}/Protocols"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
@@ -134,7 +143,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_folder_item_shape(self):
         """Folder items have the correct keys."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         folders = [r for r in response.data["results"] if r["type"] == "folder"]
         self.assertGreater(len(folders), 0)
         f = folders[0]
@@ -146,7 +155,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_entry_item_shape(self):
         """Entry items have the correct keys."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         self.assertGreater(len(entries), 0)
         e = entries[0]
@@ -171,7 +180,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_entry_status_value(self):
         """Entry status is one of the valid choices."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         self.assertGreater(len(entries), 0)
         e = entries[0]
@@ -179,7 +188,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_entry_placeholders_are_set(self):
         """Placeholder fields have the correct default values."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         self.assertGreater(len(entries), 0)
         e = entries[0]
@@ -193,7 +202,7 @@ class LibraryApiTests(BaseTestCase):
         tag = Tag.objects.create(name="CRISPR", color="flask", icon="dna")
         self.root_entry.tags.add(tag)
 
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(len(root["tags"]), 1)
@@ -225,14 +234,14 @@ class LibraryApiTests(BaseTestCase):
         self.root_entry.content = doc
         self.root_entry.save()
 
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(root["description"], "First paragraph text.")
 
     def test_entry_description_empty_for_empty_doc(self):
         """Description is an empty string for documents with no text content."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(root["description"], "")
@@ -241,16 +250,19 @@ class LibraryApiTests(BaseTestCase):
 
     def test_pagination_page_size(self):
         """Page returns at most page_size items."""
-        # Create many entries at root to trigger pagination
         for i in range(55):
             NotebookEntry.objects.create(
                 title=f"Bulk Entry {i}",
                 content=EMPTY_DOC,
-                folder=None,
+                folder=self.root_folder,
+                project=self.project,
                 author=self.user,
+                schema=self.schema,
             )
 
-        response = self.client.get("/api/library/contents/?page_size=20")
+        response = self.client.get(
+            f"/api/library/contents/?path={self._root_path()}&page_size=20"
+        )
         self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(response.data["results"]), 20)
         self.assertIsNotNone(response.data["next"])
@@ -262,11 +274,13 @@ class LibraryApiTests(BaseTestCase):
             NotebookEntry.objects.create(
                 title=f"Page Entry {i}",
                 content=EMPTY_DOC,
-                folder=None,
+                folder=self.root_folder,
+                project=self.project,
                 author=self.user,
+                schema=self.schema,
             )
 
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(f"/api/library/contents/?path={self._root_path()}")
         if response.data["count"] > 50:
             self.assertIsNotNone(response.data["next"])
 
@@ -275,7 +289,7 @@ class LibraryApiTests(BaseTestCase):
     def test_search_filters_folders(self):
         """search=Exp filters folders by name."""
         response = self.client.get(
-            "/api/library/contents/?search=Exp"
+            f"/api/library/contents/?path={self._root_path()}&search=Exp"
         )
         results = response.data["results"]
         folder_names = [r["name"] for r in results if r["type"] == "folder"]
@@ -285,7 +299,7 @@ class LibraryApiTests(BaseTestCase):
     def test_search_filters_entries(self):
         """search=PCR filters entries by title or display_id."""
         response = self.client.get(
-            "/api/library/contents/?path=/Experiments&search=PCR"
+            f"/api/library/contents/?path={self._root_path()}/Experiments&search=PCR"
         )
         results = response.data["results"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
@@ -296,7 +310,7 @@ class LibraryApiTests(BaseTestCase):
         """search by display_id prefix finds matching entries."""
         display_id = self.exp_entry.display_id
         response = self.client.get(
-            f"/api/library/contents/?path=/Experiments&search={display_id}"
+            f"/api/library/contents/?path={self._root_path()}/Experiments&search={display_id}"
         )
         results = response.data["results"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
@@ -305,7 +319,7 @@ class LibraryApiTests(BaseTestCase):
     def test_search_preserves_sort_order(self):
         """Search results still have folders before entries."""
         response = self.client.get(
-            "/api/library/contents/?search=e"  # matches both folders and entries
+            f"/api/library/contents/?path={self._root_path()}&search=e"
         )
         results = response.data["results"]
         types = [item["type"] for item in results]

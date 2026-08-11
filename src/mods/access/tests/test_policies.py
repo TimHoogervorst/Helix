@@ -4,11 +4,13 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import User
+from core.models import Folder, Project, User
 from mods.access.models import (
+    Grant,
     Organization,
     OrganizationMembership,
     OrganizationRole,
+    ProjectRole,
 )
 from mods.access.policies import (
     can,
@@ -67,6 +69,17 @@ class CanFunctionTests(TestCase):
         self.anon = User(username="anon")
         _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
         _ensure_membership(self.user, self.org, OrganizationRole.USER)
+        self.project = Project.objects.create(name="Alpha")
+        Folder.objects.create(name="root", parent=None, project=self.project)
+
+    def _resource(self):
+        """Return a resource with project_id for project_resource checks."""
+        root = Folder.objects.filter(
+            project=self.project, parent__isnull=True,
+        ).first()
+        return Folder.objects.create(
+            name="child", parent=root, project=self.project,
+        )
 
     def test_anonymous_cannot_do_anything(self):
         self.assertFalse(can(self.anon, "read"))
@@ -121,6 +134,41 @@ class CanFunctionTests(TestCase):
 
     def test_admin_can_perform_org_admin_mutations(self):
         self.assertTrue(can(self.admin, "created"))
+
+    # ── project resource with Grants ──────────────────────────────────────
+
+    def test_user_without_grant_cannot_read_project_resource(self):
+        resource = self._resource()
+        self.assertFalse(can(self.user, "read", resource=resource))
+
+    def test_user_with_read_grant_can_read_project_resource(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, user=self.user,
+        )
+        resource = self._resource()
+        self.assertTrue(can(self.user, "read", resource=resource))
+
+    def test_user_with_read_grant_cannot_edit_project_resource(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, user=self.user,
+        )
+        resource = self._resource()
+        self.assertFalse(can(self.user, "created", resource=resource))
+
+    def test_user_with_edit_grant_can_edit_project_resource(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.EDIT, user=self.user,
+        )
+        resource = self._resource()
+        self.assertTrue(can(self.user, "created", resource=resource))
+        self.assertTrue(can(self.user, "edited", resource=resource))
+        self.assertTrue(can(self.user, "deleted", resource=resource))
+
+    def test_user_with_read_grant_cannot_create_org_admin_resource(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, user=self.user,
+        )
+        self.assertFalse(can(self.user, "created", resource=self.org))
 
 
 class GetPolicyMatrixTests(TestCase):

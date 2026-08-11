@@ -3,6 +3,7 @@ from rest_framework import serializers
 from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema
 from .models import Entity, Action, LimsView, Metric
+from core.models import Folder
 
 
 def validate_prefix(value):
@@ -56,6 +57,10 @@ class EntitySerializer(serializers.ModelSerializer):
     source_entry_display_id = serializers.CharField(
         source="source_entry.display_id", read_only=True, default=None
     )
+    folder = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.all(), required=True, allow_null=False,
+    )
+    project_name = serializers.CharField(source="project.name", read_only=True)
 
     class Meta:
         model = Entity
@@ -70,13 +75,15 @@ class EntitySerializer(serializers.ModelSerializer):
             "source_entry",
             "source_entry_display_id",
             "folder",
+            "project",
+            "project_name",
             "author",
             "author_username",
             "status",
             "updated_at",
             "created_at",
         ]
-        read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
+        read_only_fields = ["id", "display_id", "project", "author", "updated_at", "created_at"]
 
     def validate_properties(self, properties):
         """Validate reference column values against their target schemas.
@@ -195,6 +202,7 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
     """Serializer for a single row in the batch-register payload."""
     entity_id = serializers.IntegerField(required=False, allow_null=True)
     name = serializers.CharField(required=True, allow_blank=True)
+    folder_id = serializers.IntegerField(required=False, allow_null=True)
     values = serializers.DictField(default=dict)
 
 

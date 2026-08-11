@@ -33,7 +33,7 @@ class FolderActionLoggingTests(BaseTestCase):
     def test_create_folder_logs_action(self):
         response = self.client.post(
             "/api/core/folders/",
-            {"name": "My Folder"},
+            {"name": "My Folder", "project": self.project.id, "parent": self.root_folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -45,10 +45,12 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["user"], self.user)
 
     def test_update_folder_logs_action(self):
-        folder = Folder.objects.create(name="Old Name")
+        folder = Folder.objects.create(
+            name="Old Name", project=self.project, parent=self.root_folder,
+        )
         response = self.client.put(
             f"/api/core/folders/{folder.id}/",
-            {"name": "New Name"},
+            {"name": "New Name", "project": self.project.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -59,7 +61,9 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["target_id"], folder.id)
 
     def test_partial_update_folder_logs_action(self):
-        folder = Folder.objects.create(name="PatchMe")
+        folder = Folder.objects.create(
+            name="PatchMe", project=self.project, parent=self.root_folder,
+        )
         response = self.client.patch(
             f"/api/core/folders/{folder.id}/",
             {"name": "Renamed"},
@@ -71,7 +75,9 @@ class FolderActionLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["action"], "core.folder.edited")
 
     def test_delete_folder_logs_action(self):
-        folder = Folder.objects.create(name="DeleteMe")
+        folder = Folder.objects.create(
+            name="DeleteMe", project=self.project, parent=self.root_folder,
+        )
         response = self.client.delete(f"/api/core/folders/{folder.id}/")
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
@@ -83,14 +89,16 @@ class FolderActionLoggingTests(BaseTestCase):
     def test_create_folder_captures_client_ip(self):
         self.client.post(
             "/api/core/folders/",
-            {"name": "IP Test"},
+            {"name": "IP Test", "project": self.project.id, "parent": self.root_folder.id},
             format="json",
         )
         kwargs = _log_kwargs(self.mock_log)
         self.assertEqual(kwargs["client_ip"], "127.0.0.1")
 
     def test_get_does_not_log(self):
-        Folder.objects.create(name="ReadOnly")
+        Folder.objects.create(
+            name="ReadOnly", project=self.project, parent=self.root_folder,
+        )
         self.client.get("/api/core/folders/")
         self.mock_log.assert_not_called()
 

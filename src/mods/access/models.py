@@ -9,6 +9,16 @@ class OrganizationRole(models.TextChoices):
     ADMIN = "admin", "Admin"
 
 
+class ProjectRole(models.TextChoices):
+    READ = "read", "Read"
+    EDIT = "edit", "Edit"
+
+
+class ShareLevel(models.TextChoices):
+    READ = "read", "Read"
+    READ_WRITE = "read_write", "Read + Write"
+
+
 class Organization(models.Model):
     _policy_resource_category = "organization_admin"
 
@@ -67,13 +77,7 @@ class Team(models.Model):
 
     @property
     def blocked_from_deletion(self) -> bool:
-        """Reserved for Grant slice — returns ``False`` until Grants exist.
-
-        When Grants reference Teams, this property will check whether the
-        Team is referenced by any active Grant.  Deletion should be blocked
-        while ``blocked_from_deletion`` is ``True``.
-        """
-        return False
+        return self.grants.exists()
 
 
 class OrganizationMembership(models.Model):
@@ -129,3 +133,176 @@ def _has_other_active_admin(excluding_user=None) -> bool:
     if excluding_user is not None:
         qs = qs.exclude(user=excluding_user)
     return qs.exists()
+
+
+class Grant(models.Model):
+    """Assigns a fixed Read or Edit Project Role to a User or Team.
+
+    Exactly one Grantee (User *or* Team) must be non-null.  A conditional
+    unique constraint allows at most one Grant per Project–User and one
+    per Project–Team pair.  Changing a role updates the existing row.
+    """
+
+    _policy_resource_category = "organization_admin"
+
+    project = models.ForeignKey(
+        "core.Project",
+        on_delete=models.CASCADE,
+        related_name="grants",
+    )
+    role = models.CharField(
+        max_length=10,
+        choices=ProjectRole.choices,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="grants",
+        null=True,
+        blank=True,
+    )
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.PROTECT,
+        related_name="grants",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "access_grant"
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(user__isnull=False, team__isnull=True)
+                    | models.Q(user__isnull=True, team__isnull=False)
+                ),
+                name="chk_grant_exactly_one_grantee",
+            ),
+            models.UniqueConstraint(
+                fields=["project", "user"],
+                condition=models.Q(user__isnull=False),
+                name="uq_grant_project_user",
+            ),
+            models.UniqueConstraint(
+                fields=["project", "team"],
+                condition=models.Q(team__isnull=False),
+                name="uq_grant_project_team",
+            ),
+        ]
+
+    def __str__(self):
+        grantee = (
+            self.user.username
+            if self.user_id
+            else self.team.name if self.team_id else "unknown"
+        )
+        return f"{grantee} — {self.role} on {self.project.name}"
+
+    def clean(self):
+        super().clean()
+        if self.user_id and self.team_id:
+            raise ValidationError("A Grant must reference exactly one grantee (User or Team).")
+        if not self.user_id and not self.team_id:
+            raise ValidationError("A Grant must reference a User or a Team.")
+
+
+class FolderShare(models.Model):
+    """Shares one immediate child of a source Project root into a target Project.
+
+    Only Organization Admins create, change, or revoke Folder Shares.
+    One row per Folder–target pair.  The source Folder must be an
+    immediate child of its Project's hidden root — nested source Folders
+    and hidden roots themselves are rejected.
+
+    Shared access is the intersection of the user's target Project Role
+    and the share level.
+    """
+
+    _policy_resource_category = "organization_admin"
+
+    source_folder = models.ForeignKey(
+        "core.Folder",
+        on_delete=models.CASCADE,
+        related_name="outgoing_shares",
+    )
+    target_project = models.ForeignKey(
+        "core.Project",
+        on_delete=models.CASCADE,
+        related_name="incoming_shares",
+    )
+    level = models.CharField(
+        max_length=15,
+        choices=ShareLevel.choices,
+    )
+
+    class Meta:
+        db_table = "access_folder_share"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_folder", "target_project"],
+                name="uq_folder_share_source_target",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"FolderShare {self.source_folder.path} → "
+            f"{self.target_project.name} ({self.get_level_display()})"
+        )
+
+    def clean(self):
+        super().clean()
+
+        if self.source_folder_id is None:
+            return
+
+        source = self.source_folder
+
+        if source.project_id == self.target_project_id:
+            raise ValidationError(
+                "The source Project cannot be the target Project."
+            )
+
+        if source.is_hidden_root:
+            raise ValidationError("The hidden root Folder cannot be shared.")
+
+        if source.parent_id is None or source.parent.parent_id is not None:
+            raise ValidationError(
+                "Only immediate children of the Project root can be shared."
+            )
+
+        overlapping = (
+            FolderShare.objects
+            .filter(target_project_id=self.target_project_id)
+            .exclude(pk=self.pk)
+            .select_related("source_folder")
+        )
+
+        for share in overlapping:
+            if _is_ancestor_or_descendant(share.source_folder, source):
+                raise ValidationError(
+                    "An ancestor or descendant of this Folder is already "
+                    "shared to the same target Project."
+                )
+
+
+def _is_ancestor_or_descendant(a, b) -> bool:
+    if a.id == b.id:
+        return True
+
+    a_ancestors = _ancestor_ids(a)
+    b_ancestors = _ancestor_ids(b)
+    if a.id in b_ancestors or b.id in a_ancestors:
+        return True
+
+    return False
+
+
+def _ancestor_ids(folder) -> set:
+    ids = set()
+    node = folder.parent
+    while node is not None:
+        ids.add(node.id)
+        node = node.parent
+    return ids

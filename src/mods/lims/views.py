@@ -18,6 +18,7 @@ from .serializers import (
     LimsViewSerializer,
     MetricSerializer,
 )
+from core.models import Folder
 
 logger = logging.getLogger(__name__)
 
@@ -117,15 +118,27 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             from rest_framework.exceptions import NotAuthenticated
             raise NotAuthenticated("Authentication is required to create entities.")
-        # Schema is always resolved by EntitySerializer.validate() — if the
-        # client omitted it, the default Schema for the LIMS SchemaType is
-        # assigned automatically.
-        instance = serializer.save(author=self.request.user)
+        folder = serializer.validated_data["folder"]
+        instance = serializer.save(
+            author=self.request.user,
+            project=folder.project,
+        )
         self._maybe_log(
             "create",
             instance=instance,
             validated_data=serializer.validated_data,
         )
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        if "folder" in serializer.validated_data:
+            new_folder = serializer.validated_data["folder"]
+            if new_folder.project_id != instance.project_id:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError(
+                    {"folder": "Entities cannot be moved to a different Project."}
+                )
+        serializer.save()
 
     def filter_queryset(self, queryset):
         # Support ?type= as an alias for ?schema=
@@ -231,8 +244,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             entity_id = row.get("entity_id")
             name = (row.get("name") or "").strip()
             values = row.get("values", {})
+            folder_id = row.get("folder_id")
 
-            # Validate name
             if not name:
                 errors.append({
                     "row_index": row_index,
@@ -240,6 +253,26 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "message": "Name is required.",
                 })
                 continue
+
+            if folder_id is None and entity_id is None:
+                errors.append({
+                    "row_index": row_index,
+                    "field": "folder_id",
+                    "message": "folder_id is required for new entities.",
+                })
+                continue
+
+            folder = None
+            if folder_id is not None:
+                try:
+                    folder = Folder.objects.get(pk=folder_id)
+                except Folder.DoesNotExist:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "folder_id",
+                        "message": f"Folder with id {folder_id} not found.",
+                    })
+                    continue
 
             # ── Column-type validation for each property value ──────────
             row_has_errors = False
@@ -281,12 +314,23 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 continue
 
             if entity_id is not None:
-                # Update existing entity
                 try:
                     entity = Entity.objects.get(pk=entity_id)
+                    if folder is not None and folder.project_id != entity.project_id:
+                        errors.append({
+                            "row_index": row_index,
+                            "field": "folder_id",
+                            "message": "Entities cannot be moved to a different Project.",
+                        })
+                        continue
+                    if folder is not None:
+                        entity.folder = folder
+                        update_fields = ["name", "properties", "folder"]
+                    else:
+                        update_fields = ["name", "properties"]
                     entity.name = name
                     entity.properties = values
-                    entity.save(update_fields=["name", "properties"])
+                    entity.save(update_fields=update_fields)
                     results.append({
                         "row_index": row_index,
                         "entity_id": entity.id,
@@ -300,14 +344,17 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "message": f"Entity with id {entity_id} not found.",
                     })
             else:
-                # Idempotent create: check for existing entity with same name + schema
                 existing = Entity.objects.filter(
                     name=name, schema=schema
                 ).first()
                 if existing:
-                    # Idempotency — update instead of duplicate
                     existing.properties = values
-                    existing.save(update_fields=["properties"])
+                    if folder is not None:
+                        existing.folder = folder
+                        existing.project = folder.project
+                        existing.save(update_fields=["properties", "folder", "project"])
+                    else:
+                        existing.save(update_fields=["properties"])
                     results.append({
                         "row_index": row_index,
                         "entity_id": existing.id,
@@ -319,6 +366,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         name=name,
                         schema=schema,
                         properties=values,
+                        folder=folder,
+                        project=folder.project,
                         author=author,
                     )
                     results.append({

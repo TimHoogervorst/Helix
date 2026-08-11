@@ -106,18 +106,13 @@ class AbstractEntity(BrowsableItem):
     )
     folder = models.ForeignKey(
         "core.Folder",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.CASCADE,
         related_name="+",
     )
     project = models.ForeignKey(
         "core.Project",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.CASCADE,
         related_name="+",
-        help_text="Placeholder FK — the Project model is not yet implemented.",
     )
     schema = models.ForeignKey(
         "helix_core.Schema",
@@ -129,6 +124,11 @@ class AbstractEntity(BrowsableItem):
 
     class Meta:
         abstract = True
+
+    def save(self, *args, **kwargs):
+        if self.project_id is None and self.folder_id is not None:
+            self.project = self.folder.project
+        super().save(*args, **kwargs)
 
     def _get_display_id_prefix(self) -> str:
         """Read the display-ID prefix from the linked Schema."""

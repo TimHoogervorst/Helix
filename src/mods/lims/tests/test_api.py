@@ -37,7 +37,7 @@ class LimsApiTests(BaseTestCase):
         dna_schema = Schema.objects.get(name="DNA")
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample A", "schema": dna_schema.id},
+            {"name": "Sample A", "schema": dna_schema.id, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -184,7 +184,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_create_entity_logs_action(self):
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample A", "schema": self.dna_schema.id},
+            {"name": "Sample A", "schema": self.dna_schema.id, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -246,7 +246,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_create_entity_captures_request_id_and_client_ip(self):
         self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample C", "schema": self.dna_schema.id},
+            {"name": "Sample C", "schema": self.dna_schema.id, "folder": self.folder.id},
             format="json",
         )
         kwargs = _log_kwargs(self.mock_log)
@@ -305,7 +305,7 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.post(
                 "/api/lims/entities/",
-                {"name": "Survivor", "schema": self.dna_schema.id},
+                {"name": "Survivor", "schema": self.dna_schema.id, "folder": self.folder.id},
                 format="json",
             )
         self.assertEqual(response.status_code, 201)
@@ -896,7 +896,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
         """POST without 'schema' assigns the is_default Schema."""
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "No Schema Provided"},
+            {"name": "No Schema Provided", "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -910,7 +910,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
         dna_schema = Schema.objects.get(name="DNA")
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Explicit Schema", "schema": dna_schema.id},
+            {"name": "Explicit Schema", "schema": dna_schema.id, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -923,7 +923,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
         self.default_schema.delete()
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "No Default Available"},
+            {"name": "No Default Available", "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
@@ -956,7 +956,7 @@ class EntityAuthRequiredTests(BaseTestCase):
         """POST without auth returns 403 — author is required and non-nullable."""
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "No Auth", "schema": self.schema.id},
+            {"name": "No Auth", "schema": self.schema.id, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 403)

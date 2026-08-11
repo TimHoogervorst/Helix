@@ -26,14 +26,16 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
     API endpoint for folders.
 
-    list:     GET    /api/core/folders/      — list root folders (parent is null)
-    retrieve: GET    /api/core/folders/{id}/  — get folder with children
-    create:   POST   /api/core/folders/       — create a folder
-    update:   PUT    /api/core/folders/{id}/  — update a folder
-    destroy:  DELETE /api/core/folders/{id}/  — delete a folder
+    list:     GET    /api/core/folders/                  — list all folders
+    list:     GET    /api/core/folders/?project=<id>      — filter by project
+    list:     GET    /api/core/folders/?parent=<id>       — filter by parent
+    retrieve: GET    /api/core/folders/{id}/              — get folder with children
+    create:   POST   /api/core/folders/                   — create a folder
+    update:   PUT    /api/core/folders/{id}/              — update a folder
+    destroy:  DELETE /api/core/folders/{id}/              — delete a folder
     """
 
-    queryset = Folder.objects.filter(parent__isnull=True)
+    queryset = Folder.objects.none()
     serializer_class = FolderSerializer
     pagination_class = None
 
@@ -43,6 +45,24 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         "partial_update": {"action": "core.folder.edited"},
         "destroy": {"action": "core.folder.deleted"},
     }
+
+    def get_queryset(self):
+        qs = Folder.objects.all()
+        project_id = self.request.query_params.get("project")
+        parent_id = self.request.query_params.get("parent")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        if parent_id is not None:
+            qs = qs.filter(parent_id=int(parent_id) if parent_id.isdigit() else None)
+        return qs.order_by("name")
+
+    def perform_destroy(self, instance):
+        if instance.is_hidden_root:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                "The hidden Project root Folder cannot be deleted."
+            )
+        super().perform_destroy(instance)
 
 
 # ── CoreSetting ────────────────────────────────────────────────────────────

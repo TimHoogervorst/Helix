@@ -181,7 +181,7 @@ class ModRegistryContractTests(TestCase):
         self.assertIn("edited", action_ids)
         self.assertIn("deleted", action_ids)
         for a in actions:
-            self.assertIn(a["action_type"], ("created", "edited", "deleted"))
+            self.assertIn(a["action_type"], ("read", "created", "edited", "deleted"))
 
     # ── Edge cases ───────────────────────────────────────────────────────
 

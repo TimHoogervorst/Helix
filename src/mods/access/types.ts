@@ -51,4 +51,15 @@ export interface Project {
   color_key: string;
   is_archived: boolean;
   created_at: string;
+  current_user_role?: "read" | "edit" | null;
+}
+
+export interface Grant {
+  id: number;
+  project: number;
+  role: "read" | "edit";
+  user: number | null;
+  team: number | null;
+  grantee_type: "user" | "team" | null;
+  grantee_name: string | null;
 }

@@ -11,7 +11,7 @@ import os
 
 from django.core.management.base import BaseCommand
 
-from core.models import CoreSetting, Folder, User
+from core.models import CoreSetting, Folder, Project, User
 from mods.users.models import Affiliation, Publication, Recognition
 
 
@@ -21,7 +21,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         user = self._seed_superuser()
         self._seed_settings()
-        self._seed_folders()
         self._seed_organization(user)
         self._seed_profile_data(user)
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
@@ -61,7 +60,8 @@ class Command(BaseCommand):
             )
 
     def _seed_organization(self, user):
-        """Create the singleton Organization and Admin membership for seed user.
+        """Create the singleton Organization and Admin membership for seed user
+        as well as a default Project with root and 'Default' folder.
 
         Idempotent — skips when already present.
         """
@@ -95,11 +95,35 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"Organization Membership for {user.username} already exists — skipping."
             )
+        self._seed_folders()
+
+    def _seed_folders(self):
+        """Create a default Project with hidden root and 'Default' child Folder.
+
+        Idempotent — skips when the 'Default' folder already exists.
+        """
         if Folder.objects.filter(name="Default").exists():
             self.stdout.write("Folder 'Default' already exists — skipping.")
             return
-        Folder.objects.create(name="Default", parent=None)
-        self.stdout.write(self.style.SUCCESS("Created root folder: Default"))
+
+        project = Project.objects.first()
+        if project is None:
+            project = Project.objects.create(name="Default Project")
+
+        root = Folder.objects.filter(
+            project=project, parent__isnull=True,
+        ).first()
+        if root is None:
+            root = Folder.objects.create(
+                name="root", parent=None, project=project,
+            )
+
+        Folder.objects.create(name="Default", parent=root, project=project)
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Created Project '{project.name}' with root and Default folders"
+            )
+        )
 
     def _seed_profile_data(self, user):
         """Populate the seed user with admin profile data.

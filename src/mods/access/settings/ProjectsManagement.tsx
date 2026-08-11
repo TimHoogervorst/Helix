@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Check, X, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Trash2, Check, X, Archive, ArchiveRestore, Users } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import {
   fetchProjects,
   createProject,
   updateProject,
   deleteProject,
+  fetchGrants,
+  createGrant,
+  deleteGrant,
+  fetchTeams,
+  fetchPeople,
 } from "../api";
-import type { Project } from "../types";
+import type { Grant, Person, Project, Team } from "../types";
 
 export default function ProjectsManagement() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -21,12 +26,27 @@ export default function ProjectsManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const [expandedGrantsId, setExpandedGrantsId] = useState<number | null>(null);
+  const [grants, setGrants] = useState<Record<number, Grant[]>>({});
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [addingGrantProjectId, setAddingGrantProjectId] = useState<number | null>(null);
+  const [grantRole, setGrantRole] = useState<"read" | "edit">("read");
+  const [grantUserId, setGrantUserId] = useState<number | null>(null);
+  const [grantTeamId, setGrantTeamId] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchProjects(true);
-      setProjects(data);
+      const [projectsData, teamsData, peopleData] = await Promise.all([
+        fetchProjects(true),
+        fetchTeams(),
+        fetchPeople(),
+      ]);
+      setProjects(projectsData);
+      setTeams(teamsData);
+      setPeople(peopleData);
     } catch {
       setError("Failed to load Projects.");
     } finally {
@@ -37,6 +57,24 @@ export default function ProjectsManagement() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadGrants = async (projectId: number) => {
+    try {
+      const projectGrants = await fetchGrants(projectId);
+      setGrants((prev) => ({ ...prev, [projectId]: projectGrants }));
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleGrants = async (projectId: number) => {
+    if (expandedGrantsId === projectId) {
+      setExpandedGrantsId(null);
+      return;
+    }
+    setExpandedGrantsId(projectId);
+    await loadGrants(projectId);
+  };
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -84,6 +122,34 @@ export default function ProjectsManagement() {
     }
   };
 
+  const handleAddGrant = async (projectId: number) => {
+    if (!grantUserId && !grantTeamId) return;
+    setActionError(null);
+    try {
+      await createGrant(projectId, {
+        role: grantRole,
+        ...(grantUserId ? { user: grantUserId } : {}),
+        ...(grantTeamId ? { team: grantTeamId } : {}),
+      });
+      setAddingGrantProjectId(null);
+      setGrantUserId(null);
+      setGrantTeamId(null);
+      await loadGrants(projectId);
+    } catch {
+      setActionError("Failed to add Grant.");
+    }
+  };
+
+  const handleRemoveGrant = async (projectId: number, grantId: number) => {
+    setActionError(null);
+    try {
+      await deleteGrant(projectId, grantId);
+      await loadGrants(projectId);
+    } catch {
+      setActionError("Failed to remove Grant.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -103,6 +169,20 @@ export default function ProjectsManagement() {
   const visibleProjects = showArchived
     ? projects
     : projects.filter((p) => !p.is_archived);
+
+  const peopleNotGranted = (projectId: number) => {
+    const projectGrants = grants[projectId] || [];
+    return people.filter(
+      (p) => !projectGrants.some((g) => g.user === p.user),
+    );
+  };
+
+  const teamsNotGranted = (projectId: number) => {
+    const projectGrants = grants[projectId] || [];
+    return teams.filter(
+      (t) => !projectGrants.some((g) => g.team === t.id),
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -262,6 +342,16 @@ export default function ProjectsManagement() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => toggleGrants(project.id)}
+                      aria-label={`Manage grants for ${project.name}`}
+                      title="Manage Grants"
+                    >
+                      <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                      Grants
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setEditingId(project.id);
                         setDraftName(project.name);
@@ -301,6 +391,137 @@ export default function ProjectsManagement() {
                 </>
               )}
             </div>
+
+            {expandedGrantsId === project.id && (
+              <div className="mt-3 border-t border-hairline pt-3">
+                <h4 className="mb-2 text-sm font-medium text-[var(--color-ink)]">
+                  Grants
+                </h4>
+
+                {(grants[project.id] || []).length === 0 && !addingGrantProjectId && (
+                  <p className="text-xs text-[var(--color-ink-muted-foreground)] mb-2">
+                    No Grants assigned yet.
+                  </p>
+                )}
+
+                {(grants[project.id] || []).map((grant) => (
+                  <div
+                    key={grant.id}
+                    className="flex items-center justify-between rounded bg-[var(--color-panel-subtle)] px-3 py-1.5 mb-1"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-[var(--color-ink)]">
+                        {grant.grantee_name}
+                      </span>
+                      <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                        ({grant.grantee_type})
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        grant.role === "edit"
+                          ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                          : "bg-[var(--color-panel)] text-[var(--color-ink)]"
+                      }`}>
+                        {grant.role === "edit" ? "Edit" : "Read"}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveGrant(project.id, grant.id)}
+                      aria-label={`Remove grant for ${grant.grantee_name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+
+                {addingGrantProjectId === project.id ? (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label="Grant role"
+                        className="rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                        value={grantRole}
+                        onChange={(e) => setGrantRole(e.target.value as "read" | "edit")}
+                      >
+                        <option value="read">Read</option>
+                        <option value="edit">Edit</option>
+                      </select>
+                      <select
+                        aria-label="Grant to user"
+                        className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                        value={grantUserId ?? ""}
+                        onChange={(e) => {
+                          setGrantUserId(e.target.value ? Number(e.target.value) : null);
+                          setGrantTeamId(null);
+                        }}
+                      >
+                        <option value="">Select a user…</option>
+                        {peopleNotGranted(project.id).map((p) => (
+                          <option key={p.user} value={p.user}>
+                            {p.first_name || p.last_name
+                              ? `${p.first_name} ${p.last_name}`.trim()
+                              : p.username}{" "}
+                            (@{p.username})
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label="Grant to team"
+                        className="flex-1 rounded-md border border-hairline bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                        value={grantTeamId ?? ""}
+                        onChange={(e) => {
+                          setGrantTeamId(e.target.value ? Number(e.target.value) : null);
+                          setGrantUserId(null);
+                        }}
+                      >
+                        <option value="">Select a team…</option>
+                        {teamsNotGranted(project.id).map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleAddGrant(project.id)}
+                        disabled={!grantUserId && !grantTeamId}
+                        aria-label="Add grant"
+                      >
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        Add Grant
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAddingGrantProjectId(null);
+                          setGrantUserId(null);
+                          setGrantTeamId(null);
+                        }}
+                        aria-label="Cancel add grant"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAddingGrantProjectId(project.id)}
+                    className="mt-2 text-xs"
+                    aria-label={`Add grant to ${project.name}`}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Grant
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

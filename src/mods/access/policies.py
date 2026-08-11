@@ -80,15 +80,13 @@ def role(user, project=None):
     ``"edit"``) that *user* holds on *project*, considering direct
     Grants, Team Grants, and Organization Admin bypass.
 
-    Current behaviour (without Grant/Team models):
       * Organization Admins return ``"edit"`` (effective full access).
-      * All other active Users return ``None`` (no Project access).
+      * Active Users get the strongest of direct and active-Team Grants.
+      * Edit wins over Read.
       * Inactive Users always return ``None``.
-
-    This is the documented policy boundary.  It will be extended when
-    Grant and Team models are introduced.
+      * Anonymous / unsaved Users always return ``None``.
     """
-    from .models import OrganizationMembership, OrganizationRole
+    from .models import Grant, OrganizationMembership, OrganizationRole, ProjectRole
 
     if user is None or not user.is_authenticated:
         return None
@@ -105,7 +103,38 @@ def role(user, project=None):
     ).exists():
         return "edit"
 
-    # TODO: Resolve through Grants and Team Grants when those models exist.
+    if project is None:
+        return None
+
+    project_id = project.pk if hasattr(project, "pk") else project
+
+    direct = (
+        Grant.objects.filter(project_id=project_id, user=user)
+        .values_list("role", flat=True)
+        .first()
+    )
+    if direct == ProjectRole.EDIT:
+        return "edit"
+
+    user_group_ids = list(user.groups.values_list("pk", flat=True))
+    if user_group_ids:
+        team_grant_role = (
+            Grant.objects.filter(
+                project_id=project_id,
+                team__group_id__in=user_group_ids,
+            )
+            .order_by("role")
+            .values_list("role", flat=True)
+            .first()
+        )
+        if team_grant_role == ProjectRole.EDIT:
+            return "edit"
+        if team_grant_role == ProjectRole.READ:
+            return "read"
+
+    if direct == ProjectRole.READ:
+        return "read"
+
     return None
 
 
@@ -261,13 +290,13 @@ def _check_level(user, required_level: str, resource=None, via_project=None) -> 
     if required_level == "authenticated":
         return user.is_authenticated and user.is_active
 
+    effective_role = _effective_project_role(user, resource, via_project)
+
     if required_level == "read":
-        user_role = role(user, via_project)
-        return user_role is not None  # read or edit
+        return effective_role is not None
 
     if required_level == "edit":
-        user_role = role(user, via_project)
-        return user_role == "edit"
+        return effective_role == "edit"
 
     if required_level == "admin":
         return _is_org_admin(user)
@@ -279,3 +308,135 @@ def _check_level(user, required_level: str, resource=None, via_project=None) -> 
         return owner_id is not None and owner_id == user.pk
 
     return False
+
+
+def _effective_project_role(user, resource=None, via_project=None):
+    """Resolve the effective Project Role considering shared folders.
+
+    When *via_project* is explicitly provided and differs from the
+    resource's owning project, the result is the intersection of the
+    user's target Project Role and the Folder Share level.  When there
+    is no matching share, the effective role is ``None`` (deny).
+
+    The shared top-level Folder itself is always capped at Read
+    through the target path (never Edit).
+    """
+    if via_project is None and resource is not None and hasattr(resource, "project_id"):
+        via_project = resource.project_id
+
+    if via_project is None:
+        return None
+
+    resource_project_id = (
+        resource.project_id
+        if resource is not None and hasattr(resource, "project_id")
+        else None
+    )
+
+    own_via = (
+        via_project is not None
+        and resource_project_id is not None
+        and via_project == resource_project_id
+    )
+
+    if own_via or resource_project_id is None:
+        return role(user, via_project)
+
+    share = _find_folder_share(resource, via_project)
+    if share is None:
+        return None
+
+    target_role = role(user, via_project)
+    if target_role is None:
+        return None
+
+    if _is_resource_the_shared_folder(resource, share):
+        return "read"
+
+    from .models import ShareLevel
+
+    if target_role == "read":
+        return "read"
+
+    if share.level == ShareLevel.READ_WRITE:
+        return "edit"
+
+    return "read"
+
+
+def _is_resource_the_shared_folder(resource, share) -> bool:
+    """Return True if *resource* is the shared source Folder itself."""
+    from core.models import Folder
+
+    if not isinstance(resource, Folder):
+        return False
+    return resource.id == share.source_folder_id
+
+
+def _resolve_folder_id(resource):
+    """Return the closest folder ID for *resource*.
+
+    When *resource* is a Folder, returns its ``id``.  When *resource*
+    is another model (Entry, Entity) with a ``folder_id`` FK, returns
+    that.  Returns ``None`` otherwise.
+    """
+    if resource is None:
+        return None
+    if hasattr(resource, "id") and type(resource).__name__ == "Folder":
+        return resource.id
+    return getattr(resource, "folder_id", None)
+
+
+def _find_folder_share(resource, via_project):
+    """Find the FolderShare that covers *resource* for *via_project*.
+
+    Returns the FolderShare if one exists where *resource* is a
+    descendant of the shared source folder, or ``None``.
+    """
+    from .models import FolderShare
+
+    if resource is None or not hasattr(resource, "project_id"):
+        return None
+
+    folder_id = _resolve_folder_id(resource)
+
+    candidates = list(
+        FolderShare.objects.filter(
+            target_project_id=via_project,
+            source_folder__project_id=resource.project_id,
+        ).select_related("source_folder")
+    )
+
+    if not candidates:
+        return None
+
+    if folder_id is not None:
+        resource_ancestors = _ancestor_ids_for_folder(folder_id)
+        for share in candidates:
+            if share.source_folder_id == folder_id or share.source_folder_id in resource_ancestors:
+                return share
+        return None
+
+    return candidates[0] if candidates else None
+
+
+def _ancestor_ids_for_folder(folder_id):
+    """Return a set of ancestor folder IDs for *folder_id*."""
+    from core.models import Folder
+
+    ids = set()
+    try:
+        folder = Folder.objects.only("id", "parent_id").get(pk=folder_id)
+    except Folder.DoesNotExist:
+        return ids
+    node = folder.parent
+    while node is not None:
+        ids.add(node.id)
+        node_id = node.parent_id
+        if node_id is None:
+            break
+        try:
+            node = Folder.objects.only("id", "parent_id").get(pk=node_id)
+        except Folder.DoesNotExist:
+            break
+    return ids

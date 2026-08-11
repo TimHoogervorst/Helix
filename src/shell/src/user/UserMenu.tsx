@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Settings, LogOut, SlidersHorizontal } from "lucide-react";
+import { User, Settings, LogOut, SlidersHorizontal, Building2 } from "lucide-react";
 import { useCurrentUser } from "./CurrentUserProvider";
 import { Avatar, getInitials } from "./Avatar";
 import { logout } from "./api";
@@ -104,6 +104,17 @@ export function UserMenu({ compact = false }: UserMenuProps) {
             >
               <User className="h-3.5 w-3.5" aria-hidden="true" />
               Profile
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                navigate("/organization");
+                setOpen(false);
+              }}
+            >
+              <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Organization
             </Button>
             <Button
               variant="ghost"

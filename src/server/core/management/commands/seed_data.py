@@ -22,6 +22,7 @@ class Command(BaseCommand):
         user = self._seed_superuser()
         self._seed_settings()
         self._seed_folders()
+        self._seed_organization(user)
         self._seed_profile_data(user)
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
 
@@ -59,7 +60,41 @@ class Command(BaseCommand):
                 f"CoreSetting 'allow_self_registration' already exists — skipping."
             )
 
-    def _seed_folders(self):
+    def _seed_organization(self, user):
+        """Create the singleton Organization and Admin membership for seed user.
+
+        Idempotent — skips when already present.
+        """
+        from mods.access.models import Organization, OrganizationMembership, OrganizationRole
+
+        org, org_created = Organization.objects.get_or_create(
+            id=1,
+            defaults={
+                "name": "Helix Lab",
+                "short_description": "A collaborative open-science research environment.",
+                "address": "",
+                "icon_key": "building-2",
+                "color_key": "primary",
+            },
+        )
+        if org_created:
+            self.stdout.write(self.style.SUCCESS("Created Organization: Helix Lab"))
+        else:
+            self.stdout.write("Organization already exists — skipping.")
+
+        if not OrganizationMembership.objects.filter(user=user).exists():
+            OrganizationMembership.objects.create(
+                user=user, organization=org, role=OrganizationRole.ADMIN,
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Created Admin Organization Membership for {user.username}"
+                )
+            )
+        else:
+            self.stdout.write(
+                f"Organization Membership for {user.username} already exists — skipping."
+            )
         if Folder.objects.filter(name="Default").exists():
             self.stdout.write("Folder 'Default' already exists — skipping.")
             return

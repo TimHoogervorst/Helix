@@ -3,6 +3,6 @@
   "name": "library",
   "displayName": "Library",
   "version": "0.1.0",
-  "dependsOn": ["helix.tags", "helix.eln"],
+  "dependsOn": ["helix.access", "helix.tags", "helix.eln"],
   "description": "Browse, search, and organize your lab's entries, protocols, and folder structure."
 }

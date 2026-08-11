@@ -28,6 +28,7 @@ import type {
   LibraryFolderItem,
   LibraryContentsResponse,
 } from "../../../mods/library/types";
+import type { Project } from "../../../mods/access/types";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 
@@ -144,6 +145,7 @@ export function makeLibraryContents(
     previous: null,
     results: [...(folders ?? []), ...(entries ?? [])],
     current_folder_id: null,
+    current_project_id: 1,
     ...overrides,
   };
 }
@@ -197,6 +199,25 @@ export function makeSchemaType(
   overrides?: Partial<SchemaTypeItem>,
 ): SchemaTypeItem {
   return { ..._schemaTypeDefaults, ...overrides };
+}
+
+// ── Access / Project ─────────────────────────────────────────────────────
+
+const _projectDefaults: Project = {
+  id: 1,
+  uid: "proj-001",
+  name: "Test Project",
+  icon_key: "flask",
+  color_key: "crimson",
+  is_archived: false,
+  created_at: "2025-01-01T00:00:00Z",
+  current_user_role: "read",
+};
+
+export function makeProject(
+  overrides?: Partial<Project>,
+): Project {
+  return { ..._projectDefaults, ...overrides };
 }
 
 // ── TipTap editor (for extension tests) ─────────────────────────────────────

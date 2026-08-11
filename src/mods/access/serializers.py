@@ -125,6 +125,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         if not with_role:
             return None
         from .policies import role
+        if role(request.user) is not None:
+            return None
         return role(request.user, obj)
 
     @transaction.atomic

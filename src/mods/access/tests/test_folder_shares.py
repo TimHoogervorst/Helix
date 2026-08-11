@@ -682,3 +682,46 @@ class OverlapRejectionTests(TestCase):
         share.clean()
         share.save()
         self.assertEqual(FolderShare.objects.count(), 2)
+
+    # ── name collision rejection ────────────────────────────────────────
+
+    def test_reject_name_collision_with_existing_share(self):
+        FolderShare.objects.create(
+            source_folder=self.parent_folder,
+            target_project=self.project_b,
+            level=ShareLevel.READ,
+        )
+        other_project = _make_project_with_root("Project C")
+        duplicate_name = _add_child_folder(other_project, "Parent")
+        share = FolderShare(
+            source_folder=duplicate_name,
+            target_project=self.project_b,
+            level=ShareLevel.READ,
+        )
+        with self.assertRaises(ValidationError):
+            share.clean()
+
+    def test_reject_name_collision_with_own_root_child(self):
+        _add_child_folder(self.project_b, "Conflicting")
+        other_project = _make_project_with_root("Project C")
+        source = _add_child_folder(other_project, "Conflicting")
+        share = FolderShare(
+            source_folder=source,
+            target_project=self.project_b,
+            level=ShareLevel.READ,
+        )
+        with self.assertRaises(ValidationError):
+            share.clean()
+
+    def test_different_name_no_collision(self):
+        _add_child_folder(self.project_b, "Existing")
+        other_project = _make_project_with_root("Project C")
+        source = _add_child_folder(other_project, "Different Name")
+        share = FolderShare(
+            source_folder=source,
+            target_project=self.project_b,
+            level=ShareLevel.READ,
+        )
+        share.clean()
+        share.save()
+        self.assertEqual(FolderShare.objects.count(), 1)

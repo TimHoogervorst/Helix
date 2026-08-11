@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -7,11 +7,13 @@ import {
   LayoutList,
   LayoutGrid,
   AlignJustify,
+  Folder,
+  ArrowUp,
 } from "lucide-react";
-import type { LibraryItem, LibraryEntryItem } from "../types";
+import type { LibraryItem, LibraryEntryItem, LibraryProjectItem } from "../types";
+import type { Project } from "../../access/types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
-import { getLibraryContents } from "../api";
-import Breadcrumbs from "../../../shell/src/shared/components/Breadcrumbs";
+import { getLibraryContents, getAccessibleProjects } from "../api";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
@@ -24,6 +26,7 @@ import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { Input } from "../../../shell/src/shared/primitives/Input";
 import { Select } from "../../../shell/src/shared/primitives/Input";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -43,13 +46,8 @@ function getInitialViewMode(): ViewMode {
   return "list";
 }
 
-// ── Folder-to-entry adapter ────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-/**
- * Map a LibraryFolderItem to a LibraryEntryItem-compatible shape so
- * BaseCard can render it.  Optional fields are blanked out so only
- * the folder name and icon display.
- */
 function folderToEntryShape(folder: {
   type: "folder";
   id: number;
@@ -58,7 +56,7 @@ function folderToEntryShape(folder: {
   created_at: string;
 }): LibraryEntryItem {
   return {
-    type: "entry", // treat as entry for BaseCard compatibility
+    type: "entry",
     id: folder.id,
     workspace_id: "",
     display_id: "",
@@ -81,13 +79,6 @@ function folderToEntryShape(folder: {
   };
 }
 
-// ── Schema column → property field adapter ──────────────────────────────────
-
-/**
- * Convert backend schema column definitions into BaseCard property fields.
- * Each column's name is lowercased for the key so it matches keys in
- * the entry's ``property_fields`` record.
- */
 function columnsToPropertyFields(
   columns: SchemaColumnDef[] | undefined,
 ): PropertyField[] {
@@ -98,17 +89,202 @@ function columnsToPropertyFields(
   }));
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Project-aware breadcrumbs ──────────────────────────────────────────────
+
+interface ProjectBreadcrumbProps {
+  projectName: string;
+  projectIsArchived: boolean;
+  pathSegments: string[];
+  onBackToProjects: () => void;
+  onNavigateToRoot: () => void;
+  onNavigateToSegment: (path: string) => void;
+  onUp: () => void;
+}
+
+function ProjectBreadcrumbs({
+  projectName,
+  projectIsArchived,
+  pathSegments,
+  onBackToProjects,
+  onNavigateToRoot,
+  onNavigateToSegment,
+  onUp,
+}: ProjectBreadcrumbProps) {
+  const atRoot = pathSegments.length === 0;
+
+  return (
+    <nav className="breadcrumbs" aria-label="Breadcrumb path">
+      <IconButton
+        onClick={onUp}
+        disabled={atRoot}
+        aria-label="Go up"
+        title="Go up"
+      >
+        <ArrowUp size={14} />
+      </IconButton>
+      <Folder
+        size={13}
+        className="breadcrumb-folder-icon"
+        aria-hidden="true"
+      />
+      <span
+        className="breadcrumb-seg"
+        onClick={onBackToProjects}
+      >
+        {projectName}
+        {projectIsArchived && (
+          <span className="archived-pill">Archived</span>
+        )}
+      </span>
+      <span className="breadcrumb-seg-wrap">
+        <span className="breadcrumb-sep">/</span>
+        {atRoot ? (
+          <span className="breadcrumb-seg is-current">root</span>
+        ) : (
+          <span
+            className="breadcrumb-seg"
+            onClick={onNavigateToRoot}
+          >
+            root
+          </span>
+        )}
+      </span>
+      {pathSegments.map((seg, i) => {
+        const isLast = i === pathSegments.length - 1;
+        return (
+          <span key={i} className="breadcrumb-seg-wrap">
+            <span className="breadcrumb-sep">/</span>
+            {isLast ? (
+              <span className="breadcrumb-seg is-current">{seg}</span>
+            ) : (
+              <span
+                className="breadcrumb-seg"
+                onClick={() =>
+                  onNavigateToSegment(
+                    `/${pathSegments.slice(0, i + 1).join("/")}`,
+                  )
+                }
+              >
+                {seg}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ── Role badge for project cards ───────────────────────────────────────────
+
+function RoleBadge({ role }: { role: "read" | "edit" | null }) {
+  if (!role) return null;
+  return (
+    <span className={`role-badge role-badge-${role}`}>
+      {role === "edit" ? "Edit" : "Read"}
+    </span>
+  );
+}
+
+// ── Project card ───────────────────────────────────────────────────────────
+
+interface ProjectCardProps {
+  project: Project;
+  viewMode: ViewMode;
+  onClick: () => void;
+}
+
+function ProjectCard({ project, viewMode, onClick }: ProjectCardProps) {
+  if (viewMode === "compact") {
+    return (
+      <div
+        className="base-library-card view-compact is-project-card"
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+      >
+        <span className="card-icon">
+          {project.icon_key ? (
+            <IconBadge iconKey={project.icon_key} colorKey={project.color_key || "muted"} size="md" />
+          ) : (
+            <Folder />
+          )}
+        </span>
+        <div className="card-body">
+          <div className="card-header">
+            <span className="card-title">{project.name}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`base-library-card is-project-card view-${viewMode}`}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      <span className="card-icon">
+        {project.icon_key ? (
+          <IconBadge iconKey={project.icon_key} colorKey={project.color_key || "muted"} size="lg" />
+        ) : (
+          <Folder />
+        )}
+      </span>
+      <div className="card-body">
+        <div className="card-header">
+          <span className="card-title">{project.name}</span>
+          <RoleBadge role={project.current_user_role ?? null} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 function LibraryHub() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const projectUid = searchParams.get("project");
   const currentPath = searchParams.get("path") || "";
 
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ── View mode state (persisted to localStorage) ───────────────────────
+  // Project metadata from contents response
+  const [projectMeta, setProjectMeta] = useState<{
+    name: string;
+    isArchived: boolean;
+    icon: string;
+    color: string;
+  } | null>(null);
+
+  // Projects listing state
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  // Track whether user is an org admin
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+
+  const isInProject = !!projectUid;
+
+  // ── View mode state ──────────────────────────────────────────────────
 
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
 
@@ -121,23 +297,68 @@ function LibraryHub() {
     }
   }, []);
 
+  // ── Fetch accessible projects ─────────────────────────────────────────
+
+  const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const data = await getAccessibleProjects();
+      setProjects(data);
+      // Detect org admin: if any project has current_user_role null despite being accessible
+      // we can look at whether the user is an org admin directly via the org endpoint
+      // But a simpler heuristic: if any project has null role, user is org admin
+      // since regular users without grants would be filtered out entirely
+      const hasNullRole = data.some((p) => p.current_user_role === null);
+      setIsOrgAdmin(hasNullRole);
+    } catch (err: unknown) {
+      setProjectsError(err instanceof Error ? err.message : "Failed to load projects");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isInProject) {
+      fetchProjects();
+    }
+  }, [isInProject, fetchProjects]);
+
+  // ── Contents fetch (inside a project) ─────────────────────────────────
+
   const fetchFn = useCallback(
     async (url?: string) => {
       void refreshKey;
+      if (!projectUid) {
+        return {
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+          current_folder_id: null,
+          current_project_id: null,
+        };
+      }
       let response;
       if (url) {
         const urlObj = new URL(url, window.location.origin);
         const page = Number(urlObj.searchParams.get("page") || 2);
-        response = await getLibraryContents(currentPath, page);
+        response = await getLibraryContents(projectUid, currentPath || undefined, page);
       } else {
-        response = await getLibraryContents(currentPath, undefined);
+        response = await getLibraryContents(projectUid, currentPath || undefined, undefined);
       }
       setCurrentFolderId(response.current_folder_id);
+      if (response.project_name) {
+        setProjectMeta({
+          name: response.project_name,
+          isArchived: response.project_is_archived ?? false,
+          icon: response.project_icon ?? "",
+          color: response.project_color ?? "",
+        });
+      }
       return response;
     },
-    // refreshKey is captured so that incrementing it triggers a fresh fetch
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentPath, refreshKey],
+    [projectUid, currentPath, refreshKey],
   );
 
   const data = usePaginatedData({
@@ -148,7 +369,7 @@ function LibraryHub() {
       item.type === "entry" ? item.display_id : "",
   });
 
-  // ── Sidebar bus and context ────────────────────────────────────────────
+  // ── Sidebar bus and context ─────────────────────────────────────────
 
   const busRef = useRef<WorkspaceBus>(null);
   if (!busRef.current) {
@@ -165,16 +386,11 @@ function LibraryHub() {
     [viewMode],
   );
 
-  // ── Registry-driven card config (generic, from hydrated workspaces) ───
+  // ── Registry-driven card config ──────────────────────────────────────
 
   const registry = useMemo(() => ModRegistry.getInstance(), []);
   const workspaces = useMemo(() => registry.getWorkspaces(), [registry]);
 
-  /**
-   * Build the property fields for an entry by looking up its workspace's
-   * schema type columns.  Returns an empty array when the workspace or
-   * schema type is not yet hydrated.
-   */
   const getPropertyFieldsForEntry = useCallback(
     (entry: LibraryEntryItem): PropertyField[] => {
       const ws = workspaces.get(entry.workspace_id);
@@ -183,14 +399,33 @@ function LibraryHub() {
     [workspaces],
   );
 
-  // ── Folder navigation ─────────────────────────────────────────────────
+  // ── Navigation ───────────────────────────────────────────────────────
 
-  const navigateToPath = useCallback(
-    (path: string) => {
-      setSearchParams(path ? { path } : {});
+  const navigateToProjects = useCallback(() => {
+    setSearchParams({});
+    data.clearSelection();
+    setProjectMeta(null);
+  }, [setSearchParams, data]);
+
+  const navigateToProject = useCallback(
+    (uid: string) => {
+      setSearchParams({ project: uid });
       data.clearSelection();
     },
     [setSearchParams, data],
+  );
+
+  const navigateToPath = useCallback(
+    (path: string) => {
+      if (!projectUid) return;
+      if (path) {
+        setSearchParams({ project: projectUid, path });
+      } else {
+        setSearchParams({ project: projectUid });
+      }
+      data.clearSelection();
+    },
+    [projectUid, setSearchParams, data],
   );
 
   const navigateUp = useCallback(() => {
@@ -211,7 +446,7 @@ function LibraryHub() {
     [currentPath, navigateToPath],
   );
 
-  // ── Item click handler ────────────────────────────────────────────────
+  // ── Item click handler ──────────────────────────────────────────────
 
   const handleItemClick = useCallback(
     (item: LibraryItem) => {
@@ -219,13 +454,12 @@ function LibraryHub() {
         navigateToFolder(item.name);
         return;
       }
-      // Entry click → navigate to the entry's workspace
       navigate(`/${item.workspace_id}/${item.display_id}`);
     },
     [navigateToFolder, navigate],
   );
 
-  // ── Selection tracking (for visual highlight) ─────────────────────────
+  // ── Selection tracking ──────────────────────────────────────────────
 
   const handleCardClick = useCallback(
     (item: LibraryItem) => {
@@ -235,22 +469,17 @@ function LibraryHub() {
     [data, handleItemClick],
   );
 
-  // ── Breadcrumb segments ──────────────────────────────────────────────
+  // ── Path segments from URL ──────────────────────────────────────────
 
-  const breadcrumbSegments: BreadcrumbSegment[] = useMemo(() => {
-    return currentPath
-      .split("/")
-      .filter(Boolean)
-      .map((label, i, arr) => ({
-        label,
-        path:
-          i < arr.length - 1
-            ? `/${arr.slice(0, i + 1).join("/")}`
-            : undefined,
-      }));
-  }, [currentPath]);
+  const pathSegments = useMemo(
+    () =>
+      currentPath
+        .split("/")
+        .filter(Boolean),
+    [],
+  );
 
-  // ── Render helpers ────────────────────────────────────────────────────
+  // ── Render card (inside project) ─────────────────────────────────────
 
   const renderCard = (item: LibraryItem) => {
     if (item.type === "folder") {
@@ -271,7 +500,6 @@ function LibraryHub() {
       );
     }
 
-    // Entry item — build card config from workspace schema columns
     const isSelected = data.selectedId === item.id;
     const propertyFields = getPropertyFieldsForEntry(item);
 
@@ -292,9 +520,9 @@ function LibraryHub() {
     );
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────
+  // ── Loading state ──────────────────────────────────────────────────
 
-  if (data.loading && data.items.length === 0) {
+  if (isInProject && data.loading && data.items.length === 0) {
     return (
       <div className="library-hub">
         <p className="empty">Loading…</p>
@@ -302,22 +530,126 @@ function LibraryHub() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────
+  if (!isInProject && projectsLoading) {
+    return (
+      <div className="library-hub">
+        <p className="empty">Loading…</p>
+      </div>
+    );
+  }
+
+  // ── Projects listing mode ───────────────────────────────────────────
+
+  if (!isInProject) {
+    if (projectsError) {
+      return (
+        <div className="library-hub">
+          <div className="error">{projectsError}</div>
+        </div>
+      );
+    }
+
+    if (!projects || projects.length === 0) {
+      return (
+        <div className="library-hub">
+          <div className="library-main-column">
+            <div className="library-empty-state">
+              <h2>The null hypothesis stands: no projects found.</h2>
+              {isOrgAdmin ? (
+                <p>Create one in Settings → Projects.</p>
+              ) : (
+                <p>Ask an Organization Admin to create one.</p>
+              )}
+            </div>
+          </div>
+          <SlotSidebar
+            slotId="library.sidebar"
+            context={sidebarContext}
+            bus={bus}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="library-hub">
+        <div className="library-main-column">
+          {/* ── Top Bar ────────────────────────────────────────────── */}
+          <div className="library-top-bar">
+            <div className="library-top-bar-actions">
+              <div
+                className="library-view-toggle-group"
+                role="group"
+                aria-label="View mode"
+              >
+                <IconButton
+                  className={viewMode === "compact" ? "is-active" : ""}
+                  aria-label="Compact view"
+                  title="Compact view"
+                  onClick={() => handleViewModeChange("compact")}
+                >
+                  <AlignJustify size={15} />
+                </IconButton>
+                <IconButton
+                  className={viewMode === "list" ? "is-active" : ""}
+                  aria-label="List view"
+                  title="List view"
+                  onClick={() => handleViewModeChange("list")}
+                >
+                  <LayoutList size={15} />
+                </IconButton>
+                <IconButton
+                  className={viewMode === "grid" ? "is-active" : ""}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  onClick={() => handleViewModeChange("grid")}
+                >
+                  <LayoutGrid size={15} />
+                </IconButton>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Card List ──────────────────────────────────────────── */}
+          <div className={`library-card-list view-${viewMode}`}>
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                viewMode={viewMode}
+                onClick={() => navigateToProject(project.uid)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <SlotSidebar
+          slotId="library.sidebar"
+          context={sidebarContext}
+          bus={bus}
+        />
+      </div>
+    );
+  }
+
+  // ── Project contents mode ───────────────────────────────────────────
 
   return (
     <div className="library-hub">
-      {/* ── Main column: top bar + filter bar + card list ──────────────── */}
       <div className="library-main-column">
-        {/* ── Top Bar ────────────────────────────────────────────────── */}
+        {/* ── Top Bar ──────────────────────────────────────────────── */}
         <div className="library-top-bar">
-          <Breadcrumbs
-            segments={breadcrumbSegments}
-            onNavigate={navigateToPath}
+          <ProjectBreadcrumbs
+            projectName={projectMeta?.name ?? "…"}
+            projectIsArchived={projectMeta?.isArchived ?? false}
+            pathSegments={pathSegments}
+            onBackToProjects={navigateToProjects}
+            onNavigateToRoot={() => navigateToPath("")}
+            onNavigateToSegment={(path) => navigateToPath(path)}
             onUp={navigateUp}
           />
 
           <div className="library-top-bar-actions">
-            {/* View mode toggle button group */}
             <div
               className="library-view-toggle-group"
               role="group"
@@ -366,7 +698,7 @@ function LibraryHub() {
           </div>
         </div>
 
-        {/* ── Filter Bar ─────────────────────────────────────────────── */}
+        {/* ── Filter Bar ───────────────────────────────────────────── */}
         <div className="library-filter-bar">
           <div className="library-filter-search-wrap">
             <Search size={15} className="library-filter-search-icon" />
@@ -422,7 +754,6 @@ function LibraryHub() {
               <p className="empty">This folder is empty.</p>
             )}
 
-          {/* Table header */}
           {!data.error && data.items.length > 0 && (
             <div className="library-table-header">
               <span className="library-table-header-col type-col">Type</span>
@@ -447,7 +778,6 @@ function LibraryHub() {
         </div>
       </div>
 
-      {/* ── Right Sidebar (slot-driven, full height, alongside everything) ── */}
       <SlotSidebar
         slotId="library.sidebar"
         context={sidebarContext}

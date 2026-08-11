@@ -3,6 +3,8 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from core.models import Folder
+
 
 class OrganizationRole(models.TextChoices):
     USER = "user", "User"
@@ -285,6 +287,32 @@ class FolderShare(models.Model):
                     "An ancestor or descendant of this Folder is already "
                     "shared to the same target Project."
                 )
+
+        name_collision_qs = FolderShare.objects.filter(
+            target_project_id=self.target_project_id,
+            source_folder__name=source.name,
+        ).exclude(pk=self.pk)
+        if name_collision_qs.exists():
+            raise ValidationError(
+                f"A shared Folder named \"{source.name}\" already exists "
+                f"in the target Project."
+            )
+
+        own_child = (
+            Folder.objects
+            .filter(
+                project_id=self.target_project_id,
+                name=source.name,
+                parent__parent__isnull=True,
+            )
+            .exclude(parent__isnull=True)
+            .exists()
+        )
+        if own_child:
+            raise ValidationError(
+                f"A Folder named \"{source.name}\" already exists at the "
+                f"root of the target Project."
+            )
 
 
 def _is_ancestor_or_descendant(a, b) -> bool:

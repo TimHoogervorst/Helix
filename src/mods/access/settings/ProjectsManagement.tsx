@@ -478,7 +478,7 @@ export default function ProjectsManagement() {
                       <div className="flex items-center gap-2">
                         <select
                           aria-label="Grant role"
-                          className="rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
+                          className="flex-1 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
                           value={grantRole}
                           onChange={(e) =>
                             setGrantRole(e.target.value as "read" | "edit")

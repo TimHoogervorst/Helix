@@ -243,6 +243,10 @@ class ProjectListView(views.APIView):
     ``POST /api/access/projects/`` — only Organization Admins can create.
     By default archived Projects are excluded; pass ``?include_archived=1``
     to include them (intended for the Settings surface).
+
+    Pass ``?accessible=1`` to return only Projects the viewer can actually
+    access — through a direct Grant, Team Grant, or Organization Admin
+    override.  Archived Projects are excluded from accessible listing.
     """
 
     permission_classes = [IsAuthenticated]
@@ -250,8 +254,18 @@ class ProjectListView(views.APIView):
     def get(self, request):
         qs = Project.objects.order_by("name")
         include_archived = request.query_params.get("include_archived") == "1"
+        accessible_only = request.query_params.get("accessible") == "1"
+
         if not include_archived:
             qs = qs.filter(is_archived=False)
+
+        if accessible_only:
+            project_ids = set()
+            for project in qs:
+                if get_role(request.user, project) is not None:
+                    project_ids.add(project.pk)
+            qs = qs.filter(pk__in=project_ids)
+
         serializer = ProjectSerializer(
             qs, many=True, context={"request": request},
         )

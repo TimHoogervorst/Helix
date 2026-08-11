@@ -5,7 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
-from core.models import Folder
+from core.models import Folder, Project
+from mods.access.policies import role as get_role
 from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 
@@ -25,20 +26,32 @@ class MixedListPagination(PageNumberPagination):
         return list(self.page)
 
 
-def resolve_path(path_str: str) -> Folder | None:
-    """Resolve a ``/``-separated path string to a Folder instance.
+def _resolve_project(project_uid: str) -> Project:
+    """Resolve a Project by its immutable UID.
 
-    Returns ``None`` for root (no parent folder).
-    Raises ``Http404`` if any segment does not match an existing folder.
+    Raises ``Http404`` if no matching Project exists.
+    """
+    try:
+        return Project.objects.get(uid=project_uid)
+    except Project.DoesNotExist:
+        raise Http404("Project not found.")
+
+
+def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | None:
+    """Resolve a ``/``-separated path beneath *project*'s hidden root.
+
+    Returns ``None`` for the project root (hidden root folder).
+    Raises ``Http404`` if any segment does not match an existing folder
+    belonging to *project*.
     """
     if not path_str or path_str == "/":
-        return None
+        return project.folders.get(parent__isnull=True)
 
     segments = [s for s in path_str.strip("/").split("/") if s]
-    parent = None
+    parent = project.folders.get(parent__isnull=True)
     for segment in segments:
         try:
-            folder = Folder.objects.get(parent=parent, name=segment)
+            folder = Folder.objects.get(parent=parent, name=segment, project=project)
             parent = folder
         except Folder.DoesNotExist:
             raise Http404(f"Folder not found: {path_str}")
@@ -66,28 +79,83 @@ def _first_paragraph_text(content: dict) -> str:
     return ""
 
 
+def _get_shared_folders(project: Project) -> list[dict]:
+    """Return shared folder items appearing at *project*'s root."""
+    from mods.access.models import FolderShare
+
+    shares = FolderShare.objects.filter(
+        target_project=project,
+    ).select_related("source_folder", "source_folder__project").order_by(
+        "source_folder__name",
+    )
+    items = []
+    for share in shares:
+        source = share.source_folder
+        source_project = source.project
+        items.append({
+            "type": "folder",
+            "id": source.id,
+            "name": source.name,
+            "parent": None,
+            "created_at": source.created_at,
+            "icon": "folder",
+            "color": "muted",
+            "is_shared": True,
+            "source_project_id": source_project.id,
+            "source_project_name": source_project.name,
+            "source_project_icon": source_project.icon_key,
+            "source_project_color": source_project.color_key,
+        })
+    return items
+
+
 class LibraryContentsView(APIView):
     """
-    GET /api/library/contents/?path=<path>&search=<q>&page=<n>
+    GET /api/library/contents/?project=<uid>&path=<path>&search=<q>&page=<n>
 
-    Returns a paginated, mixed list of folders and entries at the given
-    path.  Folders are listed first (alphabetical by name), followed by
-    entries (newest first by ``created_at``).  Every item carries a
-    ``type`` discriminator (``"folder"`` or ``"entry"``).
+    Returns a paginated, mixed list of folders and entries scoped to
+    *project*.  Requires at least Read access to the Project; returns
+    404 otherwise.
+
+    At the Project root, shared folders appear mixed with owned folders
+    (sorted alphabetically).
+
+    Folders are listed first (alphabetical by name), followed by entries
+    (newest first by ``created_at``).  Every item carries a ``type``
+    discriminator (``"folder"`` or ``"entry"``).
     """
 
     def get(self, request):
+        project_uid = request.query_params.get("project")
+        if not project_uid:
+            raise Http404("Project parameter is required.")
+
+        project = _resolve_project(project_uid)
+
+        effective = get_role(request.user, project)
+        if effective is None:
+            raise Http404("Project not found.")
+
         path_str = request.query_params.get("path", "")
 
-        folder = resolve_path(path_str)  # raises Http404 if not found
+        folder = _resolve_folder_beneath_root(project, path_str)
+
+        is_at_root = folder.is_hidden_root
 
         # ── Folders ──────────────────────────────────────────────────
-        folders_qs = Folder.objects.filter(parent=folder).order_by("name")
+        folders_qs = Folder.objects.filter(
+            parent=folder, project=project,
+        ).exclude(parent__isnull=True).order_by("name")
+
+        if is_at_root:
+            shared_items = _get_shared_folders(project)
+        else:
+            shared_items = []
 
         # ── Entries ──────────────────────────────────────────────────
         entries_qs = (
             apps.get_model("eln", "NotebookEntry")
-            .objects.filter(folder=folder)
+            .objects.filter(folder=folder, project=project)
             .select_related("author", "folder", "schema")
             .prefetch_related("tags")
             .order_by("-created_at")
@@ -96,8 +164,12 @@ class LibraryContentsView(APIView):
         # ── Search ───────────────────────────────────────────────────
         search_q = request.query_params.get("search", "").strip()
 
-        # ── Build mixed list: folders first, then entries ────────────
+        # ── Build mixed list: folders first (shared + own), then entries ──
         items = []
+
+        def _is_shared(name: str) -> bool:
+            return any(s["name"] == name for s in shared_items)
+
         for f in folders_qs:
             if search_q and search_q.lower() not in f.name.lower():
                 continue
@@ -110,15 +182,27 @@ class LibraryContentsView(APIView):
                     "created_at": f.created_at,
                     "icon": "folder",
                     "color": "muted",
+                    "is_shared": False,
                 }
             )
+
+        for shared in shared_items:
+            if search_q and search_q.lower() not in shared["name"].lower():
+                continue
+            items.append(shared)
+
+        # folders-first: shared folders sort alphabetically with own folders
+        folder_items = [i for i in items if i["type"] == "folder"]
+        folder_items.sort(key=lambda x: x["name"].lower())
+        entry_items = []
+
         for e in entries_qs:
             if search_q:
                 title_match = search_q.lower() in e.name.lower()
                 did_match = search_q.lower() in (e.display_id or "").lower()
                 if not title_match and not did_match:
                     continue
-            items.append(
+            entry_items.append(
                 {
                     "type": "entry",
                     "id": e.id,
@@ -146,8 +230,16 @@ class LibraryContentsView(APIView):
             )
 
         paginator = MixedListPagination()
-        page_items = paginator.paginate_queryset(items, request)
+        page_items = paginator.paginate_queryset(
+            folder_items + entry_items, request,
+        )
         response = paginator.get_paginated_response(page_items)
-        response.data["current_folder_id"] = folder.id if folder else None
-        response.data["current_project_id"] = folder.project_id if folder else None
+        response.data["current_folder_id"] = folder.id if folder and not folder.is_hidden_root else None
+        response.data["current_project_id"] = project.id
+        response.data["project_uid"] = project.uid
+        response.data["project_name"] = project.name
+        response.data["project_is_archived"] = project.is_archived
+        response.data["project_icon"] = project.icon_key
+        response.data["project_color"] = project.color_key
+        response.data["breadcrumb_path"] = path_str if not is_at_root else ""
         return response

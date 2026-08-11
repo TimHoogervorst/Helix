@@ -47,7 +47,7 @@ The backend mirrors the frontend mod system. Mods are discovered from `modManife
 
 ### Action Logging
 
-All mutating operations are automatically logged for CFR Part 11 audit compliance. Every action — whether from an HTTP endpoint or a block — flows through a single unified `POST /api/actions/` endpoint. Core CRUD actions (`created`, `edited`, `deleted`) are auto-derived from every model; custom domain actions must be explicitly registered and map to a core action. The `ActivityFeed` is a cross-mod block that renders actions from any mod. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
+All mutating operations are automatically logged for CFR Part 11 audit compliance. Mutating actions — whether from an HTTP endpoint or a block — flow through a single unified `POST /api/actions/` endpoint. The four Core Actions are `read`, `created`, `edited`, and `deleted`. `read` participates in access-policy evaluation but is never persisted as an Action Log Entry or shown in the Activity Feed; the three mutating Core Actions are logged. Custom domain actions must be explicitly registered and map to a Core Action. For the access foundation, policies for Core Actions are hardcoded; per-mod custom Action policies are deferred. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
 
 ---
 
@@ -83,35 +83,51 @@ A structured entry in a User's honors and awards list. Has a `title`, `issuer` (
 
 ### Organization
 
-The single lab or company this deployment serves. Exactly one per deployment — every User, Team, and Project belongs to it. The Organization exists to own Organization Roles and org-wide settings; there is no org switching and no cross-org concept.
+The single lab or company this deployment serves. Exactly one per deployment — every User, Team, and Project belongs to it. Has a name, short description, address, Dynamic Icon, and Color Token. The Organization exists to own Organization Roles and org-wide information; there is no org switching and no cross-org concept. Users open its dedicated profile-like page from the avatar menu.
 
 ### Team
 
-A named collection of Users within the Organization. Teams are granted Project Roles — a Grant to a Team covers every member. Users can belong to many Teams.
+A named collection of Users within the Organization, with a Dynamic Icon and Color Token. Teams are granted Project Roles — a Grant to a Team covers every member. Users can belong to many Teams. Team identity and membership are visible to every User and managed only by Organization Admins; there is no Team-specific administrator role. A Team with active Grants cannot be deleted.
 
 **Synonyms:** group
 
 ### Project
 
-A first-class container that owns exactly one hidden root Folder — its folder tree — and every Entry and Entity within it. Has a name, a Dynamic Icon, and a Color Token. Projects are the access boundary of the system: all permissions are expressed as Grants on Projects. The Library root lists Projects; opening a Project navigates its folder tree.
+A first-class container that owns exactly one hidden root Folder — its folder tree — and every Entry and Entity within it. Has a unique, renameable name, an immutable generated ID, a Dynamic Icon, and a Color Token. The generated ID identifies the Project in Library URLs, so its name can change without breaking links. Projects are the access boundary of the system: permissions are expressed as Grants on Projects, while Organization Admins can perform every operation on every Project. Every User can discover every Project's identity from the Organization Page, but only Users with effective access can open its content. The Library root lists accessible Projects; opening a Project navigates its folder tree.
 
-**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Projects are created by Organization Admins only.
+**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Every Entry and Entity belongs to exactly one Folder, and its Project must match its Folder's Project; an Item at the Project root belongs to the Project's hidden root Folder rather than using a folder-less state. Every non-root Folder has exactly one parent Folder. Folders, Entries, and Entities cannot move between Projects. Projects are created by Organization Admins only. Project-owned content is never exposed through Hubs, search, Mentions, Views, Metrics, Cards, or Tabs to a User without effective access.
 
 ### Project Role
 
-A fixed access level on a Project, granted to a User or Team: **Read** (browse and open content), **Edit** (create and modify content), or **Admin** (manage Grants, share Folders, edit Project identity). A fixed enum — users cannot define new Project Roles. (Editable, user-defined Profiles are a deferred future extension.)
+A fixed access level on a Project, granted to a User or Team: **Read** (browse and open content) or **Edit** (create, modify, move, and delete content). A fixed enum — users cannot define new Project Roles. Project identity, Grants, archiving, and Shared Folders are managed by Organization Admins rather than through a Project Admin role. (Editable, user-defined Profiles are a deferred future extension.)
 
 ### Organization Role
 
-A fixed access level on the Organization: **User** (normal day-to-day work) or **Admin** (manage users, teams, projects, schemas, and all org-wide settings). A fixed enum, never editable — unlike Project Roles, no future configurability is planned.
+A fixed access level on the Organization: **User** (normal day-to-day work) or **Admin** (manage users, teams, projects, Grants, Shared Folders, schemas, and all org-wide settings). An Organization Admin can perform every operation on every Project. Only Organization Admins can edit Project identity, manage Grants, archive Projects, or create and revoke Shared Folders. A fixed enum, never editable — unlike Project Roles, no future configurability is planned.
+
+### Organization Membership
+
+The association of exactly one User with the singleton Organization and one Organization Role. Every User has exactly one Organization Membership. The deployment must always retain at least one active Organization Admin.
+
+### Grantee
+
+The User or Team that receives a Grant. Exactly one Grantee per Grant.
 
 ### Grant
 
-The assignment of a Project Role to a User or Team on a Project. A User's effective role on a Project is the strongest across their direct Grants and all their Teams' Grants.
+The assignment of a Project Role to one Grantee on one Project. A User's effective role on a Project is the strongest across their direct Grants and all their Teams' Grants. Organization Admins bypass Project Role checks without requiring generated Grants.
 
 ### Shared Folder
 
-A Folder made visible to Projects other than the Project that owns it. Appears at the root of each Project it is shared with. Each share carries an access level — **Read** or **Read + Write** — granted to the sharee Project's members. Ownership never moves: the Folder and its contents keep their original Project.
+A top-level Folder — an immediate child of its Project's hidden root Folder — made visible to Projects other than the Project that owns it. Appears immediately at the root of each Project it is shared with; only Organization Admins can create or revoke the share. Each share carries an access level — **Read** or **Read + Write** — that caps each User's effective role on the sharee Project: Read grants read access, while Read + Write allows target Editors and Organization Admins to modify descendants within the shared subtree. The shared top-level Folder itself cannot be renamed, moved, or deleted through the share, and descendants cannot be moved outside the subtree. The hidden root and nested Folders cannot be shared directly. Ownership never moves: the Folder and its contents keep their original Project.
+
+### Archived Project
+
+A Project hidden from the Library root and from new-content Project selectors without changing the accessibility of its existing content. Existing Entries and Entities remain visible through Hubs and direct Workspaces and remain editable according to effective access. Grants and Shared Folders remain in force. Archived Projects can be shown and restored from Settings.
+
+### Organization Page
+
+The profile-like page at `/organization`, opened from the avatar menu and visible to every User. Its header presents the Organization's identity and information. Its People tab lists active Users and identifies Organization Admins. Its Teams tab shows the platform's Teams and their members, grouped into the current User's Teams and Other Teams. Its Projects tab shows every non-archived Project's identity, grouped into the current User's Projects and Other Projects; a Project is "yours" when the User has a direct Grant or belongs to a Team with a Grant, while Shared Folders do not make a Project theirs. Its Access Policies tab shows the hardcoded policy matrix. The directory and policy information is read-only and identical for every User apart from personalized grouping. Organization Admins can edit Organization information from this page.
 
 ---
 
@@ -125,7 +141,7 @@ The platform uses a **Hub → Workspace** navigation model. Hubs are free-form b
 | **Hub Registration** | Hubs are registered via `registerHub({ id, label, icon, route, component, order })`. Automatically adds a sidebar nav item. |
 | **Library Hub** | The hub at `/library`, registered by the Library mod. Root lists Projects; inside a Project, a card-grid view over its Folder hierarchy showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
 | **Home Hub** | The hub at `/home`, registered by the Home mod (`order: 0` — first in sidebar). Landing page. |
-| **Settings Hub** | The hub at `/settings`, registered by the Settings mod. Renders settings sections from all mods, sorted by `order`. |
+| **Settings Hub** | The Organization Admin-only hub at `/settings`, registered by the Settings mod. Renders administrative settings sections from all mods, sorted by `order`. |
 
 ### Navigation Flow
 
@@ -155,7 +171,7 @@ The Library renders two Item types: **Folders** (navigated into) and **Entries**
 
 The navigation bar at the top of the Library hub showing the current location as clickable segments: the Project name, then `root`, then each Folder along the path. Each segment is a link to that level — the Project name returns to the Projects listing (the Library root), `root` returns to the Project's root folder. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
 
-**Invariant:** The breadcrumb always reflects the current `?project=` and `?path=` URL parameters. Clicking a segment updates them and reloads the card grid.
+**Invariant:** The breadcrumb always reflects the current `?project=` and `?path=` URL parameters. The `project` parameter contains the Project's immutable generated ID while the breadcrumb displays its name. Clicking a segment updates the parameters and reloads the card grid.
 
 ---
 
@@ -453,6 +469,14 @@ Entity Actions are **user-explicit** — the user records them deliberately. The
 **Invariant:** An Entity Action acts on exactly one Entity.
 
 **Synonyms:** entity event, entity operation, entity activity
+
+### Core Action
+
+One of four universal operations understood by the Action system: **read**, **created**, **edited**, or **deleted**. The Action's access policy is evaluated before the operation. Read Actions are authorization-only and are not logged; successful mutating Actions produce Action Log Entries. For now, access policies are hardcoded for Core Actions. Custom Actions inherit the policy of the Core Action they map to; per-mod policy registration and overrides are deferred.
+
+### Action Policy
+
+The access rule evaluated before an Action can run. A policy can require a Project Role, an Organization Role, ownership, authentication, or public access. Authorization failure stops the operation; failure to write the subsequent audit record does not undo an operation that already succeeded.
 
 ### Action Log Entry
 

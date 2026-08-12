@@ -654,11 +654,16 @@ class QueryBuilderIntegrationTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        from core.models import User
+        from core.models import Folder, Project, User
         from helix_core.models import Schema, SchemaType
 
         cls.user = User.objects.create_user(
             username="testuser", password="pass"
+        )
+
+        project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=project
         )
 
         eln_type = SchemaType.objects.create(
@@ -691,24 +696,28 @@ class QueryBuilderIntegrationTests(TestCase):
             name="PCR Experiment",
             author=cls.user,
             schema=cls.eln_schema,
+            folder=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="Blood Sample A",
             author=cls.user,
             schema=cls.lims_schema,
+            folder=cls.folder,
             properties={"sample_type": "A", "concentration": 50},
         )
         Entity.objects.create(
             name="Blood Sample B",
             author=cls.user,
             schema=cls.lims_schema,
+            folder=cls.folder,
             properties={"sample_type": "B", "concentration": 100},
         )
         Entity.objects.create(
             name="Blood Sample C",
             author=cls.user,
             schema=cls.lims_schema,
+            folder=cls.folder,
             properties={"sample_type": "C", "concentration": 200},
         )
 

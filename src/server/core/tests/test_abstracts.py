@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from helix_core.abstracts import BrowsableItem
 from helix_core.models import SchemaType, Schema
-from core.models import User
+from core.models import Folder, Project, User
 from mods.eln.models import NotebookEntry
 from mods.lims.models import Entity
 
@@ -15,6 +15,10 @@ class BrowsableItemDisplayIdTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(username="testuser", password="testpass")
+        cls.project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=cls.project
+        )
         cls.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
         )
@@ -29,6 +33,7 @@ class BrowsableItemDisplayIdTests(TestCase):
         """First item gets prefix + 1."""
         e = Entity.objects.create(
             name="Sample A", schema=self.dna_schema, author=self.user,
+            folder=self.folder,
         )
         self.assertEqual(e.display_id, "DNA1")
 
@@ -36,9 +41,11 @@ class BrowsableItemDisplayIdTests(TestCase):
         """Second entity with same prefix gets DNA2."""
         Entity.objects.create(
             name="Sample A", schema=self.dna_schema, author=self.user,
+            folder=self.folder,
         )
         e2 = Entity.objects.create(
             name="Sample B", schema=self.dna_schema, author=self.user,
+            folder=self.folder,
         )
         self.assertEqual(e2.display_id, "DNA2")
 
@@ -46,9 +53,11 @@ class BrowsableItemDisplayIdTests(TestCase):
         """Different prefixes have independent counters."""
         Entity.objects.create(
             name="Sample A", schema=self.dna_schema, author=self.user,
+            folder=self.folder,
         )
         e2 = Entity.objects.create(
             name="Sample B", schema=self.rna_schema, author=self.user,
+            folder=self.folder,
         )
         self.assertEqual(e2.display_id, "RNA1")
 
@@ -59,22 +68,26 @@ class BrowsableItemDisplayIdTests(TestCase):
             name="Gap test 1",
             schema=self.dna_schema,
             author=self.user,
+            folder=self.folder,
         )
         Entity.objects.create(
             display_id="E2",
             name="Gap test 2",
             schema=self.dna_schema,
             author=self.user,
+            folder=self.folder,
         )
         Entity.objects.create(
             display_id="E9",
             name="Gap test 3",
             schema=self.dna_schema,
             author=self.user,
+            folder=self.folder,
         )
         # Next auto-generated E-series ID should be E10, not E3.
         e4 = Entity.objects.create(
             name="Next in series", schema=self.dna_schema, author=self.user,
+            folder=self.folder,
         )
         # The prefix for this entity_type is "DNA", so the E-series test
         # doesn't directly apply — let's test the generate_display_id method.
@@ -88,6 +101,7 @@ class BrowsableItemDisplayIdTests(TestCase):
             name="Custom ID entity",
             schema=self.dna_schema,
             author=self.user,
+            folder=self.folder,
         )
         self.assertEqual(e.display_id, "CUSTOM1")
 
@@ -98,6 +112,10 @@ class NotebookEntryDisplayIdTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(username="testuser", password="testpass")
+        cls.project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=cls.project
+        )
         cls.schema_type = SchemaType.objects.create(
             display_name="ELN Entry", workspace_id="eln", model="mods.eln.models.NotebookEntry",
         )
@@ -108,30 +126,36 @@ class NotebookEntryDisplayIdTests(TestCase):
     def test_entry_gets_e1(self):
         """First notebook entry gets E1."""
         entry = NotebookEntry.objects.create(
-            name="First entry", properties={}, author=self.user, schema=self.eln_schema,
+            name="First entry", properties={}, author=self.user,
+            schema=self.eln_schema, folder=self.folder,
         )
         self.assertEqual(entry.display_id, "E1")
 
     def test_entry_increments(self):
         """Second entry gets E2."""
         NotebookEntry.objects.create(
-            name="First", properties={}, author=self.user, schema=self.eln_schema,
+            name="First", properties={}, author=self.user,
+            schema=self.eln_schema, folder=self.folder,
         )
         entry2 = NotebookEntry.objects.create(
-            name="Second", properties={}, author=self.user, schema=self.eln_schema,
+            name="Second", properties={}, author=self.user,
+            schema=self.eln_schema, folder=self.folder,
         )
         self.assertEqual(entry2.display_id, "E2")
 
     def test_entry_gap_tolerance(self):
         """Gapped entry IDs still produce the correct next ID."""
         NotebookEntry.objects.create(
-            display_id="E1", name="One", properties={}, author=self.user, schema=self.eln_schema,
+            display_id="E1", name="One", properties={},
+            author=self.user, schema=self.eln_schema, folder=self.folder,
         )
         NotebookEntry.objects.create(
-            display_id="E5", name="Five", properties={}, author=self.user, schema=self.eln_schema,
+            display_id="E5", name="Five", properties={},
+            author=self.user, schema=self.eln_schema, folder=self.folder,
         )
         entry3 = NotebookEntry.objects.create(
-            name="Should be E6", properties={}, author=self.user, schema=self.eln_schema,
+            name="Should be E6", properties={},
+            author=self.user, schema=self.eln_schema, folder=self.folder,
         )
         self.assertEqual(entry3.display_id, "E6")
 
@@ -142,6 +166,10 @@ class BrowsableItemAbstractTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(username="testuser", password="testpass")
+        cls.project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=cls.project
+        )
         cls.schema_type = SchemaType.objects.create(
             display_name="ELN Entry", workspace_id="eln", model="mods.eln.models.NotebookEntry",
         )
@@ -157,7 +185,8 @@ class BrowsableItemAbstractTests(TestCase):
     def test_subclass_has_display_id(self):
         """Concrete subclasses get display_id from the abstract base."""
         entry = NotebookEntry.objects.create(
-            name="Test", properties={}, author=self.user, schema=self.eln_schema,
+            name="Test", properties={}, author=self.user,
+            schema=self.eln_schema, folder=self.folder,
         )
         self.assertTrue(hasattr(entry, "display_id"))
         self.assertTrue(hasattr(entry, "created_at"))

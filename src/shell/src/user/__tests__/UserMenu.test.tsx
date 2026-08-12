@@ -36,7 +36,7 @@ const { mockUser } = vi.hoisted(() => ({
     color: "#4A90D9",
     is_active: true,
     date_joined: "2025-01-15T00:00:00Z",
-    organization_role: "user" as string,
+    organization_role: "user" as "user" | "admin" | null,
   },
 }));
 

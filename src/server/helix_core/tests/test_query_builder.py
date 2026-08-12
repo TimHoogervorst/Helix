@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from django.db.models import Q
 from django.test import TestCase
 
 from helix_core.query_builder import (

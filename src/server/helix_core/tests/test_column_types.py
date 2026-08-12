@@ -815,7 +815,7 @@ class BuiltinTypesListTests(TestCase):
 
     def test_returns_all_eight_types(self):
         types = get_builtin_column_types()
-        self.assertEqual(len(types), 8)
+        self.assertEqual(len(types), 9)
 
     def test_all_types_have_unique_ids(self):
         types = get_builtin_column_types()
@@ -832,7 +832,7 @@ class BuiltinTypesListTests(TestCase):
         registry = _fresh_registry()
         for ct in get_builtin_column_types():
             registry.register_column_type(ct)
-        self.assertEqual(len(registry), 8)
+        self.assertEqual(len(registry), 9)
 
 
 # ── Contract test: columnTypes in mod-registry response ──────────────────────

@@ -200,6 +200,7 @@ class EntityHubView(models.Model):
     author = models.ForeignKey(
         "core.User",
         on_delete=models.DO_NOTHING,
+        null=True,
         related_name="+",
         db_column="author_id",
     )
@@ -214,18 +215,21 @@ class EntityHubView(models.Model):
     folder = models.ForeignKey(
         "core.Folder",
         on_delete=models.DO_NOTHING,
+        null=True,
         related_name="+",
         db_column="folder_id",
     )
     project = models.ForeignKey(
         "core.Project",
         on_delete=models.DO_NOTHING,
+        null=True,
         related_name="+",
         db_column="project_id",
     )
     schema = models.ForeignKey(
         Schema,
         on_delete=models.DO_NOTHING,
+        null=True,
         related_name="+",
         db_column="schema_id",
     )

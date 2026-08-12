@@ -188,7 +188,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # ContentVersion count unchanged — content didn't change.
         self.assertEqual(ContentVersion.objects.count(), 1)
         # Action was still logged (title change).
-        self.assertEqual(ElnAction.objects.filter(action_type="eln.entry.edited").count(), 2)
+        self.assertEqual(ElnAction.objects.filter(action="eln.entry.edited").count(), 2)
 
     def test_noop_before_any_content_version(self):
         """When no ContentVersion exists yet, update always proceeds.
@@ -246,7 +246,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(ContentVersion.objects.count(), 1)
         # Action was logged for the title change.
         self.assertGreaterEqual(
-            ElnAction.objects.filter(action_type="eln.entry.edited").count(), 2
+            ElnAction.objects.filter(action="eln.entry.edited").count(), 2
         )
 
     def test_status_only_update_no_content_version(self):
@@ -279,7 +279,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(ContentVersion.objects.count(), 1)
         # Action logged (status changed).
         self.assertGreaterEqual(
-            ElnAction.objects.filter(action_type="eln.entry.edited").count(), 2
+            ElnAction.objects.filter(action="eln.entry.edited").count(), 2
         )
 
 
@@ -364,7 +364,7 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
             format="json",
         )
 
-        action = ElnAction.objects.filter(action_type="eln.entry.edited").first()
+        action = ElnAction.objects.filter(action="eln.entry.edited").first()
         self.assertIsNotNone(action)
         self.assertEqual(action.metadata["version_number"], 1)
         self.assertEqual(action.metadata["save_mode"], "manual")
@@ -390,7 +390,7 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
         )
 
         # The second "edited" action should have empty metadata (no new CV).
-        actions = list(ElnAction.objects.filter(action_type="eln.entry.edited").order_by("created_at"))
+        actions = list(ElnAction.objects.filter(action="eln.entry.edited").order_by("created_at"))
         self.assertEqual(len(actions), 2)
         # First action has version metadata.
         self.assertIn("version_number", actions[0].metadata)

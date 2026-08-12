@@ -53,10 +53,6 @@ class LibraryApiTests(BaseTestCase):
             schema=self.schema,
         )
 
-        Grant.objects.create(
-            project=self.project, role=ProjectRole.READ, user=self.user,
-        )
-
     @property
     def schema(self):
         if self._schema is None:
@@ -607,6 +603,9 @@ class AccessibleProjectsApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        # BaseTestCase seeds an EDIT Grant for self.user; these tests build
+        # the actor's grants explicitly, so start from a clean slate.
+        Grant.objects.filter(project=self.project, user=self.user).delete()
         self.org = Organization.objects.create(name="Test Lab")
         OrganizationMembership.objects.update_or_create(
             user=self.user,

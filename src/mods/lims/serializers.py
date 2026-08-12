@@ -123,7 +123,7 @@ class EntitySerializer(serializers.ModelSerializer):
             result = ct.validate(value, reference_schema_id=expected_schema_id)
             if result is not True:
                 raise serializers.ValidationError({
-                    f"properties.{col_name}": result,
+                    col_name: result,
                 })
 
             if expected_schema_id is not None and isinstance(value, str):
@@ -136,14 +136,14 @@ class EntitySerializer(serializers.ModelSerializer):
                     )
                 except EntityModel.DoesNotExist:
                     raise serializers.ValidationError({
-                        f"properties.{col_name}": (
+                        col_name: (
                             f"Referenced entity '{value}' does not exist."
                         ),
                     })
                 if ref.schema_id != expected_schema_id:
                     target_schema = Schema.objects.get(pk=expected_schema_id)
                     raise serializers.ValidationError({
-                        f"properties.{col_name}": (
+                        col_name: (
                             f"Referenced entity '{value}' belongs to schema "
                             f"'{ref.schema.name}' but the column expects "
                             f"'{target_schema.name}'."

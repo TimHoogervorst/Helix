@@ -22,6 +22,7 @@ class LimsApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
         Schema.objects.create(name="DNA", prefix="DNA", schema_type=self.schema_type)
         Schema.objects.create(name="Chemical", prefix="CHEM", schema_type=self.schema_type)
 
@@ -59,6 +60,7 @@ class EntityApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
             columns=[{"name": "concentration", "type": "number"}],
@@ -190,7 +192,7 @@ class EntityActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity.created")
+        self.assertEqual(kwargs["action"], "lims.entity.created")
         self.assertEqual(kwargs["target_type"], "lims.entity")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -202,13 +204,13 @@ class EntityActionLoggingTests(BaseTestCase):
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
-            {"name": "Sample A Updated", "schema": self.dna_schema.id},
+            {"name": "Sample A Updated", "schema": self.dna_schema.id, "folder": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity.edited")
+        self.assertEqual(kwargs["action"], "lims.entity.edited")
         self.assertEqual(kwargs["target_type"], "lims.entity")
         self.assertEqual(kwargs["target_id"], entity.pk)
 
@@ -225,7 +227,7 @@ class EntityActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity.edited")
+        self.assertEqual(kwargs["action"], "lims.entity.edited")
         self.assertEqual(kwargs["target_type"], "lims.entity")
 
     def test_delete_entity_logs_action(self):
@@ -239,7 +241,7 @@ class EntityActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "lims.entity.deleted")
+        self.assertEqual(kwargs["action"], "lims.entity.deleted")
         self.assertEqual(kwargs["target_type"], "lims.entity")
         self.assertEqual(kwargs["target_id"], entity.pk)
 
@@ -341,6 +343,7 @@ class ActionViewSetRegressionTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
         self.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=self.schema_type,
         )
@@ -407,7 +410,7 @@ class BatchRegisterCreateTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}},
+                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -435,9 +438,9 @@ class BatchRegisterCreateTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {}},
-                    {"entity_id": None, "name": "Sample B", "values": {}},
-                    {"entity_id": None, "name": "Sample C", "values": {}},
+                    {"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample B", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample C", "values": {}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -552,7 +555,7 @@ class BatchRegisterValidationTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "", "values": {}},
+                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -571,7 +574,7 @@ class BatchRegisterValidationTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "   ", "values": {}},
+                    {"entity_id": None, "name": "   ", "values": {}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -606,10 +609,10 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Valid A", "values": {}},
-                    {"entity_id": None, "name": "", "values": {}},         # missing name
-                    {"entity_id": None, "name": "Valid B", "values": {}},
-                    {"entity_id": None, "name": "   ", "values": {}},      # whitespace name
+                    {"entity_id": None, "name": "Valid A", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},         # missing name
+                    {"entity_id": None, "name": "Valid B", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "   ", "values": {}, "folder_id": self.folder.id},      # whitespace name
                 ],
             },
             format="json",
@@ -643,8 +646,8 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
                 "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": existing.id, "name": "Existing Updated", "values": {}},
-                    {"entity_id": None, "name": "", "values": {}},                      # error
-                    {"entity_id": None, "name": "New Entity", "values": {}},
+                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},                      # error
+                    {"entity_id": None, "name": "New Entity", "values": {}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -684,7 +687,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         payload = {
             "schema_id": self.dna_schema.id,
             "rows": [
-                {"entity_id": None, "name": "Idempotent Sample", "values": {"concentration": 42}},
+                {"entity_id": None, "name": "Idempotent Sample", "values": {"concentration": 42}, "folder_id": self.folder.id},
             ],
         }
 
@@ -764,8 +767,8 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {}},
-                    {"entity_id": None, "name": "Sample B", "values": {}},
+                    {"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample B", "values": {}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -775,7 +778,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
 
         self.mock_log.assert_called_once()
         kwargs = self.mock_log.call_args[1]
-        self.assertEqual(kwargs["action_type"], "eln.entities.registered")
+        self.assertEqual(kwargs["action"], "eln.entities.registered")
         self.assertEqual(kwargs["target_type"], "lims.entities")
         self.assertEqual(kwargs["target_id"], self.dna_schema.id)
         self.assertEqual(kwargs["user"], self.user)
@@ -791,7 +794,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {
                 "schema_id": self.dna_schema.id,
-                "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id}],
             },
             format="json",
         )
@@ -804,7 +807,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {
                 "schema_id": self.dna_schema.id,
-                "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id}],
             },
             format="json",
         )
@@ -825,7 +828,7 @@ class BatchRegisterSchemaNotFoundTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {
                 "schema_id": 99999,
-                "rows": [{"entity_id": None, "name": "Sample A", "values": {}}],
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id}],
             },
             format="json",
         )
@@ -837,6 +840,8 @@ class BatchRegisterSerializerValidationTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="batchser", password="pass")
+        self.client.force_authenticate(user=self.user)
 
     def test_missing_schema_id_returns_400(self):
         """POST without schema_id returns 400."""
@@ -965,7 +970,7 @@ class EntityAuthRequiredTests(BaseTestCase):
         """POST batch-register without auth returns 403 — author is required."""
         response = self.client.post(
             "/api/lims/entities/batch-register/",
-            {"schema_id": self.schema.id, "rows": [{"entity_id": None, "name": "X", "values": {}}]},
+            {"schema_id": self.schema.id, "rows": [{"entity_id": None, "name": "X", "values": {}, "folder_id": self.folder.id}]},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -999,7 +1004,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": 42}},
+                {"entity_id": None, "name": "A", "values": {"concentration": 42}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1012,7 +1017,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": "3.14"}},
+                {"entity_id": None, "name": "A", "values": {"concentration": "3.14"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1025,7 +1030,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": "abc"}},
+                {"entity_id": None, "name": "A", "values": {"concentration": "abc"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1041,7 +1046,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": ""}},
+                {"entity_id": None, "name": "A", "values": {"concentration": ""}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1054,7 +1059,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": None}},
+                {"entity_id": None, "name": "A", "values": {"concentration": None}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1086,7 +1091,7 @@ class BatchRegisterDateValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"sample_date": "2025-01-15"}},
+                {"entity_id": None, "name": "A", "values": {"sample_date": "2025-01-15"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1099,7 +1104,7 @@ class BatchRegisterDateValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"sample_date": "not-a-date"}},
+                {"entity_id": None, "name": "A", "values": {"sample_date": "not-a-date"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1133,7 +1138,7 @@ class BatchRegisterDatetimeValidationTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
                 {"entity_id": None, "name": "A",
-                 "values": {"recorded_at": "2025-01-15T14:30:00"}},
+                 "values": {"recorded_at": "2025-01-15T14:30:00"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1147,7 +1152,7 @@ class BatchRegisterDatetimeValidationTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
                 {"entity_id": None, "name": "A",
-                 "values": {"recorded_at": "not-a-datetime"}},
+                 "values": {"recorded_at": "not-a-datetime"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1180,7 +1185,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": True}},
+                {"entity_id": None, "name": "A", "values": {"is_active": True}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1193,7 +1198,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "True"}},
+                {"entity_id": None, "name": "A", "values": {"is_active": "True"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1206,7 +1211,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "FALSE"}},
+                {"entity_id": None, "name": "A", "values": {"is_active": "FALSE"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1219,7 +1224,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "yes"}},
+                {"entity_id": None, "name": "A", "values": {"is_active": "yes"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1244,7 +1249,7 @@ class BatchRegisterSelectValidationTests(BaseTestCase):
         self.client.force_authenticate(user=self.user)
         self.schema = Schema.objects.create(
             name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "status", "type": "Select"}],
+            columns=[{"name": "status", "type": "dropdown"}],
         )
 
     def test_string_accepted_without_dropdown_options(self):
@@ -1252,7 +1257,7 @@ class BatchRegisterSelectValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"status": "In Progress"}},
+                {"entity_id": None, "name": "A", "values": {"status": "In Progress"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1265,7 +1270,7 @@ class BatchRegisterSelectValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"status": 42}},
+                {"entity_id": None, "name": "A", "values": {"status": 42}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1297,7 +1302,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": "DNA42"}},
+                {"entity_id": None, "name": "A", "values": {"source": "DNA42"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1310,7 +1315,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": "ref-123"}},
+                {"entity_id": None, "name": "A", "values": {"source": "ref-123"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1324,7 +1329,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": 42}},
+                {"entity_id": None, "name": "A", "values": {"source": 42}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1356,7 +1361,7 @@ class BatchRegisterTextValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"notes": "anything goes"}},
+                {"entity_id": None, "name": "A", "values": {"notes": "anything goes"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1369,7 +1374,7 @@ class BatchRegisterTextValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"notes": 123}},
+                {"entity_id": None, "name": "A", "values": {"notes": 123}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1406,9 +1411,9 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Valid", "values": {"concentration": 42}},
-                    {"entity_id": None, "name": "BadNumber", "values": {"concentration": "abc"}},
-                    {"entity_id": None, "name": "AlsoValid", "values": {"sample_date": "2025-01-15"}},
+                    {"entity_id": None, "name": "Valid", "values": {"concentration": 42}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "BadNumber", "values": {"concentration": "abc"}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "AlsoValid", "values": {"sample_date": "2025-01-15"}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -1432,7 +1437,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
                 "schema_id": self.schema.id,
                 "rows": [
                     {"entity_id": None, "name": "Bad",
-                     "values": {"concentration": "abc", "sample_date": "not-a-date"}},
+                     "values": {"concentration": "abc", "sample_date": "not-a-date"}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -1447,7 +1452,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"unknown_prop": "whatever"}},
+                {"entity_id": None, "name": "A", "values": {"unknown_prop": "whatever"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1462,9 +1467,9 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "", "values": {}},               # name error
-                    {"entity_id": None, "name": "Bad", "values": {"concentration": "xyz"}},  # type error
-                    {"entity_id": None, "name": "Good", "values": {"concentration": 10}},    # ok
+                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},               # name error
+                    {"entity_id": None, "name": "Bad", "values": {"concentration": "xyz"}, "folder_id": self.folder.id},  # type error
+                    {"entity_id": None, "name": "Good", "values": {"concentration": 10}, "folder_id": self.folder.id},    # ok
                 ],
             },
             format="json",
@@ -1483,7 +1488,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}},
+                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, "folder_id": self.folder.id},
                 ],
             },
             format="json",
@@ -1520,7 +1525,7 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"count": 42}},
+                {"entity_id": None, "name": "A", "values": {"count": 42}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1533,7 +1538,7 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"count": "abc"}},
+                {"entity_id": None, "name": "A", "values": {"count": "abc"}, "folder_id": self.folder.id},
             ]},
             format="json",
         )
@@ -1587,6 +1592,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": target.display_id},
             },
@@ -1604,6 +1610,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": other_entity.display_id},
             },
@@ -1620,6 +1627,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": "NONEXIST42"},
             },
@@ -1635,6 +1643,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.open_ref_schema.id,
                 "properties": {"any_entity": "ANYTHING42"},
             },
@@ -1648,6 +1657,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": ""},
             },
@@ -1661,6 +1671,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": None},
             },
@@ -1674,6 +1685,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {},
             },
@@ -1731,6 +1743,7 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": target2.display_id},
             },
@@ -1757,6 +1770,7 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": other.display_id},
             },
@@ -1782,6 +1796,7 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": "NONEXIST42"},
             },
@@ -1802,6 +1817,7 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
+                "folder": self.folder.id,
                 "schema": self.open_ref_schema.id,
                 "properties": {"any_entity": "NEW42"},
             },
@@ -1826,6 +1842,7 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (unchanged ref)",
+                "folder": self.folder.id,
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": target.display_id},
             },

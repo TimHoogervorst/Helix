@@ -9,6 +9,7 @@ from django.test import override_settings
 from django.utils import timezone
 
 from core.tests.base import BaseTestCase
+from mods.access.models import Grant, ProjectRole
 from mods.eln.models import NotebookEntry, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 
@@ -264,6 +265,9 @@ class LockEnforcementTests(_CreateEntryMixin, BaseTestCase):
         )
 
         other = LockAcquireTests._create_second_user()
+        Grant.objects.create(
+            project=self.project, user=other, role=ProjectRole.EDIT,
+        )
         self.client.force_authenticate(user=other)
         response = self._put_content()
         self.assertEqual(response.status_code, 200)

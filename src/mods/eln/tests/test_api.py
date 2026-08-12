@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from core.mentions.models import Mention
-from core.models import Folder, User
+from core.models import Folder, Project, User
 from mods.eln.models import NotebookEntry, ElnAction, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 from mods.access.models import (
@@ -527,12 +527,14 @@ class EntryPatchAccessTests(BaseTestCase):
         self.other_editor = User.objects.create_user(username="other_edit", password="pass")
         self.org_admin = User.objects.create_user(username="orgadmin", password="pass")
 
-        OrganizationMembership.objects.create(
-            user=self.org_admin, organization=self.org, role=OrganizationRole.ADMIN,
+        OrganizationMembership.objects.update_or_create(
+            user=self.org_admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
         )
         # self.user is testuser, lives in self.project with folder "Default"
-        OrganizationMembership.objects.create(
-            user=self.user, organization=self.org, role=OrganizationRole.USER,
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": self.org, "role": OrganizationRole.USER},
         )
 
         Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
@@ -642,7 +644,7 @@ class EntryPatchAccessTests(BaseTestCase):
         team_user = User.objects.create_user(username="team_editor", password="pass")
         group = Group.objects.create(name="Test Team")
         team_user.groups.add(group)
-        team = Team.objects.create(group=group)
+        team = Team.objects.create(group=group, organization=self.org)
         Grant.objects.create(
             project=self.project, team=team, role=ProjectRole.EDIT,
         )
@@ -702,11 +704,13 @@ class EntryDeleteAccessTests(BaseTestCase):
         self.other_editor = User.objects.create_user(username="del_sh", password="pass")
         self.org_admin = User.objects.create_user(username="del_ad", password="pass")
 
-        OrganizationMembership.objects.create(
-            user=self.org_admin, organization=self.org, role=OrganizationRole.ADMIN,
+        OrganizationMembership.objects.update_or_create(
+            user=self.org_admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
         )
-        OrganizationMembership.objects.create(
-            user=self.user, organization=self.org, role=OrganizationRole.USER,
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": self.org, "role": OrganizationRole.USER},
         )
 
         Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
@@ -752,10 +756,10 @@ class EntryDeleteAccessTests(BaseTestCase):
         from mods.access.models import Team
 
         team_user = User.objects.create_user(username="team_del_e", password="pass")
-        OrganizationMembership.objects.create(user=team_user, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.update_or_create(user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER})
         group = Group.objects.create(name="Entry Delete Team")
         team_user.groups.add(group)
-        team = Team.objects.create(group=group)
+        team = Team.objects.create(group=group, organization=self.org)
         Grant.objects.create(
             project=self.project, team=team, role=ProjectRole.EDIT,
         )
@@ -766,7 +770,7 @@ class EntryDeleteAccessTests(BaseTestCase):
 
     def test_user_with_no_grant_delete_rejected(self):
         no_grant = User.objects.create_user(username="nodel", password="pass")
-        OrganizationMembership.objects.create(user=no_grant, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.update_or_create(user=no_grant, defaults={"organization": self.org, "role": OrganizationRole.USER})
         client = APIClient()
         client.force_authenticate(user=no_grant)
         response = self._delete(client, self.entry)

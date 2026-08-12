@@ -138,6 +138,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     {"folder": "Entities cannot be moved to a different Project."}
                 )
         serializer.save()
+        self._maybe_log(
+            self.action,
+            instance=serializer.instance,
+            validated_data=serializer.validated_data,
+        )
 
     def filter_queryset(self, queryset):
         # Support ?type= as an alias for ?schema=

@@ -182,7 +182,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.created")
+        self.assertEqual(kwargs["action"], "tags.tag.created")
         self.assertEqual(kwargs["target_type"], "tags.tag")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -197,7 +197,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.edited")
+        self.assertEqual(kwargs["action"], "tags.tag.edited")
         self.assertEqual(kwargs["target_type"], "tags.tag")
         self.assertEqual(kwargs["target_id"], tag.id)
 
@@ -211,7 +211,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.edited")
+        self.assertEqual(kwargs["action"], "tags.tag.edited")
 
     def test_delete_tag_logs_action(self):
         tag = Tag.objects.create(name="DeleteMe", color="enzyme", icon="circle")
@@ -219,7 +219,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.deleted")
+        self.assertEqual(kwargs["action"], "tags.tag.deleted")
         self.assertEqual(kwargs["target_type"], "tags.tag")
         self.assertEqual(kwargs["target_id"], tag.id)
 

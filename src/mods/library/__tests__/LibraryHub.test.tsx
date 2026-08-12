@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { LayoutList, Star, User, Archive } from "lucide-react";
 import {
@@ -1622,8 +1622,11 @@ describe("LibraryHub", () => {
       const dialog = await openSharingModal();
 
       const projectSelect = within(dialog).getByTestId("add-share-project-select");
-      await act(async () => {
-        fireEvent.change(projectSelect, { target: { value: "2" } });
+      fireEvent.change(projectSelect, { target: { value: "2" } });
+
+      await waitFor(() => {
+        const addButton = within(dialog).getByTestId("add-share-button") as HTMLButtonElement;
+        expect(addButton.disabled).toBe(false);
       });
 
       fireEvent.click(within(dialog).getByTestId("add-share-button"));

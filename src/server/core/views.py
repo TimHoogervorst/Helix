@@ -56,9 +56,59 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             qs = qs.filter(parent_id=int(parent_id) if parent_id.isdigit() else None)
         return qs.order_by("name")
 
+    def perform_update(self, serializer):
+        from mods.access.policies import can as access_can
+
+        instance = serializer.instance
+
+        if access_can(self.request.user, "core.folder.edited", resource=instance):
+            return super().perform_update(serializer)
+
+        if instance.parent is not None:
+            from mods.access.models import FolderShare
+
+            shares = FolderShare.objects.filter(
+                source_folder__project_id=instance.project_id,
+                level="read_write",
+            ).select_related("source_folder").only(
+                "id", "source_folder_id", "target_project_id",
+            )
+
+            ancestor_ids = self._folder_ancestor_ids(instance)
+
+            for share in shares:
+                covers = (
+                    instance.id == share.source_folder_id
+                    or share.source_folder_id in ancestor_ids
+                )
+                if not covers:
+                    continue
+                if access_can(
+                    self.request.user,
+                    "core.folder.edited",
+                    resource=instance,
+                    via_project=share.target_project_id,
+                ):
+                    return super().perform_update(serializer)
+
+        from rest_framework.exceptions import PermissionDenied
+
+        raise PermissionDenied(
+            "You do not have permission to edit this folder."
+        )
+
+    def _folder_ancestor_ids(self, folder):
+        ids = set()
+        node = folder.parent
+        while node is not None:
+            ids.add(node.id)
+            node = node.parent
+        return ids
+
     def perform_destroy(self, instance):
         if instance.is_hidden_root:
             from rest_framework.exceptions import PermissionDenied
+
             raise PermissionDenied(
                 "The hidden Project root Folder cannot be deleted."
             )

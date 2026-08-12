@@ -31,6 +31,8 @@ vi.mock("../api", () => ({
     mockGetLibraryContents(...args),
   getFolders: (...args: unknown[]) =>
     mockGetFolders(...args),
+  patchFolder: (...args: unknown[]) =>
+    mockPatchFolder(...args),
 }));
 
 const mockListDropdowns = vi.fn().mockResolvedValue([]);
@@ -40,6 +42,7 @@ vi.mock("../../dropdowns/api", () => ({
 
 const mockPatchEntry = vi.fn();
 const mockGetLockStatus = vi.fn().mockResolvedValue({ locked: false });
+const mockPatchFolder = vi.fn();
 vi.mock("../../eln/api", () => ({
   patchEntry: (...args: unknown[]) => mockPatchEntry(...args),
   getLockStatus: (...args: unknown[]) => mockGetLockStatus(...args),
@@ -184,6 +187,7 @@ describe("LibraryHub", () => {
     mockListDropdowns.mockReset().mockResolvedValue([]);
     mockPatchEntry.mockReset();
     mockGetLockStatus.mockReset().mockResolvedValue({ locked: false });
+    mockPatchFolder.mockReset();
     mockNavigate.mockReset();
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     mockLocalStorage.getItem.mockClear();
@@ -1203,6 +1207,176 @@ describe("LibraryHub", () => {
         expect(within(dialog).getByText("Author")).toBeInTheDocument();
         expect(within(dialog).getByText("Created")).toBeInTheDocument();
         expect(within(dialog).getByText("Updated")).toBeInTheDocument();
+      });
+    });
+  });
+
+  // ── Folder rename from Properties Modal ────────────────────────────
+
+  describe("folder rename from properties modal", () => {
+    const projEdit = makeProject({
+      id: 1, uid: "proj-001", name: "Test Project",
+      current_user_role: "edit",
+    });
+
+    async function openFolderPropertiesModal() {
+      mockGetAccessibleProjects.mockResolvedValue([projEdit]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      mockGetFolders.mockResolvedValue([]);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("Protocols") && !card.textContent?.includes("EXP"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog", { name: "Protocols" })).toBeInTheDocument();
+      });
+      return screen.getByRole("dialog", { name: "Protocols" });
+    }
+
+    it("shows editable name input when user can edit", async () => {
+      const dialog = await openFolderPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Name")).toBeInTheDocument();
+      });
+
+      const nameInput = within(dialog).getByRole("textbox");
+      expect(nameInput).toBeInTheDocument();
+      expect(nameInput).not.toBeDisabled();
+      expect(nameInput).toHaveValue("Protocols");
+    });
+
+    it("shows read-only name when user can only read", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([
+        makeProject({ id: 1, uid: "proj-001", name: "Test Project", current_user_role: "read" }),
+      ]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("Protocols") && !card.textContent?.includes("EXP"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog", { name: "Protocols" })).toBeInTheDocument();
+      });
+
+      const dialog = screen.getByRole("dialog", { name: "Protocols" });
+      expect(within(dialog).getByText("Name")).toBeInTheDocument();
+      expect(within(dialog).queryByRole("textbox")).toBeNull();
+      const nameElements = within(dialog).getAllByText("Protocols");
+      expect(nameElements.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("commits rename on Enter key", async () => {
+      mockPatchFolder.mockResolvedValue({
+        type: "folder", id: 2, name: "RenamedProtocols", parent: null,
+        created_at: "2025-01-02T00:00:00Z",
+      });
+      const dialog = await openFolderPropertiesModal();
+
+      const nameInput = within(dialog).getByRole("textbox");
+      fireEvent.change(nameInput, { target: { value: "RenamedProtocols" } });
+      fireEvent.keyDown(nameInput, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(mockPatchFolder).toHaveBeenCalledWith(2, { name: "RenamedProtocols" });
+      });
+    });
+
+    it("commits rename on blur", async () => {
+      mockPatchFolder.mockResolvedValue({
+        type: "folder", id: 2, name: "BlurRenamed", parent: null,
+        created_at: "2025-01-02T00:00:00Z",
+      });
+      const dialog = await openFolderPropertiesModal();
+
+      const nameInput = within(dialog).getByRole("textbox");
+      fireEvent.change(nameInput, { target: { value: "BlurRenamed" } });
+      fireEvent.blur(nameInput);
+
+      await waitFor(() => {
+        expect(mockPatchFolder).toHaveBeenCalledWith(2, { name: "BlurRenamed" });
+      });
+    });
+
+    it("shows inline error on rename failure", async () => {
+      mockPatchFolder.mockRejectedValue(new Error("A folder named \"Conflict\" already exists in this project."));
+      const dialog = await openFolderPropertiesModal();
+
+      const nameInput = within(dialog).getByRole("textbox");
+      fireEvent.change(nameInput, { target: { value: "Conflict" } });
+      fireEvent.keyDown(nameInput, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(
+          within(dialog).getByText("A folder named \"Conflict\" already exists in this project."),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("reverts to original name in input on rename failure", async () => {
+      mockPatchFolder.mockRejectedValue(new Error("Name collision"));
+      const dialog = await openFolderPropertiesModal();
+
+      const nameInput = within(dialog).getByRole("textbox");
+      fireEvent.change(nameInput, { target: { value: "ConflictName" } });
+      fireEvent.keyDown(nameInput, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Name collision")).toBeInTheDocument();
+      });
+
+      expect(nameInput).toHaveValue("Protocols");
+    });
+
+    it("does not call API when name is unchanged", async () => {
+      const dialog = await openFolderPropertiesModal();
+
+      const nameInput = within(dialog).getByRole("textbox");
+      fireEvent.change(nameInput, { target: { value: "Protocols" } });
+      fireEvent.keyDown(nameInput, { key: "Enter" });
+
+      await waitFor(() => {
+        // No error, but also no API call
+        expect(within(dialog).queryByText(/exists/i)).toBeNull();
+      });
+      expect(mockPatchFolder).not.toHaveBeenCalled();
+    });
+
+    it("commits rename on modal close (blur)", async () => {
+      mockPatchFolder.mockResolvedValue({
+        type: "folder", id: 2, name: "CloseRenamed", parent: null,
+        created_at: "2025-01-02T00:00:00Z",
+      });
+      const dialog = await openFolderPropertiesModal();
+
+      const nameInput = within(dialog).getByRole("textbox");
+      fireEvent.change(nameInput, { target: { value: "CloseRenamed" } });
+      fireEvent.click(screen.getByLabelText("Close"));
+
+      await waitFor(() => {
+        expect(mockPatchFolder).toHaveBeenCalledWith(2, { name: "CloseRenamed" });
       });
     });
   });

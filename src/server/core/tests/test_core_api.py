@@ -5,7 +5,10 @@ Exercises ActionLoggingMixin on FolderViewSet and CoreSettingViewSet.
 """
 from unittest.mock import patch
 
-from core.models import CoreSetting, Folder
+from django.test import TestCase
+from rest_framework.test import APIClient
+
+from core.models import CoreSetting, Folder, Project, User
 from core.tests.base import BaseTestCase
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
@@ -164,3 +167,240 @@ class CoreSettingActionLoggingTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.mock_log.assert_not_called()
+
+
+# ── Folder rename validation tests ──────────────────────────────────────────
+
+
+class FolderRenameValidationTests(BaseTestCase):
+    """Test that renaming folders enforces the root-level name uniqueness invariant."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+
+    def test_reject_root_level_name_collision_with_own_child(self):
+        Folder.objects.create(
+            name="ExistingChild", parent=self.root_folder, project=self.project,
+        )
+        target = Folder.objects.create(
+            name="Target", parent=self.root_folder, project=self.project,
+        )
+        response = self.client.patch(
+            f"/api/core/folders/{target.id}/",
+            {"name": "ExistingChild"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("name", response.data)
+
+    def test_reject_root_level_name_collision_with_incoming_share(self):
+        from mods.access.models import FolderShare, Organization, OrganizationMembership, OrganizationRole, ShareLevel
+
+        org = Organization.objects.create(name="Test Org")
+        other_user = User.objects.create_user(username="other", password="pass")
+        OrganizationMembership.objects.create(user=self.user, organization=org, role=OrganizationRole.ADMIN)
+
+        other_project = Project.objects.create(name="Other Project")
+        Folder.objects.create(name="root", parent=None, project=other_project)
+        shared_source = Folder.objects.create(
+            name="SharedIn", parent=Folder.objects.get(project=other_project, parent__isnull=True),
+            project=other_project,
+        )
+
+        target = Folder.objects.create(
+            name="Target", parent=self.root_folder, project=self.project,
+        )
+
+        FolderShare.objects.create(
+            source_folder=shared_source,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+
+        response = self.client.patch(
+            f"/api/core/folders/{target.id}/",
+            {"name": "SharedIn"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("name", response.data)
+
+    def test_allow_descendant_rename_unconstrained(self):
+        child = Folder.objects.create(
+            name="ChildFolder", parent=self.folder, project=self.project,
+        )
+        sibling = Folder.objects.create(
+            name="Sibling", parent=self.folder, project=self.project,
+        )
+        response = self.client.patch(
+            f"/api/core/folders/{child.id}/",
+            {"name": "Sibling"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        child.refresh_from_db()
+        self.assertEqual(child.name, "Sibling")
+
+    def test_allow_root_level_rename_when_no_collision(self):
+        target = Folder.objects.create(
+            name="OriginalName", parent=self.root_folder, project=self.project,
+        )
+        response = self.client.patch(
+            f"/api/core/folders/{target.id}/",
+            {"name": "NewUniqueName"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        target.refresh_from_db()
+        self.assertEqual(target.name, "NewUniqueName")
+
+    def test_rename_does_not_self_collide(self):
+        """Renaming a folder to its own name should not trigger a collision."""
+        target = Folder.objects.create(
+            name="KeepMe", parent=self.root_folder, project=self.project,
+        )
+        response = self.client.patch(
+            f"/api/core/folders/{target.id}/",
+            {"name": "KeepMe"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+
+# ── Folder rename access enforcement tests ──────────────────────────────────
+
+
+class FolderRenameAccessTests(TestCase):
+    """Test that folder PATCH enforces Edit access across the full actor matrix."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import (
+            FolderShare,
+            Grant,
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+            ProjectRole,
+            ShareLevel,
+            Team,
+        )
+
+        self.client = APIClient()
+        self.org = Organization.objects.create(name="Test Lab")
+
+        self.admin = User.objects.create_user(username="admin", password="pass")
+        self.editor = User.objects.create_user(username="editor", password="pass")
+        self.reader = User.objects.create_user(username="reader", password="pass")
+        self.other = User.objects.create_user(username="other", password="pass")
+
+        OrganizationMembership.objects.create(user=self.admin, organization=self.org, role=OrganizationRole.ADMIN)
+        OrganizationMembership.objects.create(user=self.editor, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.create(user=self.reader, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.create(user=self.other, organization=self.org, role=OrganizationRole.USER)
+
+        self.project = Project.objects.create(name="Test Project")
+        self.root = Folder.objects.create(name="root", parent=None, project=self.project)
+        self.folder = Folder.objects.create(name="MyFolder", parent=self.root, project=self.project)
+        self.child = Folder.objects.create(name="ChildFolder", parent=self.folder, project=self.project)
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.source_project = Project.objects.create(name="Source Project")
+        Folder.objects.create(name="root", parent=None, project=self.source_project)
+        self.shared_folder = Folder.objects.create(
+            name="SharedFolder", parent=Folder.objects.get(project=self.source_project, parent__isnull=True),
+            project=self.source_project,
+        )
+        self.shared_child = Folder.objects.create(
+            name="SharedChild", parent=self.shared_folder, project=self.source_project,
+        )
+
+        self.target_project = Project.objects.create(name="Target Project")
+        Folder.objects.create(name="root", parent=None, project=self.target_project)
+        Grant.objects.create(project=self.target_project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.target_project, user=self.reader, role=ProjectRole.READ)
+
+        self.rw_share = FolderShare.objects.create(
+            source_folder=self.shared_folder,
+            target_project=self.target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+
+        self.ShareLevel = ShareLevel
+        self.ProjectRole = ProjectRole
+        self.FolderShare = FolderShare
+        self.Grant = Grant
+
+    def _assert_403(self, user, folder):
+        self.client.force_authenticate(user=user)
+        response = self.client.patch(
+            f"/api/core/folders/{folder.id}/",
+            {"name": "HackedName"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403, f"{user.username} should be denied")
+
+    def _assert_200(self, user, folder, new_name="NewName"):
+        self.client.force_authenticate(user=user)
+        response = self.client.patch(
+            f"/api/core/folders/{folder.id}/",
+            {"name": new_name},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, f"{user.username} should be allowed")
+        folder.refresh_from_db()
+        self.assertEqual(folder.name, new_name)
+
+    def test_read_user_cannot_rename(self):
+        self._assert_403(self.reader, self.folder)
+
+    def test_edit_user_can_rename(self):
+        self._assert_200(self.editor, self.folder, "RenamedByEditor")
+
+    def test_org_admin_can_rename(self):
+        self._assert_200(self.admin, self.folder, "RenamedByAdmin")
+
+    def test_team_derived_edit_can_rename(self):
+        from mods.access.models import Grant, ProjectRole, Team
+        from django.contrib.auth.models import Group
+
+        group = Group.objects.create(name="editor_team")
+        self.editor.groups.add(group)
+        team = Team.objects.create(
+            name="Editor Team",
+            group=group,
+            organization=self.org,
+        )
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        self._assert_200(self.editor, self.folder, "RenamedByTeamEdit")
+
+    def test_sharee_with_read_write_can_rename_descendant(self):
+        self._assert_200(self.editor, self.shared_child, "RenamedDescendant")
+
+    def test_sharee_with_read_cannot_rename_descendant(self):
+        self.FolderShare.objects.filter(
+            source_folder=self.shared_folder, target_project=self.target_project,
+        ).update(level=self.ShareLevel.READ)
+        self._assert_403(self.reader, self.shared_child)
+
+    def test_sharee_cannot_rename_shared_top_level_folder(self):
+        self._assert_403(self.editor, self.shared_folder)
+
+    def test_owner_can_rename_shared_top_level_folder(self):
+        self.Grant.objects.create(project=self.source_project, user=self.editor, role=self.ProjectRole.EDIT)
+        self._assert_200(self.editor, self.shared_folder, "RenamedShared")
+
+    def test_user_with_no_access_cannot_rename(self):
+        self._assert_403(self.other, self.folder)
+
+    def test_unauthenticated_cannot_rename(self):
+        self.client.logout()
+        response = self.client.patch(
+            f"/api/core/folders/{self.folder.id}/",
+            {"name": "Hacked"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)

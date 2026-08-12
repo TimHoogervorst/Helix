@@ -41,9 +41,42 @@ class FolderSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         {"parent": "The hidden Project root cannot be moved."}
                     )
+            if "name" in data and self.instance.parent is not None:
+                self._validate_root_level_name_uniqueness(data["name"])
             if parent is not None and project is None:
                 data["project"] = parent.project
         return data
+
+    def _validate_root_level_name_uniqueness(self, new_name):
+        parent = self.instance.parent
+        if parent is None or not parent.is_hidden_root:
+            return
+        project = self.instance.project
+        collision = (
+            Folder.objects
+            .filter(
+                project=project,
+                name=new_name,
+                parent__parent__isnull=True,
+            )
+            .exclude(parent__isnull=True)
+            .exclude(pk=self.instance.pk)
+        )
+        if collision.exists():
+            raise serializers.ValidationError(
+                {"name": f"A folder named \"{new_name}\" already "
+                         f"exists in this project."}
+            )
+        from mods.access.models import FolderShare
+        share_collision = FolderShare.objects.filter(
+            target_project=project,
+            source_folder__name=new_name,
+        )
+        if share_collision.exists():
+            raise serializers.ValidationError(
+                {"name": f"A shared folder named \"{new_name}\" already "
+                         f"exists in this project."}
+            )
 
 
 # ── CoreSetting ────────────────────────────────────────────────────────────

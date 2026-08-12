@@ -1,5 +1,5 @@
-import { get } from "../../shell/src/api/client";
-import type { LibraryContentsResponse, LibraryProjectItem, LibraryFolderPath } from "./types";
+import { get, patch } from "../../shell/src/api/client";
+import type { LibraryContentsResponse, LibraryProjectItem, LibraryFolderPath, LibraryFolderItem } from "./types";
 import type { Project } from "../access/types";
 
 /**
@@ -32,4 +32,14 @@ export function getLibraryContents(
  */
 export function getFolders(projectUid: string): Promise<LibraryFolderPath[]> {
   return get<LibraryFolderPath[]>(`/library/folders/?project=${projectUid}`);
+}
+
+/**
+ * Rename a folder.
+ */
+export function patchFolder(
+  folderId: number,
+  payload: { name: string },
+): Promise<LibraryFolderItem> {
+  return patch<LibraryFolderItem>(`/core/folders/${folderId}/`, payload);
 }

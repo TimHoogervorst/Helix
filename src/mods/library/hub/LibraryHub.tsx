@@ -870,6 +870,11 @@ function LibraryHub() {
           open={true}
           onClose={() => setPropertiesItem(null)}
           folder={propertiesItem}
+          canEdit={isOrgAdmin || currentRole === "edit"}
+          onMutated={() => {
+            setPropertiesItem(null);
+            setRefreshKey((k) => k + 1);
+          }}
         />
       )}
     </div>

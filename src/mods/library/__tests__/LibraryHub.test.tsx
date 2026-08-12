@@ -1622,7 +1622,9 @@ describe("LibraryHub", () => {
       const dialog = await openSharingModal();
 
       const projectSelect = within(dialog).getByTestId("add-share-project-select");
-      fireEvent.change(projectSelect, { target: { value: "2" } });
+      await act(async () => {
+        fireEvent.change(projectSelect, { target: { value: "2" } });
+      });
 
       fireEvent.click(within(dialog).getByTestId("add-share-button"));
 

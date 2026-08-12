@@ -51,6 +51,9 @@ class EffectiveRoleTests(TestCase):
         self.reader = User.objects.create_user(username="reader", password="pass")
         self.editor = User.objects.create_user(username="editor", password="pass")
         self.team_user = User.objects.create_user(username="team_user", password="pass")
+        self.superuser = User.objects.create_superuser(
+            username="superuser", password="pass",
+        )
         self.inactive = User.objects.create_user(
             username="inactive", password="pass", is_active=False,
         )
@@ -59,6 +62,7 @@ class EffectiveRoleTests(TestCase):
         _ensure_membership(self.editor, self.org, OrganizationRole.USER)
         _ensure_membership(self.team_user, self.org, OrganizationRole.USER)
         _ensure_membership(self.inactive, self.org, OrganizationRole.USER)
+        OrganizationMembership.objects.filter(user=self.superuser).delete()
 
         self.project = _make_project_with_root("Source Project")
         self.folder = _add_child_folder(self.project, "Shared Folder")
@@ -125,6 +129,16 @@ class EffectiveRoleTests(TestCase):
         self.assertFalse(Grant.objects.filter(user=self.admin).exists())
         self.assertEqual(effective_role(self.admin, self.folder), "edit")
 
+    def test_superuser_returns_edit(self):
+        self.assertEqual(effective_role(self.superuser, self.folder), "edit")
+
+    def test_superuser_returns_edit_without_grants_or_membership(self):
+        self.assertFalse(Grant.objects.filter(user=self.superuser).exists())
+        self.assertFalse(
+            OrganizationMembership.objects.filter(user=self.superuser).exists()
+        )
+        self.assertEqual(effective_role(self.superuser, self.folder), "edit")
+
 
 class EffectiveRoleShareTests(TestCase):
     """Test effective_role() across Folder Share paths."""
@@ -134,9 +148,13 @@ class EffectiveRoleShareTests(TestCase):
         self.reader = User.objects.create_user(username="reader", password="pass")
         self.editor = User.objects.create_user(username="editor", password="pass")
         self.other = User.objects.create_user(username="other", password="pass")
+        self.superuser = User.objects.create_superuser(
+            username="superuser", password="pass",
+        )
         _ensure_membership(self.reader, self.org, OrganizationRole.USER)
         _ensure_membership(self.editor, self.org, OrganizationRole.USER)
         _ensure_membership(self.other, self.org, OrganizationRole.USER)
+        OrganizationMembership.objects.filter(user=self.superuser).delete()
 
         self.source_project = _make_project_with_root("Source Project")
         self.target_project = _make_project_with_root("Target Project")
@@ -211,6 +229,10 @@ class EffectiveRoleShareTests(TestCase):
         self._share(ShareLevel.READ_WRITE)
         self.assertEqual(effective_role(self.editor, self.shared_folder), "read")
 
+    def test_superuser_bypasses_share_path(self):
+        self._share(ShareLevel.READ_WRITE)
+        self.assertEqual(effective_role(self.superuser, self.descendant), "edit")
+
     def test_entry_inside_subtree_edit_for_target_editor(self):
         from mods.eln.models import NotebookEntry
         from mods.eln.tests.factories import get_or_create_default_eln_schema
@@ -253,6 +275,9 @@ class AccessibleProjectIdsTests(TestCase):
         self.admin = User.objects.create_user(username="admin", password="pass")
         self.user = User.objects.create_user(username="regular", password="pass")
         self.team_user = User.objects.create_user(username="team_user", password="pass")
+        self.superuser = User.objects.create_superuser(
+            username="superuser", password="pass",
+        )
         self.inactive = User.objects.create_user(
             username="inactive", password="pass", is_active=False,
         )
@@ -260,6 +285,7 @@ class AccessibleProjectIdsTests(TestCase):
         _ensure_membership(self.user, self.org, OrganizationRole.USER)
         _ensure_membership(self.team_user, self.org, OrganizationRole.USER)
         _ensure_membership(self.inactive, self.org, OrganizationRole.USER)
+        OrganizationMembership.objects.filter(user=self.superuser).delete()
 
         self.project_a = _make_project_with_root("Project A")
         self.project_b = _make_project_with_root("Project B")
@@ -329,5 +355,12 @@ class AccessibleProjectIdsTests(TestCase):
     def test_org_admin_returns_all_projects(self):
         self.assertEqual(
             accessible_project_ids(self.admin),
+            {self.project_a.pk, self.project_b.pk, self.project_c.pk},
+        )
+
+    def test_superuser_returns_all_projects(self):
+        self.assertFalse(Grant.objects.filter(user=self.superuser).exists())
+        self.assertEqual(
+            accessible_project_ids(self.superuser),
             {self.project_a.pk, self.project_b.pk, self.project_c.pk},
         )

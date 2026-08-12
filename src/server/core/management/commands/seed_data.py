@@ -63,7 +63,9 @@ class Command(BaseCommand):
         """Create the singleton Organization and Admin membership for seed user
         as well as a default Project with root and 'Default' folder.
 
-        Idempotent — skips when already present.
+        Idempotent — skips when already present, but always ensures the seed
+        user's membership role is Admin (the post_save signal creates a plain
+        USER membership first).
         """
         from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 
@@ -82,10 +84,11 @@ class Command(BaseCommand):
         else:
             self.stdout.write("Organization already exists — skipping.")
 
-        if not OrganizationMembership.objects.filter(user=user).exists():
-            OrganizationMembership.objects.create(
-                user=user, organization=org, role=OrganizationRole.ADMIN,
-            )
+        membership, created = OrganizationMembership.objects.update_or_create(
+            user=user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
+        if created:
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Created Admin Organization Membership for {user.username}"
@@ -93,7 +96,7 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(
-                f"Organization Membership for {user.username} already exists — skipping."
+                f"Organization Membership for {user.username} already exists — ensuring Admin role."
             )
         self._seed_folders()
 

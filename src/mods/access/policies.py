@@ -80,7 +80,8 @@ def role(user, project=None):
     ``"edit"``) that *user* holds on *project*, considering direct
     Grants, Team Grants, and Organization Admin bypass.
 
-      * Organization Admins return ``"edit"`` (effective full access).
+      * Organization Admins and Superusers return ``"edit"`` (effective full
+        access, the break-glass bypass).
       * Active Users get the strongest of direct and active-Team Grants.
       * Edit wins over Read.
       * Inactive Users always return ``None``.
@@ -96,6 +97,9 @@ def role(user, project=None):
 
     if user.pk is None:
         return None
+
+    if user.is_superuser:
+        return "edit"
 
     if OrganizationMembership.objects.filter(
         user=user,
@@ -215,7 +219,7 @@ def effective_role(user, resource):
     strongest role (``"edit"``, ``"read"``, or ``None``) the viewer
     holds, considering:
 
-      * the Organization Admin bypass (always ``"edit"``),
+      * the Organization Admin / Superuser bypass (always ``"edit"``),
       * direct and Team Grants on the resource's Project, and
       * every Folder Share path covering the resource — level
         intersection with the target Project role, the read cap on the
@@ -284,8 +288,8 @@ def effective_role(user, resource):
 def accessible_project_ids(user):
     """Return the set of Project IDs the viewer can access.
 
-    Covers direct Grants, Team Grants, and the Organization Admin
-    override (which returns every Project).  The grant paths are
+    Covers direct Grants, Team Grants, and the Organization Admin and
+    Superuser override (which returns every Project).  The grant paths are
     resolved in a single query.  Anonymous, inactive, and unsaved Users
     get an empty set.
     """
@@ -300,6 +304,9 @@ def accessible_project_ids(user):
         return set()
     if user.pk is None:
         return set()
+
+    if user.is_superuser:
+        return set(Project.objects.values_list("pk", flat=True))
 
     if OrganizationMembership.objects.filter(
         user=user,
@@ -339,7 +346,7 @@ def get_policy_matrix():
 
 
 def _is_org_admin(user) -> bool:
-    """Return ``True`` if *user* is an active Organization Admin."""
+    """Return ``True`` if *user* is an active Organization Admin or Superuser."""
     from .models import OrganizationMembership, OrganizationRole
 
     if user is None or not user.is_authenticated:
@@ -348,6 +355,9 @@ def _is_org_admin(user) -> bool:
         return False
     if user.pk is None:
         return False
+
+    if user.is_superuser:
+        return True
 
     return OrganizationMembership.objects.filter(
         user=user,

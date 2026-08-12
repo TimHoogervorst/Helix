@@ -35,12 +35,18 @@ class RoleFunctionTests(TestCase):
         self.org = Organization.objects.create(name="Test Lab")
         self.admin = User.objects.create_user(username="admin", password="pass")
         self.user = User.objects.create_user(username="regular", password="pass")
+        self.superuser = User.objects.create_superuser(
+            username="superuser", password="pass",
+        )
         self.inactive = User.objects.create_user(
             username="inactive", password="pass", is_active=False,
         )
         _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
         _ensure_membership(self.user, self.org, OrganizationRole.USER)
         _ensure_membership(self.inactive, self.org, OrganizationRole.USER)
+        # Drop the auto-created USER membership so the break-glass bypass is
+        # exercised with no membership or Grant rows at all.
+        OrganizationMembership.objects.filter(user=self.superuser).delete()
 
     def test_none_user_returns_none(self):
         self.assertIsNone(role(None))
@@ -55,6 +61,16 @@ class RoleFunctionTests(TestCase):
     def test_org_admin_returns_edit(self):
         self.assertEqual(role(self.admin), "edit")
 
+    def test_superuser_returns_edit(self):
+        self.assertEqual(role(self.superuser), "edit")
+
+    def test_superuser_returns_edit_without_grants_or_membership(self):
+        self.assertFalse(Grant.objects.filter(user=self.superuser).exists())
+        self.assertFalse(
+            OrganizationMembership.objects.filter(user=self.superuser).exists()
+        )
+        self.assertEqual(role(self.superuser), "edit")
+
     def test_regular_user_without_grants_returns_none(self):
         self.assertIsNone(role(self.user))
 
@@ -66,9 +82,13 @@ class CanFunctionTests(TestCase):
         self.org = Organization.objects.create(name="Test Lab")
         self.admin = User.objects.create_user(username="admin", password="pass")
         self.user = User.objects.create_user(username="regular", password="pass")
+        self.superuser = User.objects.create_superuser(
+            username="superuser", password="pass",
+        )
         self.anon = User(username="anon")
         _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
         _ensure_membership(self.user, self.org, OrganizationRole.USER)
+        OrganizationMembership.objects.filter(user=self.superuser).delete()
         self.project = Project.objects.create(name="Alpha")
         Folder.objects.create(name="root", parent=None, project=self.project)
 
@@ -91,6 +111,12 @@ class CanFunctionTests(TestCase):
         self.assertTrue(can(self.admin, "created"))
         self.assertTrue(can(self.admin, "edited"))
         self.assertTrue(can(self.admin, "deleted"))
+
+    def test_superuser_can_do_everything(self):
+        self.assertTrue(can(self.superuser, "read"))
+        self.assertTrue(can(self.superuser, "created"))
+        self.assertTrue(can(self.superuser, "edited"))
+        self.assertTrue(can(self.superuser, "deleted"))
 
     def test_authenticated_user_can_read_public_resources(self):
         self.assertTrue(can(self.user, "read"))
@@ -135,6 +161,9 @@ class CanFunctionTests(TestCase):
     def test_admin_can_perform_org_admin_mutations(self):
         self.assertTrue(can(self.admin, "created"))
 
+    def test_superuser_can_perform_org_admin_mutations(self):
+        self.assertTrue(can(self.superuser, "created", resource=self.org))
+
     # ── project resource with Grants ──────────────────────────────────────
 
     def test_user_without_grant_cannot_read_project_resource(self):
@@ -169,6 +198,13 @@ class CanFunctionTests(TestCase):
             project=self.project, role=ProjectRole.READ, user=self.user,
         )
         self.assertFalse(can(self.user, "created", resource=self.org))
+
+    def test_superuser_without_grants_can_read_and_edit_project_resource(self):
+        self.assertFalse(Grant.objects.filter(user=self.superuser).exists())
+        resource = self._resource()
+        self.assertTrue(can(self.superuser, "read", resource=resource))
+        self.assertTrue(can(self.superuser, "edited", resource=resource))
+        self.assertTrue(can(self.superuser, "deleted", resource=resource))
 
 
 class GetPolicyMatrixTests(TestCase):

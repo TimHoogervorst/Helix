@@ -61,6 +61,46 @@ class SeedDataTests(TestCase):
         self.assertEqual(User.objects.filter(username="idempotent_user").count(), 1)
         self.assertIn("already exists", out)
 
+    def test_creates_admin_organization_membership(self):
+        """Seeding a superuser also creates an Admin Organization Membership."""
+        from mods.access.models import OrganizationMembership, OrganizationRole
+
+        self.call_seed({
+            "SEED_USERNAME": "admin_member",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        user = User.objects.get(username="admin_member")
+        membership = OrganizationMembership.objects.get(user=user)
+        self.assertEqual(membership.role, OrganizationRole.ADMIN)
+
+    def test_promotes_existing_membership_to_admin(self):
+        """A superuser whose membership was auto-created as USER is promoted."""
+        from mods.access.models import (
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+        )
+
+        org = Organization.objects.create(name="Pre-existing Lab")
+        user = User.objects.create_superuser(
+            username="pre_promoted", password="pass123",
+        )
+        # The post_save signal has already created a USER membership.
+        self.assertEqual(
+            OrganizationMembership.objects.get(user=user).role,
+            OrganizationRole.USER,
+        )
+
+        self.call_seed({
+            "SEED_USERNAME": "pre_promoted",
+            "SEED_PASSWORD": "pass123",
+        })
+
+        membership = OrganizationMembership.objects.get(user=user)
+        self.assertEqual(membership.role, OrganizationRole.ADMIN)
+        self.assertEqual(membership.organization, org)
+
     # ── CoreSetting seeding ────────────────────────────────────────────────
 
     def test_creates_allow_self_registration_setting_from_env(self):

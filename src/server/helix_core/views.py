@@ -35,6 +35,7 @@ from helix_core.query_builder import (
     build_entity_hub_filters,
     parse_filter_params,
 )
+from mods.access.scoping import visible_rows_q
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
+        qs = qs.filter(visible_rows_q(self.request.user))
         return self._apply_filters(qs)
 
     def _parse_filter_params(self):
@@ -358,6 +360,7 @@ class EntityHubQueryView(APIView):
 
         # ── Build the filtered queryset ────────────────────────────────
         qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
+        qs = qs.filter(visible_rows_q(request.user))
 
         # Search
         search = request.data.get("search", "").strip()

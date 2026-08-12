@@ -143,8 +143,21 @@ class EntityHubAPITests(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
+        from mods.access.models import (
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+        )
+
         cls.user = User.objects.create_user(
             username="testuser", password="pass"
+        )
+        # The hub is access-scoped; make the test user an Organization
+        # Admin so the filter/pagination behaviour below is observable.
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=cls.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
         )
         _, _, eln_schema, lims_schema = _setup_schema_types()
         project = Project.objects.create(name="Test Project")

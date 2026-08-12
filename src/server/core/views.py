@@ -106,13 +106,47 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return ids
 
     def perform_destroy(self, instance):
-        if instance.is_hidden_root:
-            from rest_framework.exceptions import PermissionDenied
+        from mods.access.policies import can as access_can
+        from rest_framework.exceptions import PermissionDenied
 
+        if instance.is_hidden_root:
             raise PermissionDenied(
                 "The hidden Project root Folder cannot be deleted."
             )
-        super().perform_destroy(instance)
+
+        if access_can(self.request.user, "core.folder.deleted", resource=instance):
+            return super().perform_destroy(instance)
+
+        if instance.parent is not None:
+            from mods.access.models import FolderShare
+
+            shares = FolderShare.objects.filter(
+                source_folder__project_id=instance.project_id,
+                level="read_write",
+            ).select_related("source_folder").only(
+                "id", "source_folder_id", "target_project_id",
+            )
+
+            ancestor_ids = self._folder_ancestor_ids(instance)
+
+            for share in shares:
+                covers = (
+                    instance.id == share.source_folder_id
+                    or share.source_folder_id in ancestor_ids
+                )
+                if not covers:
+                    continue
+                if access_can(
+                    self.request.user,
+                    "core.folder.deleted",
+                    resource=instance,
+                    via_project=share.target_project_id,
+                ):
+                    return super().perform_destroy(instance)
+
+        raise PermissionDenied(
+            "You do not have permission to delete this folder."
+        )
 
 
 # ── CoreSetting ────────────────────────────────────────────────────────────

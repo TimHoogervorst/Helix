@@ -210,6 +210,13 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 )
             return
 
+    def perform_destroy(self, instance):
+        if not self._can_edit_entry(instance):
+            raise PermissionDenied(
+                "You do not have permission to delete this entry."
+            )
+        super().perform_destroy(instance)
+
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
 

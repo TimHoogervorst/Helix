@@ -404,3 +404,162 @@ class FolderRenameAccessTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
+
+
+# ── Folder delete access enforcement tests ──────────────────────────────────
+
+
+class FolderDeleteAccessTests(TestCase):
+    """Test that folder DELETE enforces Edit access across the full actor matrix."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import (
+            FolderShare,
+            Grant,
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+            ProjectRole,
+            ShareLevel,
+            Team,
+        )
+
+        self.client = APIClient()
+        self.org = Organization.objects.create(name="Test Lab")
+
+        self.admin = User.objects.create_user(username="del_admin", password="pass")
+        self.editor = User.objects.create_user(username="del_editor", password="pass")
+        self.reader = User.objects.create_user(username="del_reader", password="pass")
+        self.other = User.objects.create_user(username="del_other", password="pass")
+
+        OrganizationMembership.objects.create(user=self.admin, organization=self.org, role=OrganizationRole.ADMIN)
+        OrganizationMembership.objects.create(user=self.editor, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.create(user=self.reader, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.create(user=self.other, organization=self.org, role=OrganizationRole.USER)
+
+        self.project = Project.objects.create(name="Delete Test Project")
+        self.root = Folder.objects.create(name="root", parent=None, project=self.project)
+        self.folder = Folder.objects.create(name="MyFolder", parent=self.root, project=self.project)
+        self.child = Folder.objects.create(name="ChildFolder", parent=self.folder, project=self.project)
+        self.grandchild = Folder.objects.create(name="Grandchild", parent=self.child, project=self.project)
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.source_project = Project.objects.create(name="Source Project")
+        Folder.objects.create(name="root", parent=None, project=self.source_project)
+        self.shared_folder = Folder.objects.create(
+            name="SharedFolder", parent=Folder.objects.get(project=self.source_project, parent__isnull=True),
+            project=self.source_project,
+        )
+        self.shared_child = Folder.objects.create(
+            name="SharedChild", parent=self.shared_folder, project=self.source_project,
+        )
+
+        self.target_project = Project.objects.create(name="Target Project")
+        Folder.objects.create(name="root", parent=None, project=self.target_project)
+        Grant.objects.create(project=self.target_project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.target_project, user=self.reader, role=ProjectRole.READ)
+
+        self.rw_share = FolderShare.objects.create(
+            source_folder=self.shared_folder,
+            target_project=self.target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+
+        self.ShareLevel = ShareLevel
+        self.ProjectRole = ProjectRole
+        self.FolderShare = FolderShare
+        self.Grant = Grant
+
+    def _assert_403(self, user, folder):
+        self.client.force_authenticate(user=user)
+        response = self.client.delete(f"/api/core/folders/{folder.id}/")
+        self.assertEqual(response.status_code, 403, f"{user.username} should be denied")
+        folder.refresh_from_db()
+
+    def _assert_204(self, user, folder):
+        self.client.force_authenticate(user=user)
+        response = self.client.delete(f"/api/core/folders/{folder.id}/")
+        self.assertEqual(response.status_code, 204, f"{user.username} should be allowed")
+        self.assertFalse(Folder.objects.filter(id=folder.id).exists())
+
+    # ── Basic actor matrix ──
+
+    def test_read_user_cannot_delete(self):
+        self._assert_403(self.reader, self.folder)
+
+    def test_edit_user_can_delete(self):
+        self._assert_204(self.editor, self.folder)
+
+    def test_org_admin_can_delete(self):
+        self._assert_204(self.admin, self.folder)
+
+    def test_team_derived_edit_can_delete(self):
+        from mods.access.models import Grant, ProjectRole, Team
+        from django.contrib.auth.models import Group
+
+        team_user = User.objects.create_user(username="team_del", password="pass")
+        OrganizationMembership.objects.create(user=team_user, organization=self.org, role=OrganizationRole.USER)
+        group = Group.objects.create(name="Delete Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group)
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        self._assert_204(team_user, self.folder)
+
+    def test_user_with_no_access_cannot_delete(self):
+        self._assert_403(self.other, self.folder)
+
+    def test_unauthenticated_cannot_delete(self):
+        self.client.logout()
+        response = self.client.delete(f"/api/core/folders/{self.folder.id}/")
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Folder.objects.filter(id=self.folder.id).exists())
+
+    # ── Hidden root protection ──
+
+    def test_hidden_root_cannot_be_deleted(self):
+        self._assert_403(self.admin, self.root)
+
+    # ── Shared folder path ──
+
+    def test_sharee_with_read_write_can_delete_descendant(self):
+        self._assert_204(self.editor, self.shared_child)
+
+    def test_sharee_with_read_cannot_delete_descendant(self):
+        self.FolderShare.objects.filter(
+            source_folder=self.shared_folder, target_project=self.target_project,
+        ).update(level=self.ShareLevel.READ)
+        self._assert_403(self.reader, self.shared_child)
+
+    def test_sharee_cannot_delete_shared_top_level_folder(self):
+        self._assert_403(self.editor, self.shared_folder)
+
+    def test_owner_can_delete_shared_folder(self):
+        self.Grant.objects.create(project=self.source_project, user=self.editor, role=self.ProjectRole.EDIT)
+        self._assert_204(self.editor, self.shared_folder)
+
+    # ── Recursive CASCADE ──
+
+    def test_deleting_folder_cascades_to_children(self):
+        children_count = Folder.objects.filter(parent=self.folder).count()
+        self.assertGreater(children_count, 0)
+        self._assert_204(self.editor, self.folder)
+        self.assertFalse(Folder.objects.filter(parent_id=self.folder.id).exists())
+
+    def test_deleting_folder_cascades_to_grandchildren(self):
+        self._assert_204(self.editor, self.child)
+        self.assertFalse(Folder.objects.filter(id=self.grandchild.id).exists())
+
+    # ── Share revocation on delete ──
+
+    def test_deleting_shared_folder_cascades_its_shares(self):
+        self.Grant.objects.create(project=self.source_project, user=self.editor, role=self.ProjectRole.EDIT)
+        share_count_before = FolderShare.objects.filter(source_folder=self.shared_folder).count()
+        self.assertGreater(share_count_before, 0)
+        self._assert_204(self.editor, self.shared_folder)
+        self.assertEqual(
+            FolderShare.objects.filter(source_folder_id=self.shared_folder.id).count(),
+            0,
+        )

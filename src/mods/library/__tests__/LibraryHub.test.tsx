@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { LayoutList, Star, User, Archive } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
   makeFolderShare,
 } from "../../../shell/src/test/factories";
 import LibraryHub from "../hub/LibraryHub";
+import RowMenu from "../hub/RowMenu";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -25,6 +26,8 @@ vi.mock("react-router-dom", async () => {
 const mockGetAccessibleProjects = vi.fn();
 const mockGetLibraryContents = vi.fn();
 const mockGetFolders = vi.fn().mockResolvedValue([]);
+const mockDeleteFolder = vi.fn();
+const mockDeleteEntry = vi.fn();
 vi.mock("../api", () => ({
   getAccessibleProjects: (...args: unknown[]) =>
     mockGetAccessibleProjects(...args),
@@ -34,6 +37,10 @@ vi.mock("../api", () => ({
     mockGetFolders(...args),
   patchFolder: (...args: unknown[]) =>
     mockPatchFolder(...args),
+  deleteFolder: (...args: unknown[]) =>
+    mockDeleteFolder(...args),
+  deleteEntry: (...args: unknown[]) =>
+    mockDeleteEntry(...args),
 }));
 
 const mockFetchOutgoingShares = vi.fn();
@@ -207,6 +214,8 @@ describe("LibraryHub", () => {
     mockPatchEntry.mockReset();
     mockGetLockStatus.mockReset().mockResolvedValue({ locked: false });
     mockPatchFolder.mockReset();
+    mockDeleteFolder.mockReset();
+    mockDeleteEntry.mockReset();
     mockFetchOutgoingShares.mockReset().mockResolvedValue([]);
     mockCreateFolderShare.mockReset();
     mockPatchFolderShareLevel.mockReset();
@@ -1681,6 +1690,255 @@ describe("LibraryHub", () => {
       const dialog = screen.getByRole("dialog", { name: "Experiments" });
       expect(within(dialog).queryByText("Sharing")).toBeNull();
       expect(within(dialog).queryByText(/only top-level folders/i)).toBeNull();
+    });
+  });
+
+  // ── Row Menu Delete ─────────────────────────────────────────────────
+
+  describe("Row Menu Delete", () => {
+    const editProject = makeProject({
+      id: 1, uid: "proj-001", name: "Test Project",
+      current_user_role: "edit",
+    });
+
+    const readProject = makeProject({
+      id: 1, uid: "proj-001", name: "Test Project",
+      current_user_role: "read",
+    });
+
+    function getFolderRowMenu(name: string) {
+      const cards = screen.getAllByTestId("base-library-card");
+      const card = cards.find((c) =>
+        c.textContent?.includes(name) && !c.textContent?.includes("EXP"),
+      )!;
+      return { card, button: within(card).getByLabelText("Row actions") };
+    }
+
+    function getEntryRowMenu(name: string) {
+      const cards = screen.getAllByTestId("base-library-card");
+      const card = cards.find((c) =>
+        c.textContent?.includes(name),
+      )!;
+      return { card, button: within(card).getByLabelText("Row actions") };
+    }
+
+    it("shows Delete item for Edit users on own folders", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const { button } = getFolderRowMenu("Protocols");
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByText("Delete")).toBeInTheDocument();
+      });
+    });
+
+    it("shows Delete item for Edit users on entries", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const { button } = getEntryRowMenu("EXP-0284");
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByText("Delete")).toBeInTheDocument();
+      });
+    });
+
+    it("does not show Delete item for Read viewers", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([readProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Experiments")).toBeInTheDocument();
+      });
+
+      const { button } = getFolderRowMenu("Experiments");
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Delete")).toBeNull();
+    });
+
+    it("does not show Delete when canDelete prop is false", () => {
+      render(
+        <MemoryRouter>
+          <RowMenu
+            onProperties={vi.fn()}
+            canDelete={false}
+            onDelete={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByLabelText("Row actions"));
+
+      expect(screen.getByText("Properties")).toBeInTheDocument();
+      expect(screen.queryByText("Delete")).toBeNull();
+    });
+
+    it("folder delete confirms with blast-radius wording", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      mockDeleteFolder.mockResolvedValue(undefined);
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const { button } = getFolderRowMenu("Protocols");
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.getByText("Delete")).toBeInTheDocument());
+      fireEvent.click(screen.getByText("Delete"));
+
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Delete folder "Protocols"? Everything inside it is permanently deleted.',
+      );
+      await waitFor(() => {
+        expect(mockDeleteFolder).toHaveBeenCalledWith(2);
+      });
+
+      confirmSpy.mockRestore();
+    });
+
+    it("folder delete confirms with share info when shared", async () => {
+      const folderWithShare = makeLibraryFolder({
+        id: 1, name: "Experiments",
+        share_summary: {
+          shared: true,
+          target_projects: [
+            { id: 2, name: "Lab B", icon_key: "flask", color_key: "crimson" },
+            { id: 3, name: "Lab C", icon_key: "flask", color_key: "blue" },
+          ],
+        },
+      });
+      const contents = makeLibraryContents(
+        [folderWithShare],
+        [],
+        { project_uid: "proj-001", project_name: "Test Project" },
+      );
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(contents);
+      mockDeleteFolder.mockResolvedValue(undefined);
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Experiments")).toBeInTheDocument();
+      });
+
+      const { button } = getFolderRowMenu("Experiments");
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.getByText("Delete")).toBeInTheDocument());
+      fireEvent.click(screen.getByText("Delete"));
+
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Delete folder "Experiments"? Everything inside it is permanently deleted. It is shared with 2 project(s); deleting revokes all shares.',
+      );
+
+      confirmSpy.mockRestore();
+    });
+
+    it("entry delete confirms with its own wording", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      mockDeleteEntry.mockResolvedValue(undefined);
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const { button } = getEntryRowMenu("EXP-0284");
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.getByText("Delete")).toBeInTheDocument());
+      fireEvent.click(screen.getByText("Delete"));
+
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Delete entry "PCR Results"? This cannot be undone.',
+      );
+      await waitFor(() => {
+        expect(mockDeleteEntry).toHaveBeenCalledWith("EXP-0284");
+      });
+
+      confirmSpy.mockRestore();
+    });
+
+    it("does not delete when confirmation is cancelled", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      mockDeleteFolder.mockResolvedValue(undefined);
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const { button } = getFolderRowMenu("Protocols");
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.getByText("Delete")).toBeInTheDocument());
+      fireEvent.click(screen.getByText("Delete"));
+
+      expect(mockDeleteFolder).not.toHaveBeenCalled();
+    });
+
+    it("refreshes contents after successful delete", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      mockDeleteFolder.mockResolvedValue(undefined);
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      mockGetLibraryContents.mockClear();
+
+      const { button } = getFolderRowMenu("Protocols");
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.getByText("Delete")).toBeInTheDocument());
+      fireEvent.click(screen.getByText("Delete"));
+
+      await waitFor(() => {
+        expect(mockDeleteFolder).toHaveBeenCalledWith(2);
+      });
+
+      await waitFor(() => {
+        expect(mockGetLibraryContents).toHaveBeenCalled();
+      });
+    });
+
+    it("renders Delete item with danger styling", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([editProject]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const { button } = getFolderRowMenu("Protocols");
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        const deleteItem = screen.getByRole("menuitem", { name: "Delete" });
+        expect(deleteItem).toBeInTheDocument();
+      });
     });
   });
 });

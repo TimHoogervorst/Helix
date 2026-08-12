@@ -1,4 +1,4 @@
-import { get, patch } from "../../shell/src/api/client";
+import { get, patch, del } from "../../shell/src/api/client";
 import type { LibraryContentsResponse, LibraryProjectItem, LibraryFolderPath, LibraryFolderItem } from "./types";
 import type { Project } from "../access/types";
 
@@ -42,4 +42,18 @@ export function patchFolder(
   payload: { name: string },
 ): Promise<LibraryFolderItem> {
   return patch<LibraryFolderItem>(`/core/folders/${folderId}/`, payload);
+}
+
+/**
+ * Delete a folder (recursive CASCADE — child folders, entries, entities).
+ */
+export function deleteFolder(folderId: number): Promise<void> {
+  return del(`/core/folders/${folderId}/`);
+}
+
+/**
+ * Delete an entry.
+ */
+export function deleteEntry(displayId: string): Promise<void> {
+  return del(`/eln/entries/${displayId}/`);
 }

@@ -684,3 +684,123 @@ class EntryPatchAccessTests(BaseTestCase):
         client.force_authenticate(user=self.other_editor)
         response = self._patch(client, self.entry, {"status": "finished"})
         self.assertEqual(response.status_code, 403)
+
+
+# ── Entry delete access enforcement tests ────────────────────────────────────
+
+
+class EntryDeleteAccessTests(BaseTestCase):
+    """Actor matrix and rejection paths for entry DELETE access enforcement."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = Organization.objects.create(name="Test Org")
+        self.schema = get_or_create_default_eln_schema()
+
+        self.editor = User.objects.create_user(username="del_ed", password="pass")
+        self.reader = User.objects.create_user(username="del_rd", password="pass")
+        self.other_editor = User.objects.create_user(username="del_sh", password="pass")
+        self.org_admin = User.objects.create_user(username="del_ad", password="pass")
+
+        OrganizationMembership.objects.create(
+            user=self.org_admin, organization=self.org, role=OrganizationRole.ADMIN,
+        )
+        OrganizationMembership.objects.create(
+            user=self.user, organization=self.org, role=OrganizationRole.USER,
+        )
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.entry = NotebookEntry.objects.create(
+            name="To Delete", content=TEXT_DOC, folder=self.folder,
+            author=self.user, schema=self.schema,
+        )
+
+    def _delete(self, client, entry):
+        return client.delete(f"/api/eln/entries/{entry.display_id}/")
+
+    def test_direct_editor_can_delete(self):
+        client = APIClient()
+        client.force_authenticate(user=self.editor)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(NotebookEntry.objects.filter(id=self.entry.id).exists())
+
+    def test_org_admin_can_delete(self):
+        client = APIClient()
+        client.force_authenticate(user=self.org_admin)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(NotebookEntry.objects.filter(id=self.entry.id).exists())
+
+    def test_read_viewer_delete_rejected(self):
+        client = APIClient()
+        client.force_authenticate(user=self.reader)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(NotebookEntry.objects.filter(id=self.entry.id).exists())
+
+    def test_unauthenticated_delete_rejected(self):
+        client = APIClient()
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(NotebookEntry.objects.filter(id=self.entry.id).exists())
+
+    def test_team_derived_edit_can_delete(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import Team
+
+        team_user = User.objects.create_user(username="team_del_e", password="pass")
+        OrganizationMembership.objects.create(user=team_user, organization=self.org, role=OrganizationRole.USER)
+        group = Group.objects.create(name="Entry Delete Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group)
+        Grant.objects.create(
+            project=self.project, team=team, role=ProjectRole.EDIT,
+        )
+        client = APIClient()
+        client.force_authenticate(user=team_user)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 204)
+
+    def test_user_with_no_grant_delete_rejected(self):
+        no_grant = User.objects.create_user(username="nodel", password="pass")
+        OrganizationMembership.objects.create(user=no_grant, organization=self.org, role=OrganizationRole.USER)
+        client = APIClient()
+        client.force_authenticate(user=no_grant)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 403)
+
+    def test_read_write_sharee_can_delete_inside_subtree(self):
+        target_project = Project.objects.create(name="ShareTarget")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(
+            project=target_project, user=self.other_editor, role=ProjectRole.EDIT,
+        )
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.other_editor)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(NotebookEntry.objects.filter(id=self.entry.id).exists())
+
+    def test_read_only_sharee_delete_rejected(self):
+        target_project = Project.objects.create(name="RO Share Del")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(
+            project=target_project, user=self.other_editor, role=ProjectRole.READ,
+        )
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.other_editor)
+        response = self._delete(client, self.entry)
+        self.assertEqual(response.status_code, 403)

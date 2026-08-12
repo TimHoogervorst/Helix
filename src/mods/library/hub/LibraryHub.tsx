@@ -15,7 +15,7 @@ import {
 import type { LibraryItem, LibraryEntryItem, LibraryProjectItem, LibraryFolderPath } from "../types";
 import type { Project } from "../../access/types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
-import { getLibraryContents, getAccessibleProjects, getFolders } from "../api";
+import { getLibraryContents, getAccessibleProjects, getFolders, deleteFolder, deleteEntry } from "../api";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
@@ -411,7 +411,7 @@ function LibraryHub() {
     filterKey: "path",
     getId: (item) => item.id,
     getDisplayId: (item) =>
-      item.type === "entry" ? item.display_id : "",
+      item.type === "entry" ? item.display_id : `folder-${item.id}`,
   });
 
   // ── Sidebar bus and context ─────────────────────────────────────────
@@ -482,6 +482,27 @@ function LibraryHub() {
     navigateToPath(newPath);
   }, [currentPath, navigateToPath]);
 
+  // ── Delete handler ─────────────────────────────────────────────────────
+
+  const handleDelete = useCallback(
+    (item: LibraryItem) => {
+      if (item.type === "folder") {
+        const shareCount = item.share_summary?.target_projects?.length ?? 0;
+        let message = `Delete folder "${item.name}"? Everything inside it is permanently deleted.`;
+        if (shareCount > 0) {
+          message += ` It is shared with ${shareCount} project(s); deleting revokes all shares.`;
+        }
+        if (!window.confirm(message)) return;
+        deleteFolder(item.id).then(() => setRefreshKey((k) => k + 1));
+      } else {
+        const message = `Delete entry "${item.title}"? This cannot be undone.`;
+        if (!window.confirm(message)) return;
+        deleteEntry(item.display_id).then(() => setRefreshKey((k) => k + 1));
+      }
+    },
+    [],
+  );
+
   const navigateToFolder = useCallback(
     (folderName: string) => {
       const newPath = currentPath
@@ -540,6 +561,11 @@ function LibraryHub() {
         ? `Shared with: ${targetNames.join(", ")}`
         : undefined;
 
+      // Shared top-level folder at root never shows Delete
+      const atRoot = !currentPath || currentPath === "";
+      const canDelete = (isOrgAdmin || currentRole === "edit")
+        && !(isShared && atRoot);
+
       return (
         <BaseCard
           key={`folder-${item.id}`}
@@ -558,7 +584,11 @@ function LibraryHub() {
           iconTitle={tooltip}
           onClick={() => handleCardClick(item)}
           endSlot={
-            <RowMenu onProperties={() => setPropertiesItem(item)} />
+            <RowMenu
+              onProperties={() => setPropertiesItem(item)}
+              canDelete={canDelete}
+              onDelete={() => handleDelete(item)}
+            />
           }
         />
       );
@@ -566,6 +596,7 @@ function LibraryHub() {
 
     const isSelected = data.selectedId === item.id;
     const propertyFields = getPropertyFieldsForEntry(item);
+    const canDelete = isOrgAdmin || currentRole === "edit";
 
     return (
       <BaseCard
@@ -581,7 +612,11 @@ function LibraryHub() {
         showUpdatedAt={true}
         onClick={() => handleCardClick(item)}
         endSlot={
-          <RowMenu onProperties={() => setPropertiesItem(item)} />
+          <RowMenu
+            onProperties={() => setPropertiesItem(item)}
+            canDelete={canDelete}
+            onDelete={() => handleDelete(item)}
+          />
         }
       />
     );

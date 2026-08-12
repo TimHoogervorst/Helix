@@ -111,6 +111,10 @@ A fixed access level on the Organization: **User** (normal day-to-day work) or *
 
 The association of exactly one User with the singleton Organization and one Organization Role. Every User has exactly one Organization Membership. The deployment must always retain at least one active Organization Admin.
 
+### Superuser
+
+A deployment-level break-glass identity, created outside the Organization UI. Bypasses every access check exactly like an Organization Admin, so a deployment can never be locked out of its own administration. A Superuser also receives an Admin Organization Membership so the Organization surfaces behave consistently. An escape hatch, not a day-to-day role.
+
 ### Grantee
 
 The User or Team that receives a Grant. Exactly one Grantee per Grant.
@@ -185,7 +189,7 @@ The hover-revealed three-dot menu at the right end of every Library row (Folders
 
 The standard modal opened from a Row Menu's **Properties** action, built on the shared Modal primitive. Shows the metadata of one Folder or Entry; what is editable follows access — viewers without Edit see the same modal read-only. Changes **apply instantly** — no Save button, no dirty state.
 
-**Entry properties:** status (with a note that it cascades to entities created in the entry), move-to-folder (a searchable list of folder paths, excluding the current folder; constrained to the shared subtree when the entry is reached through a share), and read-only project, author, created, and updated dates. The header carries the display ID and title; the title is read-only — it is edited in the workspace, not here. Tags are absent — they are managed inline on the entry page. Editable fields are disabled while the entry is locked by another user.
+**Entry properties:** status (with a note that it cascades to entities created in the entry), move-to-folder (a searchable list of folder paths, excluding the current folder; constrained to the shared subtree when the entry is reached through a share), and read-only project, author, created, and updated dates. The header carries the display ID and title; the title is read-only — it is edited in the workspace, not here. Tags are absent — they are attached on the entry page and managed in Settings. Editable fields are disabled while the entry is locked by another user.
 
 **Folder properties:** rename and the read-only created date. Top-level Folders in their owning Project additionally carry the Sharing Panel (Organization Admins only); nested Folders show a hint that only top-level Folders can be shared. A shared Folder opened through a sharee Project is read-only — it cannot be renamed through the share.
 
@@ -231,9 +235,9 @@ When an entry's status changes, the new status **cascades** to every Entity whos
 
 ### Tag
 
-A user-created label that can be attached to a Notebook Entry. Each Tag has a **name** and a **color** (chosen from a preset palette of semantic design tokens). Tags are reusable across entries — creating a tag on one entry makes it available for all entries. Tags have no hierarchy, no permissions, and no independent lifecycle.
+A label created by Organization Admins that can be attached to Notebook Entries. Each Tag has a **name** and a **color** (chosen from a preset palette of semantic design tokens). Tags are reusable across entries — a Tag is visible across the Organization and can be attached to any entry. Tags have no hierarchy and no independent lifecycle.
 
-Tags are managed **inline** on the entry page: users create, search, attach, and detach tags without leaving the entry. There is no global tag management interface.
+Tags are **managed by Organization Admins** in Settings — creation, renaming, recoloring, and deletion. Users work with existing Tags only: on the entry page they attach and detach Tags (which requires Edit access on the entry) but never create or modify Tags themselves.
 
 **Invariant:** A Tag's name is unique (case-insensitive). A Tag's color comes from the preset palette.
 
@@ -350,6 +354,8 @@ A parsed reference from one Notebook Entry to another object (another Entry, an 
 The server's resolve endpoint (`POST /api/mentions/resolve/`) returns `workspaceId` alongside resolved metadata. The frontend uses the convention to build navigation URLs — no hardcoded type-to-URL branching.
 
 **Invariant:** A Mention has exactly one source entry and exactly one target object. Every mentionable entity type is registered with LIMS, which owns the prefix→workspace mapping.
+
+**Access:** Resolution respects Project access — resolve and search only return targets the viewer has effective access to (direct Grant, Team Grant, Organization Admin override, or a Shared Folder). Inaccessible targets simply do not resolve; the UI renders whatever resolution returns.
 
 **Cross-workspace navigation:** Clicking a MentionBadge navigates to the target entity's workspace via `/{workspaceId}/{displayId}`. This works for any registered entity type without per-type wiring — a MolBio DNA sequence resolves and navigates the same way a LIMS sample does.
 

@@ -5,8 +5,8 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import User
-from mods.access.models import Organization, OrganizationMembership, OrganizationRole, Team
+from mods.access.models import Organization, Team
+from mods.access.tests.factories import make_org, make_user
 
 
 class TeamModelTests(TestCase):
@@ -33,12 +33,7 @@ class TeamModelTests(TestCase):
         self.assertEqual(str(team), "Omega Squad")
 
     def test_str_fallback_when_no_group(self):
-        team = Team.objects.create(
-            group=Group.objects.create(name="Temp"),
-            organization=self.org,
-        )
-        team.group.delete()
-        team.refresh_from_db()
+        team = Team(organization=self.org)
         self.assertIn("Team", str(team))
 
     def test_group_one_to_one_protect_on_delete(self):
@@ -53,43 +48,27 @@ class TeamModelTests(TestCase):
         self.assertFalse(team.blocked_from_deletion)
 
     def test_name_property_returns_empty_when_no_group(self):
-        team = Team.objects.create(
-            group=Group.objects.create(name="Temp"),
-            organization=self.org,
-        )
-        team.group.delete()
-        team.refresh_from_db()
+        team = Team(organization=self.org)
         self.assertEqual(team.name, "")
 
 
 class TeamApiTests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(
-            username="alice", password="pass",
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user(
+            "alice", cls.org, "user",
             first_name="Alice", last_name="Alpha",
         )
-        self.user2 = User.objects.create_user(
-            username="bob", password="pass",
+        cls.user2 = make_user(
+            "bob", cls.org, "user",
             first_name="Bob", last_name="Beta",
         )
-        self.inactive = User.objects.create_user(
-            username="charlie", password="pass", is_active=False,
-        )
-        OrganizationMembership.objects.create(
-            user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
-        )
-        OrganizationMembership.objects.create(
-            user=self.user, organization=self.org, role=OrganizationRole.USER,
-        )
-        OrganizationMembership.objects.create(
-            user=self.user2, organization=self.org, role=OrganizationRole.USER,
-        )
-        OrganizationMembership.objects.create(
-            user=self.inactive, organization=self.org, role=OrganizationRole.USER,
-        )
+        cls.inactive = make_user("charlie", cls.org, "user", is_active=False)
+
+    def setUp(self):
+        self.client = APIClient()
 
     def _create_team(self, name="Test Team"):
         self.client.force_authenticate(user=self.admin)
@@ -316,28 +295,19 @@ class TeamApiTests(TestCase):
 
 
 class TeamAuthTests(TestCase):
-    """Exhaustive actor-matrix tests for Team endpoints."""
+    """Actor-matrix tests for Team endpoints, consolidated via subTest."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.inactive = make_user("inactive", cls.org, "user", is_active=False)
 
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.anon = User.objects.create_user(username="anon", password="pass")
-        self.inactive = User.objects.create_user(
-            username="inactive", password="pass", is_active=False,
-        )
-        OrganizationMembership.objects.create(
-            user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
-        )
-        OrganizationMembership.objects.create(
-            user=self.user, organization=self.org, role=OrganizationRole.USER,
-        )
-        OrganizationMembership.objects.create(
-            user=self.inactive, organization=self.org, role=OrganizationRole.USER,
-        )
 
-    def _create_team_via_admin(self, name="Team"):
+    def _create_team(self, name="Team"):
         self.client.force_authenticate(user=self.admin)
         resp = self.client.post(
             "/api/access/teams/",
@@ -346,97 +316,60 @@ class TeamAuthTests(TestCase):
         )
         return resp.data["id"]
 
-    # ── Anonymous ─────────────────────────────────────────────────────────
-
-    def test_anon_cannot_list_teams(self):
-        response = self.client.get("/api/access/teams/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_anon_cannot_create_team(self):
-        response = self.client.post(
-            "/api/access/teams/", {"name": "T"}, format="json",
+    def _authenticate(self, actor):
+        self.client.force_authenticate(
+            user=getattr(self, actor) if actor else None,
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    # ── Active User (non-admin) ───────────────────────────────────────────
+    def test_list_teams_matrix(self):
+        cases = [(None, 403), ("user", 200), ("inactive", 200)]
+        for actor, expected in cases:
+            with self.subTest(actor=actor):
+                self._authenticate(actor)
+                response = self.client.get("/api/access/teams/")
+                self.assertEqual(response.status_code, expected)
 
-    def test_user_can_list_teams(self):
-        self._create_team_via_admin("T1")
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get("/api/access/teams/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+    def test_create_team_matrix(self):
+        cases = [(None, 403), ("user", 403), ("admin", 201)]
+        for actor, expected in cases:
+            with self.subTest(actor=actor):
+                self._authenticate(actor)
+                response = self.client.post(
+                    "/api/access/teams/", {"name": "T"}, format="json",
+                )
+                self.assertEqual(response.status_code, expected)
 
-    def test_user_cannot_create_team(self):
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(
-            "/api/access/teams/", {"name": "T"}, format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    def test_patch_team_matrix(self):
+        cases = [("user", 403), ("admin", 200)]
+        for actor, expected in cases:
+            with self.subTest(actor=actor):
+                team_id = self._create_team(f"Patch-{actor}")
+                self._authenticate(actor)
+                response = self.client.patch(
+                    f"/api/access/teams/{team_id}/",
+                    {"name": "X"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, expected)
 
-    def test_user_cannot_patch_team(self):
-        team_id = self._create_team_via_admin("T1")
-        self.client.force_authenticate(user=self.user)
-        response = self.client.patch(
-            f"/api/access/teams/{team_id}/",
-            {"name": "X"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    def test_delete_team_matrix(self):
+        cases = [("user", 403), ("admin", 204)]
+        for actor, expected in cases:
+            with self.subTest(actor=actor):
+                team_id = self._create_team(f"Delete-{actor}")
+                self._authenticate(actor)
+                response = self.client.delete(f"/api/access/teams/{team_id}/")
+                self.assertEqual(response.status_code, expected)
 
-    def test_user_cannot_delete_team(self):
-        team_id = self._create_team_via_admin("T1")
-        self.client.force_authenticate(user=self.user)
-        response = self.client.delete(f"/api/access/teams/{team_id}/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_user_cannot_add_member(self):
-        team_id = self._create_team_via_admin("T1")
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(
-            f"/api/access/teams/{team_id}/add_member/",
-            {"user_id": self.user.pk},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    # ── Admin ─────────────────────────────────────────────────────────────
-
-    def test_admin_can_create_team(self):
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.post(
-            "/api/access/teams/", {"name": "Admin Team"}, format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_admin_can_patch_team(self):
-        team_id = self._create_team_via_admin("Old")
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.patch(
-            f"/api/access/teams/{team_id}/",
-            {"name": "New"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_admin_can_delete_team(self):
-        team_id = self._create_team_via_admin("ToDelete")
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.delete(f"/api/access/teams/{team_id}/")
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-    def test_admin_can_add_member(self):
-        team_id = self._create_team_via_admin("T1")
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.post(
-            f"/api/access/teams/{team_id}/add_member/",
-            {"user_id": self.user.pk},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    # ── Inactive user ─────────────────────────────────────────────────────
-
-    def test_inactive_cannot_access_teams(self):
-        self.client.force_authenticate(user=self.inactive)
-        response = self.client.get("/api/access/teams/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+    def test_add_member_matrix(self):
+        cases = [("user", 403), ("admin", 200)]
+        for actor, expected in cases:
+            with self.subTest(actor=actor):
+                team_id = self._create_team(f"Member-{actor}")
+                self._authenticate(actor)
+                response = self.client.post(
+                    f"/api/access/teams/{team_id}/add_member/",
+                    {"user_id": self.user.pk},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, expected)

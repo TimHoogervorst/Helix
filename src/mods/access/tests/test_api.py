@@ -3,30 +3,19 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import User
-from mods.access.models import (
-    Organization,
-    OrganizationMembership,
-    OrganizationRole,
-)
+from mods.access.models import Organization
+from mods.access.tests.factories import make_org, make_user
 
 
 class OrganizationApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(
-            username="admin", password="pass",
-        )
-        self.user = User.objects.create_user(
-            username="regular", password="pass",
-        )
-        OrganizationMembership.objects.create(
-            user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
-        )
-        OrganizationMembership.objects.create(
-            user=self.user, organization=self.org, role=OrganizationRole.USER,
-        )
 
     def test_get_organization_returns_identity(self):
         self.client.force_authenticate(user=self.user)
@@ -70,35 +59,22 @@ class OrganizationApiTests(TestCase):
 
 
 class PeopleApiTests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(
-            username="admin", password="pass",
-        )
-        self.user1 = User.objects.create_user(
-            username="alice", password="pass",
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user1 = make_user(
+            "alice", cls.org, "user",
             first_name="Alice", last_name="Alpha",
         )
-        self.user2 = User.objects.create_user(
-            username="bob", password="pass",
+        cls.user2 = make_user(
+            "bob", cls.org, "user",
             first_name="Bob", last_name="Beta",
         )
-        self.inactive = User.objects.create_user(
-            username="charlie", password="pass", is_active=False,
-        )
-        OrganizationMembership.objects.create(
-            user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
-        )
-        OrganizationMembership.objects.create(
-            user=self.user1, organization=self.org, role=OrganizationRole.USER,
-        )
-        OrganizationMembership.objects.create(
-            user=self.user2, organization=self.org, role=OrganizationRole.USER,
-        )
-        OrganizationMembership.objects.create(
-            user=self.inactive, organization=self.org, role=OrganizationRole.USER,
-        )
+        cls.inactive = make_user("charlie", cls.org, "user", is_active=False)
+
+    def setUp(self):
+        self.client = APIClient()
 
     def test_people_lists_active_users_only(self):
         self.client.force_authenticate(user=self.user1)

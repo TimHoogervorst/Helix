@@ -1,3 +1,20 @@
+## Running tests
+
+Backend tests use **pytest** — a single command runs `helix_core`, `core`, and every mod's tests. Frontend tests use Vitest.
+
+```bash
+# Backend (Docker)
+docker-compose exec backend pytest -n auto
+
+# Backend (local, no Docker) — from the repo root
+cd src && pytest -n auto
+
+# Frontend
+npm test
+```
+
+For local SQLite vs Docker Postgres, targeting a single mod, and CI — see `docs/agents/testing.md`.
+
 ## Agent skills
 
 ### Issue tracker

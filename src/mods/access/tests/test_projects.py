@@ -3,23 +3,19 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project, User
-from mods.access.models import (
-    Organization,
-    OrganizationMembership,
-    OrganizationRole,
-)
+from core.models import Folder, Project
+from mods.access.tests.factories import make_org, make_user
 
 
 class ProjectApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        admin_membership = OrganizationMembership.objects.get(user=self.admin)
-        admin_membership.role = OrganizationRole.ADMIN
-        admin_membership.save()
 
     def _create_project(self, name="Test Project"):
         self.client.force_authenticate(user=self.admin)

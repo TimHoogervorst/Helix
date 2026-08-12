@@ -10,25 +10,25 @@ from core.models import Folder, Project, User
 from mods.access.models import (
     Grant,
     Organization,
-    OrganizationMembership,
-    OrganizationRole,
     ProjectRole,
     Team,
 )
 from mods.access.policies import role
+from mods.access.tests.factories import make_org, make_project, make_user
 
 
 class GrantModelTests(TestCase):
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.user2 = User.objects.create_user(username="other", password="pass")
-        self.project = Project.objects.create(name="Alpha")
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Organization.objects.create(name="Test Lab")
+        cls.admin = User.objects.create_user(username="admin", password="pass")
+        cls.user = User.objects.create_user(username="regular", password="pass")
+        cls.user2 = User.objects.create_user(username="other", password="pass")
+        cls.project = Project.objects.create(name="Alpha")
         Group.objects.create(name="Alpha Team")
-        self.group = Group.objects.create(name="Omega Team")
-        self.team = Team.objects.create(
-            group=self.group, organization=self.org,
+        cls.group = Group.objects.create(name="Omega Team")
+        cls.team = Team.objects.create(
+            group=cls.group, organization=cls.org,
         )
 
     # ── basic creation ────────────────────────────────────────────────────
@@ -160,39 +160,38 @@ class GrantModelTests(TestCase):
     # ── cascade ───────────────────────────────────────────────────────────
 
     def test_deleting_project_cascades_grants(self):
+        project = Project.objects.create(name="Cascade Project")
+        Folder.objects.create(name="root", parent=None, project=project)
         Grant.objects.create(
-            project=self.project, role=ProjectRole.READ, user=self.user,
+            project=project, role=ProjectRole.READ, user=self.user,
         )
-        project_id = self.project.pk
-        Folder.objects.create(name="root", parent=None, project=self.project)
-        self.project.delete()
+        project_id = project.pk
+        project.delete()
         self.assertEqual(Grant.objects.filter(project_id=project_id).count(), 0)
 
     def test_deleting_user_cascades_grants(self):
+        user = User.objects.create_user(username="victim", password="pass")
         Grant.objects.create(
-            project=self.project, role=ProjectRole.READ, user=self.user,
+            project=self.project, role=ProjectRole.READ, user=user,
         )
-        user_id = self.user.pk
-        self.user.delete()
+        user_id = user.pk
+        user.delete()
         self.assertEqual(Grant.objects.filter(user_id=user_id).count(), 0)
 
 
 class GrantApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.user2 = make_user("other", cls.org, "user")
+        cls.project = make_project("Alpha")
+        cls.group = Group.objects.create(name="My Team")
+        cls.team = Team.objects.create(group=cls.group, organization=cls.org)
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.user2 = User.objects.create_user(username="other", password="pass")
-        admin_membership = OrganizationMembership.objects.get(user=self.admin)
-        admin_membership.role = OrganizationRole.ADMIN
-        admin_membership.save()
-        self.project = Project.objects.create(name="Alpha")
-        Folder.objects.create(name="root", parent=None, project=self.project)
-        self.group = Group.objects.create(name="My Team")
-        self.team = Team.objects.create(
-            group=self.group, organization=self.org,
-        )
 
     @property
     def _grants_url(self):
@@ -360,26 +359,21 @@ class GrantApiTests(TestCase):
 class RoleResolutionTests(TestCase):
     """Test access.role() using direct and Team Grants."""
 
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.user2 = User.objects.create_user(username="other", password="pass")
-        self.inactive = User.objects.create_user(
-            username="inactive", password="pass", is_active=False,
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.user2 = make_user("other", cls.org, "user")
+        cls.inactive = make_user("inactive", cls.org, "user", is_active=False)
+        cls.project = make_project("Alpha")
+        cls.group = Group.objects.create(name="My Team")
+        cls.team = Team.objects.create(
+            group=cls.group, organization=cls.org,
         )
-        admin_membership = OrganizationMembership.objects.get(user=self.admin)
-        admin_membership.role = OrganizationRole.ADMIN
-        admin_membership.save()
-        self.project = Project.objects.create(name="Alpha")
-        Folder.objects.create(name="root", parent=None, project=self.project)
-        self.group = Group.objects.create(name="My Team")
-        self.team = Team.objects.create(
-            group=self.group, organization=self.org,
-        )
-        self.group2 = Group.objects.create(name="Other Team")
-        self.team2 = Team.objects.create(
-            group=self.group2, organization=self.org,
+        cls.group2 = Group.objects.create(name="Other Team")
+        cls.team2 = Team.objects.create(
+            group=cls.group2, organization=cls.org,
         )
 
     # ── anonymous / inactive ──────────────────────────────────────────────
@@ -504,13 +498,14 @@ class RoleResolutionTests(TestCase):
         self.assertIsNone(role(self.inactive, self.project))
 
     def test_reactivation_restores_effective_role(self):
+        inactive = make_user("reactivate", self.org, "user", is_active=False)
         Grant.objects.create(
-            project=self.project, role=ProjectRole.READ, user=self.inactive,
+            project=self.project, role=ProjectRole.READ, user=inactive,
         )
-        self.assertIsNone(role(self.inactive, self.project))
-        self.inactive.is_active = True
-        self.inactive.save()
-        self.assertEqual(role(self.inactive, self.project), "read")
+        self.assertIsNone(role(inactive, self.project))
+        inactive.is_active = True
+        inactive.save()
+        self.assertEqual(role(inactive, self.project), "read")
 
     # ── project_id as integer ─────────────────────────────────────────────
 
@@ -524,19 +519,18 @@ class RoleResolutionTests(TestCase):
 class TeamDeletionWithGrantTests(TestCase):
     """Team deletion blocked while Grants reference it."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.project = make_project("Alpha")
+        cls.group = Group.objects.create(name="My Team")
+        cls.team = Team.objects.create(
+            group=cls.group, organization=cls.org,
+        )
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        admin_membership = OrganizationMembership.objects.get(user=self.admin)
-        admin_membership.role = OrganizationRole.ADMIN
-        admin_membership.save()
-        self.project = Project.objects.create(name="Alpha")
-        Folder.objects.create(name="root", parent=None, project=self.project)
-        self.group = Group.objects.create(name="My Team")
-        self.team = Team.objects.create(
-            group=self.group, organization=self.org,
-        )
 
     def _create_team(self, name="Team"):
         self.client.force_authenticate(user=self.admin)

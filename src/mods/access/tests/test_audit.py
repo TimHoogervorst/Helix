@@ -14,17 +14,15 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project, User
+from core.models import Project
 from mods.access.models import (
     FolderShare,
     Grant,
-    Organization,
-    OrganizationMembership,
-    OrganizationRole,
     ProjectRole,
     ShareLevel,
     Team,
 )
+from mods.access.tests.factories import add_child_folder, make_org, make_project, make_user
 
 LOG_ACTION_PATH = "mods.access.views.log_action"
 
@@ -37,33 +35,15 @@ def _log_kwargs(mock_log):
     return mock_log.call_args.kwargs
 
 
-def _ensure_membership(user, org, role):
-    mem, _ = OrganizationMembership.objects.update_or_create(
-        user=user,
-        defaults={"organization": org, "role": role},
-    )
-    return mem
-
-
-def _make_project(name="Alpha"):
-    project = Project.objects.create(name=name)
-    Folder.objects.create(name="root", parent=None, project=project)
-    return project
-
-
-def _add_child_folder(project, name):
-    root = Folder.objects.get(project=project, parent__isnull=True)
-    return Folder.objects.create(name=name, parent=root, project=project)
-
-
 class _AuditTestBase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.user, self.org, OrganizationRole.USER)
         self._patcher = patch(LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
         self.mock_log.return_value = None
@@ -296,9 +276,10 @@ class ProjectAuditTests(_AuditTestBase):
 
 
 class GrantAuditTests(_AuditTestBase):
-    def setUp(self):
-        super().setUp()
-        self.project = _make_project("Alpha")
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.project = make_project("Alpha")
 
     def _grants_url(self):
         return f"/api/access/projects/{self.project.id}/grants/"
@@ -399,11 +380,12 @@ class GrantAuditTests(_AuditTestBase):
 
 
 class FolderShareAuditTests(_AuditTestBase):
-    def setUp(self):
-        super().setUp()
-        self.project_a = _make_project("Project A")
-        self.project_b = _make_project("Project B")
-        self.folder = _add_child_folder(self.project_a, "Shared Folder")
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.project_a = make_project("Project A")
+        cls.project_b = make_project("Project B")
+        cls.folder = add_child_folder(cls.project_a, "Shared Folder")
 
     def _shares_url(self):
         return f"/api/access/projects/{self.project_b.id}/folder_shares/"
@@ -486,7 +468,7 @@ class AuditFailOpenTests(_AuditTestBase):
 
     def test_audit_write_failure_does_not_block_grant_create(self):
         self.mock_log.side_effect = RuntimeError("audit table down")
-        project = _make_project("Alpha")
+        project = make_project("Alpha")
         response = self.client.post(
             f"/api/access/projects/{project.id}/grants/",
             {"user": self.user.id, "role": "read"},

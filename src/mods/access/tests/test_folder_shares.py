@@ -1,65 +1,37 @@
 """Tests for FolderShare model, API, overlap rejection, and shared-access policies."""
 
-from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project, User
+from core.models import Folder
 from mods.access.models import (
     FolderShare,
     Grant,
-    Organization,
-    OrganizationMembership,
-    OrganizationRole,
     ProjectRole,
     ShareLevel,
-    Team,
 )
 from mods.access.policies import can as can_access, role as get_role
-
-
-# ── helpers ────────────────────────────────────────────────────────────────
-
-
-def _ensure_membership(user, org, role):
-    mem, _ = OrganizationMembership.objects.update_or_create(
-        user=user,
-        defaults={"organization": org, "role": role},
-    )
-    return mem
-
-
-def _make_project_with_root(name="Alpha", **kwargs):
-    project = Project.objects.create(name=name, **kwargs)
-    Folder.objects.create(name="root", parent=None, project=project)
-    return project
-
-
-def _add_child_folder(project, name, parent_name="root"):
-    parent = Folder.objects.get(project=project, name=parent_name)
-    child = Folder.objects.create(name=name, parent=parent, project=project)
-    return child
-
-
-def _add_grandchild_folder(project, name, child_name):
-    parent = Folder.objects.get(project=project, name=child_name, parent__isnull=False)
-    grandchild = Folder.objects.create(name=name, parent=parent, project=project)
-    return grandchild
+from mods.access.tests.factories import (
+    add_child_folder,
+    add_grandchild_folder,
+    make_org,
+    make_project,
+    make_user,
+)
 
 
 # ── FolderShare model tests ────────────────────────────────────────────────
 
 
 class FolderShareModelTests(TestCase):
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        self.project_a = _make_project_with_root("Project A")
-        self.project_b = _make_project_with_root("Project B")
-        self.folder = _add_child_folder(self.project_a, "Shared Folder")
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.project_a = make_project("Project A")
+        cls.project_b = make_project("Project B")
+        cls.folder = add_child_folder(cls.project_a, "Shared Folder")
 
     def test_create_valid_share(self):
         share = FolderShare.objects.create(
@@ -115,7 +87,7 @@ class FolderShareModelTests(TestCase):
     # ── validation: reject nested source folder ───────────────────────────
 
     def test_reject_nested_source_folder(self):
-        grandchild = _add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
+        grandchild = add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
         share = FolderShare(
             source_folder=grandchild,
             target_project=self.project_b,
@@ -150,7 +122,7 @@ class FolderShareModelTests(TestCase):
             target_project=self.project_b,
             level=ShareLevel.READ,
         )
-        grandchild = _add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
+        grandchild = add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
         share = FolderShare(
             source_folder=grandchild,
             target_project=self.project_b,
@@ -160,7 +132,7 @@ class FolderShareModelTests(TestCase):
             share.clean()
 
     def test_reject_descendant_already_shared_then_share_ancestor(self):
-        grandchild = _add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
+        grandchild = add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
         FolderShare.objects.create(
             source_folder=grandchild,
             target_project=self.project_b,
@@ -175,7 +147,7 @@ class FolderShareModelTests(TestCase):
             share.clean()
 
     def test_same_folder_to_different_targets_allowed(self):
-        project_c = _make_project_with_root("Project C")
+        project_c = make_project("Project C")
         FolderShare.objects.create(
             source_folder=self.folder,
             target_project=self.project_b,
@@ -191,7 +163,7 @@ class FolderShareModelTests(TestCase):
         self.assertEqual(FolderShare.objects.count(), 2)
 
     def test_sibling_folders_to_same_target_allowed(self):
-        folder2 = _add_child_folder(self.project_a, "Other Folder")
+        folder2 = add_child_folder(self.project_a, "Other Folder")
         FolderShare.objects.create(
             source_folder=self.folder,
             target_project=self.project_b,
@@ -209,21 +181,23 @@ class FolderShareModelTests(TestCase):
     # ── cascade ───────────────────────────────────────────────────────────
 
     def test_delete_source_folder_cascades_share(self):
+        folder = add_child_folder(self.project_a, "Cascade Folder")
         share = FolderShare.objects.create(
-            source_folder=self.folder,
+            source_folder=folder,
             target_project=self.project_b,
             level=ShareLevel.READ,
         )
-        self.folder.delete()
+        folder.delete()
         self.assertFalse(FolderShare.objects.filter(pk=share.pk).exists())
 
     def test_delete_target_project_cascades_share(self):
+        project = make_project("Cascade Target")
         share = FolderShare.objects.create(
             source_folder=self.folder,
-            target_project=self.project_b,
+            target_project=project,
             level=ShareLevel.READ,
         )
-        self.project_b.delete()
+        project.delete()
         self.assertFalse(FolderShare.objects.filter(pk=share.pk).exists())
 
 
@@ -231,16 +205,17 @@ class FolderShareModelTests(TestCase):
 
 
 class FolderShareApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.project_a = make_project("Project A")
+        cls.project_b = make_project("Project B")
+        cls.folder = add_child_folder(cls.project_a, "Shared Folder")
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.user, self.org, OrganizationRole.USER)
-        self.project_a = _make_project_with_root("Project A")
-        self.project_b = _make_project_with_root("Project B")
-        self.folder = _add_child_folder(self.project_a, "Shared Folder")
 
     @property
     def _shares_url(self):
@@ -325,7 +300,7 @@ class FolderShareApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_share_rejects_nested_folder(self):
-        grandchild = _add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
+        grandchild = add_grandchild_folder(self.project_a, "Deep", "Shared Folder")
         self.client.force_authenticate(user=self.admin)
         response = self.client.post(
             self._shares_url,
@@ -449,8 +424,8 @@ class FolderShareApiTests(TestCase):
             target_project=self.project_b,
             level=ShareLevel.READ,
         )
-        third_project = _make_project_with_root("Third Project")
-        duplicate_name = _add_child_folder(third_project, "Shared Folder")
+        third_project = make_project("Third Project")
+        duplicate_name = add_child_folder(third_project, "Shared Folder")
         self.client.force_authenticate(user=self.admin)
         response = self.client.post(
             self._shares_url,
@@ -460,9 +435,9 @@ class FolderShareApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_share_rejects_name_collision_with_own_root_child(self):
-        _add_child_folder(self.project_b, "Conflicting")
-        third_project = _make_project_with_root("Third Project")
-        source = _add_child_folder(third_project, "Conflicting")
+        add_child_folder(self.project_b, "Conflicting")
+        third_project = make_project("Third Project")
+        source = add_child_folder(third_project, "Conflicting")
         self.client.force_authenticate(user=self.admin)
         response = self.client.post(
             self._shares_url,
@@ -472,9 +447,9 @@ class FolderShareApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_share_allows_different_name_no_collision(self):
-        _add_child_folder(self.project_b, "Existing")
-        third_project = _make_project_with_root("Third Project")
-        source = _add_child_folder(third_project, "Different Name")
+        add_child_folder(self.project_b, "Existing")
+        third_project = make_project("Third Project")
+        source = add_child_folder(third_project, "Different Name")
         self.client.force_authenticate(user=self.admin)
         response = self.client.post(
             self._shares_url,
@@ -490,32 +465,29 @@ class FolderShareApiTests(TestCase):
 class SharedAccessPolicyTests(TestCase):
     """Test access.can() with via_project for shared folder intersection."""
 
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.reader = User.objects.create_user(username="reader", password="pass")
-        self.editor = User.objects.create_user(username="editor", password="pass")
-        self.other = User.objects.create_user(username="other", password="pass")
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.reader, self.org, OrganizationRole.USER)
-        _ensure_membership(self.editor, self.org, OrganizationRole.USER)
-        _ensure_membership(self.other, self.org, OrganizationRole.USER)
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.reader = make_user("reader", cls.org, "user")
+        cls.editor = make_user("editor", cls.org, "user")
+        cls.other = make_user("other", cls.org, "user")
 
-        self.source_project = _make_project_with_root("Source Project")
-        self.target_project = _make_project_with_root("Target Project")
+        cls.source_project = make_project("Source Project")
+        cls.target_project = make_project("Target Project")
 
-        self.shared_folder = _add_child_folder(self.source_project, "Shared Folder")
-        self.entry = _add_child_folder(self.source_project, "Entry", "Shared Folder")
+        cls.shared_folder = add_child_folder(cls.source_project, "Shared Folder")
+        cls.entry = add_child_folder(cls.source_project, "Entry", "Shared Folder")
 
         Grant.objects.create(
-            project=self.target_project,
+            project=cls.target_project,
             role=ProjectRole.READ,
-            user=self.reader,
+            user=cls.reader,
         )
         Grant.objects.create(
-            project=self.target_project,
+            project=cls.target_project,
             role=ProjectRole.EDIT,
-            user=self.editor,
+            user=cls.editor,
         )
 
     def _share(self, level=ShareLevel.READ):
@@ -633,8 +605,8 @@ class SharedAccessPolicyTests(TestCase):
         self._assert_can_read(self.reader, self.entry, self.target_project.pk)
 
     def test_resource_outside_shared_tree_not_accessible(self):
-        other_folder = _add_child_folder(self.source_project, "Other Folder")
-        other_entry = _add_child_folder(self.source_project, "Other Entry", "Other Folder")
+        other_folder = add_child_folder(self.source_project, "Other Folder")
+        other_entry = add_child_folder(self.source_project, "Other Entry", "Other Folder")
         self._share(ShareLevel.READ_WRITE)
         self._assert_cannot_read(self.editor, other_entry, self.target_project.pk)
 
@@ -674,13 +646,14 @@ class SharedAccessPolicyTests(TestCase):
 
 
 class OverlapRejectionTests(TestCase):
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.project_a = _make_project_with_root("Project A")
-        self.project_b = _make_project_with_root("Project B")
-        self.parent_folder = _add_child_folder(self.project_a, "Parent")
-        self.child_folder = _add_grandchild_folder(self.project_a, "Child", "Parent")
-        self.sibling_folder = _add_child_folder(self.project_a, "Sibling")
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.project_a = make_project("Project A")
+        cls.project_b = make_project("Project B")
+        cls.parent_folder = add_child_folder(cls.project_a, "Parent")
+        cls.child_folder = add_grandchild_folder(cls.project_a, "Child", "Parent")
+        cls.sibling_folder = add_child_folder(cls.project_a, "Sibling")
 
     def test_share_parent_then_child_rejected(self):
         FolderShare.objects.create(
@@ -733,8 +706,8 @@ class OverlapRejectionTests(TestCase):
             target_project=self.project_b,
             level=ShareLevel.READ,
         )
-        other_project = _make_project_with_root("Project C")
-        duplicate_name = _add_child_folder(other_project, "Parent")
+        other_project = make_project("Project C")
+        duplicate_name = add_child_folder(other_project, "Parent")
         share = FolderShare(
             source_folder=duplicate_name,
             target_project=self.project_b,
@@ -744,9 +717,9 @@ class OverlapRejectionTests(TestCase):
             share.clean()
 
     def test_reject_name_collision_with_own_root_child(self):
-        _add_child_folder(self.project_b, "Conflicting")
-        other_project = _make_project_with_root("Project C")
-        source = _add_child_folder(other_project, "Conflicting")
+        add_child_folder(self.project_b, "Conflicting")
+        other_project = make_project("Project C")
+        source = add_child_folder(other_project, "Conflicting")
         share = FolderShare(
             source_folder=source,
             target_project=self.project_b,
@@ -756,9 +729,9 @@ class OverlapRejectionTests(TestCase):
             share.clean()
 
     def test_different_name_no_collision(self):
-        _add_child_folder(self.project_b, "Existing")
-        other_project = _make_project_with_root("Project C")
-        source = _add_child_folder(other_project, "Different Name")
+        add_child_folder(self.project_b, "Existing")
+        other_project = make_project("Project C")
+        source = add_child_folder(other_project, "Different Name")
         share = FolderShare(
             source_folder=source,
             target_project=self.project_b,

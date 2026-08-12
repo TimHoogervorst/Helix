@@ -4,12 +4,10 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project, User
+from core.models import Folder, User
 from mods.access.models import (
     Grant,
-    Organization,
     OrganizationMembership,
-    OrganizationRole,
     ProjectRole,
 )
 from mods.access.policies import (
@@ -17,36 +15,24 @@ from mods.access.policies import (
     get_policy_matrix,
     role,
 )
-
-
-def _ensure_membership(user, org, role):
-    """Create or update a membership, avoiding signal collision."""
-    mem, _ = OrganizationMembership.objects.update_or_create(
-        user=user,
-        defaults={"organization": org, "role": role},
-    )
-    return mem
+from mods.access.tests.factories import (
+    make_org,
+    make_project,
+    make_superuser,
+    make_user,
+)
 
 
 class RoleFunctionTests(TestCase):
     """Test access.role() — the effective Project Role resolver."""
 
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.superuser = User.objects.create_superuser(
-            username="superuser", password="pass",
-        )
-        self.inactive = User.objects.create_user(
-            username="inactive", password="pass", is_active=False,
-        )
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.user, self.org, OrganizationRole.USER)
-        _ensure_membership(self.inactive, self.org, OrganizationRole.USER)
-        # Drop the auto-created USER membership so the break-glass bypass is
-        # exercised with no membership or Grant rows at all.
-        OrganizationMembership.objects.filter(user=self.superuser).delete()
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.superuser = make_superuser("superuser")
+        cls.inactive = make_user("inactive", cls.org, "user", is_active=False)
 
     def test_none_user_returns_none(self):
         self.assertIsNone(role(None))
@@ -78,19 +64,16 @@ class RoleFunctionTests(TestCase):
 class CanFunctionTests(TestCase):
     """Test access.can() — the authorization evaluator."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.superuser = make_superuser("superuser")
+        cls.project = make_project("Alpha")
+
     def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.superuser = User.objects.create_superuser(
-            username="superuser", password="pass",
-        )
         self.anon = User(username="anon")
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.user, self.org, OrganizationRole.USER)
-        OrganizationMembership.objects.filter(user=self.superuser).delete()
-        self.project = Project.objects.create(name="Alpha")
-        Folder.objects.create(name="root", parent=None, project=self.project)
 
     def _resource(self):
         """Return a resource with project_id for project_resource checks."""
@@ -236,11 +219,13 @@ class GetPolicyMatrixTests(TestCase):
 class PolicyApiTests(TestCase):
     """Tests for GET /api/access/policies/."""
 
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.user = make_user("regular", cls.org, "user")
+
     def setUp(self):
         self.client = APIClient()
-        self.org = Organization.objects.create(name="Test Lab")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        _ensure_membership(self.user, self.org, OrganizationRole.USER)
 
     def test_policies_endpoint_returns_list(self):
         self.client.force_authenticate(user=self.user)

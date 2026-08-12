@@ -2,12 +2,14 @@
 
 from django.test import TestCase
 
-from core.models import User
 from mods.access.models import (
     Organization,
     OrganizationMembership,
     OrganizationRole,
+    Team,
 )
+from core.models import Project, User
+from mods.access.tests.factories import ensure_membership
 
 
 class BootstrapTests(TestCase):
@@ -21,9 +23,7 @@ class BootstrapTests(TestCase):
         user = User.objects.create_superuser(
             username="seedadmin", password="pass",
         )
-        membership = OrganizationMembership.objects.create(
-            user=user, organization=org, role=OrganizationRole.ADMIN,
-        )
+        membership = ensure_membership(user, org, OrganizationRole.ADMIN)
         self.assertEqual(membership.role, OrganizationRole.ADMIN)
         self.assertEqual(membership.user, user)
         self.assertEqual(membership.organization, org)
@@ -32,4 +32,7 @@ class BootstrapTests(TestCase):
         Organization.objects.create(name="Helix Lab")
         User.objects.create_user(username="test", password="pass")
         self.assertEqual(Organization.objects.count(), 1)
-        self.assertEqual(OrganizationMembership.objects.count(), 0)
+        # The post_save signal auto-creates the User's OrganizationMembership.
+        self.assertEqual(OrganizationMembership.objects.count(), 1)
+        self.assertEqual(Team.objects.count(), 0)
+        self.assertEqual(Project.objects.count(), 0)

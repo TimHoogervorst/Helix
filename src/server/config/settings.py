@@ -96,11 +96,15 @@ DATABASES = {
 if os.environ.get("DATABASE_URL"):
     import re
     url = os.environ["DATABASE_URL"]
-    # Support sqlite:// for local testing
+    # Support sqlite for local testing: `sqlite:///local.db`, `sqlite://local.db`,
+    # or bare `sqlite` (which falls back to `db.sqlite3`).
     if url.startswith("sqlite"):
+        name = url.replace("sqlite://", "", 1).lstrip("/")
+        if name in ("", "sqlite"):
+            name = "db.sqlite3"
         DATABASES["default"] = {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": url.replace("sqlite://", ""),
+            "NAME": name,
         }
     else:
         m = re.match(r"postgres://(?P<user>.+):(?P<password>.+)@(?P<host>.+):(?P<port>\d+)/(?P<name>.+)", url)

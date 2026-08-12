@@ -10,6 +10,7 @@ from mods.access.models import (
     OrganizationMembership,
     OrganizationRole,
 )
+from mods.access.tests.factories import ensure_membership
 
 
 class AutoMembershipSignalTests(TestCase):
@@ -56,6 +57,10 @@ class OrganizationMembershipModelTests(TestCase):
         self.org = Organization.objects.create(name="Test Lab")
         self.user = User.objects.create_user(username="testuser", password="pass")
         self.admin = User.objects.create_user(username="adminuser", password="pass")
+        # The post_save signal auto-creates a USER membership for each User
+        # once an Organization exists. These tests manage memberships
+        # explicitly, so clear the auto-created rows for a clean slate.
+        OrganizationMembership.objects.all().delete()
 
     def test_create_membership(self):
         membership = OrganizationMembership.objects.create(
@@ -95,9 +100,7 @@ class OrganizationMembershipModelTests(TestCase):
         OrganizationMembership.objects.create(
             user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
         )
-        OrganizationMembership.objects.create(
-            user=admin2, organization=self.org, role=OrganizationRole.ADMIN,
-        )
+        ensure_membership(admin2, self.org, OrganizationRole.ADMIN)
         membership = OrganizationMembership.objects.get(user=self.admin)
         membership.role = OrganizationRole.USER
         membership.clean()
@@ -123,14 +126,12 @@ class OrganizationMembershipModelTests(TestCase):
         inactive = User.objects.create_user(
             username="inactive", password="pass", is_active=False,
         )
-        OrganizationMembership.objects.create(
-            user=inactive, organization=self.org, role=OrganizationRole.ADMIN,
-        )
+        ensure_membership(inactive, self.org, OrganizationRole.ADMIN)
         OrganizationMembership.objects.create(
             user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
         )
-        # Deleting the active admin should be allowed since inactive admin exists
-        # but doesn't count as an active admin.
+        # Deleting the active admin raises — the inactive admin doesn't count
+        # as an active admin, so the guard still protects the last active one.
         membership = OrganizationMembership.objects.get(user=self.admin)
         with self.assertRaises(ValidationError):
             membership.delete()
@@ -148,9 +149,7 @@ class OrganizationMembershipModelTests(TestCase):
         OrganizationMembership.objects.create(
             user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
         )
-        OrganizationMembership.objects.create(
-            user=admin2, organization=self.org, role=OrganizationRole.ADMIN,
-        )
+        ensure_membership(admin2, self.org, OrganizationRole.ADMIN)
         self.admin.is_active = False
         self.admin.save()
         self.admin.refresh_from_db()

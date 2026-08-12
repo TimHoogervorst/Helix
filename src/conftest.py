@@ -1,10 +1,13 @@
-"""Session-level setup for helix_core tests.
+"""Session-level setup for backend tests (server + mods).
 
 Ensures the ConcreteTestEntity table from test_abstracts.py exists before
 *any* test runs.  The model class is registered in Django's app registry
 at import time (module-level), so every Schema.objects.delete() cascade
 collector discovers it.  Without this table, tests that run before
 AbstractEntityFieldTests fail with "no such table".
+
+This conftest lives at ``src/`` — the common ancestor of ``src/server`` and
+``src/mods`` — so the fixture applies to both test trees.
 """
 
 import pytest

@@ -3,71 +3,44 @@
 from django.contrib.auth.models import Group
 from django.test import TestCase
 
-from core.models import Folder, Project, User
+from core.models import User
 from helix_core.models import Schema, SchemaType
 from mods.access.models import (
     FolderShare,
     Grant,
-    Organization,
     OrganizationMembership,
-    OrganizationRole,
     ProjectRole,
     ShareLevel,
     Team,
 )
 from mods.access.policies import accessible_project_ids, effective_role
-
-
-def _ensure_membership(user, org, role):
-    mem, _ = OrganizationMembership.objects.update_or_create(
-        user=user,
-        defaults={"organization": org, "role": role},
-    )
-    return mem
-
-
-def _make_project_with_root(name, **kwargs):
-    project = Project.objects.create(name=name, **kwargs)
-    Folder.objects.create(name="root", parent=None, project=project)
-    return project
-
-
-def _add_child_folder(project, name, parent_name="root"):
-    parent = Folder.objects.get(project=project, name=parent_name)
-    return Folder.objects.create(name=name, parent=parent, project=project)
-
-
-def _add_grandchild_folder(project, name, child_name):
-    parent = Folder.objects.get(project=project, name=child_name, parent__isnull=False)
-    return Folder.objects.create(name=name, parent=parent, project=project)
+from mods.access.tests.factories import (
+    add_child_folder,
+    add_grandchild_folder,
+    make_org,
+    make_project,
+    make_superuser,
+    make_user,
+)
 
 
 class EffectiveRoleTests(TestCase):
     """Test effective_role() across the full actor matrix."""
 
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.reader = User.objects.create_user(username="reader", password="pass")
-        self.editor = User.objects.create_user(username="editor", password="pass")
-        self.team_user = User.objects.create_user(username="team_user", password="pass")
-        self.superuser = User.objects.create_superuser(
-            username="superuser", password="pass",
-        )
-        self.inactive = User.objects.create_user(
-            username="inactive", password="pass", is_active=False,
-        )
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.reader, self.org, OrganizationRole.USER)
-        _ensure_membership(self.editor, self.org, OrganizationRole.USER)
-        _ensure_membership(self.team_user, self.org, OrganizationRole.USER)
-        _ensure_membership(self.inactive, self.org, OrganizationRole.USER)
-        OrganizationMembership.objects.filter(user=self.superuser).delete()
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.reader = make_user("reader", cls.org, "user")
+        cls.editor = make_user("editor", cls.org, "user")
+        cls.team_user = make_user("team_user", cls.org, "user")
+        cls.superuser = make_superuser("superuser")
+        cls.inactive = make_user("inactive", cls.org, "user", is_active=False)
 
-        self.project = _make_project_with_root("Source Project")
-        self.folder = _add_child_folder(self.project, "Shared Folder")
-        self.descendant = _add_grandchild_folder(self.project, "Deep", "Shared Folder")
-        self.outside = _add_child_folder(self.project, "Outside Folder")
+        cls.project = make_project("Source Project")
+        cls.folder = add_child_folder(cls.project, "Shared Folder")
+        cls.descendant = add_grandchild_folder(cls.project, "Deep", "Shared Folder")
+        cls.outside = add_child_folder(cls.project, "Outside Folder")
 
     def test_anonymous_returns_none(self):
         self.assertIsNone(effective_role(None, self.folder))
@@ -143,25 +116,20 @@ class EffectiveRoleTests(TestCase):
 class EffectiveRoleShareTests(TestCase):
     """Test effective_role() across Folder Share paths."""
 
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.reader = User.objects.create_user(username="reader", password="pass")
-        self.editor = User.objects.create_user(username="editor", password="pass")
-        self.other = User.objects.create_user(username="other", password="pass")
-        self.superuser = User.objects.create_superuser(
-            username="superuser", password="pass",
-        )
-        _ensure_membership(self.reader, self.org, OrganizationRole.USER)
-        _ensure_membership(self.editor, self.org, OrganizationRole.USER)
-        _ensure_membership(self.other, self.org, OrganizationRole.USER)
-        OrganizationMembership.objects.filter(user=self.superuser).delete()
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.reader = make_user("reader", cls.org, "user")
+        cls.editor = make_user("editor", cls.org, "user")
+        cls.other = make_user("other", cls.org, "user")
+        cls.superuser = make_superuser("superuser")
 
-        self.source_project = _make_project_with_root("Source Project")
-        self.target_project = _make_project_with_root("Target Project")
+        cls.source_project = make_project("Source Project")
+        cls.target_project = make_project("Target Project")
 
-        self.shared_folder = _add_child_folder(self.source_project, "Shared Folder")
-        self.descendant = _add_grandchild_folder(self.source_project, "Deep", "Shared Folder")
-        self.outside = _add_child_folder(self.source_project, "Outside Folder")
+        cls.shared_folder = add_child_folder(cls.source_project, "Shared Folder")
+        cls.descendant = add_grandchild_folder(cls.source_project, "Deep", "Shared Folder")
+        cls.outside = add_child_folder(cls.source_project, "Outside Folder")
 
     def _share(self, level=ShareLevel.READ):
         return FolderShare.objects.create(
@@ -270,26 +238,18 @@ class EffectiveRoleShareTests(TestCase):
 class AccessibleProjectIdsTests(TestCase):
     """Test accessible_project_ids() — the batch list-context helper."""
 
-    def setUp(self):
-        self.org = Organization.objects.create(name="Test Lab")
-        self.admin = User.objects.create_user(username="admin", password="pass")
-        self.user = User.objects.create_user(username="regular", password="pass")
-        self.team_user = User.objects.create_user(username="team_user", password="pass")
-        self.superuser = User.objects.create_superuser(
-            username="superuser", password="pass",
-        )
-        self.inactive = User.objects.create_user(
-            username="inactive", password="pass", is_active=False,
-        )
-        _ensure_membership(self.admin, self.org, OrganizationRole.ADMIN)
-        _ensure_membership(self.user, self.org, OrganizationRole.USER)
-        _ensure_membership(self.team_user, self.org, OrganizationRole.USER)
-        _ensure_membership(self.inactive, self.org, OrganizationRole.USER)
-        OrganizationMembership.objects.filter(user=self.superuser).delete()
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = make_org()
+        cls.admin = make_user("admin", cls.org, "admin")
+        cls.user = make_user("regular", cls.org, "user")
+        cls.team_user = make_user("team_user", cls.org, "user")
+        cls.superuser = make_superuser("superuser")
+        cls.inactive = make_user("inactive", cls.org, "user", is_active=False)
 
-        self.project_a = _make_project_with_root("Project A")
-        self.project_b = _make_project_with_root("Project B")
-        self.project_c = _make_project_with_root("Project C")
+        cls.project_a = make_project("Project A")
+        cls.project_b = make_project("Project B")
+        cls.project_c = make_project("Project C")
 
     def test_anonymous_returns_empty(self):
         self.assertEqual(accessible_project_ids(None), set())

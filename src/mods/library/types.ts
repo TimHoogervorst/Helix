@@ -92,3 +92,10 @@ export interface LibraryProjectItem {
   is_archived: boolean;
   current_user_role: "read" | "edit" | null;
 }
+
+/** A flat folder entry for the move picker. */
+export interface LibraryFolderPath {
+  id: number;
+  name: string;
+  path: string;
+}

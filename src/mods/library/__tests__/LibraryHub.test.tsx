@@ -23,11 +23,28 @@ vi.mock("react-router-dom", async () => {
 
 const mockGetAccessibleProjects = vi.fn();
 const mockGetLibraryContents = vi.fn();
+const mockGetFolders = vi.fn().mockResolvedValue([]);
 vi.mock("../api", () => ({
   getAccessibleProjects: (...args: unknown[]) =>
     mockGetAccessibleProjects(...args),
   getLibraryContents: (...args: unknown[]) =>
     mockGetLibraryContents(...args),
+  getFolders: (...args: unknown[]) =>
+    mockGetFolders(...args),
+}));
+
+const mockListDropdowns = vi.fn().mockResolvedValue([]);
+vi.mock("../../dropdowns/api", () => ({
+  listDropdowns: (...args: unknown[]) => mockListDropdowns(...args),
+}));
+
+const mockPatchEntry = vi.fn();
+const mockGetLockStatus = vi.fn().mockResolvedValue({ locked: false });
+vi.mock("../../eln/api", () => ({
+  patchEntry: (...args: unknown[]) => mockPatchEntry(...args),
+  getLockStatus: (...args: unknown[]) => mockGetLockStatus(...args),
+  acquireLock: vi.fn(),
+  releaseLock: vi.fn(),
 }));
 
 const localStorageStore: Record<string, string> = {};
@@ -163,6 +180,10 @@ describe("LibraryHub", () => {
   beforeEach(() => {
     mockGetAccessibleProjects.mockReset();
     mockGetLibraryContents.mockReset();
+    mockGetFolders.mockReset().mockResolvedValue([]);
+    mockListDropdowns.mockReset().mockResolvedValue([]);
+    mockPatchEntry.mockReset();
+    mockGetLockStatus.mockReset().mockResolvedValue({ locked: false });
     mockNavigate.mockReset();
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     mockLocalStorage.getItem.mockClear();
@@ -997,6 +1018,192 @@ describe("LibraryHub", () => {
       });
 
       expect(screen.queryByLabelText("Row actions")).toBeNull();
+    });
+  });
+
+  // ── Editable Entry Properties Modal ─────────────────────────────
+
+  describe("editable entry properties modal", () => {
+    const projEditEntry = makeProject({
+      id: 1, uid: "proj-001", name: "Test Project",
+      current_user_role: "edit",
+    });
+
+    async function openEntryPropertiesModal() {
+      mockGetAccessibleProjects.mockResolvedValue([projEditEntry]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      mockGetFolders.mockResolvedValue([
+        { id: 1, name: "Experiments", path: "root / Experiments" },
+        { id: 2, name: "Protocols", path: "root / Protocols" },
+      ]);
+      mockListDropdowns.mockResolvedValue([
+        { id: 1, name: "Status", options: ["in_progress", "finished"] },
+      ]);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "EXP-0284 \u2014 PCR Results" }),
+        ).toBeInTheDocument();
+      });
+      return screen.getByRole("dialog", { name: "EXP-0284 \u2014 PCR Results" });
+    }
+
+    it("shows status dropdown with helper text when user can edit", async () => {
+      const dialog = await openEntryPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Status")).toBeInTheDocument();
+      });
+
+      const statusLabel = within(dialog).getByText("Status");
+      const statusRow = statusLabel.closest("div")?.parentElement;
+      expect(statusRow?.textContent).toContain("Cascades to entities created in this entry");
+
+      const select = within(dialog).getByRole("combobox");
+      expect(select).toBeInTheDocument();
+      expect(select).not.toBeDisabled();
+    });
+
+    it("shows move picker with folder list when user can edit", async () => {
+      const dialog = await openEntryPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Move to")).toBeInTheDocument();
+      });
+
+      const searchInput = within(dialog).getByPlaceholderText("Search folders...");
+      expect(searchInput).toBeInTheDocument();
+      expect(searchInput).not.toBeDisabled();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+      });
+    });
+
+    it("excludes current folder from move picker", async () => {
+      mockGetLibraryContents.mockResolvedValue(
+        makeLibraryContents(
+          [makeLibraryFolder({ id: 1, name: "Experiments" })],
+          [
+            makeLibraryEntry({
+              id: 10, workspace_id: "eln", display_id: "EXP-0284",
+              title: "PCR Results", folder: 1, folder_name: "Experiments",
+              status: "in_progress",
+            }),
+          ],
+          { project_uid: "proj-001", project_name: "Test Project" },
+        ),
+      );
+      mockGetFolders.mockResolvedValue([
+        { id: 1, name: "Experiments", path: "root / Experiments" },
+        { id: 2, name: "Protocols", path: "root / Protocols" },
+      ]);
+
+      const dialog = await openEntryPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+      });
+      expect(within(dialog).queryByText("root / Experiments")).toBeNull();
+    });
+
+    it("filters move picker by search text", async () => {
+      const dialog = await openEntryPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+      });
+
+      const searchInput = within(dialog).getByPlaceholderText("Search folders...");
+      fireEvent.change(searchInput, { target: { value: "Proto" } });
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+      });
+      expect(within(dialog).queryByText("root / Experiments")).toBeNull();
+    });
+
+    it("hides status and move controls for read-only viewers", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([
+        makeProject({ id: 1, uid: "proj-001", name: "Test Project", current_user_role: "read" }),
+      ]);
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        const dialog = screen.getByRole("dialog", {
+          name: "EXP-0284 \u2014 PCR Results",
+        });
+        expect(dialog).toBeInTheDocument();
+      });
+
+      const dialog = screen.getByRole("dialog", {
+        name: "EXP-0284 \u2014 PCR Results",
+      });
+      expect(within(dialog).queryByText("Status")).toBeNull();
+      expect(within(dialog).queryByText("Move to")).toBeNull();
+      expect(within(dialog).queryByPlaceholderText("Search folders...")).toBeNull();
+    });
+
+    it("disables editable fields when locked by another user", async () => {
+      mockGetLockStatus.mockResolvedValue({
+        locked: true,
+        held_by: 99,
+        held_by_username: "other_user",
+      });
+
+      const dialog = await openEntryPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Status")).toBeInTheDocument();
+      });
+
+      const select = within(dialog).getByRole("combobox");
+      expect(select).toBeDisabled();
+
+      const searchInput = within(dialog).queryByPlaceholderText("Search folders...");
+      if (searchInput) {
+        expect(searchInput).toBeDisabled();
+      }
+    });
+
+    it("shows read-only project, author, created, updated fields in editable modal too", async () => {
+      const dialog = await openEntryPropertiesModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Project")).toBeInTheDocument();
+        expect(within(dialog).getByText("Author")).toBeInTheDocument();
+        expect(within(dialog).getByText("Created")).toBeInTheDocument();
+        expect(within(dialog).getByText("Updated")).toBeInTheDocument();
+      });
     });
   });
 });

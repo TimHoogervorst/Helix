@@ -5,11 +5,23 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from unittest.mock import patch
 
+from rest_framework.test import APIClient
+
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from core.mentions.models import Mention
-from mods.eln.models import NotebookEntry, ElnAction
+from core.models import Folder, User
+from mods.eln.models import NotebookEntry, ElnAction, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
+from mods.access.models import (
+    FolderShare,
+    Grant,
+    Organization,
+    OrganizationMembership,
+    OrganizationRole,
+    ProjectRole,
+    ShareLevel,
+)
 
 TEXT_DOC = {
     "type": "doc",
@@ -500,3 +512,175 @@ class EntryTagActionsLoggingTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 404)
         self.mock_log.assert_not_called()
+
+
+class EntryPatchAccessTests(BaseTestCase):
+    """Actor matrix and rejection paths for entry PATCH access enforcement."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = Organization.objects.create(name="Test Org")
+        self.schema = get_or_create_default_eln_schema()
+
+        self.editor = User.objects.create_user(username="editor", password="pass")
+        self.reader = User.objects.create_user(username="reader", password="pass")
+        self.other_editor = User.objects.create_user(username="other_edit", password="pass")
+        self.org_admin = User.objects.create_user(username="orgadmin", password="pass")
+
+        OrganizationMembership.objects.create(
+            user=self.org_admin, organization=self.org, role=OrganizationRole.ADMIN,
+        )
+        # self.user is testuser, lives in self.project with folder "Default"
+        OrganizationMembership.objects.create(
+            user=self.user, organization=self.org, role=OrganizationRole.USER,
+        )
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.entry = NotebookEntry.objects.create(
+            name="Test Entry", content=TEXT_DOC, folder=self.folder,
+            author=self.user, schema=self.schema,
+        )
+
+    def _patch(self, client, entry, data):
+        return client.patch(
+            f"/api/eln/entries/{entry.display_id}/",
+            data,
+            format="json",
+        )
+
+    def test_direct_editor_can_patch_status(self):
+        client = APIClient()
+        client.force_authenticate(user=self.editor)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 200)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, "finished")
+
+    def test_direct_editor_can_patch_folder(self):
+        new_folder = Folder.objects.create(
+            name="New Folder", parent=self.root_folder, project=self.project,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.editor)
+        response = self._patch(client, self.entry, {"folder": new_folder.id})
+        self.assertEqual(response.status_code, 200)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.folder_id, new_folder.id)
+
+    def test_org_admin_can_patch(self):
+        client = APIClient()
+        client.force_authenticate(user=self.org_admin)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 200)
+
+    def test_read_viewer_patch_rejected(self):
+        client = APIClient()
+        client.force_authenticate(user=self.reader)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_patch_rejected(self):
+        client = APIClient()
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_cross_project_move_rejected(self):
+        other_project = Project.objects.create(name="Other Project")
+        other_root = Folder.objects.create(
+            name="root", parent=None, project=other_project,
+        )
+        other_folder = Folder.objects.create(
+            name="Other", parent=other_root, project=other_project,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.editor)
+        response = self._patch(client, self.entry, {"folder": other_folder.id})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("folder", response.data)
+
+    def test_locked_by_other_rejected(self):
+        other_user = User.objects.create_user(username="locker", password="pass")
+        EntryLock.objects.create(entry=self.entry, held_by=other_user)
+        client = APIClient()
+        client.force_authenticate(user=self.editor)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 423)
+
+    def test_own_lock_allows_patch(self):
+        lock_user = User.objects.create_user(username="lock_owner", password="pass")
+        Grant.objects.create(project=self.project, user=lock_user, role=ProjectRole.EDIT)
+        EntryLock.objects.create(entry=self.entry, held_by=lock_user)
+        client = APIClient()
+        client.force_authenticate(user=lock_user)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 200)
+
+    def test_direct_user_with_no_grant_patch_rejected(self):
+        no_grant = User.objects.create_user(username="nobody", password="pass")
+        client = APIClient()
+        client.force_authenticate(user=no_grant)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_org_admin_can_move_entry(self):
+        new_folder = Folder.objects.create(
+            name="Admin Folder", parent=self.root_folder, project=self.project,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.org_admin)
+        response = self._patch(client, self.entry, {"folder": new_folder.id})
+        self.assertEqual(response.status_code, 200)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.folder_id, new_folder.id)
+
+    def test_team_derived_edit_can_patch(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import Team
+
+        team_user = User.objects.create_user(username="team_editor", password="pass")
+        group = Group.objects.create(name="Test Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group)
+        Grant.objects.create(
+            project=self.project, team=team, role=ProjectRole.EDIT,
+        )
+        client = APIClient()
+        client.force_authenticate(user=team_user)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 200)
+
+    def test_read_write_sharee_can_patch_inside_subtree(self):
+        target_project = Project.objects.create(name="Target Project")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(
+            project=target_project, user=self.other_editor, role=ProjectRole.EDIT,
+        )
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.other_editor)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 200)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, "finished")
+
+    def test_read_only_sharee_patch_rejected(self):
+        target_project = Project.objects.create(name="Target Read")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(
+            project=target_project, user=self.other_editor, role=ProjectRole.READ,
+        )
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.other_editor)
+        response = self._patch(client, self.entry, {"status": "finished"})
+        self.assertEqual(response.status_code, 403)

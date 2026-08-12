@@ -1,5 +1,5 @@
 import { get } from "../../shell/src/api/client";
-import type { LibraryContentsResponse, LibraryProjectItem } from "./types";
+import type { LibraryContentsResponse, LibraryProjectItem, LibraryFolderPath } from "./types";
 import type { Project } from "../access/types";
 
 /**
@@ -25,4 +25,11 @@ export function getLibraryContents(
   if (path) params.set("path", path);
   if (page !== undefined) params.set("page", String(page));
   return get(`/library/contents/?${params.toString()}`);
+}
+
+/**
+ * Fetch a flat list of folder paths for a Project (for the move picker).
+ */
+export function getFolders(projectUid: string): Promise<LibraryFolderPath[]> {
+  return get<LibraryFolderPath[]>(`/library/folders/?project=${projectUid}`);
 }

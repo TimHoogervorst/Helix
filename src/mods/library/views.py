@@ -11,6 +11,16 @@ from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 
 
+def _ancestor_ids(folder):
+    """Return a set of ancestor folder IDs for *folder*."""
+    ids = set()
+    node = folder.parent
+    while node is not None:
+        ids.add(node.id)
+        node = node.parent
+    return ids
+
+
 class MixedListPagination(PageNumberPagination):
     """DRF pagination that works on a plain Python list (not a QuerySet)."""
 
@@ -281,3 +291,66 @@ class LibraryContentsView(APIView):
         response.data["project_color"] = project.color_key
         response.data["breadcrumb_path"] = path_str if not is_at_root else ""
         return response
+
+
+class LibraryFolderListView(APIView):
+    """GET /api/library/folders/?project=<uid>
+
+    Returns a flat, alphabetically sorted list of non-hidden-root folders for
+    *project*, each with ``id``, ``name``, and ``path`` (e.g. ``root / buffers /
+    TRIS``).  Requires at least Read access to the Project.
+    """
+
+    def get(self, request):
+        project_uid = request.query_params.get("project")
+        if not project_uid:
+            raise Http404("Project parameter is required.")
+
+        project = _resolve_project(project_uid)
+
+        effective = get_role(request.user, project)
+        if effective is None:
+            raise Http404("Project not found.")
+
+        hidden_root = project.folders.filter(parent__isnull=True).first()
+        if hidden_root is None:
+            return Response([])
+
+        descendants = (
+            Folder.objects.filter(project=project)
+            .exclude(parent__isnull=True)
+            .order_by("name")
+        )
+
+        shared_folders = _get_shared_folders(project)
+
+        items = []
+        for f in descendants:
+            ancestor_ids = set()
+            node = f.parent
+            while node is not None and not node.is_hidden_root:
+                ancestor_ids.add(node.id)
+                node = node.parent
+            segs = []
+            node = f
+            while node is not None and not node.is_hidden_root:
+                segs.append(node.name)
+                node = node.parent
+            segs.reverse()
+            path = "root / " + " / ".join(segs)
+            items.append({
+                "id": f.id,
+                "name": f.name,
+                "path": path,
+            })
+
+        for shared in shared_folders:
+            items.append({
+                "id": shared["id"],
+                "name": shared["name"],
+                "path": f"root / {shared['name']}",
+            })
+
+        items.sort(key=lambda x: x["path"].lower())
+
+        return Response(items)

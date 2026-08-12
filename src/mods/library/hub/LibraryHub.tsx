@@ -12,10 +12,10 @@ import {
   Share2,
   Users,
 } from "lucide-react";
-import type { LibraryItem, LibraryEntryItem, LibraryProjectItem } from "../types";
+import type { LibraryItem, LibraryEntryItem, LibraryProjectItem, LibraryFolderPath } from "../types";
 import type { Project } from "../../access/types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
-import { getLibraryContents, getAccessibleProjects } from "../api";
+import { getLibraryContents, getAccessibleProjects, getFolders } from "../api";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
@@ -297,8 +297,16 @@ function LibraryHub() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
 
+  const [projectRoleMap, setProjectRoleMap] = useState<Record<string, "read" | "edit" | null>>({});
+
   // Track whether user is an org admin
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+
+  // Track current project role
+  const [currentRole, setCurrentRole] = useState<"read" | "edit" | null>(null);
+
+  // Folder paths for move picker
+  const [folderPaths, setFolderPaths] = useState<LibraryFolderPath[]>([]);
 
   // Properties modal state
   const [propertiesItem, setPropertiesItem] = useState<LibraryItem | null>(null);
@@ -326,10 +334,11 @@ function LibraryHub() {
     try {
       const data = await getAccessibleProjects();
       setProjects(data);
-      // Detect org admin: if any project has current_user_role null despite being accessible
-      // we can look at whether the user is an org admin directly via the org endpoint
-      // But a simpler heuristic: if any project has null role, user is org admin
-      // since regular users without grants would be filtered out entirely
+      const roleMap: Record<string, "read" | "edit" | null> = {};
+      for (const p of data) {
+        roleMap[p.uid] = p.current_user_role ?? null;
+      }
+      setProjectRoleMap(roleMap);
       const hasNullRole = data.some((p) => p.current_user_role === null);
       setIsOrgAdmin(hasNullRole);
     } catch (err: unknown) {
@@ -339,11 +348,24 @@ function LibraryHub() {
     }
   }, []);
 
+  const [projectsFetched, setProjectsFetched] = useState(false);
+
   useEffect(() => {
     if (!isInProject) {
       fetchProjects();
+    } else if (!projectsFetched) {
+      fetchProjects().then(() => setProjectsFetched(true));
     }
-  }, [isInProject, fetchProjects]);
+  }, [isInProject, fetchProjects, projectsFetched]);
+
+  useEffect(() => {
+    if (projectUid) {
+      getFolders(projectUid)
+        .then(setFolderPaths)
+        .catch(() => setFolderPaths([]));
+      setCurrentRole(projectRoleMap[projectUid] ?? null);
+    }
+  }, [projectUid, projectRoleMap]);
 
   // ── Contents fetch (inside a project) ─────────────────────────────────
 
@@ -432,8 +454,9 @@ function LibraryHub() {
     (uid: string) => {
       setSearchParams({ project: uid });
       data.clearSelection();
+      setCurrentRole(projectRoleMap[uid] ?? null);
     },
-    [setSearchParams, data],
+    [setSearchParams, data, projectRoleMap],
   );
 
   const navigateToPath = useCallback(
@@ -833,6 +856,13 @@ function LibraryHub() {
           onClose={() => setPropertiesItem(null)}
           entry={propertiesItem}
           projectMeta={projectMeta}
+          canEdit={isOrgAdmin || currentRole === "edit"}
+          folders={folderPaths}
+          projectUid={projectUid}
+          onMutated={() => {
+            setPropertiesItem(null);
+            setRefreshKey((k) => k + 1);
+          }}
         />
       )}
       {propertiesItem?.type === "folder" && (

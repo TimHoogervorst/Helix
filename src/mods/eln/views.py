@@ -7,7 +7,7 @@ from django.db import IntegrityError
 from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.response import Response
 
 from helix_core.actions.logger import bulk_log_actions, log_action
@@ -32,6 +32,16 @@ eln_logger = logging.getLogger(__name__)
 
 
 DEFAULT_SAVE_MODE = "manual"
+
+
+def _ancestor_ids_for(folder):
+    """Return a set of ancestor folder IDs for *folder*."""
+    ids = set()
+    node = folder.parent
+    while node is not None:
+        ids.add(node.id)
+        node = node.parent
+    return ids
 
 
 class LockedException(APIException):
@@ -124,18 +134,95 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         sync_entry_content(instance)
         self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
 
+    def _can_edit_entry(self, instance):
+        """Check whether request.user can edit *instance*.
+
+        Returns ``True`` when the user has Edit access — direct, Team-derived,
+        Organization Admin override, or a Read + Write share evaluated via the
+        target Project.
+        """
+        from mods.access.policies import can as access_can
+        from mods.access.models import FolderShare
+
+        user = self.request.user
+
+        if access_can(user, "eln.entry.edited", resource=instance):
+            return True
+
+        folder = instance.folder
+        if folder is not None:
+            from core.models import Folder as FolderModel
+
+            folder_ancestors = _ancestor_ids_for(folder)
+            shares = FolderShare.objects.filter(
+                source_folder__project_id=instance.project_id,
+                level="read_write",
+            ).select_related("source_folder").only(
+                "id", "source_folder_id", "target_project_id",
+            )
+
+            for share in shares:
+                covers = folder.id == share.source_folder_id or share.source_folder_id in folder_ancestors
+                if not covers:
+                    continue
+                if access_can(
+                    user,
+                    "eln.entry.edited",
+                    resource=instance,
+                    via_project=share.target_project_id,
+                ):
+                    return True
+
+        return False
+
+    def _reject_cross_subtree_move(self, instance, new_folder):
+        """Raise ValidationError when *new_folder* is outside the shared subtree.
+
+        Called only when the entry's folder resides inside a shared source folder
+        and the user is not a direct Project editor.
+        """
+        from mods.access.models import FolderShare
+        from core.models import Folder as FolderModel
+
+        current_folder = instance.folder
+        if current_folder is None:
+            return
+
+        shares = FolderShare.objects.filter(
+            source_folder__project_id=instance.project_id,
+        ).select_related("source_folder").only(
+            "id", "source_folder_id",
+        )
+
+        current_ancestors = _ancestor_ids_for(current_folder)
+
+        for share in shares:
+            covers = current_folder.id == share.source_folder_id or share.source_folder_id in current_ancestors
+            if not covers:
+                continue
+
+            target_ancestors = _ancestor_ids_for(new_folder)
+            in_subtree = new_folder.id == share.source_folder_id or share.source_folder_id in target_ancestors
+            if not in_subtree:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError(
+                    {"folder": "Entries cannot be moved outside the shared subtree."}
+                )
+            return
+
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
 
         Flow:
         0. Check lock — reject 423 if another user holds a non-stale lock.
-        1. Validate same-project move — reject cross-Project folder changes.
-        2. Hash incoming content, compare with latest ContentVersion.
+        1. Enforce access — reject 403 for Read viewers, cross-subtree moves.
+        2. Validate same-project move — reject cross-Project folder changes.
+        3. Hash incoming content, compare with latest ContentVersion.
            If hash matches AND no other fields changed → return early (no-op).
-        3. Save the entry via the serializer.
-        4. Run the sync pipeline.
-        5. Create a ContentVersion only if content actually changed.
-        6. Log an "edited" action with version metadata (if content changed).
+        4. Save the entry via the serializer.
+        5. Run the sync pipeline.
+        6. Create a ContentVersion only if content actually changed.
+        7. Log an "edited" action with version metadata (if content changed).
         """
         instance = serializer.instance
         validated_data = serializer.validated_data
@@ -151,6 +238,12 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         if lock is not None and not lock.is_stale() and lock.held_by != self.request.user:
             raise LockedException()
 
+        # ── Access enforcement ─────────────────────────────────────────────
+        if not self._can_edit_entry(instance):
+            raise PermissionDenied(
+                "You do not have permission to edit this entry."
+            )
+
         # ── Cross-Project move rejection ───────────────────────────────────
         if "folder" in validated_data:
             new_folder = validated_data["folder"]
@@ -159,6 +252,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {"folder": "Entries cannot be moved to a different Project."}
                 )
+            self._reject_cross_subtree_move(instance, new_folder)
 
         # Determine save_mode from request header.
         valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}

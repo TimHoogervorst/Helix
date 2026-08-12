@@ -4,6 +4,21 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import Folder
+from helix_core.actions.base import AbstractBaseAction
+
+
+class AccessAction(AbstractBaseAction):
+    """Concrete action table for access-administration operations.
+
+    Every access-administration mutation — Grants, Folder Shares, Teams,
+    Projects, Organization edits — writes exactly one row here through
+    the standard action-log machinery.
+    """
+
+    class Meta:
+        db_table = "access_action"
+        verbose_name = "Access action"
+        verbose_name_plural = "Access actions"
 
 
 class OrganizationRole(models.TextChoices):

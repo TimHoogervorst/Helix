@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.auth.models import Group
 from django.db import transaction
 
@@ -6,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.models import Folder, Project
+from helix_core.actions.logger import log_action
 
 from .models import FolderShare, Grant, Organization, OrganizationMembership, Team
 from .policies import (
@@ -23,6 +26,46 @@ from .serializers import (
     ProjectWithGrantsSerializer,
     TeamSerializer,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _log_after_success(user, action, target_type, target_id, metadata=None):
+    """Write an audit entry after a successful mutation — fail-open.
+
+    Mirrors the fail-open behaviour of ``ActionLoggingMixin``: an audit
+    write failure is logged but never blocks the operation.
+    """
+    try:
+        log_action(
+            user=user,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            metadata=metadata,
+        )
+    except Exception:
+        logger.exception("Action logging failed for %s", action)
+
+
+def _grant_metadata(grant):
+    return {
+        "project": grant.project_id,
+        "grantee_type": "user" if grant.user_id else "team",
+        "grantee_id": grant.user_id or grant.team_id,
+        "grantee_name": grant.user.username if grant.user_id else grant.team.name,
+        "role": grant.role,
+    }
+
+
+def _share_metadata(share):
+    return {
+        "source_folder": share.source_folder_id,
+        "source_folder_path": share.source_folder.path,
+        "target_project": share.target_project_id,
+        "target_project_name": share.target_project.name,
+        "level": share.level,
+    }
 
 
 class OrganizationView(views.APIView):
@@ -53,6 +96,13 @@ class OrganizationView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.organization.edited",
+            target_type="access.organization",
+            target_id=org.id,
+            metadata={"name": org.name},
+        )
         return Response(serializer.data)
 
 
@@ -105,6 +155,13 @@ class TeamListView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         team = serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.team.created",
+            target_type="access.team",
+            target_id=team.id,
+            metadata={"name": team.name},
+        )
         return Response(TeamSerializer(team).data, status=status.HTTP_201_CREATED)
 
 
@@ -149,6 +206,13 @@ class TeamDetailView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.team.edited",
+            target_type="access.team",
+            target_id=team.id,
+            metadata={"name": team.name},
+        )
         return Response(TeamSerializer(team).data)
 
     def delete(self, request, pk):
@@ -168,9 +232,18 @@ class TeamDetailView(views.APIView):
                 {"detail": "Cannot delete a Team that is referenced by Grants."},
                 status=status.HTTP_409_CONFLICT,
             )
+        team_id = team.pk
+        team_name = team.name
         group = team.group
         team.delete()
         group.delete()
+        _log_after_success(
+            request.user,
+            action="access.team.deleted",
+            target_type="access.team",
+            target_id=team_id,
+            metadata={"name": team_name},
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -208,6 +281,18 @@ class TeamMemberAddView(views.APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         team.group.user_set.add(user)
+        _log_after_success(
+            request.user,
+            action="access.team.edited",
+            target_type="access.team",
+            target_id=team.id,
+            metadata={
+                "name": team.name,
+                "member_id": user.id,
+                "member_username": user.username,
+                "member_added": True,
+            },
+        )
         return Response(TeamSerializer(team).data)
 
 
@@ -236,7 +321,20 @@ class TeamMemberRemoveView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user_id = serializer.validated_data["user_id"]
+        member = team.group.user_set.filter(pk=user_id).first()
         team.group.user_set.remove(user_id)
+        _log_after_success(
+            request.user,
+            action="access.team.edited",
+            target_type="access.team",
+            target_id=team.id,
+            metadata={
+                "name": team.name,
+                "member_id": user_id,
+                "member_username": member.username if member else None,
+                "member_added": False,
+            },
+        )
         return Response(TeamSerializer(team).data)
 
 
@@ -281,6 +379,13 @@ class ProjectListView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         project = serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.project.created",
+            target_type="access.project",
+            target_id=project.id,
+            metadata={"name": project.name},
+        )
         return Response(
             ProjectSerializer(project).data,
             status=status.HTTP_201_CREATED,
@@ -329,6 +434,16 @@ class ProjectDetailView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.project.edited",
+            target_type="access.project",
+            target_id=project.id,
+            metadata={
+                "name": project.name,
+                "is_archived": project.is_archived,
+            },
+        )
         return Response(ProjectSerializer(project).data)
 
     @transaction.atomic
@@ -344,7 +459,16 @@ class ProjectDetailView(views.APIView):
                 {"detail": "Only Organization Admins can delete Projects."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        project_id = project.pk
+        project_name = project.name
         project.delete()
+        _log_after_success(
+            request.user,
+            action="access.project.deleted",
+            target_type="access.project",
+            target_id=project_id,
+            metadata={"name": project_name},
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -403,6 +527,18 @@ class ProjectGrantListView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         grant = serializer.save()
+        action = (
+            "access.grant.created"
+            if getattr(grant, "_grant_was_created", True)
+            else "access.grant.edited"
+        )
+        _log_after_success(
+            request.user,
+            action=action,
+            target_type="access.grant",
+            target_id=grant.id,
+            metadata=_grant_metadata(grant),
+        )
         return Response(GrantSerializer(grant).data, status=status.HTTP_201_CREATED)
 
 
@@ -435,7 +571,16 @@ class ProjectGrantDetailView(views.APIView):
                 {"detail": "Grant not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        grant_id = grant.pk
+        metadata = _grant_metadata(grant)
         grant.delete()
+        _log_after_success(
+            request.user,
+            action="access.grant.deleted",
+            target_type="access.grant",
+            target_id=grant_id,
+            metadata=metadata,
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -494,6 +639,13 @@ class FolderShareListView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         share = serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.folder_share.created",
+            target_type="access.folder_share",
+            target_id=share.id,
+            metadata=_share_metadata(share),
+        )
         return Response(
             FolderShareSerializer(share).data,
             status=status.HTTP_201_CREATED,
@@ -526,6 +678,13 @@ class FolderShareDetailView(views.APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
+        _log_after_success(
+            request.user,
+            action="access.folder_share.edited",
+            target_type="access.folder_share",
+            target_id=share.id,
+            metadata=_share_metadata(share),
+        )
         return Response(FolderShareSerializer(share).data)
 
     def delete(self, request, pk):
@@ -541,7 +700,16 @@ class FolderShareDetailView(views.APIView):
                 {"detail": "Only Organization Admins can revoke Folder Shares."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        share_id = share.pk
+        metadata = _share_metadata(share)
         share.delete()
+        _log_after_success(
+            request.user,
+            action="access.folder_share.deleted",
+            target_type="access.folder_share",
+            target_id=share_id,
+            metadata=metadata,
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

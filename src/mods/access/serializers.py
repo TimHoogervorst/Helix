@@ -196,17 +196,20 @@ class GrantSerializer(serializers.ModelSerializer):
         role = validated_data["role"]
 
         if user:
-            grant, _ = Grant.objects.update_or_create(
+            grant, created = Grant.objects.update_or_create(
                 project=project,
                 user=user,
                 defaults={"role": role},
             )
         else:
-            grant, _ = Grant.objects.update_or_create(
+            grant, created = Grant.objects.update_or_create(
                 project=project,
                 team=team,
                 defaults={"role": role},
             )
+        # Distinguish a fresh Grant from a role change (upsert) so the
+        # audit trail can log "created" vs "edited".
+        grant._grant_was_created = created
         return grant
 
 

@@ -23,11 +23,14 @@ class UserManagementAuthTests(BaseTestCase):
         self.regular = User.objects.create_user(
             username="regular", password="pass",
         )
-        OrganizationMembership.objects.create(
-            user=self.admin, organization=self.org, role=OrganizationRole.ADMIN,
+        # The post_save signal auto-creates USER memberships; upgrade them.
+        OrganizationMembership.objects.update_or_create(
+            user=self.admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
         )
-        OrganizationMembership.objects.create(
-            user=self.regular, organization=self.org, role=OrganizationRole.USER,
+        OrganizationMembership.objects.update_or_create(
+            user=self.regular,
+            defaults={"organization": self.org, "role": OrganizationRole.USER},
         )
 
     def test_list_users_as_admin_succeeds(self):

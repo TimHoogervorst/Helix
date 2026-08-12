@@ -687,7 +687,6 @@ class ProtocolViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Protocol.objects.all()
     serializer_class = ProtocolSerializer
-    permission_classes = []
 
     action_log_config = {
         "create": {"action": "eln.protocol.created"},

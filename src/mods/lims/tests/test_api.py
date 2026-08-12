@@ -2104,7 +2104,7 @@ class MetricApiTests(BaseTestCase):
         self.assertNotIn(metric.id, ids)
 
     def test_anyone_sees_metric_on_public_view(self):
-        """Any user (including anonymous) sees metrics on a public View."""
+        """Any authenticated user sees metrics on a public View."""
         public_view = LimsView.objects.create(
             owner=self.user,
             name="Public View",
@@ -2114,6 +2114,7 @@ class MetricApiTests(BaseTestCase):
         metric = Metric.objects.create(
             owner=self.user, view=public_view, aggregate_function="count", column=None,
         )
+        self.client.force_authenticate(user=self.user)
         response = self.client.get("/api/lims/metrics/")
         self.assertEqual(response.status_code, 200)
         ids = [m["id"] for m in response.data]

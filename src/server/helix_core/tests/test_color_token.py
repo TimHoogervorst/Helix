@@ -2,6 +2,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from helix_core.models import ColorToken
 from mods.tags.models import Tag
 
@@ -99,6 +100,8 @@ class ColorTokenApiTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         ColorToken.objects.all().delete()
         ColorToken.objects.create(
             key="enzyme", label="Enzyme", hex="#D9B3E6"

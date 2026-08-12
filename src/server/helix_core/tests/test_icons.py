@@ -2,6 +2,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from helix_core.models import IconLibraryEntry
 from mods.tags.models import Tag
 
@@ -120,6 +121,8 @@ class IconLibraryEntryModelTests(TestCase):
 class IconLibraryApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         IconLibraryEntry.objects.all().delete()
 
     # ── List ──────────────────────────────────────────────────────────

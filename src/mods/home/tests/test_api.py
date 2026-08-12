@@ -60,25 +60,13 @@ class CardApiTests(BaseTestCase):
         self.assertNotIn(2, ids)
 
     def test_list_returns_only_global_for_anonymous(self):
-        """Anonymous users see only global cards."""
-        Card.objects.create(
-            owner=None, metric=self.metric, surface="home", order=0,
-            label="Global",
-        )
-        self.client.force_authenticate(user=self.user)
-        Card.objects.create(
-            owner=self.user, metric=self.metric, surface="home", order=1,
-            label="Personal",
-        )
-        self.client.logout()
+        """Unauthenticated requests to card list are rejected."""
         response = self.client.get("/api/home/cards/?surface=home")
-        self.assertEqual(response.status_code, 200)
-        labels = [c["label"] for c in response.data]
-        self.assertIn("Global", labels)
-        self.assertNotIn("Personal", labels)
+        self.assertEqual(response.status_code, 403)
 
     def test_list_filters_by_surface(self):
         """A different surface query param returns only cards for that surface."""
+        self.client.force_authenticate(user=self.user)
         Card.objects.create(
             owner=None, metric=self.metric, surface="home", order=0,
             label="Home Card",
@@ -119,6 +107,7 @@ class CardApiTests(BaseTestCase):
 
     def test_list_ordered_by_order_field(self):
         """Cards are returned in order by the order field."""
+        self.client.force_authenticate(user=self.user)
         Card.objects.create(
             owner=None, metric=self.metric, surface="home", order=2,
             label="Third",
@@ -188,7 +177,8 @@ class CardApiTests(BaseTestCase):
         self.assertEqual(response.data["label"], "My Card")
 
     def test_retrieve_global_card(self):
-        """Anyone can retrieve a global card."""
+        """Authenticated users can retrieve a global card."""
+        self.client.force_authenticate(user=self.user)
         card = Card.objects.create(
             owner=None, metric=self.metric, surface="home", order=0,
             label="Global",

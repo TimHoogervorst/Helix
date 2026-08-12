@@ -142,6 +142,12 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
+# Test runner — provisions test-only tables (e.g. ConcreteTestEntity) that
+# conftest.py handles under pytest.
+
+TEST_RUNNER = "config.test_runner.HelixTestRunner"
+
+
 # Custom user model
 
 AUTH_USER_MODEL = "core.User"
@@ -152,6 +158,9 @@ AUTH_USER_MODEL = "core.User"
 # Minutes before a held entry lock is considered stale and can be stolen.
 ELN_LOCK_TIMEOUT_MINUTES = 5
 
+
+# Session lifetime — one week
+SESSION_COOKIE_AGE = 604800  # seconds (7 days)
 
 # Django REST Framework
 

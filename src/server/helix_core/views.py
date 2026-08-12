@@ -178,7 +178,6 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     serializer_class = EntityHubSerializer
     pagination_class = EntityHubPaginator
-    permission_classes: list = []
 
     def get_queryset(self):
         qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
@@ -333,8 +332,6 @@ class EntityHubQueryView(APIView):
     ``/api/registry/entities/``.
     """
 
-    permission_classes: list = []
-
     def post(self, request):
         from rest_framework import serializers as drf_serializers
 
@@ -448,7 +445,6 @@ class SchemaTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = SchemaType.objects.filter(is_active=True)
     serializer_class = SchemaTypeListSerializer
-    permission_classes: list = []
     pagination_class = None
 
 
@@ -465,7 +461,6 @@ class SchemaViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Schema.objects.select_related("schema_type").filter(is_active=True)
-    permission_classes: list = []
     pagination_class = None
 
     def get_serializer_class(self):
@@ -675,8 +670,6 @@ class ModRegistryView(APIView):
     and registered action models.
     """
 
-    permission_classes: list = []
-
     def get(self, request):
         from helix_core.mod_system.registry import registry
 
@@ -724,7 +717,6 @@ class ColorTokenViewSet(viewsets.ModelViewSet):
 
     queryset = ColorToken.objects.all()
     serializer_class = ColorTokenSerializer
-    permission_classes: list = []
     pagination_class = None
     http_method_names = ["get", "post", "delete", "head", "options"]
 
@@ -764,7 +756,6 @@ class IconLibraryViewSet(viewsets.ModelViewSet):
 
     queryset = IconLibraryEntry.objects.all()
     serializer_class = IconLibrarySerializer
-    permission_classes: list = []
     pagination_class = None
     http_method_names = ["get", "post", "delete", "head", "options"]
 

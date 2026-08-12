@@ -20,7 +20,6 @@ class CardViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = CardSerializer
-    permission_classes = []
     pagination_class = None
 
     def get_queryset(self):

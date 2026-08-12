@@ -51,6 +51,7 @@ class ResolveApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
         self.eln_schema = _create_eln_schema()
 
     def test_resolve_valid_ids(self):
@@ -134,6 +135,7 @@ class SearchApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
         eln_schema = _create_eln_schema()
 
         self.e1 = NotebookEntry.objects.create(
@@ -188,6 +190,7 @@ class EntityReferenceTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
         from mods.lims.models import Entity
         from helix_core.models import Schema, SchemaType
@@ -279,6 +282,7 @@ class IconInMentionsTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.client.force_authenticate(user=self.user)
 
         from mods.lims.models import Entity
         from helix_core.models import Schema, SchemaType

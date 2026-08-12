@@ -18,6 +18,7 @@ from pathlib import Path
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from helix_core.column_types import (
     AggregateMeta,
     BooleanColumnType,
@@ -843,6 +844,8 @@ class ColumnTypesContractTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
 
     def test_column_types_in_response(self):
         """GET /api/mod-registry/ includes a columnTypes key."""

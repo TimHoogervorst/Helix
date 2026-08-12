@@ -19,6 +19,7 @@ from pathlib import Path
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from helix_core.models import Schema, SchemaType
 
 # ── Load the shared JSON schema contract ─────────────────────────────────
@@ -43,6 +44,8 @@ class ModRegistryContractTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
 
         # Store the original registry state to restore after each test.
         from helix_core.mod_system.registry import registry
@@ -200,6 +203,8 @@ class ModRegistryEmptyTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         from helix_core.mod_system.registry import registry
 
         self._original_action_models = dict(registry._action_models)

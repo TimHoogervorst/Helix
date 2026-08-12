@@ -147,7 +147,6 @@ class EntityHubAPITests(APITestCase):
             username="testuser", password="pass"
         )
         _, _, eln_schema, lims_schema = _setup_schema_types()
-
         project = Project.objects.create(name="Test Project")
         cls.folder = Folder.objects.create(
             name="Test Folder", parent=None, project=project
@@ -170,6 +169,9 @@ class EntityHubAPITests(APITestCase):
             folder=cls.folder,
         )
         cls.url = "/api/registry/entities/"
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
 
     def test_list_returns_paginated_results(self):
         """Default GET returns paginated results with expected envelope fields."""

@@ -1,10 +1,8 @@
 """
 API views for inline mention resolution and search.
 """
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .prefix_resolver import (
@@ -33,8 +31,6 @@ def _build_result(instance, model_type: str, workspace_id: str | None, *, includ
 
 
 @api_view(["POST"])
-@authentication_classes([])  # No SessionAuthentication → no DRF CSRF check
-@permission_classes([AllowAny])
 def resolve_view(request):
     """
     Batch-resolve display IDs to target details.
@@ -42,17 +38,11 @@ def resolve_view(request):
     POST /api/mentions/resolve/
     Body: {"ids": ["E1", "BLOOD1"]}
     Returns: {"E1": {...}, "BLOOD1": {...}, "NONEXIST": null}
-
-    CSRF is skipped via @csrf_exempt on the module-level wrapper below.
-    DRF's SessionAuthentication.enforce_csrf() would otherwise re-check
-    CSRF with view_func=None, ignoring @csrf_exempt. We avoid that by
-    setting authentication_classes=[] on this read-only endpoint.
     """
     ids = request.data.get("ids", [])
     model_type_map = get_model_type_map()
     result = {}
     for display_id in ids:
-        # Extract the prefix (leading letters) for workspace lookup.
         prefix = ""
         for char in display_id:
             if char.isalpha():
@@ -74,14 +64,7 @@ def resolve_view(request):
     return Response(result)
 
 
-# Wrap with csrf_exempt AFTER api_view so Django's CsrfViewMiddleware sees it.
-# (api_view wraps the function first, then csrf_exempt wraps that.)
-resolve_view = csrf_exempt(resolve_view)
-
-
 @api_view(["GET"])
-@authentication_classes([])
-@permission_classes([AllowAny])
 def search_view(request):
     """
     Search for mentions by display_id prefix.

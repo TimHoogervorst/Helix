@@ -4,6 +4,7 @@ Tests for the Schema and SchemaType API endpoints.
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from helix_core.models import SchemaType, Schema
 
 
@@ -12,6 +13,8 @@ class SchemaTypeApiTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
@@ -36,6 +39,8 @@ class SchemaCrudTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
@@ -183,6 +188,8 @@ class SchemaColumnValidationTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
@@ -236,6 +243,8 @@ class SchemaDefaultDeactivationTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
@@ -274,6 +283,8 @@ class SchemaDeleteAllTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",

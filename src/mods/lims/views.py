@@ -62,7 +62,6 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Entity.objects.select_related("schema", "author", "folder")
     serializer_class = EntitySerializer
-    permission_classes = []
     lookup_field = "display_id"
     filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
@@ -409,7 +408,6 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = Action.objects.select_related("entity", "performed_by")
     serializer_class = ActionSerializer
-    permission_classes = []
     filterset_fields = ["entity", "action_type"]
 
 
@@ -425,7 +423,6 @@ class LimsViewViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = LimsViewSerializer
-    permission_classes = []
     pagination_class = None
 
     def get_queryset(self):
@@ -474,7 +471,6 @@ class MetricViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = MetricSerializer
-    permission_classes = []
     pagination_class = None
 
     def get_queryset(self):

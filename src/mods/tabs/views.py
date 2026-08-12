@@ -19,7 +19,6 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = PinnedWorkspace.objects.all()
     serializer_class = PinnedWorkspaceSerializer
-    permission_classes = []
     pagination_class = None
     http_method_names = ["get", "post", "delete", "head", "options"]
 

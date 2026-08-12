@@ -2,15 +2,16 @@
 URL configuration for Helix project.
 """
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import path, include
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.permissions import IsAuthenticated
 
 from helix_core.mod_system.registry import registry
 
 
-@csrf_exempt
+@login_required
 def delete_everything(request):
     """DELETE EVERYTHING: clears all ELN entries, entities, and schemas.
 
@@ -64,6 +65,6 @@ urlpatterns = [
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),
     # OpenAPI schema
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/schema/", SpectacularAPIView.as_view(permission_classes=[IsAuthenticated]), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema", permission_classes=[IsAuthenticated]), name="swagger-ui"),
 ]

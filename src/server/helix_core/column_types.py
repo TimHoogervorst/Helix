@@ -147,6 +147,14 @@ def _make_reference_operators() -> list[OperatorMeta]:
     ]
 
 
+def _make_project_operators() -> list[OperatorMeta]:
+    return [
+        OperatorMeta("eq", "Equals", "project-picker", "exact"),
+        OperatorMeta("neq", "Not Equals", "project-picker", "exact"),
+        OperatorMeta("in", "In", "project-picker", "in"),
+    ]
+
+
 def _make_user_operators() -> list[OperatorMeta]:
     return [
         OperatorMeta("eq", "Equals", "entity-picker", "exact"),
@@ -211,6 +219,13 @@ def _make_dropdown_aggregates() -> list[AggregateMeta]:
 
 
 def _make_reference_aggregates() -> list[AggregateMeta]:
+    return [
+        AggregateMeta("count", "Count", "Count"),
+        AggregateMeta("count_distinct", "Count Distinct", "Count"),
+    ]
+
+
+def _make_project_aggregates() -> list[AggregateMeta]:
     return [
         AggregateMeta("count", "Count", "Count"),
         AggregateMeta("count_distinct", "Count Distinct", "Count"),
@@ -530,6 +545,48 @@ class UserColumnType(ReferenceColumnType):
         )
 
 
+class ProjectColumnType(ColumnType):
+    """Project column type — filter entities by project membership.
+
+    Supports single and multi-select lookup against ``EntityHubView.project_id``
+    via operators ``eq``, ``neq``, and ``in``.  Filter values are Project PKs;
+    the frontend renders a multi-select dropdown showing project icon, colour,
+    and name.
+    """
+
+    id = "project"
+    display_name = "Project"
+    icon = "building"
+    color = "primary"
+    operand_shape = "project-picker"
+
+    def get_operators(self) -> list[OperatorMeta]:
+        return _make_project_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_project_aggregates()
+
+    def validate(self, value, **context) -> bool | str:
+        if value is None or value == "":
+            return True
+        if isinstance(value, int):
+            return True
+        if isinstance(value, str):
+            if not value.strip():
+                return True
+            parts = value.split(",")
+            for p in parts:
+                p = p.strip()
+                if not p:
+                    continue
+                try:
+                    int(p)
+                except ValueError:
+                    return f"'{p}' is not a valid project ID"
+            return True
+        return f"Expected an integer or comma-separated string, got {type(value).__name__}"
+
+
 # ── Built-in type registry (for quick lookup) ────────────────────────────────
 
 _BUILTIN_TYPES: list[type[ColumnType]] = [
@@ -541,6 +598,7 @@ _BUILTIN_TYPES: list[type[ColumnType]] = [
     DropdownColumnType,
     ReferenceColumnType,
     UserColumnType,
+    ProjectColumnType,
 ]
 
 

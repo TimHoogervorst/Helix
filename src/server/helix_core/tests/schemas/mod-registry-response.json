@@ -29,7 +29,7 @@
           },
           "operandShape": {
             "type": "string",
-            "description": "Primary operand shape for cell editing and rendering. Valid values: text, number, date, boolean, dropdown, entity-picker, range, none."
+            "description": "Primary operand shape for cell editing and rendering. Valid values: text, number, date, boolean, dropdown, entity-picker, range, none, project-picker."
           },
           "defaultValue": {
             "description": "Default value for cells of this column type. Type varies by operand shape."

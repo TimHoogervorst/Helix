@@ -48,6 +48,8 @@ _COMMON_COLUMN_DEFS: list[dict] = [
     {"key": "display_id",    "label": "ID",          "type": "text"},
     {"key": "name",          "label": "Name",        "type": "text"},
     {"key": "schema_type_id","label": "Schema Type",  "type": "text"},
+    {"key": "project",       "label": "Project",     "type": "project"},
+    {"key": "folder",        "label": "Folder",      "type": "folder"},
     {"key": "status",        "label": "Status",      "type": "dropdown"},
     {"key": "author",        "label": "Author",      "type": "user"},
     {"key": "created_at",    "label": "Created",     "type": "datetime"},
@@ -107,7 +109,7 @@ def _enrich_schema_column(col: dict, source: str) -> dict:
         result["referenceSchemaId"] = reference_schema_id
     return result
 
-SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})
+SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at", "project__name"})
 
 
 def _build_column_type_map(schema_id: str, schema_type_id: str) -> dict[str, str]:
@@ -168,7 +170,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
         Filter by status: ``in_progress`` or ``finished``.
     sort : str
         Sort by field. Prefix with ``-`` for descending order.
-        Supported fields: name, status, created_at, updated_at.
+        Supported fields: name, status, created_at, updated_at, project__name.
     f : str (repeatable)
         Field filters in ``key:value`` format, applied against the
         ``properties`` JSON column.
@@ -179,7 +181,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     permission_classes: list = []
 
     def get_queryset(self):
-        qs = EntityHubView.objects.select_related("author", "schema").all()
+        qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
         return self._apply_filters(qs)
 
     def _parse_filter_params(self):
@@ -358,7 +360,7 @@ class EntityHubQueryView(APIView):
             raise drf_serializers.ValidationError(errors)
 
         # ── Build the filtered queryset ────────────────────────────────
-        qs = EntityHubView.objects.select_related("author", "schema").all()
+        qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
 
         # Search
         search = request.data.get("search", "").strip()

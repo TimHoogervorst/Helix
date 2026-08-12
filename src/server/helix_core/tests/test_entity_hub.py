@@ -241,8 +241,8 @@ class EntityHubAPITests(APITestCase):
         data = response.json()
         columns = data["available_columns"]
         keys = {c["key"] for c in columns}
-        expected = {"display_id", "name", "schema_type_id", "status",
-                     "author", "created_at", "updated_at"}
+        expected = {"display_id", "name", "schema_type_id", "project",
+                     "folder", "status", "author", "created_at", "updated_at"}
         self.assertTrue(expected.issubset(keys))
 
     def test_available_columns_have_type_filterable_width(self):
@@ -474,6 +474,61 @@ class EntityHubAPITests(APITestCase):
             for row in data["results"]:
                 self.assertEqual(row["schema_id"], lims_schema.id)
                 self.assertIn("LIMS", row["name"])
+
+    # ── Project and Folder fields on hub rows ─────────────────────────────
+
+    def test_hub_rows_include_project_and_folder_fields(self):
+        """Hub rows carry project_id, project_uid, project_name and folder fields."""
+        from core.models import Project
+        proj = Project.objects.create(name="Test Project")
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Proj Schema", prefix="PS", schema_type=lims_type,
+            is_default=False,
+        )
+        Entity.objects.create(
+            name="Project Entity", author=self.user, schema=schema,
+            project=proj,
+        )
+        response = self.client.get(self.url)
+        data = response.json()
+        for row in data["results"]:
+            self.assertIn("project_id", row)
+            self.assertIn("project_uid", row)
+            self.assertIn("project_name", row)
+            self.assertIn("project_icon", row)
+            self.assertIn("project_color", row)
+            self.assertIn("folder_id", row)
+            self.assertIn("folder_name", row)
+            self.assertIn("folder_path", row)
+
+    def test_sort_by_project_name(self):
+        """?sort=project__name sorts by project name."""
+        from core.models import Project
+        proj_a = Project.objects.create(name="Alpha Project")
+        proj_b = Project.objects.create(name="Beta Project")
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Sort Schema", prefix="SS", schema_type=lims_type,
+            is_default=False,
+        )
+        Entity.objects.create(
+            name="Entity B", author=self.user, schema=schema, project=proj_b,
+        )
+        Entity.objects.create(
+            name="Entity A", author=self.user, schema=schema, project=proj_a,
+        )
+        response = self.client.get(f"{self.url}?sort=project__name&schema_type=lims.entity")
+        data = response.json()
+        project_names = [
+            r["project_name"] for r in data["results"]
+            if r["project_name"]
+        ]
+        self.assertEqual(project_names, sorted(project_names))
 
     # ── available_columns dynamic expansion ──────────────────────────────
 

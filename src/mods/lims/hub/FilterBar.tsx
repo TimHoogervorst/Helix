@@ -62,6 +62,9 @@ export interface FilterBarProps {
    *  dropdown picker for "dropdown"-type filter values instead of a
    *  plain text input. */
   dropdownOptionsMap?: Map<string, string[]>;
+  /** Projects accessible to the viewer, for the project-picker operand shape.
+   *  Each entry has an id (PK), name, icon_key, and color_key. */
+  projectOptions?: Array<{ id: number; name: string; icon_key: string; color_key: string }>;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -71,6 +74,7 @@ export function FilterBar({
   filters,
   onFiltersChange,
   dropdownOptionsMap,
+  projectOptions,
 }: FilterBarProps) {
   const [nextId, setNextId] = useState(() => Date.now());
 
@@ -130,6 +134,7 @@ export function FilterBar({
           columns={filterableColumns}
           columnTypeMap={columnTypeMap}
           dropdownOptionsMap={dropdownOptionsMap}
+          projectOptions={projectOptions}
           onUpdate={(updates) => handleUpdateFilter(row.id, updates)}
           onRemove={() => handleRemoveFilter(row.id)}
         />
@@ -169,6 +174,7 @@ interface FilterPillProps {
   columns: AvailableColumn[];
   columnTypeMap: Map<string, string>;
   dropdownOptionsMap?: Map<string, string[]>;
+  projectOptions?: Array<{ id: number; name: string; icon_key: string; color_key: string }>;
   onUpdate: (updates: Partial<FilterRow>) => void;
   onRemove: () => void;
 }
@@ -178,6 +184,7 @@ function FilterPill({
   columns,
   columnTypeMap,
   dropdownOptionsMap,
+  projectOptions,
   onUpdate,
   onRemove,
 }: FilterPillProps) {
@@ -328,6 +335,7 @@ function FilterPill({
           disabled={!row.operator}
           placeholder={row.operator ? "value…" : "select field first"}
           dropdownOptions={dropdownOptionsMap?.get(row.column)}
+          projectOptions={projectOptions}
           referenceSchemaId={
             columns.find((c) => c.key === row.column)?.referenceSchemaId
           }

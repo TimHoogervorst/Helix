@@ -29,6 +29,11 @@ vi.mock("../../dropdowns/api", () => ({
   listDropdowns: (...args: unknown[]) => mockListDropdowns(...args),
 }));
 
+const mockFetchProjects = vi.fn();
+vi.mock("../../access/api", () => ({
+  fetchProjects: (...args: unknown[]) => mockFetchProjects(...args),
+}));
+
 // Mock localStorage for view mode persistence tests
 const localStorageStore: Record<string, string> = {};
 const mockLocalStorage = {
@@ -83,6 +88,8 @@ const DEFAULT_COLUMNS: EntityHubResponse["available_columns"] = [
   { key: "display_id", label: "ID", source: "common", type: "text", filterable: true, width: null },
   { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
   { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
+  { key: "project", label: "Project", source: "common", type: "project", filterable: true, width: null },
+  { key: "folder", label: "Folder", source: "common", type: "folder", filterable: false, width: null },
   { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
   { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
   { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
@@ -153,7 +160,17 @@ function makeEntityHubItem(
     author_username: "testuser",
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-03T00:00:00Z",
+    icon: "circle",
+    color: "muted",
     workspace_id: "eln",
+    project_id: 1,
+    project_uid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    project_name: "Alpha Project",
+    project_icon: "folder",
+    project_color: "accent-blue",
+    folder_id: 1,
+    folder_name: "Experiments",
+    folder_path: "/Experiments",
     ...overrides,
   };
 }
@@ -201,6 +218,7 @@ describe("EntitiesHub", () => {
     mockGetSchemaTypes.mockReset();
     mockGetSchemas.mockReset();
     mockListDropdowns.mockReset();
+    mockFetchProjects.mockReset();
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     mockLocalStorage.getItem.mockClear();
     mockLocalStorage.setItem.mockClear();
@@ -210,6 +228,7 @@ describe("EntitiesHub", () => {
     mockGetSchemaTypes.mockResolvedValue(MOCK_SCHEMA_TYPES);
     mockGetSchemas.mockResolvedValue(MOCK_SCHEMAS);
     mockListDropdowns.mockResolvedValue([]);
+    mockFetchProjects.mockResolvedValue([]);
   });
 
   // ── Loading / Empty / Error states ─────────────────────────────────
@@ -470,6 +489,112 @@ describe("EntitiesHub", () => {
     fireEvent.click(screen.getByTitle("List view"));
 
     expect(mockGetEntities.mock.calls.length).toBe(callCount);
+  });
+
+  // ── Project and Folder columns ──────────────────────────────────────
+
+  it("renders Project column with icon and name", async () => {
+    const items = [makeEntityHubItem({
+      id: 1,
+      project_name: "Alpha Project",
+      project_icon: "folder",
+      project_color: "accent-blue",
+    })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("Alpha Project")).toBeInTheDocument();
+    });
+  });
+
+  it("renders Folder column with folder name", async () => {
+    const items = [makeEntityHubItem({
+      id: 1,
+      folder_name: "Experiments",
+    })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("Experiments")).toBeInTheDocument();
+    });
+  });
+
+  it("renders em dash in Folder column for root-level entities", async () => {
+    const items = [makeEntityHubItem({
+      id: 1,
+      folder_name: "",
+    })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("—")).toBeInTheDocument();
+    });
+  });
+
+  it("Folder cell navigates to project-scoped Library URL on click", async () => {
+    const items = [makeEntityHubItem({
+      id: 1,
+      project_uid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      folder_name: "Experiments",
+      folder_path: "/Experiments",
+    })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("Experiments")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Experiments"));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      "/library?project=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee&path=%2FExperiments",
+    );
+  });
+
+  it("Project and Folder columns are visible by default", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("Test Entry")).toBeInTheDocument();
+    });
+
+    // Both column headers should be visible
+    expect(screen.getByText("Project")).toBeInTheDocument();
+    expect(screen.getByText("Folder")).toBeInTheDocument();
+  });
+
+  it("Project and Folder columns are hideable via column chooser", async () => {
+    const items = [makeEntityHubItem({ id: 1 })];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("Test Entry")).toBeInTheDocument();
+    });
+
+    // Open column chooser
+    fireEvent.click(screen.getByTitle("Column visibility"));
+
+    await waitFor(() => {
+      // Look for checkboxes with label "Project" and "Folder"
+      const checkboxes = document.querySelectorAll(
+        ".entities-column-chooser-row input[type='checkbox']",
+      );
+      const checkboxLabels = Array.from(checkboxes).map(
+        (cb) => (cb.parentElement?.querySelector(".entities-column-chooser-name")?.textContent ?? ""),
+      );
+      // Project and Folder labels should be in the popover
+      expect(checkboxLabels).toContain("Project");
+      expect(checkboxLabels).toContain("Folder");
+    });
+  });
+
+  it("sorts by Project name when sort param is project__name", async () => {
+    mockGetEntities.mockResolvedValue(makeEmptyResponse());
+    renderHub("/entities?sort=project__name");
+    await waitFor(() => {
+      const lastCall = mockGetEntities.mock.calls.at(-1)?.[0];
+      expect(lastCall?.sort).toBe("project__name");
+    });
   });
 
   // ── Filter Bar: Search ─────────────────────────────────────────────

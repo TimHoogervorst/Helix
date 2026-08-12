@@ -75,10 +75,11 @@ _SYSTEM_COLUMN_FIELDS: dict[str, str] = {
     "author": "author_id",
     "created_at": "created_at",
     "updated_at": "updated_at",
+    "project": "project_id",
 }
 
 # Fields that support __in lookups (only for system columns).
-_IN_ELIGIBLE_FIELDS = frozenset({"author_id", "status", "schema_type_id"})
+_IN_ELIGIBLE_FIELDS = frozenset({"author_id", "status", "schema_type_id", "project_id"})
 
 
 def _is_system_column(column_key: str) -> bool:
@@ -298,6 +299,7 @@ def _resolve_system_column_type(column_key: str):
         "author": "user",
         "created_at": "datetime",
         "updated_at": "datetime",
+        "project": "project",
     }
     type_id = _SYSTEM_COLUMN_TYPES.get(column_key, "text")
     return column_type_registry.get_column_type(type_id)
@@ -458,6 +460,7 @@ def _resolve_column_type_id(view, column_key: str) -> str | None:
             "author": "user",
             "created_at": "datetime",
             "updated_at": "datetime",
+            "project": "project",
         }
         return mapping.get(column_key, "text")
 

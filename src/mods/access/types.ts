@@ -63,3 +63,15 @@ export interface Grant {
   grantee_type: "user" | "team" | null;
   grantee_name: string | null;
 }
+
+export interface FolderShare {
+  id: number;
+  source_folder: number;
+  source_folder_name: string;
+  source_folder_path: string;
+  source_project_id: number;
+  source_project_name: string;
+  target_project: number;
+  target_project_name: string;
+  level: "read" | "read_write";
+}

@@ -4,12 +4,15 @@ import { Input } from "../../../shell/src/shared/primitives/Input";
 import { formatDate } from "../../../shell/src/shared/format";
 import type { LibraryFolderItem } from "../types";
 import { patchFolder } from "../api";
+import { SharingPanel } from "./SharingPanel";
 
 interface FolderPropertiesModalProps {
   open: boolean;
   onClose: () => void;
   folder: LibraryFolderItem;
   canEdit: boolean;
+  isOrgAdmin: boolean;
+  projectId: number | null;
   onMutated: () => void;
 }
 
@@ -18,12 +21,19 @@ export function FolderPropertiesModal({
   onClose,
   folder,
   canEdit,
+  isOrgAdmin,
+  projectId,
   onMutated,
 }: FolderPropertiesModalProps) {
   const [name, setName] = useState(folder.name);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<string>(folder.name);
+
+  const isTopLevel = folder.parent === null;
+  const isOwnProject = !folder.is_shared;
+  const showSharingPanel = isOrgAdmin && isTopLevel && isOwnProject && projectId !== null;
+  const showNestedHint = isOrgAdmin && !isTopLevel && isOwnProject;
 
   const handleSave = useCallback(
     async (newName: string) => {
@@ -103,6 +113,20 @@ export function FolderPropertiesModal({
           <dd className="text-sm text-right">{formatDate(folder.created_at)}</dd>
         </div>
       </dl>
+
+      {showSharingPanel && (
+        <SharingPanel
+          folderId={folder.id}
+          projectId={projectId!}
+          onMutated={onMutated}
+        />
+      )}
+
+      {showNestedHint && (
+        <p className="text-xs text-[var(--color-ink-muted-foreground)] border-t border-[var(--color-ink-border)] pt-4 mt-4">
+          Only top-level folders can be shared.
+        </p>
+      )}
     </Modal>
   );
 }

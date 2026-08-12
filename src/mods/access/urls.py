@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    FolderOutgoingShareListView,
     FolderShareDetailView,
     FolderShareListView,
     OrganizationView,
@@ -30,4 +31,5 @@ urlpatterns = [
     path("projects/<int:project_pk>/grants/<int:pk>/", ProjectGrantDetailView.as_view(), name="grant_detail"),
     path("projects/<int:pk>/folder_shares/", FolderShareListView.as_view(), name="folder_shares"),
     path("folder_shares/<int:pk>/", FolderShareDetailView.as_view(), name="folder_share_detail"),
+    path("folders/<int:pk>/shares/", FolderOutgoingShareListView.as_view(), name="folder_outgoing_shares"),
 ]

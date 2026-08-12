@@ -501,12 +501,32 @@ class FolderShareListView(views.APIView):
 
 
 class FolderShareDetailView(views.APIView):
-    """Delete a single Folder Share (revoke).
+    """Update or delete a single Folder Share.
 
-    ``DELETE /api/access/folder_shares/<pk>/`` — Org Admins only.
+    ``PATCH  /api/access/folder_shares/<pk>/`` — Org Admins only (level change).
+    ``DELETE /api/access/folder_shares/<pk>/`` — Org Admins only (revoke).
     """
 
     permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            share = FolderShare.objects.get(pk=pk)
+        except FolderShare.DoesNotExist:
+            return Response(
+                {"detail": "Folder Share not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "edited", resource=FolderShare()):
+            return Response(
+                {"detail": "Only Organization Admins can update Folder Shares."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = FolderShareSerializer(share, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        return Response(FolderShareSerializer(share).data)
 
     def delete(self, request, pk):
         try:
@@ -523,3 +543,32 @@ class FolderShareDetailView(views.APIView):
             )
         share.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FolderOutgoingShareListView(views.APIView):
+    """List outgoing Folder Shares for a folder.
+
+    ``GET /api/access/folders/<pk>/shares/`` — Org Admins only.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            folder = Folder.objects.get(pk=pk)
+        except Folder.DoesNotExist:
+            return Response(
+                {"detail": "Folder not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not can_access(request.user, "created", resource=FolderShare()):
+            return Response(
+                {"detail": "Only Organization Admins can view Folder Shares."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        shares = FolderShare.objects.filter(
+            source_folder=folder,
+        ).select_related(
+            "source_folder__project", "target_project",
+        ).order_by("target_project__name")
+        return Response(FolderShareSerializer(shares, many=True).data)

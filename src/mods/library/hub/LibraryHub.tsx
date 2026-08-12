@@ -282,6 +282,7 @@ function LibraryHub() {
   const currentPath = searchParams.get("path") || "";
 
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Project metadata from contents response
@@ -391,6 +392,7 @@ function LibraryHub() {
         response = await getLibraryContents(projectUid, currentPath || undefined, undefined);
       }
       setCurrentFolderId(response.current_folder_id);
+      setCurrentProjectId(response.current_project_id ?? null);
       if (response.project_name) {
         setProjectMeta({
           name: response.project_name,
@@ -871,6 +873,8 @@ function LibraryHub() {
           onClose={() => setPropertiesItem(null)}
           folder={propertiesItem}
           canEdit={isOrgAdmin || currentRole === "edit"}
+          isOrgAdmin={isOrgAdmin}
+          projectId={currentProjectId}
           onMutated={() => {
             setPropertiesItem(null);
             setRefreshKey((k) => k + 1);

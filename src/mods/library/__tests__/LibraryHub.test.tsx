@@ -7,6 +7,7 @@ import {
   makeLibraryEntry,
   makeLibraryContents,
   makeProject,
+  makeFolderShare,
 } from "../../../shell/src/test/factories";
 import LibraryHub from "../hub/LibraryHub";
 
@@ -33,6 +34,24 @@ vi.mock("../api", () => ({
     mockGetFolders(...args),
   patchFolder: (...args: unknown[]) =>
     mockPatchFolder(...args),
+}));
+
+const mockFetchOutgoingShares = vi.fn();
+const mockCreateFolderShare = vi.fn();
+const mockPatchFolderShareLevel = vi.fn();
+const mockDeleteFolderShare = vi.fn();
+const mockFetchProjects = vi.fn();
+vi.mock("../../access/api", () => ({
+  fetchOutgoingShares: (...args: unknown[]) =>
+    mockFetchOutgoingShares(...args),
+  createFolderShare: (...args: unknown[]) =>
+    mockCreateFolderShare(...args),
+  patchFolderShareLevel: (...args: unknown[]) =>
+    mockPatchFolderShareLevel(...args),
+  deleteFolderShare: (...args: unknown[]) =>
+    mockDeleteFolderShare(...args),
+  fetchProjects: (...args: unknown[]) =>
+    mockFetchProjects(...args),
 }));
 
 const mockListDropdowns = vi.fn().mockResolvedValue([]);
@@ -188,6 +207,11 @@ describe("LibraryHub", () => {
     mockPatchEntry.mockReset();
     mockGetLockStatus.mockReset().mockResolvedValue({ locked: false });
     mockPatchFolder.mockReset();
+    mockFetchOutgoingShares.mockReset().mockResolvedValue([]);
+    mockCreateFolderShare.mockReset();
+    mockPatchFolderShareLevel.mockReset();
+    mockDeleteFolderShare.mockReset();
+    mockFetchProjects.mockReset();
     mockNavigate.mockReset();
     Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     mockLocalStorage.getItem.mockClear();
@@ -1378,6 +1402,285 @@ describe("LibraryHub", () => {
       await waitFor(() => {
         expect(mockPatchFolder).toHaveBeenCalledWith(2, { name: "CloseRenamed" });
       });
+    });
+  });
+
+  // ── Sharing Panel ──────────────────────────────────────────────────
+
+  describe("sharing panel in folder properties modal", () => {
+    const orgAdminProject = makeProject({
+      id: 1, uid: "proj-001", name: "Test Project",
+      current_user_role: null,
+    });
+
+    const shareContents = makeLibraryContents(
+      [
+        makeLibraryFolder({ id: 1, name: "Experiments", parent: null }),
+      ],
+      [],
+      {
+        project_uid: "proj-001",
+        project_name: "Test Project",
+        current_project_id: 1,
+      },
+    );
+
+    const otherProject = makeProject({ id: 2, uid: "proj-002", name: "Other Project", current_user_role: "read" });
+
+    async function openSharingModal() {
+      mockGetAccessibleProjects.mockResolvedValue([orgAdminProject]);
+      mockGetLibraryContents.mockResolvedValue(shareContents);
+      mockGetFolders.mockResolvedValue([]);
+      mockFetchProjects.mockResolvedValue([orgAdminProject, otherProject]);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Experiments")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("Experiments") && !card.textContent?.includes("EXP"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog", { name: "Experiments" })).toBeInTheDocument();
+      });
+      return screen.getByRole("dialog", { name: "Experiments" });
+    }
+
+    it("shows sharing panel for org admin on top-level folder in own project", async () => {
+      const dialog = await openSharingModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Sharing")).toBeInTheDocument();
+      });
+    });
+
+    it("does not show sharing panel for non-admin editor", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([
+        makeProject({ id: 1, uid: "proj-001", name: "Test Project", current_user_role: "edit" }),
+      ]);
+      mockGetLibraryContents.mockResolvedValue(shareContents);
+      mockGetFolders.mockResolvedValue([]);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Experiments")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("Experiments") && !card.textContent?.includes("EXP"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog", { name: "Experiments" })).toBeInTheDocument();
+      });
+
+      const dialog = screen.getByRole("dialog", { name: "Experiments" });
+      expect(within(dialog).queryByText("Sharing")).toBeNull();
+      expect(within(dialog).queryByText(/only top-level folders/i)).toBeNull();
+    });
+
+    it("shows nested-folder hint for org admin on nested folder", async () => {
+      const nestedContents = makeLibraryContents(
+        [makeLibraryFolder({ id: 1, name: "SubFolder", parent: 2 })],
+        [],
+        { project_uid: "proj-001", project_name: "Test Project", current_project_id: 1 },
+      );
+      mockGetAccessibleProjects.mockResolvedValue([orgAdminProject]);
+      mockGetLibraryContents.mockResolvedValue(nestedContents);
+      mockGetFolders.mockResolvedValue([]);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("SubFolder")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("SubFolder"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog", { name: "SubFolder" })).toBeInTheDocument();
+      });
+
+      const dialog = screen.getByRole("dialog", { name: "SubFolder" });
+      expect(within(dialog).getByText("Only top-level folders can be shared.")).toBeInTheDocument();
+      expect(within(dialog).queryByText("Add")).toBeNull();
+    });
+
+    it("renders existing shares with level dropdown and revoke button", async () => {
+      mockFetchOutgoingShares.mockResolvedValue([
+        makeFolderShare({ id: 1, target_project_name: "Other Project", level: "read" }),
+      ]);
+
+      const dialog = await openSharingModal();
+
+      await waitFor(() => {
+        expect(within(dialog).getByText("Other Project")).toBeInTheDocument();
+      });
+
+      const levelSelect = within(dialog).getAllByTestId("share-level-select")[0];
+      expect(levelSelect).toHaveValue("read");
+      expect(within(dialog).getByTestId("revoke-share-button")).toBeInTheDocument();
+    });
+
+    it("updates share level on dropdown change", async () => {
+      mockFetchOutgoingShares.mockResolvedValue([
+        makeFolderShare({ id: 1, target_project_name: "Other Project", level: "read" }),
+      ]);
+      mockPatchFolderShareLevel.mockResolvedValue(
+        makeFolderShare({ id: 1, target_project_name: "Other Project", level: "read_write" }),
+      );
+
+      const dialog = await openSharingModal();
+      await waitFor(() => {
+        expect(within(dialog).getByText("Other Project")).toBeInTheDocument();
+      });
+
+      const levelSelect = within(dialog).getAllByTestId("share-level-select")[0];
+      fireEvent.change(levelSelect, { target: { value: "read_write" } });
+
+      await waitFor(() => {
+        expect(mockPatchFolderShareLevel).toHaveBeenCalledWith(1, "read_write");
+      });
+    });
+
+    it("revokes share after window.confirm", async () => {
+      window.confirm = vi.fn().mockReturnValue(true);
+      mockFetchOutgoingShares.mockResolvedValue([
+        makeFolderShare({ id: 1, target_project_name: "Other Project", level: "read" }),
+      ]);
+      mockDeleteFolderShare.mockResolvedValue(undefined);
+
+      const dialog = await openSharingModal();
+      await waitFor(() => {
+        expect(within(dialog).getByText("Other Project")).toBeInTheDocument();
+      });
+
+      fireEvent.click(within(dialog).getByTestId("revoke-share-button"));
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith('Revoke share to "Other Project"?');
+      });
+
+      await waitFor(() => {
+        expect(mockDeleteFolderShare).toHaveBeenCalledWith(1);
+      });
+    });
+
+    it("does not revoke when confirm is cancelled", async () => {
+      window.confirm = vi.fn().mockReturnValue(false);
+      mockFetchOutgoingShares.mockResolvedValue([
+        makeFolderShare({ id: 1, target_project_name: "Other Project", level: "read" }),
+      ]);
+
+      const dialog = await openSharingModal();
+      await waitFor(() => {
+        expect(within(dialog).getByText("Other Project")).toBeInTheDocument();
+      });
+
+      fireEvent.click(within(dialog).getByTestId("revoke-share-button"));
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith('Revoke share to "Other Project"?');
+      });
+
+      expect(mockDeleteFolderShare).not.toHaveBeenCalled();
+    });
+
+    it("adds a share from the add-share row", async () => {
+      mockFetchProjects.mockResolvedValue([orgAdminProject, otherProject]);
+      mockCreateFolderShare.mockResolvedValue(
+        makeFolderShare({ id: 2, target_project: 2, target_project_name: "Other Project", level: "read" }),
+      );
+
+      const dialog = await openSharingModal();
+
+      const projectSelect = within(dialog).getByTestId("add-share-project-select");
+      fireEvent.change(projectSelect, { target: { value: "2" } });
+
+      fireEvent.click(within(dialog).getByTestId("add-share-button"));
+
+      await waitFor(() => {
+        expect(mockCreateFolderShare).toHaveBeenCalledWith(2, {
+          source_folder: 1,
+          level: "read",
+        });
+      });
+    });
+
+    it("shows inline error on failed add-share", async () => {
+      mockFetchProjects.mockResolvedValue([orgAdminProject, otherProject]);
+      mockCreateFolderShare.mockRejectedValue(
+        new Error("A shared Folder named \"Experiments\" already exists in the target Project."),
+      );
+
+      const dialog = await openSharingModal();
+
+      const projectSelect = within(dialog).getByTestId("add-share-project-select");
+      fireEvent.change(projectSelect, { target: { value: "2" } });
+
+      fireEvent.click(within(dialog).getByTestId("add-share-button"));
+
+      await waitFor(() => {
+        expect(
+          within(dialog).getByTestId("add-share-error"),
+        ).toHaveTextContent("A shared Folder named \"Experiments\" already exists in the target Project.");
+      });
+    });
+
+    it("does not show sharing panel for shared folder viewed through share", async () => {
+      const sharedFolderContents = makeLibraryContents(
+        [
+          makeLibraryFolder({
+            id: 1, name: "Experiments", parent: null,
+            is_shared: true, source_project_id: 2, source_project_name: "Source Project",
+          }),
+        ],
+        [],
+        { project_uid: "proj-001", project_name: "Test Project", current_project_id: 1 },
+      );
+      mockGetAccessibleProjects.mockResolvedValue([orgAdminProject]);
+      mockGetLibraryContents.mockResolvedValue(sharedFolderContents);
+      mockGetFolders.mockResolvedValue([]);
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Experiments")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("Experiments") && !card.textContent?.includes("EXP"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog", { name: "Experiments" })).toBeInTheDocument();
+      });
+
+      const dialog = screen.getByRole("dialog", { name: "Experiments" });
+      expect(within(dialog).queryByText("Sharing")).toBeNull();
+      expect(within(dialog).queryByText(/only top-level folders/i)).toBeNull();
     });
   });
 });

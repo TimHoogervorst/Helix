@@ -1,5 +1,5 @@
 import { get, patch, post, del } from "../../shell/src/api/client";
-import type { AccessPolicy, Grant, Organization, Person, Project, Team } from "./types";
+import type { AccessPolicy, FolderShare, Grant, Organization, Person, Project, Team } from "./types";
 
 export function fetchOrganization(): Promise<Organization> {
   return get<Organization>("/access/organization/");
@@ -103,4 +103,26 @@ export function deleteGrant(
   grantId: number,
 ): Promise<void> {
   return del<void>(`/access/projects/${projectId}/grants/${grantId}/`);
+}
+
+export function fetchOutgoingShares(folderId: number): Promise<FolderShare[]> {
+  return get<FolderShare[]>(`/access/folders/${folderId}/shares/`);
+}
+
+export function createFolderShare(
+  projectId: number,
+  data: { source_folder: number; level: string },
+): Promise<FolderShare> {
+  return post<FolderShare>(`/access/projects/${projectId}/folder_shares/`, data);
+}
+
+export function patchFolderShareLevel(
+  shareId: number,
+  level: string,
+): Promise<FolderShare> {
+  return patch<FolderShare>(`/access/folder_shares/${shareId}/`, { level });
+}
+
+export function deleteFolderShare(shareId: number): Promise<void> {
+  return del<void>(`/access/folder_shares/${shareId}/`);
 }

@@ -168,7 +168,9 @@ class LibraryContentsView(APIView):
         # ── Folders ──────────────────────────────────────────────────
         folders_qs = Folder.objects.filter(
             parent=folder,
-        ).exclude(parent__isnull=True).order_by("name")
+        ).exclude(parent__isnull=True).prefetch_related(
+            "outgoing_shares__target_project",
+        ).order_by("name")
 
         if is_at_root:
             shared_items = _get_shared_folders(project)
@@ -196,18 +198,31 @@ class LibraryContentsView(APIView):
         for f in folders_qs:
             if search_q and search_q.lower() not in f.name.lower():
                 continue
-            items.append(
-                {
-                    "type": "folder",
-                    "id": f.id,
-                    "name": f.name,
-                    "parent": f.parent_id,
-                    "created_at": f.created_at,
-                    "icon": "folder",
-                    "color": "muted",
-                    "is_shared": False,
+            item = {
+                "type": "folder",
+                "id": f.id,
+                "name": f.name,
+                "parent": f.parent_id,
+                "created_at": f.created_at,
+                "icon": "folder",
+                "color": "muted",
+                "is_shared": False,
+            }
+            outgoing = f.outgoing_shares.all()
+            if outgoing:
+                item["share_summary"] = {
+                    "shared": True,
+                    "target_projects": [
+                        {
+                            "id": s.target_project.id,
+                            "name": s.target_project.name,
+                            "icon_key": s.target_project.icon_key,
+                            "color_key": s.target_project.color_key,
+                        }
+                        for s in outgoing
+                    ],
                 }
-            )
+            items.append(item)
 
         for shared in shared_items:
             if search_q and search_q.lower() not in shared["name"].lower():

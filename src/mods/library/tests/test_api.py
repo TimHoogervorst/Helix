@@ -539,6 +539,68 @@ class LibraryApiTests(BaseTestCase):
         shared = [r for r in response.data["results"] if r.get("is_shared")]
         self.assertEqual(len(shared), 0)
 
+    # ── Share summary on owned folders ────────────────────────────────
+
+    def test_share_summary_present_when_folder_shared_out(self):
+        other_project = Project.objects.create(name="Target Lab")
+        Folder.objects.create(name="root", parent=None, project=other_project)
+        FolderShare.objects.create(
+            source_folder=self.experiments_folder,
+            target_project=other_project,
+            level=ShareLevel.READ,
+        )
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        experiments = [f for f in folders if f["name"] == "Experiments"][0]
+        self.assertIn("share_summary", experiments)
+        self.assertTrue(experiments["share_summary"]["shared"])
+        projects = experiments["share_summary"]["target_projects"]
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["id"], other_project.id)
+        self.assertEqual(projects[0]["name"], "Target Lab")
+
+    def test_share_summary_absent_when_not_shared(self):
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        protocols = [f for f in folders if f["name"] == "Protocols"][0]
+        self.assertNotIn("share_summary", protocols)
+
+    def test_share_summary_multiple_targets(self):
+        target_a = Project.objects.create(name="Target A")
+        Folder.objects.create(name="root", parent=None, project=target_a)
+        target_b = Project.objects.create(name="Target B")
+        Folder.objects.create(name="root", parent=None, project=target_b)
+        FolderShare.objects.create(
+            source_folder=self.experiments_folder,
+            target_project=target_a,
+            level=ShareLevel.READ,
+        )
+        FolderShare.objects.create(
+            source_folder=self.experiments_folder,
+            target_project=target_b,
+            level=ShareLevel.READ_WRITE,
+        )
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        experiments = [f for f in folders if f["name"] == "Experiments"][0]
+        projects = experiments["share_summary"]["target_projects"]
+        self.assertEqual(len(projects), 2)
+        names = {p["name"] for p in projects}
+        self.assertEqual(names, {"Target A", "Target B"})
+
+    def test_folder_item_shape_without_share_summary(self):
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        self.assertGreater(len(folders), 0)
+        f = folders[0]
+        self.assertEqual(f["type"], "folder")
+        self.assertIn("id", f)
+        self.assertIn("name", f)
+        self.assertIn("parent", f)
+        self.assertIn("created_at", f)
+        self.assertIn("is_shared", f)
+        self.assertEqual(f["is_shared"], False)
+
 
 class AccessibleProjectsApiTests(BaseTestCase):
     """Tests for GET /api/access/projects/?accessible=1."""

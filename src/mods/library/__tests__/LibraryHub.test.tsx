@@ -680,6 +680,88 @@ describe("LibraryHub", () => {
     });
   });
 
+  // ── Shared-out folder marker ─────────────────────────────────────
+
+  it("renders shared-icon overlay on owned folder that is shared out", async () => {
+    const response = makeLibraryContents(
+      [
+        makeLibraryFolder({
+          id: 1,
+          name: "Shared Out",
+          share_summary: {
+            shared: true,
+            target_projects: [
+              { id: 2, name: "Target Lab", icon_key: "flask", color_key: "crimson" },
+            ],
+          },
+        }),
+      ],
+      [],
+      {
+        project_uid: "proj-001",
+        project_name: "Test Project",
+        project_is_archived: false,
+      },
+    );
+    mockGetLibraryContents.mockResolvedValue(response);
+    renderLibrary("/library?project=proj-001");
+    await waitFor(() => {
+      expect(screen.getByText("Shared Out")).toBeInTheDocument();
+    });
+
+    const overlays = document.querySelectorAll(".card-icon-overlay");
+    expect(overlays.length).toBe(1);
+  });
+
+  it("shared-out folder icon has tooltip naming target projects", async () => {
+    const response = makeLibraryContents(
+      [
+        makeLibraryFolder({
+          id: 1,
+          name: "Shared Out",
+          share_summary: {
+            shared: true,
+            target_projects: [
+              { id: 2, name: "Target Lab", icon_key: "flask", color_key: "crimson" },
+              { id: 3, name: "Other Project", icon_key: "folder", color_key: "muted" },
+            ],
+          },
+        }),
+      ],
+      [],
+      {
+        project_uid: "proj-001",
+        project_name: "Test Project",
+        project_is_archived: false,
+      },
+    );
+    mockGetLibraryContents.mockResolvedValue(response);
+    renderLibrary("/library?project=proj-001");
+    await waitFor(() => {
+      expect(screen.getByText("Shared Out")).toBeInTheDocument();
+    });
+
+    const cardIcon = document.querySelector(".card-icon[title]");
+    expect(cardIcon).toBeInTheDocument();
+    expect(cardIcon?.getAttribute("title")).toBe(
+      "Shared with: Target Lab, Other Project",
+    );
+  });
+
+  it("non-shared folder does not have shared overlay or tooltip", async () => {
+    mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+    renderLibrary("/library?project=proj-001");
+    await waitFor(() => {
+      expect(screen.getByText("Protocols")).toBeInTheDocument();
+    });
+
+    const overlays = document.querySelectorAll(".card-icon-overlay");
+    expect(overlays.length).toBe(0);
+
+    const cardsWithTitle = document.querySelectorAll(".card-icon[title]");
+    expect(cardsWithTitle.length).toBe(0);
+  });
+
   // ── Row Menu & Properties Modal ──────────────────────────────────
 
   describe("Row Menu", () => {

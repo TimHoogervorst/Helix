@@ -42,6 +42,10 @@ interface BaseCardProps {
   onClick?: () => void;
   /** Optional slot rendered at the right end of the card (e.g. RowMenu). */
   endSlot?: ReactNode;
+  /** Optional overlay rendered on top of the card icon. */
+  iconOverlay?: ReactNode;
+  /** Native title tooltip on the card icon container. */
+  iconTitle?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -67,6 +71,8 @@ export function BaseCard({
   showUpdatedAt = false,
   onClick,
   endSlot,
+  iconOverlay,
+  iconTitle,
 }: BaseCardProps) {
   const classNames = [
     "base-library-card",
@@ -107,13 +113,18 @@ export function BaseCard({
       </button>
 
       {/* ── Icon ──────────────────────────────────────────────────── */}
-      <span className="card-icon">
+      <span className="card-icon" title={iconTitle}>
         {iconKey ? (
           <IconBadge iconKey={iconKey} colorKey={colorKey} size="md" />
         ) : Icon ? (
           <Icon />
         ) : (
           <Folder />
+        )}
+        {iconOverlay && (
+          <span className="card-icon-overlay" aria-hidden="true">
+            {iconOverlay}
+          </span>
         )}
       </span>
 

@@ -1609,6 +1609,7 @@ input.library-new-folder-input:focus {
 }
 
 .card-icon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1619,6 +1620,22 @@ input.library-new-folder-input:focus {
   color: var(--color-ink);
   flex-shrink: 0;
   font-size: 1rem;
+}
+
+.card-icon-overlay {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-muted);
+  font-size: 8px;
 }
 
 .card-body {

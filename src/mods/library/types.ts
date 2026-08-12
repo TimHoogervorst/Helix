@@ -9,6 +9,20 @@ export interface AuthorInfo {
   color: string;
 }
 
+/** A target project in a share summary. */
+export interface ShareTargetProject {
+  id: number;
+  name: string;
+  icon_key: string;
+  color_key: string;
+}
+
+/** Share summary present on owned folders when shared out. */
+export interface ShareSummary {
+  shared: true;
+  target_projects: ShareTargetProject[];
+}
+
 /** A folder row in the Library mixed table. */
 export interface LibraryFolderItem {
   type: "folder";
@@ -21,6 +35,7 @@ export interface LibraryFolderItem {
   source_project_name?: string;
   source_project_icon?: string;
   source_project_color?: string;
+  share_summary?: ShareSummary;
 }
 
 /** An entry row in the Library mixed table. */

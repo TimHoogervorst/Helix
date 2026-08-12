@@ -10,6 +10,7 @@ import {
   Folder,
   ArrowUp,
   Share2,
+  Users,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem, LibraryProjectItem } from "../types";
 import type { Project } from "../../access/types";
@@ -505,6 +506,15 @@ function LibraryHub() {
     if (item.type === "folder") {
       const adapted = folderToEntryShape(item);
       const isShared = !!item.is_shared;
+      const isSharedOut = !!item.share_summary?.shared;
+
+      const targetNames = isSharedOut
+        ? item.share_summary!.target_projects.map((p) => p.name)
+        : [];
+      const tooltip = targetNames.length > 0
+        ? `Shared with: ${targetNames.join(", ")}`
+        : undefined;
+
       return (
         <BaseCard
           key={`folder-${item.id}`}
@@ -517,6 +527,10 @@ function LibraryHub() {
           showTags={false}
           showUpdatedAt={false}
           Icon={isShared ? Share2 : undefined}
+          iconOverlay={
+            isSharedOut ? <Users size={10} /> : undefined
+          }
+          iconTitle={tooltip}
           onClick={() => handleCardClick(item)}
           endSlot={
             <RowMenu onProperties={() => setPropertiesItem(item)} />

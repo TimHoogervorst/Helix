@@ -295,10 +295,18 @@ class FolderRenameAccessTests(TestCase):
         self.reader = User.objects.create_user(username="reader", password="pass")
         self.other = User.objects.create_user(username="other", password="pass")
 
-        OrganizationMembership.objects.create(user=self.admin, organization=self.org, role=OrganizationRole.ADMIN)
-        OrganizationMembership.objects.create(user=self.editor, organization=self.org, role=OrganizationRole.USER)
-        OrganizationMembership.objects.create(user=self.reader, organization=self.org, role=OrganizationRole.USER)
-        OrganizationMembership.objects.create(user=self.other, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.update_or_create(
+            user=self.admin, defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.editor, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.reader, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.other, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
 
         self.project = Project.objects.create(name="Test Project")
         self.root = Folder.objects.create(name="root", parent=None, project=self.project)
@@ -370,7 +378,6 @@ class FolderRenameAccessTests(TestCase):
         group = Group.objects.create(name="editor_team")
         self.editor.groups.add(group)
         team = Team.objects.create(
-            name="Editor Team",
             group=group,
             organization=self.org,
         )
@@ -433,10 +440,18 @@ class FolderDeleteAccessTests(TestCase):
         self.reader = User.objects.create_user(username="del_reader", password="pass")
         self.other = User.objects.create_user(username="del_other", password="pass")
 
-        OrganizationMembership.objects.create(user=self.admin, organization=self.org, role=OrganizationRole.ADMIN)
-        OrganizationMembership.objects.create(user=self.editor, organization=self.org, role=OrganizationRole.USER)
-        OrganizationMembership.objects.create(user=self.reader, organization=self.org, role=OrganizationRole.USER)
-        OrganizationMembership.objects.create(user=self.other, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.update_or_create(
+            user=self.admin, defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.editor, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.reader, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.other, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
 
         self.project = Project.objects.create(name="Delete Test Project")
         self.root = Folder.objects.create(name="root", parent=None, project=self.project)
@@ -497,14 +512,16 @@ class FolderDeleteAccessTests(TestCase):
         self._assert_204(self.admin, self.folder)
 
     def test_team_derived_edit_can_delete(self):
-        from mods.access.models import Grant, ProjectRole, Team
+        from mods.access.models import Grant, OrganizationMembership, OrganizationRole, ProjectRole, Team
         from django.contrib.auth.models import Group
 
         team_user = User.objects.create_user(username="team_del", password="pass")
-        OrganizationMembership.objects.create(user=team_user, organization=self.org, role=OrganizationRole.USER)
+        OrganizationMembership.objects.update_or_create(
+            user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
         group = Group.objects.create(name="Delete Team")
         team_user.groups.add(group)
-        team = Team.objects.create(group=group)
+        team = Team.objects.create(group=group, organization=self.org)
         Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
         self._assert_204(team_user, self.folder)
 
@@ -556,10 +573,10 @@ class FolderDeleteAccessTests(TestCase):
 
     def test_deleting_shared_folder_cascades_its_shares(self):
         self.Grant.objects.create(project=self.source_project, user=self.editor, role=self.ProjectRole.EDIT)
-        share_count_before = FolderShare.objects.filter(source_folder=self.shared_folder).count()
+        share_count_before = self.FolderShare.objects.filter(source_folder=self.shared_folder).count()
         self.assertGreater(share_count_before, 0)
         self._assert_204(self.editor, self.shared_folder)
         self.assertEqual(
-            FolderShare.objects.filter(source_folder_id=self.shared_folder.id).count(),
+            self.FolderShare.objects.filter(source_folder_id=self.shared_folder.id).count(),
             0,
         )

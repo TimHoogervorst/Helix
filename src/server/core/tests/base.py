@@ -7,6 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.models import Folder, Project, User
+from mods.access.models import Grant, ProjectRole
 
 
 class BaseTestCase(TestCase):
@@ -18,6 +19,10 @@ class BaseTestCase(TestCase):
       - self.project     — a test Project instance
       - self.folder      — a "Default" Folder belonging to self.project
       - self.root_folder — the hidden root Folder for self.project
+
+    The test user receives an EDIT Grant on ``self.project`` so that
+    project-resource actions (update, delete folders) pass the
+    hardcoded policy matrix.
     """
 
     USERNAME = "testuser"
@@ -38,6 +43,9 @@ class BaseTestCase(TestCase):
             name="Default",
             parent=self.root_folder,
             project=self.project,
+        )
+        Grant.objects.create(
+            project=self.project, user=self.user, role=ProjectRole.EDIT,
         )
 
 

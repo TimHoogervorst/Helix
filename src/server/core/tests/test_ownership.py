@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 
 from core.models import Folder, Project, User
 from helix_core.models import SchemaType, Schema
+from mods.access.models import Grant, ProjectRole
 from mods.eln.models import NotebookEntry
 from mods.lims.models import Entity
 
@@ -92,6 +93,9 @@ class HiddenRootProtectionTests(TestCase):
         self.user = User.objects.create_user(username="test", password="pass")
         self.project = _create_project("Test")
         self.root = _create_root(self.project)
+        Grant.objects.create(
+            project=self.project, user=self.user, role=ProjectRole.EDIT,
+        )
         self.client.force_authenticate(user=self.user)
 
     def test_hidden_root_cannot_be_renamed(self):
@@ -154,6 +158,9 @@ class EntryOwnershipTests(TestCase):
             name="Folder B", parent=self.root_b, project=self.project_b,
         )
         self.schema = _create_eln_schema()
+        Grant.objects.create(
+            project=self.project_a, user=self.user, role=ProjectRole.EDIT,
+        )
         self.client.force_authenticate(user=self.user)
 
     def test_create_entry_derives_project_from_folder(self):
@@ -248,6 +255,9 @@ class EntityOwnershipTests(TestCase):
             name="Folder B", parent=self.root_b, project=self.project_b,
         )
         self.schema = _create_lims_schema()
+        Grant.objects.create(
+            project=self.project_a, user=self.user, role=ProjectRole.EDIT,
+        )
         self.client.force_authenticate(user=self.user)
 
     def test_create_entity_derives_project_from_folder(self):
@@ -333,6 +343,12 @@ class FolderMoveRejectionTests(TestCase):
         self.root_b = _create_root(self.project_b)
         self.folder_a = Folder.objects.create(
             name="Folder A", parent=self.root_a, project=self.project_a,
+        )
+        Grant.objects.create(
+            project=self.project_a, user=self.user, role=ProjectRole.EDIT,
+        )
+        Grant.objects.create(
+            project=self.project_b, user=self.user, role=ProjectRole.EDIT,
         )
         self.client.force_authenticate(user=self.user)
 

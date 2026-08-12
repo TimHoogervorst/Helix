@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Star, Folder } from "lucide-react";
 import type { LibraryEntryItem } from "../../../../mods/library/types";
 import { Avatar, getInitials } from "../Avatar";
@@ -40,6 +40,8 @@ interface BaseCardProps {
   showUpdatedAt?: boolean;
   /** Called when the card body is clicked. */
   onClick?: () => void;
+  /** Optional slot rendered at the right end of the card (e.g. RowMenu). */
+  endSlot?: ReactNode;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -64,9 +66,11 @@ export function BaseCard({
   showTags = false,
   showUpdatedAt = false,
   onClick,
+  endSlot,
 }: BaseCardProps) {
   const classNames = [
     "base-library-card",
+    "group",
     `view-${viewMode}`,
     isSelected ? "is-selected" : "",
   ]
@@ -175,6 +179,9 @@ export function BaseCard({
           {item.author_info.username}
         </div>
       )}
+
+      {/* ── End slot (e.g. RowMenu) ───────────────────────────────── */}
+      {endSlot}
     </div>
   );
 }

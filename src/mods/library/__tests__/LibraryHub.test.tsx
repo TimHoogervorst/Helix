@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { LayoutList, Star, User, Archive } from "lucide-react";
 import {
@@ -677,6 +677,244 @@ describe("LibraryHub", () => {
       expect(screen.getByText("A Folder")).toBeInTheDocument();
       expect(screen.getByText("B Shared")).toBeInTheDocument();
       expect(screen.getByText("C Owned")).toBeInTheDocument();
+    });
+  });
+
+  // ── Row Menu & Properties Modal ──────────────────────────────────
+
+  describe("Row Menu", () => {
+    it("renders a three-dot button on every folder and entry row", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Experiments")).toBeInTheDocument();
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const rowActionButtons = screen.getAllByLabelText("Row actions");
+      // 2 folders + 1 entry = 3 rows with RowMenu
+      expect(rowActionButtons.length).toBe(3);
+    });
+
+    it("opens a menu with Properties item when three-dot is clicked", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      const rowMenuButton = within(entryCard).getByLabelText("Row actions");
+
+      fireEvent.click(rowMenuButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+    });
+
+    it("opens entry Properties Modal when Properties is clicked", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "EXP-0284 — PCR Results" }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("entry modal shows display ID and title in header", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        const dialog = screen.getByRole("dialog", {
+          name: "EXP-0284 — PCR Results",
+        });
+        expect(dialog).toBeInTheDocument();
+        expect(within(dialog).getByText("EXP-0284 — PCR Results")).toBeInTheDocument();
+      });
+    });
+
+    it("entry modal shows read-only project, author, created, and updated fields", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        const dialog = screen.getByRole("dialog", {
+          name: "EXP-0284 — PCR Results",
+        });
+        expect(within(dialog).getByText("Project")).toBeInTheDocument();
+        expect(within(dialog).getByText("Test Project")).toBeInTheDocument();
+        expect(within(dialog).getByText("Author")).toBeInTheDocument();
+        expect(within(dialog).getByText("testuser")).toBeInTheDocument();
+        expect(within(dialog).getByText("Created")).toBeInTheDocument();
+        expect(within(dialog).getByText("Updated")).toBeInTheDocument();
+      });
+    });
+
+    it("folder modal shows folder name as title and created date", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("Protocols")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const folderCard = cards.find((card) =>
+        card.textContent?.includes("Protocols") && !card.textContent?.includes("EXP"),
+      )!;
+      fireEvent.click(within(folderCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        const dialog = screen.getByRole("dialog", { name: "Protocols" });
+        expect(dialog).toBeInTheDocument();
+        expect(within(dialog).getByText("Created")).toBeInTheDocument();
+      });
+    });
+
+    it("closes modal when the close button is clicked", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "EXP-0284 — PCR Results" }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText("Close"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("dialog", { name: "EXP-0284 — PCR Results" }),
+        ).toBeNull();
+      });
+    });
+
+    it("keyboard Escape closes the modal", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      const cards = screen.getAllByTestId("base-library-card");
+      const entryCard = cards.find((card) =>
+        card.textContent?.includes("EXP-0284"),
+      )!;
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+      await waitFor(() => {
+        expect(screen.getByText("Properties")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText("Properties"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "EXP-0284 — PCR Results" }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("dialog", { name: "EXP-0284 — PCR Results" }),
+        ).toBeNull();
+      });
+    });
+  });
+
+  // ── Project cards have no RowMenu ───────────────────────────────
+
+  describe("project cards", () => {
+    it("do not show a RowMenu on project cards", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([
+        makeProject({ id: 1, uid: "p1", name: "Alpha", current_user_role: "read" }),
+      ]);
+      renderLibrary();
+      await waitFor(() => {
+        expect(screen.getByText("Alpha")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByLabelText("Row actions")).toBeNull();
+    });
+
+    it("do not show a RowMenu inside project cards when browsing project list", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([
+        makeProject({ id: 1, uid: "p1", name: "Alpha" }),
+        makeProject({ id: 2, uid: "p2", name: "Beta" }),
+      ]);
+      renderLibrary();
+      await waitFor(() => {
+        expect(screen.getByText("Alpha")).toBeInTheDocument();
+        expect(screen.getByText("Beta")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByLabelText("Row actions")).toBeNull();
     });
   });
 });

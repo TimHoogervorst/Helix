@@ -28,6 +28,9 @@ import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { Input } from "../../../shell/src/shared/primitives/Input";
 import { Select } from "../../../shell/src/shared/primitives/Input";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import RowMenu from "./RowMenu";
+import { EntryPropertiesModal } from "./EntryPropertiesModal";
+import { FolderPropertiesModal } from "./FolderPropertiesModal";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -296,6 +299,9 @@ function LibraryHub() {
   // Track whether user is an org admin
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
 
+  // Properties modal state
+  const [propertiesItem, setPropertiesItem] = useState<LibraryItem | null>(null);
+
   const isInProject = !!projectUid;
 
   // ── View mode state ──────────────────────────────────────────────────
@@ -512,6 +518,9 @@ function LibraryHub() {
           showUpdatedAt={false}
           Icon={isShared ? Share2 : undefined}
           onClick={() => handleCardClick(item)}
+          endSlot={
+            <RowMenu onProperties={() => setPropertiesItem(item)} />
+          }
         />
       );
     }
@@ -532,6 +541,9 @@ function LibraryHub() {
         showTags={true}
         showUpdatedAt={true}
         onClick={() => handleCardClick(item)}
+        endSlot={
+          <RowMenu onProperties={() => setPropertiesItem(item)} />
+        }
       />
     );
   };
@@ -799,6 +811,23 @@ function LibraryHub() {
         context={sidebarContext}
         bus={bus}
       />
+
+      {/* ── Properties Modals ─────────────────────────────────────────── */}
+      {propertiesItem?.type === "entry" && (
+        <EntryPropertiesModal
+          open={true}
+          onClose={() => setPropertiesItem(null)}
+          entry={propertiesItem}
+          projectMeta={projectMeta}
+        />
+      )}
+      {propertiesItem?.type === "folder" && (
+        <FolderPropertiesModal
+          open={true}
+          onClose={() => setPropertiesItem(null)}
+          folder={propertiesItem}
+        />
+      )}
     </div>
   );
 }

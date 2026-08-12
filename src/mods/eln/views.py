@@ -141,39 +141,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Organization Admin override, or a Read + Write share evaluated via the
         target Project.
         """
-        from mods.access.policies import can as access_can
-        from mods.access.models import FolderShare
+        from mods.access.policies import effective_role
 
-        user = self.request.user
-
-        if access_can(user, "eln.entry.edited", resource=instance):
-            return True
-
-        folder = instance.folder
-        if folder is not None:
-            from core.models import Folder as FolderModel
-
-            folder_ancestors = _ancestor_ids_for(folder)
-            shares = FolderShare.objects.filter(
-                source_folder__project_id=instance.project_id,
-                level="read_write",
-            ).select_related("source_folder").only(
-                "id", "source_folder_id", "target_project_id",
-            )
-
-            for share in shares:
-                covers = folder.id == share.source_folder_id or share.source_folder_id in folder_ancestors
-                if not covers:
-                    continue
-                if access_can(
-                    user,
-                    "eln.entry.edited",
-                    resource=instance,
-                    via_project=share.target_project_id,
-                ):
-                    return True
-
-        return False
+        return effective_role(self.request.user, instance) == "edit"
 
     def _reject_cross_subtree_move(self, instance, new_folder):
         """Raise ValidationError when *new_folder* is outside the shared subtree.

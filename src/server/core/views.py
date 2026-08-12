@@ -57,39 +57,12 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return qs.order_by("name")
 
     def perform_update(self, serializer):
-        from mods.access.policies import can as access_can
+        from mods.access.policies import effective_role
 
         instance = serializer.instance
 
-        if access_can(self.request.user, "core.folder.edited", resource=instance):
+        if effective_role(self.request.user, instance) == "edit":
             return super().perform_update(serializer)
-
-        if instance.parent is not None:
-            from mods.access.models import FolderShare
-
-            shares = FolderShare.objects.filter(
-                source_folder__project_id=instance.project_id,
-                level="read_write",
-            ).select_related("source_folder").only(
-                "id", "source_folder_id", "target_project_id",
-            )
-
-            ancestor_ids = self._folder_ancestor_ids(instance)
-
-            for share in shares:
-                covers = (
-                    instance.id == share.source_folder_id
-                    or share.source_folder_id in ancestor_ids
-                )
-                if not covers:
-                    continue
-                if access_can(
-                    self.request.user,
-                    "core.folder.edited",
-                    resource=instance,
-                    via_project=share.target_project_id,
-                ):
-                    return super().perform_update(serializer)
 
         from rest_framework.exceptions import PermissionDenied
 
@@ -97,16 +70,8 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             "You do not have permission to edit this folder."
         )
 
-    def _folder_ancestor_ids(self, folder):
-        ids = set()
-        node = folder.parent
-        while node is not None:
-            ids.add(node.id)
-            node = node.parent
-        return ids
-
     def perform_destroy(self, instance):
-        from mods.access.policies import can as access_can
+        from mods.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         if instance.is_hidden_root:
@@ -114,35 +79,8 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "The hidden Project root Folder cannot be deleted."
             )
 
-        if access_can(self.request.user, "core.folder.deleted", resource=instance):
+        if effective_role(self.request.user, instance) == "edit":
             return super().perform_destroy(instance)
-
-        if instance.parent is not None:
-            from mods.access.models import FolderShare
-
-            shares = FolderShare.objects.filter(
-                source_folder__project_id=instance.project_id,
-                level="read_write",
-            ).select_related("source_folder").only(
-                "id", "source_folder_id", "target_project_id",
-            )
-
-            ancestor_ids = self._folder_ancestor_ids(instance)
-
-            for share in shares:
-                covers = (
-                    instance.id == share.source_folder_id
-                    or share.source_folder_id in ancestor_ids
-                )
-                if not covers:
-                    continue
-                if access_can(
-                    self.request.user,
-                    "core.folder.deleted",
-                    resource=instance,
-                    via_project=share.target_project_id,
-                ):
-                    return super().perform_destroy(instance)
 
         raise PermissionDenied(
             "You do not have permission to delete this folder."

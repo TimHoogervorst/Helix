@@ -208,6 +208,115 @@ def can(user, action, resource=None, via_project=None):
     return _check_level(user, required_level, resource, via_project)
 
 
+def effective_role(user, resource):
+    """Resolve the effective role *user* holds on *resource*.
+
+    The resource may be a Folder, Entry, or Entity.  Returns the
+    strongest role (``"edit"``, ``"read"``, or ``None``) the viewer
+    holds, considering:
+
+      * the Organization Admin bypass (always ``"edit"``),
+      * direct and Team Grants on the resource's Project, and
+      * every Folder Share path covering the resource — level
+        intersection with the target Project role, the read cap on the
+        shared top-level Folder, and subtree coverage.
+
+    This is the single enforcement seam for per-resource authorization.
+    """
+    from .models import FolderShare, ShareLevel
+
+    if user is None or not user.is_authenticated:
+        return None
+    if not user.is_active:
+        return None
+    if user.pk is None:
+        return None
+
+    if _is_org_admin(user):
+        return "edit"
+
+    if resource is None or not hasattr(resource, "project_id"):
+        return None
+
+    best = role(user, resource.project_id)
+    if best == "edit":
+        return "edit"
+
+    folder_id = _resolve_folder_id(resource)
+    if folder_id is None:
+        return best
+
+    shares = FolderShare.objects.filter(
+        source_folder__project_id=resource.project_id,
+    ).select_related("source_folder").only(
+        "id", "source_folder_id", "target_project_id", "level",
+    )
+
+    resource_ancestors = _ancestor_ids_for_folder(folder_id)
+
+    for share in shares:
+        covers = (
+            share.source_folder_id == folder_id
+            or share.source_folder_id in resource_ancestors
+        )
+        if not covers:
+            continue
+
+        target_role = role(user, share.target_project_id)
+        if target_role is None:
+            continue
+
+        if _is_resource_the_shared_folder(resource, share):
+            derived = "read"
+        elif target_role == "edit" and share.level == ShareLevel.READ_WRITE:
+            derived = "edit"
+        else:
+            derived = "read"
+
+        if derived == "edit":
+            return "edit"
+        if best is None:
+            best = "read"
+
+    return best
+
+
+def accessible_project_ids(user):
+    """Return the set of Project IDs the viewer can access.
+
+    Covers direct Grants, Team Grants, and the Organization Admin
+    override (which returns every Project).  The grant paths are
+    resolved in a single query.  Anonymous, inactive, and unsaved Users
+    get an empty set.
+    """
+    from django.db.models import Q
+
+    from core.models import Project
+    from .models import Grant, OrganizationMembership, OrganizationRole
+
+    if user is None or not user.is_authenticated:
+        return set()
+    if not user.is_active:
+        return set()
+    if user.pk is None:
+        return set()
+
+    if OrganizationMembership.objects.filter(
+        user=user,
+        role=OrganizationRole.ADMIN,
+    ).exists():
+        return set(Project.objects.values_list("pk", flat=True))
+
+    group_ids = list(user.groups.values_list("pk", flat=True))
+    grant_filter = Q(user=user)
+    if group_ids:
+        grant_filter |= Q(team__group_id__in=group_ids)
+
+    return set(
+        Grant.objects.filter(grant_filter).values_list("project_id", flat=True)
+    )
+
+
 def get_policy_matrix():
     """Return the hardcoded policy matrix as a list for the API.
 

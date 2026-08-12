@@ -8,7 +8,11 @@ from rest_framework.response import Response
 from core.models import Folder, Project
 
 from .models import FolderShare, Grant, Organization, OrganizationMembership, Team
-from .policies import can as can_access, get_policy_matrix, role as get_role
+from .policies import (
+    accessible_project_ids,
+    can as can_access,
+    get_policy_matrix,
+)
 from .serializers import (
     FolderShareSerializer,
     GrantSerializer,
@@ -260,11 +264,7 @@ class ProjectListView(views.APIView):
             qs = qs.filter(is_archived=False)
 
         if accessible_only:
-            project_ids = set()
-            for project in qs:
-                if get_role(request.user, project) is not None:
-                    project_ids.add(project.pk)
-            qs = qs.filter(pk__in=project_ids)
+            qs = qs.filter(pk__in=accessible_project_ids(request.user))
 
         serializer = ProjectSerializer(
             qs, many=True, context={"request": request},

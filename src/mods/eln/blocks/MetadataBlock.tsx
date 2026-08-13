@@ -92,7 +92,7 @@ export function MetadataBlock({ context }: BlockComponentProps) {
         <div className="flex items-start justify-between gap-3">
           <dt className="text-muted-foreground">Project</dt>
           <dd className="text-right">
-            {entry?.folder_name || "—"}
+            {entry?.project_name || "—"}
           </dd>
         </div>
         <div className="flex items-start justify-between gap-3">
@@ -123,29 +123,6 @@ export function MetadataBlock({ context }: BlockComponentProps) {
               {statusOptions.map((opt) => (
                 <option key={opt} value={opt}>
                   {formatStatusLabel(opt)}
-                </option>
-              ))}
-            </Select>
-          </dd>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <dt className="text-muted-foreground">Folder</dt>
-          <dd className="text-right">
-            <Select
-              value={data?.folderId ?? ""}
-              onChange={(e) =>
-                data?.onFolderChange?.(
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-              disabled={data?.isLockedByOther}
-              className="!h-auto !w-auto !min-w-[140px] !py-0.5 !text-xs"
-              data-testid="folder-select"
-            >
-              <option value="">Folder…</option>
-              {data?.folders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
                 </option>
               ))}
             </Select>

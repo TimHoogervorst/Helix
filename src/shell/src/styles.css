@@ -1609,6 +1609,7 @@ input.library-new-folder-input:focus {
 }
 
 .card-icon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1619,6 +1620,22 @@ input.library-new-folder-input:focus {
   color: var(--color-ink);
   flex-shrink: 0;
   font-size: 1rem;
+}
+
+.card-icon-overlay {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-muted);
+  font-size: 8px;
 }
 
 .card-body {
@@ -2532,6 +2549,13 @@ input.entities-filter-search {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-primary);
+}
+
+/* Project icon and name stay on one line, like the display ID cell. */
+.entities-project-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* Schema type badge */

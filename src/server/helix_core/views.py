@@ -28,6 +28,7 @@ from helix_core.serializers import (
 )
 
 from helix_core.models import EntityHubView
+from mods.access.permissions import IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
 from helix_core.query_builder import (
@@ -35,8 +36,34 @@ from helix_core.query_builder import (
     build_entity_hub_filters,
     parse_filter_params,
 )
+from mods.access.scoping import visible_rows_q
 
 logger = logging.getLogger(__name__)
+
+# ── Content targets for the unified action-log endpoint ────────────────────
+#
+# ``POST /api/actions/`` validates that the submitter can Edit the logged
+# target for every content target type here (Folders, Entries, Entities).
+# Any other target type is not a project resource and skips the check.
+
+
+def _resolve_content_target_model(target_type):
+    """Return the model for *target_type* when it is a project-resource
+    content target (Folder, Entry, or Entity), or ``None`` otherwise.
+
+    Models are imported lazily to avoid import cycles between the core
+    app and the content mods.
+    """
+    from core.models import Folder
+    from mods.eln.models import NotebookEntry
+    from mods.lims.models import Entity
+
+    return {
+        "core.folder": Folder,
+        "eln.entry": NotebookEntry,
+        "lims.entities": Entity,
+        "lims.entity": Entity,
+    }.get(target_type)
 
 # ── Common column descriptors ─────────────────────────────────────────────
 #
@@ -48,6 +75,8 @@ _COMMON_COLUMN_DEFS: list[dict] = [
     {"key": "display_id",    "label": "ID",          "type": "text"},
     {"key": "name",          "label": "Name",        "type": "text"},
     {"key": "schema_type_id","label": "Schema Type",  "type": "text"},
+    {"key": "project",       "label": "Project",     "type": "project"},
+    {"key": "folder",        "label": "Folder",      "type": "folder"},
     {"key": "status",        "label": "Status",      "type": "dropdown"},
     {"key": "author",        "label": "Author",      "type": "user"},
     {"key": "created_at",    "label": "Created",     "type": "datetime"},
@@ -107,7 +136,7 @@ def _enrich_schema_column(col: dict, source: str) -> dict:
         result["referenceSchemaId"] = reference_schema_id
     return result
 
-SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at"})
+SORTABLE_FIELDS = frozenset({"name", "status", "created_at", "updated_at", "project__name"})
 
 
 def _build_column_type_map(schema_id: str, schema_type_id: str) -> dict[str, str]:
@@ -168,7 +197,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
         Filter by status: ``in_progress`` or ``finished``.
     sort : str
         Sort by field. Prefix with ``-`` for descending order.
-        Supported fields: name, status, created_at, updated_at.
+        Supported fields: name, status, created_at, updated_at, project__name.
     f : str (repeatable)
         Field filters in ``key:value`` format, applied against the
         ``properties`` JSON column.
@@ -176,10 +205,10 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     serializer_class = EntityHubSerializer
     pagination_class = EntityHubPaginator
-    permission_classes: list = []
 
     def get_queryset(self):
-        qs = EntityHubView.objects.select_related("author", "schema").all()
+        qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
+        qs = qs.filter(visible_rows_q(self.request.user))
         return self._apply_filters(qs)
 
     def _parse_filter_params(self):
@@ -331,8 +360,6 @@ class EntityHubQueryView(APIView):
     ``/api/registry/entities/``.
     """
 
-    permission_classes: list = []
-
     def post(self, request):
         from rest_framework import serializers as drf_serializers
 
@@ -358,7 +385,8 @@ class EntityHubQueryView(APIView):
             raise drf_serializers.ValidationError(errors)
 
         # ── Build the filtered queryset ────────────────────────────────
-        qs = EntityHubView.objects.select_related("author", "schema").all()
+        qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
+        qs = qs.filter(visible_rows_q(request.user))
 
         # Search
         search = request.data.get("search", "").strip()
@@ -446,7 +474,6 @@ class SchemaTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = SchemaType.objects.filter(is_active=True)
     serializer_class = SchemaTypeListSerializer
-    permission_classes: list = []
     pagination_class = None
 
 
@@ -463,8 +490,8 @@ class SchemaViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Schema.objects.select_related("schema_type").filter(is_active=True)
-    permission_classes: list = []
     pagination_class = None
+    permission_classes = [IsOrganizationAdminForWrites]
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
@@ -519,8 +546,8 @@ class ActionCreateView(APIView):
 
     * ``action`` — triple-dotted action identifier (e.g.
       ``"eln.entry.created"``).
-    * ``action_type`` — core CRUD verb (``"created"``, ``"edited"``, or
-      ``"deleted"``).
+    * ``action_type`` — core action verb (``"created"``, ``"edited"``,
+      or ``"deleted"``; ``"read"`` is rejected — see below).
     * ``target_type`` — namespaced target, e.g. ``"eln.entry"``.
     * ``target_id`` — primary key of the target record.
     * ``workspace_id`` — the owning mod / workspace identifier.
@@ -528,14 +555,20 @@ class ActionCreateView(APIView):
     * ``timestamp`` — optional ISO 8601 datetime (accepted, currently
       ignored).
 
+    ``action_type: "read"`` is **rejected** with a 400 error.
+    Read participates in authorization and the policy catalog but
+    never creates an Action Log Entry and never appears in Activity.
+
     The backend:
 
-    1. Resolves ``workspace_id`` to the owning mod.
-    2. Validates ``action`` against that mod's registered action catalog.
-    3. Routes to the correct mod action table.
-    4. Creates a single action row with both ``action`` and
+    1. Rejects ``action_type: "read"`` immediately.
+    2. Resolves ``workspace_id`` to the owning mod.
+    3. Validates ``action`` against that mod's registered action
+       catalog.
+    4. Routes to the correct mod action table.
+    5. Creates a single action row with both ``action`` and
        ``action_type`` populated.
-    5. Returns ``201 Created`` with the created action row as a JSON
+    6. Returns ``201 Created`` with the created action row as a JSON
        array.
     """
 
@@ -559,6 +592,14 @@ class ActionCreateView(APIView):
         target_id: int = validated["target_id"]
         workspace_id: str = validated["workspace_id"]
         metadata: dict = validated.get("metadata", {})
+
+        # ── reject read actions — they are authorization-only ─────────
+        if action_type == "read":
+            raise serializers.ValidationError(
+                "'read' actions are not persisted.  Read participates "
+                "in authorization and policy discovery but never creates "
+                "an Action Log Entry and never appears in Activity."
+            )
 
         # ── validate action against the workspace's catalog ─────────────
         catalog = get_action_catalog(workspace_id)
@@ -590,6 +631,29 @@ class ActionCreateView(APIView):
             raise serializers.ValidationError(
                 f"No action model registered for workspace '{workspace_id}'."
             )
+
+        # ── enforce Edit on content targets ───────────────────────────────
+        # Content targets (Folders, Entries, Entities) may only be logged
+        # by a submitter who can Edit them.  A target the submitter cannot
+        # Edit — or that does not exist — is rejected so the audit trail
+        # cannot be written against arbitrary content.  Non-content targets
+        # (organization records, tags, and so on) are not project resources
+        # and skip the check.
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        target_model = _resolve_content_target_model(target_type)
+        if target_model is not None:
+            try:
+                target = target_model.objects.get(pk=target_id)
+            except target_model.DoesNotExist:
+                raise PermissionDenied(
+                    "You do not have permission to log an action against this target."
+                )
+            if effective_role(request.user, target) != "edit":
+                raise PermissionDenied(
+                    "You do not have permission to log an action against this target."
+                )
 
         # ── capture client IP ────────────────────────────────────────────
         client_ip = request.META.get("REMOTE_ADDR", "") or None
@@ -659,8 +723,6 @@ class ModRegistryView(APIView):
     and registered action models.
     """
 
-    permission_classes: list = []
-
     def get(self, request):
         from helix_core.mod_system.registry import registry
 
@@ -708,8 +770,8 @@ class ColorTokenViewSet(viewsets.ModelViewSet):
 
     queryset = ColorToken.objects.all()
     serializer_class = ColorTokenSerializer
-    permission_classes: list = []
     pagination_class = None
+    permission_classes = [IsOrganizationAdminForWrites]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def destroy(self, request, *args, **kwargs):
@@ -748,8 +810,8 @@ class IconLibraryViewSet(viewsets.ModelViewSet):
 
     queryset = IconLibraryEntry.objects.all()
     serializer_class = IconLibrarySerializer
-    permission_classes: list = []
     pagination_class = None
+    permission_classes = [IsOrganizationAdminForWrites]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def destroy(self, request, *args, **kwargs):

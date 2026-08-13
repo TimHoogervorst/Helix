@@ -18,6 +18,7 @@ from pathlib import Path
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.models import User
 from helix_core.column_types import (
     AggregateMeta,
     BooleanColumnType,
@@ -26,6 +27,7 @@ from helix_core.column_types import (
     DatetimeColumnType,
     NumberColumnType,
     OperatorMeta,
+    ProjectColumnType,
     ReferenceColumnType,
     DropdownColumnType,
     TextColumnType,
@@ -587,6 +589,67 @@ class UserColumnTypeTests(TestCase):
         self.assertEqual(ids, {"count", "count_distinct"})
 
 
+# ── Built-in type: Project ────────────────────────────────────────────────────
+
+
+class ProjectColumnTypeTests(TestCase):
+    def setUp(self):
+        self.ct = ProjectColumnType()
+
+    def test_id_and_display_name(self):
+        self.assertEqual(self.ct.id, "project")
+        self.assertEqual(self.ct.display_name, "Project")
+        self.assertEqual(self.ct.icon, "building")
+        self.assertEqual(self.ct.operand_shape, "project-picker")
+
+    def test_get_operators(self):
+        ids = _operator_ids(self.ct)
+        self.assertEqual(ids, {"eq", "neq", "in"})
+
+    def test_operator_operand_shapes(self):
+        shapes = {op.id: op.operand_shape for op in self.ct.get_operators()}
+        self.assertEqual(shapes["eq"], "project-picker")
+        self.assertEqual(shapes["neq"], "project-picker")
+        self.assertEqual(shapes["in"], "project-picker")
+
+    def test_operator_django_lookup_names(self):
+        lookups = {op.id: op.django_lookup_name for op in self.ct.get_operators()}
+        self.assertEqual(lookups["eq"], "exact")
+        self.assertEqual(lookups["neq"], "exact")
+        self.assertEqual(lookups["in"], "in")
+
+    def test_validate_int(self):
+        self.assertTrue(self.ct.validate(3))
+
+    def test_validate_none(self):
+        self.assertTrue(self.ct.validate(None))
+
+    def test_validate_empty_string(self):
+        self.assertTrue(self.ct.validate(""))
+
+    def test_validate_comma_separated(self):
+        self.assertTrue(self.ct.validate("3,7,12"))
+
+    def test_validate_comma_separated_with_spaces(self):
+        self.assertTrue(self.ct.validate("3, 7, 12"))
+
+    def test_validate_single_string_int(self):
+        self.assertTrue(self.ct.validate("3"))
+
+    def test_validate_rejects_non_numeric_string(self):
+        result = self.ct.validate("abc")
+        self.assertIsInstance(result, str)
+        self.assertIn("not a valid project ID", result)
+
+    def test_validate_rejects_list(self):
+        result = self.ct.validate([1, 2, 3])
+        self.assertIsInstance(result, str)
+
+    def test_get_aggregates(self):
+        ids = _aggregate_ids(self.ct)
+        self.assertEqual(ids, {"count", "count_distinct"})
+
+
 # ── ColumnTypeRegistry tests ─────────────────────────────────────────────────
 
 
@@ -753,7 +816,7 @@ class BuiltinTypesListTests(TestCase):
 
     def test_returns_all_eight_types(self):
         types = get_builtin_column_types()
-        self.assertEqual(len(types), 8)
+        self.assertEqual(len(types), 9)
 
     def test_all_types_have_unique_ids(self):
         types = get_builtin_column_types()
@@ -770,7 +833,7 @@ class BuiltinTypesListTests(TestCase):
         registry = _fresh_registry()
         for ct in get_builtin_column_types():
             registry.register_column_type(ct)
-        self.assertEqual(len(registry), 8)
+        self.assertEqual(len(registry), 9)
 
 
 # ── Contract test: columnTypes in mod-registry response ──────────────────────
@@ -781,6 +844,8 @@ class ColumnTypesContractTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.client.force_authenticate(user=self.user)
 
     def test_column_types_in_response(self):
         """GET /api/mod-registry/ includes a columnTypes key."""
@@ -822,7 +887,7 @@ class ColumnTypesContractTests(TestCase):
         """All built-in column types plus mod-registered types are present."""
         response = self.client.get("/api/mod-registry/")
         type_ids = {ct["id"] for ct in response.data["columnTypes"]}
-        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "tiptap_content"}
+        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "project", "tiptap_content"}
         self.assertEqual(type_ids, expected)
 
     def test_builtin_operators_have_correct_shape(self):
@@ -838,6 +903,7 @@ class ColumnTypesContractTests(TestCase):
                 valid_shapes = {
                     "text", "number", "date", "boolean",
                     "dropdown", "entity-picker", "range", "none",
+                    "project-picker",
                 }
                 self.assertIn(op["operandShape"], valid_shapes)
 
@@ -876,6 +942,7 @@ class ColumnTypesContractTests(TestCase):
             "dropdown": {"count", "count_distinct"},
             "reference": {"count", "count_distinct"},
             "user": {"count", "count_distinct"},
+            "project": {"count", "count_distinct"},
         }
 
         for type_id, expected_agg_ids in expected.items():

@@ -28,6 +28,8 @@ import type {
   LibraryFolderItem,
   LibraryContentsResponse,
 } from "../../../mods/library/types";
+import type { Project } from "../../../mods/access/types";
+import type { FolderShare } from "../../../mods/access/types";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 
@@ -144,6 +146,7 @@ export function makeLibraryContents(
     previous: null,
     results: [...(folders ?? []), ...(entries ?? [])],
     current_folder_id: null,
+    current_project_id: 1,
     ...overrides,
   };
 }
@@ -197,6 +200,45 @@ export function makeSchemaType(
   overrides?: Partial<SchemaTypeItem>,
 ): SchemaTypeItem {
   return { ..._schemaTypeDefaults, ...overrides };
+}
+
+// ── Access / Project ─────────────────────────────────────────────────────
+
+const _projectDefaults: Project = {
+  id: 1,
+  uid: "proj-001",
+  name: "Test Project",
+  icon_key: "flask",
+  color_key: "crimson",
+  is_archived: false,
+  created_at: "2025-01-01T00:00:00Z",
+  current_user_role: "read",
+};
+
+export function makeProject(
+  overrides?: Partial<Project>,
+): Project {
+  return { ..._projectDefaults, ...overrides };
+}
+
+// ── Access / FolderShare ──────────────────────────────────────────────────
+
+const _folderShareDefaults: FolderShare = {
+  id: 1,
+  source_folder: 1,
+  source_folder_name: "Experiments",
+  source_folder_path: "root/Experiments",
+  source_project_id: 1,
+  source_project_name: "Source Project",
+  target_project: 2,
+  target_project_name: "Target Project",
+  level: "read",
+};
+
+export function makeFolderShare(
+  overrides?: Partial<FolderShare>,
+): FolderShare {
+  return { ..._folderShareDefaults, ...overrides };
 }
 
 // ── TipTap editor (for extension tests) ─────────────────────────────────────

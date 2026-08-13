@@ -26,7 +26,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../../shell/src/api/client";
+import { get, del, ApiError } from "../../../shell/src/api/client";
 import type { TipTapDoc, EntryDetail } from "../types";
 import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
 import { attachTags, acquireLock, releaseLock, getLockStatus } from "../api";
@@ -58,6 +58,7 @@ export interface UseEntryCrudReturn {
   status: string;
   setStatus: (s: string) => void;
   error: string | null;
+  errorStatus: number | null;
   deleting: boolean;
   /** True when another user holds an active lock — entry is read-only. */
   isLockedByOther: boolean;
@@ -100,6 +101,7 @@ export function useEntryCrud({
   const [description, setDescriptionState] = useState("");
   const [status, setStatus] = useState("in_progress");
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [isLockedByOther, setIsLockedByOther] = useState(false);
@@ -145,7 +147,7 @@ export function useEntryCrud({
 
   // ── Auto-save (fire-and-forget) ──
   const autoSave = useCallback(
-    (folderId: number | null, hasBlockActions?: boolean) => {
+    (_folderId: number | null, hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -154,7 +156,6 @@ export function useEntryCrud({
       const payload: Record<string, unknown> = {
         name: title.trim(),
         content: fullContent,
-        folder: folderId,
         status,
       };
 
@@ -185,7 +186,7 @@ export function useEntryCrud({
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
-    async (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
+    async (_folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -194,7 +195,6 @@ export function useEntryCrud({
       const payload: Record<string, unknown> = {
         name: title.trim(),
         content: fullContent,
-        folder: folderId,
         status,
       };
 
@@ -221,6 +221,7 @@ export function useEntryCrud({
 
     setDeleting(true);
     setError(null);
+    setErrorStatus(null);
     try {
       await del(`/eln/entries/${effectiveEntryId}/`);
       navigate("/library");
@@ -251,6 +252,7 @@ export function useEntryCrud({
     setDescriptionState("");
     setStatus("in_progress");
     setError(null);
+    setErrorStatus(null);
     setSavedBaseline(null);
 
     const controller = new AbortController();
@@ -281,6 +283,7 @@ export function useEntryCrud({
         const message =
           err instanceof Error ? err.message : "Failed to load entry";
         setError(message);
+        setErrorStatus(err instanceof ApiError && err.status === 404 ? 404 : null);
       });
 
     return () => controller.abort();
@@ -357,6 +360,7 @@ export function useEntryCrud({
     status,
     setStatus,
     error,
+    errorStatus,
     deleting,
     isLockedByOther,
     lockHeldBy,

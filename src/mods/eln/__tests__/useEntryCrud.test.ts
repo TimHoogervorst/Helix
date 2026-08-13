@@ -294,10 +294,11 @@ describe("useEntryCrud", () => {
     });
 
     expect(mockEnqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Manual Saved", folder: 5 }),
+      expect.objectContaining({ name: "Manual Saved" }),
       "manual",
       undefined,
     );
+    expect(mockEnqueue.mock.calls[0][0]).not.toHaveProperty("folder");
   });
 
   it("save for isNew attaches deferred tags after save", async () => {

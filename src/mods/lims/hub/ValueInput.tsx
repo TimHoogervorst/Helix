@@ -65,6 +65,9 @@ export interface ValueInputProps {
   referenceSchemaId?: number;
   /** Workspace context for entity search. */
   workspaceId?: string;
+  /** Projects accessible to the viewer, for the project-picker operand shape.
+   *  Each entry has an id (PK), name, icon_key, and color_key. */
+  projectOptions?: Array<{ id: number; name: string; icon_key: string; color_key: string }>;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -78,6 +81,7 @@ export function ValueInput({
   dropdownOptions,
   referenceSchemaId,
   workspaceId,
+  projectOptions,
 }: ValueInputProps) {
   switch (operandShape) {
     case "text":
@@ -192,6 +196,39 @@ export function ValueInput({
         <span className="entities-filter-pill-none-value">
           (no value needed)
         </span>
+      );
+
+    case "project-picker":
+      if (projectOptions && projectOptions.length > 0) {
+        return (
+          <Select
+            className="entities-filter-select"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            data-testid="project-picker-select"
+          >
+            <option value="">--</option>
+            {projectOptions.map((proj) => (
+              <option key={proj.id} value={String(proj.id)}>
+                {proj.name}
+              </option>
+            ))}
+          </Select>
+        );
+      }
+      return (
+        <AutoSizeInput
+          className="entities-filter-search"
+          sizerText={value || "1, 2…"}
+          inputProps={{
+            type: "text",
+            placeholder: "1, 2…",
+            value,
+            onChange: (e) => onChange(e.target.value),
+            disabled,
+          }}
+        />
       );
 
     default:

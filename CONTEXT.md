@@ -47,7 +47,7 @@ The backend mirrors the frontend mod system. Mods are discovered from `modManife
 
 ### Action Logging
 
-All mutating operations are automatically logged for CFR Part 11 audit compliance. Every action — whether from an HTTP endpoint or a block — flows through a single unified `POST /api/actions/` endpoint. Core CRUD actions (`created`, `edited`, `deleted`) are auto-derived from every model; custom domain actions must be explicitly registered and map to a core action. The `ActivityFeed` is a cross-mod block that renders actions from any mod. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
+All mutating operations are automatically logged for CFR Part 11 audit compliance. Mutating actions — whether from an HTTP endpoint or a block — flow through a single unified `POST /api/actions/` endpoint. The four Core Actions are `read`, `created`, `edited`, and `deleted`. `read` participates in access-policy evaluation but is never persisted as an Action Log Entry or shown in the Activity Feed; the three mutating Core Actions are logged. Custom domain actions must be explicitly registered and map to a Core Action. For the access foundation, policies for Core Actions are hardcoded; per-mod custom Action policies are deferred. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
 
 ---
 
@@ -55,11 +55,15 @@ All mutating operations are automatically logged for CFR Part 11 audit complianc
 
 ### Folder
 
-A hierarchical container that owns Notebook Entries, Entities, and child Folders. Folders form a tree — the primary organizational structure of the system. Permissions are assigned to Folders and inherit downward. Users navigate the folder tree through the Library console.
+A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs directly to a Project or to another Folder within that Project. Folders form a tree rooted at the Project. Entries and Entities may live directly at the Project root or inside a Folder. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
+
+The Project is the root container. There is no synthetic or hidden root Folder. Root-level paths and breadcrumb construction use the Project directly, while `Folder.root_relative_path` owns root-relative display paths. Frontend Project-root URL parsing and breadcrumb path construction likewise go through `mods/library/path.ts`.
 
 Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items live.
 
-**Synonyms:** directory, project (rejected — "project" implies a temporary endeavor; Folders are a permanent organizational structure)
+Deleting a Folder permanently deletes everything inside it — child Folders, Entries, and Entities — under the pre-v1 lifecycle. There is no trash or recovery.
+
+**Synonyms:** directory
 
 ### User
 
@@ -81,9 +85,57 @@ A structured entry in a User's publication list. Has a `title`, `journal`, `year
 
 A structured entry in a User's honors and awards list. Has a `title`, `issuer` (e.g. "EMBO"), `date` (free-text string, e.g. "2024" or "Q2 2026"), and an `order`. Owned by exactly one User.
 
-### Group
+### Organization
 
-A named collection of Users. Groups are the unit of permission assignment — permissions are granted to Groups on Folders, not directly to Users.
+The single lab or company this deployment serves. Exactly one per deployment — every User, Team, and Project belongs to it. Has a name, short description, address, Dynamic Icon, and Color Token. The Organization exists to own Organization Roles and org-wide information; there is no org switching and no cross-org concept. Users open its dedicated profile-like page from the avatar menu.
+
+### Team
+
+A named collection of Users within the Organization, with a Dynamic Icon and Color Token. Teams are granted Project Roles — a Grant to a Team covers every member. Users can belong to many Teams. Team identity and membership are visible to every User and managed only by Organization Admins; there is no Team-specific administrator role. A Team with active Grants cannot be deleted.
+
+**Synonyms:** group
+
+### Project
+
+A first-class root container for its folder tree, Entries, and Entities. Has a unique, renameable name, an immutable generated ID, a Dynamic Icon, and a Color Token. The generated ID identifies the Project in Library URLs, so its name can change without breaking links. Projects are the access boundary of the system: permissions are expressed as Grants on Projects, while Organization Admins can perform every operation on every Project. Every User can discover every Project's identity from the Organization Page, but only Users with effective access can open its content. The Library root lists accessible Projects; opening a Project navigates directly to that Project root.
+
+**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Entries and Entities may belong directly to the Project or to exactly one Folder. Every non-root Folder has exactly one parent Folder. Folders, Entries, and Entities cannot move between Projects. Projects are created by Organization Admins only. Project-owned content is never exposed through Hubs, search, Mentions, Views, Metrics, Cards, or Tabs to a User without effective access.
+
+### Project Role
+
+A fixed access level on a Project, granted to a User or Team: **Read** (browse and open content) or **Edit** (create, modify, move, and delete content). A fixed enum — users cannot define new Project Roles. Project identity, Grants, archiving, and Shared Folders are managed by Organization Admins rather than through a Project Admin role. (Editable, user-defined Profiles are a deferred future extension.)
+
+### Organization Role
+
+A fixed access level on the Organization: **User** (normal day-to-day work) or **Admin** (manage users, teams, projects, Grants, Shared Folders, schemas, and all org-wide settings). An Organization Admin can perform every operation on every Project. Only Organization Admins can edit Project identity, manage Grants, archive Projects, or create and revoke Shared Folders. A fixed enum, never editable — unlike Project Roles, no future configurability is planned.
+
+### Organization Membership
+
+The association of exactly one User with the singleton Organization and one Organization Role. Every User has exactly one Organization Membership. The deployment must always retain at least one active Organization Admin.
+
+### Superuser
+
+A deployment-level break-glass identity, created outside the Organization UI. Bypasses every access check exactly like an Organization Admin, so a deployment can never be locked out of its own administration. A Superuser also receives an Admin Organization Membership so the Organization surfaces behave consistently. An escape hatch, not a day-to-day role.
+
+### Grantee
+
+The User or Team that receives a Grant. Exactly one Grantee per Grant.
+
+### Grant
+
+The assignment of a Project Role to one Grantee on one Project. A User's effective role on a Project is the strongest across their direct Grants and all their Teams' Grants. Organization Admins bypass Project Role checks without requiring generated Grants.
+
+### Shared Folder
+
+A first-level Folder — a direct child of a Project — made visible to Projects other than the Project that owns it. Appears immediately at the root of each Project it is shared with; only Organization Admins can create or revoke the share. Each share carries an access level — **Read** or **Read + Write** — that caps each User's effective role on the sharee Project: Read grants read access, while Read + Write allows target Editors and Organization Admins to modify descendants within the shared subtree. The shared Folder itself cannot be renamed, moved, or deleted through the share, and descendants cannot be moved outside the subtree. The Project and nested Folders cannot be shared directly. Ownership never moves: the Folder and its contents keep their original Project.
+
+### Archived Project
+
+A Project hidden from the Library root and from new-content Project selectors without changing the accessibility of its existing content. Existing Entries and Entities remain visible through Hubs and direct Workspaces and remain editable according to effective access. Grants and Shared Folders remain in force. Archived Projects can be shown and restored from Settings.
+
+### Organization Page
+
+The profile-like page at `/organization`, opened from the avatar menu and visible to every User. Its header presents the Organization's identity and information. Its People tab lists active Users and identifies Organization Admins. Its Teams tab shows the platform's Teams and their members, grouped into the current User's Teams and Other Teams. Its Projects tab shows every non-archived Project's identity, grouped into the current User's Projects and Other Projects; a Project is "yours" when the User has a direct Grant or belongs to a Team with a Grant, while Shared Folders do not make a Project theirs. Its Access Policies tab shows the hardcoded policy matrix. The directory and policy information is read-only and identical for every User apart from personalized grouping. Organization Admins can edit Organization information from this page.
 
 ---
 
@@ -95,9 +147,9 @@ The platform uses a **Hub → Workspace** navigation model. Hubs are free-form b
 |------|-----------|
 | **Hub** | A free-form browsing page at a route like `/library` or `/home`. Each hub has complete layout freedom — card grids, stat tiles, tree views. Its job is to help users find the right thing. Hubs link outward to Workspaces at dedicated URLs. |
 | **Hub Registration** | Hubs are registered via `registerHub({ id, label, icon, route, component, order })`. Automatically adds a sidebar nav item. |
-| **Library Hub** | The hub at `/library`, registered by the Library mod. Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
+| **Library Hub** | The hub at `/library`, registered by the Library mod. Root lists Projects; inside a Project, a card-grid view over its Folder hierarchy showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
 | **Home Hub** | The hub at `/home`, registered by the Home mod (`order: 0` — first in sidebar). Landing page. |
-| **Settings Hub** | The hub at `/settings`, registered by the Settings mod. Renders settings sections from all mods, sorted by `order`. |
+| **Settings Hub** | The Organization Admin-only hub at `/settings`, registered by the Settings mod. Renders administrative settings sections from all mods, sorted by `order`. |
 
 ### Navigation Flow
 
@@ -115,7 +167,7 @@ Sidebar (dynamic: registry.getHubs())
 
 ### Library
 
-The **hub** at `/library` that presents a unified, filesystem-like view over the Folder hierarchy. At any folder level, both child Folders and Entries appear together in a single card grid, sorted with folders first. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of the Folder tree.
+The **hub** at `/library` that presents a unified, filesystem-like view over Projects and their Folder hierarchies. At the root, the Library lists only the Projects the user has access to — an effective Project Role through a direct Grant, a Team Grant, or the Organization Admin override. Archived Projects are hidden from the root but their content remains reachable by members through a direct URL. Inside a Project, both child Folders and Entries appear together in a single card grid at any folder level, sorted with folders first; Folders shared with the Project appear at its root. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of Projects and the Folder tree.
 
 The Library renders two Item types: **Folders** (navigated into) and **Entries** (selected for navigation to workspace). When new content types are added, they appear in the same mixed grid with their own type icon and label.
 
@@ -125,9 +177,31 @@ The Library renders two Item types: **Folders** (navigated into) and **Entries**
 
 ### Breadcrumb
 
-The navigation bar at the top of the Library hub showing the current folder path as clickable segments. Each segment is a link to that folder level. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
+The navigation bar at the top of the Library hub showing the current location as clickable segments: the Project name, then each Folder along the path. The Project name represents the Project root. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
 
-**Invariant:** The breadcrumb always reflects the current `?path=` URL parameter. Clicking a breadcrumb segment updates the path and reloads the card grid.
+**Invariant:** The breadcrumb always reflects the current `?project=` and `?path=` URL parameters. The `project` parameter contains the Project's immutable generated ID while the breadcrumb displays its name. Clicking a segment updates the parameters and reloads the card grid.
+
+### Row Menu
+
+The hover-revealed three-dot menu at the right end of every Library row (Folders and Entries, all three view modes). Always opens a menu — never a direct action — with **Properties** (always) and **Delete** (only when the viewer can modify the row: Edit access, Organization Admin override, or a Read + Write share for rows inside a shared subtree). Rows whose only action is Properties still show a menu — predictability beats shortcut. The button stays in the DOM; reveal is pure CSS, so keyboard focus reaches it. Library rows only — the Entities hub has no Row Menu.
+
+**Synonyms:** row actions, three-dot menu, kebab menu
+
+### Properties Modal
+
+The standard modal opened from a Row Menu's **Properties** action, built on the shared Modal primitive. Shows the metadata of one Folder or Entry; what is editable follows access — viewers without Edit see the same modal read-only. Changes **apply instantly** — no Save button, no dirty state.
+
+**Entry properties:** status (with a note that it cascades to entities created in the entry), move-to-folder (a searchable list of folder paths, excluding the current folder; constrained to the shared subtree when the entry is reached through a share), and read-only project, author, created, and updated dates. The header carries the display ID and title; the title is read-only — it is edited in the workspace, not here. Tags are absent — they are attached on the entry page and managed in Settings. Editable fields are disabled while the entry is locked by another user.
+
+**Folder properties:** rename and the read-only created date. Top-level Folders in their owning Project additionally carry the Sharing Panel (Organization Admins only); nested Folders show a hint that only top-level Folders can be shared. A shared Folder opened through a sharee Project is read-only — it cannot be renamed through the share.
+
+**Synonyms:** row properties, item properties
+
+### Sharing Panel
+
+The Organization Admin-only section of a top-level Folder's Properties Modal, shown only in the Folder's owning Project. Lists the Folder's shares — target Project identity, a **Read / Read + Write** level dropdown (changes apply instantly), and revoke (confirmed). New shares are added inline: a picker of non-archived Projects excluding the owner and already-shared targets, a level, and Add. Share constraints (one share per pair, overlap rejection, target-root name collisions) are enforced server-side and surfaced inline.
+
+**Synonyms:** share management, folder shares panel
 
 ---
 
@@ -163,9 +237,9 @@ When an entry's status changes, the new status **cascades** to every Entity whos
 
 ### Tag
 
-A user-created label that can be attached to a Notebook Entry. Each Tag has a **name** and a **color** (chosen from a preset palette of semantic design tokens). Tags are reusable across entries — creating a tag on one entry makes it available for all entries. Tags have no hierarchy, no permissions, and no independent lifecycle.
+A label created by Organization Admins that can be attached to Notebook Entries. Each Tag has a **name** and a **color** (chosen from a preset palette of semantic design tokens). Tags are reusable across entries — a Tag is visible across the Organization and can be attached to any entry. Tags have no hierarchy and no independent lifecycle.
 
-Tags are managed **inline** on the entry page: users create, search, attach, and detach tags without leaving the entry. There is no global tag management interface.
+Tags are **managed by Organization Admins** in Settings — creation, renaming, recoloring, and deletion. Users work with existing Tags only: on the entry page they attach and detach Tags (which requires Edit access on the entry) but never create or modify Tags themselves.
 
 **Invariant:** A Tag's name is unique (case-insensitive). A Tag's color comes from the preset palette.
 
@@ -282,6 +356,8 @@ A parsed reference from one Notebook Entry to another object (another Entry, an 
 The server's resolve endpoint (`POST /api/mentions/resolve/`) returns `workspaceId` alongside resolved metadata. The frontend uses the convention to build navigation URLs — no hardcoded type-to-URL branching.
 
 **Invariant:** A Mention has exactly one source entry and exactly one target object. Every mentionable entity type is registered with LIMS, which owns the prefix→workspace mapping.
+
+**Access:** Resolution respects Project access — resolve and search only return targets the viewer has effective access to (direct Grant, Team Grant, Organization Admin override, or a Shared Folder). Inaccessible targets simply do not resolve; the UI renders whatever resolution returns.
 
 **Cross-workspace navigation:** Clicking a MentionBadge navigates to the target entity's workspace via `/{workspaceId}/{displayId}`. This works for any registered entity type without per-type wiring — a MolBio DNA sequence resolves and navigates the same way a LIMS sample does.
 
@@ -400,6 +476,12 @@ One recorded value of a Metric at a point in time. Today Metrics are computed **
 
 **Synonyms:** metric snapshot, data point
 
+### Project Filter
+
+A filter on the Entities Hub that narrows rows by Project. A multi-select over the Projects the viewer can access (effective Project Role or Organization Admin override); archived Projects are not offered. Participates in the standard field-filter machinery (`?f=`), saved Views, and Metrics like any other column filter. Absence of a Project Filter means all Projects — saved Views created before the filter existed keep their meaning.
+
+**Synonyms:** project column filter
+
 ### By Me Filter
 
 A filter on a user column that resolves to the **current viewer** rather than a fixed user. Stored unresolved; substituted with the viewer's identity at evaluation time. Makes any View, Metric, or Metric Card self-personalizing — one shared definition yields per-user results.
@@ -425,6 +507,14 @@ Entity Actions are **user-explicit** — the user records them deliberately. The
 **Invariant:** An Entity Action acts on exactly one Entity.
 
 **Synonyms:** entity event, entity operation, entity activity
+
+### Core Action
+
+One of four universal operations understood by the Action system: **read**, **created**, **edited**, or **deleted**. The Action's access policy is evaluated before the operation. Read Actions are authorization-only and are not logged; successful mutating Actions produce Action Log Entries. For now, access policies are hardcoded for Core Actions. Custom Actions inherit the policy of the Core Action they map to; per-mod policy registration and overrides are deferred.
+
+### Action Policy
+
+The access rule evaluated before an Action can run. A policy can require a Project Role, an Organization Role, ownership, authentication, or public access. Authorization failure stops the operation; failure to write the subsequent audit record does not undo an operation that already succeeded.
 
 ### Action Log Entry
 
@@ -486,7 +576,16 @@ A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs 
 ## Relationship Summary
 
 ```
-Library Hub ──▶ Folder tree (the Library is the browsing surface for the folder hierarchy)
+Library Hub ──▶ Projects ──▶ Folder tree (the Library is the browsing surface; root lists Projects)
+
+Organization ──▶ Team (1:N — org has many teams)
+Organization ──▶ Project (1:N — org has many projects)
+Team ──▶ User (M:N — teams have many users; users can be in many teams)
+Project ──▶ Folder (1:N — first-level Folders live directly under the Project)
+Project ──▶ Grant ──▶ User | Team (Project Roles granted to users and teams)
+Folder ──▶ Shared Folder ──▶ Project (M:N — a folder shared into other projects' roots, per-share access level)
+NotebookEntry ──▶ Project (N:1 — entry belongs to exactly one project)
+Entity ──▶ Project (N:1 — entity belongs to exactly one project)
 
 Folder ──┬── Folder (parent/child, recursive)
          ├── NotebookEntry (1:N — entry lives in one folder)
@@ -559,6 +658,10 @@ A **Slot** is a named placeholder inside a workspace for embedded UI extension. 
 ### Library vs Folder
 
 A **Folder** is a data-model concept — a node in the folder tree with a parent, a name, and contents. The **Library** is the console that lets users navigate, search, and open items within the folder hierarchy. The Library shows a mixed list of folders and entries at any path; folders are navigated *into*, entries are opened.
+
+### Project vs Folder
+
+A **Project** is the access boundary: it carries a Dynamic Icon and Color Token, owns Grants, and appears at the Library root. Projects are few and curated — created by Organization Admins only. A **Folder** is a plain container inside a Project's tree: many, free-form, carrying no permissions of its own (a Folder only affects access when it becomes a Shared Folder).
 
 ### Entry vs Entity
 

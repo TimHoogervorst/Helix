@@ -20,7 +20,9 @@ The Library replaces this with a browsable, folder-aware interface. Two primary 
 
 ## Decision
 
-**Present the folder hierarchy as a unified, filesystem-like table where folders and entries appear together in one list, sorted folders-first.**
+**Present each Project and its folder hierarchy as a unified, filesystem-like table where folders and entries appear together in one list, sorted folders-first.**
+
+The Library opens at the Project root, where root-level Folders and Entries appear directly. Folder navigation appends folder segments to the Project context; no synthetic root path or `root` breadcrumb segment exists.
 
 The Library page (`/library?path=/folder/subfolder`) shows:
 
@@ -59,7 +61,7 @@ Back navigation from expanded: `[<]` → detail card, `[x]` → list at current 
 
 ### Why embed the ElnEditor rather than navigate away
 
-- **Preserves context.** The user stays in the Library at their current folder path. If the editor were a separate page (`/eln/:id`), the `[<]` back button would need to reconstruct the folder path from the entry's folder FK — possible but fragile.
+- **Preserves context.** The user stays in the Library at their current Project and folder path. If the editor were a separate page (`/eln/:id`), the `[<]` back button would need to reconstruct that context from the entry's Project and folder FKs — possible but fragile.
 - **Consistent three-panel feel.** LIMS expanded state shows the entity in the right panel; Library expanded state shows the entry in the right panel. Users learn one pattern for both.
 - **The `/eln/:id` route remains as a direct-entry point** — bookmarks, shared links, and cross-references still work independently of the Library.
 

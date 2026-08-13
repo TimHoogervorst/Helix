@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from core.models import Folder, User
+from core.models import Folder, Project, User
 from mods.users.serializers import UserSerializer
 
 from mods.tags.models import Tag
@@ -72,6 +72,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     folder_path = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     schema_prefix = serializers.CharField(source="schema.prefix", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
     mentions = MentionSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
 
@@ -85,6 +86,8 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "folder",
             "folder_name",
             "folder_path",
+            "project",
+            "project_name",
             "author",
             "author_username",
             "author_info",
@@ -97,7 +100,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "mentions",
             "tags",
         ]
-        read_only_fields = ["id", "display_id", "author", "created_at", "updated_at", "schema"]
+        read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
@@ -109,10 +112,13 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
 
 
 class NotebookEntryCreateSerializer(serializers.ModelSerializer):
-    """Write-only serializer. Folder defaults to 'Default' if omitted."""
+    """Write-only serializer for folder or Project-root entries."""
 
     folder = serializers.PrimaryKeyRelatedField(
         queryset=Folder.objects.all(), required=False, allow_null=True
+    )
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(), required=False,
     )
     content = serializers.JSONField(validators=[validate_tiptap_json])
     status = serializers.ChoiceField(choices=["in_progress", "finished"], required=False)
@@ -122,7 +128,22 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NotebookEntry
-        fields = ["name", "content", "folder", "status", "tag_ids"]
+        fields = ["name", "content", "folder", "project", "status", "tag_ids"]
+
+    def validate(self, data):
+        folder = data.get("folder")
+        project = data.get("project")
+        if folder is None and project is None:
+            raise serializers.ValidationError(
+                {"project": "Provide a project when folder is empty."}
+            )
+        if folder is not None:
+            if project is not None and project.pk != folder.project_id:
+                raise serializers.ValidationError(
+                    {"folder": "The folder must belong to the project."}
+                )
+            data["project"] = folder.project
+        return data
 
     def create(self, validated_data):
         tag_ids = validated_data.pop("tag_ids", [])

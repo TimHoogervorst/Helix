@@ -1,6 +1,7 @@
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
@@ -8,6 +9,8 @@ from rest_framework.response import Response
 
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
+from mods.access.permissions import IsOrganizationAdmin
+from mods.access.scoping import visible_rows_q
 
 from .models import Entity, Action, LimsView, Metric
 from .serializers import (
@@ -18,6 +21,7 @@ from .serializers import (
     LimsViewSerializer,
     MetricSerializer,
 )
+from core.models import Folder, Project
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +65,20 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Entity.objects.select_related("schema", "author", "folder")
     serializer_class = EntitySerializer
-    permission_classes = []
     lookup_field = "display_id"
     filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
+
+    def get_permissions(self):
+        if self.action == "delete_all":
+            return [IsOrganizationAdmin()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ("list", "retrieve"):
+            queryset = queryset.filter(visible_rows_q(self.request.user))
+        return queryset
 
     action_log_config = {
         "create": {"action": "lims.entity.created"},
@@ -74,6 +88,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     }
 
     def perform_destroy(self, instance):
+        from mods.access.policies import effective_role, role
+        from rest_framework.exceptions import PermissionDenied
+
+        if effective_role(self.request.user, instance) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to delete this entity."
+            )
         referencing_schemas = self._find_referencing_schemas(instance.display_id)
         if referencing_schemas:
             raise ReferentialConflict(
@@ -114,16 +135,53 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return sorted(referencing)
 
     def perform_create(self, serializer):
-        if not self.request.user.is_authenticated:
-            from rest_framework.exceptions import NotAuthenticated
-            raise NotAuthenticated("Authentication is required to create entities.")
-        # Schema is always resolved by EntitySerializer.validate() — if the
-        # client omitted it, the default Schema for the LIMS SchemaType is
-        # assigned automatically.
-        instance = serializer.save(author=self.request.user)
+        from mods.access.policies import effective_role, role
+        from rest_framework.exceptions import PermissionDenied
+
+        folder = serializer.validated_data.get("folder")
+        project = serializer.validated_data.get("project") or folder.project
+        permission = effective_role(self.request.user, folder) if folder else role(
+            self.request.user, project,
+        )
+        if permission != "edit":
+            raise PermissionDenied(
+                "You do not have permission to create entities in this Project."
+            )
+        instance = serializer.save(
+            author=self.request.user,
+            project=project,
+        )
         self._maybe_log(
             "create",
             instance=instance,
+            validated_data=serializer.validated_data,
+        )
+
+    def perform_update(self, serializer):
+        from mods.access.policies import destination_within_shared_subtree, effective_role
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+
+        instance = serializer.instance
+        if effective_role(self.request.user, instance) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to edit this entity."
+            )
+        if "folder" in serializer.validated_data:
+            new_folder = serializer.validated_data["folder"]
+            if new_folder.project_id != instance.project_id:
+                raise ValidationError(
+                    {"folder": "Entities cannot be moved to a different Project."}
+                )
+            if not destination_within_shared_subtree(
+                instance.folder, new_folder, instance.project_id,
+            ):
+                raise ValidationError(
+                    {"folder": "Entities cannot be moved outside the shared subtree."}
+                )
+        serializer.save()
+        self._maybe_log(
+            self.action,
+            instance=serializer.instance,
             validated_data=serializer.validated_data,
         )
 
@@ -138,18 +196,31 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def batch(self, request):
         """Batch-resolve entity display IDs to their details.
 
+        Requires Edit access on every resolved entity — batch resolution
+        is a mutation path per the access enforcement series.
+
         POST /api/lims/entities/batch/
         Body: {"ids": ["BLOOD1", "DNA2"]}
         Returns: {"BLOOD1": {...}, "DNA2": {...}, "NONEXIST1": null}
         """
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         input_serializer = EntityBatchSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
         ids = input_serializer.validated_data["ids"]
 
-        result = {}
         entities = Entity.objects.filter(display_id__in=ids).select_related("schema")
         entity_map = {e.display_id: e for e in entities}
 
+        for display_id in ids:
+            entity = entity_map.get(display_id)
+            if entity is not None and effective_role(request.user, entity) != "edit":
+                raise PermissionDenied(
+                    "You do not have permission to resolve these entities."
+                )
+
+        result = {}
         for display_id in ids:
             entity = entity_map.get(display_id)
             if entity is None:
@@ -193,6 +264,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         input_serializer.is_valid(raise_exception=True)
 
         schema_id = input_serializer.validated_data["schema_id"]
+        project_id = input_serializer.validated_data.get("project_id")
         rows = input_serializer.validated_data["rows"]
 
         # Validate schema exists
@@ -204,12 +276,55 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        project = None
+        if project_id is not None:
+            try:
+                project = Project.objects.get(pk=project_id)
+            except Project.DoesNotExist:
+                return Response(
+                    {"detail": f"Project with id {project_id} not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
         author = request.user if request.user.is_authenticated else None
         if author is None:
             from rest_framework.exceptions import NotAuthenticated
             raise NotAuthenticated(
                 "Authentication is required to batch-register entities."
             )
+
+        # ── Access enforcement ────────────────────────────────────────────
+        # Batch registration mutates content, so it enforces the same Edit
+        # rule as single mutations.  A row that targets content the
+        # submitter cannot Edit rejects the whole request with 403.  Rows
+        # whose target does not exist (unknown entity or folder) are data
+        # errors handled per-row below, not access denials.
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        def _row_target_is_editable(row):
+            """Return True/False for a real target, None for a missing one."""
+            entity_id = row.get("entity_id")
+            if entity_id is not None:
+                try:
+                    target = Entity.objects.get(pk=entity_id)
+                except Entity.DoesNotExist:
+                    return None
+                return effective_role(request.user, target) == "edit"
+            folder_id = row.get("folder_id")
+            if folder_id is None:
+                return None
+            try:
+                target = Folder.objects.get(pk=folder_id)
+            except Folder.DoesNotExist:
+                return None
+            return effective_role(request.user, target) == "edit"
+
+        for row in rows:
+            if _row_target_is_editable(row) is False:
+                raise PermissionDenied(
+                    "You do not have permission to batch-register entities."
+                )
 
         # Build a lookup from column name → column definition.
         # SchemaType columns provide system-level defaults; Schema columns
@@ -231,13 +346,45 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             entity_id = row.get("entity_id")
             name = (row.get("name") or "").strip()
             values = row.get("values", {})
+            folder_id = row.get("folder_id")
 
-            # Validate name
             if not name:
                 errors.append({
                     "row_index": row_index,
                     "field": "name",
                     "message": "Name is required.",
+                })
+                continue
+
+            if folder_id is None and entity_id is None:
+                errors.append({
+                    "row_index": row_index,
+                    "field": "folder_id",
+                    "message": "folder_id is required for new entities.",
+                })
+                continue
+
+            folder = None
+            if folder_id is not None:
+                try:
+                    folder = Folder.objects.get(pk=folder_id)
+                except Folder.DoesNotExist:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "folder_id",
+                        "message": f"Folder with id {folder_id} not found.",
+                    })
+                    continue
+
+            if (
+                project is not None
+                and folder is not None
+                and folder.project_id != project.id
+            ):
+                errors.append({
+                    "row_index": row_index,
+                    "field": "project_id",
+                    "message": "The folder must belong to the project.",
                 })
                 continue
 
@@ -281,12 +428,30 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 continue
 
             if entity_id is not None:
-                # Update existing entity
                 try:
                     entity = Entity.objects.get(pk=entity_id)
+                    if folder is not None and folder.project_id != entity.project_id:
+                        errors.append({
+                            "row_index": row_index,
+                            "field": "folder_id",
+                            "message": "Entities cannot be moved to a different Project.",
+                        })
+                        continue
+                    if project is not None and entity.project_id != project.id:
+                        errors.append({
+                            "row_index": row_index,
+                            "field": "project_id",
+                            "message": "The entity must belong to the project.",
+                        })
+                        continue
+                    if folder is not None:
+                        entity.folder = folder
+                        update_fields = ["name", "properties", "folder"]
+                    else:
+                        update_fields = ["name", "properties"]
                     entity.name = name
                     entity.properties = values
-                    entity.save(update_fields=["name", "properties"])
+                    entity.save(update_fields=update_fields)
                     results.append({
                         "row_index": row_index,
                         "entity_id": entity.id,
@@ -300,14 +465,17 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "message": f"Entity with id {entity_id} not found.",
                     })
             else:
-                # Idempotent create: check for existing entity with same name + schema
                 existing = Entity.objects.filter(
                     name=name, schema=schema
                 ).first()
                 if existing:
-                    # Idempotency — update instead of duplicate
                     existing.properties = values
-                    existing.save(update_fields=["properties"])
+                    if folder is not None:
+                        existing.folder = folder
+                        existing.project = folder.project
+                        existing.save(update_fields=["properties", "folder", "project"])
+                    else:
+                        existing.save(update_fields=["properties"])
                     results.append({
                         "row_index": row_index,
                         "entity_id": existing.id,
@@ -319,6 +487,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         name=name,
                         schema=schema,
                         properties=values,
+                        folder=folder,
+                        project=folder.project,
                         author=author,
                     )
                     results.append({
@@ -358,10 +528,39 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint for LIMS actions (read-only for Phase 1).
     """
 
-    queryset = Action.objects.select_related("entity", "performed_by")
     serializer_class = ActionSerializer
-    permission_classes = []
     filterset_fields = ["entity", "action_type"]
+
+    def get_queryset(self):
+        visible_entities = Entity.objects.filter(
+            visible_rows_q(self.request.user)
+        ).values("pk")
+        from mods.eln.models import NotebookEntry
+
+        visible_entries = NotebookEntry.objects.filter(
+            visible_rows_q(self.request.user)
+        ).values("pk")
+
+        visible_related_targets = (
+            Q(entity_id__in=visible_entities)
+            & (Q(source_entry__isnull=True) | Q(source_entry_id__in=visible_entries))
+        ) | (
+            Q(entity__isnull=True)
+            & Q(source_entry_id__in=visible_entries)
+        )
+        visible_generic_targets = (
+            Q(entity__isnull=True, source_entry__isnull=True)
+            & (
+                Q(
+                    target_type__in=("lims.entity", "lims.entities"),
+                    target_id__in=visible_entities,
+                )
+                | Q(target_type="eln.entry", target_id__in=visible_entries)
+            )
+        )
+        return Action.objects.filter(
+            visible_related_targets | visible_generic_targets
+        ).select_related("entity", "performed_by", "source_entry")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):
@@ -376,12 +575,19 @@ class LimsViewViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = LimsViewSerializer
-    permission_classes = []
     pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
         public_only = self.request.query_params.get("public") == "true"
+
+        detail_actions = ("retrieve", "update", "partial_update", "destroy")
+        if self.action in detail_actions and user.is_authenticated:
+            from django.db.models import Q
+
+            return LimsView.objects.filter(
+                Q(owner=user) | Q(is_public=True)
+            ).select_related("owner")
 
         if public_only:
             qs = LimsView.objects.filter(is_public=True).select_related("owner")
@@ -425,12 +631,11 @@ class MetricViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = MetricSerializer
-    permission_classes = []
     pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated:
+        if user.is_authenticated and user.is_active:
             from django.db.models import Q
 
             return (
@@ -440,6 +645,8 @@ class MetricViewSet(viewsets.ModelViewSet):
                 .select_related("owner", "view")
                 .distinct()
             )
+        if not user.is_authenticated or not user.is_active:
+            return Metric.objects.none()
         return Metric.objects.filter(
             view__is_public=True
         ).select_related("owner", "view")
@@ -484,6 +691,7 @@ class MetricViewSet(viewsets.ModelViewSet):
                 metric.aggregate_function,
                 metric.column or None,
                 identity=identity,
+                user=request.user,
             )
             return Response(result)
         except Exception:

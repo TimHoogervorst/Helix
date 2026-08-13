@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Star, Folder } from "lucide-react";
 import type { LibraryEntryItem } from "../../../../mods/library/types";
 import { Avatar, getInitials } from "../Avatar";
@@ -40,6 +40,12 @@ interface BaseCardProps {
   showUpdatedAt?: boolean;
   /** Called when the card body is clicked. */
   onClick?: () => void;
+  /** Optional slot rendered at the right end of the card (e.g. RowMenu). */
+  endSlot?: ReactNode;
+  /** Optional overlay rendered on top of the card icon. */
+  iconOverlay?: ReactNode;
+  /** Native title tooltip on the card icon container. */
+  iconTitle?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -64,9 +70,13 @@ export function BaseCard({
   showTags = false,
   showUpdatedAt = false,
   onClick,
+  endSlot,
+  iconOverlay,
+  iconTitle,
 }: BaseCardProps) {
   const classNames = [
     "base-library-card",
+    "group",
     `view-${viewMode}`,
     isSelected ? "is-selected" : "",
   ]
@@ -103,13 +113,18 @@ export function BaseCard({
       </button>
 
       {/* ── Icon ──────────────────────────────────────────────────── */}
-      <span className="card-icon">
+      <span className="card-icon" title={iconTitle}>
         {iconKey ? (
           <IconBadge iconKey={iconKey} colorKey={colorKey} size="md" />
         ) : Icon ? (
           <Icon />
         ) : (
           <Folder />
+        )}
+        {iconOverlay && (
+          <span className="card-icon-overlay" aria-hidden="true">
+            {iconOverlay}
+          </span>
         )}
       </span>
 
@@ -175,6 +190,9 @@ export function BaseCard({
           {item.author_info.username}
         </div>
       )}
+
+      {/* ── End slot (e.g. RowMenu) ───────────────────────────────── */}
+      {endSlot}
     </div>
   );
 }

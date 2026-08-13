@@ -25,7 +25,8 @@ class ActionCreateSerializer(serializers.Serializer):
     action_type = serializers.CharField(
         required=True,
         max_length=16,
-        help_text="Core CRUD verb: 'created', 'edited', or 'deleted'.",
+        help_text="Core action verb: 'read', 'created', 'edited', or 'deleted'. "
+                  "'read' is rejected by the endpoint — it never creates a log entry.",
     )
     target_type = serializers.CharField(
         required=True,

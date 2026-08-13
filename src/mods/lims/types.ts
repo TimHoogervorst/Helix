@@ -99,6 +99,14 @@ export interface EntityHubItem {
   icon: string;
   color: string;
   workspace_id: string;
+  project_id: number;
+  project_uid: string;
+  project_name: string;
+  project_icon: string;
+  project_color: string;
+  folder_id: number;
+  folder_name: string;
+  folder_path: string;
   /** Schema properties columns extracted from the properties JSON.
    * Only populated when a specific Schema is selected. */
   _expanded: Record<string, unknown> | null;

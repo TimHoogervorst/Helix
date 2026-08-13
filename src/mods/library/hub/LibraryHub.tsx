@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -7,11 +7,14 @@ import {
   LayoutList,
   LayoutGrid,
   AlignJustify,
+  Folder,
+  FolderSymlink,
+  ArrowUp,
 } from "lucide-react";
-import type { LibraryItem, LibraryEntryItem } from "../types";
+import type { LibraryItem, LibraryEntryItem, LibraryProjectItem, LibraryFolderPath } from "../types";
+import type { Project } from "../../access/types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
-import { getLibraryContents } from "../api";
-import Breadcrumbs from "../../../shell/src/shared/components/Breadcrumbs";
+import { getLibraryContents, getAccessibleProjects, getFolders, deleteFolder, deleteEntry } from "../api";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
@@ -24,6 +27,17 @@ import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { Input } from "../../../shell/src/shared/primitives/Input";
 import { Select } from "../../../shell/src/shared/primitives/Input";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import RowMenu from "./RowMenu";
+import { EntryPropertiesModal } from "./EntryPropertiesModal";
+import { FolderPropertiesModal } from "./FolderPropertiesModal";
+import NotFound from "../../../shell/src/shared/components/NotFound";
+import {
+  appendPath,
+  parentPath,
+  pathSegments as getPathSegments,
+  segmentPath,
+} from "../path";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -43,35 +57,43 @@ function getInitialViewMode(): ViewMode {
   return "list";
 }
 
-// ── Folder-to-entry adapter ────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-/**
- * Map a LibraryFolderItem to a LibraryEntryItem-compatible shape so
- * BaseCard can render it.  Optional fields are blanked out so only
- * the folder name and icon display.
- */
 function folderToEntryShape(folder: {
   type: "folder";
   id: number;
   name: string;
   parent: number | null;
   created_at: string;
+  is_shared?: boolean;
+  source_project_id?: number;
+  source_project_name?: string;
+  source_project_icon?: string;
+  source_project_color?: string;
 }): LibraryEntryItem {
   return {
-    type: "entry", // treat as entry for BaseCard compatibility
+    type: "entry",
     id: folder.id,
     workspace_id: "",
     display_id: "",
     title: folder.name,
     folder: folder.parent,
     folder_name: null,
-    author_username: null,
-    author_info: null,
+    author_username: folder.source_project_name ?? null,
+    author_info: folder.is_shared
+      ? {
+          id: folder.source_project_id ?? 0,
+          username: folder.source_project_name ?? "Unknown Project",
+          first_name: "",
+          last_name: "",
+          color: folder.source_project_color ?? "#666",
+        }
+      : null,
     status: "",
     description: "",
     tags: [],
     editors: [],
-    icon: "folder",
+    icon: folder.is_shared ? "" : "folder",
     color: "warn",
     samples_count: null,
     attachments_count: null,
@@ -81,13 +103,6 @@ function folderToEntryShape(folder: {
   };
 }
 
-// ── Schema column → property field adapter ──────────────────────────────────
-
-/**
- * Convert backend schema column definitions into BaseCard property fields.
- * Each column's name is lowercased for the key so it matches keys in
- * the entry's ``property_fields`` record.
- */
 function columnsToPropertyFields(
   columns: SchemaColumnDef[] | undefined,
 ): PropertyField[] {
@@ -98,17 +113,200 @@ function columnsToPropertyFields(
   }));
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Project-aware breadcrumbs ──────────────────────────────────────────────
+
+interface ProjectBreadcrumbProps {
+  projectName: string;
+  projectIsArchived: boolean;
+  pathSegments: string[];
+  onNavigateToRoot: () => void;
+  onNavigateToSegment: (path: string) => void;
+  onUp: () => void;
+}
+
+function ProjectBreadcrumbs({
+  projectName,
+  projectIsArchived,
+  pathSegments,
+  onNavigateToRoot,
+  onNavigateToSegment,
+  onUp,
+}: ProjectBreadcrumbProps) {
+  const atRoot = pathSegments.length === 0;
+
+  return (
+    <nav className="breadcrumbs" aria-label="Breadcrumb path">
+      <IconButton
+        onClick={onUp}
+        disabled={atRoot}
+        aria-label="Go up"
+        title="Go up"
+      >
+        <ArrowUp size={14} />
+      </IconButton>
+      <Folder
+        size={13}
+        className="breadcrumb-folder-icon"
+        aria-hidden="true"
+      />
+      <span
+        className="breadcrumb-seg"
+        onClick={onNavigateToRoot}
+      >
+        {projectName}
+        {projectIsArchived && (
+          <span className="archived-pill">Archived</span>
+        )}
+      </span>
+      {pathSegments.map((seg, i) => {
+        const isLast = i === pathSegments.length - 1;
+        return (
+          <span key={i} className="breadcrumb-seg-wrap">
+            <span className="breadcrumb-sep">/</span>
+            {isLast ? (
+              <span className="breadcrumb-seg is-current">{seg}</span>
+            ) : (
+              <span
+                className="breadcrumb-seg"
+                onClick={() =>
+                  onNavigateToSegment(
+                    segmentPath(pathSegments, i),
+                  )
+                }
+              >
+                {seg}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ── Role badge for project cards ───────────────────────────────────────────
+
+function RoleBadge({ role }: { role: "read" | "edit" | null }) {
+  if (!role) return null;
+  return (
+    <span className={`role-badge role-badge-${role}`}>
+      {role === "edit" ? "Edit" : "Read"}
+    </span>
+  );
+}
+
+// ── Project card ───────────────────────────────────────────────────────────
+
+interface ProjectCardProps {
+  project: Project;
+  viewMode: ViewMode;
+  onClick: () => void;
+}
+
+function ProjectCard({ project, viewMode, onClick }: ProjectCardProps) {
+  if (viewMode === "compact") {
+    return (
+      <div
+        className="base-library-card view-compact is-project-card"
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+      >
+        <span className="card-icon">
+          {project.icon_key ? (
+            <IconBadge iconKey={project.icon_key} colorKey={project.color_key || "muted"} size="md" />
+          ) : (
+            <Folder />
+          )}
+        </span>
+        <div className="card-body">
+          <div className="card-header">
+            <span className="card-title">{project.name}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`base-library-card is-project-card view-${viewMode}`}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      <span className="card-icon">
+        {project.icon_key ? (
+          <IconBadge iconKey={project.icon_key} colorKey={project.color_key || "muted"} size="md" />
+        ) : (
+          <Folder />
+        )}
+      </span>
+      <div className="card-body">
+        <div className="card-header">
+          <span className="card-title">{project.name}</span>
+          <RoleBadge role={project.current_user_role ?? null} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 function LibraryHub() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const projectUid = searchParams.get("project");
   const currentPath = searchParams.get("path") || "";
 
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const contentsRequestVersion = useRef(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ── View mode state (persisted to localStorage) ───────────────────────
+  // Project metadata from contents response
+  const [projectMeta, setProjectMeta] = useState<{
+    name: string;
+    isArchived: boolean;
+    icon: string;
+    color: string;
+  } | null>(null);
+
+  // Projects listing state
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  const [projectRoleMap, setProjectRoleMap] = useState<Record<string, "read" | "edit" | null>>({});
+
+  // Track whether user is an org admin
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+
+  // Track current project role
+  const [currentRole, setCurrentRole] = useState<"read" | "edit" | null>(null);
+
+  // Folder paths for move picker
+  const [folderPaths, setFolderPaths] = useState<LibraryFolderPath[]>([]);
+
+  // Properties modal state
+  const [propertiesItem, setPropertiesItem] = useState<LibraryItem | null>(null);
+
+  const isInProject = !!projectUid;
+
+  // ── View mode state ──────────────────────────────────────────────────
 
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
 
@@ -121,23 +319,85 @@ function LibraryHub() {
     }
   }, []);
 
+  // ── Fetch accessible projects ─────────────────────────────────────────
+
+  const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const data = await getAccessibleProjects();
+      setProjects(data);
+      const roleMap: Record<string, "read" | "edit" | null> = {};
+      for (const p of data) {
+        roleMap[p.uid] = p.current_user_role ?? null;
+      }
+      setProjectRoleMap(roleMap);
+      const hasNullRole = data.some((p) => p.current_user_role === null);
+      setIsOrgAdmin(hasNullRole);
+    } catch (err: unknown) {
+      setProjectsError(err instanceof Error ? err.message : "Failed to load projects");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, []);
+
+  const [projectsFetched, setProjectsFetched] = useState(false);
+
+  useEffect(() => {
+    if (!isInProject) {
+      fetchProjects();
+    } else if (!projectsFetched) {
+      fetchProjects().then(() => setProjectsFetched(true));
+    }
+  }, [isInProject, fetchProjects, projectsFetched]);
+
+  useEffect(() => {
+    if (projectUid) {
+      getFolders(projectUid)
+        .then(setFolderPaths)
+        .catch(() => setFolderPaths([]));
+      setCurrentRole(projectRoleMap[projectUid] ?? null);
+    }
+  }, [projectUid, projectRoleMap]);
+
+  // ── Contents fetch (inside a project) ─────────────────────────────────
+
   const fetchFn = useCallback(
     async (url?: string) => {
+      const requestVersion = ++contentsRequestVersion.current;
       void refreshKey;
+      if (!projectUid) {
+        return {
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+          current_folder_id: null,
+          current_project_id: null,
+        };
+      }
       let response;
       if (url) {
         const urlObj = new URL(url, window.location.origin);
         const page = Number(urlObj.searchParams.get("page") || 2);
-        response = await getLibraryContents(currentPath, page);
+        response = await getLibraryContents(projectUid, currentPath || undefined, page);
       } else {
-        response = await getLibraryContents(currentPath, undefined);
+        response = await getLibraryContents(projectUid, currentPath || undefined, undefined);
       }
+      if (requestVersion !== contentsRequestVersion.current) return response;
       setCurrentFolderId(response.current_folder_id);
+      setCurrentProjectId(response.current_project_id ?? null);
+      if (response.project_name) {
+        setProjectMeta({
+          name: response.project_name,
+          isArchived: response.project_is_archived ?? false,
+          icon: response.project_icon ?? "",
+          color: response.project_color ?? "",
+        });
+      }
       return response;
     },
-    // refreshKey is captured so that incrementing it triggers a fresh fetch
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentPath, refreshKey],
+    [projectUid, currentPath, refreshKey],
   );
 
   const data = usePaginatedData({
@@ -145,10 +405,17 @@ function LibraryHub() {
     filterKey: "path",
     getId: (item) => item.id,
     getDisplayId: (item) =>
-      item.type === "entry" ? item.display_id : "",
+      item.type === "entry" ? item.display_id : `folder-${item.id}`,
   });
 
-  // ── Sidebar bus and context ────────────────────────────────────────────
+  useEffect(() => {
+    setCurrentFolderId(null);
+    setCurrentProjectId(null);
+    setProjectMeta(null);
+    data.clearSelection();
+  }, [projectUid, currentPath, data.clearSelection]);
+
+  // ── Sidebar bus and context ─────────────────────────────────────────
 
   const busRef = useRef<WorkspaceBus>(null);
   if (!busRef.current) {
@@ -165,16 +432,11 @@ function LibraryHub() {
     [viewMode],
   );
 
-  // ── Registry-driven card config (generic, from hydrated workspaces) ───
+  // ── Registry-driven card config ──────────────────────────────────────
 
   const registry = useMemo(() => ModRegistry.getInstance(), []);
   const workspaces = useMemo(() => registry.getWorkspaces(), [registry]);
 
-  /**
-   * Build the property fields for an entry by looking up its workspace's
-   * schema type columns.  Returns an empty array when the workspace or
-   * schema type is not yet hydrated.
-   */
   const getPropertyFieldsForEntry = useCallback(
     (entry: LibraryEntryItem): PropertyField[] => {
       const ws = workspaces.get(entry.workspace_id);
@@ -183,35 +445,75 @@ function LibraryHub() {
     [workspaces],
   );
 
-  // ── Folder navigation ─────────────────────────────────────────────────
+  // ── Navigation ───────────────────────────────────────────────────────
+
+  const navigateToProjects = useCallback(() => {
+    setSearchParams({});
+    data.clearSelection();
+    setProjectMeta(null);
+  }, [setSearchParams, data]);
+
+  useEffect(() => {
+    if (data.errorStatus === 404 && !currentPath) {
+      navigateToProjects();
+    }
+  }, [data.errorStatus, currentPath, navigateToProjects]);
+
+  const navigateToProject = useCallback(
+    (uid: string) => {
+      setSearchParams({ project: uid });
+      data.clearSelection();
+      setCurrentRole(projectRoleMap[uid] ?? null);
+    },
+    [setSearchParams, data, projectRoleMap],
+  );
 
   const navigateToPath = useCallback(
     (path: string) => {
-      setSearchParams(path ? { path } : {});
+      if (!projectUid) return;
+      if (path) {
+        setSearchParams({ project: projectUid, path });
+      } else {
+        setSearchParams({ project: projectUid });
+      }
       data.clearSelection();
     },
-    [setSearchParams, data],
+    [projectUid, setSearchParams, data],
   );
 
   const navigateUp = useCallback(() => {
-    const segments = currentPath.split("/").filter(Boolean);
-    if (segments.length === 0) return;
-    segments.pop();
-    const newPath = segments.length === 0 ? "" : `/${segments.join("/")}`;
-    navigateToPath(newPath);
+    navigateToPath(parentPath(currentPath));
   }, [currentPath, navigateToPath]);
+
+  // ── Delete handler ─────────────────────────────────────────────────────
+
+  const handleDelete = useCallback(
+    (item: LibraryItem) => {
+      if (item.type === "folder") {
+        const shareCount = item.share_summary?.target_projects?.length ?? 0;
+        let message = `Delete folder "${item.name}"? Everything inside it is permanently deleted.`;
+        if (shareCount > 0) {
+          message += ` It is shared with ${shareCount} project(s); deleting revokes all shares.`;
+        }
+        if (!window.confirm(message)) return;
+        deleteFolder(item.id).then(() => setRefreshKey((k) => k + 1));
+      } else {
+        const message = `Delete entry "${item.title}"? This cannot be undone.`;
+        if (!window.confirm(message)) return;
+        deleteEntry(item.display_id).then(() => setRefreshKey((k) => k + 1));
+      }
+    },
+    [],
+  );
 
   const navigateToFolder = useCallback(
     (folderName: string) => {
-      const newPath = currentPath
-        ? `${currentPath}/${folderName}`
-        : `/${folderName}`;
-      navigateToPath(newPath);
+      navigateToPath(appendPath(currentPath, folderName));
     },
     [currentPath, navigateToPath],
   );
 
-  // ── Item click handler ────────────────────────────────────────────────
+  // ── Item click handler ──────────────────────────────────────────────
 
   const handleItemClick = useCallback(
     (item: LibraryItem) => {
@@ -219,13 +521,14 @@ function LibraryHub() {
         navigateToFolder(item.name);
         return;
       }
-      // Entry click → navigate to the entry's workspace
-      navigate(`/${item.workspace_id}/${item.display_id}`);
+      const params = new URLSearchParams({ project: projectUid ?? "" });
+      if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
+      navigate(`/${item.workspace_id}/${item.display_id}?${params.toString()}`);
     },
-    [navigateToFolder, navigate],
+    [navigateToFolder, navigate, projectUid, currentProjectId],
   );
 
-  // ── Selection tracking (for visual highlight) ─────────────────────────
+  // ── Selection tracking ──────────────────────────────────────────────
 
   const handleCardClick = useCallback(
     (item: LibraryItem) => {
@@ -235,45 +538,58 @@ function LibraryHub() {
     [data, handleItemClick],
   );
 
-  // ── Breadcrumb segments ──────────────────────────────────────────────
+  // ── Path segments from URL ──────────────────────────────────────────
 
-  const breadcrumbSegments: BreadcrumbSegment[] = useMemo(() => {
-    return currentPath
-      .split("/")
-      .filter(Boolean)
-      .map((label, i, arr) => ({
-        label,
-        path:
-          i < arr.length - 1
-            ? `/${arr.slice(0, i + 1).join("/")}`
-            : undefined,
-      }));
-  }, [currentPath]);
+  const pathSegments = useMemo(() => getPathSegments(currentPath), [currentPath]);
 
-  // ── Render helpers ────────────────────────────────────────────────────
+  // ── Render card (inside project) ─────────────────────────────────────
 
   const renderCard = (item: LibraryItem) => {
     if (item.type === "folder") {
       const adapted = folderToEntryShape(item);
+      const isShared = !!item.is_shared;
+      const isSharedOut = !!item.share_summary?.shared;
+
+      const targetNames = isSharedOut
+        ? item.share_summary!.target_projects.map((p) => p.name)
+        : [];
+      const tooltip = targetNames.length > 0
+        ? `Shared with: ${targetNames.join(", ")}`
+        : undefined;
+
+      // Shared top-level folder at root never shows Delete
+      const atRoot = !currentPath || currentPath === "";
+      const canDelete = (isOrgAdmin || currentRole === "edit")
+        && !(isShared && atRoot);
+
       return (
         <BaseCard
           key={`folder-${item.id}`}
           item={adapted}
           viewMode={viewMode}
           isSelected={data.selectedId === item.id}
-          iconKey="folder"
+          iconKey={isShared || isSharedOut ? "" : "folder"}
           colorKey="warn"
           showDescription={false}
           showTags={false}
           showUpdatedAt={false}
+          icon={isShared || isSharedOut ? FolderSymlink : undefined}
+          iconTitle={tooltip}
           onClick={() => handleCardClick(item)}
+          endSlot={
+            <RowMenu
+              onProperties={() => setPropertiesItem(item)}
+              canDelete={canDelete}
+              onDelete={() => handleDelete(item)}
+            />
+          }
         />
       );
     }
 
-    // Entry item — build card config from workspace schema columns
     const isSelected = data.selectedId === item.id;
     const propertyFields = getPropertyFieldsForEntry(item);
+    const canDelete = isOrgAdmin || currentRole === "edit";
 
     return (
       <BaseCard
@@ -288,13 +604,20 @@ function LibraryHub() {
         showTags={true}
         showUpdatedAt={true}
         onClick={() => handleCardClick(item)}
+        endSlot={
+          <RowMenu
+            onProperties={() => setPropertiesItem(item)}
+            canDelete={canDelete}
+            onDelete={() => handleDelete(item)}
+          />
+        }
       />
     );
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────
+  // ── Loading state ──────────────────────────────────────────────────
 
-  if (data.loading && data.items.length === 0) {
+  if (isInProject && data.loading && data.items.length === 0) {
     return (
       <div className="library-hub">
         <p className="empty">Loading…</p>
@@ -302,22 +625,132 @@ function LibraryHub() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────
+  if (!isInProject && projectsLoading) {
+    return (
+      <div className="library-hub">
+        <p className="empty">Loading…</p>
+      </div>
+    );
+  }
+
+  // ── Projects listing mode ───────────────────────────────────────────
+
+  if (!isInProject) {
+    if (projectsError) {
+      return (
+        <div className="library-hub">
+          <div className="error">{projectsError}</div>
+        </div>
+      );
+    }
+
+    if (!projects || projects.length === 0) {
+      return (
+        <div className="library-hub">
+          <div className="library-main-column">
+            <div className="library-empty-state">
+              <h2>The null hypothesis stands: no projects found.</h2>
+              {isOrgAdmin ? (
+                <p>Create one in Settings → Projects.</p>
+              ) : (
+                <p>Ask an Organization Admin to create one.</p>
+              )}
+            </div>
+          </div>
+          <SlotSidebar
+            slotId="library.sidebar"
+            context={sidebarContext}
+            bus={bus}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="library-hub">
+        <div className="library-main-column">
+          {/* ── Top Bar ────────────────────────────────────────────── */}
+          <div className="library-top-bar">
+            <div className="library-top-bar-actions">
+              <div
+                className="library-view-toggle-group"
+                role="group"
+                aria-label="View mode"
+              >
+                <IconButton
+                  className={viewMode === "compact" ? "is-active" : ""}
+                  aria-label="Compact view"
+                  title="Compact view"
+                  onClick={() => handleViewModeChange("compact")}
+                >
+                  <AlignJustify size={15} />
+                </IconButton>
+                <IconButton
+                  className={viewMode === "list" ? "is-active" : ""}
+                  aria-label="List view"
+                  title="List view"
+                  onClick={() => handleViewModeChange("list")}
+                >
+                  <LayoutList size={15} />
+                </IconButton>
+                <IconButton
+                  className={viewMode === "grid" ? "is-active" : ""}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  onClick={() => handleViewModeChange("grid")}
+                >
+                  <LayoutGrid size={15} />
+                </IconButton>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Card List ──────────────────────────────────────────── */}
+          <div className={`library-card-list view-${viewMode}`}>
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                viewMode={viewMode}
+                onClick={() => navigateToProject(project.uid)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <SlotSidebar
+          slotId="library.sidebar"
+          context={sidebarContext}
+          bus={bus}
+        />
+      </div>
+    );
+  }
+
+  // ── Project contents mode ───────────────────────────────────────────
+
+  if (data.errorStatus === 404) {
+    if (!currentPath) {
+      return null;
+    }
+    return <NotFound />;
+  }
 
   return (
     <div className="library-hub">
-      {/* ── Main column: top bar + filter bar + card list ──────────────── */}
       <div className="library-main-column">
-        {/* ── Top Bar ────────────────────────────────────────────────── */}
+        {/* ── Top Bar ──────────────────────────────────────────────── */}
         <div className="library-top-bar">
-          <Breadcrumbs
-            segments={breadcrumbSegments}
-            onNavigate={navigateToPath}
+          <ProjectBreadcrumbs
+            projectName={projectMeta?.name ?? "…"}
+            projectIsArchived={projectMeta?.isArchived ?? false}
+            pathSegments={pathSegments}
+            onNavigateToRoot={() => navigateToPath("")}
+            onNavigateToSegment={(path) => navigateToPath(path)}
             onUp={navigateUp}
           />
 
           <div className="library-top-bar-actions">
-            {/* View mode toggle button group */}
             <div
               className="library-view-toggle-group"
               role="group"
@@ -360,13 +793,15 @@ function LibraryHub() {
 
             <LibraryNewDropdown
               currentPath={currentPath}
+              projectUid={projectUid}
               currentFolderId={currentFolderId}
+              currentProjectId={currentProjectId}
               onCreated={() => setRefreshKey((k) => k + 1)}
             />
           </div>
         </div>
 
-        {/* ── Filter Bar ─────────────────────────────────────────────── */}
+        {/* ── Filter Bar ───────────────────────────────────────────── */}
         <div className="library-filter-bar">
           <div className="library-filter-search-wrap">
             <Search size={15} className="library-filter-search-icon" />
@@ -422,7 +857,6 @@ function LibraryHub() {
               <p className="empty">This folder is empty.</p>
             )}
 
-          {/* Table header */}
           {!data.error && data.items.length > 0 && (
             <div className="library-table-header">
               <span className="library-table-header-col type-col">Type</span>
@@ -447,12 +881,42 @@ function LibraryHub() {
         </div>
       </div>
 
-      {/* ── Right Sidebar (slot-driven, full height, alongside everything) ── */}
       <SlotSidebar
         slotId="library.sidebar"
         context={sidebarContext}
         bus={bus}
       />
+
+      {/* ── Properties Modals ─────────────────────────────────────────── */}
+      {propertiesItem?.type === "entry" && (
+        <EntryPropertiesModal
+          open={true}
+          onClose={() => setPropertiesItem(null)}
+          entry={propertiesItem}
+          projectMeta={projectMeta}
+          canEdit={isOrgAdmin || currentRole === "edit"}
+          folders={folderPaths}
+          projectUid={projectUid}
+          onMutated={() => {
+            setPropertiesItem(null);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+      {propertiesItem?.type === "folder" && (
+        <FolderPropertiesModal
+          open={true}
+          onClose={() => setPropertiesItem(null)}
+          folder={propertiesItem}
+          canEdit={isOrgAdmin || currentRole === "edit"}
+          isOrgAdmin={isOrgAdmin}
+          projectId={currentProjectId}
+          onMutated={() => {
+            setPropertiesItem(null);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
     </div>
   );
 }

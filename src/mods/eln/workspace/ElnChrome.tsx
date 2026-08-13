@@ -24,6 +24,8 @@ import { TagPill } from "../../tags/ui";
 import { TagAutocomplete } from "../../tags/ui";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import NotFound from "../../../shell/src/shared/components/NotFound";
+import { pathSegments, segmentPath } from "../../library/path";
 import type { EntryDetail, Tag, ElnAction } from "../types";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
@@ -34,10 +36,12 @@ function formatDateShort(iso: string): string {
 export interface ElnChromeProps {
   isReady: boolean;
   error: string | null;
+  errorStatus?: number | null;
   isNew: boolean;
   entryDisplayId: string;
 
   entry: EntryDetail | null;
+  projectUid?: string | null;
   folderPath: string;
 
   title: string;
@@ -68,9 +72,11 @@ export interface ElnChromeProps {
 function ElnChrome({
   isReady,
   error,
+  errorStatus,
   isNew,
   entryDisplayId,
   entry,
+  projectUid,
   folderPath,
   title,
   onTitleChange,
@@ -121,7 +127,10 @@ function ElnChrome({
     el.style.height = `${el.scrollHeight}px`;
   }, [description]);
 
-  const pathSegments = folderPath.split("/").filter(Boolean);
+  const folderPathSegments = pathSegments(folderPath);
+  const libraryRoot = projectUid
+    ? `/library?project=${encodeURIComponent(projectUid)}`
+    : "/library";
 
   if (!isReady && !error) {
     return (
@@ -140,6 +149,10 @@ function ElnChrome({
   }
 
   if (error) {
+    if (errorStatus === 404) {
+      return <NotFound />;
+    }
+
     return (
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -169,17 +182,17 @@ function ElnChrome({
               className="h-3.5 w-3.5 text-muted-foreground"
               aria-hidden="true"
             />
-            {pathSegments.length > 0 ? (
-              pathSegments.map((segment, i) => {
-                const isLast = i === pathSegments.length - 1;
-                const segmentPath = "/" + pathSegments.slice(0, i + 1).join("/");
+            {folderPathSegments.length > 0 ? (
+              folderPathSegments.map((segment, i) => {
+                const isLast = i === folderPathSegments.length - 1;
+                const path = segmentPath(folderPathSegments, i);
                 return (
                   <span key={i} className="flex items-center gap-1.5">
                     {isLast ? (
                       <span>{segment}</span>
                     ) : (
                       <Link
-                        to={`/library?path=${encodeURIComponent(segmentPath)}`}
+                        to={`${libraryRoot}&path=${encodeURIComponent(path)}`}
                         className="hover:text-foreground transition-colors"
                       >
                         {segment}
@@ -192,15 +205,7 @@ function ElnChrome({
                   </span>
                 );
               })
-            ) : (
-              <>
-                <span>—</span>
-                <ChevronRight
-                  className="h-3.5 w-3.5 text-muted-foreground/60"
-                  aria-hidden="true"
-                />
-              </>
-            )}
+            ) : null}
             <span className="font-medium text-foreground">
               {entryDisplayId}
             </span>
@@ -453,7 +458,7 @@ function ElnChrome({
                         <TagAutocomplete
                           attachedTagIds={tags.map((t) => t.id)}
                           onTagSelect={onAddTag}
-                          onTagCreated={onAddTag}
+                          allowCreate={false}
                           placeholder="Search tags…"
                         />
                       )}

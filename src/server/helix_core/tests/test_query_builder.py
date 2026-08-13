@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from django.db.models import Q
 from django.test import TestCase
 
 from helix_core.query_builder import (
@@ -653,11 +654,16 @@ class QueryBuilderIntegrationTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        from core.models import User
+        from core.models import Folder, Project, User
         from helix_core.models import Schema, SchemaType
 
         cls.user = User.objects.create_user(
             username="testuser", password="pass"
+        )
+
+        project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=project
         )
 
         eln_type = SchemaType.objects.create(
@@ -690,24 +696,28 @@ class QueryBuilderIntegrationTests(TestCase):
             name="PCR Experiment",
             author=cls.user,
             schema=cls.eln_schema,
+            folder=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="Blood Sample A",
             author=cls.user,
             schema=cls.lims_schema,
+            folder=cls.folder,
             properties={"sample_type": "A", "concentration": 50},
         )
         Entity.objects.create(
             name="Blood Sample B",
             author=cls.user,
             schema=cls.lims_schema,
+            folder=cls.folder,
             properties={"sample_type": "B", "concentration": 100},
         )
         Entity.objects.create(
             name="Blood Sample C",
             author=cls.user,
             schema=cls.lims_schema,
+            folder=cls.folder,
             properties={"sample_type": "C", "concentration": 200},
         )
 
@@ -872,3 +882,146 @@ class QueryBuilderIntegrationTests(TestCase):
         results = self._apply_q(q)
         display_ids = [r.display_id for r in results]
         self.assertIn(self.eln_entry.display_id, display_ids)
+
+
+# ── Project filter tests ────────────────────────────────────────────────────
+
+
+class ProjectFilterQueryTests(TestCase):
+    """Integration tests for project filter operators applied to EntityHubView."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.models import Folder, Project, User
+        from helix_core.models import Schema, SchemaType
+        from mods.lims.models import Entity
+
+        cls.user = User.objects.create_user(
+            username="projfilter", password="pass"
+        )
+
+        lims_type = SchemaType.objects.create(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+        )
+        cls.lims_schema = Schema.objects.create(
+            name="Default",
+            prefix="LIMS",
+            schema_type=lims_type,
+            is_default=True,
+        )
+
+        cls.project_a = Project.objects.create(name="Project A")
+        cls.project_b = Project.objects.create(name="Project B")
+        cls.project_c = Project.objects.create(name="Project C")
+
+        cls.folder_a = Folder.objects.create(
+            name="root", parent=None, project=cls.project_a,
+        )
+        cls.folder_b = Folder.objects.create(
+            name="root", parent=None, project=cls.project_b,
+        )
+
+        cls.entity_a1 = Entity.objects.create(
+            name="Sample A1",
+            author=cls.user,
+            schema=cls.lims_schema,
+            folder=cls.folder_a,
+            properties={},
+        )
+        cls.entity_a2 = Entity.objects.create(
+            name="Sample A2",
+            author=cls.user,
+            schema=cls.lims_schema,
+            folder=cls.folder_a,
+            properties={},
+        )
+        cls.entity_b1 = Entity.objects.create(
+            name="Sample B1",
+            author=cls.user,
+            schema=cls.lims_schema,
+            folder=cls.folder_b,
+            properties={},
+        )
+
+    def _apply_q(self, q):
+        from helix_core.models import EntityHubView
+        return EntityHubView.objects.filter(q)
+
+    def test_project_eq(self):
+        """project:eq:<pk> matches entities in that project only."""
+        q = build_filter_q(FilterSpec(
+            "project", "eq", str(self.project_a.pk)
+        ))
+        results = self._apply_q(q)
+        names = {r.name for r in results}
+        self.assertIn("Sample A1", names)
+        self.assertIn("Sample A2", names)
+        self.assertNotIn("Sample B1", names)
+
+    def test_project_neq(self):
+        """project:neq:<pk> excludes entities in that project."""
+        q = build_filter_q(FilterSpec(
+            "project", "neq", str(self.project_a.pk)
+        ))
+        results = self._apply_q(q)
+        names = {r.name for r in results}
+        self.assertNotIn("Sample A1", names)
+        self.assertNotIn("Sample A2", names)
+        self.assertIn("Sample B1", names)
+
+    def test_project_in(self):
+        """project:in:<pk1>,<pk2> matches entities in any of those projects."""
+        q = build_filter_q(FilterSpec(
+            "project", "in",
+            f"{self.project_a.pk},{self.project_b.pk}",
+        ))
+        results = self._apply_q(q)
+        names = {r.name for r in results}
+        self.assertIn("Sample A1", names)
+        self.assertIn("Sample A2", names)
+        self.assertIn("Sample B1", names)
+        self.assertGreaterEqual(len(results), 3)
+
+    def test_project_in_single_value(self):
+        """project:in: with a single value still works."""
+        q = build_filter_q(FilterSpec(
+            "project", "in", str(self.project_c.pk)
+        ))
+        results = self._apply_q(q)
+        self.assertEqual(len(results), 0)
+
+    def test_project_in_no_matching_projects(self):
+        """project:in with a non-existent pk matches nothing."""
+        q = build_filter_q(FilterSpec(
+            "project", "in", "99999"
+        ))
+        results = self._apply_q(q)
+        self.assertEqual(len(results), 0)
+
+    def test_project_column_in_system_columns(self):
+        """'project' is recognised as a system column."""
+        from helix_core.query_builder import _is_system_column
+        self.assertTrue(_is_system_column("project"))
+
+    def test_project_resolve_field_path(self):
+        """project column resolves to 'project_id'."""
+        from helix_core.query_builder import _resolve_field_path
+        self.assertEqual(_resolve_field_path("project"), "project_id")
+
+    def test_parse_project_filter(self):
+        """parse_filter_params recognises project:in:1,2,3 as structured."""
+        from helix_core.query_builder import parse_filter_params
+        structured, legacy = parse_filter_params(["project:in:1,2,3"])
+        self.assertEqual(len(structured), 1)
+        self.assertEqual(len(legacy), 0)
+        self.assertEqual(structured[0].column, "project")
+        self.assertEqual(structured[0].operator, "in")
+        self.assertEqual(structured[0].value, "1,2,3")
+
+    def test_missing_project_filter_means_all(self):
+        """Absence of the project filter means all projects — build_entity_hub_filters
+        with no project filter returns empty Q (always-true)."""
+        q = build_entity_hub_filters([])
+        self.assertEqual(q, Q())

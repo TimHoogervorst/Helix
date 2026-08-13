@@ -200,6 +200,7 @@ class EntityHubView(models.Model):
     author = models.ForeignKey(
         "core.User",
         on_delete=models.DO_NOTHING,
+        null=True,
         related_name="+",
         db_column="author_id",
     )
@@ -228,6 +229,7 @@ class EntityHubView(models.Model):
     schema = models.ForeignKey(
         Schema,
         on_delete=models.DO_NOTHING,
+        null=True,
         related_name="+",
         db_column="schema_id",
     )

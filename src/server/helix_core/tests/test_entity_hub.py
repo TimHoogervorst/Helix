@@ -7,7 +7,7 @@ tables) and the GET /api/registry/entities endpoint.
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from core.models import Folder, User
+from core.models import Folder, Project, User
 from helix_core.models import Schema, SchemaType
 
 
@@ -54,6 +54,11 @@ class EntityHubViewTests(TestCase):
         )
         _, _, eln_schema, lims_schema = _setup_schema_types()
 
+        project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=project
+        )
+
         from mods.eln.models import NotebookEntry
         from mods.lims.models import Entity
 
@@ -61,12 +66,14 @@ class EntityHubViewTests(TestCase):
             name="ELN Test Entry",
             author=cls.user,
             schema=eln_schema,
+            folder=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="LIMS Test Entity",
             author=cls.user,
             schema=lims_schema,
+            folder=cls.folder,
         )
 
     def test_view_returns_rows_from_both_tables(self):
@@ -132,14 +139,31 @@ class EntityHubViewTests(TestCase):
 
 
 class EntityHubAPITests(APITestCase):
-    """Test GET /api/registry/entities/."""
+    """Test the GET /api/registry/entities API endpoint."""
 
     @classmethod
     def setUpTestData(cls):
+        from mods.access.models import (
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+        )
+
         cls.user = User.objects.create_user(
             username="testuser", password="pass"
         )
+        # The hub is access-scoped; make the test user an Organization
+        # Admin so the filter/pagination behaviour below is observable.
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=cls.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         _, _, eln_schema, lims_schema = _setup_schema_types()
+        project = Project.objects.create(name="Test Project")
+        cls.folder = Folder.objects.create(
+            name="Test Folder", parent=None, project=project
+        )
 
         from mods.eln.models import NotebookEntry
         from mods.lims.models import Entity
@@ -148,14 +172,19 @@ class EntityHubAPITests(APITestCase):
             name="ELN Test Entry",
             author=cls.user,
             schema=eln_schema,
+            folder=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="LIMS Test Entity",
             author=cls.user,
             schema=lims_schema,
+            folder=cls.folder,
         )
         cls.url = "/api/registry/entities/"
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
 
     def test_list_returns_paginated_results(self):
         """Default GET returns paginated results with expected envelope fields."""
@@ -221,6 +250,7 @@ class EntityHubAPITests(APITestCase):
                 name=f"Extra {i}",
                 author=self.user,
                 schema=schema,
+                folder=self.folder,
             )
 
         # Page 1 at size=2
@@ -241,8 +271,8 @@ class EntityHubAPITests(APITestCase):
         data = response.json()
         columns = data["available_columns"]
         keys = {c["key"] for c in columns}
-        expected = {"display_id", "name", "schema_type_id", "status",
-                     "author", "created_at", "updated_at"}
+        expected = {"display_id", "name", "schema_type_id", "project",
+                     "folder", "status", "author", "created_at", "updated_at"}
         self.assertTrue(expected.issubset(keys))
 
     def test_available_columns_have_type_filterable_width(self):
@@ -353,6 +383,7 @@ class EntityHubAPITests(APITestCase):
             name="Finished Entity",
             author=self.user,
             schema=lims_schema,
+            folder=self.folder,
             status="finished",
         )
         response = self.client.get(f"{self.url}?status=finished")
@@ -391,12 +422,14 @@ class EntityHubAPITests(APITestCase):
             name="Blood Sample A",
             author=self.user,
             schema=lims_schema,
+            folder=self.folder,
             properties={"sample_type": "A"},
         )
         Entity.objects.create(
             name="Blood Sample B",
             author=self.user,
             schema=lims_schema,
+            folder=self.folder,
             properties={"sample_type": "B"},
         )
         response = self.client.get(f"{self.url}?f=sample_type:B")
@@ -443,6 +476,7 @@ class EntityHubAPITests(APITestCase):
         Entity.objects.create(
             name="Unique Zebra Fish", schema=extra_schema,
             author=self.user,
+            folder=self.folder,
         )
 
         response = self.client.get(
@@ -474,6 +508,63 @@ class EntityHubAPITests(APITestCase):
             for row in data["results"]:
                 self.assertEqual(row["schema_id"], lims_schema.id)
                 self.assertIn("LIMS", row["name"])
+
+    # ── Project and Folder fields on hub rows ─────────────────────────────
+
+    def test_hub_rows_include_project_and_folder_fields(self):
+        """Hub rows carry project_id, project_uid, project_name and folder fields."""
+        from core.models import Project
+        proj = Project.objects.create(name="Test Project")
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Proj Schema", prefix="PS", schema_type=lims_type,
+            is_default=False,
+        )
+        Entity.objects.create(
+            name="Project Entity", author=self.user, schema=schema,
+            folder=self.folder, project=proj,
+        )
+        response = self.client.get(self.url)
+        data = response.json()
+        for row in data["results"]:
+            self.assertIn("project_id", row)
+            self.assertIn("project_uid", row)
+            self.assertIn("project_name", row)
+            self.assertIn("project_icon", row)
+            self.assertIn("project_color", row)
+            self.assertIn("folder_id", row)
+            self.assertIn("folder_name", row)
+            self.assertIn("folder_path", row)
+
+    def test_sort_by_project_name(self):
+        """?sort=project__name sorts by project name."""
+        from core.models import Project
+        proj_a = Project.objects.create(name="Alpha Project")
+        proj_b = Project.objects.create(name="Beta Project")
+        from mods.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+        lims_type = SchemaType.objects.get(workspace_id="lims")
+        schema = Schema.objects.create(
+            name="Sort Schema", prefix="SS", schema_type=lims_type,
+            is_default=False,
+        )
+        Entity.objects.create(
+            name="Entity B", author=self.user, schema=schema,
+            folder=self.folder, project=proj_b,
+        )
+        Entity.objects.create(
+            name="Entity A", author=self.user, schema=schema,
+            folder=self.folder, project=proj_a,
+        )
+        response = self.client.get(f"{self.url}?sort=project__name&schema_type=lims.entity")
+        data = response.json()
+        project_names = [
+            r["project_name"] for r in data["results"]
+            if r["project_name"]
+        ]
+        self.assertEqual(project_names, sorted(project_names))
 
     # ── available_columns dynamic expansion ──────────────────────────────
 
@@ -533,6 +624,7 @@ class EntityHubAPITests(APITestCase):
             name="Blood Sample X",
             author=self.user,
             schema=schema,
+            folder=self.folder,
             properties={"sample_type": "Whole Blood", "concentration": 42},
         )
 
@@ -571,6 +663,7 @@ class EntityHubAPITests(APITestCase):
             name="Partial Entity",
             author=self.user,
             schema=schema,
+            folder=self.folder,
             properties={"known_field": "present"},
         )
 

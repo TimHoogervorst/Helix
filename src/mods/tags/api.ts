@@ -30,9 +30,12 @@ export function createTag(name: string, color: string, icon?: string): Promise<T
 }
 
 /**
- * Update an existing tag's colour and/or icon.
+ * Update an existing tag's name, colour, and/or icon.
  */
-export function updateTag(tagId: number, data: { color?: string; icon?: string }): Promise<Tag> {
+export function updateTag(
+  tagId: number,
+  data: { name?: string; color?: string; icon?: string },
+): Promise<Tag> {
   return patch<Tag>(`/tags/${tagId}/`, data);
 }
 

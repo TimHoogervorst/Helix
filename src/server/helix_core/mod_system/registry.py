@@ -33,11 +33,14 @@ from helix_core.mod_system.manifest import ModManifest
 
 # ── constants ────────────────────────────────────────────────────────────────
 
-# The three core CRUD action verbs that every mod gets automatically.
-CORE_ACTION_VERBS = ("created", "edited", "deleted")
+# The four core action verbs that every mod gets automatically.
+# "read" is an authorization-only verb — it participates in policy
+# evaluation but is rejected by the audit-log insertion endpoint.
+CORE_ACTION_VERBS = ("read", "created", "edited", "deleted")
 
 # Human-readable labels matching the core verbs.
 CORE_ACTION_LABELS = {
+    "read": "Read",
     "created": "Created",
     "edited": "Edited",
     "deleted": "Deleted",
@@ -248,17 +251,17 @@ class BackendModRegistry:
     ) -> None:
         """Register a custom action for *mod_id*.
 
-        Custom actions map to a core CRUD verb (``created``, ``edited``,
-        or ``deleted``).  They appear in the action catalog alongside
-        the auto-derived core actions.
+        Custom actions map to a core action verb (``read``,
+        ``created``, ``edited``, or ``deleted``).  They appear in the
+        action catalog alongside the auto-derived core actions.
 
         Parameters:
             mod_id: The mod that owns this action.
             action_id: Triple-dotted action type (e.g.
                 ``"lims.sample.registered"``).
             label: Human-readable label (e.g. ``"Sample Registered"``).
-            core: The core CRUD verb this action maps to — must be one of
-                ``"created"``, ``"edited"``, ``"deleted"``.
+            core: The core action verb this action maps to — must be one of
+                ``"read"``, ``"created"``, ``"edited"``, ``"deleted"``.
             target_model: Dotted Python path to the target model class
                 (e.g. ``"mods.lims.models.Entity"``).
 
@@ -412,11 +415,12 @@ class BackendModRegistry:
 
         return result
 
-    def validate_action(self, action: str) -> bool:
+    def             validate_action(self, action: str) -> bool:
         """Return ``True`` if *action* is a registered action.
 
-        Checks core action verbs (``created``, ``edited``, ``deleted``)
-        across all registered mods, plus custom actions by exact match.
+        Checks core action verbs (``read``, ``created``, ``edited``,
+        ``deleted``) across all registered mods, plus custom actions by
+        exact match.
 
         Core verbs are valid as long as at least one mod has registered
         an action model — the verb itself is enough to validate.

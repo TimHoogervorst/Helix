@@ -3,6 +3,7 @@ from rest_framework import serializers
 from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema
 from .models import Entity, Action, LimsView, Metric
+from core.models import Folder, Project
 
 
 def validate_prefix(value):
@@ -56,6 +57,13 @@ class EntitySerializer(serializers.ModelSerializer):
     source_entry_display_id = serializers.CharField(
         source="source_entry.display_id", read_only=True, default=None
     )
+    folder = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.all(), required=False, allow_null=True,
+    )
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(), required=False,
+    )
+    project_name = serializers.CharField(source="project.name", read_only=True)
 
     class Meta:
         model = Entity
@@ -70,6 +78,8 @@ class EntitySerializer(serializers.ModelSerializer):
             "source_entry",
             "source_entry_display_id",
             "folder",
+            "project",
+            "project_name",
             "author",
             "author_username",
             "status",
@@ -77,6 +87,21 @@ class EntitySerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
+
+    def validate(self, data):
+        folder = data.get("folder")
+        project = data.get("project")
+        if folder is None and project is None:
+            raise serializers.ValidationError(
+                {"project": "Provide a project when folder is empty."}
+            )
+        if folder is not None:
+            if project is not None and project.pk != folder.project_id:
+                raise serializers.ValidationError(
+                    {"folder": "The folder must belong to the project."}
+                )
+            data["project"] = folder.project
+        return data
 
     def validate_properties(self, properties):
         """Validate reference column values against their target schemas.
@@ -116,7 +141,7 @@ class EntitySerializer(serializers.ModelSerializer):
             result = ct.validate(value, reference_schema_id=expected_schema_id)
             if result is not True:
                 raise serializers.ValidationError({
-                    f"properties.{col_name}": result,
+                    col_name: result,
                 })
 
             if expected_schema_id is not None and isinstance(value, str):
@@ -129,14 +154,14 @@ class EntitySerializer(serializers.ModelSerializer):
                     )
                 except EntityModel.DoesNotExist:
                     raise serializers.ValidationError({
-                        f"properties.{col_name}": (
+                        col_name: (
                             f"Referenced entity '{value}' does not exist."
                         ),
                     })
                 if ref.schema_id != expected_schema_id:
                     target_schema = Schema.objects.get(pk=expected_schema_id)
                     raise serializers.ValidationError({
-                        f"properties.{col_name}": (
+                        col_name: (
                             f"Referenced entity '{value}' belongs to schema "
                             f"'{ref.schema.name}' but the column expects "
                             f"'{target_schema.name}'."
@@ -195,12 +220,14 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
     """Serializer for a single row in the batch-register payload."""
     entity_id = serializers.IntegerField(required=False, allow_null=True)
     name = serializers.CharField(required=True, allow_blank=True)
+    folder_id = serializers.IntegerField(required=False, allow_null=True)
     values = serializers.DictField(default=dict)
 
 
 class EntityBatchRegisterSerializer(serializers.Serializer):
     """Serializer for the batch-register endpoint payload."""
     schema_id = serializers.IntegerField(required=True)
+    project_id = serializers.IntegerField(required=False, allow_null=True)
     rows = serializers.ListField(
         child=EntityBatchRegisterRowSerializer(),
         allow_empty=False,
@@ -272,6 +299,16 @@ class MetricSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "owner", "created_at", "updated_at"]
+
+    def validate_view(self, value):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            if value.owner_id != user.id and not value.is_public:
+                raise serializers.ValidationError(
+                    "You do not have access to this view."
+                )
+        return value
 
     def validate_name(self, value):
         if not value or not value.strip():

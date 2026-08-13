@@ -30,6 +30,25 @@ describe("useEntryFolder", () => {
       expect(result.current.folders).toEqual(folders);
     });
     expect(mockGet).toHaveBeenCalledWith("/core/folders/");
+
+  });
+
+  it("scopes folder fetching to a project", async () => {
+    renderHook(() => useEntryFolder({ projectId: 42 }));
+
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith("/core/folders/?project=42");
+    });
+  });
+
+  it("uses the project-scoped Library folder list when a project UID is available", async () => {
+    renderHook(() => useEntryFolder({ projectUid: "proj-001" }));
+
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith(
+        "/library/folders/?project=proj-001",
+      );
+    });
   });
 
   it("handles fetch error gracefully (keeps empty folders)", async () => {

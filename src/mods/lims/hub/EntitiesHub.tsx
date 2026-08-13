@@ -36,6 +36,7 @@ import type {
   Schema,
   AvailableColumn,
 } from "../types";
+import { fetchProjects } from "../../access/api";
 import {
   ColumnChooser,
   buildColumns,
@@ -90,10 +91,10 @@ interface SortState {
   direction: SortDirection;
 }
 
-const SORTABLE_COLUMNS = ["name", "status", "created_at", "updated_at"] as const;
+const SORTABLE_COLUMNS = ["name", "project__name", "status", "created_at", "updated_at"] as const;
 type SortableColumn = typeof SORTABLE_COLUMNS[number];
 
-const SORT_CYCLE: SortableColumn[] = ["name", "status", "created_at", "updated_at"];
+const SORT_CYCLE: SortableColumn[] = ["name", "project__name", "status", "created_at", "updated_at"];
 
 function nextSortDirection(current: SortDirection): SortDirection {
   if (current === null) return "asc";
@@ -122,6 +123,7 @@ function sortFromParam(param: string | null): SortState {
 
 const SORT_LABELS: Record<string, string> = {
   name: "Name",
+  project__name: "Project",
   status: "Status",
   created_at: "Created",
   updated_at: "Updated",
@@ -274,6 +276,12 @@ function EntitiesHub() {
     { id: number; options: string[] }[]
   >([]);
 
+  // ── Accessible projects (for the project filter picker) ────────────────
+
+  const [projectOptions, setProjectOptions] = useState<
+    Array<{ id: number; name: string; icon_key: string; color_key: string }>
+  >([]);
+
   useEffect(() => {
     Promise.all([getSchemaTypes(), getSchemas(), listDropdowns()])
       .then(([types, schemaList, dropdownList]) => {
@@ -283,6 +291,11 @@ function EntitiesHub() {
       })
       .catch(() => {
         // Dropdowns fall back to empty — user can still type search
+      });
+    fetchProjects()
+      .then((projects) => setProjectOptions(projects))
+      .catch(() => {
+        // Project picker falls back to empty — user can still type IDs
       });
   }, []);
 
@@ -499,6 +512,8 @@ function EntitiesHub() {
     display_id: 110,
     name: 0, // flex / auto — not used for sticky offset
     schema_type_id: 120,
+    project: 160,
+    folder: 140,
     status: 130,
     author: 100,
     created_at: 90,
@@ -659,6 +674,29 @@ function EntitiesHub() {
           >
             {item.schema_type_display}
           </span>
+        );
+      case "project":
+        return (
+          <span className="entities-project-cell">
+            <IconBadge iconKey={item.project_icon || "circle"} colorKey={item.project_color || "muted"} size="sm" />
+            <span className="entities-project-name">{item.project_name}</span>
+          </span>
+        );
+      case "folder":
+        if (!item.folder_name) {
+          return <span className="entities-folder-dash">—</span>;
+        }
+        return (
+          <a
+            className="entities-folder-link"
+            href={`/library?project=${item.project_uid}&path=${encodeURIComponent(item.folder_path)}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/library?project=${item.project_uid}&path=${encodeURIComponent(item.folder_path)}`);
+            }}
+          >
+            {item.folder_name}
+          </a>
         );
       case "status":
         return <StatusBadge status={item.status} />;
@@ -921,6 +959,7 @@ function EntitiesHub() {
             filters={fieldFilters}
             onFiltersChange={handleFiltersChange}
             dropdownOptionsMap={dropdownOptionsMap}
+            projectOptions={projectOptions}
           />
         </div>
 

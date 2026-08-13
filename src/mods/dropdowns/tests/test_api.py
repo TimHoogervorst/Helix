@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from core.tests.base import BaseTestCase
 from mods.dropdowns.models import Dropdown
+from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
@@ -19,9 +20,14 @@ def _log_kwargs(mock):
 
 
 def _make_admin(user):
-    """Make *user* a staff member and return it."""
+    """Make *user* an organization admin and return it."""
     user.is_staff = True
     user.save(update_fields=["is_staff"])
+    org = Organization.objects.create(name="Test Lab")
+    OrganizationMembership.objects.update_or_create(
+        user=user,
+        defaults={"organization": org, "role": OrganizationRole.ADMIN},
+    )
     return user
 
 

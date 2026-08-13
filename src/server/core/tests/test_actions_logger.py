@@ -293,3 +293,43 @@ class BulkLogActionsTests(TestCase):
 
         tags_row = TagsAction.objects.first()
         self.assertEqual(tags_row.action, "tags.tag.created")
+
+    # ── read action rejection ──────────────────────────────────────────────
+
+    def test_log_action_rejects_read(self):
+        """log_action raises ValueError for action_type='read'."""
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+
+        with self.assertRaises(ValueError) as ctx:
+            log_action(
+                user=self.user,
+                action="eln.entry.read",
+                target_type="eln.entry",
+                target_id=42,
+            )
+        self.assertIn("read", str(ctx.exception).lower())
+        self.assertEqual(ElnAction.objects.count(), 0)
+
+    def test_bulk_log_actions_rejects_read(self):
+        """bulk_log_actions raises ValueError when any entry resolves to 'read'."""
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+
+        actions = [
+            {"action": "eln.table.edited", "metadata": {}},
+            {"action": "eln.entry.read", "metadata": {}},
+        ]
+
+        with self.assertRaises(ValueError) as ctx:
+            bulk_log_actions(
+                user=self.user,
+                actions=actions,
+                target_type="eln.entry",
+                target_id=42,
+            )
+        self.assertIn("read", str(ctx.exception).lower())
+        # No rows should be created — reject before any persistence.
+        self.assertEqual(ElnAction.objects.count(), 0)

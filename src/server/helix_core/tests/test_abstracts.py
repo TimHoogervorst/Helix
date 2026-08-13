@@ -7,7 +7,7 @@ AbstractEntity fields, _get_display_id_prefix(), and save behaviour.
 from django.db import connection, models
 from django.test import TransactionTestCase
 
-from core.models import Folder, User
+from core.models import Folder, Project, User
 from helix_core.abstracts import AbstractEntity
 from helix_core.models import Schema, SchemaType
 
@@ -61,7 +61,9 @@ class AbstractEntityFieldTests(TransactionTestCase):
             schema_type=self.schema_type,
             is_default=True,
         )
-        self.folder = Folder.objects.create(name="Test Folder")
+        self.project = Project.objects.create(name="Test Project")
+        self.folder = Folder.objects.create(name="Top Level", parent=None, project=self.project)
+        self.child_folder = Folder.objects.create(name="Test Folder", parent=self.folder, project=self.project)
 
     def test_create_concrete_entity(self):
         """A concrete subclass of AbstractEntity can be created with all fields."""
@@ -87,6 +89,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Prefixed Entity",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertEqual(entity._get_display_id_prefix(), "TEST")
 
@@ -96,6 +99,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Auto-ID Entity",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertEqual(entity.display_id, "TEST1")
 
@@ -107,13 +111,13 @@ class AbstractEntityFieldTests(TransactionTestCase):
             schema_type=self.schema_type,
         )
         e1 = ConcreteTestEntity.objects.create(
-            name="First", author=self.user, schema=self.schema
+            name="First", author=self.user, schema=self.schema, folder=self.folder,
         )
         e2 = ConcreteTestEntity.objects.create(
-            name="Second", author=self.user, schema=schema2
+            name="Second", author=self.user, schema=schema2, folder=self.folder,
         )
         e3 = ConcreteTestEntity.objects.create(
-            name="Third", author=self.user, schema=self.schema
+            name="Third", author=self.user, schema=self.schema, folder=self.folder,
         )
         self.assertEqual(e1.display_id, "TEST1")
         self.assertEqual(e2.display_id, "OTHER1")
@@ -125,6 +129,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Status Test",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertEqual(entity.status, "in_progress")
 
@@ -134,6 +139,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Finished Entity",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
             status="finished",
         )
         self.assertEqual(entity.status, "finished")
@@ -144,6 +150,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="No Editor",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertIsNone(entity.last_editor)
 
@@ -155,26 +162,19 @@ class AbstractEntityFieldTests(TransactionTestCase):
             author=self.user,
             last_editor=editor,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertEqual(entity.last_editor, editor)
 
-    def test_folder_nullable(self):
-        """folder is nullable."""
+    def test_project_derived_from_folder_save(self):
+        """project is auto-derived from folder on save when project_id is None."""
         entity = ConcreteTestEntity.objects.create(
-            name="No Folder",
+            name="Saved Entity",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
-        self.assertIsNone(entity.folder)
-
-    def test_project_nullable(self):
-        """project is nullable (placeholder FK)."""
-        entity = ConcreteTestEntity.objects.create(
-            name="No Project",
-            author=self.user,
-            schema=self.schema,
-        )
-        self.assertIsNone(entity.project)
+        self.assertEqual(entity.project, self.project)
 
     def test_properties_defaults_to_empty_dict(self):
         """properties defaults to an empty dict."""
@@ -182,6 +182,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="No Props",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertEqual(entity.properties, {})
 
@@ -193,6 +194,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Update Test",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         original_updated_at = entity.updated_at
 
@@ -212,6 +214,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name=long_name,
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         self.assertEqual(len(entity.name), 500)
 
@@ -225,6 +228,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Protected Entity",
             author=self.user,
             schema=self.schema,
+            folder=self.folder,
         )
         from django.db.models.deletion import ProtectedError
 

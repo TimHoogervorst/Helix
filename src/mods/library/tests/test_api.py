@@ -1,13 +1,12 @@
 """
-Tests for the Library API endpoints.
-
-All tests exercise the API through HTTP calls using DRF's APIClient.
+Tests for the Library API endpoints — project-scoped contents.
 """
-from core.models import Folder
+from core.models import Folder, Project
 from core.tests.base import BaseTestCase
 from core.tests.factories import EMPTY_DOC
 from mods.eln.models import NotebookEntry
 from mods.tags.models import Tag
+from mods.access.models import Grant, ProjectRole, Organization, OrganizationMembership, OrganizationRole, FolderShare, ShareLevel
 
 
 class LibraryApiTests(BaseTestCase):
@@ -15,94 +14,115 @@ class LibraryApiTests(BaseTestCase):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
-        # Create folder structure:
-        #   root/
-        #     Experiments/
-        #       Q1/
-        #     Protocols/
+        self._schema = None
+
         self.experiments_folder = Folder.objects.create(
-            name="Experiments", parent=None
+            name="Experiments", parent=None, project=self.project,
         )
         self.nested_folder = Folder.objects.create(
-            name="Q1", parent=self.experiments_folder
+            name="Q1", parent=self.experiments_folder, project=self.project,
         )
-        Folder.objects.create(name="Protocols", parent=None)
+        Folder.objects.create(
+            name="Protocols", parent=None, project=self.project,
+        )
 
-        # Entry at root (folder=None)
         self.root_entry = NotebookEntry.objects.create(
-            title="Root Entry",
+            name="Root Entry",
             content=EMPTY_DOC,
             folder=None,
+            project=self.project,
             author=self.user,
+            schema=self.schema,
         )
 
-        # Entries in Experiments/
         self.exp_entry = NotebookEntry.objects.create(
-            title="PCR Results",
+            name="PCR Results",
             content=EMPTY_DOC,
             folder=self.experiments_folder,
+            project=self.project,
             author=self.user,
+            schema=self.schema,
         )
 
-        # Entries in Experiments/Q1/
         self.nested_entry = NotebookEntry.objects.create(
-            title="Q1 Analysis",
+            name="Q1 Analysis",
             content=EMPTY_DOC,
             folder=self.nested_folder,
+            project=self.project,
             author=self.user,
+            schema=self.schema,
         )
+
+    @property
+    def schema(self):
+        if self._schema is None:
+            from mods.eln.tests.factories import get_or_create_default_eln_schema
+            self._schema = get_or_create_default_eln_schema()
+        return self._schema
+
+    def _url(self):
+        return f"/api/library/contents/?project={self.project.uid}"
+
+    def test_folder_picker_paths_are_project_relative(self):
+        response = self.client.get(
+            f"/api/library/folders/?project={self.project.uid}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        paths = {item["path"] for item in response.data}
+        self.assertIn("Experiments", paths)
+        self.assertIn("Experiments / Q1", paths)
+        self.assertNotIn("root / Experiments", paths)
 
     # ── Basic responses ──────────────────────────────────────────────
 
     def test_root_returns_200(self):
-        """GET /api/library/contents/ returns 200 with results."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         self.assertEqual(response.status_code, 200)
         self.assertIn("results", response.data)
         self.assertIn("count", response.data)
 
     def test_type_discriminator_present(self):
-        """Every item in results has a ``type`` field."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         for item in response.data["results"]:
             self.assertIn("type", item)
             self.assertIn(item["type"], ["folder", "entry"])
 
     def test_folders_sorted_before_entries(self):
-        """All folder items precede all entry items."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         results = response.data["results"]
         types = [item["type"] for item in results]
-        # All folders should come before all entries
         if "entry" in types and "folder" in types:
             last_folder_idx = max(i for i, t in enumerate(types) if t == "folder")
             first_entry_idx = min(i for i, t in enumerate(types) if t == "entry")
             self.assertLess(last_folder_idx, first_entry_idx)
 
     def test_root_shows_top_level_items_only(self):
-        """Root listing only shows items with parent=None."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         results = response.data["results"]
 
         folder_names = [r["name"] for r in results if r["type"] == "folder"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
 
-        # Should include root-level folders and entries
         self.assertIn("Experiments", folder_names)
         self.assertIn("Protocols", folder_names)
         self.assertIn("Root Entry", entry_titles)
 
-        # Should NOT include nested items
         self.assertNotIn("Q1", folder_names)
         self.assertNotIn("PCR Results", entry_titles)
         self.assertNotIn("Q1 Analysis", entry_titles)
 
+    def test_response_includes_project_metadata(self):
+        response = self.client.get(self._url())
+        self.assertEqual(str(response.data["project_uid"]), str(self.project.uid))
+        self.assertEqual(response.data["project_name"], self.project.name)
+        self.assertFalse(response.data["project_is_archived"])
+
     # ── Path navigation ──────────────────────────────────────────────
 
     def test_nested_path_returns_correct_items(self):
-        """?path=/Experiments returns only items inside that folder."""
         response = self.client.get(
-            "/api/library/contents/?path=/Experiments"
+            f"{self._url()}&path=/Experiments"
         )
         results = response.data["results"]
 
@@ -111,30 +131,34 @@ class LibraryApiTests(BaseTestCase):
 
         self.assertIn("Q1", folder_names)
         self.assertIn("PCR Results", entry_titles)
-        self.assertNotIn("Experiments", folder_names)  # parent
+        self.assertNotIn("Experiments", folder_names)
         self.assertNotIn("Root Entry", entry_titles)
 
     def test_empty_folder_returns_empty_list(self):
-        """Empty folder returns 200 with empty results."""
         response = self.client.get(
-            "/api/library/contents/?path=/Protocols"
+            f"{self._url()}&path=/Protocols"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
         self.assertEqual(response.data["count"], 0)
 
     def test_nonexistent_path_returns_404(self):
-        """Nonexistent path returns 404."""
         response = self.client.get(
-            "/api/library/contents/?path=/Nope"
+            f"{self._url()}&path=/Nope"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_path_outside_project_returns_404(self):
+        other_project = Project.objects.create(name="Other")
+        response = self.client.get(
+            f"{self._url()}&path=/OtherFolder",
         )
         self.assertEqual(response.status_code, 404)
 
     # ── Item shapes ──────────────────────────────────────────────────
 
     def test_folder_item_shape(self):
-        """Folder items have the correct keys."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         folders = [r for r in response.data["results"] if r["type"] == "folder"]
         self.assertGreater(len(folders), 0)
         f = folders[0]
@@ -143,10 +167,10 @@ class LibraryApiTests(BaseTestCase):
         self.assertIn("name", f)
         self.assertIn("parent", f)
         self.assertIn("created_at", f)
+        self.assertIn("is_shared", f)
 
     def test_entry_item_shape(self):
-        """Entry items have the correct keys."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         self.assertGreater(len(entries), 0)
         e = entries[0]
@@ -170,16 +194,14 @@ class LibraryApiTests(BaseTestCase):
         self.assertIn("updated_at", e)
 
     def test_entry_status_value(self):
-        """Entry status is one of the valid choices."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         self.assertGreater(len(entries), 0)
         e = entries[0]
         self.assertIn(e["status"], ["in_progress", "finished"])
 
     def test_entry_placeholders_are_set(self):
-        """Placeholder fields have the correct default values."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         self.assertGreater(len(entries), 0)
         e = entries[0]
@@ -189,11 +211,10 @@ class LibraryApiTests(BaseTestCase):
         self.assertEqual(e["property_fields"], {})
 
     def test_entry_tags_serialized(self):
-        """Tags are serialized with id, name, color, and icon via TagSerializer."""
         tag = Tag.objects.create(name="CRISPR", color="flask", icon="dna")
         self.root_entry.tags.add(tag)
 
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(len(root["tags"]), 1)
@@ -204,7 +225,6 @@ class LibraryApiTests(BaseTestCase):
         self.assertEqual(t["icon"], "dna")
 
     def test_entry_description_extracts_first_paragraph(self):
-        """Description is extracted from the first paragraph of TipTap content."""
         doc = {
             "type": "doc",
             "content": [
@@ -225,14 +245,13 @@ class LibraryApiTests(BaseTestCase):
         self.root_entry.content = doc
         self.root_entry.save()
 
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(root["description"], "First paragraph text.")
 
     def test_entry_description_empty_for_empty_doc(self):
-        """Description is an empty string for documents with no text content."""
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         entries = [r for r in response.data["results"] if r["type"] == "entry"]
         root = [e for e in entries if e["id"] == self.root_entry.id][0]
         self.assertEqual(root["description"], "")
@@ -240,42 +259,44 @@ class LibraryApiTests(BaseTestCase):
     # ── Pagination ───────────────────────────────────────────────────
 
     def test_pagination_page_size(self):
-        """Page returns at most page_size items."""
-        # Create many entries at root to trigger pagination
         for i in range(55):
             NotebookEntry.objects.create(
-                title=f"Bulk Entry {i}",
+                name=f"Bulk Entry {i}",
                 content=EMPTY_DOC,
                 folder=None,
+                project=self.project,
                 author=self.user,
+                schema=self.schema,
             )
 
-        response = self.client.get("/api/library/contents/?page_size=20")
+        response = self.client.get(
+            f"{self._url()}&page_size=20"
+        )
         self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(response.data["results"]), 20)
         self.assertIsNotNone(response.data["next"])
         self.assertGreater(response.data["count"], 20)
 
     def test_pagination_next_link(self):
-        """``next`` is present when there are more items."""
         for i in range(55):
             NotebookEntry.objects.create(
-                title=f"Page Entry {i}",
+                name=f"Page Entry {i}",
                 content=EMPTY_DOC,
                 folder=None,
+                project=self.project,
                 author=self.user,
+                schema=self.schema,
             )
 
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get(self._url())
         if response.data["count"] > 50:
             self.assertIsNotNone(response.data["next"])
 
     # ── Search ───────────────────────────────────────────────────────
 
     def test_search_filters_folders(self):
-        """search=Exp filters folders by name."""
         response = self.client.get(
-            "/api/library/contents/?search=Exp"
+            f"{self._url()}&search=Exp"
         )
         results = response.data["results"]
         folder_names = [r["name"] for r in results if r["type"] == "folder"]
@@ -283,9 +304,8 @@ class LibraryApiTests(BaseTestCase):
         self.assertNotIn("Protocols", folder_names)
 
     def test_search_filters_entries(self):
-        """search=PCR filters entries by title or display_id."""
         response = self.client.get(
-            "/api/library/contents/?path=/Experiments&search=PCR"
+            f"{self._url()}&path=/Experiments&search=PCR"
         )
         results = response.data["results"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
@@ -293,19 +313,17 @@ class LibraryApiTests(BaseTestCase):
         self.assertNotIn("Q1 Analysis", entry_titles)
 
     def test_search_filters_entries_by_display_id(self):
-        """search by display_id prefix finds matching entries."""
         display_id = self.exp_entry.display_id
         response = self.client.get(
-            f"/api/library/contents/?path=/Experiments&search={display_id}"
+            f"{self._url()}&path=/Experiments&search={display_id}"
         )
         results = response.data["results"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
         self.assertIn("PCR Results", entry_titles)
 
     def test_search_preserves_sort_order(self):
-        """Search results still have folders before entries."""
         response = self.client.get(
-            "/api/library/contents/?search=e"  # matches both folders and entries
+            f"{self._url()}&search=e"
         )
         results = response.data["results"]
         types = [item["type"] for item in results]
@@ -313,3 +331,373 @@ class LibraryApiTests(BaseTestCase):
             last_folder_idx = max(i for i, t in enumerate(types) if t == "folder")
             first_entry_idx = min(i for i, t in enumerate(types) if t == "entry")
             self.assertLess(last_folder_idx, first_entry_idx)
+
+    # ── Project scoping / 404 matrix ─────────────────────────────────
+
+    def test_missing_project_param_returns_404(self):
+        response = self.client.get("/api/library/contents/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_unknown_project_returns_404(self):
+        response = self.client.get(
+            "/api/library/contents/?project=00000000-0000-0000-0000-000000000000"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_access_project_returns_404(self):
+        other_user = type(self.user).objects.create_user(
+            username="other", password="pass",
+        )
+        other_project = Project.objects.create(name="Other Project")
+        Grant.objects.create(
+            project=other_project, role=ProjectRole.READ, user=other_user,
+        )
+        response = self.client.get(
+            f"/api/library/contents/?project={other_project.uid}"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_archived_project_still_serves_members(self):
+        self.project.is_archived = True
+        self.project.save()
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["project_is_archived"])
+
+    def test_archived_project_404_for_non_members(self):
+        self.project.is_archived = True
+        self.project.save()
+        Grant.objects.filter(
+            project=self.project, user=self.user,
+        ).delete()
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 404)
+
+    # ── Shared folders ───────────────────────────────────────────────
+
+    def test_shared_folders_appear_at_target_root(self):
+        source_project = Project.objects.create(name="Source")
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=None, project=source_project,
+        )
+        target_project = self.project
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=target_project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        shared = [r for r in response.data["results"] if r.get("is_shared")]
+        self.assertEqual(len(shared), 1)
+        self.assertEqual(shared[0]["name"], "SrcFolder")
+        self.assertEqual(shared[0]["type"], "folder")
+        self.assertTrue(shared[0]["is_shared"])
+        self.assertEqual(shared[0]["source_project_name"], "Source")
+
+    def test_shared_folders_not_in_subfolders(self):
+        source_project = Project.objects.create(name="Source")
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=None, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&path=/Experiments",
+        )
+        self.assertEqual(response.status_code, 200)
+        shared = [r for r in response.data["results"] if r.get("is_shared")]
+        self.assertEqual(len(shared), 0)
+
+    def test_navigate_into_shared_folder(self):
+        source_project = Project.objects.create(name="Source")
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=None, project=source_project,
+        )
+        source_child = Folder.objects.create(
+            name="Child", parent=source_folder, project=source_project,
+        )
+        source_entry = NotebookEntry.objects.create(
+            name="Shared Entry",
+            content=EMPTY_DOC,
+            folder=source_child,
+            project=source_project,
+            author=self.user,
+            schema=self.schema,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&path=/SrcFolder",
+        )
+        self.assertEqual(response.status_code, 200)
+        folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
+        self.assertIn("Child", folder_names)
+
+    def test_navigate_into_shared_subfolder(self):
+        source_project = Project.objects.create(name="Source")
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=None, project=source_project,
+        )
+        source_child = Folder.objects.create(
+            name="Child", parent=source_folder, project=source_project,
+        )
+        source_entry = NotebookEntry.objects.create(
+            name="Deep Entry",
+            content=EMPTY_DOC,
+            folder=source_child,
+            project=source_project,
+            author=self.user,
+            schema=self.schema,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&path=/SrcFolder/Child",
+        )
+        self.assertEqual(response.status_code, 200)
+        entry_titles = [r["title"] for r in response.data["results"] if r["type"] == "entry"]
+        self.assertIn("Deep Entry", entry_titles)
+
+    def test_shared_folders_sort_alphabetically_with_owned(self):
+        source_project = Project.objects.create(name="Source")
+        Folder.objects.create(
+            name="B Shared", parent=None, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=Folder.objects.get(name="B Shared", project=source_project),
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(self._url())
+        folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
+        sorted_names = sorted(folder_names, key=str.lower)
+        self.assertEqual(folder_names, sorted_names)
+
+    def test_search_covers_shared_subtree_at_root(self):
+        source_project = Project.objects.create(name="Source")
+        source_folder = Folder.objects.create(
+            name="UniqueShare", parent=None, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&search=Unique"
+        )
+        self.assertEqual(response.status_code, 200)
+        folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
+        self.assertIn("UniqueShare", folder_names)
+
+    def test_search_excludes_shared_when_not_matching(self):
+        source_project = Project.objects.create(name="Source")
+        source_folder = Folder.objects.create(
+            name="SrcFolder", parent=None, project=source_project,
+        )
+        FolderShare.objects.create(
+            source_folder=source_folder,
+            target_project=self.project,
+            level=ShareLevel.READ,
+        )
+        Grant.objects.create(
+            project=source_project, role=ProjectRole.READ, user=self.user,
+        )
+        response = self.client.get(
+            f"{self._url()}&search=ZZZDoesNotExist"
+        )
+        shared = [r for r in response.data["results"] if r.get("is_shared")]
+        self.assertEqual(len(shared), 0)
+
+    # ── Share summary on owned folders ────────────────────────────────
+
+    def test_share_summary_present_when_folder_shared_out(self):
+        other_project = Project.objects.create(name="Target Lab")
+        FolderShare.objects.create(
+            source_folder=self.experiments_folder,
+            target_project=other_project,
+            level=ShareLevel.READ,
+        )
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        experiments = [f for f in folders if f["name"] == "Experiments"][0]
+        self.assertIn("share_summary", experiments)
+        self.assertTrue(experiments["share_summary"]["shared"])
+        projects = experiments["share_summary"]["target_projects"]
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["id"], other_project.id)
+        self.assertEqual(projects[0]["name"], "Target Lab")
+
+    def test_share_summary_absent_when_not_shared(self):
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        protocols = [f for f in folders if f["name"] == "Protocols"][0]
+        self.assertNotIn("share_summary", protocols)
+
+    def test_share_summary_multiple_targets(self):
+        target_a = Project.objects.create(name="Target A")
+        target_b = Project.objects.create(name="Target B")
+        FolderShare.objects.create(
+            source_folder=self.experiments_folder,
+            target_project=target_a,
+            level=ShareLevel.READ,
+        )
+        FolderShare.objects.create(
+            source_folder=self.experiments_folder,
+            target_project=target_b,
+            level=ShareLevel.READ_WRITE,
+        )
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        experiments = [f for f in folders if f["name"] == "Experiments"][0]
+        projects = experiments["share_summary"]["target_projects"]
+        self.assertEqual(len(projects), 2)
+        names = {p["name"] for p in projects}
+        self.assertEqual(names, {"Target A", "Target B"})
+
+    def test_folder_item_shape_without_share_summary(self):
+        response = self.client.get(self._url())
+        folders = [r for r in response.data["results"] if r["type"] == "folder"]
+        self.assertGreater(len(folders), 0)
+        f = folders[0]
+        self.assertEqual(f["type"], "folder")
+        self.assertIn("id", f)
+        self.assertIn("name", f)
+        self.assertIn("parent", f)
+        self.assertIn("created_at", f)
+        self.assertIn("is_shared", f)
+        self.assertEqual(f["is_shared"], False)
+
+
+class AccessibleProjectsApiTests(BaseTestCase):
+    """Tests for GET /api/access/projects/?accessible=1."""
+
+    def setUp(self):
+        super().setUp()
+        # BaseTestCase seeds an EDIT Grant for self.user; these tests build
+        # the actor's grants explicitly, so start from a clean slate.
+        Grant.objects.filter(project=self.project, user=self.user).delete()
+        self.org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+
+    def test_ungranted_user_sees_no_projects(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+    def test_direct_read_grant_includes_project(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, user=self.user,
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], self.project.name)
+        self.assertEqual(response.data[0]["current_user_role"], "read")
+
+    def test_direct_edit_grant_includes_project(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.EDIT, user=self.user,
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["current_user_role"], "edit")
+
+    def test_team_grant_includes_project(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import Team
+        group = Group.objects.create(name="My Team")
+        team = Team.objects.create(group=group, organization=self.org)
+        group.user_set.add(self.user)
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, team=team,
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], self.project.name)
+
+    def test_conflicting_grants_strongest_role(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, user=self.user,
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["current_user_role"], "read")
+
+    def test_inactive_user_sees_nothing(self):
+        self.user.is_active = False
+        self.user.save()
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.EDIT, user=self.user,
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+    def test_org_admin_sees_all_non_archived(self):
+        org_admin = type(self.user).objects.create_user(
+            username="orgadmin", password="pass",
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=org_admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        project2 = Project.objects.create(name="Other Project")
+        self.client.force_authenticate(user=org_admin)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        names = {p["name"] for p in response.data}
+        self.assertIn(self.project.name, names)
+        self.assertIn("Other Project", names)
+        self.assertIsNone(response.data[0]["current_user_role"])
+
+    def test_archived_projects_excluded(self):
+        Grant.objects.create(
+            project=self.project, role=ProjectRole.READ, user=self.user,
+        )
+        self.project.is_archived = True
+        self.project.save()
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)

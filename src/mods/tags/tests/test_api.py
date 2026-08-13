@@ -6,6 +6,8 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 from unittest.mock import patch
 
 from core.tests.base import BaseTestCase
+from core.models import User
+from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 from mods.tags.models import Tag
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
@@ -21,6 +23,24 @@ def _log_kwargs(mock):
 class TagsApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
+        self.organization = Organization.objects.create(name="Tags Test Organization")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={
+                "organization": self.organization,
+                "role": OrganizationRole.ADMIN,
+            },
+        )
+        self.non_admin = User.objects.create_user(
+            username="tags-ordinary-user", password="testpass123"
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.non_admin,
+            defaults={
+                "organization": self.organization,
+                "role": OrganizationRole.USER,
+            },
+        )
         self.client.force_authenticate(user=self.user)
 
     # ── List ──────────────────────────────────────────────────────────────
@@ -113,6 +133,14 @@ class TagsApiTests(BaseTestCase):
         tag.refresh_from_db()
         self.assertEqual(tag.color, "flask")
 
+    def test_admin_can_rename_tag(self):
+        tag = Tag.objects.create(name="Before", color="enzyme", icon="circle")
+        response = self.client.patch(
+            f"/api/tags/{tag.id}/", {"name": "After"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], "After")
+
     def test_update_tag_icon(self):
         """PATCH updates a tag's icon."""
         tag = Tag.objects.create(name="Updatable", color="enzyme", icon="circle")
@@ -160,12 +188,47 @@ class TagsApiTests(BaseTestCase):
         response = self.client.get("/api/tags/")
         self.assertEqual(response.status_code, 403)
 
+    def test_non_admin_cannot_create_tag(self):
+        self.client.force_authenticate(user=self.non_admin)
+        response = self.client.post(
+            "/api/tags/", {"name": "Blocked", "color": "muted"}, format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_admin_cannot_rename_or_recolor_tag(self):
+        tag = Tag.objects.create(name="Protected", color="enzyme", icon="circle")
+        self.client.force_authenticate(user=self.non_admin)
+        response = self.client.patch(
+            f"/api/tags/{tag.id}/",
+            {"name": "Renamed", "color": "flask"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        tag.refresh_from_db()
+        self.assertEqual(tag.name, "Protected")
+        self.assertEqual(tag.color, "enzyme")
+
+    def test_non_admin_cannot_delete_tag(self):
+        tag = Tag.objects.create(name="Protected", color="enzyme", icon="circle")
+        self.client.force_authenticate(user=self.non_admin)
+        response = self.client.delete(f"/api/tags/{tag.id}/")
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Tag.objects.filter(id=tag.id).exists())
+
 
 class TagsActionLoggingTests(BaseTestCase):
     """Test that Tag CRUD operations log actions via ActionLoggingMixin."""
 
     def setUp(self):
         super().setUp()
+        organization = Organization.objects.create(name="Tags Logging Organization")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={
+                "organization": organization,
+                "role": OrganizationRole.ADMIN,
+            },
+        )
         self.client.force_authenticate(user=self.user)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
@@ -182,7 +245,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.created")
+        self.assertEqual(kwargs["action"], "tags.tag.created")
         self.assertEqual(kwargs["target_type"], "tags.tag")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -197,7 +260,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.edited")
+        self.assertEqual(kwargs["action"], "tags.tag.edited")
         self.assertEqual(kwargs["target_type"], "tags.tag")
         self.assertEqual(kwargs["target_id"], tag.id)
 
@@ -211,7 +274,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.edited")
+        self.assertEqual(kwargs["action"], "tags.tag.edited")
 
     def test_delete_tag_logs_action(self):
         tag = Tag.objects.create(name="DeleteMe", color="enzyme", icon="circle")
@@ -219,7 +282,7 @@ class TagsActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "tags.tag.deleted")
+        self.assertEqual(kwargs["action"], "tags.tag.deleted")
         self.assertEqual(kwargs["target_type"], "tags.tag")
         self.assertEqual(kwargs["target_id"], tag.id)
 

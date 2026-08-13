@@ -55,7 +55,7 @@ class WidgetBatchSerializer(serializers.Serializer):
 class WidgetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Folder
-        fields = ["id", "name", "parent"]
+        fields = ["id", "name", "parent", "project"]
         extra_kwargs = {"parent": {"required": False, "allow_null": True}}
 
 
@@ -178,7 +178,7 @@ class CreateActionLoggingTests(BaseTestCase):
 
     def test_create_logs_action(self):
         response = self.client.post(
-            "/api/widgets/", {"name": "Widget A"}, format="json"
+            "/api/widgets/", {"name": "Widget A", "project": self.project.id, "parent": self.folder.id}, format="json"
         )
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
@@ -189,21 +189,21 @@ class CreateActionLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["user"], self.user)
 
     def test_create_captures_request_id(self):
-        self.client.post("/api/widgets/", {"name": "Widget B"}, format="json")
+        self.client.post("/api/widgets/", {"name": "Widget B", "project": self.project.id, "parent": self.folder.id}, format="json")
         kwargs = _log_kwargs(self.mock_log)
         self.assertIsNotNone(kwargs["request_id"])
         # request_id is a UUID
         self.assertEqual(len(str(kwargs["request_id"])), 36)
 
     def test_create_captures_client_ip(self):
-        self.client.post("/api/widgets/", {"name": "Widget C"}, format="json")
+        self.client.post("/api/widgets/", {"name": "Widget C", "project": self.project.id, "parent": self.folder.id}, format="json")
         kwargs = _log_kwargs(self.mock_log)
         self.assertEqual(kwargs["client_ip"], "127.0.0.1")
 
     def test_create_unauthenticated_does_not_log(self):
         self.client.force_authenticate(user=None)
         response = self.client.post(
-            "/api/widgets/", {"name": "Widget D"}, format="json"
+            "/api/widgets/", {"name": "Widget D", "project": self.project.id, "parent": self.folder.id}, format="json"
         )
         self.assertEqual(response.status_code, 403)  # IsAuthenticated default
         self.mock_log.assert_not_called()
@@ -216,7 +216,7 @@ class UpdateActionLoggingTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.widget = Folder.objects.create(name="Original")
+        self.widget = Folder.objects.create(name="Original", project=self.project, parent=self.folder)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
 
@@ -226,7 +226,7 @@ class UpdateActionLoggingTests(BaseTestCase):
     def test_update_logs_action(self):
         response = self.client.put(
             f"/api/widgets/{self.widget.pk}/",
-            {"name": "Updated"},
+            {"name": "Updated", "project": self.project.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -239,11 +239,11 @@ class UpdateActionLoggingTests(BaseTestCase):
     def test_update_passes_metadata_hook(self):
         self.client.put(
             f"/api/widgets/{self.widget.pk}/",
-            {"name": "MetaTest"},
+            {"name": "MetaTest", "project": self.project.id},
             format="json",
         )
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["metadata"], {"changed_fields": ["name"]})
+        self.assertEqual(kwargs["metadata"], {"changed_fields": ["name", "project"]})
 
     def test_partial_update_logs_action(self):
         response = self.client.patch(
@@ -274,7 +274,7 @@ class DestroyActionLoggingTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.widget = Folder.objects.create(name="ToDelete")
+        self.widget = Folder.objects.create(name="ToDelete", project=self.project, parent=self.folder)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
 
@@ -298,7 +298,7 @@ class OptInNoAutoDetectionTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.widget = Folder.objects.create(name="OptIn")
+        self.widget = Folder.objects.create(name="OptIn", project=self.project, parent=self.folder)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
 
@@ -332,7 +332,7 @@ class LogsActionDecoratorTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.widget = Folder.objects.create(name="Decorated")
+        self.widget = Folder.objects.create(name="Decorated", project=self.project, parent=self.folder)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
 
@@ -414,12 +414,12 @@ class FailOpenTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.widget = Folder.objects.create(name="FailOpen")
+        self.widget = Folder.objects.create(name="FailOpen", project=self.project, parent=self.folder)
 
     def test_log_action_exception_does_not_break_create(self):
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.post(
-                "/api/widgets/", {"name": "Survivor"}, format="json"
+                "/api/widgets/", {"name": "Survivor", "project": self.project.id, "parent": self.folder.id}, format="json"
             )
         self.assertEqual(response.status_code, 201)
         self.assertIn("id", response.data)
@@ -428,7 +428,7 @@ class FailOpenTests(BaseTestCase):
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.put(
                 f"/api/widgets/{self.widget.pk}/",
-                {"name": "UpdatedAnyway"},
+                {"name": "UpdatedAnyway", "project": self.project.id},
                 format="json",
             )
         self.assertEqual(response.status_code, 200)
@@ -468,7 +468,7 @@ class BatchActionEndpointTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.widget = Folder.objects.create(name="BatchTarget")
+        self.widget = Folder.objects.create(name="BatchTarget", project=self.project, parent=self.folder)
         self._patcher = patch(BULK_LOG_ACTIONS_PATH)
         self.mock_bulk = self._patcher.start()
 

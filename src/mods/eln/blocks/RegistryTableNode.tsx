@@ -29,6 +29,7 @@ import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/com
 import { listDropdowns } from "../../dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import type { ElnSidebarData } from "./sidebarData";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -325,6 +326,10 @@ interface RegistryTableContentProps {
   title: string;
   columns: GridColumn[];
   rows: RegistryTableRow[];
+  /** Project containing the current ELN entry, used for new entities. */
+  projectId?: number | null;
+  /** Folder containing the current ELN entry, used for new entities. */
+  folderId?: number | null;
   updateAttrs: (attrs: Record<string, unknown>) => void;
   /** When true, inline editing and action buttons are hidden. */
   readOnly?: boolean;
@@ -360,6 +365,8 @@ export function RegistryTableContent({
   title,
   columns,
   rows,
+  projectId,
+  folderId,
   updateAttrs,
   readOnly = false,
   stretchMode = "auto",
@@ -623,10 +630,14 @@ export function RegistryTableContent({
       try {
         const payload = {
           schema_id: schemaId,
+          project_id: projectId ?? null,
           rows: nonGreenRows.map(({ row }) => ({
             entity_id: row.entityId,
             name: row.__name,
             values: row.values,
+            ...(folderId !== null && folderId !== undefined
+              ? { folder_id: folderId }
+              : {}),
           })),
         };
 
@@ -686,7 +697,15 @@ export function RegistryTableContent({
         totalAttempted: nonGreenRows.length,
       });
     }
-  }, [schemaId, rows, schemaContentHash, updateAttrs, emitAction]);
+  }, [
+    schemaId,
+    rows,
+    schemaContentHash,
+    projectId,
+    folderId,
+    updateAttrs,
+    emitAction,
+  ]);
 
   // ── Placeholder state ───────────────────────────────────────────────
   if (schemaId === null) {
@@ -1087,6 +1106,9 @@ export const RegistryTableBlockComponent = createBlockAdapter(
   ({ instance, context, overrides = {} }) => {
     const attrs = instance.attrs as Record<string, unknown>;
     const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
+    const entryContext = context.entry as ElnSidebarData | undefined;
+    const projectId = entryContext?.projectId ?? entryContext?.entry?.project ?? null;
+    const folderId = entryContext?.folderId ?? entryContext?.entry?.folder ?? null;
 
     return {
       schemaId: (attrs.schemaId as number | null) ?? null,
@@ -1096,6 +1118,8 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       title: (attrs.title as string) || "Registry Table",
       columns: (attrs.columns as GridColumn[]) ?? [],
       rows: (attrs.rows as RegistryTableRow[]) ?? [],
+       projectId,
+       folderId,
       updateAttrs: instance.updateAttrs,
       readOnly: context.viewMode === "view",
       stretchMode,

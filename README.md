@@ -14,7 +14,7 @@ docker-compose up
 
 On first run, the backend automatically:
 - Runs database migrations
-- Seeds initial data (superuser + entity types + root folder)
+- Seeds initial data (superuser + entity types + default Project folder)
 
 ## Access Points
 
@@ -66,15 +66,20 @@ See [CONTEXT.md](CONTEXT.md) for the full domain glossary and [UBIQUITOUS_LANGUA
 
 ## Running Tests
 
-```bash
-# Backend tests (Django)
-docker-compose exec backend python manage.py test
+Backend tests use **pytest** — one command runs `helix_core`, `core`, and every mod's tests. Frontend tests use Vitest.
 
-# Frontend tests (Vitest)
-docker-compose exec frontend npx vitest run
+```bash
+# Backend (Docker)
+docker-compose exec backend pytest -n auto
+
+# Backend (local, no Docker) — from the repo root
+cd src && pytest -n auto
+
+# Frontend
+docker-compose exec frontend npx vitest run   # or: npm test
 ```
 
-For lightweight local runs without Docker, the backend tests work against SQLite — set `DATABASE_URL=sqlite` or point `settings.py` at a local SQLite file. This skips the PostgreSQL/pgvector dependency and is fine for most test suites. Frontend tests need only Node.
+For lightweight local runs without Docker, the backend tests work against SQLite — set `DATABASE_URL=sqlite:///local.db` (a local SQLite file is created). This skips the PostgreSQL/pgvector dependency and is fine for most test suites; a few suites that depend on Postgres-specific behaviour should be run against Docker. See [docs/agents/testing.md](docs/agents/testing.md) for the full picture.
 
 ## Architecture
 

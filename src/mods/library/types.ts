@@ -9,6 +9,20 @@ export interface AuthorInfo {
   color: string;
 }
 
+/** A target project in a share summary. */
+export interface ShareTargetProject {
+  id: number;
+  name: string;
+  icon_key: string;
+  color_key: string;
+}
+
+/** Share summary present on owned folders when shared out. */
+export interface ShareSummary {
+  shared: true;
+  target_projects: ShareTargetProject[];
+}
+
 /** A folder row in the Library mixed table. */
 export interface LibraryFolderItem {
   type: "folder";
@@ -16,6 +30,12 @@ export interface LibraryFolderItem {
   name: string;
   parent: number | null;
   created_at: string;
+  is_shared?: boolean;
+  source_project_id?: number;
+  source_project_name?: string;
+  source_project_icon?: string;
+  source_project_color?: string;
+  share_summary?: ShareSummary;
 }
 
 /** An entry row in the Library mixed table. */
@@ -52,4 +72,30 @@ export interface LibraryContentsResponse {
   results: LibraryItem[];
   /** The ID of the folder at the current path, or null for root. */
   current_folder_id: number | null;
+  current_project_id: number | null;
+  project_uid?: string;
+  project_name?: string;
+  project_is_archived?: boolean;
+  project_icon?: string;
+  project_color?: string;
+  breadcrumb_path?: string;
+}
+
+/** A project as shown in the Library root listing. */
+export interface LibraryProjectItem {
+  type: "project";
+  id: number;
+  uid: string;
+  name: string;
+  icon_key: string;
+  color_key: string;
+  is_archived: boolean;
+  current_user_role: "read" | "edit" | null;
+}
+
+/** A flat folder entry for the move picker. */
+export interface LibraryFolderPath {
+  id: number;
+  name: string;
+  path: string;
 }

@@ -362,6 +362,7 @@ describe("TagSettings", () => {
     fireEvent.click(screen.getByText(/Save Changes/));
     await waitFor(() => {
       expect(mockUpdateTag).toHaveBeenCalledWith(1, {
+        name: "Updated",
         color: "warn",
         icon: "rat",
       });

@@ -260,6 +260,15 @@ describe("Router", () => {
     expect(() => renderRouter("/")).not.toThrow();
   });
 
+  it("renders the shared not-found state for unknown routes", () => {
+    renderRouter("/does-not-exist");
+
+    expect(screen.getByTestId("not-found")).toBeInTheDocument();
+    expect(
+      screen.getByText("Item not found — or you may not have access"),
+    ).toBeInTheDocument();
+  });
+
   // ── Sidebar rendering ─────────────────────────────────────────────────
 
   it("renders the sidebar Layout with brand text", () => {

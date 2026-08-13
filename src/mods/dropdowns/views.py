@@ -1,21 +1,9 @@
 from rest_framework import viewsets
-from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
-
 from helix_core.actions.mixins import ActionLoggingMixin
+from mods.access.permissions import IsOrganizationAdminForWrites
 
 from .models import Dropdown
 from .serializers import DropdownSerializer
-
-
-class IsAdminOrReadOnly(IsAuthenticated):
-    """Allow read access to any authenticated user, write access to staff only."""
-
-    def has_permission(self, request, view):
-        if not super().has_permission(request, view):
-            return False
-        if request.method in SAFE_METHODS:
-            return True
-        return request.user.is_staff
 
 
 class DropdownViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
@@ -32,7 +20,7 @@ class DropdownViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Dropdown.objects.all()
     serializer_class = DropdownSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsOrganizationAdminForWrites]
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
 
     action_log_config = {

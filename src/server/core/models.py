@@ -1,4 +1,5 @@
 import random
+import uuid
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -56,13 +57,23 @@ class CoreSetting(models.Model):
 
 
 class Project(models.Model):
-    """Placeholder project model — groups folders, entries, and entities.
+    """First-class container owning every Folder, Entry, and Entity.
 
-    This is a minimal placeholder.  Full project membership and permission
-    logic will be added in a future iteration (see issue #297).
+    Projects are the access boundary of the system — all permissions are
+    expressed as Grants on Projects.  Only Organization Admins create,
+    rename, archive, restore, recolor, or re-icon Projects.
+
+    The ``uid`` is the immutable generated ID used in URLs; renaming a
+    Project keeps its UID stable.
     """
 
+    _policy_resource_category = "organization_admin"
+
+    uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField(max_length=255)
+    icon_key = models.CharField(max_length=100, blank=True, default="")
+    color_key = models.CharField(max_length=100, blank=True, default="")
+    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -72,9 +83,12 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
-
 class Folder(models.Model):
-    """Hierarchical folder for organizing entries and entities."""
+    """Hierarchical folder for organizing entries and entities.
+
+    Every Folder belongs to exactly one Project. A folder with no parent is
+    content directly at the Project root.
+    """
 
     name = models.CharField(max_length=255)
     parent = models.ForeignKey(
@@ -84,22 +98,52 @@ class Folder(models.Model):
         blank=True,
         related_name="children",
     )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="folders",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "core_folder"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "name"],
+                condition=models.Q(parent__isnull=True),
+                name="uq_project_top_level_folder_name",
+            ),
+            models.UniqueConstraint(
+                fields=["project", "parent", "name"],
+                condition=models.Q(parent__isnull=False),
+                name="uq_folder_sibling_name",
+            ),
+        ]
 
     @property
-    def path(self) -> str:
-        """Full /-separated path from root to this folder (e.g. /Projects/Sub)."""
+    def is_root_child(self) -> bool:
+        """Whether this folder is immediate user content below a Project."""
+        return self.parent_id is None
+
+    @property
+    def root_relative_path(self) -> str:
+        """Return the display path relative to the Project root."""
+        return " / ".join(self._path_segments(include_root=True))
+
+    def _path_segments(self, *, include_root: bool) -> list[str]:
         segments = []
         node = self
         while node is not None:
             segments.append(node.name)
             node = node.parent
         segments.reverse()
-        return "/" + "/".join(segments)
+        return segments
+
+    @property
+    def path(self) -> str:
+        """Full /-separated path from root to this folder (e.g. /Projects/Sub)."""
+        return "/" + "/".join(self._path_segments(include_root=True))
 
     def __str__(self):
         if self.parent:

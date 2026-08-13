@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Layout from "./Layout";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { ErrorBoundary } from "../shared/components/ErrorBoundary";
+import NotFound from "../shared/components/NotFound";
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -89,6 +90,7 @@ function Router() {
         {hubRoutes}
         {layoutRoutes}
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

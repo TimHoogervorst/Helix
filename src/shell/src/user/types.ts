@@ -53,6 +53,7 @@ export interface CurrentUser {
   is_active: boolean;
   date_joined: string;
   profile: UserProfile;
+  organization_role: "user" | "admin" | null;
   affiliations: Affiliation[];
   publications: Publication[];
   recognitions: Recognition[];

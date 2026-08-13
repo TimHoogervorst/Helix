@@ -1,8 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SettingsPage from "../pages/SettingsPage";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+
+vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
+  CurrentUserProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+  useCurrentUser: () => ({
+    user: {
+      id: 1,
+      username: "admin",
+      organization_role: "admin",
+    },
+    isChecking: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from core.tests.base import BaseTestCase
 from mods.eln.models import Protocol
+from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 
 
 VALID_ITEMS = [
@@ -30,6 +31,11 @@ class ProtocolApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         self.client.force_authenticate(user=self.user)
 
     # ── Create ──────────────────────────────────────────────────────────
@@ -307,6 +313,11 @@ class ProtocolActionLoggingTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         self.client.force_authenticate(user=self.user)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
@@ -323,7 +334,7 @@ class ProtocolActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.protocol.created")
+        self.assertEqual(kwargs["action"], "eln.protocol.created")
         self.assertEqual(kwargs["target_type"], "eln.protocol")
         self.assertEqual(kwargs["target_id"], response.data["id"])
         self.assertEqual(kwargs["user"], self.user)
@@ -338,7 +349,7 @@ class ProtocolActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.protocol.edited")
+        self.assertEqual(kwargs["action"], "eln.protocol.edited")
         self.assertEqual(kwargs["target_type"], "eln.protocol")
         self.assertEqual(kwargs["target_id"], protocol.id)
 
@@ -352,7 +363,7 @@ class ProtocolActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.protocol.edited")
+        self.assertEqual(kwargs["action"], "eln.protocol.edited")
 
     def test_soft_delete_protocol_logs_action(self):
         protocol = Protocol.objects.create(name="Temporary", items=VALID_ITEMS)
@@ -360,7 +371,7 @@ class ProtocolActionLoggingTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.mock_log.assert_called_once()
         kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action_type"], "eln.protocol.deleted")
+        self.assertEqual(kwargs["action"], "eln.protocol.deleted")
         self.assertEqual(kwargs["target_type"], "eln.protocol")
         self.assertEqual(kwargs["target_id"], protocol.id)
 

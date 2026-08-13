@@ -23,6 +23,8 @@ export interface TagAutocompleteProps {
   onTagSelect: (tag: Tag) => void;
   /** Called when a new tag is created via the create-new flow. */
   onTagCreated?: (tag: Tag) => void;
+  /** Whether to show the inline tag creation affordance. Default true. */
+  allowCreate?: boolean;
   /** Placeholder text for the search input. */
   placeholder?: string;
   /** Maximum number of matching suggestions to show. Default 2. */
@@ -33,6 +35,7 @@ export function TagAutocomplete({
   attachedTagIds,
   onTagSelect,
   onTagCreated,
+  allowCreate = true,
   placeholder = "Search tags…",
   suggestionLimit = 2,
 }: TagAutocompleteProps) {
@@ -96,6 +99,7 @@ export function TagAutocomplete({
   const limited = suggestions.slice(0, suggestionLimit);
 
   const showCreateNew =
+    allowCreate &&
     query.trim() &&
     !isCreating &&
     // Only show "Create new" if there isn't an exact match in suggestions

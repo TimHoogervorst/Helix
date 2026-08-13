@@ -220,6 +220,37 @@ describe("ValueInput — none shape", () => {
   });
 });
 
+// ── Project Picker shape ────────────────────────────────────────────────────
+
+describe("ValueInput — project-picker shape", () => {
+  const mockProjects = [
+    { id: 1, name: "Project Alpha", icon_key: "folder", color_key: "accent-blue" },
+    { id: 2, name: "Project Beta", icon_key: "beaker", color_key: "accent-green" },
+  ];
+
+  it("renders a project select with options when projectOptions provided", () => {
+    setup({ operandShape: "project-picker", projectOptions: mockProjects });
+    const select = screen.getByTestId("project-picker-select");
+    expect(select).toBeInTheDocument();
+    expect(screen.getByText("Project Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Project Beta")).toBeInTheDocument();
+  });
+
+  it("fires onChange with project id when selected", () => {
+    const onChange = vi.fn();
+    setup({ operandShape: "project-picker", projectOptions: mockProjects, onChange });
+    const select = screen.getByTestId("project-picker-select");
+    fireEvent.change(select, { target: { value: "2" } });
+    expect(onChange).toHaveBeenCalledWith("2");
+  });
+
+  it("renders text input fallback when no projectOptions", () => {
+    setup({ operandShape: "project-picker" });
+    const input = screen.getByPlaceholderText("1, 2…");
+    expect(input).toBeInTheDocument();
+  });
+});
+
 // ── Unknown / fallback shape ───────────────────────────────────────────────
 
 describe("ValueInput — unknown shape fallback", () => {

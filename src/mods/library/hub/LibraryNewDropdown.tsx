@@ -9,13 +9,17 @@ import { Button } from "../../../shell/src/shared/primitives/Button";
 
 interface LibraryNewDropdownProps {
   currentPath: string;
+  projectUid?: string | null;
   currentFolderId: number | null;
+  currentProjectId: number | null;
   onCreated: () => void;
 }
 
 function LibraryNewDropdown({
-  currentPath: _currentPath,
+  currentPath,
+  projectUid,
   currentFolderId,
+  currentProjectId,
   onCreated,
 }: LibraryNewDropdownProps) {
   const navigate = useNavigate();
@@ -54,6 +58,7 @@ function LibraryNewDropdown({
       await post("/core/folders/", {
         name: trimmed,
         parent: currentFolderId,
+        project: currentProjectId,
       });
       setCreatingFolder(false);
       setFolderName("");
@@ -83,9 +88,14 @@ function LibraryNewDropdown({
         name: "Untitled",
         content: EMPTY_DOC,
         folder: currentFolderId,
+        project: currentProjectId,
       });
       setOpen(false);
-      navigate(`/eln/${entry.display_id}?new=true`);
+      const params = new URLSearchParams({ new: "true" });
+      if (projectUid) params.set("project", projectUid);
+      if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
+      if (currentPath) params.set("path", currentPath);
+      navigate(`/eln/${entry.display_id}?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create entry");
       setCreatingEntry(false);

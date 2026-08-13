@@ -9,7 +9,7 @@
 
 ## Context
 
-The platform has two browsing surfaces — the **Library** (filesystem-like browsing of Folders and ELN Entries at `/library`) and **LIMS** (database-like browsing of Entities at `/lims`). Both implement the same progressive-disclosure UI pattern:
+The platform has two browsing surfaces — the **Library** (filesystem-like browsing of Projects, Folders, and ELN Entries at `/library`) and **LIMS** (database-like browsing of Entities at `/lims`). The Library opens each Project as the root of its folder tree. Both implement the same progressive-disclosure UI pattern:
 
 | State | Library | LIMS |
 |-------|---------|------|

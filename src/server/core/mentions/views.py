@@ -1,11 +1,11 @@
 """
 API views for inline mention resolution and search.
 """
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
+from mods.access.scoping import visible_rows_q
 
 from .prefix_resolver import (
     get_color,
@@ -32,9 +32,17 @@ def _build_result(instance, model_type: str, workspace_id: str | None, *, includ
     return result
 
 
+def _is_visible(instance, user) -> bool:
+    """Check visibility without assuming a concrete mention target type."""
+    field_names = {field.name for field in instance._meta.get_fields()}
+    if not {"project", "folder"}.issubset(field_names):
+        return False
+    return type(instance).objects.filter(
+        pk=instance.pk,
+    ).filter(visible_rows_q(user)).exists()
+
+
 @api_view(["POST"])
-@authentication_classes([])  # No SessionAuthentication → no DRF CSRF check
-@permission_classes([AllowAny])
 def resolve_view(request):
     """
     Batch-resolve display IDs to target details.
@@ -42,17 +50,11 @@ def resolve_view(request):
     POST /api/mentions/resolve/
     Body: {"ids": ["E1", "BLOOD1"]}
     Returns: {"E1": {...}, "BLOOD1": {...}, "NONEXIST": null}
-
-    CSRF is skipped via @csrf_exempt on the module-level wrapper below.
-    DRF's SessionAuthentication.enforce_csrf() would otherwise re-check
-    CSRF with view_func=None, ignoring @csrf_exempt. We avoid that by
-    setting authentication_classes=[] on this read-only endpoint.
     """
     ids = request.data.get("ids", [])
     model_type_map = get_model_type_map()
     result = {}
     for display_id in ids:
-        # Extract the prefix (leading letters) for workspace lookup.
         prefix = ""
         for char in display_id:
             if char.isalpha():
@@ -61,7 +63,7 @@ def resolve_view(request):
                 break
 
         resolved = resolve_display_id(display_id)
-        if resolved:
+        if resolved and _is_visible(resolved[0], request.user):
             instance, ct = resolved
             model_type = model_type_map.get(type(instance), ct.model)
             result[display_id] = _build_result(
@@ -74,14 +76,7 @@ def resolve_view(request):
     return Response(result)
 
 
-# Wrap with csrf_exempt AFTER api_view so Django's CsrfViewMiddleware sees it.
-# (api_view wraps the function first, then csrf_exempt wraps that.)
-resolve_view = csrf_exempt(resolve_view)
-
-
 @api_view(["GET"])
-@authentication_classes([])
-@permission_classes([AllowAny])
 def search_view(request):
     """
     Search for mentions by display_id prefix.
@@ -99,6 +94,12 @@ def search_view(request):
     results = []
     for prefix, model in pmap.items():
         qs = model.objects.filter(display_id__istartswith=query)
+        if {field.name for field in model._meta.get_fields()}.issuperset(
+            {"project", "folder"}
+        ):
+            qs = qs.filter(visible_rows_q(request.user))
+        else:
+            qs = qs.none()
         for instance in qs:
             model_type = model_type_map.get(type(instance), "entry")
             results.append(_build_result(instance, model_type, get_workspace_id(prefix)))

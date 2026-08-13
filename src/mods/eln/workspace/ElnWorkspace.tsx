@@ -37,13 +37,28 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     return null;
   })();
 
+  const initialProjectId: number | null = (() => {
+    const raw = searchParams.get("projectId");
+    if (raw) {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  })();
+
   const busRef = useRef<WorkspaceBus>(null);
   if (!busRef.current) {
     busRef.current = new WorkspaceBus();
   }
   const bus = busRef.current;
 
-  const workspace = useEntryWorkspace({ entryId, isNew, initialFolderId });
+  const workspace = useEntryWorkspace({
+    entryId,
+    isNew,
+    initialFolderId,
+    initialProjectId,
+    projectUid: searchParams.get("project"),
+  });
 
   const taggableItems = useTaggableItems({
     initialTags: workspace.entry?.tags ?? [],
@@ -62,7 +77,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     deferred: isNew,
   });
 
-  const { isReady, error } = workspace;
+  const { isReady, error, errorStatus } = workspace;
   const { title, description, status, setTitle, setDescription, setStatus } = workspace.fields;
   const { folderId, folders, setFolderId } = workspace.folder;
   const { saveStatus, lastSavedAt, queueLength, save, deleteEntry } = workspace.save;
@@ -95,6 +110,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, [workspace.entry?.mentions, resolveIds]);
 
   const folderPath = workspace.entry?.folder_path || "";
+  const projectId = workspace.entry?.project ?? initialProjectId;
+  const contextFolderId = folderId ?? workspace.entry?.folder ?? null;
 
   const slotContext: SlotContext = useMemo(
     () => ({
@@ -109,7 +126,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         lastEditor,
         status,
         folders,
-        folderId,
+         folderId: contextFolderId,
+        projectId,
         isLockedByOther,
         onStatusChange: setStatus,
         onFolderChange: setFolderId,
@@ -120,7 +138,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     }),
     [
       entryId, entryDisplayId, workspace.entry, lastEditor, status,
-      folders, folderId, isLockedByOther, setStatus, setFolderId,
+       folders, folderId, contextFolderId, projectId, isLockedByOther,
+       setStatus, setFolderId,
       resolutionMap, navigate,
     ],
   );
@@ -183,9 +202,11 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     <ElnChrome
       isReady={isReady}
       error={error}
+      errorStatus={errorStatus}
       isNew={isNew}
       entryDisplayId={entryDisplayId}
       entry={workspace.entry}
+      projectUid={searchParams.get("project")}
       folderPath={folderPath}
       title={title}
       onTitleChange={setTitle}

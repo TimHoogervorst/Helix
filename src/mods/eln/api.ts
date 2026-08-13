@@ -1,4 +1,4 @@
-import { get, post, del } from "../../shell/src/api/client";
+import { get, post, patch, del } from "../../shell/src/api/client";
 import type { EntryDetail, EntryListItem, ElnAction, TipTapDoc } from "./types";
 
 /** Lock status response from the lock endpoints. */
@@ -96,6 +96,7 @@ export interface CreateEntryPayload {
   name: string;
   content: TipTapDoc;
   folder?: number | null;
+  project?: number | null;
   status?: string;
   tag_ids?: number[];
 }
@@ -106,6 +107,18 @@ export interface CreateEntryPayload {
  */
 export function createEntry(payload: CreateEntryPayload): Promise<EntryDetail> {
   return post<EntryDetail>("/eln/entries/", payload);
+}
+
+export interface PatchEntryPayload {
+  status?: string;
+  folder?: number;
+}
+
+export function patchEntry(
+  displayId: string,
+  payload: PatchEntryPayload,
+): Promise<EntryDetail> {
+  return patch<EntryDetail>(`/eln/entries/${displayId}/`, payload);
 }
 
 // ── Lock API ────────────────────────────────────────────────────────────────

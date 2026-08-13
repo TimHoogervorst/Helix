@@ -9,6 +9,18 @@
  */
 import { test, expect } from "@playwright/test";
 
+async function isBackendAvailable({ page }: { page: import("@playwright/test").Page }) {
+  await page.goto("/login");
+  await page.waitForLoadState("domcontentloaded");
+  const usernameField = page.getByRole("textbox", { name: "Username" });
+  try {
+    await usernameField.waitFor({ state: "visible", timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Authenticate via the Django login endpoint using Playwright's API request,
  * then set the session cookie on the browser context.
@@ -30,68 +42,77 @@ async function loginViaApi(page: import("@playwright/test").Page) {
   console.log("Logged in, current URL:", page.url());
 }
 
-test("typing / in ELN editor does not crash", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push(msg.text());
+test.describe("ELN editor crash regression", () => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    const available = await isBackendAvailable({ page });
+    if (!available) {
+      testInfo.skip();
+    }
   });
-  page.on("pageerror", (err) => errors.push(err.message));
 
-  // Authenticate first
-  await loginViaApi(page);
+  test("typing / in ELN editor does not crash", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+    page.on("pageerror", (err) => errors.push(err.message));
 
-  // Navigate to blank ELN entry E4
-  await page.goto("/eln/E4");
-  await page.waitForLoadState("domcontentloaded");
-  // Allow time for editor to mount
-  await page.waitForTimeout(1500);
+    // Authenticate first
+    await loginViaApi(page);
 
-  // Find the ProseMirror editor (it's a contentEditable div with class .ProseMirror)
-  const editor = page.locator(".ProseMirror").first();
-  await editor.waitFor({ state: "visible", timeout: 10000 });
-  await editor.click();
+    // Navigate to blank ELN entry E4
+    await page.goto("/eln/E4");
+    await page.waitForLoadState("domcontentloaded");
+    // Allow time for editor to mount
+    await page.waitForTimeout(1500);
 
-  // Type a slash character — this was the crash trigger
-  await page.keyboard.type("/");
+    // Find the ProseMirror editor (it's a contentEditable div with class .ProseMirror)
+    const editor = page.locator(".ProseMirror").first();
+    await editor.waitFor({ state: "visible", timeout: 10000 });
+    await editor.click();
 
-  // Wait for any crash to manifest
-  await page.waitForTimeout(1000);
+    // Type a slash character — this was the crash trigger
+    await page.keyboard.type("/");
 
-  // Check no console errors related to localsInner
-  const crashErrors = errors.filter(
-    (e) =>
-      e.includes("localsInner") ||
-      e.includes("Cannot read properties of undefined"),
-  );
-  expect(crashErrors).toHaveLength(0);
+    // Wait for any crash to manifest
+    await page.waitForTimeout(1000);
 
-  // The editor should still be present (not crashed and re-rendered)
-  const editorStillThere = await page.locator(".ProseMirror").first().isVisible();
-  expect(editorStillThere).toBe(true);
+    // Check no console errors related to localsInner
+    const crashErrors = errors.filter(
+      (e) =>
+        e.includes("localsInner") ||
+        e.includes("Cannot read properties of undefined"),
+    );
+    expect(crashErrors).toHaveLength(0);
 
-  console.log("Errors captured:", errors.length);
-});
+    // The editor should still be present (not crashed and re-rendered)
+    const editorStillThere = await page.locator(".ProseMirror").first().isVisible();
+    expect(editorStillThere).toBe(true);
 
-test("typing # in ELN editor does not crash", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
+    console.log("Errors captured:", errors.length);
+  });
 
-  await loginViaApi(page);
+  test("typing # in ELN editor does not crash", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
 
-  await page.goto("/eln/E4");
-  await page.waitForLoadState("domcontentloaded");
-  await page.waitForTimeout(1500);
+    await loginViaApi(page);
 
-  const editor = page.locator(".ProseMirror").first();
-  await editor.waitFor({ state: "visible", timeout: 10000 });
-  await editor.click();
+    await page.goto("/eln/E4");
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(1500);
 
-  await page.keyboard.type("#");
-  await page.waitForTimeout(1000);
+    const editor = page.locator(".ProseMirror").first();
+    await editor.waitFor({ state: "visible", timeout: 10000 });
+    await editor.click();
 
-  const crashErrors = errors.filter((e) => e.includes("localsInner"));
-  expect(crashErrors).toHaveLength(0);
+    await page.keyboard.type("#");
+    await page.waitForTimeout(1000);
 
-  const editorStillThere = await page.locator(".ProseMirror").first().isVisible();
-  expect(editorStillThere).toBe(true);
+    const crashErrors = errors.filter((e) => e.includes("localsInner"));
+    expect(crashErrors).toHaveLength(0);
+
+    const editorStillThere = await page.locator(".ProseMirror").first().isVisible();
+    expect(editorStillThere).toBe(true);
+  });
 });

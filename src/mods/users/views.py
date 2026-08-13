@@ -2,6 +2,8 @@
 
 Auth views and UserViewSet that were previously in core.views.
 """
+import logging
+
 from django.contrib.auth import login, logout
 from rest_framework import status, views, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,6 +12,7 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from helix_core.actions.logger import log_action
 from core.models import CoreSetting, User
+from mods.access.policies import can as can_access
 
 from .models import Affiliation, Publication, Recognition
 from .serializers import (
@@ -23,6 +26,22 @@ from .serializers import (
     UserAdminSerializer,
     UserSerializer,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _log_user_after_success(user, action, target_id, metadata=None):
+    """Write a user-management audit entry — fail-open."""
+    try:
+        log_action(
+            user=user,
+            action=action,
+            target_type="core.user",
+            target_id=target_id,
+            metadata=metadata,
+        )
+    except Exception:
+        logger.exception("Action logging failed for %s", action)
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────
@@ -136,12 +155,26 @@ class UserViewSet(viewsets.ModelViewSet):
     update:   PUT    /api/core/users/{id}/  — update a user
     partial_update: PATCH /api/core/users/{id}/ — partial update (e.g. deactivate)
     destroy:  DELETE /api/core/users/{id}/  — delete a user
+
+    All actions are restricted to Organization Admins.
     """
 
     queryset = User.objects.all().order_by("-date_joined")
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # Gate against an Organization-administration category resource —
+        # a resource-less check would resolve to "public" and pass for
+        # every authenticated user.
+        from mods.access.models import Organization
+        if not can_access(request.user, "edited", resource=Organization()):
+            self.permission_denied(
+                request,
+                message="Only Organization Admins can manage users.",
+            )
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -155,10 +188,9 @@ class UserViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user = serializer.save()
-        log_action(
-            user=request.user,
+        _log_user_after_success(
+            request.user,
             action="core.user.created",
-            target_type="core.user",
             target_id=user.id,
             metadata={"username": user.username},
         )
@@ -170,7 +202,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
-        """Log deactivation only on true→false transitions."""
+        """Log user edits; deactivation logs the dedicated action."""
         was_active = serializer.instance.is_active
         instance = serializer.save()
         if (
@@ -178,13 +210,32 @@ class UserViewSet(viewsets.ModelViewSet):
             and "is_active" in serializer.validated_data
             and not instance.is_active
         ):
-            log_action(
-                user=self.request.user,
+            _log_user_after_success(
+                self.request.user,
                 action="core.user.deactivated",
-                target_type="core.user",
                 target_id=instance.id,
                 metadata={"username": instance.username},
             )
+        else:
+            _log_user_after_success(
+                self.request.user,
+                action="core.user.edited",
+                target_id=instance.id,
+                metadata={"username": instance.username},
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        target_id = instance.pk
+        username = instance.username
+        response = super().destroy(request, *args, **kwargs)
+        _log_user_after_success(
+            request.user,
+            action="core.user.deleted",
+            target_id=target_id,
+            metadata={"username": username},
+        )
+        return response
 
 
 # ── Profile list viewsets (scoped to request.user) ──────────────────────────

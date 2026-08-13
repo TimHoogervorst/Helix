@@ -5,15 +5,18 @@ import django.db.models
 from django.db import IntegrityError
 
 from django.utils.dateparse import parse_datetime
+from django.http import Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.response import Response
 
 from helix_core.actions.logger import bulk_log_actions, log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
 from mods.tags.models import Tag
+from mods.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
+from mods.access.scoping import visible_rows_q
 
 from helix_core.models import Schema
 
@@ -66,6 +69,20 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     serializer_class = NotebookEntrySerializer
     lookup_field = "display_id"
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ("list", "retrieve") or (
+            self.request.method == "GET"
+            and self.action in ("entry_actions", "lock")
+        ):
+            queryset = queryset.filter(visible_rows_q(self.request.user))
+        return queryset
+
+    def get_permissions(self):
+        if self.action == "delete_all":
+            return [IsOrganizationAdmin()]
+        return super().get_permissions()
+
     _entry_edited_config = {
         "action": "eln.entry.edited",
         # _version_metadata is set as a transient attr in perform_update
@@ -117,23 +134,71 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return schema
 
     def perform_create(self, serializer):
+        from mods.access.policies import effective_role, role
+        from rest_framework.exceptions import PermissionDenied
+
+        folder = serializer.validated_data.get("folder")
+        project = serializer.validated_data["project"]
+        permission = effective_role(self.request.user, folder) if folder else role(
+            self.request.user, project,
+        )
+        if permission != "edit":
+            raise PermissionDenied(
+                "You do not have permission to create entries in this Project."
+            )
         author = self.request.user if self.request.user.is_authenticated else None
         schema = self._get_default_schema()
-        instance = serializer.save(author=author, schema=schema)
+        instance = serializer.save(author=author, schema=schema, project=project)
         sync_entry_content(instance)
         self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
+
+    def _can_edit_entry(self, instance):
+        """Check whether request.user can edit *instance*.
+
+        Returns ``True`` when the user has Edit access — direct, Team-derived,
+        Organization Admin override, or a Read + Write share evaluated via the
+        target Project.
+        """
+        from mods.access.policies import effective_role
+
+        return effective_role(self.request.user, instance) == "edit"
+
+    def _reject_cross_subtree_move(self, instance, new_folder):
+        """Raise ValidationError when *new_folder* is outside the shared subtree.
+
+        Called only when the entry's folder resides inside a shared source folder
+        and the user is not a direct Project editor.
+        """
+        from mods.access.policies import destination_within_shared_subtree
+        from rest_framework.exceptions import ValidationError
+
+        if not destination_within_shared_subtree(
+            instance.folder, new_folder, instance.project_id,
+        ):
+            raise ValidationError(
+                {"folder": "Entries cannot be moved outside the shared subtree."}
+            )
+
+    def perform_destroy(self, instance):
+        if not self._can_edit_entry(instance):
+            raise PermissionDenied(
+                "You do not have permission to delete this entry."
+            )
+        super().perform_destroy(instance)
 
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
 
         Flow:
         0. Check lock — reject 423 if another user holds a non-stale lock.
-        1. Hash incoming content, compare with latest ContentVersion.
+        1. Enforce access — reject 403 for Read viewers, cross-subtree moves.
+        2. Validate same-project move — reject cross-Project folder changes.
+        3. Hash incoming content, compare with latest ContentVersion.
            If hash matches AND no other fields changed → return early (no-op).
-        2. Save the entry via the serializer.
-        3. Run the sync pipeline.
-        4. Create a ContentVersion only if content actually changed.
-        5. Log an "edited" action with version metadata (if content changed).
+        4. Save the entry via the serializer.
+        5. Run the sync pipeline.
+        6. Create a ContentVersion only if content actually changed.
+        7. Log an "edited" action with version metadata (if content changed).
         """
         instance = serializer.instance
         validated_data = serializer.validated_data
@@ -148,6 +213,22 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         if lock is not None and not lock.is_stale() and lock.held_by != self.request.user:
             raise LockedException()
+
+        # ── Access enforcement ─────────────────────────────────────────────
+        if not self._can_edit_entry(instance):
+            raise PermissionDenied(
+                "You do not have permission to edit this entry."
+            )
+
+        # ── Cross-Project move rejection ───────────────────────────────────
+        if "folder" in validated_data:
+            new_folder = validated_data["folder"]
+            if new_folder is not None and new_folder.project_id != instance.project_id:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError(
+                    {"folder": "Entries cannot be moved to a different Project."}
+                )
+            self._reject_cross_subtree_move(instance, new_folder)
 
         # Determine save_mode from request header.
         valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}
@@ -250,6 +331,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Body: {"tag_ids": [1, 2, 3]}
         """
         entry = self.get_object()
+        if not self._can_edit_entry(entry):
+            raise PermissionDenied(
+                "You do not have permission to edit this entry."
+            )
         tag_ids = request.data.get("tag_ids", [])
         if not isinstance(tag_ids, list):
             return Response(
@@ -269,6 +354,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def detach_tag(self, request, display_id=None, tag_id=None):
         """Detach a tag from the entry."""
         entry = self.get_object()
+        if not self._can_edit_entry(entry):
+            raise PermissionDenied(
+                "You do not have permission to edit this entry."
+            )
         try:
             tag = Tag.objects.get(id=tag_id)
         except Tag.DoesNotExist:
@@ -437,13 +526,25 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def _acquire_lock(self, request, display_id=None):
         """Acquire or refresh the lock on this entry.
 
+        Requires Edit access on the entry — acquiring a lock is a
+        mutation that reserves the right to change content.
+
         Returns:
             201 — first-time lock acquired.
             200 — existing lock refreshed (same user re-acquires).
             201 — stale lock stolen (deletes old, creates new).
             423 — another user holds an active lock.
+            403 — the requester cannot Edit this entry.
         """
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         entry = self.get_object()
+
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to lock this entry."
+            )
 
         try:
             existing = entry.lock
@@ -522,14 +623,22 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def _release_lock(self, request, display_id=None):
         """Release the lock on this entry (idempotent).
 
-        Always returns 204 so the frontend cleanup function can call this
-        unconditionally without triggering the API client's 403→/login
-        redirect when the user doesn't hold the lock.
+        Requires Edit access on the entry — releasing a lock is a
+        mutation that requires the same right as acquiring one.
 
         Returns:
             204 — lock released, didn't exist, or held by another user.
+            403 — the requester cannot Edit this entry.
         """
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         entry = self.get_object()
+
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to release the lock on this entry."
+            )
 
         try:
             existing = entry.lock
@@ -545,13 +654,22 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def _lock_status(self, request, display_id=None):
         """Return the current lock status for this entry.
 
+        Requires Read access on the entry — lock status is a read.  A
+        viewer without Read access gets a 404 indistinguishable from a
+        missing entry.
+
         Returns 200 with:
             locked: bool
             held_by: int | None  (user id)
             acquired_at: str | None  (ISO 8601)
             last_activity_at: str | None  (ISO 8601)
         """
+        from mods.access.policies import effective_role
+
         entry = self.get_object()
+
+        if effective_role(request.user, entry) is None:
+            raise Http404("No entry matches the given query.")
 
         try:
             existing = entry.lock
@@ -575,7 +693,7 @@ class ProtocolViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Protocol.objects.all()
     serializer_class = ProtocolSerializer
-    permission_classes = []
+    permission_classes = [IsOrganizationAdminForWrites]
 
     action_log_config = {
         "create": {"action": "eln.protocol.created"},

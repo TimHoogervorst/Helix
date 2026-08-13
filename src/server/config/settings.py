@@ -96,11 +96,15 @@ DATABASES = {
 if os.environ.get("DATABASE_URL"):
     import re
     url = os.environ["DATABASE_URL"]
-    # Support sqlite:// for local testing
+    # Support sqlite for local testing: `sqlite:///local.db`, `sqlite://local.db`,
+    # or bare `sqlite` (which falls back to `db.sqlite3`).
     if url.startswith("sqlite"):
+        name = url.replace("sqlite://", "", 1).lstrip("/")
+        if name in ("", "sqlite"):
+            name = "db.sqlite3"
         DATABASES["default"] = {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": url.replace("sqlite://", ""),
+            "NAME": name,
         }
     else:
         m = re.match(r"postgres://(?P<user>.+):(?P<password>.+)@(?P<host>.+):(?P<port>\d+)/(?P<name>.+)", url)
@@ -142,6 +146,12 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
+# Test runner — provisions test-only tables (e.g. ConcreteTestEntity) that
+# conftest.py handles under pytest.
+
+TEST_RUNNER = "config.test_runner.HelixTestRunner"
+
+
 # Custom user model
 
 AUTH_USER_MODEL = "core.User"
@@ -152,6 +162,9 @@ AUTH_USER_MODEL = "core.User"
 # Minutes before a held entry lock is considered stale and can be stolen.
 ELN_LOCK_TIMEOUT_MINUTES = 5
 
+
+# Session lifetime — one week
+SESSION_COOKIE_AGE = 604800  # seconds (7 days)
 
 # Django REST Framework
 

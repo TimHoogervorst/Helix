@@ -157,6 +157,14 @@ class EntityHubSerializer(serializers.ModelSerializer):
     color = serializers.CharField(
         source="schema.color", read_only=True, default=""
     )
+    project_id = serializers.IntegerField(source="project.id", read_only=True, default=None)
+    project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
+    project_name = serializers.CharField(source="project.name", read_only=True, default="")
+    project_icon = serializers.CharField(source="project.icon_key", read_only=True, default="")
+    project_color = serializers.CharField(source="project.color_key", read_only=True, default="")
+    folder_id = serializers.IntegerField(source="folder.id", read_only=True, default=None)
+    folder_name = serializers.CharField(source="folder.name", read_only=True, default="")
+    folder_path = serializers.SerializerMethodField()
     schema_type_display = serializers.SerializerMethodField()
     _expanded = serializers.SerializerMethodField()
 
@@ -179,6 +187,14 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "workspace_id",
+            "project_id",
+            "project_uid",
+            "project_name",
+            "project_icon",
+            "project_color",
+            "folder_id",
+            "folder_name",
+            "folder_path",
             "_expanded",
         ]
         read_only_fields = fields
@@ -190,6 +206,12 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "lims.entity": "Entity",
         }
         return mapping.get(obj.schema_type_id, obj.schema_type_id)
+
+    def get_folder_path(self, obj):
+        folder = obj.folder
+        if folder is None:
+            return ""
+        return folder.path
 
     def get__expanded(self, obj):
         """Extract schema column values from properties JSON.

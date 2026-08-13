@@ -1,0 +1,8 @@
+{
+  "vendor": "helix",
+  "name": "access",
+  "displayName": "Access Policies",
+  "version": "0.1.0",
+  "dependsOn": ["helix.users"],
+  "description": "Organization identity, membership, and People directory."
+}

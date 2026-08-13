@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from core.models import User
 
+from mods.access.models import OrganizationMembership
 from .models import Affiliation, Publication, Recognition
 
 
@@ -47,6 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
     affiliations = AffiliationSerializer(many=True, read_only=True)
     publications = PublicationSerializer(many=True, read_only=True)
     recognitions = RecognitionSerializer(many=True, read_only=True)
+    organization_role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -54,11 +56,19 @@ class UserSerializer(serializers.ModelSerializer):
             "id", "username", "email", "first_name", "last_name", "color",
             "is_active", "date_joined", "profile",
             "affiliations", "publications", "recognitions",
+            "organization_role",
         ]
         read_only_fields = [
             "id", "color", "date_joined", "is_active",
             "affiliations", "publications", "recognitions",
+            "organization_role",
         ]
+
+    def get_organization_role(self, obj):
+        try:
+            return obj.organization_membership.role
+        except OrganizationMembership.DoesNotExist:
+            return None
 
 
 class UserAdminSerializer(UserSerializer):

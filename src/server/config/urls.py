@@ -4,22 +4,22 @@ URL configuration for Helix project.
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view, permission_classes
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.permissions import IsAuthenticated
 
 from helix_core.mod_system.registry import registry
+from mods.access.permissions import IsOrganizationAdmin
 
 
-@csrf_exempt
+@api_view(["DELETE"])
+@permission_classes([IsOrganizationAdmin])
 def delete_everything(request):
     """DELETE EVERYTHING: clears all ELN entries, entities, and schemas.
 
     Danger zone endpoint for testing only. Hard-deletes all data.
     Order matters — delete children before parents to respect FK constraints.
     """
-    if request.method != "DELETE":
-        return JsonResponse({"error": "Use DELETE method"}, status=405)
-
     counts: dict[str, int] = {}
 
     # 1. Mentions (depends on entries)
@@ -64,6 +64,6 @@ urlpatterns = [
     # Danger zone
     path("api/delete-everything/", delete_everything, name="delete-everything"),
     # OpenAPI schema
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/schema/", SpectacularAPIView.as_view(permission_classes=[IsAuthenticated]), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema", permission_classes=[IsAuthenticated]), name="swagger-ui"),
 ]

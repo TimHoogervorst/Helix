@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { isNotFoundError } from "../../api/client";
 
@@ -80,16 +80,19 @@ export function usePaginatedData<T>(
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
+  const requestVersion = useRef(0);
 
   // ── Data fetching ────────────────────────────────────────────────────────
 
   const doFetch = useCallback(
     async (url?: string) => {
+      const version = ++requestVersion.current;
       setLoading(true);
       setError(null);
       setErrorStatus(null);
       try {
         const data = await fetchFn(url);
+        if (version !== requestVersion.current) return;
         if (url) {
           setItems((prev) => [...prev, ...data.results]);
         } else {
@@ -97,10 +100,11 @@ export function usePaginatedData<T>(
         }
         setNextUrl(data.next);
       } catch (err) {
+        if (version !== requestVersion.current) return;
         setError(err instanceof Error ? err.message : "Failed to load");
         setErrorStatus(isNotFoundError(err) ? 404 : null);
       } finally {
-        setLoading(false);
+        if (version === requestVersion.current) setLoading(false);
       }
     },
     [fetchFn, filterValue],

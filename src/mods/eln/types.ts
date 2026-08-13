@@ -37,6 +37,8 @@ export interface EntryDetail {
   folder: number | null;
   folder_name: string;
   folder_path: string;
+  project?: number | null;
+  project_name?: string | null;
   author: number | null;
   author_username: string | null;
   author_info: ActionUser | null;

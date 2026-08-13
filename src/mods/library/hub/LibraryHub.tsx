@@ -120,7 +120,6 @@ interface ProjectBreadcrumbProps {
   projectName: string;
   projectIsArchived: boolean;
   pathSegments: string[];
-  onBackToProjects: () => void;
   onNavigateToRoot: () => void;
   onNavigateToSegment: (path: string) => void;
   onUp: () => void;
@@ -130,7 +129,6 @@ function ProjectBreadcrumbs({
   projectName,
   projectIsArchived,
   pathSegments,
-  onBackToProjects,
   onNavigateToRoot,
   onNavigateToSegment,
   onUp,
@@ -154,24 +152,11 @@ function ProjectBreadcrumbs({
       />
       <span
         className="breadcrumb-seg"
-        onClick={onBackToProjects}
+        onClick={onNavigateToRoot}
       >
         {projectName}
         {projectIsArchived && (
           <span className="archived-pill">Archived</span>
-        )}
-      </span>
-      <span className="breadcrumb-seg-wrap">
-        <span className="breadcrumb-sep">/</span>
-        {atRoot ? (
-          <span className="breadcrumb-seg is-current">root</span>
-        ) : (
-          <span
-            className="breadcrumb-seg"
-            onClick={onNavigateToRoot}
-          >
-            root
-          </span>
         )}
       </span>
       {pathSegments.map((seg, i) => {
@@ -290,6 +275,7 @@ function LibraryHub() {
 
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const contentsRequestVersion = useRef(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Project metadata from contents response
@@ -379,6 +365,7 @@ function LibraryHub() {
 
   const fetchFn = useCallback(
     async (url?: string) => {
+      const requestVersion = ++contentsRequestVersion.current;
       void refreshKey;
       if (!projectUid) {
         return {
@@ -398,6 +385,7 @@ function LibraryHub() {
       } else {
         response = await getLibraryContents(projectUid, currentPath || undefined, undefined);
       }
+      if (requestVersion !== contentsRequestVersion.current) return response;
       setCurrentFolderId(response.current_folder_id);
       setCurrentProjectId(response.current_project_id ?? null);
       if (response.project_name) {
@@ -420,6 +408,13 @@ function LibraryHub() {
     getDisplayId: (item) =>
       item.type === "entry" ? item.display_id : `folder-${item.id}`,
   });
+
+  useEffect(() => {
+    setCurrentFolderId(null);
+    setCurrentProjectId(null);
+    setProjectMeta(null);
+    data.clearSelection();
+  }, [projectUid, currentPath, data.clearSelection]);
 
   // ── Sidebar bus and context ─────────────────────────────────────────
 
@@ -527,9 +522,11 @@ function LibraryHub() {
         navigateToFolder(item.name);
         return;
       }
-      navigate(`/${item.workspace_id}/${item.display_id}`);
+      const params = new URLSearchParams({ project: projectUid ?? "" });
+      if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
+      navigate(`/${item.workspace_id}/${item.display_id}?${params.toString()}`);
     },
-    [navigateToFolder, navigate],
+    [navigateToFolder, navigate, projectUid, currentProjectId],
   );
 
   // ── Selection tracking ──────────────────────────────────────────────
@@ -752,7 +749,6 @@ function LibraryHub() {
             projectName={projectMeta?.name ?? "…"}
             projectIsArchived={projectMeta?.isArchived ?? false}
             pathSegments={pathSegments}
-            onBackToProjects={navigateToProjects}
             onNavigateToRoot={() => navigateToPath("")}
             onNavigateToSegment={(path) => navigateToPath(path)}
             onUp={navigateUp}
@@ -801,6 +797,7 @@ function LibraryHub() {
 
             <LibraryNewDropdown
               currentPath={currentPath}
+              projectUid={projectUid}
               currentFolderId={currentFolderId}
               currentProjectId={currentProjectId}
               onCreated={() => setRefreshKey((k) => k + 1)}

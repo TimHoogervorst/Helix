@@ -37,13 +37,28 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     return null;
   })();
 
+  const initialProjectId: number | null = (() => {
+    const raw = searchParams.get("projectId");
+    if (raw) {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  })();
+
   const busRef = useRef<WorkspaceBus>(null);
   if (!busRef.current) {
     busRef.current = new WorkspaceBus();
   }
   const bus = busRef.current;
 
-  const workspace = useEntryWorkspace({ entryId, isNew, initialFolderId });
+  const workspace = useEntryWorkspace({
+    entryId,
+    isNew,
+    initialFolderId,
+    initialProjectId,
+    projectUid: searchParams.get("project"),
+  });
 
   const taggableItems = useTaggableItems({
     initialTags: workspace.entry?.tags ?? [],
@@ -187,6 +202,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       isNew={isNew}
       entryDisplayId={entryDisplayId}
       entry={workspace.entry}
+      projectUid={searchParams.get("project")}
       folderPath={folderPath}
       title={title}
       onTitleChange={setTitle}

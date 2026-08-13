@@ -303,9 +303,9 @@ class LibraryContentsView(APIView):
 class LibraryFolderListView(APIView):
     """GET /api/library/folders/?project=<uid>
 
-    Returns a flat, alphabetically sorted list of non-hidden-root folders for
-    *project*, each with ``id``, ``name``, and ``path`` (e.g. ``root / buffers /
-    TRIS``).  Requires at least Read access to the Project.
+    Returns a flat, alphabetically sorted list of folders for *project*, each
+    with a Project-relative ``id``, ``name``, and ``path``. Requires at least
+    Read access to the Project.
     """
 
     def get(self, request):

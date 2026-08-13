@@ -406,7 +406,7 @@ describe("LibraryHub", () => {
       renderLibrary("/library?project=proj-001");
       await waitFor(() => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
-        expect(screen.getByText("root")).toBeInTheDocument();
+        expect(screen.queryByText("root")).toBeNull();
       });
     });
 
@@ -536,7 +536,9 @@ describe("LibraryHub", () => {
       )!;
       fireEvent.click(entryCard);
 
-      expect(mockNavigate).toHaveBeenCalledWith("/eln/EXP-0284");
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/eln/EXP-0284?project=proj-001&projectId=1",
+      );
     });
 
     // ── Top bar elements ────────────────────────────────────────────
@@ -1130,8 +1132,8 @@ describe("LibraryHub", () => {
       mockGetAccessibleProjects.mockResolvedValue([projEditEntry]);
       mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
       mockGetFolders.mockResolvedValue([
-        { id: 1, name: "Experiments", path: "root / Experiments" },
-        { id: 2, name: "Protocols", path: "root / Protocols" },
+        { id: 1, name: "Experiments", path: "Experiments" },
+        { id: 2, name: "Protocols", path: "Protocols" },
       ]);
       mockListDropdowns.mockResolvedValue([
         { id: 1, name: "Status", options: ["in_progress", "finished"] },
@@ -1187,7 +1189,7 @@ describe("LibraryHub", () => {
       expect(searchInput).not.toBeDisabled();
 
       await waitFor(() => {
-        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+        expect(within(dialog).getByText("Protocols")).toBeInTheDocument();
       });
     });
 
@@ -1206,32 +1208,32 @@ describe("LibraryHub", () => {
         ),
       );
       mockGetFolders.mockResolvedValue([
-        { id: 1, name: "Experiments", path: "root / Experiments" },
-        { id: 2, name: "Protocols", path: "root / Protocols" },
+        { id: 1, name: "Experiments", path: "Experiments" },
+        { id: 2, name: "Protocols", path: "Protocols" },
       ]);
 
       const dialog = await openEntryPropertiesModal();
 
       await waitFor(() => {
-        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+        expect(within(dialog).getByText("Protocols")).toBeInTheDocument();
       });
-      expect(within(dialog).queryByText("root / Experiments")).toBeNull();
+      expect(within(dialog).queryByText("Experiments")).toBeNull();
     });
 
     it("filters move picker by search text", async () => {
       const dialog = await openEntryPropertiesModal();
 
       await waitFor(() => {
-        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+        expect(within(dialog).getByText("Protocols")).toBeInTheDocument();
       });
 
       const searchInput = within(dialog).getByPlaceholderText("Search folders...");
       fireEvent.change(searchInput, { target: { value: "Proto" } });
 
       await waitFor(() => {
-        expect(within(dialog).getByText("root / Protocols")).toBeInTheDocument();
+        expect(within(dialog).getByText("Protocols")).toBeInTheDocument();
       });
-      expect(within(dialog).queryByText("root / Experiments")).toBeNull();
+        expect(within(dialog).queryByText("Experiments")).toBeNull();
     });
 
     it("hides status and move controls for read-only viewers", async () => {

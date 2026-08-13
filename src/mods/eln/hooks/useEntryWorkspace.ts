@@ -39,6 +39,8 @@ export interface UseEntryWorkspaceOptions {
   entryId?: string;
   isNew: boolean;
   initialFolderId?: number | null;
+  initialProjectId?: number | null;
+  projectUid?: string | null;
 }
 
 export interface UseEntryWorkspaceReturn {
@@ -93,6 +95,8 @@ export function useEntryWorkspace({
   entryId,
   isNew,
   initialFolderId,
+  initialProjectId,
+  projectUid,
 }: UseEntryWorkspaceOptions): UseEntryWorkspaceReturn {
   // ── Content bridge (owned by the facade) ──
   const contentRef = useRef<TipTapDoc>(EMPTY_DOC);
@@ -108,7 +112,11 @@ export function useEntryWorkspace({
 
   // ── Compose hooks ──
   const crud = useEntryCrud({ entryId, isNew, contentRef });
-  const folder = useEntryFolder({ initialFolderId });
+  const folder = useEntryFolder({
+    initialFolderId,
+    projectId: crud.entry?.project ?? initialProjectId,
+    projectUid,
+  });
 
   // Derive baseline values from the saved baseline (last persisted payload).
   const baseline = useMemo(() => {

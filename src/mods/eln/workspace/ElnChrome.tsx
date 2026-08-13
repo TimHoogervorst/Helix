@@ -41,6 +41,7 @@ export interface ElnChromeProps {
   entryDisplayId: string;
 
   entry: EntryDetail | null;
+  projectUid?: string | null;
   folderPath: string;
 
   title: string;
@@ -75,6 +76,7 @@ function ElnChrome({
   isNew,
   entryDisplayId,
   entry,
+  projectUid,
   folderPath,
   title,
   onTitleChange,
@@ -126,6 +128,9 @@ function ElnChrome({
   }, [description]);
 
   const folderPathSegments = pathSegments(folderPath);
+  const libraryRoot = projectUid
+    ? `/library?project=${encodeURIComponent(projectUid)}`
+    : "/library";
 
   if (!isReady && !error) {
     return (
@@ -187,7 +192,7 @@ function ElnChrome({
                       <span>{segment}</span>
                     ) : (
                       <Link
-                        to={`/library?path=${encodeURIComponent(path)}`}
+                        to={`${libraryRoot}&path=${encodeURIComponent(path)}`}
                         className="hover:text-foreground transition-colors"
                       >
                         {segment}
@@ -200,15 +205,7 @@ function ElnChrome({
                   </span>
                 );
               })
-            ) : (
-              <>
-                <span>—</span>
-                <ChevronRight
-                  className="h-3.5 w-3.5 text-muted-foreground/60"
-                  aria-hidden="true"
-                />
-              </>
-            )}
+            ) : null}
             <span className="font-medium text-foreground">
               {entryDisplayId}
             </span>

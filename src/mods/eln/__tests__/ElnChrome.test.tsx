@@ -88,6 +88,7 @@ function defaultProps(overrides: Partial<ElnChromeProps> = {}): ElnChromeProps {
     isNew: false,
     entryDisplayId: "EXP-0284",
     entry: makeEntry(),
+    projectUid: "proj-001",
     folderPath: "/Research/CRISPR",
     title: "CRISPR Knockout Validation",
     onTitleChange: vi.fn(),
@@ -239,13 +240,13 @@ describe("ElnChrome", () => {
       const researchLink = screen.getByText("Research").closest("a");
       expect(researchLink).not.toBeNull();
       expect(researchLink!.getAttribute("href")).toBe(
-        "/library?path=%2FResearch",
+        "/library?project=proj-001&path=%2FResearch",
       );
 
       const crisprLink = screen.getByText("CRISPR").closest("a");
       expect(crisprLink).not.toBeNull();
       expect(crisprLink!.getAttribute("href")).toBe(
-        "/library?path=%2FResearch%2FCRISPR",
+        "/library?project=proj-001&path=%2FResearch%2FCRISPR",
       );
 
       const optSpan = screen.getByText("Optimization").closest("span");
@@ -259,10 +260,10 @@ describe("ElnChrome", () => {
       expect(screen.getByText("EXP-0284")).toBeDefined();
     });
 
-    it("renders fallback dash when folderPath is empty", () => {
+    it("renders the entry without a synthetic root when folderPath is empty", () => {
       renderChrome({ folderPath: "" });
-      const dashes = screen.getAllByText("—");
-      expect(dashes.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      expect(screen.queryByText("—")).toBeNull();
     });
   });
 

@@ -9,10 +9,13 @@ import { get } from "../../../shell/src/api/client";
 export interface Folder {
   id: number;
   name: string;
+  path?: string;
 }
 
 export interface UseEntryFolderOptions {
   initialFolderId?: number | null;
+  projectId?: number | null;
+  projectUid?: string | null;
 }
 
 export interface UseEntryFolderReturn {
@@ -23,6 +26,8 @@ export interface UseEntryFolderReturn {
 
 export function useEntryFolder({
   initialFolderId,
+  projectId,
+  projectUid,
 }: UseEntryFolderOptions = {}): UseEntryFolderReturn {
   const [folderId, setFolderId] = useState<number | null>(
     initialFolderId ?? null,
@@ -31,10 +36,16 @@ export function useEntryFolder({
 
   // ── Fetch folders ──
   useEffect(() => {
-    get<Folder[]>("/core/folders/")
+    setFolders([]);
+    const query = projectUid
+      ? `/library/folders/?project=${encodeURIComponent(projectUid)}`
+      : projectId === null || projectId === undefined
+        ? "/core/folders/"
+        : `/core/folders/?project=${projectId}`;
+    get<Folder[]>(query)
       .then(setFolders)
       .catch(() => {});
-  }, []);
+  }, [projectId]);
 
   return { folderId, setFolderId, folders };
 }

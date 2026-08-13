@@ -25,6 +25,7 @@ vi.mock("../../eln/api", () => ({
 
 function renderDropdown(props?: Partial<{
   path: string;
+  projectUid?: string | null;
   folderId: number | null;
   projectId: number | null;
   onCreated: () => void;
@@ -33,6 +34,7 @@ function renderDropdown(props?: Partial<{
     <MemoryRouter>
       <LibraryNewDropdown
         currentPath={props?.path ?? ""}
+        projectUid={props?.projectUid}
         currentFolderId={props?.folderId ?? null}
         currentProjectId={props?.projectId ?? null}
         onCreated={props?.onCreated ?? vi.fn()}
@@ -127,7 +129,7 @@ describe("LibraryNewDropdown", () => {
       content: { type: "doc", content: [{ type: "paragraph" }] },
     });
 
-    renderDropdown({ folderId: 7 });
+    renderDropdown({ folderId: 7, projectId: 42 });
     fireEvent.click(screen.getByTitle("New folder or entry"));
     fireEvent.click(screen.getByText("New ELN Entry"));
 
@@ -136,6 +138,7 @@ describe("LibraryNewDropdown", () => {
         name: "Untitled",
         content: { type: "doc", content: [{ type: "paragraph" }] },
         folder: 7,
+        project: 42,
       });
     });
 

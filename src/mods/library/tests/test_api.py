@@ -63,6 +63,17 @@ class LibraryApiTests(BaseTestCase):
     def _url(self):
         return f"/api/library/contents/?project={self.project.uid}"
 
+    def test_folder_picker_paths_are_project_relative(self):
+        response = self.client.get(
+            f"/api/library/folders/?project={self.project.uid}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        paths = {item["path"] for item in response.data}
+        self.assertIn("Experiments", paths)
+        self.assertIn("Experiments / Q1", paths)
+        self.assertNotIn("root / Experiments", paths)
+
     # ── Basic responses ──────────────────────────────────────────────
 
     def test_root_returns_200(self):

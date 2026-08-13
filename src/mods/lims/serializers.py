@@ -281,6 +281,16 @@ class MetricSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "owner", "created_at", "updated_at"]
 
+    def validate_view(self, value):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            if value.owner_id != user.id and not value.is_public:
+                raise serializers.ValidationError(
+                    "You do not have access to this view."
+                )
+        return value
+
     def validate_name(self, value):
         if not value or not value.strip():
             view = self.initial_data.get("view")

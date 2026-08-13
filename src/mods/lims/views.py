@@ -509,6 +509,14 @@ class LimsViewViewSet(viewsets.ModelViewSet):
         user = self.request.user
         public_only = self.request.query_params.get("public") == "true"
 
+        detail_actions = ("retrieve", "update", "partial_update", "destroy")
+        if self.action in detail_actions and user.is_authenticated:
+            from django.db.models import Q
+
+            return LimsView.objects.filter(
+                Q(owner=user) | Q(is_public=True)
+            ).select_related("owner")
+
         if public_only:
             qs = LimsView.objects.filter(is_public=True).select_related("owner")
             if user.is_authenticated:

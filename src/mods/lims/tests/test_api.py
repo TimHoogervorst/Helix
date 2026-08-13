@@ -1991,6 +1991,57 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
 
 
+# ── Saved View access tests ─────────────────────────────────────────────────
+
+
+class LimsViewAccessTests(BaseTestCase):
+    """Saved View reads are owner-or-public; mutations remain owner-only."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = User.objects.create_user(username="other", password="pass")
+        self.public_view = LimsView.objects.create(
+            owner=self.user,
+            name="Public View",
+            is_public=True,
+            filter_state={"columns": []},
+        )
+        self.private_view = LimsView.objects.create(
+            owner=self.user,
+            name="Private View",
+            is_public=False,
+            filter_state={"columns": []},
+        )
+
+    def test_other_user_can_retrieve_public_view(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get(f"/api/lims/views/{self.public_view.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], self.public_view.id)
+
+    def test_other_user_cannot_retrieve_private_view(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.get(f"/api/lims/views/{self.private_view.id}/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_other_user_cannot_modify_public_view(self):
+        self.client.force_authenticate(user=self.other)
+
+        response = self.client.patch(
+            f"/api/lims/views/{self.public_view.id}/",
+            {"name": "Hacked"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.public_view.refresh_from_db()
+        self.assertEqual(self.public_view.name, "Public View")
+
+
 # ── Metric API tests ────────────────────────────────────────────────────────
 
 
@@ -2120,6 +2171,8 @@ class MetricApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         ids = [m["id"] for m in response.data]
         self.assertNotIn(metric.id, ids)
+        detail_response = self.client.get(f"/api/lims/metrics/{metric.id}/")
+        self.assertEqual(detail_response.status_code, 404)
 
     def test_anyone_sees_metric_on_public_view(self):
         """Any authenticated user sees metrics on a public View."""
@@ -2137,6 +2190,64 @@ class MetricApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         ids = [m["id"] for m in response.data]
         self.assertIn(metric.id, ids)
+
+    def test_other_user_can_retrieve_metric_on_public_view(self):
+        public_view = LimsView.objects.create(
+            owner=self.user,
+            name="Public View",
+            is_public=True,
+            filter_state={"columns": []},
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=public_view, aggregate_function="count", column=None,
+        )
+        other = User.objects.create_user(username="other", password="pass")
+        self.client.force_authenticate(user=other)
+
+        response = self.client.get(f"/api/lims/metrics/{metric.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], metric.id)
+
+    def test_other_user_cannot_modify_metric_on_public_view(self):
+        public_view = LimsView.objects.create(
+            owner=self.user,
+            name="Public View",
+            is_public=True,
+            filter_state={"columns": []},
+        )
+        metric = Metric.objects.create(
+            owner=self.user, view=public_view, aggregate_function="count", column=None,
+        )
+        other = User.objects.create_user(username="other", password="pass")
+        self.client.force_authenticate(user=other)
+
+        response = self.client.patch(
+            f"/api/lims/metrics/{metric.id}/",
+            {"name": "Hacked"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_create_metric_rejects_another_users_private_view(self):
+        other = User.objects.create_user(username="other", password="pass")
+        private_view = LimsView.objects.create(
+            owner=other,
+            name="Other Private View",
+            is_public=False,
+            filter_state={"columns": []},
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            "/api/lims/metrics/",
+            {"view": private_view.id, "aggregate_function": "count", "column": None},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("view", response.data)
 
     def test_non_owner_cannot_modify_metric(self):
         """Another user cannot update or delete someone else's metric."""

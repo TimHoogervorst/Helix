@@ -28,7 +28,10 @@ function RowMenu({ onProperties, canDelete, onDelete }: RowMenuProps) {
   }
 
   return (
-    <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+    <div
+      className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+      onClick={(event) => event.stopPropagation()}
+    >
       <Menu
         trigger={
           <IconButton aria-label="Row actions">

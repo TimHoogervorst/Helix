@@ -27,7 +27,14 @@ class FolderSerializer(serializers.ModelSerializer):
         if self.instance is None:
             parent = data.get("parent")
             project = data.get("project")
-            if parent is not None and project is None:
+            if parent is None and project is not None:
+                parent = project.folders.filter(parent__isnull=True).first()
+                if parent is None:
+                    raise serializers.ValidationError(
+                        {"project": "The Project does not have a root Folder."}
+                    )
+                data["parent"] = parent
+            elif parent is not None and project is None:
                 data["project"] = parent.project
             elif project is None:
                 raise serializers.ValidationError(

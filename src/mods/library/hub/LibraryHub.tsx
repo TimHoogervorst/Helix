@@ -809,6 +809,7 @@ function LibraryHub() {
             <LibraryNewDropdown
               currentPath={currentPath}
               currentFolderId={currentFolderId}
+              currentProjectId={currentProjectId}
               onCreated={() => setRefreshKey((k) => k + 1)}
             />
           </div>

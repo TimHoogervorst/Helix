@@ -23,12 +23,18 @@ vi.mock("../../eln/api", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-function renderDropdown(props?: Partial<{ path: string; folderId: number | null; onCreated: () => void }>) {
+function renderDropdown(props?: Partial<{
+  path: string;
+  folderId: number | null;
+  projectId: number | null;
+  onCreated: () => void;
+}>) {
   return render(
     <MemoryRouter>
       <LibraryNewDropdown
         currentPath={props?.path ?? ""}
         currentFolderId={props?.folderId ?? null}
+        currentProjectId={props?.projectId ?? null}
         onCreated={props?.onCreated ?? vi.fn()}
       />
     </MemoryRouter>,
@@ -69,6 +75,46 @@ describe("LibraryNewDropdown", () => {
     // Should go back to menu
     expect(screen.getByText("New Folder")).toBeInTheDocument();
     expect(screen.getByText("New ELN Entry")).toBeInTheDocument();
+  });
+
+  it("creates a root folder with the current project", async () => {
+    renderDropdown({ projectId: 42 });
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    fireEvent.click(screen.getByText("New Folder"));
+    fireEvent.change(screen.getByPlaceholderText("Folder name…"), {
+      target: { value: "Protocols" },
+    });
+    fireEvent.keyDown(screen.getByPlaceholderText("Folder name…"), {
+      key: "Enter",
+    });
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalledWith("/core/folders/", {
+        name: "Protocols",
+        parent: null,
+        project: 42,
+      });
+    });
+  });
+
+  it("creates a nested folder with its parent and project", async () => {
+    renderDropdown({ folderId: 7, projectId: 42 });
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    fireEvent.click(screen.getByText("New Folder"));
+    fireEvent.change(screen.getByPlaceholderText("Folder name…"), {
+      target: { value: "Protocols" },
+    });
+    fireEvent.keyDown(screen.getByPlaceholderText("Folder name…"), {
+      key: "Enter",
+    });
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalledWith("/core/folders/", {
+        name: "Protocols",
+        parent: 7,
+        project: 42,
+      });
+    });
   });
 
   // ── New Entry immediate-create flow ──────────────────────────────────

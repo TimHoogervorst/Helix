@@ -10,12 +10,14 @@ import { Button } from "../../../shell/src/shared/primitives/Button";
 interface LibraryNewDropdownProps {
   currentPath: string;
   currentFolderId: number | null;
+  currentProjectId: number | null;
   onCreated: () => void;
 }
 
 function LibraryNewDropdown({
   currentPath: _currentPath,
   currentFolderId,
+  currentProjectId,
   onCreated,
 }: LibraryNewDropdownProps) {
   const navigate = useNavigate();
@@ -54,6 +56,7 @@ function LibraryNewDropdown({
       await post("/core/folders/", {
         name: trimmed,
         parent: currentFolderId,
+        project: currentProjectId,
       });
       setCreatingFolder(false);
       setFolderName("");

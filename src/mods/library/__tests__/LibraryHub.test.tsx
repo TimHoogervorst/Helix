@@ -899,6 +899,24 @@ describe("LibraryHub", () => {
       });
     });
 
+    it("does not open the row when the three-dot button is clicked", async () => {
+      mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => {
+        expect(screen.getByText("EXP-0284")).toBeInTheDocument();
+      });
+
+      mockNavigate.mockClear();
+      const entryCard = screen
+        .getAllByTestId("base-library-card")
+        .find((card) => card.textContent?.includes("EXP-0284"))!;
+
+      fireEvent.click(within(entryCard).getByLabelText("Row actions"));
+
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(screen.getByText("Properties")).toBeInTheDocument();
+    });
+
     it("opens entry Properties Modal when Properties is clicked", async () => {
       mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
       renderLibrary("/library?project=proj-001");

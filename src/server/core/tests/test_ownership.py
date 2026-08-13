@@ -84,6 +84,28 @@ class FolderOwnershipTests(TestCase):
         self.assertEqual(child.project_id, self.project_a.id)
         self.assertEqual(child.parent_id, self.root_a.id)
 
+    def test_api_root_folder_creation_uses_hidden_root_as_parent(self):
+        user = User.objects.create_user(username="creator", password="pass")
+        Grant.objects.create(
+            project=self.project_a, user=user, role=ProjectRole.EDIT,
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post(
+            "/api/core/folders/",
+            {"name": "Child", "project": self.project_a.id, "parent": None},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parent"], self.root_a.id)
+        self.assertEqual(response.data["project"], self.project_a.id)
+        self.assertEqual(
+            Folder.objects.filter(project=self.project_a, parent__isnull=True).count(),
+            1,
+        )
+
 
 class HiddenRootProtectionTests(TestCase):
     """Hidden Project roots cannot be renamed, moved, or deleted."""

@@ -57,8 +57,7 @@ class CoreSetting(models.Model):
 
 
 class Project(models.Model):
-    """First-class container owning one hidden root Folder and every Entry
-    and Entity within it.
+    """First-class container owning every Folder, Entry, and Entity.
 
     Projects are the access boundary of the system — all permissions are
     expressed as Grants on Projects.  Only Organization Admins create,
@@ -86,11 +85,7 @@ class Project(models.Model):
 
     @property
     def root_folder(self):
-        """Return the single storage root for this Project.
-
-        This is the single owner of hidden-root resolution while the folder
-        tree still uses a synthetic root.
-        """
+        """Return a legacy root row when inspecting pre-cutover data."""
         return self.folders.get(parent__isnull=True, name="root")
 
     def create_root_folder(self):
@@ -140,25 +135,22 @@ class Folder(models.Model):
 
     @property
     def is_hidden_root(self) -> bool:
-        return self.parent_id is None and self.project_id is not None
+        return False
 
     @property
     def is_root_child(self) -> bool:
-        """Whether this folder is immediate user content below the root."""
-        return self.parent_id is not None and self.parent.is_hidden_root
+        """Whether this folder is immediate user content below a Project."""
+        return self.parent_id is None or self.parent.name == "root"
 
     @property
     def root_relative_path(self) -> str:
-        """Return the display path rooted at the Project's hidden root."""
-        segments = self._path_segments(include_root=False)
-        return "root / " + " / ".join(segments)
+        """Return the display path relative to the Project root."""
+        return " / ".join(self._path_segments(include_root=True))
 
     def _path_segments(self, *, include_root: bool) -> list[str]:
         segments = []
         node = self
         while node is not None:
-            if node.is_hidden_root and not include_root:
-                break
             segments.append(node.name)
             node = node.parent
         segments.reverse()

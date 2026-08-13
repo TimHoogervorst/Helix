@@ -107,11 +107,6 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from mods.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
 
-        if instance.is_hidden_root:
-            raise PermissionDenied(
-                "The hidden Project root Folder cannot be deleted."
-            )
-
         if effective_role(self.request.user, instance) == "edit":
             return super().perform_destroy(instance)
 

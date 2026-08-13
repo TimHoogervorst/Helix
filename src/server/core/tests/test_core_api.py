@@ -550,8 +550,10 @@ class FolderDeleteAccessTests(TestCase):
 
     # ── Hidden root protection ──
 
-    def test_hidden_root_cannot_be_deleted(self):
-        self._assert_403(self.admin, self.root)
+    def test_project_root_folder_can_be_deleted(self):
+        self.client.force_authenticate(user=self.editor)
+        response = self.client.delete(f"/api/core/folders/{self.root.id}/")
+        self.assertEqual(response.status_code, 204)
 
     # ── Shared folder path ──
 

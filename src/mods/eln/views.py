@@ -134,17 +134,21 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return schema
 
     def perform_create(self, serializer):
-        from mods.access.policies import effective_role
+        from mods.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
-        folder = serializer.validated_data["folder"]
-        if effective_role(self.request.user, folder) != "edit":
+        folder = serializer.validated_data.get("folder")
+        project = serializer.validated_data["project"]
+        permission = effective_role(self.request.user, folder) if folder else role(
+            self.request.user, project,
+        )
+        if permission != "edit":
             raise PermissionDenied(
-                "You do not have permission to create entries in this folder."
+                "You do not have permission to create entries in this Project."
             )
         author = self.request.user if self.request.user.is_authenticated else None
         schema = self._get_default_schema()
-        instance = serializer.save(author=author, schema=schema, project=folder.project)
+        instance = serializer.save(author=author, schema=schema, project=project)
         sync_entry_content(instance)
         self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
 

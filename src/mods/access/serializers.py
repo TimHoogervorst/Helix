@@ -131,9 +131,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        project = Project.objects.create(**validated_data)
-        project.create_root_folder()
-        return project
+        return Project.objects.create(**validated_data)
 
 
 class GrantSerializer(serializers.ModelSerializer):

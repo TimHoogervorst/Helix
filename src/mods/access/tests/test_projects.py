@@ -1,4 +1,4 @@
-"""Tests for Project API endpoints — CRUD, archive, root folder, permissions."""
+"""Tests for Project API endpoints — CRUD, archive, and permissions."""
 
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -23,12 +23,6 @@ class ProjectApiTests(TestCase):
             "/api/access/projects/", {"name": name}, format="json",
         )
 
-    def _assert_root_folder_exists(self, project_id):
-        root = Folder.objects.filter(project_id=project_id, parent__isnull=True).first()
-        self.assertIsNotNone(root)
-        self.assertEqual(root.name, "root")
-        self.assertTrue(root.is_hidden_root)
-
     # ── creation ──────────────────────────────────────────────────────────
 
     def test_admin_can_create_project(self):
@@ -38,11 +32,11 @@ class ProjectApiTests(TestCase):
         self.assertIn("uid", response.data)
         self.assertFalse(response.data["is_archived"])
 
-    def test_creating_project_creates_root_folder(self):
+    def test_creating_project_creates_no_root_folder(self):
         response = self._create_project()
         self.assertEqual(response.status_code, 201)
         project_id = response.data["id"]
-        self._assert_root_folder_exists(project_id)
+        self.assertFalse(Folder.objects.filter(project_id=project_id).exists())
 
     def test_creating_project_is_atomic(self):
         self.client.force_authenticate(user=self.admin)
@@ -71,6 +65,7 @@ class ProjectApiTests(TestCase):
     def test_project_can_have_multiple_root_folders(self):
         response = self._create_project()
         project = Project.objects.get(pk=response.data["id"])
+        Folder.objects.create(name="first", parent=None, project=project)
         Folder.objects.create(name="second", parent=None, project=project)
         self.assertEqual(
             Folder.objects.filter(project=project, parent__isnull=True).count(),
@@ -231,14 +226,14 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_archiving_does_not_delete_root_folder(self):
+    def test_archiving_does_not_create_a_root_folder(self):
         response = self._create_project("Archive Me")
         project_id = response.data["id"]
         self.client.patch(
             f"/api/access/projects/{project_id}/",
             {"is_archived": True}, format="json",
         )
-        self._assert_root_folder_exists(project_id)
+        self.assertFalse(Folder.objects.filter(project_id=project_id).exists())
 
     def test_archived_project_still_accessible_via_direct_get(self):
         response = self._create_project("Still Here")

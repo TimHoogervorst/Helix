@@ -47,10 +47,10 @@ def _resolve_project(project_uid: str) -> Project:
         raise Http404("Project not found.")
 
 
-def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | None:
-    """Resolve a ``/``-separated path beneath *project*'s hidden root.
+def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | Project:
+    """Resolve a path beneath a Project, returning the Project at its root.
 
-    Returns the hidden root folder for an empty path.
+    Returns the Project for an empty path.
     Raises ``Http404`` if any segment does not match an existing folder.
 
     The first segment at the target project root may resolve to a shared
@@ -60,16 +60,16 @@ def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | No
     from mods.access.models import FolderShare
 
     if not path_str or path_str == "/":
-        return project.root_folder
+        return project
 
     segments = [s for s in path_str.strip("/").split("/") if s]
-    parent = project.root_folder
+    parent = project
 
     for i, segment in enumerate(segments):
-        if parent.is_hidden_root:
+        if parent is project:
             try:
                 folder = Folder.objects.get(
-                    parent=parent, name=segment, project=project,
+                    parent__isnull=True, name=segment, project=project,
                 )
                 parent = folder
                 continue
@@ -176,12 +176,14 @@ class LibraryContentsView(APIView):
 
         folder = _resolve_folder_beneath_root(project, path_str)
 
-        is_at_root = folder.is_hidden_root
+        is_at_root = folder is project
 
         # ── Folders ──────────────────────────────────────────────────
         folders_qs = Folder.objects.filter(
-            parent=folder,
-        ).prefetch_related(
+            project=project,
+            parent__isnull=True if is_at_root else False,
+        ) if is_at_root else Folder.objects.filter(parent=folder)
+        folders_qs = folders_qs.prefetch_related(
             "outgoing_shares__target_project",
         ).order_by("name")
 
@@ -191,9 +193,10 @@ class LibraryContentsView(APIView):
             shared_items = []
 
         # ── Entries ──────────────────────────────────────────────────
+        entry_filters = {"folder": None, "project": project} if is_at_root else {"folder": folder}
         entries_qs = (
             apps.get_model("eln", "NotebookEntry")
-            .objects.filter(folder=folder)
+            .objects.filter(**entry_filters)
             .select_related("author", "folder", "schema")
             .prefetch_related("tags")
             .order_by("-created_at")
@@ -285,7 +288,7 @@ class LibraryContentsView(APIView):
             folder_items + entry_items, request,
         )
         response = paginator.get_paginated_response(page_items)
-        response.data["current_folder_id"] = folder.id if folder and not folder.is_hidden_root else None
+        response.data["current_folder_id"] = folder.id if not is_at_root else None
         response.data["current_project_id"] = project.id
         response.data["project_uid"] = project.uid
         response.data["project_name"] = project.name
@@ -315,14 +318,8 @@ class LibraryFolderListView(APIView):
         if effective is None:
             raise Http404("Project not found.")
 
-        try:
-            root = project.root_folder
-        except Folder.DoesNotExist:
-            return Response([])
-
         descendants = (
             Folder.objects.filter(project=project)
-            .exclude(pk=root.pk)
             .order_by("name")
         )
 

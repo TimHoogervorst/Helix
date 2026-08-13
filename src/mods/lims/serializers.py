@@ -3,7 +3,7 @@ from rest_framework import serializers
 from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema
 from .models import Entity, Action, LimsView, Metric
-from core.models import Folder
+from core.models import Folder, Project
 
 
 def validate_prefix(value):
@@ -58,7 +58,10 @@ class EntitySerializer(serializers.ModelSerializer):
         source="source_entry.display_id", read_only=True, default=None
     )
     folder = serializers.PrimaryKeyRelatedField(
-        queryset=Folder.objects.all(), required=True, allow_null=False,
+        queryset=Folder.objects.all(), required=False, allow_null=True,
+    )
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(), required=False,
     )
     project_name = serializers.CharField(source="project.name", read_only=True)
 
@@ -83,7 +86,22 @@ class EntitySerializer(serializers.ModelSerializer):
             "updated_at",
             "created_at",
         ]
-        read_only_fields = ["id", "display_id", "project", "author", "updated_at", "created_at"]
+        read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
+
+    def validate(self, data):
+        folder = data.get("folder")
+        project = data.get("project")
+        if folder is None and project is None:
+            raise serializers.ValidationError(
+                {"project": "Provide a project when folder is empty."}
+            )
+        if folder is not None:
+            if project is not None and project.pk != folder.project_id:
+                raise serializers.ValidationError(
+                    {"folder": "The folder must belong to the project."}
+                )
+            data["project"] = folder.project
+        return data
 
     def validate_properties(self, properties):
         """Validate reference column values against their target schemas.

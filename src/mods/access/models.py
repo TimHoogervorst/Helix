@@ -281,9 +281,6 @@ class FolderShare(models.Model):
                 "The source Project cannot be the target Project."
             )
 
-        if source.is_hidden_root:
-            raise ValidationError("The hidden root Folder cannot be shared.")
-
         if not source.is_root_child:
             raise ValidationError(
                 "Only immediate children of the Project root can be shared."
@@ -316,9 +313,9 @@ class FolderShare(models.Model):
         own_child = (
             Folder.objects
             .filter(
+                models.Q(parent__isnull=True) | models.Q(parent__name="root"),
                 project_id=self.target_project_id,
                 name=source.name,
-                parent_id=self.target_project.root_folder.id,
             )
             .exists()
         )

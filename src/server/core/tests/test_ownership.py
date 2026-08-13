@@ -19,7 +19,7 @@ def _create_project(name="Test Project"):
 
 
 def _create_root(project):
-    return project.create_root_folder()
+    return Folder.objects.create(name="Root", parent=None, project=project)
 
 
 def _create_eln_schema():
@@ -66,7 +66,7 @@ class FolderOwnershipTests(TestCase):
         except IntegrityError:
             pass
 
-    def test_project_root_is_parent_null_folder(self):
+    def test_project_root_content_is_parent_null_folder(self):
         self.assertIsNone(self.root_a.parent_id)
         self.assertEqual(self.root_a.project_id, self.project_a.id)
 
@@ -79,7 +79,6 @@ class FolderOwnershipTests(TestCase):
             Folder.objects.filter(project=self.project_a, parent__isnull=True).count(),
             2,
         )
-        self.assertEqual(self.project_a.root_folder.id, self.root_a.id)
 
     def test_folder_names_are_unique_among_siblings(self):
         Folder.objects.create(
@@ -105,7 +104,7 @@ class FolderOwnershipTests(TestCase):
         self.assertEqual(child.project_id, self.project_a.id)
         self.assertEqual(child.parent_id, self.root_a.id)
 
-    def test_api_root_folder_creation_uses_hidden_root_as_parent(self):
+    def test_api_root_folder_creation_stays_at_project_root(self):
         user = User.objects.create_user(username="creator", password="pass")
         Grant.objects.create(
             project=self.project_a, user=user, role=ProjectRole.EDIT,
@@ -120,16 +119,16 @@ class FolderOwnershipTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["parent"], self.root_a.id)
+        self.assertIsNone(response.data["parent"])
         self.assertEqual(response.data["project"], self.project_a.id)
         self.assertEqual(
             Folder.objects.filter(project=self.project_a, parent__isnull=True).count(),
-            1,
+            2,
         )
 
 
-class HiddenRootProtectionTests(TestCase):
-    """Hidden Project roots cannot be renamed, moved, or deleted."""
+class ProjectRootFolderTests(TestCase):
+    """Project-root folders are ordinary folders."""
 
     def setUp(self):
         self.client = APIClient()
@@ -141,28 +140,28 @@ class HiddenRootProtectionTests(TestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-    def test_hidden_root_cannot_be_renamed(self):
+    def test_project_root_can_be_renamed(self):
         response = self.client.patch(
             f"/api/core/folders/{self.root.id}/",
             {"name": "Hacked"},
             format="json",
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
 
-    def test_hidden_root_cannot_be_moved(self):
-        child = Folder.objects.create(
-            name="Child", parent=self.root, project=self.project,
+    def test_project_root_can_be_moved(self):
+        target = Folder.objects.create(
+            name="Target", parent=None, project=self.project,
         )
         response = self.client.patch(
             f"/api/core/folders/{self.root.id}/",
-            {"parent": child.id},
+            {"parent": target.id},
             format="json",
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
 
-    def test_hidden_root_cannot_be_deleted(self):
+    def test_project_root_can_be_deleted(self):
         response = self.client.delete(f"/api/core/folders/{self.root.id}/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 204)
 
     def test_non_hidden_folder_can_be_renamed(self):
         child = Folder.objects.create(
@@ -229,6 +228,21 @@ class EntryOwnershipTests(TestCase):
         )
         self.assertEqual(entry.project_id, self.project_a.id)
         self.assertIsNone(entry.folder_id)
+
+    def test_create_entry_api_at_project_root(self):
+        response = self.client.post(
+            "/api/eln/entries/",
+            {
+                "name": "Root API Entry",
+                "content": {"type": "doc", "content": []},
+                "project": self.project_a.id,
+                "folder": None,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["project"], self.project_a.id)
+        self.assertIsNone(response.data["folder"])
 
     def test_create_entry_api_derives_project(self):
         response = self.client.post(
@@ -336,6 +350,21 @@ class EntityOwnershipTests(TestCase):
         )
         self.assertEqual(entity.project_id, self.project_a.id)
         self.assertIsNone(entity.folder_id)
+
+    def test_create_entity_api_at_project_root(self):
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Root API Entity",
+                "project": self.project_a.id,
+                "folder": None,
+                "schema": self.schema.id,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["project"], self.project_a.id)
+        self.assertIsNone(response.data["folder"])
 
     def test_create_entity_api_derives_project(self):
         response = self.client.post(

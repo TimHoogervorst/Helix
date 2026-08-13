@@ -113,15 +113,10 @@ class Command(BaseCommand):
         if project is None:
             project = Project.objects.create(name="Default Project")
 
-        try:
-            root = project.root_folder
-        except Folder.DoesNotExist:
-            root = project.create_root_folder()
-
-        Folder.objects.create(name="Default", parent=root, project=project)
+        Folder.objects.create(name="Default", parent=None, project=project)
         self.stdout.write(
             self.style.SUCCESS(
-                f"Created Project '{project.name}' with root and Default folders"
+                f"Created Project '{project.name}' with Default folder"
             )
         )
 

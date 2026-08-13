@@ -933,7 +933,7 @@ class EntryPatchAccessTests(BaseTestCase):
             level=ShareLevel.READ_WRITE,
         )
         outside_folder = Folder.objects.create(
-            name="Outside Subtree", parent=self.root_folder, project=self.project,
+            name="Outside Subtree", parent=None, project=self.project,
         )
         client = APIClient()
         client.force_authenticate(user=self.other_editor)

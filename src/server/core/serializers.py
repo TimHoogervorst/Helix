@@ -27,15 +27,7 @@ class FolderSerializer(serializers.ModelSerializer):
         if self.instance is None:
             parent = data.get("parent")
             project = data.get("project")
-            if parent is None and project is not None:
-                try:
-                    parent = project.root_folder
-                except Folder.DoesNotExist:
-                    raise serializers.ValidationError(
-                        {"project": "The Project does not have a root Folder."}
-                    )
-                data["parent"] = parent
-            elif parent is not None and project is None:
+            if parent is not None and project is None:
                 data["project"] = parent.project
             elif project is None:
                 raise serializers.ValidationError(
@@ -45,52 +37,19 @@ class FolderSerializer(serializers.ModelSerializer):
         else:
             parent = data.get("parent")
             project = data.get("project")
-            if self.instance.is_hidden_root:
-                if "name" in data:
-                    raise serializers.ValidationError(
-                        {"name": "The hidden Project root cannot be renamed."}
-                    )
-                if "parent" in data and parent != self.instance.parent:
-                    raise serializers.ValidationError(
-                        {"parent": "The hidden Project root cannot be moved."}
-                    )
-            if "name" in data and self.instance.parent is not None:
-                self._validate_root_level_name_uniqueness(data["name"])
             if parent is not None and project is None:
                 data["project"] = parent.project
-        return data
+            if "name" in data and (parent is None or self.instance.parent_id is None):
+                from mods.access.models import FolderShare
 
-    def _validate_root_level_name_uniqueness(self, new_name):
-        parent = self.instance.parent
-        if parent is None or not parent.is_hidden_root:
-            return
-        project = self.instance.project
-        root = project.root_folder
-        collision = (
-            Folder.objects
-            .filter(
-                project=project,
-                name=new_name,
-                parent_id=root.pk,
-            )
-            .exclude(pk=root.pk)
-            .exclude(pk=self.instance.pk)
-        )
-        if collision.exists():
-            raise serializers.ValidationError(
-                {"name": f"A folder named \"{new_name}\" already "
-                         f"exists in this project."}
-            )
-        from mods.access.models import FolderShare
-        share_collision = FolderShare.objects.filter(
-            target_project=project,
-            source_folder__name=new_name,
-        )
-        if share_collision.exists():
-            raise serializers.ValidationError(
-                {"name": f"A shared folder named \"{new_name}\" already "
-                         f"exists in this project."}
-            )
+                if FolderShare.objects.filter(
+                    target_project=self.instance.project,
+                    source_folder__name=data["name"],
+                ).exists():
+                    raise serializers.ValidationError(
+                        {"name": "A shared folder with this name already exists."}
+                    )
+        return data
 
 
 # ── CoreSetting ────────────────────────────────────────────────────────────

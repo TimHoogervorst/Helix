@@ -88,7 +88,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     }
 
     def perform_destroy(self, instance):
-        from mods.access.policies import effective_role
+        from mods.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
         if effective_role(self.request.user, instance) != "edit":
@@ -135,17 +135,21 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return sorted(referencing)
 
     def perform_create(self, serializer):
-        from mods.access.policies import effective_role
+        from mods.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
-        folder = serializer.validated_data["folder"]
-        if effective_role(self.request.user, folder) != "edit":
+        folder = serializer.validated_data.get("folder")
+        project = serializer.validated_data.get("project") or folder.project
+        permission = effective_role(self.request.user, folder) if folder else role(
+            self.request.user, project,
+        )
+        if permission != "edit":
             raise PermissionDenied(
-                "You do not have permission to create entities in this folder."
+                "You do not have permission to create entities in this Project."
             )
         instance = serializer.save(
             author=self.request.user,
-            project=folder.project,
+            project=project,
         )
         self._maybe_log(
             "create",

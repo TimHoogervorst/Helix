@@ -17,19 +17,19 @@ class LibraryApiTests(BaseTestCase):
         self._schema = None
 
         self.experiments_folder = Folder.objects.create(
-            name="Experiments", parent=self.root_folder, project=self.project,
+            name="Experiments", parent=None, project=self.project,
         )
         self.nested_folder = Folder.objects.create(
             name="Q1", parent=self.experiments_folder, project=self.project,
         )
         Folder.objects.create(
-            name="Protocols", parent=self.root_folder, project=self.project,
+            name="Protocols", parent=None, project=self.project,
         )
 
         self.root_entry = NotebookEntry.objects.create(
             name="Root Entry",
             content=EMPTY_DOC,
-            folder=self.root_folder,
+            folder=None,
             project=self.project,
             author=self.user,
             schema=self.schema,
@@ -253,7 +253,7 @@ class LibraryApiTests(BaseTestCase):
             NotebookEntry.objects.create(
                 name=f"Bulk Entry {i}",
                 content=EMPTY_DOC,
-                folder=self.root_folder,
+                folder=None,
                 project=self.project,
                 author=self.user,
                 schema=self.schema,
@@ -272,7 +272,7 @@ class LibraryApiTests(BaseTestCase):
             NotebookEntry.objects.create(
                 name=f"Page Entry {i}",
                 content=EMPTY_DOC,
-                folder=self.root_folder,
+                folder=None,
                 project=self.project,
                 author=self.user,
                 schema=self.schema,

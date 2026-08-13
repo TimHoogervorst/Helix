@@ -223,7 +223,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         # ── Cross-Project move rejection ───────────────────────────────────
         if "folder" in validated_data:
             new_folder = validated_data["folder"]
-            if new_folder.project_id != instance.project_id:
+            if new_folder is not None and new_folder.project_id != instance.project_id:
                 from rest_framework.exceptions import ValidationError
                 raise ValidationError(
                     {"folder": "Entries cannot be moved to a different Project."}

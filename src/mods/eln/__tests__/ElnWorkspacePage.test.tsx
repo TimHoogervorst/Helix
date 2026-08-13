@@ -479,7 +479,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
     });
 
-    it("renders metadata keys: Author, Last editor, Project, Started, Status, Folder", () => {
+    it("renders metadata keys: Author, Last editor, Project, Started, and Status", () => {
       renderAtRoute("/eln/EXP-0284");
 
       expect(screen.getByText("Author")).toBeDefined();
@@ -487,7 +487,6 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(screen.getByText("Project")).toBeDefined();
       expect(screen.getByText("Started")).toBeDefined();
       expect(screen.getByText("Status")).toBeDefined();
-      expect(screen.getByText("Folder")).toBeDefined();
     });
 
     it("does NOT render Witness or Instrument rows", () => {
@@ -502,7 +501,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       // With no entry data, each value should show "—"
       // The breadcrumb also shows "—", so there will be multiple
       const dashes = screen.getAllByText("—");
-      expect(dashes.length).toBeGreaterThanOrEqual(4); // breadcrumb + Author + Last editor + Project + Started + Folder
+      expect(dashes.length).toBeGreaterThanOrEqual(4); // breadcrumb + Author + Last editor + Project + Started
     });
 
     it("renders Status as dropdown", async () => {
@@ -511,11 +510,6 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(statusSelect).toBeDefined();
     });
 
-    it("renders Folder as dropdown", async () => {
-      renderAtRoute("/eln/EXP-0284");
-      const folderSelect = await screen.findByTestId("folder-select");
-      expect(folderSelect).toBeDefined();
-    });
   });
 
   describe("Metadata Panel — Section 2: Linked Entities", () => {
@@ -706,19 +700,6 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     await waitFor(() => {
       const statusSelect = screen.getByTestId("status-select") as HTMLSelectElement;
       expect(statusSelect.disabled).toBe(true);
-    });
-  });
-
-  it("disables folder select when locked", async () => {
-    mockLockedState.isLockedByOther = true;
-    mockLockedState.lockHeldBy = "bob";
-
-    renderAtRoute("/eln/EXP-0284");
-
-    // Wait for the onStateChange to fire and the disabled prop to be applied.
-    await waitFor(() => {
-      const folderSelect = screen.getByTestId("folder-select") as HTMLSelectElement;
-      expect(folderSelect.disabled).toBe(true);
     });
   });
 

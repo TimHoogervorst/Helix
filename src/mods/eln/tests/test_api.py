@@ -106,6 +106,22 @@ class ElnApiTests(BaseTestCase):
         self.assertEqual(entry.name, "New Title")
         self.assertEqual(entry.content, new_doc)
 
+    def test_update_entry_to_project_root(self):
+        """PUT with a null folder moves the entry to the Project root."""
+        entry = NotebookEntry.objects.create(
+            name="Foldered Entry", content=TEXT_DOC, folder=self.folder,
+            author=self.user, schema=self.schema,
+        )
+        response = self.client.put(
+            f"/api/eln/entries/{entry.display_id}/",
+            {"name": entry.name, "content": TEXT_DOC, "folder": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        entry.refresh_from_db()
+        self.assertIsNone(entry.folder)
+        self.assertEqual(entry.project_id, self.project.id)
+
     def test_delete_entry(self):
         """DELETE removes entry, subsequent GET returns 404."""
         entry = NotebookEntry.objects.create(

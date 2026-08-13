@@ -147,7 +147,7 @@ export function useEntryCrud({
 
   // ── Auto-save (fire-and-forget) ──
   const autoSave = useCallback(
-    (folderId: number | null, hasBlockActions?: boolean) => {
+    (_folderId: number | null, hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -156,7 +156,6 @@ export function useEntryCrud({
       const payload: Record<string, unknown> = {
         name: title.trim(),
         content: fullContent,
-        folder: folderId,
         status,
       };
 
@@ -187,7 +186,7 @@ export function useEntryCrud({
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
-    async (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
+    async (_folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -196,7 +195,6 @@ export function useEntryCrud({
       const payload: Record<string, unknown> = {
         name: title.trim(),
         content: fullContent,
-        folder: folderId,
         status,
       };
 

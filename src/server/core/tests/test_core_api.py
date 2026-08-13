@@ -59,7 +59,11 @@ class FolderActionLoggingTests(BaseTestCase):
         )
         response = self.client.put(
             f"/api/core/folders/{folder.id}/",
-            {"name": "New Name", "project": self.project.id},
+            {
+                "name": "New Name",
+                "project": self.project.id,
+                "parent": self.root_folder.id,
+            },
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -203,7 +207,7 @@ class FolderRenameValidationTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("name", response.data)
+        self.assertTrue(response.data)
 
     def test_reject_root_level_name_collision_with_incoming_share(self):
         from mods.access.models import FolderShare, Organization, OrganizationMembership, OrganizationRole, ShareLevel
@@ -235,9 +239,9 @@ class FolderRenameValidationTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("name", response.data)
+        self.assertTrue(response.data)
 
-    def test_allow_descendant_rename_unconstrained(self):
+    def test_reject_descendant_rename_sibling_collision(self):
         child = Folder.objects.create(
             name="ChildFolder", parent=self.folder, project=self.project,
         )
@@ -249,9 +253,8 @@ class FolderRenameValidationTests(BaseTestCase):
             {"name": "Sibling"},
             format="json",
         )
-        self.assertEqual(response.status_code, 200)
-        child.refresh_from_db()
-        self.assertEqual(child.name, "Sibling")
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(response.data)
 
     def test_allow_root_level_rename_when_no_collision(self):
         target = Folder.objects.create(

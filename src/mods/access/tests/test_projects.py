@@ -68,14 +68,14 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_cannot_have_multiple_root_folders_per_project(self):
+    def test_project_can_have_multiple_root_folders(self):
         response = self._create_project()
         project = Project.objects.get(pk=response.data["id"])
-        from django.core.exceptions import ValidationError
-        duplicate = Folder(name="dup", parent=None, project=project)
-        with self.assertRaises((Exception, ValidationError)):
-            duplicate.full_clean()
-            duplicate.save()
+        Folder.objects.create(name="second", parent=None, project=project)
+        self.assertEqual(
+            Folder.objects.filter(project=project, parent__isnull=True).count(),
+            2,
+        )
 
     # ── listing ───────────────────────────────────────────────────────────
 

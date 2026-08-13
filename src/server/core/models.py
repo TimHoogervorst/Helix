@@ -2,7 +2,6 @@ import random
 import uuid
 
 from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError
 from django.db import models
 
 # 8-color palette for avatar backgrounds — randomly assigned at user creation
@@ -92,7 +91,7 @@ class Project(models.Model):
         This is the single owner of hidden-root resolution while the folder
         tree still uses a synthetic root.
         """
-        return self.folders.get(parent__isnull=True)
+        return self.folders.get(parent__isnull=True, name="root")
 
     def create_root_folder(self):
         """Create this Project's storage root."""
@@ -128,23 +127,16 @@ class Folder(models.Model):
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(
-                fields=["project"],
+                fields=["project", "name"],
                 condition=models.Q(parent__isnull=True),
-                name="uq_one_root_per_project",
+                name="uq_project_root_folder_name",
+            ),
+            models.UniqueConstraint(
+                fields=["project", "parent", "name"],
+                condition=models.Q(parent__isnull=False),
+                name="uq_folder_sibling_name",
             ),
         ]
-
-    def clean(self):
-        super().clean()
-        if self.pk is not None and self.project_id is not None and self.parent_id is None:
-            try:
-                existing = self.project.root_folder
-            except Folder.DoesNotExist:
-                existing = None
-            if existing is not None and existing.pk != self.pk:
-                raise ValidationError(
-                    "A root Folder (parent is null) already exists for this Project."
-                )
 
     @property
     def is_hidden_root(self) -> bool:

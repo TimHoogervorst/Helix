@@ -107,6 +107,8 @@ class AbstractEntity(BrowsableItem):
     folder = models.ForeignKey(
         "core.Folder",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="+",
     )
     project = models.ForeignKey(

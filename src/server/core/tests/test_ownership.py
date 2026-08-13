@@ -70,12 +70,33 @@ class FolderOwnershipTests(TestCase):
         self.assertIsNone(self.root_a.parent_id)
         self.assertEqual(self.root_a.project_id, self.project_a.id)
 
-    def test_only_one_root_per_project(self):
-        from django.core.exceptions import ValidationError
-        duplicate = Folder(name="dup", parent=None, project=self.project_a)
-        with self.assertRaises((Exception, ValidationError)):
-            duplicate.full_clean()
-            duplicate.save()
+    def test_multiple_root_folders_per_project_are_allowed(self):
+        second_root = Folder.objects.create(
+            name="second", parent=None, project=self.project_a,
+        )
+        self.assertEqual(second_root.project_id, self.project_a.id)
+        self.assertEqual(
+            Folder.objects.filter(project=self.project_a, parent__isnull=True).count(),
+            2,
+        )
+        self.assertEqual(self.project_a.root_folder.id, self.root_a.id)
+
+    def test_folder_names_are_unique_among_siblings(self):
+        Folder.objects.create(
+            name="Child", parent=self.root_a, project=self.project_a,
+        )
+        with self.assertRaises(Exception):
+            with transaction.atomic():
+                Folder.objects.create(
+                    name="Child", parent=self.root_a, project=self.project_a,
+                )
+
+    def test_root_folder_names_are_unique_per_project(self):
+        with self.assertRaises(Exception):
+            with transaction.atomic():
+                Folder.objects.create(
+                    name=self.root_a.name, parent=None, project=self.project_a,
+                )
 
     def test_child_folder_inherits_project_from_parent(self):
         child = Folder.objects.create(
@@ -197,6 +218,18 @@ class EntryOwnershipTests(TestCase):
         self.assertEqual(entry.project_id, self.project_a.id)
         self.assertEqual(entry.folder_id, self.folder_a.id)
 
+    def test_create_entry_without_folder_uses_project(self):
+        entry = NotebookEntry.objects.create(
+            name="Root Entry",
+            content={"type": "doc", "content": []},
+            folder=None,
+            author=self.user,
+            schema=self.schema,
+            project=self.project_a,
+        )
+        self.assertEqual(entry.project_id, self.project_a.id)
+        self.assertIsNone(entry.folder_id)
+
     def test_create_entry_api_derives_project(self):
         response = self.client.post(
             "/api/eln/entries/",
@@ -292,6 +325,17 @@ class EntityOwnershipTests(TestCase):
         )
         self.assertEqual(entity.project_id, self.project_a.id)
         self.assertEqual(entity.folder_id, self.folder_a.id)
+
+    def test_create_entity_without_folder_uses_project(self):
+        entity = Entity.objects.create(
+            name="Root Entity",
+            folder=None,
+            author=self.user,
+            schema=self.schema,
+            project=self.project_a,
+        )
+        self.assertEqual(entity.project_id, self.project_a.id)
+        self.assertIsNone(entity.folder_id)
 
     def test_create_entity_api_derives_project(self):
         response = self.client.post(

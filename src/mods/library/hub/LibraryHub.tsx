@@ -32,6 +32,7 @@ import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import RowMenu from "./RowMenu";
 import { EntryPropertiesModal } from "./EntryPropertiesModal";
 import { FolderPropertiesModal } from "./FolderPropertiesModal";
+import NotFound from "../../../shell/src/shared/components/NotFound";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -452,6 +453,12 @@ function LibraryHub() {
     setProjectMeta(null);
   }, [setSearchParams, data]);
 
+  useEffect(() => {
+    if (data.errorStatus === 404 && !currentPath) {
+      navigateToProjects();
+    }
+  }, [data.errorStatus, currentPath, navigateToProjects]);
+
   const navigateToProject = useCallback(
     (uid: string) => {
       setSearchParams({ project: uid });
@@ -735,6 +742,13 @@ function LibraryHub() {
   }
 
   // ── Project contents mode ───────────────────────────────────────────
+
+  if (data.errorStatus === 404) {
+    if (!currentPath) {
+      return null;
+    }
+    return <NotFound />;
+  }
 
   return (
     <div className="library-hub">

@@ -141,6 +141,13 @@ describe("ElnChrome", () => {
   });
 
   describe("error phase", () => {
+    it("renders the shared not-found state for a 404", () => {
+      renderChrome({ isReady: false, error: "API error: 404", errorStatus: 404 });
+
+      expect(screen.getByTestId("not-found")).toBeInTheDocument();
+      expect(screen.queryByText("API error: 404")).toBeNull();
+    });
+
     it("renders error message and back link", () => {
       renderChrome({ isReady: false, error: "Entry not found" });
       expect(screen.getByText("Entry not found")).toBeDefined();

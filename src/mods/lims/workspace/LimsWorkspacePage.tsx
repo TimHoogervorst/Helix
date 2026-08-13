@@ -5,6 +5,8 @@ import type { EntityListItem } from "../types";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import EntityDetailFields from "../components/EntityDetailFields";
 import LimsWorkspacePanel from "./LimsWorkspace";
+import NotFound from "../../../shell/src/shared/components/NotFound";
+import { isNotFoundError } from "../../../shell/src/api/client";
 
 /**
  * Full-page entity workspace (route: /lims/:displayId).
@@ -19,6 +21,7 @@ function LimsWorkspacePage() {
   const [entity, setEntity] = useState<EntityListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   useEffect(() => {
     if (!displayId) return;
@@ -27,6 +30,7 @@ function LimsWorkspacePage() {
     async function fetchEntity() {
       setLoading(true);
       setError(null);
+      setErrorStatus(null);
       try {
         const data = await get<EntityListItem>(
           `/lims/entities/${encodeURIComponent(displayId!)}/`,
@@ -37,6 +41,7 @@ function LimsWorkspacePage() {
           setError(
             err instanceof Error ? err.message : "Failed to load entity",
           );
+          setErrorStatus(isNotFoundError(err) ? 404 : null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -58,6 +63,10 @@ function LimsWorkspacePage() {
   }
 
   if (error || !entity) {
+    if (errorStatus === 404) {
+      return <NotFound />;
+    }
+
     return (
       <div className="page">
         <div className="error">{error || "Entity not found."}</div>

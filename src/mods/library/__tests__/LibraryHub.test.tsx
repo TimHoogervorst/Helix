@@ -11,6 +11,7 @@ import {
 } from "../../../shell/src/test/factories";
 import LibraryHub from "../hub/LibraryHub";
 import RowMenu from "../hub/RowMenu";
+import { ApiError } from "../../../shell/src/api/client";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -325,6 +326,47 @@ describe("LibraryHub", () => {
   // ── Project contents mode ──────────────────────────────────────────
 
   describe("project contents", () => {
+    it("renders the shared not-found state for a contents 404", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([
+        makeProject({ id: 1, uid: "proj-1", name: "Project" }),
+      ]);
+      mockGetLibraryContents.mockRejectedValue(new ApiError(404, null));
+      renderLibrary("/library?project=proj-1&path=/Missing");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("not-found")).toBeInTheDocument();
+      });
+    });
+
+    it("falls back to the projects listing for an invalid project", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([]);
+      mockGetLibraryContents.mockRejectedValue(new ApiError(404, null));
+      renderLibrary("/library?project=missing-project");
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("The null hypothesis stands: no projects found."),
+        ).toBeInTheDocument();
+      });
+      expect(mockGetLibraryContents).toHaveBeenCalledWith(
+        "missing-project",
+        undefined,
+        undefined,
+      );
+    });
+
+    it("keeps the projects listing for a missing project parameter", async () => {
+      mockGetAccessibleProjects.mockResolvedValue([]);
+      renderLibrary();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("The null hypothesis stands: no projects found."),
+        ).toBeInTheDocument();
+      });
+      expect(mockGetLibraryContents).not.toHaveBeenCalled();
+    });
+
     it("passes project uid and path from URL to API", async () => {
       mockGetLibraryContents.mockResolvedValue(emptyContentsResponse);
       renderLibrary("/library?project=proj-1&path=/Experiments");

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { isNotFoundError } from "../../api/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export interface UsePaginatedDataResult<T> {
   items: T[];
   loading: boolean;
   error: string | null;
+  errorStatus: number | null;
   nextUrl: string | null;
   selectedId: string | number | null;
   selectedItem: T | null;
@@ -74,6 +76,7 @@ export function usePaginatedData<T>(
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
@@ -84,6 +87,7 @@ export function usePaginatedData<T>(
     async (url?: string) => {
       setLoading(true);
       setError(null);
+      setErrorStatus(null);
       try {
         const data = await fetchFn(url);
         if (url) {
@@ -94,6 +98,7 @@ export function usePaginatedData<T>(
         setNextUrl(data.next);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
+        setErrorStatus(isNotFoundError(err) ? 404 : null);
       } finally {
         setLoading(false);
       }
@@ -168,6 +173,7 @@ export function usePaginatedData<T>(
     items,
     loading,
     error,
+    errorStatus,
     nextUrl,
     selectedId,
     selectedItem,

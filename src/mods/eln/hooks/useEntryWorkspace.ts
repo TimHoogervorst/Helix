@@ -44,6 +44,7 @@ export interface UseEntryWorkspaceOptions {
 export interface UseEntryWorkspaceReturn {
   isReady: boolean;
   error: string | null;
+  errorStatus: number | null;
   entry: EntryDetail | null;
 
   fields: {
@@ -202,6 +203,7 @@ export function useEntryWorkspace({
   return {
     isReady: crud.isReady,
     error: crud.error,
+    errorStatus: crud.errorStatus,
     entry: crud.entry,
 
     fields: {

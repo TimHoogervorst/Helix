@@ -130,3 +130,7 @@ export function del<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export { ApiError, NetworkError };
+
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}

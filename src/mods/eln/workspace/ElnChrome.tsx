@@ -24,6 +24,7 @@ import { TagPill } from "../../tags/ui";
 import { TagAutocomplete } from "../../tags/ui";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import NotFound from "../../../shell/src/shared/components/NotFound";
 import type { EntryDetail, Tag, ElnAction } from "../types";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
@@ -34,6 +35,7 @@ function formatDateShort(iso: string): string {
 export interface ElnChromeProps {
   isReady: boolean;
   error: string | null;
+  errorStatus?: number | null;
   isNew: boolean;
   entryDisplayId: string;
 
@@ -68,6 +70,7 @@ export interface ElnChromeProps {
 function ElnChrome({
   isReady,
   error,
+  errorStatus,
   isNew,
   entryDisplayId,
   entry,
@@ -140,6 +143,10 @@ function ElnChrome({
   }
 
   if (error) {
+    if (errorStatus === 404) {
+      return <NotFound />;
+    }
+
     return (
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

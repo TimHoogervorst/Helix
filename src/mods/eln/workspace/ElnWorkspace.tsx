@@ -62,7 +62,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     deferred: isNew,
   });
 
-  const { isReady, error } = workspace;
+  const { isReady, error, errorStatus } = workspace;
   const { title, description, status, setTitle, setDescription, setStatus } = workspace.fields;
   const { folderId, folders, setFolderId } = workspace.folder;
   const { saveStatus, lastSavedAt, queueLength, save, deleteEntry } = workspace.save;
@@ -183,6 +183,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     <ElnChrome
       isReady={isReady}
       error={error}
+      errorStatus={errorStatus}
       isNew={isNew}
       entryDisplayId={entryDisplayId}
       entry={workspace.entry}

@@ -514,6 +514,133 @@ class EntryTagActionsLoggingTests(BaseTestCase):
         self.mock_log.assert_not_called()
 
 
+# ── Entry create access enforcement tests ─────────────────────────────────────
+
+
+class EntryCreateAccessTests(BaseTestCase):
+    """Actor matrix for entry creation — Edit on the destination folder's Project."""
+
+    def setUp(self):
+        super().setUp()
+        self.org = Organization.objects.create(name="Test Org")
+        self.schema = get_or_create_default_eln_schema()
+
+        self.editor = User.objects.create_user(username="create_ed", password="pass")
+        self.reader = User.objects.create_user(username="create_rd", password="pass")
+        self.other = User.objects.create_user(username="create_ng", password="pass")
+        self.org_admin = User.objects.create_user(username="create_ad", password="pass")
+        self.sharee = User.objects.create_user(username="create_sh", password="pass")
+
+        OrganizationMembership.objects.update_or_create(
+            user=self.org_admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        for user in (self.user, self.editor, self.reader, self.other, self.sharee):
+            OrganizationMembership.objects.update_or_create(
+                user=user,
+                defaults={"organization": self.org, "role": OrganizationRole.USER},
+            )
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.source_project = Project.objects.create(name="Source Project")
+        self.source_root = Folder.objects.create(
+            name="root", parent=None, project=self.source_project,
+        )
+        self.shared_folder = Folder.objects.create(
+            name="Shared", parent=self.source_root, project=self.source_project,
+        )
+        self.shared_child = Folder.objects.create(
+            name="Deep", parent=self.shared_folder, project=self.source_project,
+        )
+        self.outside_folder = Folder.objects.create(
+            name="Outside", parent=self.source_root, project=self.source_project,
+        )
+
+        self.target_project = Project.objects.create(name="Target Project")
+        Folder.objects.create(name="root", parent=None, project=self.target_project)
+        Grant.objects.create(project=self.target_project, user=self.sharee, role=ProjectRole.EDIT)
+        FolderShare.objects.create(
+            source_folder=self.shared_folder,
+            target_project=self.target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+
+    def _create(self, client, folder):
+        return client.post(
+            "/api/eln/entries/",
+            {"name": "New Entry", "content": TEXT_DOC, "folder": folder.id},
+            format="json",
+        )
+
+    def test_direct_editor_can_create(self):
+        client = APIClient()
+        client.force_authenticate(user=self.editor)
+        self.assertEqual(self._create(client, self.folder).status_code, 201)
+
+    def test_org_admin_can_create(self):
+        client = APIClient()
+        client.force_authenticate(user=self.org_admin)
+        self.assertEqual(self._create(client, self.folder).status_code, 201)
+
+    def test_team_derived_edit_can_create(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import Team
+
+        team_user = User.objects.create_user(username="create_team", password="pass")
+        OrganizationMembership.objects.update_or_create(
+            user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        group = Group.objects.create(name="Create Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group, organization=self.org)
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        client = APIClient()
+        client.force_authenticate(user=team_user)
+        self.assertEqual(self._create(client, self.folder).status_code, 201)
+
+    def test_read_viewer_create_rejected(self):
+        client = APIClient()
+        client.force_authenticate(user=self.reader)
+        response = self._create(client, self.folder)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(NotebookEntry.objects.count(), 0)
+
+    def test_user_with_no_grant_create_rejected(self):
+        client = APIClient()
+        client.force_authenticate(user=self.other)
+        self.assertEqual(self._create(client, self.folder).status_code, 403)
+
+    def test_unauthenticated_create_rejected(self):
+        client = APIClient()
+        self.assertEqual(self._create(client, self.folder).status_code, 403)
+
+    def test_inactive_user_create_rejected(self):
+        inactive = User.objects.create_user(username="create_inact", password="pass", is_active=False)
+        client = APIClient()
+        client.force_authenticate(user=inactive)
+        self.assertEqual(self._create(client, self.folder).status_code, 403)
+
+    def test_read_write_sharee_can_create_inside_subtree(self):
+        client = APIClient()
+        client.force_authenticate(user=self.sharee)
+        self.assertEqual(self._create(client, self.shared_child).status_code, 201)
+
+    def test_read_write_sharee_cannot_create_outside_subtree(self):
+        client = APIClient()
+        client.force_authenticate(user=self.sharee)
+        response = self._create(client, self.outside_folder)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(NotebookEntry.objects.count(), 0)
+
+    def test_read_write_sharee_cannot_create_in_shared_top_level(self):
+        client = APIClient()
+        client.force_authenticate(user=self.sharee)
+        response = self._create(client, self.shared_folder)
+        self.assertEqual(response.status_code, 403)
+
+
 class EntryPatchAccessTests(BaseTestCase):
     """Actor matrix and rejection paths for entry PATCH access enforcement."""
 
@@ -686,6 +813,49 @@ class EntryPatchAccessTests(BaseTestCase):
         client.force_authenticate(user=self.other_editor)
         response = self._patch(client, self.entry, {"status": "finished"})
         self.assertEqual(response.status_code, 403)
+
+    def test_read_write_sharee_cannot_move_outside_subtree(self):
+        target_project = Project.objects.create(name="Move Target")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(
+            project=target_project, user=self.other_editor, role=ProjectRole.EDIT,
+        )
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        outside_folder = Folder.objects.create(
+            name="Outside Subtree", parent=self.root_folder, project=self.project,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.other_editor)
+        response = self._patch(client, self.entry, {"folder": outside_folder.id})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("folder", response.data)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.folder_id, self.folder.id)
+
+    def test_read_write_sharee_can_move_within_subtree(self):
+        target_project = Project.objects.create(name="Move Within")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(
+            project=target_project, user=self.other_editor, role=ProjectRole.EDIT,
+        )
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        inner_folder = Folder.objects.create(
+            name="Inside Subtree", parent=self.folder, project=self.project,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.other_editor)
+        response = self._patch(client, self.entry, {"folder": inner_folder.id})
+        self.assertEqual(response.status_code, 200)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.folder_id, inner_folder.id)
 
 
 # ── Entry delete access enforcement tests ────────────────────────────────────

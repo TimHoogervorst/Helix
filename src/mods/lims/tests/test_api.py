@@ -477,6 +477,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
             name="Original Name",
             schema=self.dna_schema,
             properties={"concentration": 10},
+            folder=self.folder,
             author=self.user,
         )
 
@@ -638,7 +639,7 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         """Mix of updates and creates with an error in between."""
         existing = Entity.objects.create(
             name="Existing", schema=self.dna_schema,
-            author=self.user,
+            folder=self.folder, author=self.user,
         )
         response = self.client.post(
             BATCH_REGISTER_URL,
@@ -713,7 +714,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         """Updating an entity with the same data twice produces the same result."""
         entity = Entity.objects.create(
             name="Update Me", schema=self.dna_schema,
-            properties={"concentration": 10}, author=self.user,
+            properties={"concentration": 10}, folder=self.folder, author=self.user,
         )
         payload = {
             "schema_id": self.dna_schema.id,

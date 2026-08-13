@@ -14,9 +14,10 @@ from typing import Any
 
 from django.test import override_settings
 from rest_framework import status
+from rest_framework.test import APIClient
 
 from helix_core.actions.registry import register_action_model, register_custom_action
-from core.models import User
+from core.models import Folder, Project, User
 from core.tests.base import BaseTestCase
 
 
@@ -95,6 +96,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
+        self.entry = self._make_editable_entry()
         # Ensure a clean per-test registry state.
         self._per_test_saved = _save_registry_state()
 
@@ -103,6 +105,20 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         super().tearDown()
 
     # ── helpers ──────────────────────────────────────────────────────────
+
+    def _make_editable_entry(self):
+        """Create a NotebookEntry the test user can Edit (Edit grant on project)."""
+        from mods.eln.models import NotebookEntry
+        from mods.eln.tests.factories import get_or_create_default_eln_schema
+
+        schema = get_or_create_default_eln_schema()
+        return NotebookEntry.objects.create(
+            name="Action Target",
+            content={"type": "doc", "content": []},
+            folder=self.folder,
+            author=self.user,
+            schema=schema,
+        )
 
     def _setup_action_models(self) -> None:
         """Register ELN and Tags action models with their core actions."""
@@ -124,7 +140,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
-                "target_id": 42,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
                 "metadata": {"name": "Test Entry"},
             },
@@ -139,7 +155,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         _assert_action_shape(self, item)
         self.assertEqual(item["action_type"], "created")
         self.assertEqual(item["target_type"], "eln.entry")
-        self.assertEqual(item["target_id"], 42)
+        self.assertEqual(item["target_id"], self.entry.id)
         self.assertEqual(item["metadata"], {"name": "Test Entry"})
 
         # Row actually landed in the database.
@@ -160,7 +176,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "edited",
                 "action_type": "edited",
                 "target_type": "eln.entry",
-                "target_id": 7,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -179,7 +195,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "deleted",
                 "action_type": "deleted",
                 "target_type": "eln.entry",
-                "target_id": 99,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -198,7 +214,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
-                "target_id": 1,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -219,7 +235,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
-                "target_id": 42,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -259,7 +275,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "eln.entry.registered",
                 "action_type": "edited",
                 "target_type": "eln.entry",
-                "target_id": 42,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
                 "metadata": {"reg_id": "REG-001"},
             },
@@ -283,7 +299,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self.assertEqual(row.action, "eln.entry.registered")
         self.assertEqual(row.performed_by, self.user)
         self.assertEqual(row.target_type, "eln.entry")
-        self.assertEqual(row.target_id, 42)
+        self.assertEqual(row.target_id, self.entry.id)
         self.assertEqual(row.metadata, {"reg_id": "REG-001"})
 
     def test_custom_action_with_different_core_mapping(self):
@@ -373,7 +389,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
-                "target_id": 1,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -408,7 +424,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             "action": "created",
             "action_type": "created",
             "target_type": "eln.entry",
-            "target_id": 42,
+            "target_id": self.entry.id,
             "workspace_id": "eln",
             "metadata": {"key": "value"},
         }
@@ -450,7 +466,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             "action": "eln.entry.registered",
             "action_type": "edited",
             "target_type": "eln.entry",
-            "target_id": 42,
+            "target_id": self.entry.id,
             "workspace_id": "eln",
         }
 
@@ -541,7 +557,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
-                "target_id": 42,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -566,7 +582,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "created",
                 "action_type": "created",
                 "target_type": "eln.entry",
-                "target_id": 42,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
                 "request_id": "550e8400-e29b-41d4-a716-446655440000",
             },
@@ -596,7 +612,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
                 "action": "read",
                 "action_type": "read",
                 "target_type": "eln.entry",
-                "target_id": 42,
+                "target_id": self.entry.id,
                 "workspace_id": "eln",
             },
             format="json",
@@ -630,3 +646,157 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             registry._action_models.update(saved_models)
             registry._core_actions.clear()
             registry._core_actions.update(saved_core)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Content-target access enforcement (issue #476)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestActionTargetAccess(BaseTestCase):
+    """POST /api/actions/ requires Edit on the logged content target."""
+
+    def setUp(self):
+        super().setUp()
+        from mods.access.models import (
+            FolderShare,
+            Grant,
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+            ProjectRole,
+            ShareLevel,
+        )
+        from mods.eln.models import NotebookEntry
+        from mods.eln.tests.factories import get_or_create_default_eln_schema
+
+        self.org = Organization.objects.create(name="Action Org")
+        self.schema = get_or_create_default_eln_schema()
+
+        self.editor = User.objects.create_user(username="act_ed", password="pass")
+        self.reader = User.objects.create_user(username="act_rd", password="pass")
+        self.no_grant = User.objects.create_user(username="act_ng", password="pass")
+        self.org_admin = User.objects.create_user(username="act_ad", password="pass")
+        self.sharee = User.objects.create_user(username="act_sh", password="pass")
+
+        OrganizationMembership.objects.update_or_create(
+            user=self.org_admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        for user in (self.editor, self.reader, self.no_grant, self.sharee):
+            OrganizationMembership.objects.update_or_create(
+                user=user,
+                defaults={"organization": self.org, "role": OrganizationRole.USER},
+            )
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.target_project = Project.objects.create(name="Action Target Project")
+        Folder.objects.create(name="root", parent=None, project=self.target_project)
+        Grant.objects.create(project=self.target_project, user=self.sharee, role=ProjectRole.EDIT)
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=self.target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+
+        self.entry = NotebookEntry.objects.create(
+            name="Logged Target",
+            content={"type": "doc", "content": []},
+            folder=self.folder,
+            author=self.editor,
+            schema=self.schema,
+        )
+
+        from mods.eln.models import ElnAction
+        from helix_core.actions.registry import register_action_model
+
+        register_action_model("eln", ElnAction)
+
+    def _post(self, user, target_id=None):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client.post(
+            "/api/actions/",
+            {
+                "action": "created",
+                "action_type": "created",
+                "target_type": "eln.entry",
+                "target_id": target_id if target_id is not None else self.entry.id,
+                "workspace_id": "eln",
+            },
+            format="json",
+        )
+
+    def test_editor_can_log_against_editable_target(self):
+        self.assertEqual(self._post(self.editor).status_code, status.HTTP_201_CREATED)
+
+    def test_org_admin_can_log_against_any_target(self):
+        self.assertEqual(self._post(self.org_admin).status_code, status.HTTP_201_CREATED)
+
+    def test_team_derived_edit_can_log(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import (
+            Grant,
+            OrganizationMembership,
+            OrganizationRole,
+            Team,
+        )
+
+        team_user = User.objects.create_user(username="act_team", password="pass")
+        OrganizationMembership.objects.update_or_create(
+            user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        group = Group.objects.create(name="Action Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group, organization=self.org)
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        self.assertEqual(self._post(team_user).status_code, status.HTTP_201_CREATED)
+
+    def test_read_user_cannot_log_against_uneditable_target(self):
+        response = self._post(self.reader)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_no_grant_user_cannot_log(self):
+        self.assertEqual(self._post(self.no_grant).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_nonexistent_target_rejected(self):
+        response = self._post(self.editor, target_id=999999)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_sharee_can_log_inside_subtree(self):
+        self.assertEqual(self._post(self.sharee).status_code, status.HTTP_201_CREATED)
+
+    def test_sharee_cannot_log_outside_subtree(self):
+        outside_entry = self.entry.__class__.objects.create(
+            name="Outside",
+            content={"type": "doc", "content": []},
+            folder=Folder.objects.create(
+                name="Outside Folder", parent=self.entry.folder.parent, project=self.project,
+            ),
+            author=self.editor,
+            schema=self.schema,
+        )
+        response = self._post(self.sharee, target_id=outside_entry.id)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_content_target_skips_edit_check(self):
+        from mods.tags.models import TagsAction
+        from helix_core.actions.registry import register_action_model
+
+        register_action_model("tags", TagsAction)
+        client = APIClient()
+        client.force_authenticate(user=self.no_grant)
+        response = client.post(
+            "/api/actions/",
+            {
+                "action": "created",
+                "action_type": "created",
+                "target_type": "tags.tag",
+                "target_id": 10,
+                "workspace_id": "tags",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

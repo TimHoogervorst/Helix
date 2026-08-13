@@ -74,6 +74,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     }
 
     def perform_destroy(self, instance):
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        if effective_role(self.request.user, instance) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to delete this entity."
+            )
         referencing_schemas = self._find_referencing_schemas(instance.display_id)
         if referencing_schemas:
             raise ReferentialConflict(
@@ -114,10 +121,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return sorted(referencing)
 
     def perform_create(self, serializer):
-        if not self.request.user.is_authenticated:
-            from rest_framework.exceptions import NotAuthenticated
-            raise NotAuthenticated("Authentication is required to create entities.")
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         folder = serializer.validated_data["folder"]
+        if effective_role(self.request.user, folder) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to create entities in this folder."
+            )
         instance = serializer.save(
             author=self.request.user,
             project=folder.project,
@@ -129,13 +140,25 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
+        from mods.access.policies import destination_within_shared_subtree, effective_role
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+
         instance = serializer.instance
+        if effective_role(self.request.user, instance) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to edit this entity."
+            )
         if "folder" in serializer.validated_data:
             new_folder = serializer.validated_data["folder"]
             if new_folder.project_id != instance.project_id:
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError(
                     {"folder": "Entities cannot be moved to a different Project."}
+                )
+            if not destination_within_shared_subtree(
+                instance.folder, new_folder, instance.project_id,
+            ):
+                raise ValidationError(
+                    {"folder": "Entities cannot be moved outside the shared subtree."}
                 )
         serializer.save()
         self._maybe_log(
@@ -155,18 +178,31 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def batch(self, request):
         """Batch-resolve entity display IDs to their details.
 
+        Requires Edit access on every resolved entity — batch resolution
+        is a mutation path per the access enforcement series.
+
         POST /api/lims/entities/batch/
         Body: {"ids": ["BLOOD1", "DNA2"]}
         Returns: {"BLOOD1": {...}, "DNA2": {...}, "NONEXIST1": null}
         """
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         input_serializer = EntityBatchSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
         ids = input_serializer.validated_data["ids"]
 
-        result = {}
         entities = Entity.objects.filter(display_id__in=ids).select_related("schema")
         entity_map = {e.display_id: e for e in entities}
 
+        for display_id in ids:
+            entity = entity_map.get(display_id)
+            if entity is not None and effective_role(request.user, entity) != "edit":
+                raise PermissionDenied(
+                    "You do not have permission to resolve these entities."
+                )
+
+        result = {}
         for display_id in ids:
             entity = entity_map.get(display_id)
             if entity is None:
@@ -227,6 +263,39 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise NotAuthenticated(
                 "Authentication is required to batch-register entities."
             )
+
+        # ── Access enforcement ────────────────────────────────────────────
+        # Batch registration mutates content, so it enforces the same Edit
+        # rule as single mutations.  A row that targets content the
+        # submitter cannot Edit rejects the whole request with 403.  Rows
+        # whose target does not exist (unknown entity or folder) are data
+        # errors handled per-row below, not access denials.
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        def _row_target_is_editable(row):
+            """Return True/False for a real target, None for a missing one."""
+            entity_id = row.get("entity_id")
+            if entity_id is not None:
+                try:
+                    target = Entity.objects.get(pk=entity_id)
+                except Entity.DoesNotExist:
+                    return None
+                return effective_role(request.user, target) == "edit"
+            folder_id = row.get("folder_id")
+            if folder_id is None:
+                return None
+            try:
+                target = Folder.objects.get(pk=folder_id)
+            except Folder.DoesNotExist:
+                return None
+            return effective_role(request.user, target) == "edit"
+
+        for row in rows:
+            if _row_target_is_editable(row) is False:
+                raise PermissionDenied(
+                    "You do not have permission to batch-register entities."
+                )
 
         # Build a lookup from column name → column definition.
         # SchemaType columns provide system-level defaults; Schema columns

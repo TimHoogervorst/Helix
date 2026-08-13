@@ -5,6 +5,7 @@ import django.db.models
 from django.db import IntegrityError
 
 from django.utils.dateparse import parse_datetime
+from django.http import Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied
@@ -32,16 +33,6 @@ eln_logger = logging.getLogger(__name__)
 
 
 DEFAULT_SAVE_MODE = "manual"
-
-
-def _ancestor_ids_for(folder):
-    """Return a set of ancestor folder IDs for *folder*."""
-    ids = set()
-    node = folder.parent
-    while node is not None:
-        ids.add(node.id)
-        node = node.parent
-    return ids
 
 
 class LockedException(APIException):
@@ -127,9 +118,16 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return schema
 
     def perform_create(self, serializer):
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        folder = serializer.validated_data["folder"]
+        if effective_role(self.request.user, folder) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to create entries in this folder."
+            )
         author = self.request.user if self.request.user.is_authenticated else None
         schema = self._get_default_schema()
-        folder = serializer.validated_data["folder"]
         instance = serializer.save(author=author, schema=schema, project=folder.project)
         sync_entry_content(instance)
         self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
@@ -151,34 +149,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Called only when the entry's folder resides inside a shared source folder
         and the user is not a direct Project editor.
         """
-        from mods.access.models import FolderShare
-        from core.models import Folder as FolderModel
+        from mods.access.policies import destination_within_shared_subtree
+        from rest_framework.exceptions import ValidationError
 
-        current_folder = instance.folder
-        if current_folder is None:
-            return
-
-        shares = FolderShare.objects.filter(
-            source_folder__project_id=instance.project_id,
-        ).select_related("source_folder").only(
-            "id", "source_folder_id",
-        )
-
-        current_ancestors = _ancestor_ids_for(current_folder)
-
-        for share in shares:
-            covers = current_folder.id == share.source_folder_id or share.source_folder_id in current_ancestors
-            if not covers:
-                continue
-
-            target_ancestors = _ancestor_ids_for(new_folder)
-            in_subtree = new_folder.id == share.source_folder_id or share.source_folder_id in target_ancestors
-            if not in_subtree:
-                from rest_framework.exceptions import ValidationError
-                raise ValidationError(
-                    {"folder": "Entries cannot be moved outside the shared subtree."}
-                )
-            return
+        if not destination_within_shared_subtree(
+            instance.folder, new_folder, instance.project_id,
+        ):
+            raise ValidationError(
+                {"folder": "Entries cannot be moved outside the shared subtree."}
+            )
 
     def perform_destroy(self, instance):
         if not self._can_edit_entry(instance):
@@ -519,13 +498,25 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def _acquire_lock(self, request, display_id=None):
         """Acquire or refresh the lock on this entry.
 
+        Requires Edit access on the entry — acquiring a lock is a
+        mutation that reserves the right to change content.
+
         Returns:
             201 — first-time lock acquired.
             200 — existing lock refreshed (same user re-acquires).
             201 — stale lock stolen (deletes old, creates new).
             423 — another user holds an active lock.
+            403 — the requester cannot Edit this entry.
         """
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         entry = self.get_object()
+
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to lock this entry."
+            )
 
         try:
             existing = entry.lock
@@ -604,14 +595,22 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def _release_lock(self, request, display_id=None):
         """Release the lock on this entry (idempotent).
 
-        Always returns 204 so the frontend cleanup function can call this
-        unconditionally without triggering the API client's 403→/login
-        redirect when the user doesn't hold the lock.
+        Requires Edit access on the entry — releasing a lock is a
+        mutation that requires the same right as acquiring one.
 
         Returns:
             204 — lock released, didn't exist, or held by another user.
+            403 — the requester cannot Edit this entry.
         """
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
         entry = self.get_object()
+
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to release the lock on this entry."
+            )
 
         try:
             existing = entry.lock
@@ -627,13 +626,22 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def _lock_status(self, request, display_id=None):
         """Return the current lock status for this entry.
 
+        Requires Read access on the entry — lock status is a read.  A
+        viewer without Read access gets a 404 indistinguishable from a
+        missing entry.
+
         Returns 200 with:
             locked: bool
             held_by: int | None  (user id)
             acquired_at: str | None  (ISO 8601)
             last_activity_at: str | None  (ISO 8601)
         """
+        from mods.access.policies import effective_role
+
         entry = self.get_object()
+
+        if effective_role(request.user, entry) is None:
+            raise Http404("No entry matches the given query.")
 
         try:
             existing = entry.lock

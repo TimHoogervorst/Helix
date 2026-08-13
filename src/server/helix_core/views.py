@@ -39,6 +39,31 @@ from mods.access.scoping import visible_rows_q
 
 logger = logging.getLogger(__name__)
 
+# ── Content targets for the unified action-log endpoint ────────────────────
+#
+# ``POST /api/actions/`` validates that the submitter can Edit the logged
+# target for every content target type here (Folders, Entries, Entities).
+# Any other target type is not a project resource and skips the check.
+
+
+def _resolve_content_target_model(target_type):
+    """Return the model for *target_type* when it is a project-resource
+    content target (Folder, Entry, or Entity), or ``None`` otherwise.
+
+    Models are imported lazily to avoid import cycles between the core
+    app and the content mods.
+    """
+    from core.models import Folder
+    from mods.eln.models import NotebookEntry
+    from mods.lims.models import Entity
+
+    return {
+        "core.folder": Folder,
+        "eln.entry": NotebookEntry,
+        "lims.entities": Entity,
+        "lims.entity": Entity,
+    }.get(target_type)
+
 # ── Common column descriptors ─────────────────────────────────────────────
 #
 # Each common column carries a ``type`` ID from the column type registry,
@@ -604,6 +629,29 @@ class ActionCreateView(APIView):
             raise serializers.ValidationError(
                 f"No action model registered for workspace '{workspace_id}'."
             )
+
+        # ── enforce Edit on content targets ───────────────────────────────
+        # Content targets (Folders, Entries, Entities) may only be logged
+        # by a submitter who can Edit them.  A target the submitter cannot
+        # Edit — or that does not exist — is rejected so the audit trail
+        # cannot be written against arbitrary content.  Non-content targets
+        # (organization records, tags, and so on) are not project resources
+        # and skip the check.
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        target_model = _resolve_content_target_model(target_type)
+        if target_model is not None:
+            try:
+                target = target_model.objects.get(pk=target_id)
+            except target_model.DoesNotExist:
+                raise PermissionDenied(
+                    "You do not have permission to log an action against this target."
+                )
+            if effective_role(request.user, target) != "edit":
+                raise PermissionDenied(
+                    "You do not have permission to log an action against this target."
+                )
 
         # ── capture client IP ────────────────────────────────────────────
         client_ip = request.META.get("REMOTE_ADDR", "") or None

@@ -358,10 +358,11 @@ class FolderMoveRejectionTests(TestCase):
             {"parent": self.root_b.id},
             format="json",
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("parent", response.data)
         self.folder_a.refresh_from_db()
-        self.assertEqual(self.folder_a.parent_id, self.root_b.id)
-        self.assertEqual(self.folder_a.project_id, self.project_b.id)
+        self.assertEqual(self.folder_a.parent_id, self.root_a.id)
+        self.assertEqual(self.folder_a.project_id, self.project_a.id)
 
     def test_same_project_folder_move_works(self):
         new_parent = Folder.objects.create(

@@ -324,6 +324,54 @@ def accessible_project_ids(user):
     )
 
 
+def destination_within_shared_subtree(current_folder, destination_folder, project_id):
+    """Return ``True`` when moving from *current_folder* to *destination_folder*
+    stays inside a shared subtree on *project_id*.
+
+    A Folder Share covers the current Folder when the current Folder is the
+    share's source Folder or a descendant of it.  A move is clamped to that
+    subtree: the destination must be the source Folder itself or one of its
+    descendants.  When *current_folder* is not inside any shared subtree the
+    move is unrestricted (returns ``True``), and a move to the Project root
+    (``destination_folder`` is ``None``) leaves the subtree.
+
+    This is the move-side complement to :func:`effective_role`: a sharee
+    Editor under a Read + Write share may move content inside the shared
+    subtree but never out of it.
+    """
+    from .models import FolderShare
+
+    if current_folder is None:
+        return True
+
+    shares = FolderShare.objects.filter(
+        source_folder__project_id=project_id,
+    ).select_related("source_folder").only(
+        "id", "source_folder_id",
+    )
+
+    current_ancestors = _ancestor_ids_for_folder(current_folder.id)
+
+    for share in shares:
+        covers = (
+            current_folder.id == share.source_folder_id
+            or share.source_folder_id in current_ancestors
+        )
+        if not covers:
+            continue
+
+        if destination_folder is None:
+            return False
+        destination_ancestors = _ancestor_ids_for_folder(destination_folder.id)
+        in_subtree = (
+            destination_folder.id == share.source_folder_id
+            or share.source_folder_id in destination_ancestors
+        )
+        return in_subtree
+
+    return True
+
+
 def get_policy_matrix():
     """Return the hardcoded policy matrix as a list for the API.
 

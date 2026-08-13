@@ -580,3 +580,252 @@ class FolderDeleteAccessTests(TestCase):
             self.FolderShare.objects.filter(source_folder_id=self.shared_folder.id).count(),
             0,
         )
+
+
+# ── Folder create access enforcement tests ───────────────────────────────────
+
+
+class FolderCreateAccessTests(TestCase):
+    """Folder creation requires Edit on the destination Folder's Project."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import (
+            FolderShare,
+            Grant,
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+            ProjectRole,
+            ShareLevel,
+            Team,
+        )
+
+        self.client = APIClient()
+        self.org = Organization.objects.create(name="Create Lab")
+
+        self.admin = User.objects.create_user(username="create_admin", password="pass")
+        self.editor = User.objects.create_user(username="create_editor", password="pass")
+        self.reader = User.objects.create_user(username="create_reader", password="pass")
+        self.other = User.objects.create_user(username="create_other", password="pass")
+        self.sharee = User.objects.create_user(username="create_sharee", password="pass")
+
+        OrganizationMembership.objects.update_or_create(
+            user=self.admin, defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        for user in (self.editor, self.reader, self.other, self.sharee):
+            OrganizationMembership.objects.update_or_create(
+                user=user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+            )
+
+        self.project = Project.objects.create(name="Create Project")
+        self.root = Folder.objects.create(name="root", parent=None, project=self.project)
+        self.folder = Folder.objects.create(name="MyFolder", parent=self.root, project=self.project)
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.source_project = Project.objects.create(name="Create Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=self.source_project)
+        self.shared_folder = Folder.objects.create(
+            name="Shared", parent=source_root, project=self.source_project,
+        )
+        self.shared_child = Folder.objects.create(
+            name="Deep", parent=self.shared_folder, project=self.source_project,
+        )
+        self.outside_folder = Folder.objects.create(
+            name="Outside", parent=source_root, project=self.source_project,
+        )
+
+        self.target_project = Project.objects.create(name="Create Target")
+        Folder.objects.create(name="root", parent=None, project=self.target_project)
+        Grant.objects.create(project=self.target_project, user=self.sharee, role=ProjectRole.EDIT)
+        FolderShare.objects.create(
+            source_folder=self.shared_folder,
+            target_project=self.target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+
+    def _create(self, user, parent):
+        self.client.force_authenticate(user=user)
+        return self.client.post(
+            "/api/core/folders/",
+            {"name": "New Folder", "parent": parent.id, "project": parent.project.id},
+            format="json",
+        )
+
+    def test_edit_user_can_create(self):
+        self.assertEqual(self._create(self.editor, self.folder).status_code, 201)
+
+    def test_org_admin_can_create(self):
+        self.assertEqual(self._create(self.admin, self.folder).status_code, 201)
+
+    def test_team_derived_edit_can_create(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import (
+            Grant,
+            OrganizationMembership,
+            OrganizationRole,
+            ProjectRole,
+            Team,
+        )
+
+        team_user = User.objects.create_user(username="create_team", password="pass")
+        OrganizationMembership.objects.update_or_create(
+            user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        group = Group.objects.create(name="Create Folder Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group, organization=self.org)
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        self.assertEqual(self._create(team_user, self.folder).status_code, 201)
+
+    def test_read_user_cannot_create(self):
+        response = self._create(self.reader, self.folder)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Folder.objects.filter(name="New Folder").count(), 0)
+
+    def test_user_with_no_access_cannot_create(self):
+        self.assertEqual(self._create(self.other, self.folder).status_code, 403)
+
+    def test_unauthenticated_cannot_create(self):
+        self.client.logout()
+        response = self.client.post(
+            "/api/core/folders/",
+            {"name": "Hacked", "parent": self.folder.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_read_write_sharee_can_create_inside_subtree(self):
+        self.assertEqual(self._create(self.sharee, self.shared_child).status_code, 201)
+
+    def test_read_write_sharee_cannot_create_outside_subtree(self):
+        response = self._create(self.sharee, self.outside_folder)
+        self.assertEqual(response.status_code, 403)
+
+    def test_read_write_sharee_cannot_create_in_shared_top_level(self):
+        response = self._create(self.sharee, self.shared_folder)
+        self.assertEqual(response.status_code, 403)
+
+
+# ── Folder move access enforcement tests ─────────────────────────────────────
+
+
+class FolderMoveAccessTests(TestCase):
+    """Folder moves reject cross-Project moves and clamp to the shared subtree."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import (
+            FolderShare,
+            Grant,
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+            ProjectRole,
+            ShareLevel,
+            Team,
+        )
+
+        self.client = APIClient()
+        self.org = Organization.objects.create(name="Move Lab")
+
+        self.admin = User.objects.create_user(username="move_admin", password="pass")
+        self.editor = User.objects.create_user(username="move_editor", password="pass")
+        self.reader = User.objects.create_user(username="move_reader", password="pass")
+        self.sharee = User.objects.create_user(username="move_sharee", password="pass")
+
+        OrganizationMembership.objects.update_or_create(
+            user=self.admin, defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        for user in (self.editor, self.reader, self.sharee):
+            OrganizationMembership.objects.update_or_create(
+                user=user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+            )
+
+        self.project = Project.objects.create(name="Move Project")
+        self.root = Folder.objects.create(name="root", parent=None, project=self.project)
+        self.folder = Folder.objects.create(name="MyFolder", parent=self.root, project=self.project)
+        self.other_folder = Folder.objects.create(name="Other", parent=self.root, project=self.project)
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.source_project = Project.objects.create(name="Move Source")
+        source_root = Folder.objects.create(name="root", parent=None, project=self.source_project)
+        self.shared_folder = Folder.objects.create(
+            name="Shared", parent=source_root, project=self.source_project,
+        )
+        self.shared_child = Folder.objects.create(
+            name="Deep", parent=self.shared_folder, project=self.source_project,
+        )
+        self.movable = Folder.objects.create(
+            name="Movable", parent=self.shared_child, project=self.source_project,
+        )
+        self.outside_folder = Folder.objects.create(
+            name="Outside", parent=source_root, project=self.source_project,
+        )
+
+        self.target_project = Project.objects.create(name="Move Target")
+        Folder.objects.create(name="root", parent=None, project=self.target_project)
+        Grant.objects.create(project=self.target_project, user=self.sharee, role=ProjectRole.EDIT)
+        self.rw_share = FolderShare.objects.create(
+            source_folder=self.shared_folder,
+            target_project=self.target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+
+    def _move(self, user, folder, new_parent):
+        self.client.force_authenticate(user=user)
+        return self.client.patch(
+            f"/api/core/folders/{folder.id}/",
+            {"parent": new_parent.id},
+            format="json",
+        )
+
+    def test_cross_project_move_rejected(self):
+        other_project = Project.objects.create(name="Elsewhere")
+        other_root = Folder.objects.create(name="root", parent=None, project=other_project)
+        response = self._move(self.editor, self.folder, other_root)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("parent", response.data)
+        self.folder.refresh_from_db()
+        self.assertEqual(self.folder.project_id, self.project.id)
+
+    def test_direct_editor_can_move_within_project(self):
+        response = self._move(self.editor, self.folder, self.other_folder)
+        self.assertEqual(response.status_code, 200)
+        self.folder.refresh_from_db()
+        self.assertEqual(self.folder.parent_id, self.other_folder.id)
+
+    def test_org_admin_can_move_within_project(self):
+        response = self._move(self.admin, self.folder, self.other_folder)
+        self.assertEqual(response.status_code, 200)
+
+    def test_read_user_cannot_move(self):
+        response = self._move(self.reader, self.folder, self.other_folder)
+        self.assertEqual(response.status_code, 403)
+
+    def test_sharee_can_move_inside_subtree(self):
+        response = self._move(self.sharee, self.movable, self.shared_child)
+        self.assertEqual(response.status_code, 200)
+        self.movable.refresh_from_db()
+        self.assertEqual(self.movable.parent_id, self.shared_child.id)
+
+    def test_sharee_cannot_move_outside_subtree(self):
+        response = self._move(self.sharee, self.movable, self.outside_folder)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("parent", response.data)
+        self.movable.refresh_from_db()
+        self.assertEqual(self.movable.parent_id, self.shared_child.id)
+
+    def test_sharee_cannot_move_to_project_root(self):
+        source_root = Folder.objects.get(project=self.source_project, parent=None)
+        response = self._move(self.sharee, self.movable, source_root)
+        self.assertEqual(response.status_code, 400)
+
+    def test_sharee_cannot_move_shared_top_level_folder(self):
+        source_root = Folder.objects.get(project=self.source_project, parent=None)
+        response = self._move(self.sharee, self.shared_folder, source_root)
+        self.assertEqual(response.status_code, 403)

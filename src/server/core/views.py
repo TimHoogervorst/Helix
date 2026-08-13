@@ -56,19 +56,49 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             qs = qs.filter(parent_id=int(parent_id) if parent_id.isdigit() else None)
         return qs.order_by("name")
 
+    def perform_create(self, serializer):
+        from mods.access.policies import effective_role, role
+        from rest_framework.exceptions import PermissionDenied
+
+        parent = serializer.validated_data.get("parent")
+        if parent is not None:
+            if effective_role(self.request.user, parent) != "edit":
+                raise PermissionDenied(
+                    "You do not have permission to create folders in this folder."
+                )
+        else:
+            project = serializer.validated_data.get("project")
+            if role(self.request.user, project) != "edit":
+                raise PermissionDenied(
+                    "You do not have permission to create folders in this Project."
+                )
+        super().perform_create(serializer)
+
     def perform_update(self, serializer):
-        from mods.access.policies import effective_role
+        from mods.access.policies import destination_within_shared_subtree, effective_role
+        from rest_framework.exceptions import PermissionDenied, ValidationError
 
         instance = serializer.instance
 
-        if effective_role(self.request.user, instance) == "edit":
-            return super().perform_update(serializer)
+        if effective_role(self.request.user, instance) != "edit":
+            raise PermissionDenied(
+                "You do not have permission to edit this folder."
+            )
 
-        from rest_framework.exceptions import PermissionDenied
+        if "parent" in serializer.validated_data:
+            new_parent = serializer.validated_data["parent"]
+            if new_parent is not None and new_parent.project_id != instance.project_id:
+                raise ValidationError(
+                    {"parent": "Folders cannot be moved to a different Project."}
+                )
+            if not destination_within_shared_subtree(
+                instance, new_parent, instance.project_id,
+            ):
+                raise ValidationError(
+                    {"parent": "Folders cannot be moved outside the shared subtree."}
+                )
 
-        raise PermissionDenied(
-            "You do not have permission to edit this folder."
-        )
+        return super().perform_update(serializer)
 
     def perform_destroy(self, instance):
         from mods.access.policies import effective_role

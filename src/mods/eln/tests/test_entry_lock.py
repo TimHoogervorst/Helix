@@ -7,9 +7,20 @@ write enforcement in perform_update, stale expiry, and cascade delete.
 """
 from django.test import override_settings
 from django.utils import timezone
+from rest_framework.test import APIClient
 
+from core.models import Folder, Project, User
 from core.tests.base import BaseTestCase
-from mods.access.models import Grant, ProjectRole
+from mods.access.models import (
+    FolderShare,
+    Grant,
+    Organization,
+    OrganizationMembership,
+    OrganizationRole,
+    ProjectRole,
+    ShareLevel,
+    Team,
+)
 from mods.eln.models import NotebookEntry, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 
@@ -51,6 +62,7 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
         self.client.post(self.lock_url)
 
         other = self._create_second_user()
+        Grant.objects.create(project=self.project, user=other, role=ProjectRole.EDIT)
         self.client.force_authenticate(user=other)
         response = self.client.post(self.lock_url)
         self.assertEqual(response.status_code, 423)
@@ -68,6 +80,7 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
         )
 
         other = self._create_second_user()
+        Grant.objects.create(project=self.project, user=other, role=ProjectRole.EDIT)
         self.client.force_authenticate(user=other)
         response = self.client.post(self.lock_url)
         self.assertEqual(response.status_code, 201)
@@ -154,10 +167,11 @@ class LockReleaseTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(response.status_code, 204)
 
     def test_non_owner_release_returns_204(self):
-        """Non-holder trying to release → 204 (idempotent no-op)."""
+        """Non-holder editor trying to release → 204 (idempotent no-op)."""
         self.client.post(self.lock_url)
 
         other = LockAcquireTests._create_second_user()
+        Grant.objects.create(project=self.project, user=other, role=ProjectRole.EDIT)
         self.client.force_authenticate(user=other)
         response = self.client.delete(self.lock_url)
         self.assertEqual(response.status_code, 204)
@@ -174,6 +188,7 @@ class LockReleaseTests(_CreateEntryMixin, BaseTestCase):
 
         # Other user steals.
         other = LockAcquireTests._create_second_user()
+        Grant.objects.create(project=self.project, user=other, role=ProjectRole.EDIT)
         self.client.force_authenticate(user=other)
         self.client.post(self.lock_url)
 
@@ -212,6 +227,153 @@ class LockStatusTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(response.data["held_by"], self.user.id)
         self.assertIsNotNone(response.data["acquired_at"])
         self.assertIsNotNone(response.data["last_activity_at"])
+
+
+# ── Lock access enforcement tests ───────────────────────────────────────────
+
+
+class LockAccessTests(_CreateEntryMixin, BaseTestCase):
+    """Lock acquire/release require Edit; lock status reads require Read."""
+
+    def setUp(self):
+        super().setUp()
+        from mods.access.models import (
+            FolderShare,
+            Organization,
+            OrganizationMembership,
+            OrganizationRole,
+            ShareLevel,
+        )
+
+        self.org = Organization.objects.create(name="Test Org")
+        self.schema = get_or_create_default_eln_schema()
+
+        self.editor = User.objects.create_user(username="lock_ed", password="pass")
+        self.reader = User.objects.create_user(username="lock_rd", password="pass")
+        self.no_grant = User.objects.create_user(username="lock_ng", password="pass")
+        self.org_admin = User.objects.create_user(username="lock_ad", password="pass")
+        self.sharee = User.objects.create_user(username="lock_sh", password="pass")
+
+        OrganizationMembership.objects.update_or_create(
+            user=self.org_admin,
+            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
+        )
+        for user in (self.user, self.editor, self.reader, self.no_grant, self.sharee):
+            OrganizationMembership.objects.update_or_create(
+                user=user,
+                defaults={"organization": self.org, "role": OrganizationRole.USER},
+            )
+
+        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
+        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
+
+        self.client.force_authenticate(user=self.user)
+        self.entry_data = self._create_entry()
+        self.display_id = self.entry_data["display_id"]
+        self.lock_url = f"/api/eln/entries/{self.display_id}/lock/"
+
+    def _post(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client.post(self.lock_url)
+
+    def _delete(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client.delete(self.lock_url)
+
+    def _get(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client.get(self.lock_url)
+
+    # ── acquire requires Edit ──
+
+    def test_editor_can_acquire(self):
+        self.assertEqual(self._post(self.editor).status_code, 201)
+
+    def test_org_admin_can_acquire(self):
+        self.assertEqual(self._post(self.org_admin).status_code, 201)
+
+    def test_team_derived_edit_can_acquire(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import Team
+
+        team_user = User.objects.create_user(username="lock_team", password="pass")
+        OrganizationMembership.objects.update_or_create(
+            user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER},
+        )
+        group = Group.objects.create(name="Lock Team")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group, organization=self.org)
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        self.assertEqual(self._post(team_user).status_code, 201)
+
+    def test_read_user_cannot_acquire(self):
+        response = self._post(self.reader)
+        self.assertEqual(response.status_code, 403)
+
+    def test_no_grant_user_cannot_acquire(self):
+        self.assertEqual(self._post(self.no_grant).status_code, 403)
+
+    def test_inactive_user_cannot_acquire(self):
+        inactive = User.objects.create_user(username="lock_inact", password="pass", is_active=False)
+        self.assertEqual(self._post(inactive).status_code, 403)
+
+    def test_unauthenticated_cannot_acquire(self):
+        client = APIClient()
+        self.assertEqual(client.post(self.lock_url).status_code, 403)
+
+    def test_read_write_sharee_can_acquire_inside_subtree(self):
+        target_project = Project.objects.create(name="Target Lock")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(project=target_project, user=self.sharee, role=ProjectRole.EDIT)
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        self.assertEqual(self._post(self.sharee).status_code, 201)
+
+    def test_read_only_sharee_cannot_acquire(self):
+        target_project = Project.objects.create(name="RO Lock")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        Grant.objects.create(project=target_project, user=self.sharee, role=ProjectRole.READ)
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        self.assertEqual(self._post(self.sharee).status_code, 403)
+
+    # ── release requires Edit ──
+
+    def test_editor_can_release(self):
+        self.client.force_authenticate(user=self.user)
+        self.client.post(self.lock_url)
+        self.assertEqual(self._delete(self.editor).status_code, 204)
+
+    def test_read_user_cannot_release(self):
+        self.client.force_authenticate(user=self.user)
+        self.client.post(self.lock_url)
+        self.assertEqual(self._delete(self.reader).status_code, 403)
+
+    def test_no_grant_user_cannot_release(self):
+        self.assertEqual(self._delete(self.no_grant).status_code, 403)
+
+    # ── status requires Read ──
+
+    def test_editor_can_read_status(self):
+        self.assertEqual(self._get(self.editor).status_code, 200)
+
+    def test_read_user_can_read_status(self):
+        response = self._get(self.reader)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["locked"])
+
+    def test_no_grant_user_status_returns_404(self):
+        response = self._get(self.no_grant)
+        self.assertEqual(response.status_code, 404)
 
 
 # ── Lock enforcement in perform_update tests ───────────────────────────────────

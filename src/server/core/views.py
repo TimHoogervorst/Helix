@@ -1,10 +1,10 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status, viewsets
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from helix_core.actions.mixins import ActionLoggingMixin
+from mods.access.permissions import IsOrganizationAdminForWrites
 
 from .models import CoreSetting, Folder
 from .serializers import (
@@ -132,7 +132,7 @@ class CoreSettingViewSet(ActionLoggingMixin, viewsets.ReadOnlyModelViewSet):
 
     queryset = CoreSetting.objects.all()
     serializer_class = CoreSettingSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOrganizationAdminForWrites]
     lookup_field = "key"
 
     action_log_config = {

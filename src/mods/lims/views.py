@@ -8,6 +8,7 @@ from rest_framework.response import Response
 
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
+from mods.access.permissions import IsOrganizationAdmin
 
 from .models import Entity, Action, LimsView, Metric
 from .serializers import (
@@ -65,6 +66,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     lookup_field = "display_id"
     filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
+
+    def get_permissions(self):
+        if self.action == "delete_all":
+            return [IsOrganizationAdmin()]
+        return super().get_permissions()
 
     action_log_config = {
         "create": {"action": "lims.entity.created"},

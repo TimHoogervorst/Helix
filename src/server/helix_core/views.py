@@ -28,6 +28,7 @@ from helix_core.serializers import (
 )
 
 from helix_core.models import EntityHubView
+from mods.access.permissions import IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
 from helix_core.query_builder import (
@@ -490,6 +491,7 @@ class SchemaViewSet(viewsets.ModelViewSet):
 
     queryset = Schema.objects.select_related("schema_type").filter(is_active=True)
     pagination_class = None
+    permission_classes = [IsOrganizationAdminForWrites]
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
@@ -769,6 +771,7 @@ class ColorTokenViewSet(viewsets.ModelViewSet):
     queryset = ColorToken.objects.all()
     serializer_class = ColorTokenSerializer
     pagination_class = None
+    permission_classes = [IsOrganizationAdminForWrites]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def destroy(self, request, *args, **kwargs):
@@ -808,6 +811,7 @@ class IconLibraryViewSet(viewsets.ModelViewSet):
     queryset = IconLibraryEntry.objects.all()
     serializer_class = IconLibrarySerializer
     pagination_class = None
+    permission_classes = [IsOrganizationAdminForWrites]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def destroy(self, request, *args, **kwargs):

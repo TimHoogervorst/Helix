@@ -15,6 +15,7 @@ from helix_core.actions.logger import bulk_log_actions, log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
 from mods.tags.models import Tag
+from mods.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
 
 from helix_core.models import Schema
 
@@ -66,6 +67,11 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     )
     serializer_class = NotebookEntrySerializer
     lookup_field = "display_id"
+
+    def get_permissions(self):
+        if self.action == "delete_all":
+            return [IsOrganizationAdmin()]
+        return super().get_permissions()
 
     _entry_edited_config = {
         "action": "eln.entry.edited",
@@ -665,6 +671,7 @@ class ProtocolViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Protocol.objects.all()
     serializer_class = ProtocolSerializer
+    permission_classes = [IsOrganizationAdminForWrites]
 
     action_log_config = {
         "create": {"action": "eln.protocol.created"},

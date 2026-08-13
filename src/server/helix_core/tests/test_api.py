@@ -6,6 +6,15 @@ from rest_framework.test import APIClient
 
 from core.models import User
 from helix_core.models import SchemaType, Schema
+from mods.access.models import Organization, OrganizationMembership, OrganizationRole
+
+
+def make_admin(user):
+    org = Organization.objects.create(name="Test Lab")
+    OrganizationMembership.objects.update_or_create(
+        user=user,
+        defaults={"organization": org, "role": OrganizationRole.ADMIN},
+    )
 
 
 class SchemaTypeApiTests(TestCase):
@@ -14,6 +23,7 @@ class SchemaTypeApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", password="pass")
+        make_admin(self.user)
         self.client.force_authenticate(user=self.user)
         SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
@@ -40,6 +50,7 @@ class SchemaCrudTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", password="pass")
+        make_admin(self.user)
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
@@ -189,6 +200,7 @@ class SchemaColumnValidationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", password="pass")
+        make_admin(self.user)
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
@@ -244,6 +256,7 @@ class SchemaDefaultDeactivationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", password="pass")
+        make_admin(self.user)
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
@@ -284,6 +297,7 @@ class SchemaDeleteAllTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", password="pass")
+        make_admin(self.user)
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",

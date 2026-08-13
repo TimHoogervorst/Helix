@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 
 from core.models import CoreSetting, Folder, Project, User
 from core.tests.base import BaseTestCase
+from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
@@ -26,6 +27,11 @@ class FolderActionLoggingTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         self.client.force_authenticate(user=self.user)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()
@@ -111,6 +117,11 @@ class CoreSettingActionLoggingTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         self.client.force_authenticate(user=self.user)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()

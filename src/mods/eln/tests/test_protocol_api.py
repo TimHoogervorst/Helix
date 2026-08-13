@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from core.tests.base import BaseTestCase
 from mods.eln.models import Protocol
+from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 
 
 VALID_ITEMS = [
@@ -30,6 +31,11 @@ class ProtocolApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         self.client.force_authenticate(user=self.user)
 
     # ── Create ──────────────────────────────────────────────────────────
@@ -307,6 +313,11 @@ class ProtocolActionLoggingTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        org = Organization.objects.create(name="Test Lab")
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        )
         self.client.force_authenticate(user=self.user)
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
         self.mock_log = self._patcher.start()

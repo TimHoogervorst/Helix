@@ -9,6 +9,7 @@ from mods.access.models import (
     OrganizationMembership,
     OrganizationRole,
 )
+from mods.access.policies import can
 
 
 class UserManagementAuthTests(BaseTestCase):
@@ -59,6 +60,13 @@ class UserManagementAuthTests(BaseTestCase):
             {"username": "newuser", "password": "Str0ng!Pass"},
             format="json",
         )
+        self.assertEqual(response.status_code, 403)
+
+    def test_resource_less_policy_does_not_bypass_user_management(self):
+        """The old resource-less policy check allowed every authenticated user."""
+        self.assertTrue(can(self.regular, "edited"))
+        self.client.force_authenticate(user=self.regular)
+        response = self.client.get("/api/core/users/")
         self.assertEqual(response.status_code, 403)
 
     def test_deactivate_user_as_admin_succeeds(self):

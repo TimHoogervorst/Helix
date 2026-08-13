@@ -57,6 +57,8 @@ All mutating operations are automatically logged for CFR Part 11 audit complianc
 
 A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs to exactly one Project — either its hidden root folder or a descendant of it. Folders form a tree within a Project — the organizational structure beneath the Project level. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
 
+While the storage model has a synthetic hidden root, `Project.root_folder` is the single backend owner of root resolution, and `Folder.root_relative_path` owns root-relative display paths. Callers must not query for `parent__isnull=True` or walk to the root independently. Frontend Project-root URL parsing and breadcrumb path construction likewise go through `mods/library/path.ts`.
+
 Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items live.
 
 Deleting a Folder permanently deletes everything inside it — child Folders, Entries, and Entities — under the pre-v1 lifecycle. There is no trash or recovery.

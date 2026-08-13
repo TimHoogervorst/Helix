@@ -85,6 +85,19 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def root_folder(self):
+        """Return the single storage root for this Project.
+
+        This is the single owner of hidden-root resolution while the folder
+        tree still uses a synthetic root.
+        """
+        return self.folders.get(parent__isnull=True)
+
+    def create_root_folder(self):
+        """Create this Project's storage root."""
+        return Folder.objects.create(name="root", parent=None, project=self)
+
 
 class Folder(models.Model):
     """Hierarchical folder for organizing entries and entities.
@@ -124,13 +137,11 @@ class Folder(models.Model):
     def clean(self):
         super().clean()
         if self.pk is not None and self.project_id is not None and self.parent_id is None:
-            existing = (
-                Folder.objects
-                .filter(project=self.project, parent__isnull=True)
-                .exclude(pk=self.pk)
-                .exists()
-            )
-            if existing:
+            try:
+                existing = self.project.root_folder
+            except Folder.DoesNotExist:
+                existing = None
+            if existing is not None and existing.pk != self.pk:
                 raise ValidationError(
                     "A root Folder (parent is null) already exists for this Project."
                 )
@@ -140,15 +151,31 @@ class Folder(models.Model):
         return self.parent_id is None and self.project_id is not None
 
     @property
-    def path(self) -> str:
-        """Full /-separated path from root to this folder (e.g. /Projects/Sub)."""
+    def is_root_child(self) -> bool:
+        """Whether this folder is immediate user content below the root."""
+        return self.parent_id is not None and self.parent.is_hidden_root
+
+    @property
+    def root_relative_path(self) -> str:
+        """Return the display path rooted at the Project's hidden root."""
+        segments = self._path_segments(include_root=False)
+        return "root / " + " / ".join(segments)
+
+    def _path_segments(self, *, include_root: bool) -> list[str]:
         segments = []
         node = self
         while node is not None:
+            if node.is_hidden_root and not include_root:
+                break
             segments.append(node.name)
             node = node.parent
         segments.reverse()
-        return "/" + "/".join(segments)
+        return segments
+
+    @property
+    def path(self) -> str:
+        """Full /-separated path from root to this folder (e.g. /Projects/Sub)."""
+        return "/" + "/".join(self._path_segments(include_root=True))
 
     def __str__(self):
         if self.parent:

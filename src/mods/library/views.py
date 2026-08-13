@@ -60,10 +60,10 @@ def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | No
     from mods.access.models import FolderShare
 
     if not path_str or path_str == "/":
-        return project.folders.get(parent__isnull=True)
+        return project.root_folder
 
     segments = [s for s in path_str.strip("/").split("/") if s]
-    parent = project.folders.get(parent__isnull=True)
+    parent = project.root_folder
 
     for i, segment in enumerate(segments):
         if parent.is_hidden_root:
@@ -112,7 +112,7 @@ def _first_paragraph_text(content: dict) -> str:
     return ""
 
 
-def _get_shared_folders(project: Project) -> list[dict]:
+def _get_shared_folders(project: Project, *, include_path: bool = False) -> list[dict]:
     """Return shared folder items appearing at *project*'s root."""
     from mods.access.models import FolderShare
 
@@ -125,7 +125,7 @@ def _get_shared_folders(project: Project) -> list[dict]:
     for share in shares:
         source = share.source_folder
         source_project = source.project
-        items.append({
+        item = {
             "type": "folder",
             "id": source.id,
             "name": source.name,
@@ -138,7 +138,10 @@ def _get_shared_folders(project: Project) -> list[dict]:
             "source_project_name": source_project.name,
             "source_project_icon": source_project.icon_key,
             "source_project_color": source_project.color_key,
-        })
+        }
+        if include_path:
+            item["path"] = source.root_relative_path
+        items.append(item)
     return items
 
 
@@ -178,7 +181,7 @@ class LibraryContentsView(APIView):
         # ── Folders ──────────────────────────────────────────────────
         folders_qs = Folder.objects.filter(
             parent=folder,
-        ).exclude(parent__isnull=True).prefetch_related(
+        ).prefetch_related(
             "outgoing_shares__target_project",
         ).order_by("name")
 
@@ -312,43 +315,32 @@ class LibraryFolderListView(APIView):
         if effective is None:
             raise Http404("Project not found.")
 
-        hidden_root = project.folders.filter(parent__isnull=True).first()
-        if hidden_root is None:
+        try:
+            root = project.root_folder
+        except Folder.DoesNotExist:
             return Response([])
 
         descendants = (
             Folder.objects.filter(project=project)
-            .exclude(parent__isnull=True)
+            .exclude(pk=root.pk)
             .order_by("name")
         )
 
-        shared_folders = _get_shared_folders(project)
+        shared_folders = _get_shared_folders(project, include_path=True)
 
         items = []
         for f in descendants:
-            ancestor_ids = set()
-            node = f.parent
-            while node is not None and not node.is_hidden_root:
-                ancestor_ids.add(node.id)
-                node = node.parent
-            segs = []
-            node = f
-            while node is not None and not node.is_hidden_root:
-                segs.append(node.name)
-                node = node.parent
-            segs.reverse()
-            path = "root / " + " / ".join(segs)
             items.append({
                 "id": f.id,
                 "name": f.name,
-                "path": path,
+                "path": f.root_relative_path,
             })
 
         for shared in shared_folders:
             items.append({
                 "id": shared["id"],
                 "name": shared["name"],
-                "path": f"root / {shared['name']}",
+                "path": shared["path"],
             })
 
         items.sort(key=lambda x: x["path"].lower())

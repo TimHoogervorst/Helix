@@ -227,7 +227,7 @@ export default function ProjectsManagement() {
           <SettingsHeroHeader
             eyebrow="access control"
             title="Projects"
-            description="Create and manage Projects. Each Project is an access boundary with its own hidden root Folder."
+            description="Create and manage Projects. Each Project is an access boundary with its own folder tree."
             actions={
               <Button size="sm" onClick={() => setShowNew(!showNew)}>
                 {showNew ? "Cancel" : "+ New Project"}

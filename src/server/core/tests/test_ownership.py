@@ -19,7 +19,7 @@ def _create_project(name="Test Project"):
 
 
 def _create_root(project):
-    return Folder.objects.create(name="root", parent=None, project=project)
+    return project.create_root_folder()
 
 
 def _create_eln_schema():

@@ -33,6 +33,12 @@ import RowMenu from "./RowMenu";
 import { EntryPropertiesModal } from "./EntryPropertiesModal";
 import { FolderPropertiesModal } from "./FolderPropertiesModal";
 import NotFound from "../../../shell/src/shared/components/NotFound";
+import {
+  appendPath,
+  parentPath,
+  pathSegments as getPathSegments,
+  segmentPath,
+} from "../path";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 
@@ -180,7 +186,7 @@ function ProjectBreadcrumbs({
                 className="breadcrumb-seg"
                 onClick={() =>
                   onNavigateToSegment(
-                    `/${pathSegments.slice(0, i + 1).join("/")}`,
+                    segmentPath(pathSegments, i),
                   )
                 }
               >
@@ -482,11 +488,7 @@ function LibraryHub() {
   );
 
   const navigateUp = useCallback(() => {
-    const segments = currentPath.split("/").filter(Boolean);
-    if (segments.length === 0) return;
-    segments.pop();
-    const newPath = segments.length === 0 ? "" : `/${segments.join("/")}`;
-    navigateToPath(newPath);
+    navigateToPath(parentPath(currentPath));
   }, [currentPath, navigateToPath]);
 
   // ── Delete handler ─────────────────────────────────────────────────────
@@ -512,10 +514,7 @@ function LibraryHub() {
 
   const navigateToFolder = useCallback(
     (folderName: string) => {
-      const newPath = currentPath
-        ? `${currentPath}/${folderName}`
-        : `/${folderName}`;
-      navigateToPath(newPath);
+      navigateToPath(appendPath(currentPath, folderName));
     },
     [currentPath, navigateToPath],
   );
@@ -545,13 +544,7 @@ function LibraryHub() {
 
   // ── Path segments from URL ──────────────────────────────────────────
 
-  const pathSegments = useMemo(
-    () =>
-      currentPath
-        .split("/")
-        .filter(Boolean),
-    [],
-  );
+  const pathSegments = useMemo(() => getPathSegments(currentPath), [currentPath]);
 
   // ── Render card (inside project) ─────────────────────────────────────
 

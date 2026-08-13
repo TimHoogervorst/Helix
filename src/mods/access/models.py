@@ -284,7 +284,7 @@ class FolderShare(models.Model):
         if source.is_hidden_root:
             raise ValidationError("The hidden root Folder cannot be shared.")
 
-        if source.parent_id is None or source.parent.parent_id is not None:
+        if not source.is_root_child:
             raise ValidationError(
                 "Only immediate children of the Project root can be shared."
             )
@@ -318,9 +318,8 @@ class FolderShare(models.Model):
             .filter(
                 project_id=self.target_project_id,
                 name=source.name,
-                parent__parent__isnull=True,
+                parent_id=self.target_project.root_folder.id,
             )
-            .exclude(parent__isnull=True)
             .exists()
         )
         if own_child:

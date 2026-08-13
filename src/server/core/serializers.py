@@ -28,8 +28,9 @@ class FolderSerializer(serializers.ModelSerializer):
             parent = data.get("parent")
             project = data.get("project")
             if parent is None and project is not None:
-                parent = project.folders.filter(parent__isnull=True).first()
-                if parent is None:
+                try:
+                    parent = project.root_folder
+                except Folder.DoesNotExist:
                     raise serializers.ValidationError(
                         {"project": "The Project does not have a root Folder."}
                     )
@@ -64,14 +65,15 @@ class FolderSerializer(serializers.ModelSerializer):
         if parent is None or not parent.is_hidden_root:
             return
         project = self.instance.project
+        root = project.root_folder
         collision = (
             Folder.objects
             .filter(
                 project=project,
                 name=new_name,
-                parent__parent__isnull=True,
+                parent_id=root.pk,
             )
-            .exclude(parent__isnull=True)
+            .exclude(pk=root.pk)
             .exclude(pk=self.instance.pk)
         )
         if collision.exists():

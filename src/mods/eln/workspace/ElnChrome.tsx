@@ -25,6 +25,7 @@ import { TagAutocomplete } from "../../tags/ui";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import NotFound from "../../../shell/src/shared/components/NotFound";
+import { pathSegments, segmentPath } from "../../library/path";
 import type { EntryDetail, Tag, ElnAction } from "../types";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
@@ -124,7 +125,7 @@ function ElnChrome({
     el.style.height = `${el.scrollHeight}px`;
   }, [description]);
 
-  const pathSegments = folderPath.split("/").filter(Boolean);
+  const folderPathSegments = pathSegments(folderPath);
 
   if (!isReady && !error) {
     return (
@@ -176,17 +177,17 @@ function ElnChrome({
               className="h-3.5 w-3.5 text-muted-foreground"
               aria-hidden="true"
             />
-            {pathSegments.length > 0 ? (
-              pathSegments.map((segment, i) => {
-                const isLast = i === pathSegments.length - 1;
-                const segmentPath = "/" + pathSegments.slice(0, i + 1).join("/");
+            {folderPathSegments.length > 0 ? (
+              folderPathSegments.map((segment, i) => {
+                const isLast = i === folderPathSegments.length - 1;
+                const path = segmentPath(folderPathSegments, i);
                 return (
                   <span key={i} className="flex items-center gap-1.5">
                     {isLast ? (
                       <span>{segment}</span>
                     ) : (
                       <Link
-                        to={`/library?path=${encodeURIComponent(segmentPath)}`}
+                        to={`/library?path=${encodeURIComponent(path)}`}
                         className="hover:text-foreground transition-colors"
                       >
                         {segment}

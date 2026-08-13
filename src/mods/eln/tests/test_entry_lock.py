@@ -464,6 +464,7 @@ class StaleLockTests(BaseTestCase):
             name="Test",
             content=TEXT_DOC,
             author=self.user,
+            project=self.project,
             schema=self.schema,
         )
         self.lock = EntryLock.objects.create(

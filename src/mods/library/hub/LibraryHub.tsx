@@ -249,7 +249,7 @@ function ProjectCard({ project, viewMode, onClick }: ProjectCardProps) {
     >
       <span className="card-icon">
         {project.icon_key ? (
-          <IconBadge iconKey={project.icon_key} colorKey={project.color_key || "muted"} size="lg" />
+          <IconBadge iconKey={project.icon_key} colorKey={project.color_key || "muted"} size="md" />
         ) : (
           <Folder />
         )}

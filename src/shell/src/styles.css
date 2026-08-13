@@ -2551,6 +2551,13 @@ input.entities-filter-search {
   color: var(--color-primary);
 }
 
+/* Project icon and name stay on one line, like the display ID cell. */
+.entities-project-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 /* Schema type badge */
 .entities-schema-type-badge {
   display: inline-block;

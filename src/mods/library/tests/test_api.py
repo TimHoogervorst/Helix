@@ -139,7 +139,6 @@ class LibraryApiTests(BaseTestCase):
 
     def test_path_outside_project_returns_404(self):
         other_project = Project.objects.create(name="Other")
-        Folder.objects.create(name="root", parent=None, project=other_project)
         response = self.client.get(
             f"{self._url()}&path=/OtherFolder",
         )
@@ -339,7 +338,6 @@ class LibraryApiTests(BaseTestCase):
             username="other", password="pass",
         )
         other_project = Project.objects.create(name="Other Project")
-        Folder.objects.create(name="root", parent=None, project=other_project)
         Grant.objects.create(
             project=other_project, role=ProjectRole.READ, user=other_user,
         )
@@ -368,9 +366,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_shared_folders_appear_at_target_root(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         source_folder = Folder.objects.create(
-            name="SrcFolder", parent=source_root, project=source_project,
+            name="SrcFolder", parent=None, project=source_project,
         )
         target_project = self.project
         FolderShare.objects.create(
@@ -392,9 +389,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_shared_folders_not_in_subfolders(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         source_folder = Folder.objects.create(
-            name="SrcFolder", parent=source_root, project=source_project,
+            name="SrcFolder", parent=None, project=source_project,
         )
         FolderShare.objects.create(
             source_folder=source_folder,
@@ -413,9 +409,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_navigate_into_shared_folder(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         source_folder = Folder.objects.create(
-            name="SrcFolder", parent=source_root, project=source_project,
+            name="SrcFolder", parent=None, project=source_project,
         )
         source_child = Folder.objects.create(
             name="Child", parent=source_folder, project=source_project,
@@ -445,9 +440,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_navigate_into_shared_subfolder(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         source_folder = Folder.objects.create(
-            name="SrcFolder", parent=source_root, project=source_project,
+            name="SrcFolder", parent=None, project=source_project,
         )
         source_child = Folder.objects.create(
             name="Child", parent=source_folder, project=source_project,
@@ -477,9 +471,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_shared_folders_sort_alphabetically_with_owned(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         Folder.objects.create(
-            name="B Shared", parent=source_root, project=source_project,
+            name="B Shared", parent=None, project=source_project,
         )
         FolderShare.objects.create(
             source_folder=Folder.objects.get(name="B Shared", project=source_project),
@@ -496,9 +489,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_search_covers_shared_subtree_at_root(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         source_folder = Folder.objects.create(
-            name="UniqueShare", parent=source_root, project=source_project,
+            name="UniqueShare", parent=None, project=source_project,
         )
         FolderShare.objects.create(
             source_folder=source_folder,
@@ -517,9 +509,8 @@ class LibraryApiTests(BaseTestCase):
 
     def test_search_excludes_shared_when_not_matching(self):
         source_project = Project.objects.create(name="Source")
-        source_root = Folder.objects.create(name="root", parent=None, project=source_project)
         source_folder = Folder.objects.create(
-            name="SrcFolder", parent=source_root, project=source_project,
+            name="SrcFolder", parent=None, project=source_project,
         )
         FolderShare.objects.create(
             source_folder=source_folder,
@@ -539,7 +530,6 @@ class LibraryApiTests(BaseTestCase):
 
     def test_share_summary_present_when_folder_shared_out(self):
         other_project = Project.objects.create(name="Target Lab")
-        Folder.objects.create(name="root", parent=None, project=other_project)
         FolderShare.objects.create(
             source_folder=self.experiments_folder,
             target_project=other_project,
@@ -563,9 +553,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_share_summary_multiple_targets(self):
         target_a = Project.objects.create(name="Target A")
-        Folder.objects.create(name="root", parent=None, project=target_a)
         target_b = Project.objects.create(name="Target B")
-        Folder.objects.create(name="root", parent=None, project=target_b)
         FolderShare.objects.create(
             source_folder=self.experiments_folder,
             target_project=target_a,
@@ -684,7 +672,6 @@ class AccessibleProjectsApiTests(BaseTestCase):
             defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
         )
         project2 = Project.objects.create(name="Other Project")
-        Folder.objects.create(name="root", parent=None, project=project2)
         self.client.force_authenticate(user=org_admin)
         response = self.client.get("/api/access/projects/?accessible=1&with_role=1")
         self.assertEqual(response.status_code, 200)

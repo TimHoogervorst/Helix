@@ -72,18 +72,6 @@ class FolderShareModelTests(TestCase):
         with self.assertRaises(ValidationError):
             share.clean()
 
-    # ── validation: reject hidden root ────────────────────────────────────
-
-    def test_reject_hidden_root_folder(self):
-        root = Folder.objects.get(project=self.project_a, parent__isnull=True)
-        share = FolderShare(
-            source_folder=root,
-            target_project=self.project_b,
-            level=ShareLevel.READ,
-        )
-        with self.assertRaises(ValidationError):
-            share.clean()
-
     # ── validation: reject nested source folder ───────────────────────────
 
     def test_reject_nested_source_folder(self):
@@ -285,16 +273,6 @@ class FolderShareApiTests(TestCase):
         response = self.client.post(
             url,
             {"source_folder": self.folder.pk, "level": "read"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_create_share_rejects_hidden_root(self):
-        root = Folder.objects.get(project=self.project_a, parent__isnull=True)
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.post(
-            self._shares_url,
-            {"source_folder": root.pk, "level": "read"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

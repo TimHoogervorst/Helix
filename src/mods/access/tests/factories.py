@@ -23,19 +23,19 @@ def make_org(name="Test Lab"):
 
 
 def make_project(name="Alpha", **kwargs):
-    """Create a Project with its hidden root Folder."""
-    project = Project.objects.create(name=name, **kwargs)
-    Folder.objects.create(name="root", parent=None, project=project)
-    return project
+    """Create a Project without a synthetic root Folder."""
+    return Project.objects.create(name=name, **kwargs)
 
 
-def add_child_folder(project, name, parent_name="root"):
+def add_child_folder(project, name, parent_name=None):
+    if parent_name is None:
+        return Folder.objects.create(name=name, parent=None, project=project)
     parent = Folder.objects.get(project=project, name=parent_name)
     return Folder.objects.create(name=name, parent=parent, project=project)
 
 
 def add_grandchild_folder(project, name, child_name):
-    parent = Folder.objects.get(project=project, name=child_name, parent__isnull=False)
+    parent = Folder.objects.get(project=project, name=child_name, parent__isnull=True)
     return Folder.objects.create(name=name, parent=parent, project=project)
 
 

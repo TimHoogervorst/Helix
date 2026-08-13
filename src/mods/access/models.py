@@ -229,8 +229,7 @@ class FolderShare(models.Model):
 
     Only Organization Admins create, change, or revoke Folder Shares.
     One row per Folder–target pair.  The source Folder must be an
-    immediate child of its Project's hidden root — nested source Folders
-    and hidden roots themselves are rejected.
+    first-level child of its Project — nested source Folders are rejected.
 
     Shared access is the intersection of the user's target Project Role
     and the share level.
@@ -310,15 +309,11 @@ class FolderShare(models.Model):
                 f"in the target Project."
             )
 
-        own_child = (
-            Folder.objects
-            .filter(
-                models.Q(parent__isnull=True) | models.Q(parent__name="root"),
-                project_id=self.target_project_id,
-                name=source.name,
-            )
-            .exists()
-        )
+        own_child = Folder.objects.filter(
+            parent__isnull=True,
+            project_id=self.target_project_id,
+            name=source.name,
+        ).exists()
         if own_child:
             raise ValidationError(
                 f"A Folder named \"{source.name}\" already exists at the "

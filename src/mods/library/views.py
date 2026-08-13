@@ -76,6 +76,7 @@ def _resolve_folder_beneath_root(project: Project, path_str: str) -> Folder | Pr
             except Folder.DoesNotExist:
                 share = FolderShare.objects.filter(
                     target_project=project,
+                    source_folder__parent__isnull=True,
                     source_folder__name=segment,
                 ).select_related("source_folder").first()
                 if share:

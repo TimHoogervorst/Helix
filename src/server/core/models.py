@@ -140,7 +140,7 @@ class Folder(models.Model):
     @property
     def is_root_child(self) -> bool:
         """Whether this folder is immediate user content below a Project."""
-        return self.parent_id is None or self.parent.name == "root"
+        return self.parent_id is None
 
     @property
     def root_relative_path(self) -> str:

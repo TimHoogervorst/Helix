@@ -34,6 +34,14 @@ export function useEntryFolder({
   );
   const [folders, setFolders] = useState<Folder[]>([]);
 
+  // Entry data loads after the hook is mounted, so initialize the selected
+  // folder when its fallback value becomes available. Do not overwrite an
+  // explicit selection, including a user clearing the folder.
+  useEffect(() => {
+    if (initialFolderId === null || initialFolderId === undefined) return;
+    setFolderId((current) => current ?? initialFolderId);
+  }, [initialFolderId]);
+
   // ── Fetch folders ──
   useEffect(() => {
     setFolders([]);

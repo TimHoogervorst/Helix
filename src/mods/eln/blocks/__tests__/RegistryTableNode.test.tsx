@@ -1744,6 +1744,8 @@ describe("RegistryTableContent — Register Entities button", () => {
     opts?: {
       schemaId?: number | null;
       rows?: RegistryTableRow[];
+      projectId?: number | null;
+      folderId?: number | null;
       readOnly?: boolean;
       schemaContentHash?: string | null;
     },
@@ -1758,6 +1760,8 @@ describe("RegistryTableContent — Register Entities button", () => {
       title: "Test Table",
       columns: baseColumns,
       rows: opts?.rows ?? [makeRow()],
+      projectId: opts?.projectId,
+      folderId: opts?.folderId,
       updateAttrs: vi.fn(),
       readOnly: opts?.readOnly ?? false,
     };
@@ -1834,6 +1838,8 @@ describe("RegistryTableContent — Register Entities button", () => {
       <RegistryTableContent
         {...contentProps({
           rows: [greenRow, blueRow, orangeRow, redRow],
+          projectId: 7,
+          folderId: 42,
           schemaContentHash: "abc123",
         })}
         updateAttrs={updateAttrs}
@@ -1850,22 +1856,26 @@ describe("RegistryTableContent — Register Entities button", () => {
     const postCall = mockPost.mock.calls[0];
     expect(postCall[0]).toBe("/lims/entities/batch-register/");
     expect(postCall[1].schema_id).toBe(1);
+    expect(postCall[1].project_id).toBe(7);
     expect(postCall[1].rows).toHaveLength(3);
     // Verify sent rows (in order: blue, orange, red)
     expect(postCall[1].rows[0]).toEqual({
       entity_id: null,
       name: "New Sample",
       values: { Volume: 5 },
+      folder_id: 42,
     });
     expect(postCall[1].rows[1]).toEqual({
       entity_id: 2,
       name: "Changed Sample",
       values: { Volume: 99 },
+      folder_id: 42,
     });
     expect(postCall[1].rows[2]).toEqual({
       entity_id: 3,
       name: "Error Sample",
       values: { Volume: 7 },
+      folder_id: 42,
     });
   });
 

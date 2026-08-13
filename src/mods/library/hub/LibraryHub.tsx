@@ -8,9 +8,8 @@ import {
   LayoutGrid,
   AlignJustify,
   Folder,
+  FolderSymlink,
   ArrowUp,
-  Share2,
-  Users,
 } from "lucide-react";
 import type { LibraryItem, LibraryEntryItem, LibraryProjectItem, LibraryFolderPath } from "../types";
 import type { Project } from "../../access/types";
@@ -569,15 +568,12 @@ function LibraryHub() {
           item={adapted}
           viewMode={viewMode}
           isSelected={data.selectedId === item.id}
-          iconKey={isShared ? "" : "folder"}
+          iconKey={isShared || isSharedOut ? "" : "folder"}
           colorKey="warn"
           showDescription={false}
           showTags={false}
           showUpdatedAt={false}
-          Icon={isShared ? Share2 : undefined}
-          iconOverlay={
-            isSharedOut ? <Users size={10} /> : undefined
-          }
+          icon={isShared || isSharedOut ? FolderSymlink : undefined}
           iconTitle={tooltip}
           onClick={() => handleCardClick(item)}
           endSlot={

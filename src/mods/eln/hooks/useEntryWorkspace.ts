@@ -113,7 +113,7 @@ export function useEntryWorkspace({
   // ── Compose hooks ──
   const crud = useEntryCrud({ entryId, isNew, contentRef });
   const folder = useEntryFolder({
-    initialFolderId,
+    initialFolderId: initialFolderId ?? crud.entry?.folder,
     projectId: crud.entry?.project ?? initialProjectId,
     projectUid,
   });

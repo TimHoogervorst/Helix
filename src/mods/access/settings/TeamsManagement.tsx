@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Users, Trash2, X, Check } from "lucide-react";
+import { Trash2, X, Check } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { Input } from "../../../shell/src/shared/primitives/Input";
@@ -10,6 +10,8 @@ import {
   SettingsMasterList,
   type MasterListRow,
 } from "../../../shell/src/shared/components/SettingsMasterList";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 import {
   fetchTeams,
   createTeam,
@@ -31,6 +33,8 @@ export default function TeamsManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newIcon, setNewIcon] = useState("circle");
+  const [newColor, setNewColor] = useState("muted");
   const [saving, setSaving] = useState(false);
   const [filterValue, setFilterValue] = useState("");
   const [addingMember, setAddingMember] = useState(false);
@@ -62,8 +66,14 @@ export default function TeamsManagement() {
     setSaving(true);
     setError(null);
     try {
-      await createTeam({ name: newName.trim() });
+      await createTeam({
+        name: newName.trim(),
+        icon_key: newIcon,
+        color_key: newColor,
+      });
       setNewName("");
+      setNewIcon("circle");
+      setNewColor("muted");
       setShowNew(false);
       await load();
     } catch {
@@ -100,6 +110,20 @@ export default function TeamsManagement() {
       await load();
     } catch {
       setError("Failed to rename Team.");
+    }
+  };
+
+  const handleIconColorChange = async (
+    teamId: number,
+    iconKey: string,
+    colorKey: string,
+  ) => {
+    setError(null);
+    try {
+      await updateTeam(teamId, { icon_key: iconKey, color_key: colorKey });
+      await load();
+    } catch {
+      setError("Failed to update Team icon and colour.");
     }
   };
 
@@ -145,7 +169,13 @@ export default function TeamsManagement() {
     id: t.id,
     label: t.name,
     secondary: `${t.members.length} member${t.members.length !== 1 ? "s" : ""}`,
-    icon: <Users size={13} />,
+    icon: (
+      <IconBadge
+        iconKey={t.icon_key || "circle"}
+        colorKey={t.color_key || "muted"}
+        size="sm"
+      />
+    ),
   }));
 
   const selectedTeam = selectedId
@@ -188,6 +218,20 @@ export default function TeamsManagement() {
                     }}
                   />
                 </label>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                    Icon &amp; Colour
+                  </span>
+                  <IconPickerPopover
+                    iconKey={newIcon}
+                    colorKey={newColor}
+                    size="sm"
+                    onChange={(iconKey, colorKey) => {
+                      setNewIcon(iconKey);
+                      setNewColor(colorKey);
+                    }}
+                  />
+                </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -202,6 +246,8 @@ export default function TeamsManagement() {
                     onClick={() => {
                       setShowNew(false);
                       setNewName("");
+                      setNewIcon("circle");
+                      setNewColor("muted");
                     }}
                   >
                     Cancel
@@ -302,6 +348,19 @@ export default function TeamsManagement() {
                     placeholder="Team name"
                   />
                 </label>
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
+                    Icon &amp; Colour
+                  </span>
+                  <IconPickerPopover
+                    iconKey={selectedTeam.icon_key || "circle"}
+                    colorKey={selectedTeam.color_key || "muted"}
+                    size="md"
+                    onChange={(iconKey, colorKey) =>
+                      handleIconColorChange(selectedTeam.id, iconKey, colorKey)
+                    }
+                  />
+                </div>
                 {selectedTeam.blocked_from_deletion && (
                   <p className="mt-2 text-xs text-[var(--color-ink-muted-foreground)]">
                     This team cannot be deleted because it has active Grants.

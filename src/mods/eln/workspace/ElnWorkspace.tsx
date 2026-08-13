@@ -110,6 +110,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, [workspace.entry?.mentions, resolveIds]);
 
   const folderPath = workspace.entry?.folder_path || "";
+  const projectId = workspace.entry?.project ?? initialProjectId;
+  const contextFolderId = folderId ?? workspace.entry?.folder ?? null;
 
   const slotContext: SlotContext = useMemo(
     () => ({
@@ -124,7 +126,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
         lastEditor,
         status,
         folders,
-        folderId,
+         folderId: contextFolderId,
+        projectId,
         isLockedByOther,
         onStatusChange: setStatus,
         onFolderChange: setFolderId,
@@ -135,7 +138,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     }),
     [
       entryId, entryDisplayId, workspace.entry, lastEditor, status,
-      folders, folderId, isLockedByOther, setStatus, setFolderId,
+       folders, folderId, contextFolderId, projectId, isLockedByOther,
+       setStatus, setFolderId,
       resolutionMap, navigate,
     ],
   );

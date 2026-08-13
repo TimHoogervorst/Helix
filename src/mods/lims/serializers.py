@@ -227,6 +227,7 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
 class EntityBatchRegisterSerializer(serializers.Serializer):
     """Serializer for the batch-register endpoint payload."""
     schema_id = serializers.IntegerField(required=True)
+    project_id = serializers.IntegerField(required=False, allow_null=True)
     rows = serializers.ListField(
         child=EntityBatchRegisterRowSerializer(),
         allow_empty=False,

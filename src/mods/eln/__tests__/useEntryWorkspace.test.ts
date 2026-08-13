@@ -446,6 +446,26 @@ describe("useEntryWorkspace", () => {
     expect(result.current.folder.folderId).toBe(10);
   });
 
+  it("folder: uses the persisted entry folder when no initial folder is provided", async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === "/core/folders/?project=7") {
+        return Promise.resolve([{ id: 20, name: "Lab" }]);
+      }
+      if (url.startsWith("/eln/entries/") && url.endsWith("/lock/")) {
+        return Promise.resolve({ locked: false });
+      }
+      return Promise.resolve(makeEntry({ folder: 20, project: 7 }));
+    });
+
+    const { result } = renderHook(() =>
+      useEntryWorkspace(makeOptions({ entryId: "E1" })),
+    );
+
+    await waitFor(() => {
+      expect(result.current.folder.folderId).toBe(20);
+    });
+  });
+
   // ── Lock state ──────────────────────────────────────────────────────────
 
   it("lock: reflects isLockedByOther and sets editor.editable false", async () => {

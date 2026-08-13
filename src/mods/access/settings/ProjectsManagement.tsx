@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  FolderKanban,
   Trash2,
   X,
   Check,
@@ -17,6 +16,8 @@ import {
   SettingsMasterList,
   type MasterListRow,
 } from "../../../shell/src/shared/components/SettingsMasterList";
+import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
+import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 import {
   fetchProjects,
   createProject,
@@ -39,6 +40,8 @@ export default function ProjectsManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newIcon, setNewIcon] = useState("circle");
+  const [newColor, setNewColor] = useState("muted");
   const [saving, setSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [filterValue, setFilterValue] = useState("");
@@ -88,8 +91,14 @@ export default function ProjectsManagement() {
     setSaving(true);
     setError(null);
     try {
-      await createProject({ name: newName.trim() });
+      await createProject({
+        name: newName.trim(),
+        icon_key: newIcon,
+        color_key: newColor,
+      });
       setNewName("");
+      setNewIcon("circle");
+      setNewColor("muted");
       setShowNew(false);
       await load();
     } catch {
@@ -128,6 +137,23 @@ export default function ProjectsManagement() {
       await load();
     } catch {
       setError("Failed to rename Project.");
+    }
+  };
+
+  const handleIconColorChange = async (
+    projectId: number,
+    iconKey: string,
+    colorKey: string,
+  ) => {
+    setError(null);
+    try {
+      await updateProject(projectId, {
+        icon_key: iconKey,
+        color_key: colorKey,
+      });
+      await load();
+    } catch {
+      setError("Failed to update Project icon and colour.");
     }
   };
 
@@ -199,7 +225,13 @@ export default function ProjectsManagement() {
     id: p.id,
     label: p.name,
     secondary: p.is_archived ? "Archived" : undefined,
-    icon: <FolderKanban size={13} />,
+    icon: (
+      <IconBadge
+        iconKey={p.icon_key || "circle"}
+        colorKey={p.color_key || "muted"}
+        size="sm"
+      />
+    ),
   }));
 
   const selectedProject = selectedId
@@ -251,6 +283,20 @@ export default function ProjectsManagement() {
                     }}
                   />
                 </label>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--color-ink-muted-foreground)]">
+                    Icon &amp; Colour
+                  </span>
+                  <IconPickerPopover
+                    iconKey={newIcon}
+                    colorKey={newColor}
+                    size="sm"
+                    onChange={(iconKey, colorKey) => {
+                      setNewIcon(iconKey);
+                      setNewColor(colorKey);
+                    }}
+                  />
+                </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -265,6 +311,8 @@ export default function ProjectsManagement() {
                     onClick={() => {
                       setShowNew(false);
                       setNewName("");
+                      setNewIcon("circle");
+                      setNewColor("muted");
                     }}
                   >
                     Cancel
@@ -395,6 +443,23 @@ export default function ProjectsManagement() {
                       placeholder="Project name"
                     />
                   </label>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
+                      Icon &amp; Colour
+                    </span>
+                    <IconPickerPopover
+                      iconKey={selectedProject.icon_key || "circle"}
+                      colorKey={selectedProject.color_key || "muted"}
+                      size="md"
+                      onChange={(iconKey, colorKey) =>
+                        handleIconColorChange(
+                          selectedProject.id,
+                          iconKey,
+                          colorKey,
+                        )
+                      }
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">

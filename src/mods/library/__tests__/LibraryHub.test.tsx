@@ -784,7 +784,7 @@ describe("LibraryHub", () => {
 
   // ── Shared-out folder marker ─────────────────────────────────────
 
-  it("renders shared-icon overlay on owned folder that is shared out", async () => {
+  it("renders a folder-symlink icon without a shared overlay", async () => {
     const response = makeLibraryContents(
       [
         makeLibraryFolder({
@@ -811,8 +811,9 @@ describe("LibraryHub", () => {
       expect(screen.getByText("Shared Out")).toBeInTheDocument();
     });
 
-    const overlays = document.querySelectorAll(".card-icon-overlay");
-    expect(overlays.length).toBe(1);
+    const card = screen.getByText("Shared Out").closest("[data-testid='base-library-card']");
+    expect(card?.querySelector(".card-icon svg")).toBeInTheDocument();
+    expect(card?.querySelector(".card-icon-overlay")).not.toBeInTheDocument();
   });
 
   it("shared-out folder icon has tooltip naming target projects", async () => {

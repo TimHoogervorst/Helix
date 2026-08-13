@@ -21,7 +21,7 @@ from .serializers import (
     LimsViewSerializer,
     MetricSerializer,
 )
-from core.models import Folder
+from core.models import Folder, Project
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +264,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         input_serializer.is_valid(raise_exception=True)
 
         schema_id = input_serializer.validated_data["schema_id"]
+        project_id = input_serializer.validated_data.get("project_id")
         rows = input_serializer.validated_data["rows"]
 
         # Validate schema exists
@@ -274,6 +275,16 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 {"detail": f"Schema with id {schema_id} not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        project = None
+        if project_id is not None:
+            try:
+                project = Project.objects.get(pk=project_id)
+            except Project.DoesNotExist:
+                return Response(
+                    {"detail": f"Project with id {project_id} not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         author = request.user if request.user.is_authenticated else None
         if author is None:
@@ -365,6 +376,18 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     })
                     continue
 
+            if (
+                project is not None
+                and folder is not None
+                and folder.project_id != project.id
+            ):
+                errors.append({
+                    "row_index": row_index,
+                    "field": "project_id",
+                    "message": "The folder must belong to the project.",
+                })
+                continue
+
             # ── Column-type validation for each property value ──────────
             row_has_errors = False
             for key, value in values.items():
@@ -412,6 +435,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                             "row_index": row_index,
                             "field": "folder_id",
                             "message": "Entities cannot be moved to a different Project.",
+                        })
+                        continue
+                    if project is not None and entity.project_id != project.id:
+                        errors.append({
+                            "row_index": row_index,
+                            "field": "project_id",
+                            "message": "The entity must belong to the project.",
                         })
                         continue
                     if folder is not None:

@@ -19,6 +19,8 @@ export interface ElnSidebarData {
   folders: Folder[];
   /** Currently selected folder ID, or `null`. */
   folderId: number | null;
+  /** Numeric project ID containing the current ELN entry. */
+  projectId: number | null;
   /** Whether the entry is locked by another user. */
   isLockedByOther: boolean;
   /** Callback: change the entry status. */

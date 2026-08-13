@@ -503,6 +503,7 @@ def build_metric_aggregation(
     aggregate_function: str,
     column: str | None = None,
     identity: str | None = None,
+    user=None,
 ) -> dict:
     """Build and execute a live scalar aggregate from a saved View.
 
@@ -537,6 +538,10 @@ def build_metric_aggregation(
     agg_cls, distinct_flag = agg_info
 
     qs = EntityHubView.objects.all()
+    if user is not None:
+        from mods.access.scoping import visible_rows_q
+
+        qs = qs.filter(visible_rows_q(user))
 
     if view is None:
         return {"value": None}

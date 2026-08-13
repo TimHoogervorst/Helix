@@ -5,6 +5,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from mods.access.scoping import visible_rows_q
+
 from .prefix_resolver import (
     get_color,
     get_icon,
@@ -30,6 +32,16 @@ def _build_result(instance, model_type: str, workspace_id: str | None, *, includ
     return result
 
 
+def _is_visible(instance, user) -> bool:
+    """Check visibility without assuming a concrete mention target type."""
+    field_names = {field.name for field in instance._meta.get_fields()}
+    if not {"project", "folder"}.issubset(field_names):
+        return False
+    return type(instance).objects.filter(
+        pk=instance.pk,
+    ).filter(visible_rows_q(user)).exists()
+
+
 @api_view(["POST"])
 def resolve_view(request):
     """
@@ -51,7 +63,7 @@ def resolve_view(request):
                 break
 
         resolved = resolve_display_id(display_id)
-        if resolved:
+        if resolved and _is_visible(resolved[0], request.user):
             instance, ct = resolved
             model_type = model_type_map.get(type(instance), ct.model)
             result[display_id] = _build_result(
@@ -82,6 +94,12 @@ def search_view(request):
     results = []
     for prefix, model in pmap.items():
         qs = model.objects.filter(display_id__istartswith=query)
+        if {field.name for field in model._meta.get_fields()}.issuperset(
+            {"project", "folder"}
+        ):
+            qs = qs.filter(visible_rows_q(request.user))
+        else:
+            qs = qs.none()
         for instance in qs:
             model_type = model_type_map.get(type(instance), "entry")
             results.append(_build_result(instance, model_type, get_workspace_id(prefix)))

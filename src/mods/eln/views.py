@@ -16,6 +16,7 @@ from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 
 from mods.tags.models import Tag
 from mods.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
+from mods.access.scoping import visible_rows_q
 
 from helix_core.models import Schema
 
@@ -67,6 +68,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     )
     serializer_class = NotebookEntrySerializer
     lookup_field = "display_id"
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ("list", "retrieve") or (
+            self.request.method == "GET"
+            and self.action in ("entry_actions", "lock")
+        ):
+            queryset = queryset.filter(visible_rows_q(self.request.user))
+        return queryset
 
     def get_permissions(self):
         if self.action == "delete_all":

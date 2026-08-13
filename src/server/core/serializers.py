@@ -16,7 +16,12 @@ class FolderSerializer(serializers.ModelSerializer):
 
     def get_children(self, obj):
         children = Folder.objects.filter(parent=obj)
-        return FolderSerializer(children, many=True).data
+        request = self.context.get("request")
+        if request is not None:
+            from mods.access.scoping import visible_folders_q
+
+            children = children.filter(visible_folders_q(request.user))
+        return FolderSerializer(children, many=True, context=self.context).data
 
     def validate(self, data):
         if self.instance is None:

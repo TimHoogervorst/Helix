@@ -19,6 +19,7 @@ from rest_framework.test import APIClient
 from helix_core.actions.registry import register_action_model, register_custom_action
 from core.models import Folder, Project, User
 from core.tests.base import BaseTestCase
+from mods.access.models import ProjectRole
 
 
 # ═══════════════════════════════════════════════════════════════════════════

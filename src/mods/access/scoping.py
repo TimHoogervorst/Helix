@@ -52,7 +52,26 @@ def visible_rows_q(user):
     return Q(project_id__in=project_ids) | folder_q
 
 
-def _shared_subtree_folder_q(project_ids):
+def visible_folders_q(user):
+    """Return a Q selecting folders *user* can read.
+
+    Folder rows store their project directly, so shared-subtree coverage
+    needs a primary-key lookup rather than the ``folder_id`` lookup used for
+    content rows.
+    """
+    project_ids = accessible_project_ids(user)
+    if not project_ids:
+        return Q(pk__in=[])
+    if _is_org_admin(user):
+        return Q(project_id__in=project_ids)
+
+    folder_q = _shared_subtree_folder_q(project_ids, lookup_field="pk")
+    if folder_q is None:
+        return Q(project_id__in=project_ids)
+    return Q(project_id__in=project_ids) | folder_q
+
+
+def _shared_subtree_folder_q(project_ids, lookup_field="folder_id"):
     """Return a Q matching Folders inside subtrees shared into *project_ids*.
 
     The CTE seeds from every FolderShare targeting an accessible Project
@@ -84,4 +103,4 @@ def _shared_subtree_folder_q(project_ids):
         ") SELECT id FROM shared_subtree"
     )
     params = list(project_ids) + [MAX_FOLDER_TREE_DEPTH]
-    return Q(folder_id__in=RawSQL(sql, params))
+    return Q(**{f"{lookup_field}__in": RawSQL(sql, params)})

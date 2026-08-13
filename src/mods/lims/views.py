@@ -1,6 +1,7 @@
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
@@ -9,6 +10,7 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin
 from mods.access.permissions import IsOrganizationAdmin
+from mods.access.scoping import visible_rows_q
 
 from .models import Entity, Action, LimsView, Metric
 from .serializers import (
@@ -71,6 +73,12 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         if self.action == "delete_all":
             return [IsOrganizationAdmin()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ("list", "retrieve"):
+            queryset = queryset.filter(visible_rows_q(self.request.user))
+        return queryset
 
     action_log_config = {
         "create": {"action": "lims.entity.created"},
@@ -486,9 +494,39 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint for LIMS actions (read-only for Phase 1).
     """
 
-    queryset = Action.objects.select_related("entity", "performed_by")
     serializer_class = ActionSerializer
     filterset_fields = ["entity", "action_type"]
+
+    def get_queryset(self):
+        visible_entities = Entity.objects.filter(
+            visible_rows_q(self.request.user)
+        ).values("pk")
+        from mods.eln.models import NotebookEntry
+
+        visible_entries = NotebookEntry.objects.filter(
+            visible_rows_q(self.request.user)
+        ).values("pk")
+
+        visible_related_targets = (
+            Q(entity_id__in=visible_entities)
+            & (Q(source_entry__isnull=True) | Q(source_entry_id__in=visible_entries))
+        ) | (
+            Q(entity__isnull=True)
+            & Q(source_entry_id__in=visible_entries)
+        )
+        visible_generic_targets = (
+            Q(entity__isnull=True, source_entry__isnull=True)
+            & (
+                Q(
+                    target_type__in=("lims.entity", "lims.entities"),
+                    target_id__in=visible_entities,
+                )
+                | Q(target_type="eln.entry", target_id__in=visible_entries)
+            )
+        )
+        return Action.objects.filter(
+            visible_related_targets | visible_generic_targets
+        ).select_related("entity", "performed_by", "source_entry")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):
@@ -563,7 +601,7 @@ class MetricViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated:
+        if user.is_authenticated and user.is_active:
             from django.db.models import Q
 
             return (
@@ -573,6 +611,8 @@ class MetricViewSet(viewsets.ModelViewSet):
                 .select_related("owner", "view")
                 .distinct()
             )
+        if not user.is_authenticated or not user.is_active:
+            return Metric.objects.none()
         return Metric.objects.filter(
             view__is_public=True
         ).select_related("owner", "view")
@@ -617,6 +657,7 @@ class MetricViewSet(viewsets.ModelViewSet):
                 metric.aggregate_function,
                 metric.column or None,
                 identity=identity,
+                user=request.user,
             )
             return Response(result)
         except Exception:

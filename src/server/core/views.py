@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from helix_core.actions.mixins import ActionLoggingMixin
 from mods.access.permissions import IsOrganizationAdminForWrites
+from mods.access.scoping import visible_folders_q
 
 from .models import CoreSetting, Folder
 from .serializers import (
@@ -48,6 +49,8 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Folder.objects.all()
+        if self.action in ("list", "retrieve"):
+            qs = qs.filter(visible_folders_q(self.request.user))
         project_id = self.request.query_params.get("project")
         parent_id = self.request.query_params.get("parent")
         if project_id:

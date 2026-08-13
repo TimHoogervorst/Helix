@@ -260,7 +260,7 @@ describe("ElnChrome", () => {
       expect(screen.getByText("EXP-0284")).toBeDefined();
     });
 
-    it("renders the entry without a synthetic root when folderPath is empty", () => {
+    it("renders the entry at the Project root when folderPath is empty", () => {
       renderChrome({ folderPath: "" });
       expect(screen.getByText("EXP-0284")).toBeInTheDocument();
       expect(screen.queryByText("—")).toBeNull();

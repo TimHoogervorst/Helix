@@ -32,7 +32,7 @@ class ProjectApiTests(TestCase):
         self.assertIn("uid", response.data)
         self.assertFalse(response.data["is_archived"])
 
-    def test_creating_project_creates_no_root_folder(self):
+    def test_creating_project_creates_no_folders(self):
         response = self._create_project()
         self.assertEqual(response.status_code, 201)
         project_id = response.data["id"]
@@ -62,7 +62,7 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_project_can_have_multiple_root_folders(self):
+    def test_project_can_have_multiple_top_level_folders(self):
         response = self._create_project()
         project = Project.objects.get(pk=response.data["id"])
         Folder.objects.create(name="first", parent=None, project=project)
@@ -226,7 +226,7 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_archiving_does_not_create_a_root_folder(self):
+    def test_archiving_does_not_create_a_folder(self):
         response = self._create_project("Archive Me")
         project_id = response.data["id"]
         self.client.patch(

@@ -1,7 +1,7 @@
 """Tests for Project ownership invariants on Folder, Entry, and Entity.
 
 Covers creation consistency, same-Project moves, mismatched ownership,
-protected roots, and cross-Project move rejection paths.
+top-level folders, and cross-Project move rejection paths.
 """
 from django.db import transaction
 from django.test import TestCase
@@ -18,8 +18,8 @@ def _create_project(name="Test Project"):
     return Project.objects.create(name=name)
 
 
-def _create_root(project):
-    return Folder.objects.create(name="Root", parent=None, project=project)
+def _create_top_level_folder(project):
+    return Folder.objects.create(name="Top Level", parent=None, project=project)
 
 
 def _create_eln_schema():
@@ -54,8 +54,8 @@ class FolderOwnershipTests(TestCase):
     def setUp(self):
         self.project_a = _create_project("Project A")
         self.project_b = _create_project("Project B")
-        self.root_a = _create_root(self.project_a)
-        self.root_b = _create_root(self.project_b)
+        self.root_a = _create_top_level_folder(self.project_a)
+        self.root_b = _create_top_level_folder(self.project_b)
 
     def test_folder_must_have_project(self):
         from django.core.exceptions import ValidationError
@@ -70,7 +70,7 @@ class FolderOwnershipTests(TestCase):
         self.assertIsNone(self.root_a.parent_id)
         self.assertEqual(self.root_a.project_id, self.project_a.id)
 
-    def test_multiple_root_folders_per_project_are_allowed(self):
+    def test_multiple_top_level_folders_per_project_are_allowed(self):
         second_root = Folder.objects.create(
             name="second", parent=None, project=self.project_a,
         )
@@ -90,7 +90,7 @@ class FolderOwnershipTests(TestCase):
                     name="Child", parent=self.root_a, project=self.project_a,
                 )
 
-    def test_root_folder_names_are_unique_per_project(self):
+    def test_top_level_folder_names_are_unique_per_project(self):
         with self.assertRaises(Exception):
             with transaction.atomic():
                 Folder.objects.create(
@@ -104,7 +104,7 @@ class FolderOwnershipTests(TestCase):
         self.assertEqual(child.project_id, self.project_a.id)
         self.assertEqual(child.parent_id, self.root_a.id)
 
-    def test_api_root_folder_creation_stays_at_project_root(self):
+    def test_api_top_level_folder_creation_stays_at_project_root(self):
         user = User.objects.create_user(username="creator", password="pass")
         Grant.objects.create(
             project=self.project_a, user=user, role=ProjectRole.EDIT,
@@ -134,7 +134,7 @@ class ProjectRootFolderTests(TestCase):
         self.client = APIClient()
         self.user = User.objects.create_user(username="test", password="pass")
         self.project = _create_project("Test")
-        self.root = _create_root(self.project)
+        self.root = _create_top_level_folder(self.project)
         Grant.objects.create(
             project=self.project, user=self.user, role=ProjectRole.EDIT,
         )
@@ -163,7 +163,7 @@ class ProjectRootFolderTests(TestCase):
         response = self.client.delete(f"/api/core/folders/{self.root.id}/")
         self.assertEqual(response.status_code, 204)
 
-    def test_non_hidden_folder_can_be_renamed(self):
+    def test_nested_folder_can_be_renamed(self):
         child = Folder.objects.create(
             name="Child", parent=self.root, project=self.project,
         )
@@ -175,7 +175,7 @@ class ProjectRootFolderTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["name"], "Renamed")
 
-    def test_non_hidden_folder_can_be_deleted(self):
+    def test_nested_folder_can_be_deleted(self):
         child = Folder.objects.create(
             name="Child", parent=self.root, project=self.project,
         )
@@ -191,8 +191,8 @@ class EntryOwnershipTests(TestCase):
         self.user = User.objects.create_user(username="test", password="pass")
         self.project_a = _create_project("Project A")
         self.project_b = _create_project("Project B")
-        self.root_a = _create_root(self.project_a)
-        self.root_b = _create_root(self.project_b)
+        self.root_a = _create_top_level_folder(self.project_a)
+        self.root_b = _create_top_level_folder(self.project_b)
         self.folder_a = Folder.objects.create(
             name="Folder A", parent=self.root_a, project=self.project_a,
         )
@@ -315,8 +315,8 @@ class EntityOwnershipTests(TestCase):
         self.user = User.objects.create_user(username="test", password="pass")
         self.project_a = _create_project("Project A")
         self.project_b = _create_project("Project B")
-        self.root_a = _create_root(self.project_a)
-        self.root_b = _create_root(self.project_b)
+        self.root_a = _create_top_level_folder(self.project_a)
+        self.root_b = _create_top_level_folder(self.project_b)
         self.folder_a = Folder.objects.create(
             name="Folder A", parent=self.root_a, project=self.project_a,
         )
@@ -434,8 +434,8 @@ class FolderMoveRejectionTests(TestCase):
         self.user = User.objects.create_user(username="test", password="pass")
         self.project_a = _create_project("Project A")
         self.project_b = _create_project("Project B")
-        self.root_a = _create_root(self.project_a)
-        self.root_b = _create_root(self.project_b)
+        self.root_a = _create_top_level_folder(self.project_a)
+        self.root_b = _create_top_level_folder(self.project_b)
         self.folder_a = Folder.objects.create(
             name="Folder A", parent=self.root_a, project=self.project_a,
         )
@@ -478,7 +478,7 @@ class ProjectDeletionCascadesTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="test", password="pass")
         self.project = _create_project("Test")
-        self.root = _create_root(self.project)
+        self.root = _create_top_level_folder(self.project)
         self.folder = Folder.objects.create(
             name="Stuff", parent=self.root, project=self.project,
         )

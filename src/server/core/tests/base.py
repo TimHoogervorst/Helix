@@ -18,7 +18,6 @@ class BaseTestCase(TestCase):
       - self.user        — a test User instance
       - self.project     — a test Project instance
       - self.folder      — a "Default" Folder belonging to self.project
-      - self.root_folder — compatibility alias for the first-level folder
 
     The test user receives an EDIT Grant on ``self.project`` so that
     project-resource actions (update, delete folders) pass the
@@ -39,7 +38,6 @@ class BaseTestCase(TestCase):
             parent=None,
             project=self.project,
         )
-        self.root_folder = self.folder
         Grant.objects.create(
             project=self.project, user=self.user, role=ProjectRole.EDIT,
         )
@@ -52,7 +50,6 @@ class BaseServiceTestCase(TestCase):
       - self.user        — a test User instance
       - self.project     — a test Project instance
       - self.folder      — a "Default" Folder belonging to self.project
-      - self.root_folder — compatibility alias for the first-level folder
     """
 
     USERNAME = "testuser"
@@ -68,4 +65,3 @@ class BaseServiceTestCase(TestCase):
             parent=None,
             project=self.project,
         )
-        self.root_folder = self.folder

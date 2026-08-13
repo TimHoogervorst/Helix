@@ -79,7 +79,7 @@ describe("LibraryNewDropdown", () => {
     expect(screen.getByText("New ELN Entry")).toBeInTheDocument();
   });
 
-  it("creates a root folder with the current project", async () => {
+  it("creates a top-level folder with the current project", async () => {
     renderDropdown({ projectId: 42 });
     fireEvent.click(screen.getByTitle("New folder or entry"));
     fireEvent.click(screen.getByText("New Folder"));

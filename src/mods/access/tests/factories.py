@@ -23,7 +23,7 @@ def make_org(name="Test Lab"):
 
 
 def make_project(name="Alpha", **kwargs):
-    """Create a Project without a synthetic root Folder."""
+    """Create a Project without any folders."""
     return Project.objects.create(name=name, **kwargs)
 
 

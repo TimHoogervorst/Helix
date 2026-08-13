@@ -42,7 +42,7 @@ class FolderActionLoggingTests(BaseTestCase):
     def test_create_folder_logs_action(self):
         response = self.client.post(
             "/api/core/folders/",
-            {"name": "My Folder", "project": self.project.id, "parent": self.root_folder.id},
+            {"name": "My Folder", "project": self.project.id, "parent": self.folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -55,14 +55,14 @@ class FolderActionLoggingTests(BaseTestCase):
 
     def test_update_folder_logs_action(self):
         folder = Folder.objects.create(
-            name="Old Name", project=self.project, parent=self.root_folder,
+            name="Old Name", project=self.project, parent=self.folder,
         )
         response = self.client.put(
             f"/api/core/folders/{folder.id}/",
             {
                 "name": "New Name",
                 "project": self.project.id,
-                "parent": self.root_folder.id,
+                "parent": self.folder.id,
             },
             format="json",
         )
@@ -75,7 +75,7 @@ class FolderActionLoggingTests(BaseTestCase):
 
     def test_partial_update_folder_logs_action(self):
         folder = Folder.objects.create(
-            name="PatchMe", project=self.project, parent=self.root_folder,
+            name="PatchMe", project=self.project, parent=self.folder,
         )
         response = self.client.patch(
             f"/api/core/folders/{folder.id}/",
@@ -89,7 +89,7 @@ class FolderActionLoggingTests(BaseTestCase):
 
     def test_delete_folder_logs_action(self):
         folder = Folder.objects.create(
-            name="DeleteMe", project=self.project, parent=self.root_folder,
+            name="DeleteMe", project=self.project, parent=self.folder,
         )
         response = self.client.delete(f"/api/core/folders/{folder.id}/")
         self.assertEqual(response.status_code, 204)
@@ -102,7 +102,7 @@ class FolderActionLoggingTests(BaseTestCase):
     def test_create_folder_captures_client_ip(self):
         self.client.post(
             "/api/core/folders/",
-            {"name": "IP Test", "project": self.project.id, "parent": self.root_folder.id},
+            {"name": "IP Test", "project": self.project.id, "parent": self.folder.id},
             format="json",
         )
         kwargs = _log_kwargs(self.mock_log)
@@ -110,7 +110,7 @@ class FolderActionLoggingTests(BaseTestCase):
 
     def test_get_does_not_log(self):
         Folder.objects.create(
-            name="ReadOnly", project=self.project, parent=self.root_folder,
+            name="ReadOnly", project=self.project, parent=self.folder,
         )
         self.client.get("/api/core/folders/")
         self.mock_log.assert_not_called()
@@ -188,18 +188,18 @@ class CoreSettingActionLoggingTests(BaseTestCase):
 
 
 class FolderRenameValidationTests(BaseTestCase):
-    """Test that renaming folders enforces the root-level name uniqueness invariant."""
+    """Test that renaming folders enforces top-level name uniqueness."""
 
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
-    def test_reject_root_level_name_collision_with_own_child(self):
+    def test_reject_top_level_name_collision_with_own_child(self):
         Folder.objects.create(
-            name="ExistingChild", parent=self.root_folder, project=self.project,
+            name="ExistingChild", parent=self.folder, project=self.project,
         )
         target = Folder.objects.create(
-            name="Target", parent=self.root_folder, project=self.project,
+            name="Target", parent=self.folder, project=self.project,
         )
         response = self.client.patch(
             f"/api/core/folders/{target.id}/",
@@ -209,7 +209,7 @@ class FolderRenameValidationTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertTrue(response.data)
 
-    def test_reject_root_level_name_collision_with_incoming_share(self):
+    def test_reject_top_level_name_collision_with_incoming_share(self):
         from mods.access.models import FolderShare, Organization, OrganizationMembership, OrganizationRole, ShareLevel
 
         org = Organization.objects.create(name="Test Org")
@@ -224,7 +224,7 @@ class FolderRenameValidationTests(BaseTestCase):
         )
 
         target = Folder.objects.create(
-            name="Target", parent=self.root_folder, project=self.project,
+            name="Target", parent=self.folder, project=self.project,
         )
 
         FolderShare.objects.create(
@@ -256,9 +256,9 @@ class FolderRenameValidationTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertTrue(response.data)
 
-    def test_allow_root_level_rename_when_no_collision(self):
+    def test_allow_top_level_rename_when_no_collision(self):
         target = Folder.objects.create(
-            name="OriginalName", parent=self.root_folder, project=self.project,
+            name="OriginalName", parent=self.folder, project=self.project,
         )
         response = self.client.patch(
             f"/api/core/folders/{target.id}/",
@@ -272,7 +272,7 @@ class FolderRenameValidationTests(BaseTestCase):
     def test_rename_does_not_self_collide(self):
         """Renaming a folder to its own name should not trigger a collision."""
         target = Folder.objects.create(
-            name="KeepMe", parent=self.root_folder, project=self.project,
+            name="KeepMe", parent=self.folder, project=self.project,
         )
         response = self.client.patch(
             f"/api/core/folders/{target.id}/",
@@ -548,9 +548,9 @@ class FolderDeleteAccessTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(Folder.objects.filter(id=self.folder.id).exists())
 
-    # ── Hidden root protection ──
+    # ── Top-level folder behavior ──
 
-    def test_project_root_folder_can_be_deleted(self):
+    def test_top_level_folder_can_be_deleted(self):
         self.client.force_authenticate(user=self.editor)
         response = self.client.delete(f"/api/core/folders/{self.root.id}/")
         self.assertEqual(response.status_code, 204)

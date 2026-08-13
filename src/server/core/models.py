@@ -83,23 +83,11 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
-    @property
-    def root_folder(self):
-        """Return a legacy root row when inspecting pre-cutover data."""
-        return self.folders.get(parent__isnull=True, name="root")
-
-    def create_root_folder(self):
-        """Create this Project's storage root."""
-        return Folder.objects.create(name="root", parent=None, project=self)
-
-
 class Folder(models.Model):
     """Hierarchical folder for organizing entries and entities.
 
-    Every Folder belongs to exactly one Project.  The Folder whose
-    ``parent`` is ``None`` within a given Project is the hidden root —
-    it exists for data integrity and is never surfaced as ordinary user
-    content.
+    Every Folder belongs to exactly one Project. A folder with no parent is
+    content directly at the Project root.
     """
 
     name = models.CharField(max_length=255)
@@ -124,7 +112,7 @@ class Folder(models.Model):
             models.UniqueConstraint(
                 fields=["project", "name"],
                 condition=models.Q(parent__isnull=True),
-                name="uq_project_root_folder_name",
+                name="uq_project_top_level_folder_name",
             ),
             models.UniqueConstraint(
                 fields=["project", "parent", "name"],
@@ -132,10 +120,6 @@ class Folder(models.Model):
                 name="uq_folder_sibling_name",
             ),
         ]
-
-    @property
-    def is_hidden_root(self) -> bool:
-        return False
 
     @property
     def is_root_child(self) -> bool:

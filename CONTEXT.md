@@ -55,9 +55,9 @@ All mutating operations are automatically logged for CFR Part 11 audit complianc
 
 ### Folder
 
-A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs to exactly one Project — either its hidden root folder or a descendant of it. Folders form a tree within a Project — the organizational structure beneath the Project level. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
+A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs directly to a Project or to another Folder within that Project. Folders form a tree rooted at the Project. Entries and Entities may live directly at the Project root or inside a Folder. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
 
-While the storage model has a synthetic hidden root, `Project.root_folder` is the single backend owner of root resolution, and `Folder.root_relative_path` owns root-relative display paths. Callers must not query for `parent__isnull=True` or walk to the root independently. Frontend Project-root URL parsing and breadcrumb path construction likewise go through `mods/library/path.ts`.
+The Project is the root container. There is no synthetic or hidden root Folder. Root-level paths and breadcrumb construction use the Project directly, while `Folder.root_relative_path` owns root-relative display paths. Frontend Project-root URL parsing and breadcrumb path construction likewise go through `mods/library/path.ts`.
 
 Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items live.
 
@@ -97,9 +97,9 @@ A named collection of Users within the Organization, with a Dynamic Icon and Col
 
 ### Project
 
-A first-class container that owns exactly one hidden root Folder — its folder tree — and every Entry and Entity within it. Has a unique, renameable name, an immutable generated ID, a Dynamic Icon, and a Color Token. The generated ID identifies the Project in Library URLs, so its name can change without breaking links. Projects are the access boundary of the system: permissions are expressed as Grants on Projects, while Organization Admins can perform every operation on every Project. Every User can discover every Project's identity from the Organization Page, but only Users with effective access can open its content. The Library root lists accessible Projects; opening a Project navigates its folder tree.
+A first-class root container for its folder tree, Entries, and Entities. Has a unique, renameable name, an immutable generated ID, a Dynamic Icon, and a Color Token. The generated ID identifies the Project in Library URLs, so its name can change without breaking links. Projects are the access boundary of the system: permissions are expressed as Grants on Projects, while Organization Admins can perform every operation on every Project. Every User can discover every Project's identity from the Organization Page, but only Users with effective access can open its content. The Library root lists accessible Projects; opening a Project navigates directly to that Project root.
 
-**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Every Entry and Entity belongs to exactly one Folder, and its Project must match its Folder's Project; an Item at the Project root belongs to the Project's hidden root Folder rather than using a folder-less state. Every non-root Folder has exactly one parent Folder. Folders, Entries, and Entities cannot move between Projects. Projects are created by Organization Admins only. Project-owned content is never exposed through Hubs, search, Mentions, Views, Metrics, Cards, or Tabs to a User without effective access.
+**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Entries and Entities may belong directly to the Project or to exactly one Folder. Every non-root Folder has exactly one parent Folder. Folders, Entries, and Entities cannot move between Projects. Projects are created by Organization Admins only. Project-owned content is never exposed through Hubs, search, Mentions, Views, Metrics, Cards, or Tabs to a User without effective access.
 
 ### Project Role
 
@@ -127,7 +127,7 @@ The assignment of a Project Role to one Grantee on one Project. A User's effecti
 
 ### Shared Folder
 
-A top-level Folder — an immediate child of its Project's hidden root Folder — made visible to Projects other than the Project that owns it. Appears immediately at the root of each Project it is shared with; only Organization Admins can create or revoke the share. Each share carries an access level — **Read** or **Read + Write** — that caps each User's effective role on the sharee Project: Read grants read access, while Read + Write allows target Editors and Organization Admins to modify descendants within the shared subtree. The shared top-level Folder itself cannot be renamed, moved, or deleted through the share, and descendants cannot be moved outside the subtree. The hidden root and nested Folders cannot be shared directly. Ownership never moves: the Folder and its contents keep their original Project.
+A first-level Folder — a direct child of a Project — made visible to Projects other than the Project that owns it. Appears immediately at the root of each Project it is shared with; only Organization Admins can create or revoke the share. Each share carries an access level — **Read** or **Read + Write** — that caps each User's effective role on the sharee Project: Read grants read access, while Read + Write allows target Editors and Organization Admins to modify descendants within the shared subtree. The shared Folder itself cannot be renamed, moved, or deleted through the share, and descendants cannot be moved outside the subtree. The Project and nested Folders cannot be shared directly. Ownership never moves: the Folder and its contents keep their original Project.
 
 ### Archived Project
 
@@ -177,7 +177,7 @@ The Library renders two Item types: **Folders** (navigated into) and **Entries**
 
 ### Breadcrumb
 
-The navigation bar at the top of the Library hub showing the current location as clickable segments: the Project name, then `root`, then each Folder along the path. Each segment is a link to that level — the Project name returns to the Projects listing (the Library root), `root` returns to the Project's root folder. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
+The navigation bar at the top of the Library hub showing the current location as clickable segments: the Project name, then each Folder along the path. The Project name represents the Project root. The current folder is displayed as bold text (not a link). An up-navigation button (`↑`) moves to the parent folder.
 
 **Invariant:** The breadcrumb always reflects the current `?project=` and `?path=` URL parameters. The `project` parameter contains the Project's immutable generated ID while the breadcrumb displays its name. Clicking a segment updates the parameters and reloads the card grid.
 
@@ -581,7 +581,7 @@ Library Hub ──▶ Projects ──▶ Folder tree (the Library is the browsin
 Organization ──▶ Team (1:N — org has many teams)
 Organization ──▶ Project (1:N — org has many projects)
 Team ──▶ User (M:N — teams have many users; users can be in many teams)
-Project ──1:1──▶ Folder (hidden root folder — the project's folder tree hangs off it)
+Project ──▶ Folder (1:N — first-level Folders live directly under the Project)
 Project ──▶ Grant ──▶ User | Team (Project Roles granted to users and teams)
 Folder ──▶ Shared Folder ──▶ Project (M:N — a folder shared into other projects' roots, per-share access level)
 NotebookEntry ──▶ Project (N:1 — entry belongs to exactly one project)

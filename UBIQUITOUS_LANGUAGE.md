@@ -160,9 +160,9 @@
 
 ## Relationships
 
-- A **Folder** has one parent **Folder** (self-referencing, recursive hierarchy)
-- A **Folder** contains many **Entries** and **Entities**
-- An **Entry** belongs to exactly one **Folder**
+- A **Folder** optionally has one parent **Folder**; first-level Folders belong directly to a **Project**
+- A **Project** and its Folders contain **Entries** and **Entities**
+- An **Entry** belongs to exactly one **Project** and may optionally belong to one **Folder**
 - An **Entry** is authored by exactly one **User**
 - An **Entry** has exactly one **Rich-Text Document**
 - An **Entry** can have many **Mentions** to other Entries and Entities
@@ -180,11 +180,15 @@
 - A **LimsTable Node** syncs to one or more **Entity** records on save
 
 ```
-Library Hub ──▶ Folder tree (Library is the browsing surface for the folder hierarchy)
+Library Hub ──▶ Projects ──▶ Folder tree
+
+Project ──┬── Folder (first-level folder)
+          ├── Entry (root-level or in a folder)
+          └── Entity (root-level or in a folder)
 
 Folder ──┬── Folder (parent/child, recursive)
-         ├── Entry (1:N — entry lives in one folder)
-         └── Entity (1:N — entity lives in one folder)
+         ├── Entry
+         └── Entity
 
 Entry ──▶ Mention (1:N — entry can mention many things)
 Mention ──▶ Entry | Entity (target of the reference)

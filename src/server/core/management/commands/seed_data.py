@@ -101,7 +101,7 @@ class Command(BaseCommand):
         self._seed_folders()
 
     def _seed_folders(self):
-        """Create a default Project with hidden root and 'Default' child Folder.
+        """Create a default Project with a top-level 'Default' Folder.
 
         Idempotent — skips when the 'Default' folder already exists.
         """

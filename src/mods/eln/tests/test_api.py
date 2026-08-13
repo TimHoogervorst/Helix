@@ -796,7 +796,7 @@ class EntryPatchAccessTests(BaseTestCase):
 
     def test_direct_editor_can_patch_folder(self):
         new_folder = Folder.objects.create(
-            name="New Folder", parent=self.root_folder, project=self.project,
+            name="New Folder", parent=self.folder, project=self.project,
         )
         client = APIClient()
         client.force_authenticate(user=self.editor)
@@ -862,7 +862,7 @@ class EntryPatchAccessTests(BaseTestCase):
 
     def test_org_admin_can_move_entry(self):
         new_folder = Folder.objects.create(
-            name="Admin Folder", parent=self.root_folder, project=self.project,
+            name="Admin Folder", parent=self.folder, project=self.project,
         )
         client = APIClient()
         client.force_authenticate(user=self.org_admin)

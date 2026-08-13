@@ -62,8 +62,8 @@ class AbstractEntityFieldTests(TransactionTestCase):
             is_default=True,
         )
         self.project = Project.objects.create(name="Test Project")
-        self.root_folder = Folder.objects.create(name="root", parent=None, project=self.project)
-        self.folder = Folder.objects.create(name="Test Folder", parent=self.root_folder, project=self.project)
+        self.folder = Folder.objects.create(name="Top Level", parent=None, project=self.project)
+        self.child_folder = Folder.objects.create(name="Test Folder", parent=self.folder, project=self.project)
 
     def test_create_concrete_entity(self):
         """A concrete subclass of AbstractEntity can be created with all fields."""

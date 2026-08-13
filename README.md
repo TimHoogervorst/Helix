@@ -14,7 +14,7 @@ docker-compose up
 
 On first run, the backend automatically:
 - Runs database migrations
-- Seeds initial data (superuser + entity types + root folder)
+- Seeds initial data (superuser + entity types + default Project folder)
 
 ## Access Points
 

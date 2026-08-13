@@ -2,6 +2,8 @@ from rest_framework import viewsets
 
 from helix_core.actions.mixins import ActionLoggingMixin
 
+from mods.access.permissions import IsOrganizationAdminForWrites
+
 from .models import Tag
 from .serializers import TagSerializer
 
@@ -20,6 +22,7 @@ class TagViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+    permission_classes = [IsOrganizationAdminForWrites]
     # Full CRUD — DELETE is now included (was excluded on the old ELN TagViewSet)
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
 

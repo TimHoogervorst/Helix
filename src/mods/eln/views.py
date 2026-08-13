@@ -317,6 +317,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Body: {"tag_ids": [1, 2, 3]}
         """
         entry = self.get_object()
+        if not self._can_edit_entry(entry):
+            raise PermissionDenied(
+                "You do not have permission to edit this entry."
+            )
         tag_ids = request.data.get("tag_ids", [])
         if not isinstance(tag_ids, list):
             return Response(
@@ -336,6 +340,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def detach_tag(self, request, display_id=None, tag_id=None):
         """Detach a tag from the entry."""
         entry = self.get_object()
+        if not self._can_edit_entry(entry):
+            raise PermissionDenied(
+                "You do not have permission to edit this entry."
+            )
         try:
             tag = Tag.objects.get(id=tag_id)
         except Tag.DoesNotExist:

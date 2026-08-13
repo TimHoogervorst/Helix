@@ -145,6 +145,28 @@ describe("TagAutocomplete", () => {
     });
   });
 
+  it("hides inline creation when creation is disabled", async () => {
+    mockListTags.mockResolvedValue([]);
+
+    render(
+      <TagAutocomplete
+        attachedTagIds={[]}
+        onTagSelect={() => {}}
+        allowCreate={false}
+      />,
+    );
+
+    const input = screen.getByTestId("tag-autocomplete-input");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "ExistingOnly" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tag-autocomplete-dropdown")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Create new/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tag-create-panel")).not.toBeInTheDocument();
+  });
+
   it("does NOT show 'Create new' when exact name match exists in suggestions", async () => {
     const results = [makeTag({ id: 1, name: "CRISPR" })];
     mockListTags.mockResolvedValue(results);

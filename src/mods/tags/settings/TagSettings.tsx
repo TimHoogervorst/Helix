@@ -182,7 +182,7 @@ function useTagsTabState(): TagsTabState {
     let failed = 0;
     for (const [, t] of dirtyEdits) {
       try {
-        await updateTag(t.id, { color: t.color, icon: t.icon });
+        await updateTag(t.id, { name: t.name, color: t.color, icon: t.icon });
       } catch {
         failed++;
       }

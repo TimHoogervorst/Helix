@@ -453,7 +453,7 @@ function ElnChrome({
                         <TagAutocomplete
                           attachedTagIds={tags.map((t) => t.id)}
                           onTagSelect={onAddTag}
-                          onTagCreated={onAddTag}
+                          allowCreate={false}
                           placeholder="Search tags…"
                         />
                       )}

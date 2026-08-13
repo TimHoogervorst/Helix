@@ -493,6 +493,113 @@ class EntryTagActionsLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["target_id"], self.entry.id)
         self.assertEqual(kwargs["metadata"], {"tag_ids": [self.tag1.id, self.tag2.id]})
 
+    def test_read_only_user_cannot_attach_tags(self):
+        reader = User.objects.create_user(username="tag-reader", password="pass")
+        Grant.objects.create(project=self.project, user=reader, role=ProjectRole.READ)
+        client = APIClient()
+        client.force_authenticate(user=reader)
+
+        response = client.post(
+            f"/api/eln/entries/{self.entry.display_id}/tags/",
+            {"tag_ids": [self.tag1.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.entry.tags.filter(id=self.tag1.id).exists())
+
+    def test_read_only_user_cannot_detach_tags(self):
+        self.entry.tags.add(self.tag1)
+        reader = User.objects.create_user(username="tag-detach-reader", password="pass")
+        Grant.objects.create(project=self.project, user=reader, role=ProjectRole.READ)
+        client = APIClient()
+        client.force_authenticate(user=reader)
+
+        response = client.delete(
+            f"/api/eln/entries/{self.entry.display_id}/tags/{self.tag1.id}/"
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(self.entry.tags.filter(id=self.tag1.id).exists())
+
+    def test_share_derived_editor_can_attach_tags(self):
+        target_project = Project.objects.create(name="Tag Share Target")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        sharee = User.objects.create_user(username="tag-sharee", password="pass")
+        Grant.objects.create(project=target_project, user=sharee, role=ProjectRole.EDIT)
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        client = APIClient()
+        client.force_authenticate(user=sharee)
+
+        response = client.post(
+            f"/api/eln/entries/{self.entry.display_id}/tags/",
+            {"tag_ids": [self.tag1.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.entry.tags.filter(id=self.tag1.id).exists())
+
+    def test_team_derived_editor_can_attach_tags(self):
+        from django.contrib.auth.models import Group
+        from mods.access.models import Team
+
+        team_user = User.objects.create_user(username="tag-team-user", password="pass")
+        organization = Organization.objects.create(name="Tag Team Organization")
+        OrganizationMembership.objects.create(
+            user=team_user, organization=organization, role=OrganizationRole.USER
+        )
+        group = Group.objects.create(name="Tag Editors")
+        team_user.groups.add(group)
+        team = Team.objects.create(group=group, organization=organization)
+        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
+        client = APIClient()
+        client.force_authenticate(user=team_user)
+
+        response = client.post(
+            f"/api/eln/entries/{self.entry.display_id}/tags/",
+            {"tag_ids": [self.tag1.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_organization_admin_can_attach_tags(self):
+        admin = User.objects.create_user(username="tag-admin", password="pass")
+        organization = Organization.objects.create(name="Tag Admin Organization")
+        OrganizationMembership.objects.create(
+            user=admin, organization=organization, role=OrganizationRole.ADMIN
+        )
+        client = APIClient()
+        client.force_authenticate(user=admin)
+
+        response = client.post(
+            f"/api/eln/entries/{self.entry.display_id}/tags/",
+            {"tag_ids": [self.tag1.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_share_derived_editor_can_detach_tags(self):
+        self.entry.tags.add(self.tag1)
+        target_project = Project.objects.create(name="Tag Detach Share Target")
+        Folder.objects.create(name="root", parent=None, project=target_project)
+        sharee = User.objects.create_user(username="tag-detach-sharee", password="pass")
+        Grant.objects.create(project=target_project, user=sharee, role=ProjectRole.EDIT)
+        FolderShare.objects.create(
+            source_folder=self.folder,
+            target_project=target_project,
+            level=ShareLevel.READ_WRITE,
+        )
+        client = APIClient()
+        client.force_authenticate(user=sharee)
+
+        response = client.delete(
+            f"/api/eln/entries/{self.entry.display_id}/tags/{self.tag1.id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.entry.tags.filter(id=self.tag1.id).exists())
+
     def test_detach_tag_logs_action(self):
         self.entry.tags.add(self.tag1)
         response = self.client.delete(

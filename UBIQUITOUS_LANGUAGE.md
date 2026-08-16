@@ -94,16 +94,24 @@
 | **Mention** | A parsed passive link from one Entry to another object (Entry or Entity), created when a `#` reference is found in text or a table row references a display ID | reference, link, `#`-ref |
 | **Entry Version** *(deferred)* | A point-in-time snapshot of an Entry's rich-text document | revision, snapshot, save point |
 | **Reference Node** | An inline TipTap node rendering as a clickable badge linking to another Entry or Entity (e.g., `#E12`). Auto-converted from `#<displayId> ` via input rule | #-tag, inline reference |
-| **LimsTable Node** | A Notion-style embedded table block within an Entry's TipTap document, backed by AG Grid. Each row maps to an Entity record | embedded table, inline spreadsheet |
+| **Registry Table** | A block in an Entry's Rich-Text Document (`registry-table`) that creates/edits Entities of one loaded Schema as typed rows — schema columns become cells, the Name Column is the second column. Registration is **explicit**: the user presses the register button, which batch-creates/updates the row Entities via the LIMS API and patches Display IDs back into the document. Saving the Entry does not register rows. Formerly "LimsTable Node" | LimsTable (deprecated), registration table, embedded entity table |
+| **Plain Table** | A block in an Entry's Rich-Text Document (`table`) providing a simple free-form table — arbitrary columns/rows of typed cells with no Schema, no entity registration, no register button. For when the user just wants a table | simple table, normal table |
+| **Table Kit** | The shared table framework (`shell/src/shared/table/`) that all table blocks build on: the cell registry (keyed by Column Type operand shape), keyboard navigation, copy-paste, scroll container, and stretch behavior. Table blocks (Registry Table, Result Table, Plain Table) stay registered by their owning mods; the Kit provides the common machinery | table framework |
 
 ## LIMS Concepts
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Entity Type** | A classification/schema for Entities defining what kind of thing it is (e.g., "DNA", "Buffer"), its display ID prefix, and its JSON property columns | sample type (rejected), category, schema |
-| **Name Column** | An implicit, always-present pseudo-column on every Entity Type representing the entity's identity. Not stored in the Column Schema — surfaced as a gray, non-editable row in the ColumnEditor and as an editable text cell (second column, after `#`) in LimsTable nodes. User-assigned; required on save. Stored as `Entity.name` | entity name, title column |
+| **Name Column** | An implicit, always-present pseudo-column on every Entity Type representing the entity's identity. Not stored in the Column Schema — surfaced as a gray, non-editable row in the ColumnEditor and as an editable text cell (second column, after `#`) in Registry Tables. User-assigned; required on save. Stored as `Entity.name` | entity name, title column |
 | **Action** | A user-explicit recorded operation performed on an Entity (e.g., "Used", "Measured", "Aliquoted"). Not inferred from text | event, operation, activity |
 | **Column Schema** | The JSON array on an Entity Type defining what properties its Entities have — each column has a name, type (Text, Number, Date, Boolean, Reference), optional defaults, units, and description. Does **not** include the Name Column, which is a first-class property | property definitions, field schema |
+| **Schema Type Tag** | A capability label on a Schema Type (e.g. `RegistrationTable`, `ResultTable`) controlling which table blocks offer its Schemas and which schema-settings tabs list it. Registry Tables show only schemas of `RegistrationTable`-tagged types; Result Tables only `ResultTable`-tagged ones; untagged types (e.g. ELN Entries) appear in neither. Declared by the owning mod at registration | type tag, capability tag |
+| **Formula Column** | A Schema column whose value is computed, not entered. Carries an `expression` over sibling columns (referenced by name: `[Column Name]`) and a result type. Evaluated per row in the ELN table whenever inputs change; displayed read-only; stored as a normal entity property on registration — the backend does not recompute | computed column, calculated column |
+| **Entity Column** | The distinguishing column of a Result Schema: an entity-reference column constrained at design time to one Schema or one Schema Type. Each Result Table row inserts one matching Entity into this column, tying every Result Entity to a source Entity. Replaces the implicit Name Column on result schemas | source entity column, entity slot |
+| **Result Schema** | A Schema belonging to a `ResultTable`-tagged Schema Type. Like an entity Schema but with an Entity Column instead of the implicit Name Column; may include Formula Columns. Managed in the Result Schemas tab of schema settings | result definition |
+| **Result Entity** | An Entity created from a Result Table row. Entity-like in every respect (Display ID, properties, appears in the Entities Hub under its result type) except: its identity comes from its Entity Column rather than a user-assigned Name, and it has no Workspace yet (a later PR gives results a place to live) | result, result record |
+| **Result Table** | A block in an Entry's Rich-Text Document that loads a Result Schema and registers rows as Result Entities. Looks and behaves like a Registry Table — typed cells, explicit register button — but each row inserts a source Entity into the Entity Column instead of typing a Name | results table, assay table |
 
 ## Cross-Cutting Concepts
 
@@ -112,7 +120,7 @@
 | **Display ID** | An auto-generated human-readable identifier in `<PREFIX><N>` format (e.g., `E1`, `DNA42`, `BLOOD3`). Gap-tolerant — deleted IDs are never reclaimed | ID, identifier, ref |
 | **Prefix** | The letter portion of a display ID. Static for ELN (`E` → Entry), dynamic for LIMS (EntityType prefix → Entity). Used for reference routing | ID prefix, type prefix |
 | **ReferenceBadge** | A clickable UI badge showing a display ID (e.g., `E12`, `BLOOD1`). Clicking navigates to the target's dedicated URL | badge, ref chip, #-badge |
-| **Content Sync Pipeline** | The ordered pipeline that processes an Entry on save: entities synced first (from limsTable nodes), then mentions synced (from reference nodes and Reference columns) | sync pipeline, entry sync |
+| **Content Sync Pipeline** | The ordered pipeline that processes an Entry on save: the `entry_content_sync` signal dispatches to mod receivers, then Mentions are synced (from Reference Nodes and Reference-type columns). Entity registration is **not** part of it — Registry Tables register rows explicitly via the register button | sync pipeline, entry sync |
 | **Tree Walker** | A shared depth-first utility that walks a TipTap JSON tree, calling a handler per node. Pure utility — zero domain knowledge | walker, document walker |
 | **Breadcrumb** | Navigation bar showing the current folder path as clickable segments in the Library hub. Current folder is bold; up-button (`↑`) moves to parent | path bar, nav trail |
 | **Pinned Workspace** | A workspace (Entry or Entity) that a User has bookmarked for quick access from the sidebar. Persists across sessions via backend storage. The sidebar also shows the **current** workspace with a "Current" badge — if unpinned, it appears as a temporary row at the top with a pin button. Pinned workspaces are ordered newest-first. One User can have many Pinned Workspaces; a User cannot pin the same URL twice | bookmarked workspace, saved workspace, workspace tab |
@@ -177,7 +185,7 @@
 - An **Entity Type** has one **Column Schema** (JSON array of column definitions)
 - A **Hub** provides a browsing surface for one or more item types and links to Workspaces at dedicated URLs
 - Each **Item** type has a dedicated **Workspace** at a URL: Entry → TipTap editor at `/eln/:id`, Entity → tabbed detail view at `/lims/:id`
-- A **LimsTable Node** syncs to one or more **Entity** records on save
+- A **Registry Table** registers its rows as **Entity** records via an explicit user action (not on Entry save)
 
 ```
 Library Hub ──▶ Projects ──▶ Folder tree
@@ -247,15 +255,15 @@ A **Folder** is a data-model concept — a node in the folder tree. The **Librar
 
 > **Domain expert:** "That navigates to the **Entity**'s **Dedicated URL** — `/lims/BLOOD1` — the full **EntityWorkspace** page. The user leaves the **Library** hub."
 
-> **Dev:** "And when the user saves an **Entry**, the **Content Sync Pipeline** runs. What order?"
+> **Dev:** "And when the user saves an **Entry**, the **Content Sync Pipeline** runs. Does it register the entities from my **Registry Tables**?"
 
-> **Domain expert:** "**Entities** sync first — **LimsTable Nodes** create/update/delete **Entity** records and patch their display IDs back into the document. Then **Mentions** sync — **Reference Nodes** and Reference-type columns are parsed, resolved, and stored. Entities first because a newly created Entity's **Display ID** might be referenced by a Mention in the same document."
+> **Domain expert:** "No — entity registration is explicit: the user presses the register button in the **Registry Table**, which batch-creates/updates the row **Entities** and patches their **Display IDs** back into the document. The save-time pipeline only syncs **Mentions** — **Reference Nodes** and Reference-type columns are parsed, resolved, and stored."
 
 > **Dev:** "What about the **Name Column** — is it part of the **Column Schema**?"
 
 > **Domain expert:** "No. The **Name Column** is implicit — every **Entity Type** has one, but it's not stored in the `columns` JSON array. It's a first-class property: `Entity.name`. When you create a column named 'Name' in the **ColumnEditor**, you get blocked — it's already taken as the default identity column."
 
-> **Dev:** "So in the LimsTable, the Name Column always appears second, right after the `#` index column. And the user types the entity name right there in the cell?"
+> **Dev:** "So in the Registry Table, the Name Column always appears second, right after the `#` index column. And the user types the entity name right there in the cell?"
 
 > **Domain expert:** "Exactly. On save, if any Name cell is blank, validation blocks the save with 'Name not filled in.' The old auto-generated names like 'Table row 3' are gone — every entity gets a real user-assigned name now."
 
@@ -263,6 +271,7 @@ A **Folder** is a data-model concept — a node in the folder tree. The **Librar
 
 | Old Term | Canonical Replacement |
 |----------|---------------------|
+| LimsTable Node / LimsTable | Registry Table |
 | "console" / "Console" (UI browsing surface) | Hub |
 | "three-step fold" / "LIMS three-step fold" | Hub + Workspace architecture |
 | "Master Panel" / "Detail Panel" / "Workspace Panel" | Hub page (browsing) + dedicated Workspace URL |

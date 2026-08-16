@@ -34,7 +34,7 @@ Helix is organised around a handful of core domains, each owned by a mod:
 
 ### ELN — Electronic Lab Notebook
 
-Narrative lab documentation. An **Entry** is a single page of rich-text content (TipTap JSON), authored by a user, living in a folder. Entries contain `#`-style **Mentions** that link to other entries and entities, and inline **LimsTable** nodes that embed structured entity data directly in the document.
+Narrative lab documentation. An **Entry** is a single page of rich-text content (TipTap JSON), authored by a user, living in a folder. Entries contain `#`-style **Mentions** that link to other entries and entities, and inline **Registry Table** blocks that embed structured entity data directly in the document.
 
 - **Rich-Text Document** — tree of blocks (paragraphs, headings, lists, tables) stored as TipTap/ProseMirror JSON
 - **Blocks** — extensible content blocks (tables, future: images, attachments, protocols) inserted via `/` slash menu; mods contribute blocks through `registerBlock()`
@@ -93,7 +93,7 @@ Each mod calls imperative registration functions to declare its contributions:
 |----------|------------------|-------|
 | `registerHub()` | A free-form browsing hub with sidebar nav item (e.g. Library at `/library`, Home at `/home`) | App |
 | `registerLibraryItem()` | A card component rendered in the Library hub (e.g. ELN entry cards with List/Grid/Compact views) | App |
-| `registerBlock()` | A reusable, renderer-agnostic content block (e.g. LimsTable, ActivityFeed) that can render in a TipTap editor, a sidebar panel, or a tab | Slot |
+| `registerBlock()` | A reusable, renderer-agnostic content block (e.g. Registry Table, ActivityFeed) that can render in a TipTap editor, a sidebar panel, or a tab | Slot |
 | `registerButton()` | A fire-only button rendered in toolbar slots (e.g. Export, Lock) | Slot |
 | `declareSlot()` | A named placeholder in a workspace that owns how bound content is rendered | Slot |
 | `registerIntoSlot()` | Binds a block or button into a declared slot, with optional per-binding overrides | Slot |

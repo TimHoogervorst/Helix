@@ -263,7 +263,7 @@ A read-only link to a Notebook Entry's Workspace. The current implementation is 
 
 An entity (from the LIMS domain) that is connected to a Notebook Entry through the Mention system. When a user references an entity in the TipTap content (via `@` or a `reference` node), a Mention row is created linking the entry to that entity. The Linked Entities section of the metadata panel renders these Mentions — showing the entity's type icon, name, and display ID. Each is clickable, navigating to the entity's Workspace in the LIMS console.
 
-**Distinction from entities created in the entry:** Entities whose `source_entry` is this entry (created via LIMS tables in the content) are connected through a direct FK, not through Mentions. They may or may not appear as Linked Entities. A future PRD will unify both connection types in the panel.
+**Distinction from entities created in the entry:** Entities whose `source_entry` is this entry (created via Registry Tables in the content) are connected through a direct FK, not through Mentions. They may or may not appear as Linked Entities. A future PRD will unify both connection types in the panel.
 
 ### ELN Workspace Layout
 
@@ -343,9 +343,29 @@ The per-instance completion status of a Step inside a Protocol Block. Tracked as
 
 **Synonyms:** step completion, checkbox state
 
+### Registry Table
+
+A block within a Notebook Entry's Rich-Text Document (`registry-table`) that creates and edits Entities of one loaded Schema in tabular form. Schema columns become typed cells; the implicit Name Column is the second column; each row maps to one Entity. The loaded Schema is snapshotted into the block and locked — a refresh action migrates the snapshot when the Schema has changed.
+
+Registration is **explicit**: the user reviews the table and presses the register button, which batch-creates/updates the row Entities via the LIMS API and patches Display IDs back into the document. Saving the Entry does not register rows. Each row carries a registration status (unregistered, registered, changed-since-registration, schema-changed) shown as a status indicator.
+
+**Synonyms:** registration table (informal), LimsTable (deprecated)
+
+### Plain Table
+
+A block within a Notebook Entry's Rich-Text Document (`table`) providing a simple free-form table — arbitrary columns and rows of typed cells with no Schema, no entity registration, and no register button. For when the user just wants a table.
+
+**Synonyms:** simple table, normal table
+
+### Table Kit
+
+The shared table framework that all table blocks build on: the cell registry (keyed by Column Type operand shape), full-cell editors, keyboard navigation, copy-paste, scroll container, and stretch behavior. Table blocks (Registry Table, Result Table, Plain Table) remain registered by their owning mods; the Kit provides the common machinery so new table types are cheap to create.
+
+**Synonyms:** table framework
+
 ### Mention
 
-A parsed reference from one Notebook Entry to another object (another Entry, an Entity, or any registered entity type). Created when a `#` reference is found in the entry text or when a `reference` node or `limsTable` row references a display ID. The Mention stores the source entry, the target object, and the surrounding context text.
+A parsed reference from one Notebook Entry to another object (another Entry, an Entity, or any registered entity type). Created when a `#` reference is found in the entry text or when a `reference` node or a Registry Table row references a display ID. The Mention stores the source entry, the target object, and the surrounding context text.
 
 **Resolution chain:** The Mention system is a **listener** to LIMS — it does not encode entity type or workspace knowledge itself. Resolution follows a single chain:
 
@@ -420,6 +440,42 @@ The canonical term for a workspace-registered category that Schemas belong to. D
 **Invariant:** Every Schema belongs to exactly one Schema Type. The Schema Type owns the prefix allocation (e.g. `DNA`) used for display ID generation.
 
 **Synonyms:** entity type, registered entity type, content type
+
+### Schema Type Tag
+
+A capability label on a Schema Type (e.g. `RegistrationTable`, `ResultTable`) that controls which table blocks offer its Schemas and which schema-settings tabs list it. Registry Tables show only schemas of `RegistrationTable`-tagged types; Result Tables only `ResultTable`-tagged ones; untagged types (e.g. ELN Entries) appear in neither. Tags are declared by the owning mod at registration.
+
+**Synonyms:** type tag, capability tag
+
+### Formula Column
+
+A Schema column whose value is computed, not entered. Carries an `expression` over sibling columns — referenced by name, `[Column Name]` — and a result type. Evaluated per row in the ELN table whenever an input changes; displayed read-only (with an error indicator on failure); stored as a normal entity property on registration. The backend does not recompute — table data, whether computed or entered, is sent as-is when the user registers.
+
+**Synonyms:** computed column, calculated column
+
+### Entity Column
+
+The distinguishing column of a Result Schema: an entity-reference column constrained at design time to one Schema or one Schema Type. Each Result Table row inserts one matching Entity into this column, tying every Result Entity to a source Entity. It replaces the implicit Name Column on result schemas.
+
+**Synonyms:** source entity column, entity slot
+
+### Result Schema
+
+A Schema belonging to a `ResultTable`-tagged Schema Type. Structured like an entity Schema but with an Entity Column instead of the implicit Name Column; may include Formula Columns. Managed in the Result Schemas tab of schema settings.
+
+**Synonyms:** result definition
+
+### Result Entity
+
+An Entity created from a Result Table row. Entity-like in every respect — Display ID, typed properties, appears in the Entities Hub under its result type — except its identity comes from its Entity Column rather than a user-assigned Name, and it has no Workspace yet (a later PR gives results a place to live).
+
+**Synonyms:** result, result record
+
+### Result Table
+
+A block within a Notebook Entry's Rich-Text Document that loads a Result Schema and registers rows as Result Entities. Looks and behaves like a Registry Table — typed cells, explicit register button — but each row inserts a source Entity into the Entity Column instead of typing a Name.
+
+**Synonyms:** results table, assay table
 
 ### Registered Entity Type
 

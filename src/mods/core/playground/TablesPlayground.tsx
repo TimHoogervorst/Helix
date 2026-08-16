@@ -328,7 +328,7 @@ function CellGallery() {
         <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">Every registered cell shape in display, editing, error, and read-only states. Values are local mock data.</p>
       </div>
       <div className="overflow-x-scroll">
-        <Table>
+        <Table className="min-w-[80rem]">
           <TableHead><TableRow><TableHeaderCell>Operand shape</TableHeaderCell>{GALLERY_STATES.map((state) => <TableHeaderCell key={state}>{state}</TableHeaderCell>)}</TableRow></TableHead>
           <tbody>
             {GALLERY_SHAPES.map((shape) => (

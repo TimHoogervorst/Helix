@@ -67,6 +67,7 @@ class ModRegistryContractTests(TestCase):
             workspace_id="lims",
             model="mods.lims.models.Entity",
             columns=[{"name": "volume", "type": "number"}],
+            tags=["RegistrationTable"],
         )
         Schema.objects.create(
             name="Default",
@@ -82,6 +83,7 @@ class ModRegistryContractTests(TestCase):
             workspace_id="eln",
             model="mods.eln.models.NotebookEntry",
             columns=[],
+            tags=[],
         )
         Schema.objects.create(
             name="Default",
@@ -144,6 +146,7 @@ class ModRegistryContractTests(TestCase):
         self.assertEqual(lims_sts[0]["id"], "lims.entity")
         self.assertEqual(lims_sts[0]["displayName"], "Entity")
         self.assertEqual(lims_sts[0]["prefix"], "BLOOD")
+        self.assertEqual(lims_sts[0]["tags"], ["RegistrationTable"])
 
     def test_eln_schema_type(self):
         """ELN schema type is present with prefix E."""
@@ -156,6 +159,7 @@ class ModRegistryContractTests(TestCase):
         self.assertEqual(eln_sts[0]["id"], "eln.notebookentry")
         self.assertEqual(eln_sts[0]["displayName"], "ELN Entry")
         self.assertEqual(eln_sts[0]["prefix"], "E")
+        self.assertEqual(eln_sts[0]["tags"], [])
 
     # ── Action catalog ───────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://helix.example.com/schemas/mod-registry-response.json",
   "title": "Mod Registry Response",
-  "description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, icon, color}), and actions (array of {id, label, action_type}).",
+"description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, tags, icon, color}), and actions (array of {id, label, action_type}).",
   "type": "object",
   "properties": {
     "columnTypes": {
@@ -122,6 +122,11 @@
                 "type": "array",
                 "description": "Column definitions for this schema type."
               },
+              "tags": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Capability tags declared by the owning mod."
+              },
               "icon": {
                 "type": "string",
                 "description": "Icon key from the default schema, e.g. 'notebook' or 'flask-conical'."
@@ -131,7 +136,7 @@
                 "description": "Color key from the default schema, e.g. 'muted' or 'success'."
               }
             },
-            "required": ["id", "displayName", "prefix", "columns", "icon", "color"]
+            "required": ["id", "displayName", "prefix", "columns", "tags", "icon", "color"]
           }
         },
         "actions": {

@@ -141,6 +141,7 @@ class BackendModRegistry:
         workspace_id: str,
         model: str,
         columns: list[dict[str, Any]] | None = None,
+        tags: list[str] | None = None,
         prefix: str,
         schema_name: str = "Default",
         icon: str = "",
@@ -150,7 +151,8 @@ class BackendModRegistry:
 
         Idempotent across boots — safe to call on every ``mod.py.register()``.
         Uses ``update_or_create`` so repeated calls with the same identity
-        don't create duplicates, and changed fields (columns, display_name)
+        don't create duplicates, and changed fields (columns, display_name,
+        tags) are updated in-place.
         are updated in-place.
 
         Parameters:
@@ -160,6 +162,7 @@ class BackendModRegistry:
             model: Dotted Python path to the model class
                    (e.g. ``"mods.lims.models.Entity"``).
             columns: Optional list of column definition dicts.
+            tags: Optional capability tags declared by the owning mod.
             prefix: Uppercase prefix for the default Schema's display-ID
                     generation (e.g. ``"E"``).
             schema_name: Name for the default Schema row (default ``"Default"``).
@@ -174,6 +177,8 @@ class BackendModRegistry:
 
         if columns is None:
             columns = []
+        if tags is None:
+            tags = []
 
         try:
             schema_type, _ = SchemaType.objects.update_or_create(
@@ -182,6 +187,7 @@ class BackendModRegistry:
                     "display_name": display_name,
                     "workspace_id": workspace_id,
                     "columns": columns,
+                    "tags": tags,
                 },
             )
 
@@ -699,6 +705,7 @@ class BackendModRegistry:
                     "displayName": st.display_name,
                     "prefix": default_schema.prefix if default_schema else "",
                     "columns": st.columns or [],
+                    "tags": st.tags or [],
                     "icon": default_schema.icon if default_schema else "",
                     "color": default_schema.color if default_schema else "",
                 }

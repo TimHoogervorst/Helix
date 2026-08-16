@@ -1001,6 +1001,29 @@ class TestRegisterSchemaType:
         assert len(st.columns) == 1
         assert st.columns[0]["name"] == "volume"
 
+    def test_updates_tags_idempotently(self):
+        """Repeated registration replaces the mod-declared tag set."""
+        from helix_core.models import SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            tags=["RegistrationTable"],
+            prefix="E",
+        )
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            tags=["ResultTable"],
+            prefix="E",
+        )
+
+        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        assert st.tags == ["ResultTable"]
+
     def test_custom_schema_name(self):
         """The schema_name parameter controls the default Schema's name."""
         from helix_core.models import Schema, SchemaType

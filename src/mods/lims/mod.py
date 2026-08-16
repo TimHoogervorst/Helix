@@ -1,6 +1,7 @@
 from django.urls import include, path
 
 from helix_core.mod_system.registry import registry
+from helix_core.schema_tags import RegistrationTable
 
 
 def _seed_builtin_metrics():
@@ -79,6 +80,7 @@ def register():
         display_name="Entity",
         workspace_id="lims",
         model="mods.lims.models.Entity",
+        tags=[RegistrationTable],
         prefix="BLOOD",
         icon="flask-conical",
         color="success",

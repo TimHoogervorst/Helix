@@ -96,6 +96,11 @@ class SchemaType(ContentHashedModel):
         blank=True,
         help_text="Ordered array of column definitions: {id, name, type, required, default, units, description}.",
     )
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Capability tags declared by the owning mod.",
+    )
     is_active = models.BooleanField(
         default=True,
         help_text="Soft-delete flag. Inactive schema types are hidden from dropdowns.",

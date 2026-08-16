@@ -367,7 +367,11 @@ function PlaceholderSection({ title }: { title: string }) {
 
 function TablesPlayground() {
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-6 py-8" data-testid="tables-playground">
+    <main
+      className="h-full min-h-0 overflow-y-auto"
+      data-testid="tables-playground"
+    >
+      <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
       <header className="border-b border-[var(--color-ink-hairline)] pb-6">
         <p className="font-[var(--font-label)] text-xs uppercase tracking-[0.2em] text-[var(--color-primary)]">
           Development playground
@@ -383,9 +387,10 @@ function TablesPlayground() {
       <CellGallery />
       <HarnessTable />
 
-      {PLACEHOLDER_SECTIONS.map((title) => (
-        <PlaceholderSection key={title} title={title} />
-      ))}
+        {PLACEHOLDER_SECTIONS.map((title) => (
+          <PlaceholderSection key={title} title={title} />
+        ))}
+      </div>
     </main>
   );
 }

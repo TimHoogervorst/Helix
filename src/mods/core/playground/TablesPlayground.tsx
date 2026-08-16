@@ -6,8 +6,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../../shell/src/shared/primitives/Table";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { Input } from "../../../shell/src/shared/primitives/Input";
+import { useTableInteraction, type TablePosition } from "../../../shell/src/shared/hooks/useTableInteraction";
 
 interface HarnessRow {
   id: string;
@@ -18,6 +17,16 @@ interface HarnessRow {
 
 type CellValue = string | number | boolean | null;
 type CellState = "display" | "editing" | "error" | "read-only";
+
+/**
+ * Full-cell geometry: display and editing modes render the exact same box so the
+ * cell becomes the editor in place — no nested form chrome, no layout shift.
+ * The classes live in styles.css (`.table-cell-full`): the global unlayered
+ * `input`/`select`/`label` rules beat Tailwind utilities, so the reset has to
+ * win on source order there.
+ */
+const FULL_CELL = "table-cell-full";
+const FULL_CELL_EDITOR = "table-cell-full table-cell-full--editing";
 
 interface CellBehavior {
   label: string;
@@ -113,56 +122,71 @@ function TextHarnessCell({
   value,
   onCommit,
   testId,
+  position,
+  interaction,
 }: {
   value: string;
   onCommit: (value: string) => void;
   testId: string;
+  position: TablePosition;
+  interaction: ReturnType<typeof useTableInteraction>;
 }) {
-  const [editing, setEditing] = useState(false);
+  const editing = interaction.editingCell?.row === position.row && interaction.editingCell?.column === position.column;
   const [draft, setDraft] = useState(value);
+  const cancelled = useRef(false);
 
   const startEditing = () => {
     setDraft(value);
-    setEditing(true);
+    interaction.activateCell(position);
   };
 
   const commit = () => {
-    setEditing(false);
     if (draft !== value) onCommit(draft);
+  };
+  const commitOnBlur = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      interaction.finishEditing();
+      return;
+    }
+    commit();
+    interaction.finishEditing();
   };
 
   if (editing) {
     return (
-      <Input
+      <input
         autoFocus
         aria-label={`Edit ${testId}`}
-        className="px-2 py-1 text-sm"
+        className={FULL_CELL_EDITOR}
         data-testid={`${testId}-input`}
-        onBlur={commit}
+        onBlur={commitOnBlur}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            commit();
-          } else if (event.key === "Escape") {
-            setEditing(false);
-          }
+          interaction.handleEditorKeyDown(position, event, {
+            commit,
+            cancel: () => {
+              cancelled.current = true;
+              setDraft(value);
+            },
+          });
         }}
+        type="text"
         value={draft}
       />
     );
   }
 
   return (
-    <Button
+    <button
       type="button"
-      className="w-full justify-start text-left text-sm"
+      className={FULL_CELL}
       data-testid={testId}
+      tabIndex={-1}
       onClick={startEditing}
-      variant="ghost"
     >
       {value}
-    </Button>
+    </button>
   );
 }
 
@@ -171,35 +195,36 @@ function GalleryCell({
   state,
   testId,
   onTypedCommit,
+  position,
+  interaction,
 }: {
   operandShape: string;
   state: CellState;
   testId: string;
   onTypedCommit: (value: CellValue) => void;
+  position: TablePosition;
+  interaction: ReturnType<typeof useTableInteraction>;
 }) {
   const behavior = getCellBehavior(operandShape);
   const [value, setValue] = useState(behavior.initialValue);
   const [draft, setDraft] = useState(behavior.render(behavior.initialValue));
-  const [editing, setEditing] = useState(state === "editing");
-  const [error, setError] = useState(state === "error");
   const cancelled = useRef(false);
+  const [initialEditing, setInitialEditing] = useState(state === "editing");
+  const [error, setError] = useState(state === "error");
+  const editing = initialEditing || (state !== "read-only" && interaction.editingCell?.row === position.row && interaction.editingCell?.column === position.column);
 
   const startEditing = () => {
     if (state === "read-only") return;
     setDraft(behavior.render(value));
     setError(false);
-    setEditing(true);
+    interaction.activateCell(position);
   };
 
   const commit = () => {
     try {
-      if (cancelled.current) {
-        cancelled.current = false;
-        return;
-      }
       const next = behavior.commit(draft);
       setValue(next);
-      setEditing(false);
+       setInitialEditing(false);
       setError(false);
       onTypedCommit(next);
     } catch {
@@ -207,11 +232,21 @@ function GalleryCell({
     }
   };
 
+  const commitOnBlur = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      interaction.finishEditing();
+      return;
+    }
+    commit();
+    interaction.finishEditing();
+  };
+
   const editor = (): ReactNode => {
     const inputProps = {
       autoFocus: true,
       "data-testid": `${testId}-input`,
-      onBlur: commit,
+       onBlur: commitOnBlur,
       onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
         setDraft(
           event.currentTarget instanceof HTMLInputElement &&
@@ -219,52 +254,76 @@ function GalleryCell({
             ? String(event.currentTarget.checked)
             : event.currentTarget.value,
         ),
-      onKeyDown: (event: React.KeyboardEvent) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          commit();
-        } else if (event.key === "Escape") {
-          cancelled.current = true;
-          setEditing(false);
-          setError(false);
-        }
-      },
+        onKeyDown: (event: React.KeyboardEvent) => {
+          interaction.handleEditorKeyDown(position, event, {
+            commit,
+            cancel: () => {
+              cancelled.current = true;
+              setInitialEditing(false);
+              setError(false);
+            },
+          });
+        },
     };
 
     if (behavior.editor === "checkbox") {
-      return <input {...inputProps} className="accent-[var(--color-primary)]" type="checkbox" checked={draft === "true"} />;
+      return (
+        <label className={FULL_CELL_EDITOR}>
+          <input {...inputProps} className="accent-[var(--color-primary)]" type="checkbox" checked={draft === "true"} />
+          <span>{draft === "true" ? "True" : "False"}</span>
+        </label>
+      );
     }
     if (behavior.editor === "select") {
       return (
-        <select {...inputProps} className="border border-[var(--color-ink-border)] bg-[var(--color-surface)] text-[var(--color-ink)] focus:ring-2 focus:ring-[var(--color-focus-ring)]" value={draft}>
+        <select {...inputProps} className={FULL_CELL_EDITOR} value={draft}>
           {behavior.options?.map((option) => <option key={option}>{option}</option>)}
         </select>
       );
     }
-    return <Input {...inputProps} className="border-[var(--color-ink-border)] bg-[var(--color-surface)] text-[var(--color-ink)] focus:ring-2 focus:ring-[var(--color-focus-ring)]" type={behavior.editor} value={draft} />;
+    return <input {...inputProps} className={FULL_CELL_EDITOR} type={behavior.editor} value={draft} />;
   };
 
-  if (editing) return <div data-testid={testId}>{editor()}</div>;
+  if (editing) return <div className="h-full w-full" data-testid={testId}>{editor()}</div>;
 
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      className={`w-full justify-start px-3 py-2 text-left text-sm ${error ? "text-[var(--color-destructive)]" : ""}`}
+      className={error ? `${FULL_CELL} table-cell-full--error` : FULL_CELL}
       data-testid={testId}
       data-value-type={typeof value}
       disabled={state === "read-only"}
+      tabIndex={-1}
       onClick={startEditing}
     >
       <span>{behavior.render(value)}</span>
       {error && <span className="ml-2 text-xs">#VALUE!</span>}
       {state === "read-only" && <span className="ml-2 text-xs">(read-only)</span>}
-    </Button>
+    </button>
   );
 }
 
 function HarnessTable() {
   const [rows, setRows] = useState(INITIAL_ROWS);
+
+  const interaction = useTableInteraction({
+    rowCount: rows.length,
+    columnCount: 3,
+    getValues: () => rows.map(({ name, role, note }) => [name, role, note]),
+    onPaste: (anchor, values) => {
+      setRows((currentRows) => currentRows.map((row, rowIndex) => {
+        const pastedRow = values[rowIndex - anchor.row];
+        if (!pastedRow || rowIndex < anchor.row) return row;
+        const columns = ["name", "role", "note"] as const;
+        return columns.slice(anchor.column).reduce((nextRow, column, columnOffset) => {
+          const pastedValue = pastedRow[columnOffset];
+          return pastedValue === undefined
+            ? nextRow
+            : { ...nextRow, [column]: pastedValue };
+        }, row);
+      }));
+    },
+  });
 
   const updateCell = (rowId: string, column: keyof Omit<HarnessRow, "id">, value: string) => {
     setRows((currentRows) =>
@@ -288,6 +347,7 @@ function HarnessTable() {
           Plain text cells backed by local mock rows. Click a cell, then commit with blur or Enter.
         </p>
       </div>
+      <div ref={interaction.containerRef} data-testid="harness-table" onCopy={interaction.handleCopy} onPaste={interaction.handlePaste}>
       <Table>
         <TableHead>
           <TableRow>
@@ -297,14 +357,16 @@ function HarnessTable() {
           </TableRow>
         </TableHead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row, rowIndex) => (
             <TableRow key={row.id}>
-              {(["name", "role", "note"] as const).map((column) => (
-            <TableCell key={column} className="p-0">
+              {(["name", "role", "note"] as const).map((column, columnIndex) => (
+                <TableCell key={column} className="p-0!" {...interaction.cellProps({ row: rowIndex, column: columnIndex })}>
                   <TextHarnessCell
                     value={row[column]}
                     onCommit={(value) => updateCell(row.id, column, value)}
                     testId={`cell-${row.id}-${column}`}
+                    position={{ row: rowIndex, column: columnIndex }}
+                    interaction={interaction}
                   />
                 </TableCell>
               ))}
@@ -312,6 +374,7 @@ function HarnessTable() {
           ))}
         </tbody>
       </Table>
+      </div>
     </section>
   );
 }
@@ -327,20 +390,36 @@ function CellGallery() {
         <h2 id="cell-gallery-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Cell gallery</h2>
         <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">Every registered cell shape in display, editing, error, and read-only states. Values are local mock data.</p>
       </div>
-      <div className="overflow-x-scroll">
-        <Table className="min-w-[80rem]">
+      <CellGalleryTable />
+    </section>
+  );
+}
+
+function CellGalleryTable() {
+  const interaction = useTableInteraction({
+    tableId: "gallery",
+    rowCount: GALLERY_SHAPES.length,
+    columnCount: GALLERY_STATES.length,
+    getValues: () => GALLERY_SHAPES.map((shape) =>
+      GALLERY_STATES.map((state) => getCellBehavior(shape).render(getCellBehavior(shape).initialValue)),
+    ),
+    onPaste: () => undefined,
+  });
+
+  return (
+    <div className="overflow-x-scroll" ref={interaction.containerRef} onCopy={interaction.handleCopy} onPaste={interaction.handlePaste}>
+      <Table className="min-w-[80rem]">
           <TableHead><TableRow><TableHeaderCell>Operand shape</TableHeaderCell>{GALLERY_STATES.map((state) => <TableHeaderCell key={state}>{state}</TableHeaderCell>)}</TableRow></TableHead>
           <tbody>
-            {GALLERY_SHAPES.map((shape) => (
+            {GALLERY_SHAPES.map((shape, rowIndex) => (
               <TableRow key={shape}>
                 <TableHeaderCell>{shape}</TableHeaderCell>
-                {GALLERY_STATES.map((state) => <TableCell key={state} className="min-w-40 p-0"><GalleryCell operandShape={shape} state={state} testId={`gallery-${shape}-${state}`} onTypedCommit={() => undefined} /></TableCell>)}
+                {GALLERY_STATES.map((state, columnIndex) => <TableCell key={state} className="min-w-40 p-0!" {...interaction.cellProps({ row: rowIndex, column: columnIndex })}><GalleryCell operandShape={shape} state={state} testId={`gallery-${shape}-${state}`} onTypedCommit={() => undefined} position={{ row: rowIndex, column: columnIndex }} interaction={interaction} /></TableCell>)}
               </TableRow>
             ))}
           </tbody>
         </Table>
-      </div>
-    </section>
+    </div>
   );
 }
 

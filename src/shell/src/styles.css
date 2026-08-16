@@ -286,6 +286,71 @@ textarea.eln-description-textarea {
   color: inherit;
 }
 
+/* ── Table Kit: full-cell display + editor elements ──────────────────────
+   Raw elements that fill an entire table cell, so the cell itself becomes
+   the editor — no nested form chrome, no dead padding, transparent so the
+   card background and row hover show through. Deliberately unlayered and
+   placed after the global input/select/label rules above: those rules beat
+   Tailwind utilities, so the full-cell reset must win on source order. */
+.table-cell-full {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0.625rem 1rem; /* matches TableCell px-4 py-2.5 */
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 400;
+  text-align: left;
+  color: var(--color-ink);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+/* Reinforcement for the elements the global unlayered rules contest. */
+input.table-cell-full,
+select.table-cell-full {
+  padding: 0.625rem 1rem;
+  font-size: var(--text-base);
+  color: var(--color-ink);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  outline: none;
+}
+label.table-cell-full {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 400;
+}
+/* Editing state: inset ring at the cell edge, replacing the global
+   focus border + outer box-shadow on inputs/selects. */
+.table-cell-full--editing,
+input.table-cell-full:focus,
+select.table-cell-full:focus {
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+}
+.table-cell-full--error {
+  color: var(--color-destructive);
+}
+/* Selected cell: persistent primary outline (spreadsheet-style active cell).
+   Doubles as the focus indicator — the interaction controller always focuses
+   the active cell. Inset box-shadow so the border-collapse layout never shifts. */
+[data-table-cell][aria-selected="true"] {
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+/* Interactive tables keep stable column widths: with auto layout, an editor's
+   intrinsic width (an input's default size, a select's longest option) would
+   stretch its column every time a cell enters edit mode. */
+table:has([data-table-cell]) {
+  table-layout: fixed;
+}
+
 label {
   display: block;
   font-weight: 500;

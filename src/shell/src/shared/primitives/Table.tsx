@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 export function Table({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -36,10 +36,11 @@ export function TableHeaderCell({ children, className = "" }: { children: ReactN
   );
 }
 
-export function TableCell({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function TableCell({ children, className = "", ...props }: ComponentPropsWithoutRef<"td"> & { children: ReactNode }) {
   return (
     <td
-      className={`px-4 py-2.5 font-[var(--font-body)] text-base text-[var(--color-ink)] ${className}`}
+      className={`px-4 py-2.5 font-[var(--font-body)] text-base text-[var(--color-ink)] focus:outline-none ${className}`}
+      {...props}
     >
       {children}
     </td>

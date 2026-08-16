@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import TablesPlayground, { CELL_REGISTRY, getCellBehavior } from "../TablesPlayground";
 
 describe("TablesPlayground", () => {
@@ -40,6 +40,140 @@ describe("TablesPlayground", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(screen.getByTestId("cell-row-2-note")).toHaveTextContent("Committed");
+  });
+
+  it("starts editing when the padded cell area is clicked", () => {
+    render(<TablesPlayground />);
+
+    const cell = document.querySelector('[data-table-cell="0:0"]');
+    expect(cell).toBeInTheDocument();
+    fireEvent.click(cell!);
+
+    expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
+  });
+
+  it("uses the interaction controller in the Cell Gallery", () => {
+    render(<TablesPlayground />);
+
+    const galleryCell = document.querySelector('[data-table-cell="gallery:0:0"]') as HTMLElement;
+    fireEvent.click(galleryCell);
+    expect(screen.getByTestId("gallery-text-display-input")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByTestId("gallery-text-display-input"), { key: "Escape" });
+    fireEvent.keyDown(galleryCell, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="gallery:1:0"]'));
+  });
+
+  it("navigates with arrows, Tab, and Shift-Tab when not editing", () => {
+    render(<TablesPlayground />);
+
+    const firstCell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    firstCell.focus();
+    fireEvent.keyDown(firstCell, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="0:1"]'));
+
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="0:2"]'));
+
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="0:1"]'));
+  });
+
+  it("commits with Enter and moves down", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    const input = screen.getByTestId("cell-row-1-name-input");
+    fireEvent.change(input, { target: { value: "Nova" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByTestId("cell-row-1-name")).toHaveTextContent("Nova");
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="1:0"]'));
+  });
+
+  it("cancels with Escape and keeps navigation on the edited cell", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="0:0"]'));
+
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(document.querySelector('[data-table-cell="1:0"]'));
+  });
+
+  it("starts editing the focused cell when Enter is pressed", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+
+    expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
+  });
+
+  it("enters the hovered cell when Enter is pressed", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
+
+    const hovered = document.querySelector('[data-table-cell="1:1"]') as HTMLElement;
+    fireEvent.mouseEnter(hovered);
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+
+    expect(screen.getByTestId("cell-row-2-role-input")).toBeInTheDocument();
+  });
+
+  it("lets keyboard navigation take the cursor back from the mouse", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
+
+    fireEvent.mouseEnter(document.querySelector('[data-table-cell="2:2"]') as HTMLElement);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+
+    expect(screen.getByTestId("cell-row-2-name-input")).toBeInTheDocument();
+  });
+
+  it("does not navigate while editing a text value", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    const input = screen.getByTestId("cell-row-1-name-input");
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+
+    expect(document.activeElement).toBe(input);
+    expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
+  });
+
+  it("copies a selected range as TSV", () => {
+    render(<TablesPlayground />);
+
+    const container = screen.getByTestId("harness-table");
+    const firstCell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    firstCell.focus();
+    fireEvent.keyDown(firstCell, { key: "ArrowRight", shiftKey: true });
+    const setData = vi.fn();
+    fireEvent.copy(container, { clipboardData: { setData } });
+
+    expect(setData).toHaveBeenCalledWith("text/plain", "Aster\tResearcher");
+  });
+
+  it("pastes TSV values from the active anchor cell", () => {
+    render(<TablesPlayground />);
+
+    const firstCell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    firstCell.focus();
+    fireEvent.paste(screen.getByTestId("harness-table"), {
+      clipboardData: { getData: () => "Nova\tScientist\nElm\tReviewer" },
+    });
+
+    expect(screen.getByTestId("cell-row-1-name")).toHaveTextContent("Nova");
+    expect(screen.getByTestId("cell-row-1-role")).toHaveTextContent("Scientist");
+    expect(screen.getByTestId("cell-row-2-name")).toHaveTextContent("Elm");
   });
 
   it("registers every supported operand shape and falls back to text", () => {

@@ -98,3 +98,36 @@ Column type IDs move from capitalized (`"Text"`) to lowercase (`"text"`). A one-
 - Per-schema-type column type constraints
 - Hot-reloading of column types after boot
 - External mod SDK column type support (the string-ID-based registration is designed to support it)
+
+---
+
+## Amendment: Formula columns
+
+> Origin: [Spec: Table Kit — typed cells, Formula Columns, and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+
+### Context
+
+Table rows need derived values without introducing a spreadsheet dependency or making formula execution a backend responsibility. Formula columns must use the existing column type registry so they behave consistently in both ordinary Entity Schemas and Result Schemas.
+
+### Decision
+
+Add the `formula` column type. Its schema definition includes an expression and the declared result type:
+
+```typescript
+{
+  type: "formula",
+  expression: string,
+  resultType: ColumnTypeId
+}
+```
+
+Expressions reference sibling columns by name, such as `[A260] / [A280]`. Evaluation is per-row, client-side, and formula-to-formula dependencies are resolved topologically. Formula cells are read-only, render through the declared `resultType`, and show errors visibly in-cell.
+
+The registration model is explicitly **store-as-sent**: computed values are stored exactly as submitted during explicit registration. The backend never recomputes or verifies formula results. The expression remains versioned in the schema for auditability. Server-side verification is future hardening and is not part of this amendment.
+
+### Consequences
+
+- Entity and Result Tables share one formula-column contract and the existing operand-shape-driven rendering model.
+- Clients are responsible for live evaluation and user-visible formula errors; the backend remains a persistence and registration authority.
+- Stored values can be audited against the versioned expression, while historical registrations are not retroactively recomputed.
+- Spreadsheet features outside per-row formulas, including cross-row aggregation and A1 references, remain out of scope.

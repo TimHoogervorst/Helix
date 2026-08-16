@@ -20,6 +20,22 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("cell-row-1-name")).toHaveTextContent("Aster");
   });
 
+  it("demonstrates the reusable layout pieces", () => {
+    render(<TablesPlayground />);
+
+    expect(screen.getByTestId("layout-scroll-container")).toBeInTheDocument();
+    expect(screen.getByTestId("layout-action-header")).toHaveAttribute("aria-label", "Actions");
+    expect(screen.getByTestId("layout-table-chrome")).toBeInTheDocument();
+    expect(screen.getByTestId("layout-toolbar-slot")).toHaveTextContent("Toolbar slot");
+    expect(screen.getByTestId("layout-add-row")).toHaveTextContent("Add row");
+    expect(screen.getByTestId("layout-stretch-wrapper").className).toContain("auto");
+
+    fireEvent.click(screen.getByTestId("layout-stretch-toggle"));
+
+    expect(screen.getByTestId("layout-stretch-wrapper").className).toContain("full");
+    expect(screen.getByTestId("layout-stretch-toggle")).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("commits a text cell on blur", () => {
     render(<TablesPlayground />);
 

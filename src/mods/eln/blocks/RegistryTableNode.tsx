@@ -29,6 +29,12 @@ import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/com
 import { listDropdowns } from "../../dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import {
+  StickyActionCell,
+  StickyActionHeader,
+  TableScroll,
+  TableStretch,
+} from "../../../shell/src/shared/primitives/TableLayout";
 import type { ElnSidebarData } from "./sidebarData";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
@@ -868,8 +874,8 @@ export function RegistryTableContent({
 
       {/* Table wrapper — constrained in auto mode so only the title bar
           spans the full workspace content width. */}
-      <div
-        className={stretchMode === "auto" ? "max-w-3xl" : "w-full"}
+      <TableStretch
+        mode={stretchMode}
         data-testid="registry-table-stretch-wrapper"
       >
       {/* Table — overflow-x-auto constrains the scrollbar while negative
@@ -878,9 +884,7 @@ export function RegistryTableContent({
           breaks out 19rem on each side (17.5rem gutter + 1.5rem main px-6)
           so columns remain visible in the gutter spaces.  The table uses
           w-max min-w-full so it can grow past the card width. */}
-      <div className={`overflow-x-auto scrollbar-on-hover ${
-        stretchMode === "auto" ? "-ml-[19rem] -mr-[19rem] pl-[19rem] pr-[19rem]" : ""
-      }`}>
+      <TableScroll mode={stretchMode}>
         <table className={`text-base bg-background ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
           <thead className={stretchMode === "auto" ? "bg-background" : ""}>
             <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
@@ -913,8 +917,7 @@ export function RegistryTableContent({
               {/* Actions column — sticky to right edge, always visible during horizontal scroll.
                    No border or background so it blends seamlessly. Hidden in read-only mode. */}
               {!readOnly && (
-                <th
-                  className="sticky right-0 w-0 p-0"
+                <StickyActionHeader
                   data-testid="registry-table-header-delete"
                   aria-label="Actions"
                 />
@@ -1039,7 +1042,7 @@ export function RegistryTableContent({
                   {/* Three-dot action menu — sticky to right edge, always visible on row hover.
                        No border or background so it blends seamlessly. Hidden in read-only mode. */}
                   {!readOnly && (
-                    <td className="sticky right-0 w-0 p-0 align-middle">
+                     <StickyActionCell className="align-middle">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <MoreActions
                           items={[
@@ -1054,7 +1057,7 @@ export function RegistryTableContent({
                           ]}
                         />
                       </div>
-                    </td>
+                     </StickyActionCell>
                   )}
                 </tr>
               );
@@ -1062,9 +1065,9 @@ export function RegistryTableContent({
             )}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
 
-      </div>
+      </TableStretch>
     </div>
     {/* "+ New Row" button below the card — constrained to center gutter width.
          In auto mode left-aligned so it stays anchored to the center gutter

@@ -7,6 +7,14 @@ import {
   TableRow,
 } from "../../../shell/src/shared/primitives/Table";
 import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Button } from "../../../shell/src/shared/primitives/Button";
+import {
+  StickyActionCell,
+  StickyActionHeader,
+  TableChrome,
+  TableScroll,
+  TableStretch,
+} from "../../../shell/src/shared/primitives/TableLayout";
 import { useTableInteraction, type TablePosition } from "../../../shell/src/shared/hooks/useTableInteraction";
 import { evaluateRow, type FormulaResult } from "../../../shell/src/shared/formulas/formulaEngine";
 
@@ -500,6 +508,70 @@ function CellGalleryTable() {
   );
 }
 
+const LAYOUT_ROWS = [
+  ["Aster", "Research", "Buffer", "Ready"],
+  ["Nova", "Assay", "Sample", "Review"],
+  ["Elm", "Analysis", "Control", "Queued"],
+];
+
+function LayoutDemo() {
+  const [mode, setMode] = useState<"auto" | "full">("auto");
+
+  return (
+    <section aria-labelledby="layout-demo-heading" className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-[var(--font-label)] text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">Layout primitives</p>
+          <h2 id="layout-demo-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Layout demo</h2>
+          <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">Scroll the wide grid. The action column stays pinned while the scrollbar appears on hover.</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setMode((current) => current === "auto" ? "full" : "auto")}
+          aria-label={mode === "auto" ? "Stretch table to full width" : "Auto-fit table to content"}
+          aria-pressed={mode === "full"}
+          data-testid="layout-stretch-toggle"
+        >
+          {mode === "auto" ? "Auto stretch" : "Full stretch"}
+        </Button>
+      </div>
+      <TableStretch mode={mode} data-testid="layout-stretch-wrapper">
+        <TableChrome
+          title="Assay results"
+          toolbar={<span data-testid="layout-toolbar-slot" className="text-xs text-[var(--color-ink-muted-foreground)]">Toolbar slot</span>}
+          addRow={<Button variant="ghost" size="sm" data-testid="layout-add-row">+ Add row</Button>}
+          data-testid="layout-table-chrome"
+        >
+          <TableScroll mode={mode} data-testid="layout-scroll-container">
+            <Table className="table-layout-demo-grid" data-testid="layout-wide-table">
+              <TableHead>
+                <TableRow>
+                  {['Source', 'Experiment', 'Material', 'Status', 'Notes'].map((heading) => (
+                    <TableHeaderCell key={heading}>{heading}</TableHeaderCell>
+                  ))}
+                  <StickyActionHeader aria-label="Actions" data-testid="layout-action-header" />
+                </TableRow>
+              </TableHead>
+              <tbody>
+                {LAYOUT_ROWS.map((row, index) => (
+                  <TableRow key={row[0]} data-testid={`layout-row-${index}`}>
+                    {row.map((value) => <TableCell key={value} className="whitespace-nowrap">{value}</TableCell>)}
+                    <TableCell className="table-layout-demo-wide-cell whitespace-nowrap text-[var(--color-ink-muted-foreground)]">Long-form observation for horizontal scrolling</TableCell>
+                    <StickyActionCell>
+                      <Button variant="ghost" size="sm" aria-label={`Actions for ${row[0]}`} data-testid={`layout-action-${index}`}>...</Button>
+                    </StickyActionCell>
+                  </TableRow>
+                ))}
+              </tbody>
+            </Table>
+          </TableScroll>
+        </TableChrome>
+      </TableStretch>
+    </section>
+  );
+}
+
 function PlaceholderSection({ title }: { title: string }) {
   const headingId = `${title.toLowerCase().replaceAll(" ", "-")}-heading`;
 
@@ -543,8 +615,9 @@ function TablesPlayground() {
       <CellGallery />
       <HarnessTable />
       <FormulaDemo />
+      <LayoutDemo />
 
-        {PLACEHOLDER_SECTIONS.map((title) => (
+        {PLACEHOLDER_SECTIONS.filter((title) => title !== "Layout demo").map((title) => (
           <PlaceholderSection key={title} title={title} />
         ))}
       </div>

@@ -2,7 +2,7 @@ import logging
 
 from django.db import transaction
 from django.db.models import Q
-from rest_framework import viewsets, status
+from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
@@ -15,6 +15,7 @@ from mods.access.scoping import visible_rows_q
 from .models import Entity, Action, LimsView, Metric
 from .serializers import (
     EntitySerializer,
+    validate_reference_properties,
     EntityBatchSerializer,
     EntityBatchRegisterSerializer,
     ActionSerializer,
@@ -425,6 +426,18 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     row_has_errors = True
 
             if row_has_errors:
+                continue
+
+            try:
+                validate_reference_properties(values, schema)
+            except serializers.ValidationError as exc:
+                for field, messages in exc.detail.items():
+                    message = messages[0] if isinstance(messages, list) else messages
+                    errors.append({
+                        "row_index": row_index,
+                        "field": field,
+                        "message": str(message),
+                    })
                 continue
 
             if entity_id is not None:

@@ -49,6 +49,40 @@ def validate_columns(value):
                 f"columns[{i}] cannot use 'Name' — it is a default column "
                 f"on every schema and cannot be added as a user-defined column."
             )
+
+        if (
+            col.get("referenceSchemaId") is not None
+            and col.get("referenceSchemaTypeId") is not None
+        ):
+            raise serializers.ValidationError(
+                f"columns[{i}] cannot set both 'referenceSchemaId' and "
+                f"'referenceSchemaTypeId'."
+            )
+
+        if col_type == "formula":
+            formula_type = column_type_registry.get_column_type("formula")
+            result = formula_type.validate(col.get("expression"))
+            if result is not True:
+                raise serializers.ValidationError({
+                    f"columns[{i}].expression": result,
+                })
+            result_type = col.get("resultType")
+            if result_type not in column_type_registry or result_type == "formula":
+                valid_types = sorted(
+                    ct.id for ct in column_type_registry if ct.id != "formula"
+                )
+                raise serializers.ValidationError(
+                    f"columns[{i}].resultType must be one of: "
+                    f"{', '.join(valid_types)}."
+                )
+        target_type_id = col.get("referenceSchemaTypeId")
+        if target_type_id is not None and not SchemaType.objects.filter(
+            pk=target_type_id
+        ).exists():
+            raise serializers.ValidationError(
+                f"columns[{i}].referenceSchemaTypeId must reference an existing "
+                "schema type."
+            )
     return value
 
 

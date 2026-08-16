@@ -124,6 +124,42 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(len(s.columns), 2)
         self.assertIsNotNone(s.content_hash)
 
+    def test_schema_column_metadata_round_trips(self):
+        columns = [
+            {
+                "name": "total",
+                "type": "formula",
+                "expression": "quantity * price",
+                "resultType": "number",
+            },
+            {
+                "name": "source",
+                "type": "reference",
+                "referenceSchemaTypeId": self.schema_type.id,
+            },
+        ]
+        response = self.client.post(
+            "/api/schemas/",
+            {
+                "name": "Calculated",
+                "prefix": "CALC",
+                "schema_type": self.schema_type.id,
+                "columns": columns,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            [
+                {key: value for key, value in column.items() if key != "id"}
+                for column in response.data["columns"]
+            ],
+            columns,
+        )
+        retrieved = self.client.get(f"/api/schemas/{response.data['id']}/")
+        self.assertEqual(retrieved.status_code, 200)
+        self.assertEqual(retrieved.data["columns"], response.data["columns"])
+
     def test_list_schemas(self):
         """GET returns all schemas with schema type info."""
         Schema.objects.create(
@@ -257,6 +293,42 @@ class SchemaColumnValidationTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("columns", response.data)
+
+    def test_rejects_invalid_formula_expression(self):
+        response = self.client.post(
+            "/api/schemas/",
+            {
+                "name": "Test",
+                "prefix": "FORM",
+                "schema_type": self.schema_type.id,
+                "columns": [{
+                    "name": "total",
+                    "type": "formula",
+                    "expression": "amount +",
+                    "resultType": "number",
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_both_reference_targets(self):
+        response = self.client.post(
+            "/api/schemas/",
+            {
+                "name": "Test",
+                "prefix": "REFS",
+                "schema_type": self.schema_type.id,
+                "columns": [{
+                    "name": "source",
+                    "type": "reference",
+                    "referenceSchemaId": 1,
+                    "referenceSchemaTypeId": self.schema_type.id,
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_rejects_column_named_name(self):
         """User-defined column 'Name' is blocked (case-insensitive)."""

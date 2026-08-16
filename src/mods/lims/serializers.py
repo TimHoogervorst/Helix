@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from helix_core.column_types import registry as column_type_registry
-from helix_core.models import Schema
+from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Folder, Project
 
@@ -43,6 +43,77 @@ def validate_columns(value):
                 f"on every schema and cannot be added as a user-defined column."
             )
     return value
+
+
+def validate_reference_properties(properties, schema_instance):
+    """Validate targeted reference values for a concrete schema."""
+    if not properties or not schema_instance or not schema_instance.columns:
+        return properties
+
+    from .models import Entity as EntityModel
+
+    for col_def in schema_instance.columns:
+        if col_def.get("type") != "reference":
+            continue
+        col_name = col_def.get("name")
+        if not col_name or col_name not in properties:
+            continue
+        value = properties[col_name]
+        if value is None or value == "":
+            continue
+
+        expected_schema_id = col_def.get("referenceSchemaId")
+        expected_schema_type_id = col_def.get("referenceSchemaTypeId")
+        ct = column_type_registry.get_column_type("reference")
+        if ct is None:
+            continue
+        result = ct.validate(value)
+        if result is not True:
+            raise serializers.ValidationError({col_name: result})
+
+        if (
+            expected_schema_id is not None or expected_schema_type_id is not None
+        ) and isinstance(value, str):
+            try:
+                ref = (
+                    EntityModel.objects
+                    .only("schema_id", "schema__name", "schema__schema_type_id")
+                    .select_related("schema", "schema__schema_type")
+                    .get(display_id=value)
+                )
+            except EntityModel.DoesNotExist:
+                raise serializers.ValidationError({
+                    col_name: f"Referenced entity '{value}' does not exist.",
+                })
+            if expected_schema_id is not None and ref.schema_id != expected_schema_id:
+                target_schema = Schema.objects.get(pk=expected_schema_id)
+                raise serializers.ValidationError({
+                    col_name: (
+                        f"Referenced entity '{value}' belongs to schema "
+                        f"'{ref.schema.name}' but the column expects "
+                        f"'{target_schema.name}'."
+                    ),
+                })
+            if (
+                expected_schema_type_id is not None
+                and ref.schema.schema_type_id != expected_schema_type_id
+            ):
+                try:
+                    target_schema_type = SchemaType.objects.get(
+                        pk=expected_schema_type_id
+                    )
+                except SchemaType.DoesNotExist:
+                    raise serializers.ValidationError({
+                        col_name: "Referenced schema type does not exist.",
+                    })
+                raise serializers.ValidationError({
+                    col_name: (
+                        f"Referenced entity '{value}' belongs to schema type "
+                        f"'{ref.schema.schema_type.display_name}' but the column "
+                        f"expects '{target_schema_type.display_name}'."
+                    ),
+                })
+    return properties
 
 
 class EntitySerializer(serializers.ModelSerializer):
@@ -106,69 +177,12 @@ class EntitySerializer(serializers.ModelSerializer):
     def validate_properties(self, properties):
         """Validate reference column values against their target schemas.
 
-        For each property whose column definition includes
-        ``referenceSchemaId``, the referenced entity must exist and its
-        ``schema_id`` must match the target.  Open references (no
-        ``referenceSchemaId``) only receive format validation.
+        For each property whose column definition includes a concrete or
+        type-level target, the referenced entity must exist and match it.
+        Open references only receive format validation.
         """
-        if not properties:
-            return properties
-
         schema_instance = self._resolve_schema_for_validation()
-        if schema_instance is None:
-            return properties
-
-        column_defs = schema_instance.columns
-        if not column_defs:
-            return properties
-
-        from .models import Entity as EntityModel
-
-        for col_def in column_defs:
-            if col_def.get("type") != "reference":
-                continue
-            col_name = col_def.get("name")
-            if not col_name or col_name not in properties:
-                continue
-            value = properties[col_name]
-            if value is None or value == "":
-                continue
-
-            expected_schema_id = col_def.get("referenceSchemaId")
-            ct = column_type_registry.get_column_type("reference")
-            if ct is None:
-                continue
-            result = ct.validate(value, reference_schema_id=expected_schema_id)
-            if result is not True:
-                raise serializers.ValidationError({
-                    col_name: result,
-                })
-
-            if expected_schema_id is not None and isinstance(value, str):
-                try:
-                    ref = (
-                        EntityModel.objects
-                        .only("schema_id", "schema__name")
-                        .select_related("schema")
-                        .get(display_id=value)
-                    )
-                except EntityModel.DoesNotExist:
-                    raise serializers.ValidationError({
-                        col_name: (
-                            f"Referenced entity '{value}' does not exist."
-                        ),
-                    })
-                if ref.schema_id != expected_schema_id:
-                    target_schema = Schema.objects.get(pk=expected_schema_id)
-                    raise serializers.ValidationError({
-                        col_name: (
-                            f"Referenced entity '{value}' belongs to schema "
-                            f"'{ref.schema.name}' but the column expects "
-                            f"'{target_schema.name}'."
-                        ),
-                    })
-
-        return properties
+        return validate_reference_properties(properties, schema_instance)
 
     def _resolve_schema_for_validation(self):
         """Return the Schema instance for property validation.

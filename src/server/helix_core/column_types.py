@@ -515,6 +515,33 @@ class ReferenceColumnType(ColumnType):
         )
 
 
+class FormulaColumnType(ColumnType):
+    """Schema column type for expressions evaluated by the frontend."""
+
+    id = "formula"
+    display_name = "Formula"
+    icon = "sigma"
+    color = "primary"
+    operand_shape = "text"
+
+    def get_operators(self) -> list[OperatorMeta]:
+        return _make_text_operators()
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return _make_text_aggregates()
+
+    def validate(self, value, **context) -> bool | str:
+        if not isinstance(value, str) or not value.strip():
+            return "Formula expression must be a non-empty string"
+        import ast
+
+        try:
+            ast.parse(value, mode="eval")
+        except SyntaxError as exc:
+            return f"Invalid formula expression: {exc.msg}"
+        return True
+
+
 class UserColumnType(ReferenceColumnType):
     """User column type — extends reference with group-based operator."""
 
@@ -597,6 +624,7 @@ _BUILTIN_TYPES: list[type[ColumnType]] = [
     BooleanColumnType,
     DropdownColumnType,
     ReferenceColumnType,
+    FormulaColumnType,
     UserColumnType,
     ProjectColumnType,
 ]

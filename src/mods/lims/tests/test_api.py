@@ -1562,6 +1562,9 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         cls.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
         )
+        cls.type_target_schema_type = SchemaType.objects.create(
+            display_name="Target Type", workspace_id="target", model="mods.lims.models.Entity",
+        )
 
     def setUp(self):
         super().setUp()
@@ -1580,6 +1583,18 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         self.open_ref_schema = Schema.objects.create(
             name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
             columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.type_target_schema = Schema.objects.create(
+            name="Type Target", prefix="TTGT", schema_type=self.type_target_schema_type,
+            columns=[],
+        )
+        self.type_ref_schema = Schema.objects.create(
+            name="Type Reference", prefix="TREF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaTypeId": self.type_target_schema_type.id,
+            }],
         )
         self.client.force_authenticate(user=self.user)
 
@@ -1637,6 +1652,63 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         err = response.data["properties"]["linked_entity"]
         self.assertIn("does not exist", str(err))
+
+    def test_create_reference_matching_schema_type_succeeds(self):
+        target = Entity.objects.create(
+            name="Type Target Entity", schema=self.type_target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "folder": self.folder.id,
+                "schema": self.type_ref_schema.id,
+                "properties": {"linked_entity": target.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_reference_wrong_schema_type_rejected(self):
+        other = Entity.objects.create(
+            name="Wrong Type", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "folder": self.folder.id,
+                "schema": self.type_ref_schema.id,
+                "properties": {"linked_entity": other.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Target Type", str(response.data["properties"]["linked_entity"]))
+
+    def test_batch_register_reference_wrong_schema_type_rejected(self):
+        other = Entity.objects.create(
+            name="Wrong Type", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.type_ref_schema.id,
+                "rows": [{
+                    "entity_id": None,
+                    "name": "Test Entity",
+                    "folder_id": self.folder.id,
+                    "values": {"linked_entity": other.display_id},
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+        self.assertIn("Target Type", str(response.data["errors"][0]["message"]))
 
     def test_create_open_reference_accepts_any_valid_display_id(self):
         """Open reference (no referenceSchemaId) accepts any valid display_id."""
@@ -1704,6 +1776,9 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         cls.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
         )
+        cls.type_target_schema_type = SchemaType.objects.create(
+            display_name="Target Type", workspace_id="target", model="mods.lims.models.Entity",
+        )
 
     def setUp(self):
         super().setUp()
@@ -1722,6 +1797,18 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         self.open_ref_schema = Schema.objects.create(
             name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
             columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.type_target_schema = Schema.objects.create(
+            name="Type Target", prefix="TTGT", schema_type=self.type_target_schema_type,
+            columns=[],
+        )
+        self.type_ref_schema = Schema.objects.create(
+            name="Type Reference", prefix="TREF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaTypeId": self.type_target_schema_type.id,
+            }],
         )
         self.client.force_authenticate(user=self.user)
 
@@ -1806,6 +1893,33 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         err = response.data["properties"]["linked_entity"]
         self.assertIn("does not exist", str(err))
+
+    def test_update_reference_wrong_schema_type_rejected(self):
+        target = Entity.objects.create(
+            name="Target", schema=self.type_target_schema,
+            folder=self.folder, author=self.user,
+        )
+        entity = Entity.objects.create(
+            name="Test", schema=self.type_ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        other = Entity.objects.create(
+            name="Wrong Type", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (updated)",
+                "folder": self.folder.id,
+                "schema": self.type_ref_schema.id,
+                "properties": {"linked_entity": other.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Target Type", str(response.data["properties"]["linked_entity"]))
 
     def test_update_open_reference_accepts_any_valid_display_id(self):
         """PUT entity with open reference accepts any valid display_id."""

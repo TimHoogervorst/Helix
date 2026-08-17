@@ -27,13 +27,17 @@ const previewContent = {
           columns: [
             { id: "amount", name: "Amount", type: "number" },
             { id: "status", name: "Status", type: "text" },
+            { id: "date", name: "Date", type: "date" },
+            { id: "active", name: "Active", type: "boolean" },
+            { id: "role", name: "Role", type: "dropdown", dropdownId: 1 },
+            { id: "source", name: "Source", type: "entity-picker", referenceSchemaId: 1 },
           ],
           rows: [
             {
               entityId: null,
               displayId: "#preview-1",
               __name: "Sample A",
-              values: { Amount: 12, Status: "Ready" },
+              values: { Amount: 12, Status: "Ready", Date: "2026-08-16", Active: true, Role: "Researcher", Source: "ENT-001" },
               isRegistered: false,
               lastRegisteredValueHash: null,
               registrationError: null,
@@ -42,7 +46,7 @@ const previewContent = {
               entityId: null,
               displayId: "#preview-2",
               __name: "Sample B",
-              values: { Amount: 24, Status: "Pending" },
+              values: { Amount: 24, Status: "Pending", Date: "2026-08-17", Active: false, Role: "Reviewer", Source: "ENT-002" },
               isRegistered: false,
               lastRegisteredValueHash: null,
               registrationError: null,
@@ -65,12 +69,16 @@ const previewContent = {
         content: JSON.stringify({
           title: "Normal table",
           columns: [
-            { id: "material", name: "Material" },
-            { id: "quantity", name: "Quantity" },
+            { id: "material", name: "Material", type: "text" },
+            { id: "quantity", name: "Quantity", type: "number" },
+            { id: "when", name: "When", type: "date" },
+            { id: "ready", name: "Ready", type: "boolean" },
+            { id: "role", name: "Role", type: "dropdown" },
+            { id: "source", name: "Source", type: "entity-picker" },
           ],
           rows: [
-            { id: "row-1", cells: { material: "Buffer", quantity: "10 mL" } },
-            { id: "row-2", cells: { material: "Reagent", quantity: "2 g" } },
+            { id: "row-1", cells: { material: "Buffer", quantity: 10, when: "2026-08-16", ready: true, role: "Researcher", source: "ENT-001" } },
+            { id: "row-2", cells: { material: "Reagent", quantity: 2, when: "2026-08-17", ready: false, role: "Reviewer", source: "ENT-002" } },
           ],
         }),
       },

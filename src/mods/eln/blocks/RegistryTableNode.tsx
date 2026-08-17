@@ -403,7 +403,11 @@ export function RegistryTableContent({
 
   useEffect(() => {
     if (previewMode) {
-      setDropdownOptionsMap(new Map());
+      setDropdownOptionsMap(new Map(
+        columns
+          .filter((column) => column.type === "dropdown")
+          .map((column) => [column.name, ["Researcher", "Reviewer", "Operator"]]),
+      ));
       return;
     }
     const selectColumns = columns.filter(

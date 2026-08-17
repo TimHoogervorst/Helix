@@ -14,17 +14,19 @@ import { useCallback, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
+import { getCellEditor } from "../../../shell/src/shared/components/CellEditors";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
 export interface TableColumn {
   id: string;
   name: string;
+  type?: string;
 }
 
 export interface TableRow {
   id: string;
-  cells: Record<string, string>;
+  cells: Record<string, unknown>;
 }
 
 interface TableBlockContentProps {
@@ -39,6 +41,7 @@ interface TableBlockContentProps {
 
 const DEFAULT_TITLE = "Table";
 const NEW_COLUMN_PREFIX = "Column ";
+const MOCK_DROPDOWN_OPTIONS = ["Researcher", "Reviewer", "Operator"];
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -50,6 +53,27 @@ function nextColumnName(columns: TableColumn[]): string {
     });
   const max = indices.length > 0 ? Math.max(...indices) : 0;
   return `${NEW_COLUMN_PREFIX}${max + 1}`;
+}
+
+function TypedTableCell({
+  column,
+  value,
+  onCommit,
+}: {
+  column: TableColumn;
+  value: unknown;
+  onCommit: (value: unknown) => void;
+}) {
+  const CellEditor = getCellEditor(column.type ?? "text");
+  return (
+    <CellEditor
+      value={value}
+      onCommit={onCommit}
+      columnName={column.name}
+      dropdownOptions={column.type === "dropdown" ? MOCK_DROPDOWN_OPTIONS : undefined}
+      workspaceId="eln"
+    />
+  );
 }
 
 // ── Inline Edit ─────────────────────────────────────────────────────────
@@ -216,7 +240,7 @@ export function TableBlockContent({
 
   // ── Row operations ────────────────────────────────────────────────────
   const handleCellChange = useCallback(
-    (rowId: string, colId: string, value: string) => {
+    (rowId: string, colId: string, value: unknown) => {
       const updatedRows = rows.map((r) =>
         r.id === rowId
           ? { ...r, cells: { ...r.cells, [colId]: value } }
@@ -229,7 +253,7 @@ export function TableBlockContent({
 
   const handleAddRow = useCallback(() => {
     const id = crypto.randomUUID();
-    const cells: Record<string, string> = {};
+    const cells: Record<string, unknown> = {};
     for (const col of columns) {
       cells[col.id] = "";
     }
@@ -331,16 +355,17 @@ export function TableBlockContent({
                   >
                     {columns.map((col) => (
                       <td key={col.id} className="min-w-[100px] px-3 py-2 font-[var(--font-label)] text-sm">
-                        <InlineEdit
-                          value={row.cells[col.id] ?? ""}
-                          onCommit={(newValue) =>
-                            handleCellChange(row.id, col.id, newValue)
-                          }
-                          readOnly={readOnly}
-                          placeholder="—"
-                          aria-label={`Cell: ${col.name}`}
-                          data-testid={`cell-${row.id}-${col.id}`}
-                        />
+                        {readOnly ? (
+                          <span className="inline-block px-4 py-2" data-testid={`cell-${row.id}-${col.id}`}>
+                            {String(row.cells[col.id] ?? "")}
+                          </span>
+                        ) : (
+                          <TypedTableCell
+                            column={col}
+                            value={row.cells[col.id]}
+                            onCommit={(newValue) => handleCellChange(row.id, col.id, newValue)}
+                          />
+                        )}
                       </td>
                     ))}
                     {/* Delete row button on hover */}

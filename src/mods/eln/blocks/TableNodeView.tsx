@@ -32,6 +32,7 @@ interface TableBlockContentProps {
   columns: TableColumn[];
   rows: TableRow[];
   updateAttrs: (attrs: Record<string, unknown>) => void;
+  readOnly?: boolean;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ function InlineEdit({
   onCommit,
   className = "",
   placeholder = "",
+  readOnly = false,
   "aria-label": ariaLabel,
   "data-testid": dataTestId,
 }: {
@@ -69,6 +71,7 @@ function InlineEdit({
   onCommit: (newValue: string) => void;
   className?: string;
   placeholder?: string;
+  readOnly?: boolean;
   "aria-label"?: string;
   "data-testid"?: string;
 }) {
@@ -109,7 +112,7 @@ function InlineEdit({
     [commit, cancel],
   );
 
-  if (editing) {
+  if (editing && !readOnly) {
     return (
       <input
         type="text"
@@ -127,16 +130,18 @@ function InlineEdit({
 
   return (
     <span
-      className={`cursor-text ${value ? "" : "italic text-muted-foreground"} ${className}`}
-      onClick={startEdit}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          startEdit();
-        }
-      }}
+      className={`${readOnly ? "" : "cursor-text"} ${value ? "" : "italic text-muted-foreground"} ${className}`}
+      {...(!readOnly && {
+        onClick: startEdit,
+        role: "button",
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent<HTMLSpanElement>) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            startEdit();
+          }
+        },
+      })}
       aria-label={ariaLabel}
       data-testid={dataTestId}
     >
@@ -160,6 +165,7 @@ export function TableBlockContent({
   columns,
   rows,
   updateAttrs,
+  readOnly = false,
 }: TableBlockContentProps) {
   // ── Title ──────────────────────────────────────────────────────────────
   const handleTitleChange = useCallback(
@@ -251,6 +257,7 @@ export function TableBlockContent({
           <InlineEdit
             value={title}
             onCommit={handleTitleChange}
+            readOnly={readOnly}
             className="text-sm font-medium text-foreground"
             aria-label="Table title"
             data-testid="table-title"
@@ -276,10 +283,11 @@ export function TableBlockContent({
                         onCommit={(newName) =>
                           handleColumnRename(col.id, newName)
                         }
+                        readOnly={readOnly}
                         aria-label={`Column name: ${col.name}`}
                         data-testid={`column-header-${col.id}`}
                       />
-                      {hoveredColumn === col.id && (
+                      {!readOnly && hoveredColumn === col.id && (
                         <button
                           type="button"
                           className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
@@ -297,7 +305,7 @@ export function TableBlockContent({
                   </th>
                 ))}
                 {/* Ghost "+" button for adding a column */}
-                <th className="w-10 px-0 py-2">
+                {!readOnly && <th className="w-10 px-0 py-2">
                   <button
                     type="button"
                     className="btn-icon grid place-items-center rounded"
@@ -307,7 +315,7 @@ export function TableBlockContent({
                   >
                     <Plus className="h-3 w-3" />
                   </button>
-                </th>
+                </th>}
               </tr>
             </thead>
 
@@ -328,6 +336,7 @@ export function TableBlockContent({
                           onCommit={(newValue) =>
                             handleCellChange(row.id, col.id, newValue)
                           }
+                          readOnly={readOnly}
                           placeholder="—"
                           aria-label={`Cell: ${col.name}`}
                           data-testid={`cell-${row.id}-${col.id}`}
@@ -336,7 +345,7 @@ export function TableBlockContent({
                     ))}
                     {/* Delete row button on hover */}
                     <td className="w-10 px-0 py-2">
-                      {hoveredRow === row.id && (
+                      {!readOnly && hoveredRow === row.id && (
                         <button
                           type="button"
                           className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
@@ -369,7 +378,7 @@ export function TableBlockContent({
       </div>
 
       {/* ── Ghost "+ New Row" button below the card ──────────────────── */}
-      <Button
+      {!readOnly && <Button
         variant="ghost"
         size="sm"
         className="mt-2"
@@ -379,7 +388,7 @@ export function TableBlockContent({
       >
         <Plus className="h-3 w-3" />
         <span>New Row</span>
-      </Button>
+      </Button>}
     </>
   );
 }
@@ -391,13 +400,14 @@ export function TableBlockContent({
  */
 export const TableBlockComponent = createBlockAdapter(
   TableBlockContent,
-  ({ instance }) => {
+  ({ instance, context }) => {
     const attrs = instance.attrs as Record<string, unknown>;
     return {
       title: (attrs.title as string) ?? DEFAULT_TITLE,
       columns: (attrs.columns as TableColumn[]) ?? [],
       rows: (attrs.rows as TableRow[]) ?? [],
-      updateAttrs: instance.updateAttrs,
+      updateAttrs: context.viewMode === "preview" ? () => undefined : instance.updateAttrs,
+      readOnly: context.viewMode === "preview",
     };
   },
 );

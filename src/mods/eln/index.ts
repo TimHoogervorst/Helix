@@ -1,4 +1,5 @@
 import { lazy } from "react";
+import ElnDevPage from "./dev/ElnDevPage";
 import { FlaskConical, ListChecks, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
 import { Mod } from "../../shell/src/mod-system/Mod";
 import { BlockEvent } from "../../shell/src/mod-system/BlockEvent";
@@ -32,6 +33,13 @@ mod.registerRoute("entry-page", {
   path: "/eln/:id",
   component: lazy(() => import("./workspace/ElnWorkspacePage")),
 });
+
+if (import.meta.env.DEV) {
+  mod.registerRoute("dev-eln", {
+    path: "/dev/eln",
+    component: ElnDevPage,
+  });
+}
 
 // ── Slot: ELN Editor ────────────────────────────────────
 export const editorSlot = mod.declareSlot("editor", {

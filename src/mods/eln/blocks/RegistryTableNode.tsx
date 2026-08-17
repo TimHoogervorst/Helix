@@ -345,6 +345,8 @@ interface RegistryTableContentProps {
   onToggleStretch?: () => void;
   /** When true, the stretch toggle button is rendered. */
   showStretchToggle?: boolean;
+  /** When true, render the table without any backend or local mutations. */
+  previewMode?: boolean;
   /**
    * Optional emitAction function for emitting custom domain actions
    * declared in the block registration's `emits` field.
@@ -378,6 +380,7 @@ export function RegistryTableContent({
   stretchMode = "auto",
   onToggleStretch,
   showStretchToggle = false,
+  previewMode = false,
   emitAction,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
@@ -399,6 +402,10 @@ export function RegistryTableContent({
   >(new Map());
 
   useEffect(() => {
+    if (previewMode) {
+      setDropdownOptionsMap(new Map());
+      return;
+    }
     const selectColumns = columns.filter(
       (c) => c.type === "dropdown" && c.dropdownId,
     );
@@ -433,10 +440,11 @@ export function RegistryTableContent({
     return () => {
       cancelled = true;
     };
-  }, [columns]);
+  }, [columns, previewMode]);
 
   // ── Fetch entity types when picker opens ────────────────────────────
   const handleOpenPicker = useCallback(async () => {
+    if (previewMode) return;
     setShowPicker(true);
     if (entityTypes.length === 0) {
       setLoading(true);
@@ -449,11 +457,12 @@ export function RegistryTableContent({
         setLoading(false);
       }
     }
-  }, [entityTypes.length]);
+  }, [entityTypes.length, previewMode]);
 
   // ── Select an entity type → snapshot schema into block attrs ────────
   const handleSelectEntityType = useCallback(
     (entityType: EntityTypeSummary) => {
+      if (previewMode) return;
       const newColumns = toGridColumns(entityType);
 
       updateAttrs({
@@ -465,7 +474,7 @@ export function RegistryTableContent({
       });
       setShowPicker(false);
     },
-    [updateAttrs],
+    [previewMode, updateAttrs],
   );
 
   // ── Title editing ───────────────────────────────────────────────────
@@ -536,6 +545,7 @@ export function RegistryTableContent({
   // ── Delete row ───────────────────────────────────────────────────────
   const handleDeleteRow = useCallback(
     async (rowDisplayId: string) => {
+      if (previewMode) return;
       const row = rows.find((r) => r.displayId === rowDisplayId);
       // If the row is registered, call the API to delete the entity
       if (row?.entityId !== null && row?.entityId !== undefined) {
@@ -550,13 +560,13 @@ export function RegistryTableContent({
       }
       updateAttrs({ rows: rows.filter((r) => r.displayId !== rowDisplayId) });
     },
-    [rows, updateAttrs],
+    [previewMode, rows, updateAttrs],
   );
 
   // ── Refresh schema ───────────────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const handleRefreshSchema = useCallback(async () => {
-    if (schemaId === null) return;
+    if (previewMode || schemaId === null) return;
     setRefreshing(true);
     try {
       const entityType = await get<EntityTypeSummary>(
@@ -599,13 +609,13 @@ export function RegistryTableContent({
     } finally {
       setRefreshing(false);
     }
-  }, [schemaId, columns, rows, updateAttrs]);
+  }, [previewMode, schemaId, columns, rows, updateAttrs]);
 
   // ── Register entities ───────────────────────────────────────────────
   const [registering, setRegistering] = useState(false);
 
   const handleRegister = useCallback(async () => {
-    if (schemaId === null) return;
+    if (previewMode || schemaId === null) return;
 
     // Collect non-green rows with their original indices
     const nonGreenRows: { index: number; row: RegistryTableRow }[] = [];
@@ -704,6 +714,7 @@ export function RegistryTableContent({
       });
     }
   }, [
+    previewMode,
     schemaId,
     rows,
     schemaContentHash,
@@ -844,7 +855,7 @@ export function RegistryTableContent({
         {refreshing && (
           <Loader className="h-3.5 w-3.5 animate-spin text-muted-foreground" data-testid="refresh-spinner" />
         )}
-        {!readOnly && (
+        {!readOnly && !previewMode && (
           <>
             <IconButton
               onClick={handleRefreshSchema}
@@ -869,6 +880,16 @@ export function RegistryTableContent({
               )}
             </IconButton>
           </>
+        )}
+        {previewMode && (
+          <IconButton
+            disabled
+            title="Registration is disabled in preview"
+            aria-label="Register entities"
+            data-testid="register-entities-btn"
+          >
+            <Upload className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
         )}
       </div>
 
@@ -1123,15 +1144,17 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       rows: (attrs.rows as RegistryTableRow[]) ?? [],
        projectId,
        folderId,
-      updateAttrs: instance.updateAttrs,
-      readOnly: context.viewMode === "view",
+      updateAttrs: context.viewMode === "preview" ? () => undefined : instance.updateAttrs,
+      readOnly: context.viewMode === "view" || context.viewMode === "preview",
+      previewMode: context.viewMode === "preview",
       stretchMode,
       onToggleStretch: () => {
+        if (context.viewMode === "preview") return;
         const nextMode = stretchMode === "auto" ? "full" : "auto";
         instance.updateAttrs({ stretchMode: nextMode });
       },
-      showStretchToggle: overrides.stretch === true,
-      emitAction: context.emitAction,
+      showStretchToggle: overrides.stretch === true && context.viewMode !== "preview",
+      emitAction: context.viewMode === "preview" ? undefined : context.emitAction,
     };
   },
 );

@@ -1173,6 +1173,20 @@ describe("RegistryTableContent — refresh schema button", () => {
     render(<RegistryTableContent {...contentProps({ readOnly: true })} />);
     expect(screen.queryByTestId("refresh-schema-btn")).not.toBeInTheDocument();
   });
+
+  it("renders an inert registration control in preview mode", async () => {
+    const props = contentProps();
+    render(<RegistryTableContent {...props} previewMode readOnly />);
+
+    const registerButton = screen.getByTestId("register-entities-btn");
+    expect(registerButton).toBeDisabled();
+
+    fireEvent.click(registerButton);
+    await waitFor(() => {
+      expect(mockPost).not.toHaveBeenCalled();
+      expect(props.updateAttrs).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════

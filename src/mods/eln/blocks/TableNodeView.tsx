@@ -406,8 +406,8 @@ export const TableBlockComponent = createBlockAdapter(
       title: (attrs.title as string) ?? DEFAULT_TITLE,
       columns: (attrs.columns as TableColumn[]) ?? [],
       rows: (attrs.rows as TableRow[]) ?? [],
-      updateAttrs: context.viewMode === "preview" ? () => undefined : instance.updateAttrs,
-      readOnly: context.viewMode === "preview",
+      updateAttrs: instance.updateAttrs,
+      readOnly: context.viewMode === "view",
     };
   },
 );

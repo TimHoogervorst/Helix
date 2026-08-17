@@ -1144,17 +1144,16 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       rows: (attrs.rows as RegistryTableRow[]) ?? [],
        projectId,
        folderId,
-      updateAttrs: context.viewMode === "preview" ? () => undefined : instance.updateAttrs,
-      readOnly: context.viewMode === "view" || context.viewMode === "preview",
-      previewMode: context.viewMode === "preview",
+      updateAttrs: instance.updateAttrs,
+      readOnly: context.viewMode === "view",
+      previewMode: context.viewMode === "prototype",
       stretchMode,
       onToggleStretch: () => {
-        if (context.viewMode === "preview") return;
         const nextMode = stretchMode === "auto" ? "full" : "auto";
         instance.updateAttrs({ stretchMode: nextMode });
       },
-      showStretchToggle: overrides.stretch === true && context.viewMode !== "preview",
-      emitAction: context.viewMode === "preview" ? undefined : context.emitAction,
+      showStretchToggle: overrides.stretch === true,
+      emitAction: context.viewMode === "prototype" ? undefined : context.emitAction,
     };
   },
 );

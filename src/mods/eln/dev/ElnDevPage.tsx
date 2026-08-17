@@ -10,7 +10,11 @@ const previewContent = {
   content: [
     {
       type: "paragraph",
-      content: [{ type: "text", text: "ELN table block preview" }],
+      content: [{ type: "text", text: "Registration table" }],
+    },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "Edit names and cell values below to explore how a schema-driven table responds to changes. Registration is intentionally disabled in this prototype." }],
     },
     {
       type: "eln.registry-table",
@@ -46,6 +50,14 @@ const previewContent = {
           ],
         }),
       },
+    },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "Normal table" }],
+    },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "This table is a free-form block. Rename columns, edit cells, add rows, and try the table controls." }],
     },
     {
       type: "eln.table",
@@ -90,10 +102,10 @@ export default function ElnDevPage() {
         slotId="eln.editor"
         bindings={bindings}
         bus={busRef.current}
-        context={{ workspaceId: "eln", user: null, viewMode: "preview", entryId: "dev" }}
+        context={{ workspaceId: "eln", user: null, viewMode: "prototype", entryId: "dev" }}
         content={previewContent}
         extensions={elnExtensions}
-        editable={false}
+        editable
       />
     </main>
   );

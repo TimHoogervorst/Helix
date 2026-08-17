@@ -304,6 +304,9 @@ textarea.eln-description-textarea {
 .table-cell-full {
   display: block;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   height: 100%;
   margin: 0;
   padding: 0.625rem 1rem; /* matches TableCell px-4 py-2.5 */
@@ -318,9 +321,17 @@ textarea.eln-description-textarea {
   outline: none;
   cursor: pointer;
 }
+[data-table-cell] {
+  width: 10rem;
+  min-width: 10rem;
+  overflow: hidden;
+}
 /* Reinforcement for the elements the global unlayered rules contest. */
 input.table-cell-full,
 select.table-cell-full {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 0.625rem 1rem;
   font-size: var(--text-base);
   color: var(--color-ink);
@@ -342,7 +353,7 @@ label.table-cell-full {
 input.table-cell-full:focus,
 select.table-cell-full:focus {
   border-color: transparent;
-  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+  box-shadow: none;
 }
 .table-cell-full--error {
   color: var(--color-destructive);
@@ -351,7 +362,16 @@ select.table-cell-full:focus {
    Doubles as the focus indicator — the interaction controller always focuses
    the active cell. Inset box-shadow so the border-collapse layout never shifts. */
 [data-table-cell][aria-selected="true"] {
+  outline: none;
+  background: var(--color-primary-subtle);
   box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+[data-table-cell]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+[data-table-cell][aria-selected="true"]:has(.table-cell-full--editing) {
+  box-shadow: none;
 }
 /* Interactive tables keep stable column widths: with auto layout, an editor's
    intrinsic width (an input's default size, a select's longest option) would
@@ -510,6 +530,13 @@ label {
 .table-layout-scroll {
   min-width: 0;
   overflow-x: auto;
+}
+
+/* Keep the interaction surface content-sized so wide tables create real
+   overflow on the shared scroll container. */
+.table-layout-scroll > div {
+  width: max-content;
+  min-width: 100%;
 }
 
 .table-layout-scroll--auto {
@@ -2082,18 +2109,6 @@ input.library-new-folder-input:focus {
 .hub-load-more button:disabled {
   opacity: 0.6;
   cursor: default;
-}
-
-/* ── Registry Table Name Cell Placeholder ───────────────────────────── */
-
-/* Mirrors the ProseMirror editor-empty pattern: when the contentEditable
-   name cell is empty, show a placeholder hint inside the typing area. */
-.name-cell-placeholder:empty::before {
-  content: attr(data-placeholder);
-  color: var(--color-muted-foreground);
-  font-style: italic;
-  font-size: 0.75rem;
-  pointer-events: none;
 }
 
 /* ── Registry Table: hide horizontal scrollbar until hover ────────────── */

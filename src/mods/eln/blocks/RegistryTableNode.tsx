@@ -24,7 +24,13 @@ import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal"
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
+import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
+import {
+  TypedFullCell,
+  parseCellValue,
+  renderCellValue,
+} from "../../../shell/src/shared/components/TableCells";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { listDropdowns } from "../../dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
@@ -191,19 +197,14 @@ const DOT_LABELS: Record<DotColor, string> = {
   green: "Registered, up to date",
 };
 
-// ── Editable Cell ──────────────────────────────────────────────────────────
+/**
+ * Preview mode has no backend to search, so reference columns fall back to
+ * static options (rendered as a full-cell select) instead of the entity
+ * picker popover.
+ */
+const MOCK_REFERENCE_OPTIONS = ["ENT-001", "ENT-002", "ENT-003"];
 
-interface EditableCellProps {
-  columnName: string;
-  columnType: string;
-  value: unknown;
-  onCommit: (columnName: string, newValue: unknown) => void;
-  readOnly?: boolean;
-  /** Resolved dropdown options for dropdown-type columns. */
-  dropdownOptions?: string[];
-  /** Target schema ID for reference columns. */
-  referenceSchemaId?: number;
-}
+// ── Editable Cell ──────────────────────────────────────────────────────────
 
 /** Resolve the operand_shape for a column type string from the registry. */
 function resolveOperandShape(columnType: string): string {
@@ -234,73 +235,6 @@ function renderColumnTypeBadge(columnType: string): React.ReactNode {
   }
   // Fallback: compact label for legacy types
   return columnType;
-}
-
-/**
- * Renders the appropriate editor for a cell based on its column type's
- * ``operand_shape``, looked up from the column type registry.
- *
- * The dispatch is fully generic — adding a new column type requires zero
- * changes to this component (unless a completely custom editor is needed,
- * deferred).
- */
-function EditableCell({
-  columnName,
-  columnType,
-  value,
-  onCommit,
-  readOnly = false,
-  dropdownOptions,
-  referenceSchemaId,
-}: EditableCellProps) {
-  const operandShape = resolveOperandShape(columnType);
-  const CellEditor: CellEditorComponent = getCellEditor(operandShape);
-
-  if (readOnly) {
-    // Render all cell types as read-only display, except entity-picker
-    // and select which keep their interactive elements visible.
-    if (operandShape === "entity-picker") {
-      return (
-        <CellEditor
-          value={value}
-          onCommit={(v) => onCommit(columnName, v)}
-          readOnly
-          referenceSchemaId={referenceSchemaId}
-        />
-      );
-    }
-    if (operandShape === "dropdown" && dropdownOptions && dropdownOptions.length > 0) {
-      return (
-        <CellEditor
-          value={value}
-          onCommit={(v) => onCommit(columnName, v)}
-          readOnly
-          dropdownOptions={dropdownOptions}
-        />
-      );
-    }
-    if (operandShape === "boolean") {
-      return (
-        <span data-testid="boolean-display" className="inline-block px-4 py-2">
-          {value === true ? "Yes" : "No"}
-        </span>
-      );
-    }
-    return (
-      <span data-testid="readonly-cell" className="inline-block px-4 py-2">
-        {value != null ? String(value) : ""}
-      </span>
-    );
-  }
-
-  return (
-    <CellEditor
-      value={value}
-      onCommit={(v) => onCommit(columnName, v)}
-      dropdownOptions={dropdownOptions}
-      referenceSchemaId={referenceSchemaId}
-    />
-  );
 }
 
 // ── Batch Register Response Types ───────────────────────────────────────────
@@ -347,6 +281,8 @@ interface RegistryTableContentProps {
   showStretchToggle?: boolean;
   /** When true, render the table without any backend or local mutations. */
   previewMode?: boolean;
+  /** Workspace context for entity-picker cells (metadata only). */
+  workspaceId?: string;
   /**
    * Optional emitAction function for emitting custom domain actions
    * declared in the block registration's `emits` field.
@@ -381,6 +317,7 @@ export function RegistryTableContent({
   onToggleStretch,
   showStretchToggle = false,
   previewMode = false,
+  workspaceId,
   emitAction,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
@@ -528,6 +465,48 @@ export function RegistryTableContent({
     },
     [rows, updateAttrs],
   );
+
+  // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
+  // Grid layout: column 0 is the Name pseudo-column, schema columns follow.
+  const interaction = useTableInteraction({
+    tableId: "registry-table",
+    rowCount: rows.length,
+    columnCount: columns.length + 1,
+    getValues: () =>
+      rows.map((row) => [
+        row.__name,
+        ...columns.map((col) =>
+          renderCellValue(resolveOperandShape(col.type), row.values[col.name]),
+        ),
+      ]),
+    onPaste: (anchor, values) => {
+      const updatedRows = rows.map((row, rowIndex) => {
+        const pastedRow = values[rowIndex - anchor.row];
+        if (!pastedRow || rowIndex < anchor.row) return row;
+        let name = row.__name;
+        const nextValues = { ...row.values };
+        pastedRow.forEach((raw, offset) => {
+          const gridColumn = anchor.column + offset;
+          if (gridColumn === 0) {
+            name = raw;
+            return;
+          }
+          const col = columns[gridColumn - 1];
+          if (!col) return;
+          try {
+            nextValues[col.name] = parseCellValue(
+              resolveOperandShape(col.type),
+              raw,
+            );
+          } catch {
+            // Skip values that don't parse for the column's shape
+          }
+        });
+        return { ...row, __name: name, values: nextValues };
+      });
+      updateAttrs({ rows: updatedRows });
+    },
+  });
 
   // ── Add row ──────────────────────────────────────────────────────────
   const handleAddRow = useCallback(() => {
@@ -910,12 +889,24 @@ export function RegistryTableContent({
           so columns remain visible in the gutter spaces.  The table uses
           w-max min-w-full so it can grow past the card width. */}
       <TableScroll mode={stretchMode}>
+        <div
+          className="w-max min-w-full"
+          ref={interaction.containerRef}
+          onCopy={interaction.handleCopy}
+          onPaste={interaction.handlePaste}
+        >
         <table className={`text-base bg-background ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
+          <colgroup>
+            <col style={{ width: "2.5rem" }} />
+            <col style={{ width: "10rem" }} />
+            {columns.map((col) => <col key={col.name} style={{ width: "10rem" }} />)}
+            {!readOnly && <col style={{ width: "2.5rem" }} />}
+          </colgroup>
           <thead className={stretchMode === "auto" ? "bg-background" : ""}>
             <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
               <th
-                className="px-2 py-2 whitespace-nowrap"
+                className="w-10 px-2 py-2 whitespace-nowrap"
                 data-testid="registry-table-header-status"
                 aria-label="Status"
               />
@@ -962,7 +953,7 @@ export function RegistryTableContent({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
+              rows.map((row, rowIndex) => {
                 const dotColor = getDotColor(row, schemaContentHash);
                 return (
                 <tr
@@ -999,70 +990,62 @@ export function RegistryTableContent({
                   </td>
 
                   {/* Name column */}
-                  <td className="align-middle font-[var(--font-label)] text-sm whitespace-nowrap">
-                    {readOnly ? (
-                      <span
-                        data-testid={`name-cell-${row.displayId}`}
-                        className="inline-block px-4 py-2"
-                      >
-                        {row.__name || ""}
-                      </span>
-                    ) : (
-                      <span
-                        className={`outline-none min-w-[100px] inline-block px-4 py-2 rounded hover:bg-surface focus:bg-surface ${!row.__name ? "name-cell-placeholder" : ""}`}
-                        contentEditable
-                        suppressContentEditableWarning
-                        data-placeholder="Enter name…"
-                        onInput={(e) => {
-                          // Keep the placeholder class in sync on every keystroke
-                          // so it survives browser-injected <br> tags in contentEditable.
-                          const el = e.currentTarget;
-                          const text = el.textContent ?? "";
-                          if (text.trim().length === 0) {
-                            el.classList.add("name-cell-placeholder");
-                          } else {
-                            el.classList.remove("name-cell-placeholder");
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const newName = e.currentTarget.textContent ?? "";
-                          if (newName !== (row.__name ?? "")) {
-                            handleNameCommit(row.displayId, newName);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            (e.target as HTMLElement).blur();
-                          }
-                        }}
-                        data-testid={`name-cell-${row.displayId}`}
-                      >
-                        {row.__name || null}
-                      </span>
-                    )}
+                  <td
+                    className="p-0!"
+                    {...interaction.cellProps({ row: rowIndex, column: 0 })}
+                  >
+                    <TypedFullCell
+                      shape="text"
+                      value={row.__name}
+                      onCommit={(value) =>
+                        handleNameCommit(row.displayId, String(value ?? ""))
+                      }
+                      position={{ row: rowIndex, column: 0 }}
+                      interaction={interaction}
+                      readOnly={readOnly}
+                      placeholder="Enter name…"
+                      data-testid={`name-cell-${row.displayId}`}
+                    />
                   </td>
 
                   {/* Schema columns */}
-                  {columns.map((col) => (
-                    <td
-                      key={col.name}
-                      className="align-middle font-[var(--font-label)] text-sm whitespace-nowrap"
-                      data-testid={`cell-${row.displayId}-${col.name}`}
-                    >
-                      <EditableCell
-                        columnName={col.name}
-                        columnType={col.type}
-                        value={row.values[col.name]}
-                        onCommit={(colName, newValue) =>
-                          handleCellCommit(row.displayId, colName, newValue)
-                        }
-                        readOnly={readOnly}
-                        dropdownOptions={dropdownOptionsMap.get(col.name)}
-                        referenceSchemaId={col.referenceSchemaId}
-                      />
-                    </td>
-                  ))}
+                  {columns.map((col, columnIndex) => {
+                    const shape = resolveOperandShape(col.type);
+                    return (
+                      <td
+                        key={col.name}
+                        className="p-0!"
+                        {...interaction.cellProps({
+                          row: rowIndex,
+                          column: columnIndex + 1,
+                        })}
+                      >
+                        <TypedFullCell
+                          shape={shape}
+                          value={row.values[col.name]}
+                          onCommit={(value) =>
+                            handleCellCommit(row.displayId, col.name, value)
+                          }
+                          position={{ row: rowIndex, column: columnIndex + 1 }}
+                          interaction={interaction}
+                          readOnly={readOnly}
+                          options={
+                            shape === "dropdown"
+                              ? dropdownOptionsMap.get(col.name)
+                              : previewMode && shape === "entity-picker"
+                                ? MOCK_REFERENCE_OPTIONS
+                                : undefined
+                          }
+                          referenceSchemaId={col.referenceSchemaId}
+                          workspaceId={workspaceId}
+                          placeholder={
+                            shape === "entity-picker" ? "@mention…" : undefined
+                          }
+                          data-testid={`cell-${row.displayId}-${col.name}`}
+                        />
+                      </td>
+                    );
+                  })}
 
                   {/* Three-dot action menu — sticky to right edge, always visible on row hover.
                        No border or background so it blends seamlessly. Hidden in read-only mode. */}
@@ -1090,6 +1073,7 @@ export function RegistryTableContent({
             )}
           </tbody>
         </table>
+        </div>
       </TableScroll>
 
       </TableStretch>
@@ -1151,6 +1135,7 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       updateAttrs: instance.updateAttrs,
       readOnly: context.viewMode === "view",
       previewMode: context.viewMode === "prototype",
+      workspaceId: context.workspaceId,
       stretchMode,
       onToggleStretch: () => {
         const nextMode = stretchMode === "auto" ? "full" : "auto";

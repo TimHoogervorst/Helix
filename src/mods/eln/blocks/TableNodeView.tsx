@@ -4,7 +4,9 @@
  * Renders a simple editable data table matching the prototype's
  * "Reagents & materials" table styling.  Supports:
  * - Click-to-edit column headers
- * - Click-to-edit cells
+ * - Full-cell typed editing: the cell becomes the editor in place
+ * - Spreadsheet-style cell selection, arrow/Tab/Enter keyboard navigation,
+ *   and TSV copy/paste via the shared useTableInteraction controller
  * - Ghost "+ New Row" button below the last row
  * - Ghost "+" button after the last column header
  *
@@ -14,7 +16,13 @@ import { useCallback, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
-import { getCellEditor } from "../../../shell/src/shared/components/CellEditors";
+import { TableScroll, TableStretch } from "../../../shell/src/shared/primitives/TableLayout";
+import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
+import {
+  TypedFullCell,
+  parseCellValue,
+  renderCellValue,
+} from "../../../shell/src/shared/components/TableCells";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -53,27 +61,6 @@ function nextColumnName(columns: TableColumn[]): string {
     });
   const max = indices.length > 0 ? Math.max(...indices) : 0;
   return `${NEW_COLUMN_PREFIX}${max + 1}`;
-}
-
-function TypedTableCell({
-  column,
-  value,
-  onCommit,
-}: {
-  column: TableColumn;
-  value: unknown;
-  onCommit: (value: unknown) => void;
-}) {
-  const CellEditor = getCellEditor(column.type ?? "text");
-  return (
-    <CellEditor
-      value={value}
-      onCommit={onCommit}
-      columnName={column.name}
-      dropdownOptions={column.type === "dropdown" ? MOCK_DROPDOWN_OPTIONS : undefined}
-      workspaceId="eln"
-    />
-  );
 }
 
 // ── Inline Edit ─────────────────────────────────────────────────────────
@@ -267,6 +254,35 @@ export function TableBlockContent({
     [rows, updateAttrs],
   );
 
+  // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
+  const interaction = useTableInteraction({
+    tableId: "eln-table",
+    rowCount: rows.length,
+    columnCount: columns.length,
+    getValues: () =>
+      rows.map((row) =>
+        columns.map((col) => renderCellValue(col.type ?? "text", row.cells[col.id])),
+      ),
+    onPaste: (anchor, values) => {
+      const updatedRows = rows.map((row, rowIndex) => {
+        const pastedRow = values[rowIndex - anchor.row];
+        if (!pastedRow || rowIndex < anchor.row) return row;
+        const cells = { ...row.cells };
+        columns.slice(anchor.column).forEach((col, offset) => {
+          const raw = pastedRow[offset];
+          if (raw === undefined) return;
+          try {
+            cells[col.id] = parseCellValue(col.type ?? "text", raw);
+          } catch {
+            // Skip values that don't parse for the column's shape
+          }
+        });
+        return { ...row, cells };
+      });
+      updateAttrs({ rows: updatedRows });
+    },
+  });
+
   // ── Render ────────────────────────────────────────────────────────────
   const hasRows = rows.length > 0;
 
@@ -289,8 +305,19 @@ export function TableBlockContent({
         </div>
 
         {/* ── Table ──────────────────────────────────────────────────── */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-base">
+        <TableStretch mode="auto">
+          <TableScroll mode="auto">
+            <div
+              className="w-max min-w-full"
+              ref={interaction.containerRef}
+              onCopy={interaction.handleCopy}
+              onPaste={interaction.handlePaste}
+            >
+              <table className="w-max min-w-full bg-background text-base">
+                <colgroup>
+                  {columns.map((column) => <col key={column.id} style={{ width: "10rem" }} />)}
+                  {!readOnly && <col style={{ width: "2.5rem" }} />}
+                </colgroup>
             {/* ── Header ─────────────────────────────────────────────── */}
             <thead>
               <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
@@ -346,26 +373,29 @@ export function TableBlockContent({
             {/* ── Body ────────────────────────────────────────────────── */}
             <tbody>
               {hasRows ? (
-                rows.map((row) => (
+                rows.map((row, rowIndex) => (
                   <tr
                     key={row.id}
                     className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors"
                     onMouseEnter={() => setHoveredRow(row.id)}
                     onMouseLeave={() => setHoveredRow(null)}
                   >
-                    {columns.map((col) => (
-                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-[var(--font-label)] text-sm">
-                        {readOnly ? (
-                          <span className="inline-block px-4 py-2" data-testid={`cell-${row.id}-${col.id}`}>
-                            {String(row.cells[col.id] ?? "")}
-                          </span>
-                        ) : (
-                          <TypedTableCell
-                            column={col}
-                            value={row.cells[col.id]}
-                            onCommit={(newValue) => handleCellChange(row.id, col.id, newValue)}
-                          />
-                        )}
+                    {columns.map((col, columnIndex) => (
+                      <td
+                        key={col.id}
+                        className="min-w-[100px] p-0! font-[var(--font-label)] text-sm"
+                        {...interaction.cellProps({ row: rowIndex, column: columnIndex })}
+                      >
+                        <TypedFullCell
+                          shape={col.type ?? "text"}
+                          value={row.cells[col.id]}
+                          onCommit={(value) => handleCellChange(row.id, col.id, value)}
+                          position={{ row: rowIndex, column: columnIndex }}
+                          interaction={interaction}
+                          readOnly={readOnly}
+                          options={col.type === "dropdown" ? MOCK_DROPDOWN_OPTIONS : undefined}
+                          data-testid={`cell-${row.id}-${col.id}`}
+                        />
                       </td>
                     ))}
                     {/* Delete row button on hover */}
@@ -398,8 +428,10 @@ export function TableBlockContent({
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          </TableScroll>
+        </TableStretch>
       </div>
 
       {/* ── Ghost "+ New Row" button below the card ──────────────────── */}

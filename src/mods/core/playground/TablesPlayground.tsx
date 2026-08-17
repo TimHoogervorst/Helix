@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "../../../shell/src/shared/primitives/Table";
 import { Input } from "../../../shell/src/shared/primitives/Input";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import {
   StickyActionCell,
@@ -119,13 +120,6 @@ const INITIAL_ROWS: HarnessRow[] = [
   { id: "row-2", name: "Briar", role: "Reviewer", note: "Click any cell to edit" },
   { id: "row-3", name: "Cedar", role: "Operator", note: "Local mock data" },
 ];
-
-const PLACEHOLDER_SECTIONS = [
-  "Layout demo",
-  "Interaction bench",
-  "Prototype tables",
-  "Capability matrix",
-] as const;
 
 interface FormulaDemoRow {
   id: string;
@@ -426,7 +420,7 @@ function HarnessTable() {
           First harness
         </p>
         <h2 id="harness-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">
-          Text harness
+           Interaction bench
         </h2>
         <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">
           Plain text cells backed by local mock rows. Click a cell, then commit with blur or Enter.
@@ -572,25 +566,240 @@ function LayoutDemo() {
   );
 }
 
-function PlaceholderSection({ title }: { title: string }) {
-  const headingId = `${title.toLowerCase().replaceAll(" ", "-")}-heading`;
+type PrototypeColumn = {
+  id: string;
+  label: string;
+  shape: keyof typeof CELL_REGISTRY;
+  formula?: { expression: string; resultType: string };
+};
 
-  return (
-    <section
-      aria-labelledby={headingId}
-      className="rounded-xl border border-dashed border-[var(--color-ink-hairline)] bg-[var(--color-card)] px-5 py-6"
-    >
-      <h2
-        id={headingId}
-        className="font-[var(--font-label)] text-lg font-semibold text-[var(--color-ink)]"
-      >
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">
-        Placeholder for the next Table Kit experiment.
-      </p>
-    </section>
-  );
+type PrototypeRow = {
+  id: string;
+  values: Record<string, CellValue>;
+  registered?: boolean;
+};
+
+function InteractiveMockCell({
+  value,
+  shape,
+  position,
+  interaction,
+  testId,
+  readOnly = false,
+  onCommit,
+}: {
+  value: CellValue;
+  shape: keyof typeof CELL_REGISTRY;
+  position: TablePosition;
+  interaction: ReturnType<typeof useTableInteraction>;
+  testId: string;
+  readOnly?: boolean;
+  onCommit: (value: CellValue) => void;
+}) {
+  const behavior = getCellBehavior(shape);
+  const editing = !readOnly && interaction.editingCell?.row === position.row && interaction.editingCell?.column === position.column;
+  const [draft, setDraft] = useState(behavior.render(value));
+  const [error, setError] = useState(false);
+  const cancelled = useRef(false);
+
+  const startEditing = () => {
+    setDraft(behavior.render(value));
+    setError(false);
+    interaction.activateCell(position);
+  };
+  const commit = () => {
+    try {
+      onCommit(behavior.commit(draft));
+      setError(false);
+    } catch {
+      setError(true);
+    }
+  };
+  const finishBlur = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      interaction.finishEditing();
+      return;
+    }
+    commit();
+    interaction.finishEditing();
+  };
+
+  if (editing) {
+    const common = {
+      autoFocus: true,
+      onBlur: finishBlur,
+      onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setDraft(
+        event.currentTarget instanceof HTMLInputElement && event.currentTarget.type === "checkbox"
+          ? String(event.currentTarget.checked)
+          : event.currentTarget.value,
+      ),
+      onKeyDown: (event: React.KeyboardEvent) => interaction.handleEditorKeyDown(position, event, {
+        commit,
+        cancel: () => {
+          cancelled.current = true;
+          setError(false);
+        },
+      }),
+    };
+    if (shape === "entity-picker") {
+      return <select {...common} className={FULL_CELL_EDITOR} data-testid={`${testId}-input`} value={draft}>
+        {MOCK_ENTITIES.map((entity) => <option key={entity}>{entity}</option>)}
+      </select>;
+    }
+    if (behavior.editor === "select") {
+      return <select {...common} className={FULL_CELL_EDITOR} data-testid={`${testId}-input`} value={draft}>
+        {behavior.options?.map((option) => <option key={option}>{option}</option>)}
+      </select>;
+    }
+    if (behavior.editor === "checkbox") {
+      return <label className={FULL_CELL_EDITOR} data-testid={`${testId}-input`}>
+        <input {...common} type="checkbox" checked={draft === "true"} />
+        <span>{draft === "true" ? "True" : "False"}</span>
+      </label>;
+    }
+    return <input {...common} className={FULL_CELL_EDITOR} data-testid={`${testId}-input`} type={behavior.editor} value={draft} />;
+  }
+
+  return <button
+    type="button"
+    className={error ? `${FULL_CELL} table-cell-full--error` : FULL_CELL}
+    data-testid={testId}
+    data-value-type={typeof value}
+    disabled={readOnly}
+    tabIndex={-1}
+    onClick={startEditing}
+  >
+    {behavior.render(value)}{error && <span className="ml-2 text-xs">#VALUE!</span>}
+  </button>;
+}
+
+const MOCK_ENTITIES = ["SMP-001", "SMP-002", "CTRL-001"];
+
+function parsePastedValue(column: PrototypeColumn, raw: string): CellValue | undefined {
+  if (column.formula || (column.shape === "entity-picker" && !MOCK_ENTITIES.includes(raw))) return undefined;
+  try {
+    return getCellBehavior(column.shape).commit(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+const SCHEMA_MODES = {
+  name: {
+    label: "Name column",
+    description: "Registry Table rehearsal: names, typed properties, status dots, and mock registration.",
+    columns: [
+      { id: "name", label: "Name", shape: "text" },
+      { id: "status", label: "Status", shape: "dropdown" },
+      { id: "concentration", label: "Concentration", shape: "number" },
+      { id: "active", label: "Active", shape: "boolean" },
+    ] satisfies PrototypeColumn[],
+  },
+  entity: {
+    label: "Entity column",
+    description: "Result Table rehearsal: constrained source entities, live formulas, status dots, and mock registration.",
+    columns: [
+      { id: "entity", label: "Source entity", shape: "entity-picker" },
+      { id: "amount", label: "Amount", shape: "number" },
+      { id: "count", label: "Count", shape: "number" },
+      { id: "ratio", label: "Ratio", shape: "number", formula: { expression: "[Amount] / [Count]", resultType: "number" } },
+    ] satisfies PrototypeColumn[],
+  },
+} as const;
+
+function RegistrationStatus({ registered }: { registered?: boolean }) {
+  return <span className="inline-flex items-center gap-2 text-xs text-[var(--color-ink-muted-foreground)]">
+    <span aria-hidden="true" className={`h-2 w-2 rounded-full ${registered ? "bg-[var(--color-success)]" : "bg-[var(--color-ink-muted-foreground)]"}`} />
+    {registered ? "Registered" : "Draft"}
+  </span>;
+}
+
+function SchemaDrivenPrototype() {
+  const [mode, setMode] = useState<keyof typeof SCHEMA_MODES>("name");
+  const [rows, setRows] = useState<PrototypeRow[]>([
+    { id: "schema-row-1", values: { name: "Aster", status: "Researcher", concentration: 12, active: true, entity: "SMP-001", amount: 12, count: 3 } },
+    { id: "schema-row-2", values: { name: "Briar", status: "Reviewer", concentration: 8, active: false, entity: "SMP-002", amount: 8, count: 2 } },
+  ]);
+  const schema = SCHEMA_MODES[mode];
+  const interaction = useTableInteraction({
+    tableId: "schema-prototype",
+    rowCount: rows.length,
+    columnCount: schema.columns.length,
+    getValues: () => rows.map((row) => schema.columns.map((column) => String(row.values[column.id] ?? ""))),
+    onPaste: (anchor, values) => setRows((current) => current.map((row, rowIndex) => {
+      const pasted = values[rowIndex - anchor.row];
+      if (!pasted || rowIndex < anchor.row) return row;
+      const next = { ...row.values };
+      schema.columns.slice(anchor.column).forEach((column, offset) => {
+        const parsed = pasted[offset] === undefined ? undefined : parsePastedValue(column, pasted[offset]);
+        if (parsed !== undefined) next[column.id] = parsed;
+      });
+      return { ...row, values: next, registered: false };
+    })),
+  });
+  const update = (rowId: string, columnId: string, value: CellValue) => setRows((current) => current.map((row) => row.id === rowId ? { ...row, registered: false, values: { ...row.values, [columnId]: value } } : row));
+  const register = (rowId: string) => setRows((current) => current.map((row) => row.id === rowId ? { ...row, registered: true } : row));
+
+  return <section aria-labelledby="prototype-tables-heading" className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+      <div><p className="font-[var(--font-label)] text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">Schema-driven</p><h2 id="prototype-tables-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Prototype tables</h2><p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">{schema.description} All data is local mock data.</p></div>
+      <div className="flex gap-2" role="group" aria-label="Schema mode">
+        {(Object.keys(SCHEMA_MODES) as Array<keyof typeof SCHEMA_MODES>).map((key) => <Button key={key} size="sm" variant={mode === key ? "primary" : "ghost"} onClick={() => setMode(key)} aria-pressed={mode === key} data-testid={`schema-mode-${key}`}>{SCHEMA_MODES[key].label}</Button>)}
+      </div>
+    </div>
+    <div ref={interaction.containerRef} onCopy={interaction.handleCopy} onPaste={interaction.handlePaste} data-testid="schema-prototype-table">
+      <Table><TableHead><TableRow>{schema.columns.map((column) => <TableHeaderCell key={column.id}>{column.label}{column.formula && " (formula)"}</TableHeaderCell>)}<StickyActionHeader aria-label="Registration" /></TableRow></TableHead><tbody>
+        {rows.map((row, rowIndex) => <TableRow key={row.id}>{schema.columns.map((column, columnIndex) => {
+          const evaluated = mode === "entity" ? evaluateRow({ Amount: row.values.amount ?? null, Count: row.values.count ?? null }, { Ratio: column.formula ?? { expression: "", resultType: "number" } }) : undefined;
+          const value = column.formula ? evaluated?.Ratio?.ok ? evaluated.Ratio.value : null : row.values[column.id];
+          return <TableCell key={column.id} className="p-0!" {...interaction.cellProps({ row: rowIndex, column: columnIndex })}>
+            <InteractiveMockCell value={value} shape={column.shape} position={{ row: rowIndex, column: columnIndex }} interaction={interaction} testId={`schema-cell-${row.id}-${column.id}`} readOnly={Boolean(column.formula)} onCommit={(next) => update(row.id, column.id, next)} />
+          </TableCell>;
+        })}<StickyActionCell><div className="flex items-center gap-2 px-2"><RegistrationStatus registered={row.registered} /><Button size="sm" variant="ghost" onClick={() => register(row.id)} data-testid={`register-${row.id}`}>Register</Button></div></StickyActionCell></TableRow>)}
+      </tbody></Table>
+    </div>
+  </section>;
+}
+
+function FreeFormPrototype() {
+  const [columns, setColumns] = useState<PrototypeColumn[]>([
+    { id: "item", label: "Item", shape: "text" },
+    { id: "quantity", label: "Quantity", shape: "number" },
+    { id: "when", label: "When", shape: "date" },
+    { id: "ready", label: "Ready", shape: "boolean" },
+  ]);
+  const [rows, setRows] = useState<PrototypeRow[]>([{ id: "free-row-1", values: { item: "Buffer", quantity: 3, when: "2026-08-16", ready: true } }, { id: "free-row-2", values: { item: "Sample", quantity: 8, when: "2026-08-17", ready: false } }]);
+  const interaction = useTableInteraction({
+    tableId: "free-form-prototype",
+    rowCount: rows.length,
+    columnCount: columns.length,
+    getValues: () => rows.map((row) => columns.map((column) => String(row.values[column.id] ?? ""))),
+    onPaste: (anchor, values) => setRows((current) => current.map((row, rowIndex) => {
+      const pasted = values[rowIndex - anchor.row];
+      if (!pasted || rowIndex < anchor.row) return row;
+      const next = { ...row.values };
+      columns.slice(anchor.column).forEach((column, offset) => {
+        const parsed = pasted[offset] === undefined ? undefined : parsePastedValue(column, pasted[offset]);
+        if (parsed !== undefined) next[column.id] = parsed;
+      });
+      return { ...row, values: next };
+    })),
+  });
+  return <section aria-labelledby="free-form-heading" className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5"><div className="mb-4"><p className="font-[var(--font-label)] text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">Free-form</p><h2 id="free-form-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Plain Table prototype</h2><p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">Choose each column type, then exercise typed editing, navigation, and TSV copy-paste. No schema or registration is involved.</p></div>
+    <div ref={interaction.containerRef} onCopy={interaction.handleCopy} onPaste={interaction.handlePaste} data-testid="free-form-prototype-table"><Table><TableHead><TableRow>{columns.map((column) => <TableHeaderCell key={column.id}><label className="flex flex-col gap-1"><span>{column.label}</span><Select aria-label={`Type for ${column.label}`} value={column.shape} onChange={(event) => setColumns((current) => current.map((item) => item.id === column.id ? { ...item, shape: event.target.value as keyof typeof CELL_REGISTRY } : item))}><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="boolean">Boolean</option><option value="dropdown">Dropdown</option><option value="entity-picker">Reference</option></Select></label></TableHeaderCell>)}</TableRow></TableHead><tbody>{rows.map((row, rowIndex) => <TableRow key={row.id}>{columns.map((column, columnIndex) => <TableCell key={column.id} className="p-0!" {...interaction.cellProps({ row: rowIndex, column: columnIndex })}><InteractiveMockCell value={row.values[column.id]} shape={column.shape} position={{ row: rowIndex, column: columnIndex }} interaction={interaction} testId={`free-cell-${row.id}-${column.id}`} onCommit={(value) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, values: { ...item.values, [column.id]: value } } : item))} /></TableCell>)}</TableRow>)}</tbody></Table></div>
+  </section>;
+}
+
+function CapabilityMatrix() {
+  const rows = [
+    ["Typed cells", "Registry", "Result", "Plain"],
+    ["Keyboard navigation", "Yes", "Yes", "Yes"],
+    ["TSV copy-paste", "Yes", "Yes", "Yes"],
+    ["Live formulas", "Yes", "Yes", "No"],
+    ["Registration", "Mock", "Mock", "No"],
+  ];
+  return <section aria-labelledby="capability-matrix-heading" className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5"><p className="font-[var(--font-label)] text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">Coverage</p><h2 id="capability-matrix-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Capability matrix</h2><div className="mt-4 overflow-x-auto"><Table><tbody>{rows.map((row, index) => <TableRow key={row[0]}>{row.map((value, cellIndex) => cellIndex === 0 ? <TableHeaderCell key={value}>{value}</TableHeaderCell> : <TableCell key={`${value}-${cellIndex}`}>{value}</TableCell>)}</TableRow>)}</tbody></Table></div></section>;
 }
 
 function TablesPlayground() {
@@ -617,9 +826,9 @@ function TablesPlayground() {
       <FormulaDemo />
       <LayoutDemo />
 
-        {PLACEHOLDER_SECTIONS.filter((title) => title !== "Layout demo").map((title) => (
-          <PlaceholderSection key={title} title={title} />
-        ))}
+        <SchemaDrivenPrototype />
+        <FreeFormPrototype />
+        <CapabilityMatrix />
       </div>
     </main>
   );

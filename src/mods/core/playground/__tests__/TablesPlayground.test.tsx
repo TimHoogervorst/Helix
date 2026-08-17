@@ -226,6 +226,34 @@ describe("TablesPlayground", () => {
     expect(getCellBehavior("future-shape")).toBe(CELL_REGISTRY.text);
   });
 
+  it("switches schema prototypes and mock-registers a row", () => {
+    render(<TablesPlayground />);
+
+    expect(screen.getByTestId("schema-cell-schema-row-1-name")).toHaveTextContent("Aster");
+    fireEvent.click(screen.getByTestId("register-schema-row-1"));
+    expect(screen.getByText("Registered")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("schema-mode-entity"));
+    expect(screen.getByText("Source entity")).toBeInTheDocument();
+    expect(screen.getByTestId("schema-cell-schema-row-1-entity")).toHaveTextContent("SMP-001");
+    fireEvent.click(screen.getByTestId("schema-cell-schema-row-1-entity"));
+    expect(screen.getByTestId("schema-cell-schema-row-1-entity-input")).toHaveDisplayValue("SMP-001");
+    expect(screen.getByRole("option", { name: "CTRL-001" })).toBeInTheDocument();
+  });
+
+  it("lets the free-form prototype change a column type and edit the cell", () => {
+    render(<TablesPlayground />);
+
+    const quantityType = screen.getByRole("combobox", { name: "Type for Quantity" });
+    fireEvent.change(quantityType, { target: { value: "text" } });
+    fireEvent.click(screen.getByTestId("free-cell-free-row-1-quantity"));
+    const input = screen.getByTestId("free-cell-free-row-1-quantity-input");
+    fireEvent.change(input, { target: { value: "three" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByTestId("free-cell-free-row-1-quantity")).toHaveTextContent("three");
+  });
+
   it.each([
     ["text", "string", "Changed"],
     ["number", "number", "7"],

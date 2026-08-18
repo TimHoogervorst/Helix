@@ -29,6 +29,75 @@ import { EntityPickerPopover } from "./EntityPickerPopover";
 
 export type TableCellValue = string | number | boolean | null;
 
+export interface TableCellBehavior {
+  editor: "text" | "number" | "date" | "checkbox" | "select";
+  render: (value: TableCellValue) => string;
+  parse: (raw: string) => TableCellValue;
+}
+
+const TEXT_BEHAVIOR: TableCellBehavior = {
+  editor: "text",
+  render: (value) => String(value ?? ""),
+  parse: (raw) => raw,
+};
+
+/** Shared cell behavior keyed by the backend ``operand_shape`` contract. */
+export const CELL_REGISTRY: Record<string, TableCellBehavior> = {
+  text: TEXT_BEHAVIOR,
+  number: {
+    editor: "number",
+    render: (value) => String(value ?? ""),
+    parse: (raw) => {
+      const value = Number(raw);
+      if (raw.trim() === "" || Number.isNaN(value)) throw new Error("Enter a number");
+      return value;
+    },
+  },
+  date: {
+    editor: "date",
+    render: (value) => String(value ?? ""),
+    parse: (raw) => {
+      const [year, month, day] = raw.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(raw) ||
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
+      ) {
+        throw new Error("Enter a date");
+      }
+      return raw;
+    },
+  },
+  boolean: {
+    editor: "checkbox",
+    render: (value) =>
+      value === null || value === undefined ? "" : value === true ? "True" : "False",
+    parse: (raw) => {
+      const normalized = raw.trim().toLowerCase();
+      if (normalized !== "true" && normalized !== "false") {
+        throw new Error("Enter true or false");
+      }
+      return normalized === "true";
+    },
+  },
+  dropdown: {
+    editor: "select",
+    render: (value) => String(value ?? ""),
+    parse: (raw) => raw,
+  },
+  "entity-picker": {
+    editor: "select",
+    render: (value) => String(value ?? ""),
+    parse: (raw) => raw,
+  },
+};
+
+export function getCellBehavior(operandShape: string): TableCellBehavior {
+  return CELL_REGISTRY[operandShape] ?? TEXT_BEHAVIOR;
+}
+
 type TableInteraction = ReturnType<typeof useTableInteraction>;
 
 /**
@@ -45,9 +114,7 @@ const FULL_CELL_EDITOR = "table-cell-full table-cell-full--editing";
  * TSV copy, so it round-trips with {@link parseCellValue}.
  */
 export function renderCellValue(shape: string, value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (shape === "boolean") return value === true ? "True" : "False";
-  return String(value);
+  return getCellBehavior(shape).render(value as TableCellValue);
 }
 
 /**
@@ -56,35 +123,7 @@ export function renderCellValue(shape: string, value: unknown): string {
  * to surface an error state (editing) or skip the cell (paste).
  */
 export function parseCellValue(shape: string, raw: string): TableCellValue {
-  switch (shape) {
-    case "number": {
-      const value = Number(raw);
-      if (raw.trim() === "" || Number.isNaN(value)) throw new Error("Enter a number");
-      return value;
-    }
-    case "date": {
-      const [year, month, day] = raw.split("-").map(Number);
-      const date = new Date(Date.UTC(year, month - 1, day));
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(raw) ||
-        date.getUTCFullYear() !== year ||
-        date.getUTCMonth() !== month - 1 ||
-        date.getUTCDate() !== day
-      ) {
-        throw new Error("Enter a date");
-      }
-      return raw;
-    }
-    case "boolean": {
-      const normalized = raw.trim().toLowerCase();
-      if (normalized !== "true" && normalized !== "false") {
-        throw new Error("Enter true or false");
-      }
-      return normalized === "true";
-    }
-    default:
-      return raw;
-  }
+  return getCellBehavior(shape).parse(raw);
 }
 
 // ── Typed full cell ─────────────────────────────────────────────────────────
@@ -219,9 +258,9 @@ export function TypedFullCell({
 
   // ── Inline full-cell editor ────────────────────────────────────────────
   if (editing) {
-    const editorType = shape === "number" ? "number" : shape === "date" ? "date" : "text";
+    const behavior = getCellBehavior(shape);
 
-    if (shape === "boolean") {
+    if (behavior.editor === "checkbox") {
       return (
         <div className="h-full w-full">
           <label className={FULL_CELL_EDITOR} data-testid={testId}>
@@ -241,7 +280,7 @@ export function TypedFullCell({
       );
     }
 
-    if ((shape === "dropdown" || shape === "entity-picker") && options?.length) {
+    if (behavior.editor === "select" && options?.length) {
       return (
         <div className="h-full w-full">
           <select
@@ -267,7 +306,7 @@ export function TypedFullCell({
           autoFocus
           className={FULL_CELL_EDITOR}
           data-testid={testId ? `${testId}-input` : undefined}
-          type={editorType}
+          type={behavior.editor === "number" || behavior.editor === "date" ? behavior.editor : "text"}
           value={draft}
           onBlur={commitOnBlur}
           onChange={(event) => setDraft(event.currentTarget.value)}

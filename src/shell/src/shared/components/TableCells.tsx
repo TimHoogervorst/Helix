@@ -145,6 +145,8 @@ export interface TypedFullCellProps {
   options?: string[];
   /** Schema PK scoping the entity-picker popover search. */
   referenceSchemaId?: number;
+  /** Schema Type PK scoping the entity-picker popover search. */
+  referenceSchemaTypeId?: number;
   /** Workspace context for the entity-picker popover (metadata only). */
   workspaceId?: string;
   /** Placeholder shown in the display state when the value is empty. */
@@ -161,6 +163,7 @@ export function TypedFullCell({
   readOnly = false,
   options,
   referenceSchemaId,
+  referenceSchemaTypeId,
   workspaceId,
   placeholder,
   "data-testid": testId,
@@ -222,7 +225,7 @@ export function TypedFullCell({
   const usePopoverEditor =
     shape === "entity-picker" &&
     !options?.length &&
-    (referenceSchemaId !== undefined || workspaceId !== undefined);
+    (referenceSchemaId !== undefined || referenceSchemaTypeId !== undefined || workspaceId !== undefined);
 
   if (usePopoverEditor) {
     return (
@@ -240,6 +243,7 @@ export function TypedFullCell({
         </button>
         <EntityPickerPopover
           referenceSchemaId={referenceSchemaId}
+          referenceSchemaTypeId={referenceSchemaTypeId}
           workspaceId={workspaceId}
           open={editing}
           onOpenChange={(open) => {

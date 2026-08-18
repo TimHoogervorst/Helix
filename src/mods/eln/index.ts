@@ -11,6 +11,7 @@ import { TableBlockComponent } from "./blocks/TableNodeView";
 import { CommentBlockComponent } from "./blocks/CommentNodeView";
 import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
 import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
+import { ResultTableBlockComponent } from "./blocks/ResultTableNode";
 import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFeedBlock";
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
@@ -152,11 +153,36 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
   },
 });
 
+// ── Block: Result Table ───────────────────────────────────────────────────
+export const resultTableBlock = mod.registerBlock("result-table", {
+  label: "Result Table",
+  icon: Database,
+  component: ResultTableBlockComponent,
+  listensTo: [],
+  onEvent: {},
+  emits: [BlockEvent.action({ id: "results-registered", core: "edited" })],
+  tags: ["table", "result", "lims"],
+  getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Result Table",
+  serialize: (state) => JSON.stringify(state),
+  deserialize: (json) => {
+    try { return JSON.parse(json); } catch { return {}; }
+  },
+  defaultState: {
+    schemaId: null,
+    schemaName: null,
+    schemaContentHash: null,
+    title: "Result Table",
+    columns: [],
+    rows: [],
+  },
+});
+
 // ── Bind blocks into editor slot ────────────────────────────────────────
 mod.registerIntoSlot(editorSlot, tableBlock, {}, 0);
 mod.registerIntoSlot(editorSlot, commentBlock, {}, 1);
 mod.registerIntoSlot(editorSlot, protocolBlock, {}, 2);
 mod.registerIntoSlot(editorSlot, registryTableBlock, { stretch: true }, 3);
+mod.registerIntoSlot(editorSlot, resultTableBlock, { stretch: true }, 4);
 
 // ── Slot: ELN Sidebar (dogfood #233) ────────────────────────────────────
 export const sidebarSlot = mod.declareSlot("sidebar", {

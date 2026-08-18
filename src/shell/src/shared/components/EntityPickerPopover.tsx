@@ -30,6 +30,8 @@ export interface EntitySearchResult {
 export interface EntityPickerPopoverProps {
   /** When set, scopes the search to entities of the given Schema PK. */
   referenceSchemaId?: number;
+  /** When set, scopes the search to entities of the given Schema Type PK. */
+  referenceSchemaTypeId?: number;
   /** The workspace the consuming cell belongs to (metadata only). */
   workspaceId?: string;
   /** Whether the popover is visible. */
@@ -46,6 +48,7 @@ export interface EntityPickerPopoverProps {
 
 export function EntityPickerPopover({
   referenceSchemaId,
+  referenceSchemaTypeId,
   open,
   onOpenChange,
   onSelect,
@@ -83,6 +86,8 @@ export function EntityPickerPopover({
         params.set("size", "10");
         if (referenceSchemaId !== undefined) {
           params.set("schema", String(referenceSchemaId));
+        } else if (referenceSchemaTypeId !== undefined) {
+          params.set("schema_type", String(referenceSchemaTypeId));
         }
         const qs = params.toString();
         const data = await get<{ results: EntitySearchResult[] }>(
@@ -95,7 +100,7 @@ export function EntityPickerPopover({
         setLoading(false);
       }
     },
-    [referenceSchemaId],
+    [referenceSchemaId, referenceSchemaTypeId],
   );
 
   // ── Select an entity ──────────────────────────────────────────────────

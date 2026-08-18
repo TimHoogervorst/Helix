@@ -21,6 +21,8 @@ export interface GridColumn {
   dropdownId?: number;
   /** ID of the target Schema when type is "reference". */
   referenceSchemaId?: number;
+  /** ID of the target Schema Type when type is "reference". */
+  referenceSchemaTypeId?: number;
   /** Pixel width; undefined means auto-size. */
   width?: number;
   /** Whether this column came from the schema or was added locally. */

@@ -38,6 +38,7 @@ import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import {
   StickyActionCell,
   StickyActionHeader,
+  TableChrome,
   TableScroll,
   TableStretch,
 } from "../../../shell/src/shared/primitives/TableLayout";
@@ -391,7 +392,14 @@ export function RegistryTableContent({
       setLoading(true);
       try {
         const data = await get<EntityTypeSummary[]>("/schemas/");
-        setEntityTypes(data.filter((t) => t.is_active && !t.is_default));
+        setEntityTypes(
+          data.filter(
+            (t) =>
+              t.is_active &&
+              !t.is_default &&
+              t.tags.includes("RegistrationTable"),
+          ),
+        );
       } catch {
         // silently leave list empty
       } finally {
@@ -779,115 +787,115 @@ export function RegistryTableContent({
 
   // ── Loaded table state ──────────────────────────────────────────────
   return (
-    <>
-      <div
-        className="rounded-lg border border-hairline bg-background w-full"
-        data-testid="registry-table-loaded"
-      >
-      {/* Title bar — always full width, matching the workspace content container. */}
-      <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5 w-full">
-        <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        {/* Stretch toggle — only rendered when overrides.stretch is truthy */}
-        {showStretchToggle && (
-          <IconButton
-            onClick={onToggleStretch}
-            title={
-              stretchMode === "auto"
-                ? "Stretch table to full width"
-                : "Auto-fit table to content"
-            }
-            aria-label={
-              stretchMode === "auto"
-                ? "Stretch table to full width"
-                : "Auto-fit table to content"
-            }
-            aria-pressed={stretchMode === "full"}
-            data-testid="stretch-toggle-btn"
-          >
-            <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-          </IconButton>
-        )}
-        {readOnly ? (
-          <span
-            className="text-sm font-medium text-foreground"
-            data-testid="registry-table-title"
-          >
-            {title}
-          </span>
-        ) : (
-          <span
-            className="text-sm font-medium text-foreground outline-none"
-            contentEditable
-            suppressContentEditableWarning
-            onBlur={handleTitleBlur}
-            onKeyDown={handleTitleKeyDown}
-            data-testid="registry-table-title"
-          >
-            {title}
-          </span>
-        )}
-        {schemaName && (
-          <span
-            className="text-xs text-muted-foreground"
-            data-testid="registry-table-schema-label"
-          >
-            {schemaName}
-          </span>
-        )}
-        <div className="flex-1" />
-        {refreshing && (
-          <Loader className="h-3.5 w-3.5 animate-spin text-muted-foreground" data-testid="refresh-spinner" />
-        )}
-        {!readOnly && !previewMode && (
-          <>
-            <IconButton
-              onClick={handleRefreshSchema}
-              disabled={refreshing}
-              title="Refresh schema"
-              aria-label="Refresh schema"
-              data-testid="refresh-schema-btn"
+    <TableChrome
+      className="w-full"
+      data-testid="registry-table-loaded"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {readOnly ? (
+            <span data-testid="registry-table-title">{title}</span>
+          ) : (
+            <span
+              contentEditable
+              suppressContentEditableWarning
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+              data-testid="registry-table-title"
             >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            </IconButton>
+              {title}
+            </span>
+          )}
+          {schemaName && (
+            <span
+              className="text-xs font-normal text-muted-foreground"
+              data-testid="registry-table-schema-label"
+            >
+              {schemaName}
+            </span>
+          )}
+        </span>
+      }
+      toolbar={
+        <>
+          {showStretchToggle && (
             <IconButton
-              onClick={handleRegister}
-              disabled={registering}
-              title="Register entities"
+              onClick={onToggleStretch}
+              title={
+                stretchMode === "auto"
+                  ? "Stretch table to full width"
+                  : "Auto-fit table to content"
+              }
+              aria-label={
+                stretchMode === "auto"
+                  ? "Stretch table to full width"
+                  : "Auto-fit table to content"
+              }
+              aria-pressed={stretchMode === "full"}
+              data-testid="stretch-toggle-btn"
+            >
+              <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+            </IconButton>
+          )}
+          {refreshing && (
+            <Loader className="h-3.5 w-3.5 text-muted-foreground" data-testid="refresh-spinner" />
+          )}
+          {!readOnly && !previewMode && (
+            <>
+              <IconButton
+                onClick={handleRefreshSchema}
+                disabled={refreshing}
+                title="Refresh schema"
+                aria-label="Refresh schema"
+                data-testid="refresh-schema-btn"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton
+                onClick={handleRegister}
+                disabled={registering}
+                title="Register entities"
+                aria-label="Register entities"
+                data-testid="register-entities-btn"
+              >
+                {registering ? (
+                  <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                )}
+              </IconButton>
+            </>
+          )}
+          {previewMode && (
+            <IconButton
+              disabled
+              title="Registration is disabled in preview"
               aria-label="Register entities"
               data-testid="register-entities-btn"
             >
-              {registering ? (
-                <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Upload className="h-4 w-4" aria-hidden="true" />
-              )}
+              <Upload className="h-4 w-4" aria-hidden="true" />
             </IconButton>
-          </>
-        )}
-        {previewMode && (
-          <IconButton
-            disabled
-            title="Registration is disabled in preview"
-            aria-label="Register entities"
-            data-testid="register-entities-btn"
-          >
-            <Upload className="h-4 w-4" aria-hidden="true" />
-          </IconButton>
-        )}
-      </div>
+          )}
+        </>
+      }
+      addRow={!readOnly && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleAddRow}
+          aria-label="Add new row"
+          data-testid="add-row-btn"
+        >
+          <Plus className="h-3 w-3" />
+          <span>New Row</span>
+        </Button>
+      )}
+    >
 
-      {/* Table wrapper — constrained in auto mode so only the title bar
-          spans the full workspace content width. */}
       <TableStretch
         mode={stretchMode}
         data-testid="registry-table-stretch-wrapper"
       >
-      {/* Table — overflow-x-auto constrains the scrollbar while negative
-          margins + padding let the table content extend visually into both
-          left and right gutters when scrolled. In auto mode the wrapper
-          breaks out 19rem on each side (17.5rem gutter + 1.5rem main px-6)
-          so columns remain visible in the gutter spaces.  The table uses
-          w-max min-w-full so it can grow past the card width. */}
       <TableScroll mode={stretchMode}>
         <div
           className="w-max min-w-full"
@@ -1077,31 +1085,7 @@ export function RegistryTableContent({
       </TableScroll>
 
       </TableStretch>
-    </div>
-    {/* "+ New Row" button below the card — constrained to center gutter width.
-         In auto mode left-aligned so it stays anchored to the center gutter
-         even when the table extends past it; in full mode centered at 48rem.
-         Hidden in read-only mode. */}
-    {!readOnly && (
-      <div className={`mt-2 ${
-        stretchMode === "auto"
-          ? "max-w-3xl"
-          : "max-w-3xl mx-auto"
-      }`}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-2"
-          onClick={handleAddRow}
-          aria-label="Add new row"
-          data-testid="add-row-btn"
-        >
-          <Plus className="h-3 w-3" />
-          <span>New Row</span>
-        </Button>
-      </div>
-    )}
-    </>
+    </TableChrome>
   );
 }
 

@@ -186,6 +186,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "abc123def456",
+    tags: ["RegistrationTable"],
   },
   {
     id: 2,
@@ -198,6 +199,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "xyz789ghi012",
+    tags: ["RegistrationTable"],
   },
   {
     id: 3,
@@ -207,6 +209,7 @@ const sampleEntityTypes = [
     is_active: false,
     is_default: false,
     content_hash: "deadbeef",
+    tags: ["RegistrationTable"],
   },
   {
     id: 4,
@@ -216,6 +219,17 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: true,
     content_hash: "sysdefault",
+    tags: ["RegistrationTable"],
+  },
+  {
+    id: 5,
+    name: "ELN Entry",
+    prefix: "ELN",
+    columns: [],
+    is_active: true,
+    is_default: false,
+    content_hash: "eln-entry",
+    tags: [],
   },
 ];
 
@@ -419,6 +433,16 @@ describe("RegistryTableBlockComponent — picker dropdown", () => {
     expect(screen.queryByText("System Default")).not.toBeInTheDocument();
   });
 
+  it("only displays schemas tagged for registration tables", async () => {
+    mockGet.mockResolvedValue(sampleEntityTypes);
+    render(<RegistryTableBlockComponent {...makeBlockComponentProps()} />);
+
+    fireEvent.click(screen.getByTestId("load-schema-btn"));
+
+    await screen.findByText("Blood Sample");
+    expect(screen.queryByText("ELN Entry")).not.toBeInTheDocument();
+  });
+
   it("shows prefix next to each entity type name", async () => {
     mockGet.mockResolvedValue(sampleEntityTypes);
     render(<RegistryTableBlockComponent {...makeBlockComponentProps()} />);
@@ -537,6 +561,14 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
   it("renders the loaded table container", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.getByTestId("registry-table-loaded")).toBeInTheDocument();
+  });
+
+  it("consumes the shared Table Kit chrome and layout", () => {
+    render(<RegistryTableBlockComponent {...loadedProps()} />);
+    const table = screen.getByTestId("registry-table-loaded");
+    expect(table).toHaveClass("table-layout-chrome", "w-full");
+    expect(table.querySelector(".table-layout-chrome__toolbar")).toBeInTheDocument();
+    expect(table.querySelector(".table-layout-chrome__add-row")).toBeInTheDocument();
   });
 
   it("renders the editable title", () => {
@@ -1185,6 +1217,97 @@ describe("RegistryTableContent — refresh schema button", () => {
     await waitFor(() => {
       expect(mockPost).not.toHaveBeenCalled();
       expect(props.updateAttrs).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("RegistryTableBlockComponent — Table Kit interaction", () => {
+  function interactionProps(updateAttrs = vi.fn()) {
+    const first = makeRow({ __name: "First", values: { Volume: 10 } });
+    const second = makeRow({ displayId: "#new-2", __name: "Second", values: { Volume: 20 } });
+    const attrs = {
+      schemaId: 1,
+      schemaName: "Blood Sample",
+      schemaContentHash: "hash123",
+      title: "Test Table",
+      columns: [{ name: "Volume", type: "number" as const }],
+      rows: [first, second],
+    };
+    return makeBlockComponentProps({
+      attrs,
+      rest: {
+        instance: {
+          id: "inst-1",
+          blockId: "eln.registry-table",
+          slotId: "eln.editor",
+          attrs,
+          updateAttrs,
+        },
+      },
+    });
+  }
+
+  it("navigates Registry Table cells with arrows and Tab", () => {
+    render(<RegistryTableBlockComponent {...interactionProps()} />);
+    const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
+    firstCell.focus();
+    fireEvent.keyDown(firstCell, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:0:1"]'),
+    );
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:1:1"]'),
+    );
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:1:0"]'),
+    );
+  });
+
+  it("commits with Enter, cancels with Escape, and moves down", () => {
+    const updateAttrs = vi.fn();
+    render(<RegistryTableBlockComponent {...interactionProps(updateAttrs)} />);
+    const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
+    fireEvent.click(screen.getByTestId("name-cell-#new-1"));
+    const input = screen.getByTestId("name-cell-#new-1-input");
+    fireEvent.change(input, { target: { value: "Changed" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.getByTestId("name-cell-#new-1")).toHaveTextContent("First");
+    firstCell.focus();
+    fireEvent.click(screen.getByTestId("name-cell-#new-1"));
+    const committedInput = screen.getByTestId("name-cell-#new-1-input");
+    fireEvent.change(committedInput, { target: { value: "Changed" } });
+    fireEvent.keyDown(committedInput, { key: "Enter" });
+    expect(updateAttrs).toHaveBeenCalledWith({
+      rows: expect.arrayContaining([
+        expect.objectContaining({ __name: "Changed" }),
+      ]),
+    });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:1:0"]'),
+    );
+  });
+
+  it("copies and pastes Registry Table values as TSV", () => {
+    const updateAttrs = vi.fn();
+    render(<RegistryTableBlockComponent {...interactionProps(updateAttrs)} />);
+    const grid = screen.getByTestId("registry-table-grid");
+    const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
+    fireEvent.click(firstCell);
+    fireEvent.keyDown(firstCell, { key: "ArrowRight", shiftKey: true });
+    const setData = vi.fn();
+    fireEvent.copy(grid, { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith("text/plain", "First\t10");
+
+    fireEvent.click(firstCell);
+    fireEvent.paste(grid, {
+      clipboardData: { getData: () => "Updated\t12.5" },
+    });
+    expect(updateAttrs).toHaveBeenCalledWith({
+      rows: expect.arrayContaining([
+        expect.objectContaining({ __name: "Updated", values: { Volume: 12.5 } }),
+      ]),
     });
   });
 });

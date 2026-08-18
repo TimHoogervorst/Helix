@@ -544,6 +544,12 @@ label {
   padding-inline: var(--layout-table-breakout);
 }
 
+/* Chrome owns the table boundary, so its scroll area must stay inside it. */
+.table-layout-chrome .table-layout-scroll--auto {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
 .table-layout-scroll:not(:hover) {
   scrollbar-width: none;
 }

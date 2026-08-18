@@ -12,6 +12,12 @@ export interface ColumnDef {
   dropdownId?: number;
   /** ID of the target Schema when type is "reference". */
   referenceSchemaId?: number;
+  /** ID of the target Schema Type when type is "reference". */
+  referenceSchemaTypeId?: number;
+  /** Formula expression, using sibling columns in [Column Name] form. */
+  expression?: string;
+  /** Result type for a formula column. */
+  resultType?: string;
 }
 
 // ── Schema (new shared model) ───────────────────────────────────────────
@@ -24,6 +30,7 @@ export interface Schema {
   prefix: string;
   schema_type: number;
   schema_type_display: string;
+  tags: string[];
   columns: ColumnDef[];
   is_default: boolean;
   is_active: boolean;
@@ -50,6 +57,7 @@ export interface SchemaTypeItem {
   workspace_id: string;
   is_active: boolean;
   schema_type_id: string;
+  tags: string[];
 }
 
 /** An entity as returned by the list endpoint. */

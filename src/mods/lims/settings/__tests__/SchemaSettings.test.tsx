@@ -113,6 +113,7 @@ function makeSchema(overrides: Record<string, unknown> = {}) {
     content_hash: "abc123",
     icon: "",
     color: "",
+    tags: [],
     ...overrides,
   };
 }
@@ -224,6 +225,34 @@ describe("SchemaSettings", () => {
     expect(screen.getByText("Patient")).toBeInTheDocument();
     expect(screen.getByText("BLOOD")).toBeInTheDocument();
     expect(screen.getByText("PAT")).toBeInTheDocument();
+  });
+
+  it("filters entity and result schemas by tab", async () => {
+    mockGet
+      .mockResolvedValueOnce([
+        makeSchema({ id: 1, name: "Entity Schema", tags: ["RegistrationTable"] }),
+        makeSchema({ id: 2, name: "Result Schema", tags: ["ResultTable"] }),
+      ])
+      .mockResolvedValueOnce([]);
+    render(<SchemaSettings />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Entity Schema")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Result Schema")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Entity Schemas" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+
+    expect(screen.getByText("Result Schema")).toBeInTheDocument();
+    expect(screen.queryByText("Entity Schema")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Result Schemas" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("filters schemas by search", async () => {
@@ -594,5 +623,63 @@ describe("SchemaSettings", () => {
         color: "muted",
       });
     });
+  });
+
+  it("edits Result Schemas without icon controls and preserves the Entity Column", async () => {
+    mockGet
+      .mockResolvedValueOnce([
+        makeSchema({
+          id: 4,
+          name: "Yield Result",
+          prefix: "YIELD",
+          tags: ["ResultTable"],
+          icon: "circle",
+          columns: [{ name: "Entity", type: "reference", referenceSchemaTypeId: 3 }],
+        }),
+      ])
+      .mockResolvedValueOnce([
+        { id: 3, display_name: "Source Type", workspace_id: "lims", is_active: true, schema_type_id: "lims.source", tags: ["RegistrationTable"] },
+        { id: 4, display_name: "Results", workspace_id: "results", is_active: true, schema_type_id: "lims.result", tags: ["ResultTable"] },
+      ]);
+    mockPut.mockResolvedValue({});
+    render(<SchemaSettings />);
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Result Schemas" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+    await waitFor(() => expect(screen.getByText("Yield Result")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Yield Result"));
+
+    await waitFor(() => expect(screen.getByTestId("entity-column")).toBeInTheDocument());
+    expect(screen.queryByTestId("name-pseudo-column")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("icon-picker-popover")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Yield Result"), {
+      target: { value: "Updated Yield" },
+    });
+    fireEvent.click(screen.getByText("Save Changes (1)"));
+
+    await waitFor(() => expect(mockPut).toHaveBeenCalledWith("/schemas/4/", expect.objectContaining({
+      name: "Updated Yield",
+      icon: "chart-column",
+      columns: [{ name: "Entity", type: "reference", referenceSchemaTypeId: 3 }],
+    })));
+  });
+
+  it("deletes a Result Schema through the schema API", async () => {
+    mockGet
+      .mockResolvedValueOnce([makeSchema({ id: 4, name: "Yield Result", tags: ["ResultTable"] })])
+      .mockResolvedValueOnce([]);
+    mockDel.mockResolvedValue({});
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<SchemaSettings />);
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Result Schemas" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+    await waitFor(() => expect(screen.getByText("Yield Result")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Yield Result"));
+    await waitFor(() => expect(screen.getByText("Delete Result Schema")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Delete Result Schema"));
+
+    await waitFor(() => expect(mockDel).toHaveBeenCalledWith("/schemas/4/"));
+    vi.restoreAllMocks();
   });
 });

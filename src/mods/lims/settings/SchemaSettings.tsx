@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put } from "../../../shell/src/api/client";
+import { del, get, post, put } from "../../../shell/src/api/client";
 import type { Schema, SchemaPayload, SchemaTypeItem, ColumnDef } from "../types";
 import ColumnEditor from "./ColumnEditor";
 import { Button } from "../../../shell/src/shared/primitives/Button";
@@ -15,8 +15,12 @@ import {
 } from "../../../shell/src/shared/components/SettingsMasterList";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
+import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
+
+type SchemaTab = "entity" | "result";
 
 function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<SchemaTab>("entity");
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +36,10 @@ function SettingsPage() {
   const [filterValue, setFilterValue] = useState("");
   const [newIcon, setNewIcon] = useState("circle");
   const [newColor, setNewColor] = useState("muted");
+
+  const resultSchemaTypes = schemaTypes.filter((type) =>
+    type.tags?.includes("ResultTable"),
+  );
 
   const fetchSchemas = useCallback(async () => {
     try {
@@ -71,9 +79,11 @@ function SettingsPage() {
         name: newName.trim(),
         prefix: newPrefix.trim().toUpperCase(),
         schema_type: newSchemaType,
-        columns: [],
-        icon: newIcon,
-        color: newColor,
+        columns: activeTab === "result"
+          ? [{ name: "Entity", type: "reference" }]
+          : [],
+        icon: activeTab === "result" ? "chart-column" : newIcon,
+        color: activeTab === "result" ? "muted" : newColor,
       };
       await post("/schemas/", payload);
       setShowNew(false);
@@ -99,9 +109,21 @@ function SettingsPage() {
         const schema = schemas.find((s) => s.id === schemaId);
         if (!schema) return prev;
         const next = new Map(prev);
+        const entityColumn = schema.columns.find(
+          (column) => column.name === "Entity" && column.type === "reference",
+        );
+        const columns = activeTab === "result"
+          ? [
+              entityColumn ?? { name: "Entity", type: "reference" },
+              ...schema.columns.filter(
+                (column) => column.name !== "Entity" || column.type !== "reference",
+              ),
+            ]
+          : schema.columns.map((c) => ({ ...c }));
         next.set(schemaId, {
           ...schema,
-          columns: schema.columns.map((c) => ({ ...c })),
+          icon: activeTab === "result" ? "chart-column" : schema.icon,
+          columns,
         });
         return next;
       });
@@ -132,7 +154,10 @@ function SettingsPage() {
       if (!s) return prev;
       next.set(id, {
         ...s,
-        columns: [...s.columns, { name: "", type: "text" }],
+         columns: [
+           ...s.columns,
+           { name: "", type: activeTab === "result" ? "formula" : "text" },
+         ],
       });
       return next;
     });
@@ -196,7 +221,7 @@ function SettingsPage() {
           prefix: s.prefix,
           schema_type: s.schema_type,
           columns: s.columns,
-          icon: s.icon,
+          icon: s.tags?.includes("ResultTable") ? "chart-column" : s.icon,
           color: s.color,
         };
         await put(`/schemas/${s.id}/`, payload);
@@ -220,7 +245,13 @@ function SettingsPage() {
   const visibleSchemas = (showArchived
     ? schemas
     : schemas.filter((s) => s.is_active)
-  ).filter((s) => !s.is_default);
+  ).filter(
+    (s) =>
+      !s.is_default &&
+      (activeTab === "result"
+        ? s.tags?.includes("ResultTable")
+        : !s.tags?.includes("ResultTable")),
+  );
 
   const filteredSchemas = filterValue
     ? visibleSchemas.filter(
@@ -235,10 +266,10 @@ function SettingsPage() {
     label: s.name,
     secondary: s.prefix,
     dirty: dirtyEdits.has(s.id),
-    icon: (
-      <IconBadge
-        iconKey={s.icon || "circle"}
-        colorKey={s.color || "muted"}
+       icon: (
+       <IconBadge
+         iconKey={activeTab === "result" ? "chart-column" : (s.icon || "circle")}
+         colorKey={s.color || "muted"}
         size="sm"
       />
     ),
@@ -251,6 +282,40 @@ function SettingsPage() {
     : null;
   const editingSchema = selectedId ? dirtyEdits.get(selectedId) : undefined;
   const dirtyCount = dirtyEdits.size;
+
+  const handleTabChange = (tab: string) => {
+    const nextTab = tab === "result" ? "result" : "entity";
+    setActiveTab(nextTab);
+    setNewSchemaType((current) => {
+      const allowed = nextTab === "result" ? resultSchemaTypes : schemaTypes;
+      return allowed.some((type) => type.id === current)
+        ? current
+        : (allowed[0]?.id ?? null);
+    });
+    setSelectedId(null);
+    setFilterValue("");
+  };
+
+  const deleteResultSchema = async () => {
+    if (!selectedSchema || activeTab !== "result") return;
+    if (!window.confirm(`Delete ${selectedSchema.name}?`)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await del(`/schemas/${selectedSchema.id}/`);
+      setSelectedId(null);
+      setDirtyEdits((prev) => {
+        const next = new Map(prev);
+        next.delete(selectedSchema.id);
+        return next;
+      });
+      await fetchSchemas();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <p className="empty">Loading…</p>;
 
@@ -268,7 +333,7 @@ function SettingsPage() {
                 onClick={() => {
                   setShowNew(!showNew);
                   if (!showNew) {
-                    setNewIcon("circle");
+                    setNewIcon(activeTab === "result" ? "chart-column" : "circle");
                     setNewColor("muted");
                   }
                 }}
@@ -281,15 +346,15 @@ function SettingsPage() {
           {showNew && (
             <div className="mb-6 rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
               <div className="flex flex-wrap items-end gap-4">
-                <IconPickerPopover
-                  iconKey={newIcon}
-                  colorKey={newColor}
-                  size="sm"
-                  onChange={(icon, color) => {
-                    setNewIcon(icon);
-                    setNewColor(color);
-                  }}
-                />
+                {activeTab !== "result" && <IconPickerPopover
+                    iconKey={newIcon}
+                    colorKey={newColor}
+                    size="sm"
+                    onChange={(icon, color) => {
+                      setNewIcon(icon);
+                      setNewColor(color);
+                    }}
+                  />}
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-[var(--color-ink-muted-foreground)]">Name</span>
                   <Input
@@ -317,7 +382,7 @@ function SettingsPage() {
                       value={newSchemaType ?? ""}
                       onChange={(e) => setNewSchemaType(Number(e.target.value))}
                     >
-                      {schemaTypes.map((st) => (
+                    {(activeTab === "result" ? resultSchemaTypes : schemaTypes).map((st) => (
                         <option key={st.id} value={st.id}>
                           {st.display_name}
                         </option>
@@ -350,6 +415,16 @@ function SettingsPage() {
             </div>
           )}
         </>
+      }
+      tabs={
+        <TabBar
+          tabs={[
+            { id: "entity", label: "Entity Schemas", testId: "tab-entity-schemas" },
+            { id: "result", label: "Result Schemas", testId: "tab-result-schemas" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+        />
       }
       bottomBar={
         dirtyCount > 0 ? (
@@ -418,10 +493,20 @@ function SettingsPage() {
               <SettingsSectionCard
                 title="Schema definition"
                 subtitle="Identity fields"
+                actions={activeTab === "result" ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={deleteResultSchema}
+                    disabled={saving}
+                  >
+                    Delete Result Schema
+                  </Button>
+                ) : undefined}
               >
                 <div className="space-y-3">
-                  <div className="flex items-end gap-3">
-                    <IconPickerPopover
+                    <div className="flex items-end gap-3">
+                     {activeTab !== "result" && <IconPickerPopover
                       iconKey={editingSchema.icon || "circle"}
                       colorKey={editingSchema.color || "muted"}
                       size="lg"
@@ -434,7 +519,7 @@ function SettingsPage() {
                           return next;
                         });
                       }}
-                    />
+                     />}
                     <div className="grid grid-cols-[1fr_auto] gap-4 flex-1">
                       <label className="block">
                         <span className="text-xs font-medium text-[var(--color-ink-muted-foreground)]">
@@ -494,7 +579,9 @@ function SettingsPage() {
               <SettingsSectionCard
                 flush
                 title="Columns"
-                subtitle={`${editingSchema.columns.length} user-defined`}
+                 subtitle={activeTab === "result"
+                   ? `${Math.max(0, editingSchema.columns.length - 1)} user-defined + Entity`
+                   : `${editingSchema.columns.length} user-defined`}
                 actions={
                   <Button variant="ghost" size="sm" onClick={() => addColumn(editingSchema.id)}>
                     + Add Column
@@ -503,6 +590,7 @@ function SettingsPage() {
               >
                 <ColumnEditor
                   columns={editingSchema.columns}
+                  isResultSchema={activeTab === "result"}
                   onUpdate={(i, field, value) =>
                     updateColumn(editingSchema.id, i, field, value)
                   }

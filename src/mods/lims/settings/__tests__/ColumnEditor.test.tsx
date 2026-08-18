@@ -6,6 +6,18 @@ import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
 import { resolveColorHex } from "../../../../shell/src/shared/components/IconBadge";
 
+vi.mock("../../hub/api", () => ({
+  getSchemas: vi.fn().mockResolvedValue([
+    { id: 7, name: "Sample", prefix: "SAMPLE", schema_type: 1 },
+  ]),
+  getSchemaTypes: vi.fn().mockResolvedValue([
+    { id: 3, display_name: "Source Type" },
+  ]),
+}));
+vi.mock("../../../dropdowns/api", () => ({
+  listDropdowns: vi.fn().mockResolvedValue([]),
+}));
+
 const STANDARD_COLORS = [
   { key: "enzyme", label: "Enzyme", hex: "#d9b3e6", hexDark: "#EBC8F2", hexLight: "#D9B3E6" },
   { key: "flask", label: "Flask", hex: "#b3d9e6", hexDark: "#C8EBF2", hexLight: "#B3D9E6" },
@@ -416,5 +428,58 @@ describe("ColumnEditor", () => {
     // Change column 0 from "number" to "boolean"
     fireEvent.change(typeSelects[1], { target: { value: "boolean" } });
     expect(onUpdate).toHaveBeenCalledWith(0, "type", "boolean");
+  });
+
+  it("edits the Result Schema Entity Column target by schema or schema type", async () => {
+    const onUpdate = vi.fn();
+    render(
+      <ColumnEditor
+        isResultSchema
+        columns={[{ name: "Entity", type: "reference" }]}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByTestId("entity-column")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Entity Column target schema" }), {
+      target: { value: "7" },
+    });
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaId", 7);
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaTypeId", "");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Entity Column target schema type" }), {
+      target: { value: "3" },
+    });
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaTypeId", 3);
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaId", "");
+  });
+
+  it("edits formula expressions and result types and surfaces invalid references", () => {
+    const onUpdate = vi.fn();
+    render(
+      <ColumnEditor
+        isResultSchema
+        columns={[
+          { name: "Entity", type: "reference" },
+          { name: "Amount", type: "number" },
+          { name: "Total", type: "formula", expression: "[Missing]", resultType: "number" },
+        ]}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unknown column: Missing.");
+    fireEvent.change(screen.getByRole("textbox", { name: "Formula expression" }), {
+      target: { value: "[Amount] * 2" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Formula result type" }), {
+      target: { value: "number" },
+    });
+    expect(onUpdate).toHaveBeenCalledWith(2, "expression", "[Amount] * 2");
+    expect(onUpdate).toHaveBeenCalledWith(2, "resultType", "number");
   });
 });

@@ -17,7 +17,6 @@ import {
   TableStretch,
 } from "../../../shell/src/shared/primitives/TableLayout";
 import { useTableInteraction, type TablePosition } from "../../../shell/src/shared/hooks/useTableInteraction";
-import { evaluateRow, type FormulaResult } from "../../../shell/src/shared/formulas/formulaEngine";
 
 interface HarnessRow {
   id: string;
@@ -120,82 +119,6 @@ const INITIAL_ROWS: HarnessRow[] = [
   { id: "row-2", name: "Briar", role: "Reviewer", note: "Click any cell to edit" },
   { id: "row-3", name: "Cedar", role: "Operator", note: "Local mock data" },
 ];
-
-interface FormulaDemoRow {
-  id: string;
-  label: string;
-  amount: number;
-  count: number;
-}
-
-const FORMULA_COLUMNS = {
-  Ratio: { expression: "[Amount] / [Count]", resultType: "number" },
-  Summary: { expression: 'CONCAT(UPPER([Label]), " ratio ", ROUND([Ratio], 2))', resultType: "text" },
-  Broken: { expression: "[Missing] + 1", resultType: "number" },
-};
-
-const INITIAL_FORMULA_ROWS: FormulaDemoRow[] = [
-  { id: "formula-row-1", label: "Sample", amount: 12, count: 3 },
-  { id: "formula-row-2", label: "Control", amount: 8, count: 2 },
-];
-
-function formulaDisplay(result: FormulaResult, resultType: string): string {
-  if (!result.ok) return result.error.code;
-  if (result.value === null) return "";
-  if (resultType === "number" && typeof result.value === "number") return result.value.toFixed(2);
-  return String(result.value);
-}
-
-function FormulaCell({ name, result, resultType, rowId }: { name: string; result: FormulaResult; resultType: string; rowId: string }) {
-  return (
-    <TableCell className="bg-[var(--color-background-hover)]/60" data-testid={`formula-cell-${rowId}-${name.toLowerCase()}`}>
-      <span className="inline-flex min-h-10 w-full items-center gap-2 px-3 py-2 text-[var(--color-ink-muted-foreground)]" data-formula-cell="true">
-        <span data-value-type={result.ok ? resultType : "error"}>{formulaDisplay(result, resultType)}</span>
-        {!result.ok && <span aria-label={`Formula error ${result.error.code}`} className="rounded-full bg-[var(--color-destructive-subtle)] px-2 py-0.5 font-[var(--font-label)] text-xs font-semibold text-[var(--color-destructive)]">{result.error.code}</span>}
-      </span>
-    </TableCell>
-  );
-}
-
-function FormulaDemo() {
-  const [rows, setRows] = useState(INITIAL_FORMULA_ROWS);
-
-  const updateInput = (id: string, key: "label" | "amount" | "count", raw: string) => {
-    setRows((current) => current.map((row) => {
-      if (row.id !== id) return row;
-      const value = key === "label" ? raw : Number(raw);
-      return { ...row, [key]: value };
-    }));
-  };
-
-  return (
-    <section aria-labelledby="formula-demo-heading" className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
-      <div className="mb-4">
-        <p className="font-[var(--font-label)] text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">Formula columns</p>
-        <h2 id="formula-demo-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Formula demo</h2>
-        <p className="mt-1 text-sm text-[var(--color-ink-muted-foreground)]">Edit a source value to recompute dependent columns. Formula cells are typed, read-only, and show tagged failures.</p>
-      </div>
-      <Table>
-        <TableHead><TableRow><TableHeaderCell>Label</TableHeaderCell><TableHeaderCell>Amount</TableHeaderCell><TableHeaderCell>Count</TableHeaderCell><TableHeaderCell>Ratio (number)</TableHeaderCell><TableHeaderCell>Summary (text)</TableHeaderCell><TableHeaderCell>Broken formula</TableHeaderCell></TableRow></TableHead>
-        <tbody>
-          {rows.map((row) => {
-            const evaluated = evaluateRow({ Label: row.label, Amount: row.amount, Count: row.count }, FORMULA_COLUMNS);
-            return (
-              <TableRow key={row.id}>
-                <TableCell><Input aria-label={`Edit ${row.id} label`} data-testid={`formula-input-${row.id}-label`} value={row.label} onChange={(event) => updateInput(row.id, "label", event.target.value)} /></TableCell>
-                <TableCell><Input aria-label={`Edit ${row.id} amount`} data-testid={`formula-input-${row.id}-amount`} type="number" value={row.amount} onChange={(event) => updateInput(row.id, "amount", event.target.value)} /></TableCell>
-                <TableCell><Input aria-label={`Edit ${row.id} count`} type="number" value={row.count} onChange={(event) => updateInput(row.id, "count", event.target.value)} /></TableCell>
-                <FormulaCell name="Ratio" result={evaluated.Ratio} resultType="number" rowId={row.id} />
-                <FormulaCell name="Summary" result={evaluated.Summary} resultType="text" rowId={row.id} />
-                <FormulaCell name="Broken" result={evaluated.Broken} resultType="number" rowId={row.id} />
-              </TableRow>
-            );
-          })}
-        </tbody>
-      </Table>
-    </section>
-  );
-}
 
 function TextHarnessCell({
   value,
@@ -570,7 +493,6 @@ type PrototypeColumn = {
   id: string;
   label: string;
   shape: keyof typeof CELL_REGISTRY;
-  formula?: { expression: string; resultType: string };
 };
 
 type PrototypeRow = {
@@ -677,7 +599,7 @@ function InteractiveMockCell({
 const MOCK_ENTITIES = ["SMP-001", "SMP-002", "CTRL-001"];
 
 function parsePastedValue(column: PrototypeColumn, raw: string): CellValue | undefined {
-  if (column.formula || (column.shape === "entity-picker" && !MOCK_ENTITIES.includes(raw))) return undefined;
+  if (column.shape === "entity-picker" && !MOCK_ENTITIES.includes(raw)) return undefined;
   try {
     return getCellBehavior(column.shape).commit(raw);
   } catch {
@@ -698,12 +620,11 @@ const SCHEMA_MODES = {
   },
   entity: {
     label: "Entity column",
-    description: "Result Table rehearsal: constrained source entities, live formulas, status dots, and mock registration.",
+    description: "Result Table rehearsal: constrained source entities, typed values, status dots, and mock registration.",
     columns: [
       { id: "entity", label: "Source entity", shape: "entity-picker" },
       { id: "amount", label: "Amount", shape: "number" },
       { id: "count", label: "Count", shape: "number" },
-      { id: "ratio", label: "Ratio", shape: "number", formula: { expression: "[Amount] / [Count]", resultType: "number" } },
     ] satisfies PrototypeColumn[],
   },
 } as const;
@@ -749,12 +670,10 @@ function SchemaDrivenPrototype() {
       </div>
     </div>
     <div ref={interaction.containerRef} onCopy={interaction.handleCopy} onPaste={interaction.handlePaste} data-testid="schema-prototype-table">
-      <Table><TableHead><TableRow>{schema.columns.map((column) => <TableHeaderCell key={column.id}>{column.label}{column.formula && " (formula)"}</TableHeaderCell>)}<StickyActionHeader aria-label="Registration" /></TableRow></TableHead><tbody>
+      <Table><TableHead><TableRow>{schema.columns.map((column) => <TableHeaderCell key={column.id}>{column.label}</TableHeaderCell>)}<StickyActionHeader aria-label="Registration" /></TableRow></TableHead><tbody>
         {rows.map((row, rowIndex) => <TableRow key={row.id}>{schema.columns.map((column, columnIndex) => {
-          const evaluated = mode === "entity" ? evaluateRow({ Amount: row.values.amount ?? null, Count: row.values.count ?? null }, { Ratio: column.formula ?? { expression: "", resultType: "number" } }) : undefined;
-          const value = column.formula ? evaluated?.Ratio?.ok ? evaluated.Ratio.value : null : row.values[column.id];
           return <TableCell key={column.id} className="p-0!" {...interaction.cellProps({ row: rowIndex, column: columnIndex })}>
-            <InteractiveMockCell value={value} shape={column.shape} position={{ row: rowIndex, column: columnIndex }} interaction={interaction} testId={`schema-cell-${row.id}-${column.id}`} readOnly={Boolean(column.formula)} onCommit={(next) => update(row.id, column.id, next)} />
+            <InteractiveMockCell value={row.values[column.id]} shape={column.shape} position={{ row: rowIndex, column: columnIndex }} interaction={interaction} testId={`schema-cell-${row.id}-${column.id}`} onCommit={(next) => update(row.id, column.id, next)} />
           </TableCell>;
         })}<StickyActionCell><div className="flex items-center gap-2 px-2"><RegistrationStatus registered={row.registered} /><Button size="sm" variant="ghost" onClick={() => register(row.id)} data-testid={`register-${row.id}`}>Register</Button></div></StickyActionCell></TableRow>)}
       </tbody></Table>
@@ -796,7 +715,6 @@ function CapabilityMatrix() {
     ["Typed cells", "Registry", "Result", "Plain"],
     ["Keyboard navigation", "Yes", "Yes", "Yes"],
     ["TSV copy-paste", "Yes", "Yes", "Yes"],
-    ["Live formulas", "Yes", "Yes", "No"],
     ["Registration", "Mock", "Mock", "No"],
   ];
   return <section aria-labelledby="capability-matrix-heading" className="rounded-xl border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5"><p className="font-[var(--font-label)] text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">Coverage</p><h2 id="capability-matrix-heading" className="mt-1 text-xl font-semibold text-[var(--color-ink)]">Capability matrix</h2><div className="mt-4 overflow-x-auto"><Table><tbody>{rows.map((row, index) => <TableRow key={row[0]}>{row.map((value, cellIndex) => cellIndex === 0 ? <TableHeaderCell key={value}>{value}</TableHeaderCell> : <TableCell key={`${value}-${cellIndex}`}>{value}</TableCell>)}</TableRow>)}</tbody></Table></div></section>;
@@ -817,13 +735,12 @@ function TablesPlayground() {
           Table Kit laboratory
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-[var(--color-ink-muted-foreground)]">
-          A local sandbox for exploring typed cells, formulas, and table interactions before they become shared product surfaces.
+          A local sandbox for exploring typed cells and table interactions before they become shared product surfaces.
         </p>
       </header>
 
       <CellGallery />
       <HarnessTable />
-      <FormulaDemo />
       <LayoutDemo />
 
         <SchemaDrivenPrototype />

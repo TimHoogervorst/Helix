@@ -25,7 +25,6 @@ from helix_core.column_types import (
     ColumnTypeRegistry,
     DateColumnType,
     DatetimeColumnType,
-    FormulaColumnType,
     NumberColumnType,
     OperatorMeta,
     ProjectColumnType,
@@ -539,26 +538,6 @@ class ReferenceColumnTypeTests(TestCase):
         self.assertEqual(ids, {"count", "count_distinct"})
 
 
-class FormulaColumnTypeTests(TestCase):
-    def setUp(self):
-        self.ct = FormulaColumnType()
-
-    def test_id_and_display_name(self):
-        self.assertEqual(self.ct.id, "formula")
-        self.assertEqual(self.ct.display_name, "Formula")
-
-    def test_validate_valid_expression(self):
-        self.assertTrue(self.ct.validate("amount * quantity"))
-
-    def test_validate_rejects_invalid_expression(self):
-        result = self.ct.validate("amount +")
-        self.assertIsInstance(result, str)
-        self.assertIn("Invalid formula expression", result)
-
-    def test_validate_rejects_empty_expression(self):
-        self.assertIsInstance(self.ct.validate(""), str)
-
-
 # ── Built-in type: User ──────────────────────────────────────────────────────
 
 
@@ -837,7 +816,7 @@ class BuiltinTypesListTests(TestCase):
 
     def test_returns_all_builtin_types(self):
         types = get_builtin_column_types()
-        self.assertEqual(len(types), 10)
+        self.assertEqual(len(types), 9)
 
     def test_all_types_have_unique_ids(self):
         types = get_builtin_column_types()
@@ -854,7 +833,7 @@ class BuiltinTypesListTests(TestCase):
         registry = _fresh_registry()
         for ct in get_builtin_column_types():
             registry.register_column_type(ct)
-        self.assertEqual(len(registry), 10)
+        self.assertEqual(len(registry), 9)
 
 
 # ── Contract test: columnTypes in mod-registry response ──────────────────────
@@ -904,11 +883,11 @@ class ColumnTypesContractTests(TestCase):
         except ValidationError as exc:
             self.fail(f"Response does not match JSON schema: {exc.message}")
 
-    def test_all_eight_builtin_types_present(self):
+    def test_all_builtin_types_present(self):
         """All built-in column types plus mod-registered types are present."""
         response = self.client.get("/api/mod-registry/")
         type_ids = {ct["id"] for ct in response.data["columnTypes"]}
-        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "formula", "user", "project", "tiptap_content"}
+        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "project", "tiptap_content"}
         self.assertEqual(type_ids, expected)
 
     def test_builtin_operators_have_correct_shape(self):
@@ -962,7 +941,6 @@ class ColumnTypesContractTests(TestCase):
             "boolean": {"count"},
             "dropdown": {"count", "count_distinct"},
             "reference": {"count", "count_distinct"},
-            "formula": {"count", "count_distinct"},
             "user": {"count", "count_distinct"},
             "project": {"count", "count_distinct"},
         }

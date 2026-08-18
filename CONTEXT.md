@@ -447,12 +447,6 @@ A capability label on a Schema Type (e.g. `RegistrationTable`, `ResultTable`) th
 
 **Synonyms:** type tag, capability tag
 
-### Formula Column
-
-A Schema column whose value is computed, not entered. Carries an `expression` over sibling columns — referenced by name, `[Column Name]` — and a result type. Evaluated per row in the ELN table whenever an input changes; displayed read-only (with an error indicator on failure); stored as a normal entity property on registration. The backend does not recompute — table data, whether computed or entered, is sent as-is when the user registers.
-
-**Synonyms:** computed column, calculated column
-
 ### Entity Column
 
 The distinguishing column of a Result Schema: an entity-reference column constrained at design time to one Schema or one Schema Type. Each Result Table row inserts one matching Entity into this column, tying every Result Entity to a source Entity. It replaces the implicit Name Column on result schemas.
@@ -461,7 +455,7 @@ The distinguishing column of a Result Schema: an entity-reference column constra
 
 ### Result Schema
 
-A Schema belonging to a `ResultTable`-tagged Schema Type. Structured like an entity Schema but with an Entity Column instead of the implicit Name Column; may include Formula Columns. Managed in the Result Schemas tab of schema settings.
+A Schema belonging to a `ResultTable`-tagged Schema Type. Structured like an entity Schema but with an Entity Column instead of the implicit Name Column. Managed in the Result Schemas tab of schema settings.
 
 **Synonyms:** result definition
 

@@ -141,7 +141,7 @@ Since this ADR was accepted, [ADR-0008](0008-single-source-registration.md) (Sin
 
 ## Amendment: Results schema type workspace identity
 
-> Origin: [Spec: Table Kit — typed cells, Formula Columns, and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+> Origin: [Spec: Table Kit — typed cells and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
 
 ### Context
 

@@ -59,22 +59,6 @@ def validate_columns(value):
                 f"'referenceSchemaTypeId'."
             )
 
-        if col_type == "formula":
-            formula_type = column_type_registry.get_column_type("formula")
-            result = formula_type.validate(col.get("expression"))
-            if result is not True:
-                raise serializers.ValidationError({
-                    f"columns[{i}].expression": result,
-                })
-            result_type = col.get("resultType")
-            if result_type not in column_type_registry or result_type == "formula":
-                valid_types = sorted(
-                    ct.id for ct in column_type_registry if ct.id != "formula"
-                )
-                raise serializers.ValidationError(
-                    f"columns[{i}].resultType must be one of: "
-                    f"{', '.join(valid_types)}."
-                )
         target_type_id = col.get("referenceSchemaTypeId")
         if target_type_id is not None and not SchemaType.objects.filter(
             pk=target_type_id

@@ -9,7 +9,6 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("tables-playground")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Cell gallery" })).toBeInTheDocument();
     for (const title of [
-      "Formula demo",
       "Layout demo",
       "Interaction bench",
       "Prototype tables",
@@ -190,28 +189,6 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("cell-row-1-name")).toHaveTextContent("Nova");
     expect(screen.getByTestId("cell-row-1-role")).toHaveTextContent("Scientist");
     expect(screen.getByTestId("cell-row-2-name")).toHaveTextContent("Elm");
-  });
-
-  it("recomputes typed formula columns after an input edit", () => {
-    render(<TablesPlayground />);
-
-    expect(screen.getByTestId("formula-cell-formula-row-1-ratio")).toHaveTextContent("4.00");
-    expect(screen.getByTestId("formula-cell-formula-row-1-summary")).toHaveTextContent("SAMPLE ratio 4");
-
-    fireEvent.change(screen.getByTestId("formula-input-formula-row-1-amount"), { target: { value: "24" } });
-
-    expect(screen.getByTestId("formula-cell-formula-row-1-ratio")).toHaveTextContent("8.00");
-    expect(screen.getByTestId("formula-cell-formula-row-1-summary")).toHaveTextContent("SAMPLE ratio 8");
-  });
-
-  it("renders formula cells read-only and shows typed error badges", () => {
-    render(<TablesPlayground />);
-
-    const ratio = screen.getByTestId("formula-cell-formula-row-1-ratio");
-    expect(ratio.querySelector('[data-formula-cell="true"]')).toBeInTheDocument();
-    expect(ratio.querySelector("input")).not.toBeInTheDocument();
-    expect(screen.getByTestId("formula-cell-formula-row-1-broken")).toHaveTextContent("#REF!");
-    expect(screen.getAllByLabelText("Formula error #REF!")).toHaveLength(2);
   });
 
   it("registers every supported operand shape and falls back to text", () => {

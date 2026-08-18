@@ -147,7 +147,7 @@ The only consumer was the Pins mod, which injected a "pin/unpin" button into wor
 
 ## Amendment: Schema type capability tags
 
-> Origin: [Spec: Table Kit — typed cells, Formula Columns, and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+> Origin: [Spec: Table Kit — typed cells and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
 
 ### Context
 

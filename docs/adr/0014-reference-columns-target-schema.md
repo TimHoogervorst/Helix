@@ -112,7 +112,7 @@ Not every reference column needs a target. A generic "Related Entity" column tha
 
 ## Amendment: Schema type reference targets
 
-> Origin: [Spec: Table Kit — typed cells, Formula Columns, and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+> Origin: [Spec: Table Kit — typed cells and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
 
 ### Context
 

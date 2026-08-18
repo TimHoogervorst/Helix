@@ -127,12 +127,6 @@ class SchemaCrudTests(TestCase):
     def test_schema_column_metadata_round_trips(self):
         columns = [
             {
-                "name": "total",
-                "type": "formula",
-                "expression": "quantity * price",
-                "resultType": "number",
-            },
-            {
                 "name": "source",
                 "type": "reference",
                 "referenceSchemaTypeId": self.schema_type.id,
@@ -141,8 +135,8 @@ class SchemaCrudTests(TestCase):
         response = self.client.post(
             "/api/schemas/",
             {
-                "name": "Calculated",
-                "prefix": "CALC",
+                "name": "Referenced",
+                "prefix": "REF",
                 "schema_type": self.schema_type.id,
                 "columns": columns,
             },
@@ -293,24 +287,6 @@ class SchemaColumnValidationTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("columns", response.data)
-
-    def test_rejects_invalid_formula_expression(self):
-        response = self.client.post(
-            "/api/schemas/",
-            {
-                "name": "Test",
-                "prefix": "FORM",
-                "schema_type": self.schema_type.id,
-                "columns": [{
-                    "name": "total",
-                    "type": "formula",
-                    "expression": "amount +",
-                    "resultType": "number",
-                }],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 400)
 
     def test_rejects_both_reference_targets(self):
         response = self.client.post(

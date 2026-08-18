@@ -16,6 +16,7 @@ import { useCallback, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
+import { Select } from "../../../shell/src/shared/primitives/Input";
 import { TableScroll, TableStretch } from "../../../shell/src/shared/primitives/TableLayout";
 import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
 import {
@@ -50,6 +51,15 @@ interface TableBlockContentProps {
 const DEFAULT_TITLE = "Table";
 const NEW_COLUMN_PREFIX = "Column ";
 const MOCK_DROPDOWN_OPTIONS = ["Researcher", "Reviewer", "Operator"];
+const MOCK_ENTITY_OPTIONS = ["ENT-001", "ENT-002", "ENT-003"];
+const PLAIN_COLUMN_TYPES = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "boolean", label: "Boolean" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "entity-picker", label: "Entity" },
+] as const;
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -197,6 +207,16 @@ export function TableBlockContent({
     [columns, updateAttrs],
   );
 
+  const handleColumnTypeChange = useCallback(
+    (colId: string, type: string) => {
+      const updated = columns.map((column) =>
+        column.id === colId ? { ...column, type } : column,
+      );
+      updateAttrs({ columns: updated });
+    },
+    [columns, updateAttrs],
+  );
+
   const handleAddColumn = useCallback(() => {
     const id = crypto.randomUUID();
     const name = nextColumnName(columns);
@@ -312,6 +332,7 @@ export function TableBlockContent({
               ref={interaction.containerRef}
               onCopy={interaction.handleCopy}
               onPaste={interaction.handlePaste}
+              data-testid="eln-table-grid"
             >
               <table className="w-max min-w-full bg-background text-base">
                 <colgroup>
@@ -338,6 +359,23 @@ export function TableBlockContent({
                         aria-label={`Column name: ${col.name}`}
                         data-testid={`column-header-${col.id}`}
                       />
+                      {!readOnly && (
+                        <Select
+                          className="h-auto max-w-24 rounded border-0 bg-transparent p-0 text-2xs font-normal normal-case tracking-normal text-muted-foreground focus:border-transparent focus:ring-2 focus:ring-[var(--color-focus-ring)]"
+                          value={col.type ?? "text"}
+                          onChange={(event) =>
+                            handleColumnTypeChange(col.id, event.currentTarget.value)
+                          }
+                          aria-label={`Column type: ${col.name}`}
+                          data-testid={`column-type-${col.id}`}
+                        >
+                          {PLAIN_COLUMN_TYPES.map((columnType) => (
+                            <option key={columnType.value} value={columnType.value}>
+                              {columnType.label}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                       {!readOnly && hoveredColumn === col.id && (
                         <button
                           type="button"
@@ -393,7 +431,13 @@ export function TableBlockContent({
                           position={{ row: rowIndex, column: columnIndex }}
                           interaction={interaction}
                           readOnly={readOnly}
-                          options={col.type === "dropdown" ? MOCK_DROPDOWN_OPTIONS : undefined}
+                          options={
+                            col.type === "dropdown"
+                              ? MOCK_DROPDOWN_OPTIONS
+                              : col.type === "entity-picker"
+                                ? MOCK_ENTITY_OPTIONS
+                                : undefined
+                          }
                           data-testid={`cell-${row.id}-${col.id}`}
                         />
                       </td>

@@ -2,28 +2,40 @@
 
 How to run this repo's tests. Backend tests use **pytest**; frontend tests use Vitest.
 
-## Backend — one command, everything
+## Backend — full suite
 
 Backend tests live in two trees:
 
 - `src/server/` — `helix_core`, `core`, `users`, `core/mentions`
 - `src/mods/<id>/tests/` — every mod (`eln`, `lims`, `library`, `access`, `tags`, `home`, `dropdowns`, `users`, `tabs`)
 
-`pytest` is configured (in `src/pytest.ini`) to collect **both** trees. The full run is parallelized with `pytest-xdist` (`-n auto` uses one worker per CPU core), which cuts the ~10 min serial run down to a few minutes on multicore machines:
+`pytest` is configured (in `src/pytest.ini`) to collect **both** trees. During implementation, prefer a focused run from the target tree, mod, file, class, or keyword below. After implementing a change, always run the full suite as a final check.
+
+Full runs use `pytest-xdist` in parallel, use a higher 10-minute Docker exec timeout, and default to four workers when `auto` selects the worker count. `PYTEST_XDIST_AUTO_NUM_WORKERS` is supported by pytest-xdist for this purpose:
 
 ```bash
 # Docker
-docker-compose exec backend pytest -n auto
+docker-compose exec --timeout 600 backend pytest -n auto
 
 # Local (no Docker) — from the repo root
 cd src && pytest -n auto
+```
+
+Set the worker default before running the full suite:
+
+```bash
+# Bash
+export PYTEST_XDIST_AUTO_NUM_WORKERS=4
+
+# PowerShell
+$env:PYTEST_XDIST_AUTO_NUM_WORKERS = "4"
 ```
 
 Run it from `src/` (not `src/server/`): the `testpaths` in `src/pytest.ini` only take effect when pytest is invoked from the directory that holds the config, so `pytest` from `src/server/` would silently collect just the server tree.
 
 Do **not** use `python manage.py test` — the Django runner needs pytest installed anyway (several `helix_core` tests import it) and it is not the canonical path.
 
-### Target a run (skip the full suite)
+### Target a run while implementing
 
 The full suite is the slow path. When you're iterating on one area, target just the tree, mod, file, or a keyword so you don't pay for everything:
 
@@ -44,7 +56,7 @@ docker-compose exec backend pytest -k "mention"         # keyword match
 
 ### Database: SQLite vs Postgres
 
-The default Docker setup runs against PostgreSQL (`pgvector/pgvector:pg16`), which is what CI and the real app use. For a quick local run without Docker, use SQLite:
+The default Docker setup runs against PostgreSQL (`pgvector/pgvector:pg16`), which is what CI and the real app use. Prefer SQLite for quick local implementation and focused runs without Docker:
 
 ```bash
 cd src

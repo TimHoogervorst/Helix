@@ -10,6 +10,7 @@ from helix_core.views import (
     SchemaTypeViewSet,
     EntityHubListView,
     EntityHubQueryView,
+    FormulaEvaluateView,
 )
 
 # Router for schemas, schema-types, and colors
@@ -24,6 +25,7 @@ registry_router = DefaultRouter()
 registry_router.register(r"entities", EntityHubListView, basename="registry-entity")
 
 urlpatterns = [
+    path("formulas/evaluate/", FormulaEvaluateView.as_view(), name="formula-evaluate"),
     path("actions/", ActionCreateView.as_view(), name="action-create"),
     path("", include(router.urls)),
     path("registry/", include(registry_router.urls)),

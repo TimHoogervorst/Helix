@@ -31,6 +31,7 @@ from helix_core.models import EntityHubView
 from mods.access.permissions import IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
+from helix_core.formulas import evaluate_formula
 from helix_core.query_builder import (
     FilterSpec,
     build_entity_hub_filters,
@@ -539,6 +540,28 @@ class SchemaViewSet(viewsets.ModelViewSet):
                     "DELETE FROM {}".format(Schema._meta.db_table)
                 )
         return Response({"deleted": count})
+
+
+class FormulaEvaluateSerializer(serializers.Serializer):
+    """Input for the display-only, single-row formula preview gateway."""
+
+    expression = serializers.CharField(allow_blank=False)
+    row = serializers.DictField(child=serializers.JSONField(), default=dict)
+
+
+class FormulaEvaluateView(APIView):
+    """Evaluate one expression against one row without persisting anything."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        input_serializer = FormulaEvaluateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        result = evaluate_formula(
+            input_serializer.validated_data["expression"],
+            input_serializer.validated_data["row"],
+        )
+        return Response({"result": result})
 
 
 class ActionCreateView(APIView):

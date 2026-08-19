@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowUp, ArrowDown, Trash2, Settings2, Type, Circle } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Settings2, Type, Circle, Sigma } from "lucide-react";
 import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../dropdowns/api";
@@ -10,6 +10,8 @@ import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/com
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { Input } from "../../../shell/src/shared/primitives/Input";
 import { Select } from "../../../shell/src/shared/primitives/Input";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import FormulaEditorModal from "./FormulaEditorModal";
 
 function resolveTypeColor(typeId: string): { bg: string; fg: string } {
   const ct = ModRegistry.getInstance().getColumnType(typeId);
@@ -47,12 +49,21 @@ function ColumnEditor({
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([]);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
+  const [editingFormulaIndex, setEditingFormulaIndex] = useState<number | null>(null);
 
   useEffect(() => {
     listDropdowns()
       .then(setDropdowns)
       .catch(() => setDropdowns([]));
   }, []);
+
+  useEffect(() => {
+    if (editingFormulaIndex !== null) return;
+    const emptyFormulaIndex = columns.findIndex(
+      (column) => column.type === "formula" && !column.expression,
+    );
+    if (emptyFormulaIndex >= 0) setEditingFormulaIndex(emptyFormulaIndex);
+  }, [columns]);
 
   useEffect(() => {
     getSchemas()
@@ -76,25 +87,6 @@ function ColumnEditor({
 
   const entityColumn = isResultSchema ? columns[0] : undefined;
   const userColumns = isResultSchema ? columns.slice(1) : columns;
-  const formulaNames = userColumns
-    .filter((column) => column.name.trim())
-    .map((column) => column.name.trim());
-  const formulaError = (expression: string, currentName = ""): string | null => {
-    if (!expression.trim()) return "Expression is required.";
-    const references = [...expression.matchAll(/\[([^\]]*)\]/g)];
-    const withoutReferences = expression.replace(/\[[^\]]*\]/g, "");
-    if (withoutReferences.includes("[") || withoutReferences.includes("]")) {
-      return "Use [Column Name] for column references.";
-    }
-    if (references.length === 0) {
-      return "Reference at least one sibling column with [Column Name].";
-    }
-    const unknown = references.find((match) => !formulaNames.includes(match[1].trim()));
-    if (unknown) return `Unknown column: ${unknown[1].trim() || "(empty)"}.`;
-    return currentName && references.some((match) => match[1].trim() === currentName.trim())
-      ? "A formula cannot reference itself."
-      : null;
-  };
 
   const handleNameChange = (
     index: number,
@@ -289,29 +281,20 @@ function ColumnEditor({
                     ))}
                   </Select>
                 )}
-          {col.type === "formula" && (
-                  <div className="mt-1 space-y-1">
-                    <Input
-                      value={col.expression ?? ""}
-                      onChange={(e) => onUpdate(columnIndex, "expression", e.target.value)}
-                      placeholder="e.g. [Amount] * [Count]"
-                      aria-label="Formula expression"
-                    />
-                    <Select
-                      value={col.resultType ?? "text"}
-                      onChange={(e) => onUpdate(columnIndex, "resultType", e.target.value)}
-                      aria-label="Formula result type"
+                {col.type === "formula" && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-ink-muted-foreground)]" title={col.expression || "No expression"}>
+                      {col.expression || "No expression"}
+                    </span>
+                    <IconButton
+                      title="Edit formula"
+                      aria-label={`Edit formula for ${col.name || "new field"}`}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setEditingFormulaIndex(columnIndex)}
                     >
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
-                      <option value="date">Date</option>
-                      <option value="boolean">Boolean</option>
-                    </Select>
-                    {formulaError(col.expression ?? "", col.name) && (
-                      <p className="text-xs text-[var(--color-warning)]" role="alert">
-                        {formulaError(col.expression ?? "", col.name)}
-                      </p>
-                    )}
+                      <Sigma size={13} />
+                    </IconButton>
                   </div>
                 )}
               </div>
@@ -377,7 +360,23 @@ function ColumnEditor({
             </div>
           </div>
         );
-      })}
+       })}
+      {editingFormulaIndex !== null && columns[editingFormulaIndex] && (
+        <FormulaEditorModal
+          key={editingFormulaIndex}
+          open
+          column={columns[editingFormulaIndex]}
+          siblingColumns={columns.filter(
+            (_, index) => index !== editingFormulaIndex && (!isResultSchema || index !== 0),
+          )}
+          onClose={() => setEditingFormulaIndex(null)}
+          onSave={(expression, resultType) => {
+            onUpdate(editingFormulaIndex, "expression", expression);
+            onUpdate(editingFormulaIndex, "resultType", resultType);
+            setEditingFormulaIndex(null);
+          }}
+        />
+      )}
     </div>
   );
 }

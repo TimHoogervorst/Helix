@@ -456,7 +456,7 @@ describe("ColumnEditor", () => {
     expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaId", "");
   });
 
-  it("edits formula expressions and result types and surfaces invalid references", () => {
+  it("opens the formula editor with a read-only summary and saves expression changes", () => {
     const onUpdate = vi.fn();
     render(
       <ColumnEditor
@@ -472,13 +472,16 @@ describe("ColumnEditor", () => {
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Unknown column: Missing.");
+    expect(screen.getByText("[Missing]")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit formula for Total" }));
+    expect(screen.getByRole("dialog", { name: "Formula Editor: Total" })).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Formula expression" }), {
       target: { value: "[Amount] * 2" },
     });
     fireEvent.change(screen.getByRole("combobox", { name: "Formula result type" }), {
       target: { value: "number" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Save expression" }));
     expect(onUpdate).toHaveBeenCalledWith(2, "expression", "[Amount] * 2");
     expect(onUpdate).toHaveBeenCalledWith(2, "resultType", "number");
   });

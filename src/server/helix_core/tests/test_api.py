@@ -19,6 +19,35 @@ def make_admin(user):
     )
 
 
+class FormulaEvaluateApiTests(TestCase):
+    """The formula preview gateway evaluates one row and never persists it."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="formula-user", password="pass")
+        self.client.force_authenticate(user=self.user)
+
+    def test_evaluates_expression_against_row(self):
+        response = self.client.post(
+            "/api/formulas/evaluate/",
+            {"expression": "[Amount] * [Count]", "row": {"Amount": 4, "Count": 3}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"result": {"ok": True, "value": 12}})
+
+    def test_returns_tagged_errors(self):
+        response = self.client.post(
+            "/api/formulas/evaluate/",
+            {"expression": "[Amount] / [Count]", "row": {"Amount": 4, "Count": 0}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["result"]["error"]["code"], "#DIV/0!")
+
+
 class SchemaTypeApiTests(TestCase):
     """Tests for the read-only SchemaType list endpoint."""
 

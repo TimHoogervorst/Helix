@@ -18,6 +18,8 @@ export interface ColumnDef {
   expression?: string;
   /** Result type for a formula column. */
   resultType?: string;
+  /** Monotonic version of the expression used for stored computed values. */
+  expression_version?: number;
 }
 
 // ── Schema (new shared model) ───────────────────────────────────────────

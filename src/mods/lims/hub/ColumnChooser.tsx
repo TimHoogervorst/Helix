@@ -16,6 +16,7 @@ export interface HubColumn {
   sortable: boolean;
   /** Column type ID from the column type registry (e.g. "text", "number"). */
   type: string;
+  resultType?: string;
   /** Icon token from the column type registry (e.g. "type", "hash"). */
   icon: string | null;
   /** Whether this column can be filtered by its type's operators. */
@@ -81,8 +82,9 @@ export function buildColumns(
       label: col.label,
       source: col.source,
       hideable: true,
-      sortable: false, // Properties columns not sortable in v1
-      type: col.type,
+      sortable: true,
+      type: col.type === "formula" ? (col.resultType ?? "text") : col.type,
+      ...(col.resultType ? { resultType: col.resultType } : {}),
       icon: null,
       filterable: col.filterable,
       width: col.width,

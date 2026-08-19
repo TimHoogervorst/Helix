@@ -11,7 +11,8 @@ schema types, and action catalogs) at ``GET /api/mod-registry/``.
 import logging
 import uuid
 
-from django.db.models import Q
+from django.db.models import F, FloatField, Q
+from django.db.models.functions import Cast
 from rest_framework import serializers, viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -122,13 +123,17 @@ def _enrich_schema_column(col: dict, source: str) -> dict:
     from the column type registry.
     """
     col_type = col.get("type", "text")
+    result_type = col.get("resultType") if col_type == "formula" else None
+    effective_type = result_type or col_type
     result = {
         "key": col.get("name", ""),
         "label": col.get("name", ""),
         "source": source,
         "type": col_type,
-        **_resolve_column_meta(col_type),
+        **_resolve_column_meta(effective_type),
     }
+    if result_type:
+        result["resultType"] = result_type
     dropdown_id = col.get("dropdownId")
     if dropdown_id is not None:
         result["dropdownId"] = dropdown_id
@@ -156,6 +161,8 @@ def _build_column_type_map(schema_id: str, schema_type_id: str) -> dict[str, str
             for col in schema_obj.columns:
                 name = col.get("name", "")
                 col_type = col.get("type", "text")
+                if col_type == "formula":
+                    col_type = col.get("resultType", "text")
                 if name:
                     column_type_map[name] = col_type
         except (Schema.DoesNotExist, ValueError):
@@ -170,6 +177,8 @@ def _build_column_type_map(schema_id: str, schema_type_id: str) -> dict[str, str
             for col in schema_type_obj.columns:
                 name = col.get("name", "")
                 col_type = col.get("type", "text")
+                if col_type == "formula":
+                    col_type = col.get("resultType", "text")
                 if name:
                     column_type_map[name] = col_type
         except (SchemaType.DoesNotExist, IndexError):
@@ -288,9 +297,21 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
             if sort.startswith("-"):
                 descending = True
                 sort = sort[1:]
+            property_type = params["column_type_map"].get(sort)
             if sort in SORTABLE_FIELDS:
                 ordering = f"-{sort}" if descending else sort
                 qs = qs.order_by(ordering)
+            elif property_type:
+                field_path = f"properties__{sort}"
+                if property_type == "number":
+                    qs = qs.annotate(
+                        _hub_sort_value=Cast(F(field_path), output_field=FloatField())
+                    )
+                    field_path = "_hub_sort_value"
+                ordering = f"-{field_path}" if descending else field_path
+                qs = qs.order_by(ordering)
+            else:
+                qs = qs.order_by("-updated_at")
         else:
             qs = qs.order_by("-updated_at")
 

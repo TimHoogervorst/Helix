@@ -43,6 +43,11 @@ import {
   TableStretch,
 } from "../../../shell/src/shared/primitives/TableLayout";
 import type { ElnSidebarData } from "./sidebarData";
+import {
+  evaluateRow,
+  type FormulaColumn,
+  type FormulaRow,
+} from "../../../shell/src/shared/formulas/formulaEngine";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -110,6 +115,10 @@ function toGridColumns(entityType: EntityTypeSummary): GridColumn[] {
     description: c.description,
     dropdownId: c.dropdownId,
     referenceSchemaId: c.referenceSchemaId,
+    referenceSchemaTypeId: c.referenceSchemaTypeId,
+    expression: c.expression,
+    resultType: c.resultType,
+    expression_version: c.expression_version,
   }));
 }
 
@@ -213,6 +222,12 @@ function resolveOperandShape(columnType: string): string {
   return colType?.operandShape ?? "text";
 }
 
+function resolveColumnShape(column: GridColumn): string {
+  return column.type === "formula"
+    ? resolveOperandShape(column.resultType ?? "text")
+    : resolveOperandShape(column.type);
+}
+
 /** Render the compact type badge shown after a column name in the header row.
  *  Reads the icon from the column type registry and falls back to the type
  *  label for unknown or unregistered types. */
@@ -245,6 +260,7 @@ interface BatchRegisterResult {
   entity_id: number;
   display_id: string;
   status: string;
+  values?: Record<string, unknown>;
 }
 
 interface BatchRegisterError {
@@ -462,6 +478,81 @@ export function RegistryTableContent({
     [rows, updateAttrs],
   );
 
+  const formulaColumns = columns.filter(
+    (column) => column.type === "formula" && column.expression,
+  );
+  const backendOnlyColumns = formulaColumns.filter((column) =>
+    usesBackendOnlyFunction(column.expression!),
+  );
+  const [refreshingRow, setRefreshingRow] = useState<string | null>(null);
+  const [refreshedSnapshots, setRefreshedSnapshots] = useState<Record<string, string>>({});
+
+  const computedValues = useCallback(
+    (row: RegistryTableRow) => {
+      const formulas = Object.fromEntries(
+        formulaColumns.map((column) => [
+          column.name,
+          { expression: column.expression! } satisfies FormulaColumn,
+        ]),
+      );
+      const evaluated = evaluateRow(row.values as FormulaRow, formulas);
+      return {
+        ...row.values,
+        ...Object.fromEntries(
+          Object.entries(evaluated).map(([name, result]) => {
+          const column = formulaColumns.find((item) => item.name === name);
+          if (column && usesBackendOnlyFunction(column.expression!)) {
+            return [name, row.values[name]];
+          }
+          return [name, result.ok ? result.value : result.error.code];
+          }),
+        ),
+      };
+    },
+    [formulaColumns],
+  );
+
+  const refreshRow = useCallback(async (row: RegistryTableRow) => {
+    if (previewMode || !backendOnlyColumns.length || refreshingRow === row.displayId) return;
+    const formulaNames = new Set(formulaColumns.map((column) => column.name));
+    if (backendOnlyColumns.some((column) =>
+      !referencedValuesAreComplete(column.expression!, row.values, formulaNames),
+    )) return;
+    let values = { ...row.values };
+    for (const column of formulaColumns) values[column.name] = undefined;
+    setRefreshingRow(row.displayId);
+    try {
+      const pending = [...formulaColumns];
+      while (pending.length) {
+        const ready = pending.filter((column) =>
+          referencedValuesAreComplete(column.expression!, values, formulaNames, true),
+        );
+        if (!ready.length) break;
+        for (const column of ready) {
+          const response = await post<FormulaEvaluateResponse>(
+            "/formulas/evaluate/",
+            { expression: column.expression, row: values },
+          );
+          values[column.name] = response.result.ok
+            ? response.result.value
+            : (response.result.error?.code ?? "#VALUE!");
+          pending.splice(pending.indexOf(column), 1);
+        }
+      }
+      updateAttrs({
+        rows: rows.map((item) =>
+          item.displayId === row.displayId ? { ...item, values } : item,
+        ),
+      });
+      setRefreshedSnapshots((current) => ({
+        ...current,
+        [row.displayId]: computeRowSnapshot({ ...row, values }),
+      }));
+    } finally {
+      setRefreshingRow(null);
+    }
+  }, [backendOnlyColumns, formulaColumns, previewMode, refreshingRow, rows, updateAttrs]);
+
   // ── Name cell commit ─────────────────────────────────────────────────
   const handleNameCommit = useCallback(
     (rowDisplayId: string, newName: string) => {
@@ -484,7 +575,7 @@ export function RegistryTableContent({
       rows.map((row) => [
         row.__name,
         ...columns.map((col) =>
-          renderCellValue(resolveOperandShape(col.type), row.values[col.name]),
+          renderCellValue(resolveColumnShape(col), row.values[col.name]),
         ),
       ]),
     onPaste: (anchor, values) => {
@@ -500,10 +591,10 @@ export function RegistryTableContent({
             return;
           }
           const col = columns[gridColumn - 1];
-          if (!col) return;
+          if (!col || col.type === "formula") return;
           try {
             nextValues[col.name] = parseCellValue(
-              resolveOperandShape(col.type),
+              resolveColumnShape(col),
               raw,
             );
           } catch {
@@ -641,7 +732,13 @@ export function RegistryTableContent({
           rows: nonGreenRows.map(({ row }) => ({
             entity_id: row.entityId,
             name: row.__name,
-            values: row.values,
+            values: Object.fromEntries(
+              Object.entries(row.values).filter(
+                ([name]) => !columns.some(
+                  (column) => column.name === name && column.type === "formula",
+                ),
+              ),
+            ),
             ...(folderId !== null && folderId !== undefined
               ? { folder_id: folderId }
               : {}),
@@ -657,15 +754,30 @@ export function RegistryTableContent({
         for (const result of response.results) {
           if (result.row_index < 0 || result.row_index >= nonGreenRows.length) continue;
           const { index: originalIndex, row } = nonGreenRows[result.row_index];
-          const hash = computeRowSnapshot(row);
-          updatedRows[originalIndex] = {
+          const registeredValues = {
+            ...row.values,
+            ...(result.values ?? {}),
+          };
+          const hash = computeRowSnapshot({ ...row, values: registeredValues });
+           updatedRows[originalIndex] = {
             ...updatedRows[originalIndex],
+            values: registeredValues,
             entityId: result.entity_id,
             displayId: result.display_id,
             isRegistered: true,
             lastRegisteredValueHash: hash,
-            registrationError: null,
-          };
+             registrationError: null,
+           };
+           if (backendOnlyColumns.length > 0) {
+             setRefreshedSnapshots((current) => ({
+               ...current,
+               [result.display_id]: computeRowSnapshot({
+                 ...row,
+                 displayId: result.display_id,
+                 values: registeredValues,
+               }),
+             }));
+           }
         }
 
         // Apply API errors
@@ -711,6 +823,8 @@ export function RegistryTableContent({
     schemaContentHash,
     projectId,
     folderId,
+    backendOnlyColumns.length,
+    setRefreshedSnapshots,
     updateAttrs,
     emitAction,
   ]);
@@ -969,7 +1083,12 @@ export function RegistryTableContent({
               </tr>
             ) : (
               rows.map((row, rowIndex) => {
-                const dotColor = getDotColor(row, schemaContentHash);
+                const values = computedValues(row);
+                const rowSnapshot = computeRowSnapshot({ ...row, values });
+                const refreshed = refreshedSnapshots[row.displayId] !== undefined;
+                const stale = backendOnlyColumns.length > 0 && refreshed &&
+                  refreshedSnapshots[row.displayId] !== rowSnapshot;
+                const dotColor = getDotColor({ ...row, values }, schemaContentHash);
                 return (
                 <tr
                   key={row.displayId}
@@ -1025,11 +1144,12 @@ export function RegistryTableContent({
 
                   {/* Schema columns */}
                   {columns.map((col, columnIndex) => {
-                    const shape = resolveOperandShape(col.type);
+                    const shape = resolveColumnShape(col);
                     return (
                       <td
                         key={col.name}
-                        className="p-0!"
+                        className={`p-0! ${stale ? "opacity-50" : ""}`}
+                        data-stale={stale ? "true" : undefined}
                         {...interaction.cellProps({
                           row: rowIndex,
                           column: columnIndex + 1,
@@ -1037,13 +1157,17 @@ export function RegistryTableContent({
                       >
                         <TypedFullCell
                           shape={shape}
-                          value={row.values[col.name]}
+                          value={
+                            backendOnlyColumns.includes(col) && !refreshed
+                              ? undefined
+                              : values[col.name]
+                          }
                           onCommit={(value) =>
                             handleCellCommit(row.displayId, col.name, value)
                           }
                           position={{ row: rowIndex, column: columnIndex + 1 }}
                           interaction={interaction}
-                          readOnly={readOnly}
+                          readOnly={readOnly || col.type === "formula"}
                           options={
                             shape === "dropdown"
                               ? dropdownOptionsMap.get(col.name)
@@ -1054,7 +1178,9 @@ export function RegistryTableContent({
                           referenceSchemaId={col.referenceSchemaId}
                            workspaceId={workspaceId ?? "lims"}
                           placeholder={
-                            shape === "entity-picker" ? "@mention…" : undefined
+                            backendOnlyColumns.includes(col) && !refreshed
+                              ? "Refresh to calculate"
+                              : shape === "entity-picker" ? "@mention…" : undefined
                           }
                           data-testid={`cell-${row.displayId}-${col.name}`}
                         />
@@ -1068,8 +1194,16 @@ export function RegistryTableContent({
                      <StickyActionCell className="align-middle">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <MoreActions
-                          items={[
-                            {
+                           items={[
+                             {
+                               key: "refresh",
+                               icon: RefreshCw,
+                               label: "Refresh",
+                               disabled: refreshingRow === row.displayId,
+                               onClick: () => refreshRow(row),
+                               tooltip: `Refresh computed fields for ${row.displayId}`,
+                             },
+                             {
                               key: "delete",
                               icon: Trash2,
                               label: "Delete",
@@ -1077,7 +1211,9 @@ export function RegistryTableContent({
                               destructive: true,
                               tooltip: `Delete row ${row.displayId}`,
                             },
-                          ]}
+                           ].filter(
+                             (item) => item.key !== "refresh" || backendOnlyColumns.length > 0,
+                           )}
                         />
                       </div>
                      </StickyActionCell>
@@ -1094,6 +1230,48 @@ export function RegistryTableContent({
       </TableStretch>
     </TableChrome>
   );
+}
+
+interface FormulaEvaluateResponse {
+  result: {
+    ok: boolean;
+    value?: unknown;
+    error?: { code: string };
+  };
+}
+
+function usesBackendOnlyFunction(expression: string): boolean {
+  const registry = ModRegistry.getInstance();
+  const clientIds = new Set(
+    registry.getClientFormulaFunctions().map((entry) => entry.id),
+  );
+  return [...expression.matchAll(/\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g)].some(
+    ([, name]) => {
+      if (!name) return false;
+      const catalogId = registry.getFormulaFunctions().has(name)
+        ? name
+        : name.toUpperCase();
+      return registry.getFormulaFunctions().has(catalogId) &&
+        !clientIds.has(catalogId);
+    },
+  );
+}
+
+function referencedValuesAreComplete(
+  expression: string,
+  values: Record<string, unknown>,
+  formulaNames: ReadonlySet<string>,
+  requireFormulaValues = false,
+): boolean {
+  return [...expression.matchAll(/\[([^\]]+)\]/g)].every(([, name]) => {
+    if (name && formulaNames.has(name)) {
+      if (!requireFormulaValues) return true;
+      const value = values[name];
+      return value !== undefined && value !== null && value !== "";
+    }
+    const value = name ? values[name] : undefined;
+    return value !== undefined && value !== null && value !== "";
+  });
 }
 
 // ── Slot-system Block Component ─────────────────────────────────────────────

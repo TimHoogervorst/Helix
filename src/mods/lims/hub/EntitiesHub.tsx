@@ -95,7 +95,7 @@ interface SortState {
 }
 
 const SORTABLE_COLUMNS = ["name", "project__name", "status", "created_at", "updated_at"] as const;
-type SortableColumn = typeof SORTABLE_COLUMNS[number];
+type SortableColumn = string;
 
 const SORT_CYCLE: SortableColumn[] = ["name", "project__name", "status", "created_at", "updated_at"];
 
@@ -114,14 +114,9 @@ function sortFromParam(param: string | null): SortState {
   if (!param) return { field: null, direction: null };
   if (param.startsWith("-")) {
     const field = param.slice(1);
-    if (SORTABLE_COLUMNS.includes(field as typeof SORTABLE_COLUMNS[number])) {
-      return { field, direction: "desc" };
-    }
+    return { field, direction: "desc" };
   }
-  if (SORTABLE_COLUMNS.includes(param as typeof SORTABLE_COLUMNS[number])) {
-    return { field: param, direction: "asc" };
-  }
-  return { field: null, direction: null };
+  return { field: param, direction: "asc" };
 }
 
 const SORT_LABELS: Record<string, string> = {
@@ -611,7 +606,8 @@ function EntitiesHub() {
     const value = item._expanded?.[col.key];
     if (value === null || value === undefined) return "—";
 
-    switch (col.type) {
+    const displayType = col.type === "formula" ? (col.resultType ?? "text") : col.type;
+    switch (displayType) {
       case "text":
         return String(value);
       case "number": {

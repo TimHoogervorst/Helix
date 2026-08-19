@@ -129,6 +129,8 @@ export interface AvailableColumn {
   source: "common" | "schema_type" | "schema";
   /** Column type ID from the column type registry (e.g. "text", "number"). */
   type: string;
+  /** Declared operand type for formula columns. */
+  resultType?: string;
   /** Whether this column can be filtered by its type's operators. */
   filterable: boolean;
   /** Default pixel width for the column header, or null for auto-size. */

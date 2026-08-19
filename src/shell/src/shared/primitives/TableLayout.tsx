@@ -79,8 +79,8 @@ export function TableChrome({
           {toolbar && <div className="table-layout-chrome__toolbar">{toolbar}</div>}
         </header>
         {children}
+        {addRow && <div className="table-layout-chrome__add-row">{addRow}</div>}
       </section>
-      {addRow && <div className="table-layout-chrome__add-row">{addRow}</div>}
     </>
   );
 }

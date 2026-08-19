@@ -1052,7 +1052,7 @@ export function RegistryTableContent({
                                 : undefined
                           }
                           referenceSchemaId={col.referenceSchemaId}
-                          workspaceId={workspaceId}
+                           workspaceId={workspaceId ?? "lims"}
                           placeholder={
                             shape === "entity-picker" ? "@mention…" : undefined
                           }

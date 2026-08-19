@@ -578,6 +578,46 @@ Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod
 
 ---
 
+## Formulas
+
+> Two formula forms share one grammar, one parser, and one Function Catalog, but differ by ownership: Cell Formulas are the frontend's territory, Computed Fields are the backend's territory. See [ADR 0019](docs/adr/0019-formula-evaluation-ownership.md) and the [formula spec](docs/specs/formula-support-cell-formulas-and-computed-fields.md).
+
+### Formula
+
+An expression in the shared formula grammar: `[Column Name]` references, literals, operators, and function calls, with spreadsheet-style tagged errors (`#REF!`, `#DIV/0!`, `#CYCLE!`, `#NAME?`, `#SYNTAX!`, `#VALUE!`). Every Formula is exactly one of the two forms — **Cell Formula** or **Computed Field** — which differ by who authors it, where it lives, and who owns its evaluation.
+
+**Synonyms:** *(avoid using "formula" alone when one specific form is meant — the two forms have opposite ownership)*
+
+### Cell Formula
+
+A Formula a user types into an editable table cell, prefixed with `=` (e.g. `=[A260]/[A280]`). Document-local and frontend-owned: it evaluates exclusively with registered client implementations, never touches the backend, and re-evaluates every time the entry is opened. `[Column]` references the same row; `[Column:N]` references data row N, with references rewritten when rows are inserted or deleted. In registering tables the computed value is registered as-sent — the backend stores a plain value and never sees the formula text. Cell Formulas cannot reference Computed Field columns.
+
+**Synonyms:** *(the retired term "table formula" from the #511 brainstorm refers to this form)*
+
+### Computed Field
+
+A schema column (column type `formula`) whose expression is authored at schema creation and applies to every row. Available on all schemas. Cells are read-only and render through the declared result type. The backend is authoritative: it validates the expression at schema save and computes the stored value at registration; client implementations provide a live, display-only preview. A registered value is stored together with the expression version that produced it — editing an expression marks affected rows stale rather than rewriting stored values.
+
+**Synonyms:** formula column (the column type's id is `formula`)
+
+### Formula Function
+
+A named function usable in Formulas (e.g. `SUM`, `IF`, `molBio.gcContent`). Has exactly one definition and one authoritative backend implementation, both registered in the backend; may optionally carry one client implementation as an optimization. There are no frontend-only functions — anything the frontend can evaluate, the backend can too.
+
+### Function Catalog
+
+The registry of all Formula Functions: backend-owned, mod-extensible, hydrated to the frontend via the mod registry API like column types. Platform-default functions register in the core; mod functions register in their mod with namespaced ids. The frontend sees the full catalog (for Computed Field editing) and the client-shadowed subset (for Cell Formulas).
+
+### Client Implementation
+
+The optional frontend implementation of a Formula Function, registered against the hydrated Function Catalog. Used for Cell Formula evaluation and display-only Computed Field previews — never for stored values. Must be behaviorally identical to the authoritative backend implementation; equivalence is enforced by parity fixture tests run in both test suites.
+
+### Evaluate Gateway
+
+The row-scoped endpoint (`POST /api/formulas/evaluate/`) that previews Computed Field values for expressions containing functions without a client implementation, invoked by the row's Refresh action. Display-only infrastructure — stored values come exclusively from the registration path, never from the gateway.
+
+---
+
 ## Sidebar & Navigation
 
 ### CollapsibleSidebar

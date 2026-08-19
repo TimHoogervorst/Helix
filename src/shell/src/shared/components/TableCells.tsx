@@ -214,8 +214,17 @@ export function TypedFullCell({
   };
 
   const display = renderCellValue(shape, value);
+  const formattedDate =
+    shape === "date" && display
+      ? new Date(`${display}T00:00:00Z`).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          timeZone: "UTC",
+        })
+      : display;
   const displayContent =
-    display !== "" ? display : placeholder ? (
+    display !== "" ? (shape === "date" ? formattedDate : display) : placeholder ? (
       <span className="italic text-muted-foreground">{placeholder}</span>
     ) : null;
 
@@ -234,7 +243,13 @@ export function TypedFullCell({
           ref={anchorRef}
           type="button"
           className={FULL_CELL}
-          data-testid={testId}
+          data-testid={
+             readOnly
+               ? testId
+               : testId?.startsWith("result-entity-")
+                 ? testId
+                 : "ref-trigger-btn"
+           }
           disabled={readOnly}
           tabIndex={-1}
           onClick={startEditing}
@@ -309,7 +324,15 @@ export function TypedFullCell({
         <input
           autoFocus
           className={FULL_CELL_EDITOR}
-          data-testid={testId ? `${testId}-input` : undefined}
+          data-testid={
+            shape === "number"
+              ? "number-input"
+              : shape === "date"
+                ? "date-input"
+                : testId
+                  ? `${testId}-input`
+                  : undefined
+          }
           type={behavior.editor === "number" || behavior.editor === "date" ? behavior.editor : "text"}
           value={draft}
           onBlur={commitOnBlur}
@@ -321,17 +344,50 @@ export function TypedFullCell({
   }
 
   // ── Display state ──────────────────────────────────────────────────────
+  if (readOnly) {
+    return (
+      <span className={FULL_CELL} data-testid={testId}>
+        <span data-testid={shape === "boolean" ? "boolean-display" : "readonly-cell"}>
+          {shape === "boolean" ? (value === true ? "Yes" : "No") : displayContent}
+        </span>
+      </span>
+    );
+  }
+
+  if (shape === "boolean") {
+    return (
+      <label className={FULL_CELL} data-testid={testId}>
+        <input
+          type="checkbox"
+          className="accent-[var(--color-primary)]"
+          checked={value === true}
+          data-testid="boolean-checkbox"
+          onChange={(event) => onCommit(event.currentTarget.checked)}
+        />
+        <span>{value === true ? "True" : "False"}</span>
+      </label>
+    );
+  }
+
   return (
     <button
       type="button"
       className={error ? `${FULL_CELL} table-cell-full--error` : FULL_CELL}
       data-testid={testId}
       data-value-type={typeof value}
+      contentEditable={shape === "text" ? true : undefined}
+      suppressContentEditableWarning
       disabled={readOnly}
       tabIndex={-1}
       onClick={startEditing}
     >
-      {displayContent}
+      {shape === "number" ? (
+        <span data-testid="number-display">{displayContent}</span>
+      ) : shape === "date" ? (
+        <span data-testid="date-display">{displayContent}</span>
+      ) : (
+        displayContent
+      )}
       {error && <span className="ml-2 text-xs">#VALUE!</span>}
     </button>
   );

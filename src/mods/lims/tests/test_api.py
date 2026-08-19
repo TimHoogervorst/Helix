@@ -456,6 +456,72 @@ class BatchRegisterCreateTests(BaseTestCase):
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 3)
 
 
+class BatchRegisterComputedFieldTests(BaseTestCase):
+    """Computed fields are evaluated by the backend during registration."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.result_schema = Schema.objects.create(
+            name="Assay Result", prefix="ASR", schema_type=self.schema_type,
+            columns=[
+                {"name": "A260", "type": "number"},
+                {"name": "A280", "type": "number"},
+                {
+                    "name": "Ratio",
+                    "type": "formula",
+                    "expression": "[A260] / [A280]",
+                    "resultType": "number",
+                },
+            ],
+        )
+
+    def test_recomputes_client_formula_values_and_returns_patch(self):
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.result_schema.id,
+                "rows": [{
+                    "entity_id": None,
+                    "name": "Sample A",
+                    "folder_id": self.folder.id,
+                    "values": {"A260": 4, "A280": 2, "Ratio": 999},
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errors"], [])
+        result = response.data["results"][0]
+        self.assertEqual(result["values"], {"Ratio": 2})
+        entity = Entity.objects.get(pk=result["entity_id"])
+        self.assertEqual(entity.properties["Ratio"], 2)
+        self.assertEqual(entity.properties["_computed_field_versions"], {"Ratio": 1})
+
+    def test_formula_error_only_fails_its_row(self):
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.result_schema.id,
+                "rows": [
+                    {"name": "Bad", "folder_id": self.folder.id, "values": {"A260": 4, "A280": 0}},
+                    {"name": "Good", "folder_id": self.folder.id, "values": {"A260": 4, "A280": 2}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([error["row_index"] for error in response.data["errors"]], [0])
+        self.assertEqual(response.data["errors"][0]["field"], "Ratio")
+        self.assertEqual(response.data["results"][0]["row_index"], 1)
+
 class BatchRegisterUpdateTests(BaseTestCase):
     """Test batch-register updates existing entities when entity_id is provided."""
 

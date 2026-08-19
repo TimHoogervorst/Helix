@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from helix_core.formulas import evaluate_formula, evaluate_row
+from helix_core.formulas import evaluate_formula, evaluate_row, validate_formula_columns
 
 
 FIXTURES = json.loads((Path(__file__).resolve().parents[4] / "src/shell/src/shared/formulas/parity.json").read_text())
@@ -34,3 +34,27 @@ def test_formula_dependencies_and_cycles():
     result = evaluate_row(fixture["row"], fixture["formulas"])
     assert result["First"]["error"]["code"] == "#CYCLE!"
     assert result["Second"]["error"]["code"] == "#CYCLE!"
+
+
+def test_computed_field_schema_validation():
+    valid = [
+        {"name": "Amount", "type": "number"},
+        {"name": "Ratio", "type": "formula", "expression": "[Amount] / 2", "resultType": "number"},
+    ]
+    assert validate_formula_columns(valid) is None
+
+    unknown_reference = [
+        {"name": "Ratio", "type": "formula", "expression": "[Missing]", "resultType": "number"},
+    ]
+    assert "unknown column" in validate_formula_columns(unknown_reference)
+
+    self_reference = [
+        {"name": "Ratio", "type": "formula", "expression": "[Ratio]", "resultType": "number"},
+    ]
+    assert "cannot reference itself" in validate_formula_columns(self_reference)
+
+    cycle = [
+        {"name": "First", "type": "formula", "expression": "[Second]", "resultType": "number"},
+        {"name": "Second", "type": "formula", "expression": "[First]", "resultType": "number"},
+    ]
+    assert "cycle" in validate_formula_columns(cycle).lower()

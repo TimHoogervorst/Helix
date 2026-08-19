@@ -44,6 +44,7 @@ class ContentHashedModel(models.Model):
         "referenceSchemaTypeId",
         "expression",
         "resultType",
+        "expression_version",
     )
 
     class Meta:
@@ -79,6 +80,29 @@ class ContentHashedModel(models.Model):
         """Ensure every column has an id and the content hash is up-to-date."""
         if self.columns:
             self.ensure_column_ids(self.columns)
+            previous_columns = {}
+            has_formula_columns = any(
+                column.get("type") == "formula" for column in self.columns
+            )
+            if self.pk and has_formula_columns:
+                previous = type(self).objects.filter(pk=self.pk).values_list("columns", flat=True).first()
+                previous_columns = {
+                    column.get("id"): column
+                    for column in (previous or [])
+                    if column.get("id")
+                }
+            for column in self.columns:
+                if column.get("type") != "formula":
+                    continue
+                old = previous_columns.get(column.get("id"))
+                if old is None:
+                    column["expression_version"] = column.get("expression_version", 1)
+                elif old.get("expression") != column.get("expression"):
+                    column["expression_version"] = old.get("expression_version", 1) + 1
+                else:
+                    column["expression_version"] = old.get(
+                        "expression_version", column.get("expression_version", 1)
+                    )
         self.content_hash = self.compute_content_hash(self.columns or [])
         super().save(*args, **kwargs)
 

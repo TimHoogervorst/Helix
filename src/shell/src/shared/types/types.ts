@@ -23,6 +23,9 @@ export interface GridColumn {
   referenceSchemaId?: number;
   /** ID of the target Schema Type when type is "reference". */
   referenceSchemaTypeId?: number;
+  expression?: string;
+  resultType?: string;
+  expression_version?: number;
   /** Pixel width; undefined means auto-size. */
   width?: number;
   /** Whether this column came from the schema or was added locally. */

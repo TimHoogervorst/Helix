@@ -587,6 +587,25 @@ class ProjectColumnType(ColumnType):
         return f"Expected an integer or comma-separated string, got {type(value).__name__}"
 
 
+class FormulaColumnType(ColumnType):
+    """A read-only schema column whose value is computed from sibling columns."""
+
+    id = "formula"
+    display_name = "Formula"
+    icon = "sigma"
+    color = "muted"
+    operand_shape = "text"
+
+    def get_operators(self) -> list[OperatorMeta]:
+        return []
+
+    def get_aggregates(self) -> list[AggregateMeta]:
+        return []
+
+    def get_default_value(self) -> object:
+        return ""
+
+
 # ── Built-in type registry (for quick lookup) ────────────────────────────────
 
 _BUILTIN_TYPES: list[type[ColumnType]] = [
@@ -599,6 +618,7 @@ _BUILTIN_TYPES: list[type[ColumnType]] = [
     ReferenceColumnType,
     UserColumnType,
     ProjectColumnType,
+    FormulaColumnType,
 ]
 
 

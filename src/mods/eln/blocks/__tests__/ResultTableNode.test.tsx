@@ -99,15 +99,15 @@ describe("ResultTableContent", () => {
     expect(updateAttrs).toHaveBeenCalledWith(expect.objectContaining({ rows: [expect.objectContaining({ sourceEntityId: "BLOOD1" })] }));
   });
 
-  it("batch-registers results with a derived name and formula values", async () => {
+  it("sends inputs and patches backend-computed formula values", async () => {
     const updateAttrs = vi.fn();
-    mockPost.mockResolvedValue({ results: [{ row_index: 0, entity_id: 22, display_id: "ASSAY1" }], errors: [] });
+    mockPost.mockResolvedValue({ results: [{ row_index: 0, entity_id: 22, display_id: "ASSAY1", values: { Total: 11 } }], errors: [] });
     const row = { entityId: null, displayId: "#new-1", sourceEntityId: "BLOOD1", values: { Amount: 5 }, isRegistered: false, lastRegisteredValueHash: null, registrationError: null };
     render(<ResultTableContent {...props({ schemaId: 7, schemaName: "Assay Result", schemaContentHash: "hash-1", columns: schema.columns, rows: [row], folderId: 42, updateAttrs })} />);
     fireEvent.click(screen.getByTestId("result-register-btn"));
     await waitFor(() => expect(mockPost).toHaveBeenCalledWith("/lims/entities/batch-register/", expect.objectContaining({
-      rows: [expect.objectContaining({ name: "BLOOD1 — Assay Result", folder_id: 42, values: { Entity: "BLOOD1", Amount: 5, Total: 10 } })],
-    })));
-    expect(updateAttrs).toHaveBeenCalledWith(expect.objectContaining({ rows: [expect.objectContaining({ entityId: 22, displayId: "ASSAY1", isRegistered: true })] }));
+       rows: [expect.objectContaining({ name: "BLOOD1 — Assay Result", folder_id: 42, values: { Entity: "BLOOD1", Amount: 5 } })],
+     })));
+     expect(updateAttrs).toHaveBeenCalledWith(expect.objectContaining({ rows: [expect.objectContaining({ entityId: 22, displayId: "ASSAY1", isRegistered: true, values: { Amount: 5, Total: 11 } })] }));
   });
 });

@@ -260,6 +260,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         """
         from helix_core.models import Schema
         from helix_core.column_types import registry as column_type_registry
+        from helix_core.formulas import evaluate_row
 
         input_serializer = EntityBatchRegisterSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
@@ -340,6 +341,12 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             if col_name:
                 _column_defs[col_name] = col
 
+        formula_defs = {
+            name: definition
+            for name, definition in _column_defs.items()
+            if definition.get("type") == "formula"
+        }
+
         results = []
         errors = []
 
@@ -389,9 +396,76 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 })
                 continue
 
+            # Computed fields are never accepted from the client.  Their
+            # dependencies use the ordinary input values as the row base.
+            input_values = {
+                key: value for key, value in values.items() if key not in formula_defs
+            }
+            formula_values = {}
+            if formula_defs:
+                try:
+                    formula_results = evaluate_row(
+                        input_values,
+                        {
+                            name: {"expression": definition["expression"]}
+                            for name, definition in formula_defs.items()
+                        },
+                    )
+                except Exception as exc:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": next(iter(formula_defs)),
+                        "message": f"Formula evaluation failed: {exc}",
+                    })
+                    continue
+                formula_error = next(
+                    (
+                        (name, result)
+                        for name, result in formula_results.items()
+                        if name in formula_defs and not result["ok"]
+                    ),
+                    None,
+                )
+                if formula_error is not None:
+                    field, result = formula_error
+                    errors.append({
+                        "row_index": row_index,
+                        "field": field,
+                        "message": f"{result['error']['code']}: {result['error']['message']}",
+                    })
+                    continue
+                formula_values = {
+                    name: formula_results[name]["value"] for name in formula_defs
+                }
+                formula_type_error = False
+                for name, value in formula_values.items():
+                    result_type = formula_defs[name].get("resultType")
+                    result_column_type = column_type_registry.get_column_type(result_type)
+                    validation = (
+                        result_column_type.validate(value)
+                        if result_column_type is not None
+                        else "Unknown formula result type"
+                    )
+                    if validation is not True:
+                        errors.append({
+                            "row_index": row_index,
+                            "field": name,
+                            "message": str(validation),
+                        })
+                        formula_type_error = True
+                        break
+                if formula_type_error:
+                    continue
+            persisted_values = {**input_values, **formula_values}
+            if formula_defs:
+                persisted_values["_computed_field_versions"] = {
+                    field: definition.get("expression_version", 1)
+                    for field, definition in formula_defs.items()
+                }
+
             # ── Column-type validation for each property value ──────────
             row_has_errors = False
-            for key, value in values.items():
+            for key, value in input_values.items():
                 col_def = _column_defs.get(key)
                 if col_def is None:
                     # Unknown column — no type to validate against.
@@ -429,7 +503,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 continue
 
             try:
-                validate_reference_properties(values, schema)
+                validate_reference_properties(input_values, schema)
             except serializers.ValidationError as exc:
                 for field, messages in exc.detail.items():
                     message = messages[0] if isinstance(messages, list) else messages
@@ -463,13 +537,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     else:
                         update_fields = ["name", "properties"]
                     entity.name = name
-                    entity.properties = values
+                    entity.properties = persisted_values
                     entity.save(update_fields=update_fields)
                     results.append({
                         "row_index": row_index,
                         "entity_id": entity.id,
                         "display_id": entity.display_id,
                         "status": "updated",
+                        "values": formula_values,
                     })
                 except Entity.DoesNotExist:
                     errors.append({
@@ -482,7 +557,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     name=name, schema=schema
                 ).first()
                 if existing:
-                    existing.properties = values
+                    existing.properties = persisted_values
                     if folder is not None:
                         existing.folder = folder
                         existing.project = folder.project
@@ -494,12 +569,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "entity_id": existing.id,
                         "display_id": existing.display_id,
                         "status": "updated",
+                        "values": formula_values,
                     })
                 else:
                     entity = Entity.objects.create(
                         name=name,
                         schema=schema,
-                        properties=values,
+                        properties=persisted_values,
                         folder=folder,
                         project=folder.project,
                         author=author,
@@ -509,6 +585,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "entity_id": entity.id,
                         "display_id": entity.display_id,
                         "status": "created",
+                        "values": formula_values,
                     })
 
         # Action logging — log eln.entities.registered

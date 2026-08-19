@@ -7,6 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from helix_core.column_types import registry as column_type_registry
+from helix_core.formulas import validate_formula_columns
 from helix_core.models import ColorToken, IconLibraryEntry, Schema, SchemaType, EntityHubView
 from helix_core.svg_sanitizer import sanitize_svg, SvgSanitizationError
 
@@ -67,6 +68,9 @@ def validate_columns(value):
                 f"columns[{i}].referenceSchemaTypeId must reference an existing "
                 "schema type."
             )
+    formula_error = validate_formula_columns(value)
+    if formula_error:
+        raise serializers.ValidationError(formula_error)
     return value
 
 

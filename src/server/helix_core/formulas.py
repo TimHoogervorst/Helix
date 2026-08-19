@@ -168,6 +168,77 @@ def parse_formula(expression: str):
         return _error("#SYNTAX!", str(exc))
 
 
+def _formula_nodes(ast):
+    """Yield references and function calls from a parsed formula AST."""
+    if ast[0] == "reference":
+        yield "reference", ast[1]
+    elif ast[0] == "call":
+        yield "call", ast[1]
+        for argument in ast[2]:
+            yield from _formula_nodes(argument)
+    elif ast[0] == "unary":
+        yield from _formula_nodes(ast[2])
+    elif ast[0] == "binary":
+        yield from _formula_nodes(ast[2])
+        yield from _formula_nodes(ast[3])
+
+
+def validate_formula_columns(columns):
+    """Validate all computed-field expressions against sibling columns."""
+    from helix_core.column_types import registry as column_type_registry
+    from helix_core.mod_system.registry import registry
+
+    names = {column.get("name") for column in columns if column.get("name")}
+    formulas = {
+        column["name"]: column
+        for column in columns
+        if column.get("type") == "formula"
+    }
+    dependencies = {}
+
+    for name, column in formulas.items():
+        expression = column.get("expression")
+        if not isinstance(expression, str) or not expression.strip():
+            return f"Computed field '{name}' must have a non-empty expression."
+        result_type = column.get("resultType")
+        result_column_type = column_type_registry.get_column_type(result_type)
+        if not result_type or not result_column_type or result_type == "formula":
+            return f"Computed field '{name}' must have a valid resultType."
+        parsed = parse_formula(expression)
+        if not parsed["ok"]:
+            return f"Computed field '{name}': {parsed['error']['message']}"
+        dependencies[name] = set()
+        for node_type, node_value in _formula_nodes(parsed["ast"]):
+            if node_type == "reference":
+                if node_value not in names:
+                    return f"Computed field '{name}' references unknown column '{node_value}'."
+                if node_value == name:
+                    return f"Computed field '{name}' cannot reference itself."
+                if node_value in formulas:
+                    dependencies[name].add(node_value)
+            elif registry.get_formula_function(node_value) is None:
+                return f"Computed field '{name}' uses unknown function '{node_value}'."
+
+    states = {}
+
+    def visit(name):
+        if states.get(name) == "visiting":
+            return False
+        if states.get(name) == "done":
+            return True
+        states[name] = "visiting"
+        for dependency in dependencies.get(name, ()):
+            if not visit(dependency):
+                return False
+        states[name] = "done"
+        return True
+
+    for name in formulas:
+        if not visit(name):
+            return f"Computed field dependency cycle includes '{name}'."
+    return None
+
+
 def _number(result):
     if not result["ok"]:
         return result

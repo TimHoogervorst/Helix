@@ -69,7 +69,12 @@ interface ResultTableProps {
 }
 
 interface BatchResponse {
-  results: { row_index: number; entity_id: number; display_id: string }[];
+  results: {
+    row_index: number;
+    entity_id: number;
+    display_id: string;
+    values?: Record<string, unknown>;
+  }[];
   errors: { row_index: number; message: string }[];
 }
 
@@ -358,10 +363,20 @@ export function ResultTableContent({
         {
           schema_id: schemaId,
           project_id: projectId ?? null,
-          rows: pending.map(({ row, values }) => ({
+          rows: pending.map(({ row }) => ({
             entity_id: row.entityId,
             name: `${row.sourceEntityId} — ${schemaName}`,
-            values: { ...values, Entity: row.sourceEntityId },
+            values: {
+              ...Object.fromEntries(
+                Object.entries(row.values).filter(
+                  ([name]) =>
+                    !valueColumns.some(
+                      (column) => column.name === name && column.type === "formula",
+                    ),
+                ),
+              ),
+              Entity: row.sourceEntityId,
+            },
             ...(folderId != null ? { folder_id: folderId } : {}),
           })),
         },
@@ -369,12 +384,17 @@ export function ResultTableContent({
       response.results.forEach((result) => {
         const item = pending[result.row_index];
         if (!item) return;
+        const registeredValues = {
+          ...item.row.values,
+          ...(result.values ?? {}),
+        };
         next[item.index] = {
           ...item.row,
+          values: registeredValues,
           entityId: result.entity_id,
           displayId: result.display_id,
           isRegistered: true,
-          lastRegisteredValueHash: snapshot(item.row, item.values),
+          lastRegisteredValueHash: snapshot(item.row, registeredValues),
           registrationError: null,
         };
       });

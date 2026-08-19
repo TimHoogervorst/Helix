@@ -74,22 +74,6 @@ function ColumnEditor({
     return [...groups.entries()];
   }, [schemas, schemaTypes]);
 
-  const resultColumnTypes = useMemo(() => {
-    if (!isResultSchema || columnTypes.has("formula")) return columnTypes;
-    return new Map([
-      ...columnTypes,
-      ["formula", {
-        id: "formula",
-        displayName: "Formula",
-        icon: "sigma",
-        color: "muted",
-        operandShape: "text",
-        defaultValue: "",
-        operators: [],
-      }],
-    ]);
-  }, [columnTypes, isResultSchema]);
-
   const entityColumn = isResultSchema ? columns[0] : undefined;
   const userColumns = isResultSchema ? columns.slice(1) : columns;
   const formulaNames = userColumns
@@ -252,7 +236,7 @@ function ColumnEditor({
                   }
                   className="rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                 >
-                   {[...resultColumnTypes.values()].map(renderTypeOption)}
+                   {[...columnTypes.values()].map(renderTypeOption)}
                 </Select>
                 {col.type === "dropdown" && (
                   <Select
@@ -305,7 +289,7 @@ function ColumnEditor({
                     ))}
                   </Select>
                 )}
-                {isResultSchema && col.type === "formula" && (
+          {col.type === "formula" && (
                   <div className="mt-1 space-y-1">
                     <Input
                       value={col.expression ?? ""}

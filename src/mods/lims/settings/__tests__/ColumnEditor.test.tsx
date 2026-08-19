@@ -91,6 +91,15 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
     defaultValue: null,
     operators: [],
   },
+  {
+    id: "formula",
+    displayName: "Formula",
+    icon: "sigma",
+    color: "muted",
+    operandShape: "text",
+    defaultValue: "",
+    operators: [],
+  },
 ];
 
 const columns = [
@@ -484,5 +493,28 @@ describe("ColumnEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save expression" }));
     expect(onUpdate).toHaveBeenCalledWith(2, "expression", "[Amount] * 2");
     expect(onUpdate).toHaveBeenCalledWith(2, "resultType", "number");
+  });
+
+  it("does not open a new formula editor until the formula row options are clicked", () => {
+    render(
+      <ColumnEditor
+        isResultSchema
+        columns={[
+          { name: "Entity", type: "reference" },
+          { name: "Total", type: "formula" },
+        ]}
+        onUpdate={vi.fn()}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("dialog", { name: "Formula Editor: Total" })).not.toBeInTheDocument();
+
+    const formulaRow = screen.getByDisplayValue("Total").closest("div.border-b");
+    expect(formulaRow).not.toBeNull();
+    fireEvent.click(formulaRow!.querySelector('button[title="Options"]')!);
+
+    expect(screen.getByRole("dialog", { name: "Formula Editor: Total" })).toBeInTheDocument();
   });
 });

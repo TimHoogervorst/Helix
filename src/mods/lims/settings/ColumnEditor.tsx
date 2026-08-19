@@ -58,14 +58,6 @@ function ColumnEditor({
   }, []);
 
   useEffect(() => {
-    if (editingFormulaIndex !== null) return;
-    const emptyFormulaIndex = columns.findIndex(
-      (column) => column.type === "formula" && !column.expression,
-    );
-    if (emptyFormulaIndex >= 0) setEditingFormulaIndex(emptyFormulaIndex);
-  }, [columns]);
-
-  useEffect(() => {
     getSchemas()
       .then(setSchemas)
       .catch(() => setSchemas([]));
@@ -346,6 +338,9 @@ function ColumnEditor({
                 <button
                   title="Options"
                   className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
+                  onClick={() => {
+                    if (col.type === "formula") setEditingFormulaIndex(columnIndex);
+                  }}
                 >
                   <Settings2 size={12} />
                 </button>

@@ -23,6 +23,7 @@ import {
   Link,
   User,
   FileText,
+  Sigma,
   type LucideIcon,
 } from "lucide-react";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -486,6 +487,7 @@ export const COLUMN_TYPE_ICON_MAP: Record<string, LucideIcon> = {
   link: Link,
   user: User,
   "file-text": FileText,
+  sigma: Sigma,
 };
 
 /**

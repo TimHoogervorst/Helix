@@ -25,6 +25,7 @@ Usage::
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Generator, Optional
@@ -46,6 +47,8 @@ CORE_ACTION_LABELS = {
     "deleted": "Deleted",
 }
 
+FORMULA_FUNCTION_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$")
+
 
 class BackendModRegistry:
     """Singleton registry for backend mod registrations.
@@ -64,6 +67,7 @@ class BackendModRegistry:
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
         self._services: dict[str, Callable[..., Any]] = {}
+        self._formula_functions: dict[str, dict[str, Any]] = {}
 
         # Optional: topological mod order for build_urlpatterns().
         # Set via set_mod_order() after loader runs.
@@ -133,6 +137,47 @@ class BackendModRegistry:
             ]
 
     # ── registration methods ─────────────────────────────────────────────
+
+    def register_formula_function(
+        self,
+        function_id: str,
+        *,
+        argument_kinds: list[str],
+        result_kind: str,
+        description: str,
+        implementation: Callable[..., Any],
+    ) -> None:
+        """Register one authoritative formula function and its public metadata."""
+        if not FORMULA_FUNCTION_ID.fullmatch(function_id):
+            raise ValueError(
+                "Formula function IDs must be identifiers or namespaced identifiers"
+            )
+        if function_id in self._formula_functions:
+            raise ValueError(f"Duplicate formula function ID '{function_id}'")
+        self._formula_functions[function_id] = {
+            "id": function_id,
+            "argumentKinds": list(argument_kinds),
+            "resultKind": result_kind,
+            "description": description,
+            "implementation": implementation,
+        }
+
+    def get_formula_function(self, function_id: str) -> dict[str, Any] | None:
+        """Return a registered formula function, including its implementation."""
+        return self._formula_functions.get(function_id)
+
+    def get_formula_catalog(self) -> list[dict[str, Any]]:
+        """Return serializable formula metadata in deterministic order."""
+        return [
+            {
+                key: value
+                for key, value in function.items()
+                if key != "implementation"
+            }
+            for function in sorted(
+                self._formula_functions.values(), key=lambda item: item["id"]
+            )
+        ]
 
     def register_schema_type(
         self,
@@ -669,7 +714,10 @@ class BackendModRegistry:
             )
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations).
-            return {"columnTypes": column_type_registry.get_registry_payload()}
+            return {
+                "columnTypes": column_type_registry.get_registry_payload(),
+                "formulaFunctions": self.get_formula_catalog(),
+            }
 
         # Group schema types by workspace_id.
         grouped: dict[str, list[SchemaType]] = {}
@@ -771,6 +819,7 @@ class BackendModRegistry:
 
         # Insert columnTypes at the top level.
         payload["columnTypes"] = column_type_registry.get_registry_payload()
+        payload["formulaFunctions"] = self.get_formula_catalog()
 
         # ── icon library ──────────────────────────────────────────────
         icon_entries: list[dict[str, Any]] = []

@@ -91,6 +91,20 @@
         },
         "required": ["key", "label", "hex"]
       }
+    },
+    "formulaFunctions": {
+      "type": "array",
+      "description": "Registered formula function metadata.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "argumentKinds": { "type": "array", "items": { "type": "string" } },
+          "resultKind": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "required": ["id", "argumentKinds", "resultKind", "description"]
+      }
     }
   },
   "patternProperties": {

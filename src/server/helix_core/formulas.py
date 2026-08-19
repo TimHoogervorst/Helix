@@ -91,7 +91,7 @@ class _Parser:
             return ("literal", float(token.value) if "." in token.value else int(token.value))
         if token.value.startswith('"'):
             return ("literal", json.loads(token.value))
-        name = token.value.upper()
+        name = token.value if "." in token.value else token.value.upper()
         if self.has("left"):
             self.take()
             args = []
@@ -143,7 +143,7 @@ def _tokenize(source: str) -> list[_Token]:
             tokens.append(_Token("value", match.group()))
             i += len(match.group())
             continue
-        match = re.match(r"[A-Za-z_][A-Za-z0-9_]*", source[i:])
+        match = re.match(r"[A-Za-z_][A-Za-z0-9_.]*", source[i:])
         if match:
             tokens.append(_Token("value", match.group()))
             i += len(match.group())
@@ -190,6 +190,129 @@ def _truth(result):
     return result["value"] is not None and result["value"] is not False and result["value"] != "" and result["value"] != 0
 
 
+def _equal(left, right):
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return left == right
+    return type(left) is type(right) and left == right
+
+
+def _numeric_arguments(args, name: str):
+    if not args:
+        return _error("#VALUE!", f"{name} expects at least one argument")
+    values = [_number(arg) for arg in args]
+    for value in values:
+        if isinstance(value, dict):
+            return value
+    return values
+
+
+def _formula_implementation(name: str, args):
+    if name in {"AND", "OR"}:
+        if not args:
+            return _error("#VALUE!", f"{name} expects at least one argument")
+        values = [arg["value"] for arg in args]
+        return _ok(all(values) if name == "AND" else any(values))
+    if name == "NOT":
+        return _ok(not bool(args[0]["value"])) if len(args) == 1 else _error("#VALUE!", "NOT expects one argument")
+    if name in {"MIN", "MAX"}:
+        values = _numeric_arguments(args, name)
+        if isinstance(values, dict):
+            return values
+        return _ok(min(values) if name == "MIN" else max(values))
+    if name == "ABS":
+        if len(args) != 1:
+            return _error("#VALUE!", "ABS expects one argument")
+        value = _number(args[0])
+        return _ok(abs(value)) if not isinstance(value, dict) else value
+    if name == "ROUND":
+        if not 1 <= len(args) <= 2:
+            return _error("#VALUE!", "ROUND expects one or two arguments")
+        value = _number(args[0])
+        digits = _number(args[1] if len(args) == 2 else _ok(0))
+        if isinstance(value, dict):
+            return value
+        if isinstance(digits, dict):
+            return digits
+        factor = 10 ** int(digits)
+        return _ok(math.floor(value * factor + 0.5) / factor)
+    if name in {"SUM", "AVERAGE"}:
+        values = _numeric_arguments(args, name)
+        if isinstance(values, dict):
+            return values
+        total = sum(values)
+        return _ok(total if name == "SUM" else total / len(values))
+    if name == "COUNT":
+        if not args:
+            return _error("#VALUE!", "COUNT expects at least one argument")
+        return _ok(sum(1 for arg in args if isinstance(_number(arg), (int, float))))
+    if name == "CONCAT":
+        def text(value):
+            if value is None:
+                return ""
+            if isinstance(value, bool):
+                return "true" if value else "false"
+            if isinstance(value, float) and value.is_integer():
+                return str(int(value))
+            return str(value)
+
+        return _ok("".join(text(arg["value"]) for arg in args))
+    if name in {"UPPER", "LOWER"}:
+        if len(args) != 1:
+            return _error("#VALUE!", f"{name} expects one argument")
+        value = str(args[0]["value"] or "")
+        return _ok(value.upper() if name == "UPPER" else value.lower())
+    if name == "LEN":
+        if len(args) != 1:
+            return _error("#VALUE!", "LEN expects one argument")
+        return _ok(len(str(args[0]["value"] or "")))
+    return _error("#NAME?", f"Unknown function '{name}'")
+
+
+def get_builtin_formula_functions() -> list[dict[str, Any]]:
+    """Return platform functions for registration during core startup."""
+    descriptions = {
+        "IF": "Return one of two values based on a condition.",
+        "IFERROR": "Return a fallback value when an expression errors.",
+        "AND": "Return true when all arguments are truthy.",
+        "OR": "Return true when any argument is truthy.",
+        "NOT": "Invert a boolean value.",
+        "ROUND": "Round a number to a number of decimal places.",
+        "ABS": "Return the absolute value of a number.",
+        "MIN": "Return the smallest numeric argument.",
+        "MAX": "Return the largest numeric argument.",
+        "SUM": "Add numeric arguments.",
+        "AVERAGE": "Return the average of numeric arguments.",
+        "COUNT": "Count numeric arguments.",
+        "CONCAT": "Concatenate values as text.",
+        "UPPER": "Convert text to uppercase.",
+        "LOWER": "Convert text to lowercase.",
+        "LEN": "Return the length of text.",
+    }
+    argument_kinds = {
+        "IF": ["boolean", "any", "any"],
+        "IFERROR": ["any", "any"],
+        "NOT": ["any"],
+        "ROUND": ["number", "number?"],
+        "ABS": ["number"],
+        "UPPER": ["any"],
+        "LOWER": ["any"],
+        "LEN": ["any"],
+    }
+    variadic = {"AND", "OR", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "CONCAT"}
+    functions = []
+    for name, description in descriptions.items():
+        functions.append({
+            "function_id": name,
+            "argument_kinds": argument_kinds.get(name, ["any..."] if name in variadic else ["any"]),
+            "result_kind": "boolean" if name in {"AND", "OR", "NOT"} else "number" if name in {"ROUND", "ABS", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "LEN"} else "any",
+            "description": description,
+            "implementation": (lambda args, function_name=name: _formula_implementation(function_name, args)),
+        })
+    return functions
+
+
 def _eval(ast, row):
     kind = ast[0]
     if kind == "literal": return _ok(ast[1])
@@ -203,7 +326,7 @@ def _eval(ast, row):
         if not right["ok"]: return right
         if ast[1] in {"=", "==", "!=", "<>", "<", "<=", ">", ">="}:
             if ast[1] in {"=", "==", "!=", "<>"}:
-                equal = left["value"] == right["value"]
+                equal = _equal(left["value"], right["value"])
                 return _ok(equal if ast[1] in {"=", "=="} else not equal)
             a, b = left["value"], right["value"]
             if not isinstance(a, (int, float)) or isinstance(a, bool): a = str(a)
@@ -229,27 +352,12 @@ def _eval(ast, row):
         return result if result["ok"] else _eval(ast[2][1], row)
     args = [_eval(arg, row) for arg in ast[2]]
     if any(not arg["ok"] for arg in args): return next(arg for arg in args if not arg["ok"])
-    values = [arg["value"] for arg in args]
-    if ast[1] == "AND": return _ok(all(values))
-    if ast[1] == "OR": return _ok(any(values))
-    if ast[1] == "NOT": return _ok(not bool(values[0])) if len(values) == 1 else _error("#VALUE!", "NOT expects one argument")
-    if ast[1] in {"MIN", "MAX"}:
-        if not args: return _error("#VALUE!", f"{ast[1]} expects at least one argument")
-        numbers = [_number(arg) for arg in args]
-        if any(isinstance(item, dict) for item in numbers): return next(item for item in numbers if isinstance(item, dict))
-        return _ok(min(numbers) if ast[1] == "MIN" else max(numbers))
-    if ast[1] == "ABS" and len(args) == 1:
-        value = _number(args[0]); return _ok(abs(value)) if isinstance(value, (int, float)) and not isinstance(value, bool) else value
-    if ast[1] == "ROUND" and 1 <= len(args) <= 2:
-        value, digits = _number(args[0]), _number(args[1] if len(args) == 2 else _ok(0))
-        if isinstance(value, dict): return value
-        if isinstance(digits, dict): return digits
-        factor = 10 ** int(digits)
-        return _ok(math.floor(value * factor + 0.5) / factor)
-    if ast[1] == "CONCAT": return _ok("".join("" if value is None else str(value) for value in values))
-    if ast[1] in {"UPPER", "LOWER"} and len(values) == 1: return _ok(str(values[0] or "").upper() if ast[1] == "UPPER" else str(values[0] or "").lower())
-    if ast[1] == "LEN" and len(values) == 1: return _ok(len(str(values[0] or "")))
-    return _error("#NAME?", f"Unknown function '{ast[1]}'")
+    from helix_core.mod_system.registry import registry
+
+    function = registry.get_formula_function(ast[1])
+    if function is None:
+        return _error("#NAME?", f"Unknown function '{ast[1]}'")
+    return function["implementation"](args)
 
 
 def evaluate_formula(expression: str, row: dict[str, FormulaValue]):

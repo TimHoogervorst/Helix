@@ -119,6 +119,47 @@ function makeManifest(overrides?: Partial<ModManifest>): ModManifest {
 // ── Tests ────────────────────────────────────────────────────────────────
 
 describe("ModRegistry", () => {
+  it("hydrates the full formula catalog and client-shadowed subset", () => {
+    const registry = resetRegistry();
+    registry.hydrateFromBackend(
+      {
+        formulaFunctions: [
+          {
+            id: "IF",
+            argumentKinds: ["boolean", "any", "any"],
+            resultKind: "any",
+            description: "Conditional.",
+          },
+          {
+            id: "server.only",
+            argumentKinds: ["text"],
+            resultKind: "text",
+            description: "Server only.",
+          },
+        ],
+      },
+      new Map(),
+    );
+
+    expect(registry.getFormulaFunctions()).toHaveProperty("size", 2);
+    expect(registry.getClientFormulaFunctions().map((entry) => entry.id)).toEqual([
+      "IF",
+    ]);
+  });
+
+  it("warns and ignores an unknown client formula registration", () => {
+    const registry = resetRegistry();
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    registry.hydrateFromBackend({ formulaFunctions: [] }, new Map());
+
+    registry.registerFormulaFunction("missing.id", () => ({ ok: true, value: 1 }));
+
+    expect(warning).toHaveBeenCalledWith(
+      "Unknown formula function 'missing.id' was not registered.",
+    );
+    expect(registry.getClientFormulaFunctions()).toEqual([]);
+    warning.mockRestore();
+  });
   let registry: ModRegistry;
 
   beforeEach(() => {

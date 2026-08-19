@@ -51,6 +51,42 @@ def _mock_sender(mod_id: str, name: str = "FakeModel") -> MagicMock:
     return sender
 
 
+class TestFormulaFunctionRegistration:
+    def test_register_and_serialize_metadata(self):
+        reg = _fresh_registry()
+        implementation = lambda args: {"ok": True, "value": None}
+
+        reg.register_formula_function(
+            "molBio.gcContent",
+            argument_kinds=["text"],
+            result_kind="number",
+            description="GC content percentage.",
+            implementation=implementation,
+        )
+
+        assert reg.get_formula_function("molBio.gcContent")["implementation"] is implementation
+        assert reg.get_formula_catalog() == [{
+            "id": "molBio.gcContent",
+            "argumentKinds": ["text"],
+            "resultKind": "number",
+            "description": "GC content percentage.",
+        }]
+
+    def test_duplicate_and_invalid_ids_are_rejected(self):
+        reg = _fresh_registry()
+        kwargs = {
+            "argument_kinds": [],
+            "result_kind": "number",
+            "description": "Test",
+            "implementation": lambda args: {"ok": True, "value": 1},
+        }
+        reg.register_formula_function("SUM", **kwargs)
+        with pytest.raises(ValueError, match="Duplicate formula function ID"):
+            reg.register_formula_function("SUM", **kwargs)
+        with pytest.raises(ValueError, match="identifiers"):
+            reg.register_formula_function("not valid", **kwargs)
+
+
 # ── register_action_model / get_action_model ─────────────────────────────────
 
 

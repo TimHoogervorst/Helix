@@ -13,6 +13,57 @@ export interface FormulaColumn {
   resultType?: string;
 }
 export type EvaluatedRow = Record<string, FormulaResult>;
+export type FormulaFunctionImplementation = (
+  args: FormulaResult[],
+) => FormulaResult;
+
+const clientImplementations = new Map<string, FormulaFunctionImplementation>();
+const defaultClientFunctionIds = new Set([
+  "IF",
+  "IFERROR",
+  "AND",
+  "OR",
+  "NOT",
+  "ROUND",
+  "ABS",
+  "MIN",
+  "MAX",
+  "SUM",
+  "AVERAGE",
+  "COUNT",
+  "CONCAT",
+  "UPPER",
+  "LOWER",
+  "LEN",
+]);
+let hydratedFunctionIds: Set<string> | null = null;
+
+/** Register a client implementation, optionally validated against the catalog. */
+export function registerFormulaFunction(
+  id: string,
+  implementation: FormulaFunctionImplementation,
+): void {
+  if (hydratedFunctionIds && !hydratedFunctionIds.has(id)) {
+    console.warn(`Unknown formula function '${id}' was not registered.`);
+    return;
+  }
+  clientImplementations.set(id, implementation);
+}
+
+/** Set the backend catalog and discard registrations for unknown functions. */
+export function hydrateFormulaCatalog(ids: Iterable<string>): void {
+  hydratedFunctionIds = new Set(ids);
+  for (const id of clientImplementations.keys()) {
+    if (!hydratedFunctionIds.has(id)) {
+      clientImplementations.delete(id);
+      console.warn(`Unknown formula function '${id}' was not registered.`);
+    }
+  }
+}
+
+export function getClientFormulaFunctionIds(): ReadonlySet<string> {
+  return new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+}
 
 type Ast =
   | { kind: "literal"; value: FormulaValue }
@@ -65,7 +116,7 @@ function tokenize(source: string): Token[] {
       i += number[0].length;
       continue;
     }
-    const name = source.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+    const name = source.slice(i).match(/^[A-Za-z_][A-Za-z0-9_.]*/);
     if (name) {
       result.push({ kind: "value", value: name[0] });
       i += name[0].length;
@@ -173,7 +224,9 @@ class Parser {
       return { kind: "literal", value: Number(token.value) };
     if (token.value.startsWith('"'))
       return { kind: "literal", value: JSON.parse(token.value) };
-    const name = token.value.toUpperCase();
+    const name = token.value.includes(".")
+      ? token.value
+      : token.value.toUpperCase();
     if (this.has("left")) {
       this.take();
       const args: Ast[] = [];
@@ -279,8 +332,14 @@ function evalAst(ast: Ast, row: FormulaRow): FormulaResult {
               ? a / b
               : ast.operator === "%"
                 ? a % b
-                : Math.pow(a, b),
+      : Math.pow(a, b),
     );
+  }
+  const registeredImplementation = clientImplementations.get(ast.name);
+  if (registeredImplementation) {
+    const args = ast.args.map((arg) => evalAst(arg, row));
+    const bad = args.find((arg) => !arg.ok);
+    return bad && !bad.ok ? bad : registeredImplementation(args);
   }
   if (ast.name === "IF") {
     if (ast.args.length !== 3)
@@ -341,6 +400,20 @@ function evalAst(ast: Ast, row: FormulaRow): FormulaResult {
         )
       );
     }
+    case "SUM":
+    case "AVERAGE": {
+      if (!args.length)
+        return fail("#VALUE!", `${ast.name} expects at least one argument`);
+      const ns = args.map(number);
+      const invalid = ns.find((n) => typeof n !== "number");
+      if (invalid) return invalid;
+      const total = (ns as number[]).reduce((sum, value) => sum + value, 0);
+      return pass(ast.name === "SUM" ? total : total / ns.length);
+    }
+    case "COUNT":
+      if (!args.length)
+        return fail("#VALUE!", "COUNT expects at least one argument");
+      return pass(args.filter((arg) => typeof number(arg) === "number").length);
     case "CONCAT":
       return pass(values.map((v) => v ?? "").join(""));
     case "UPPER":

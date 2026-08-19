@@ -338,6 +338,102 @@ def _formula_implementation(name: str, args):
         if len(args) != 1:
             return _error("#VALUE!", "LEN expects one argument")
         return _ok(len(str(args[0]["value"] or "")))
+    if name in {"CEILING", "FLOOR", "SQRT", "SIGN"}:
+        if len(args) != 1:
+            return _error("#VALUE!", f"{name} expects one argument")
+        value = _number(args[0])
+        if isinstance(value, dict):
+            return value
+        if name == "CEILING":
+            return _ok(math.ceil(value))
+        if name == "FLOOR":
+            return _ok(math.floor(value))
+        if name == "SQRT":
+            return _ok(math.sqrt(value)) if value >= 0 else _error("#VALUE!", "SQRT expects a non-negative number")
+        return _ok(1 if value > 0 else -1 if value < 0 else 0)
+    if name == "MOD":
+        if len(args) != 2:
+            return _error("#VALUE!", "MOD expects two arguments")
+        left = _number(args[0])
+        right = _number(args[1])
+        if isinstance(left, dict):
+            return left
+        if isinstance(right, dict):
+            return right
+        if right == 0:
+            return _error("#DIV/0!", "MOD divisor cannot be zero")
+        return _ok(left % right)
+    if name == "POWER":
+        if len(args) != 2:
+            return _error("#VALUE!", "POWER expects two arguments")
+        base = _number(args[0])
+        exponent = _number(args[1])
+        if isinstance(base, dict):
+            return base
+        if isinstance(exponent, dict):
+            return exponent
+        try:
+            return _ok(base ** exponent)
+        except (OverflowError, ValueError):
+            return _error("#VALUE!", "POWER result is not a valid number")
+    if name == "LOG":
+        if not 1 <= len(args) <= 2:
+            return _error("#VALUE!", "LOG expects one or two arguments")
+        value = _number(args[0])
+        base = _number(args[1]) if len(args) == 2 else 10
+        if isinstance(value, dict):
+            return value
+        if isinstance(base, dict):
+            return base
+        if value <= 0 or base <= 0 or base == 1:
+            return _error("#VALUE!", "LOG expects a positive value and a valid base")
+        return _ok(math.log(value, base))
+    if name == "TRIM":
+        if len(args) != 1:
+            return _error("#VALUE!", "TRIM expects one argument")
+        return _ok(" ".join(str(args[0]["value"] or "").split()))
+    if name in {"LEFT", "RIGHT"}:
+        if not 1 <= len(args) <= 2:
+            return _error("#VALUE!", f"{name} expects one or two arguments")
+        text = str(args[0]["value"] or "")
+        count = _number(args[1]) if len(args) == 2 else 1
+        if isinstance(count, dict):
+            return count
+        if count < 0:
+            return _error("#VALUE!", f"{name} count cannot be negative")
+        count = int(count)
+        return _ok(text[:count] if name == "LEFT" else text[-count:] if count else "")
+    if name == "MID":
+        if len(args) != 3:
+            return _error("#VALUE!", "MID expects three arguments")
+        text = str(args[0]["value"] or "")
+        start = _number(args[1])
+        count = _number(args[2])
+        if isinstance(start, dict):
+            return start
+        if isinstance(count, dict):
+            return count
+        if start < 1 or count < 0:
+            return _error("#VALUE!", "MID expects a positive start and non-negative count")
+        return _ok(text[int(start) - 1 : int(start) - 1 + int(count)])
+    if name == "SUBSTITUTE":
+        if not 3 <= len(args) <= 4:
+            return _error("#VALUE!", "SUBSTITUTE expects three or four arguments")
+        text = str(args[0]["value"] or "")
+        old = str(args[1]["value"] or "")
+        new = str(args[2]["value"] or "")
+        if len(args) == 3:
+            return _ok(text.replace(old, new))
+        instance = _number(args[3])
+        if isinstance(instance, dict):
+            return instance
+        if instance < 1:
+            return _error("#VALUE!", "SUBSTITUTE instance must be positive")
+        parts = text.split(old)
+        index = int(instance)
+        if index >= len(parts):
+            return _ok(text)
+        return _ok(old.join(parts[:index]) + new + old.join(parts[index:]))
     return _error("#NAME?", f"Unknown function '{name}'")
 
 
@@ -360,6 +456,18 @@ def get_builtin_formula_functions() -> list[dict[str, Any]]:
         "UPPER": "Convert text to uppercase.",
         "LOWER": "Convert text to lowercase.",
         "LEN": "Return the length of text.",
+        "CEILING": "Round a number up to the nearest integer.",
+        "FLOOR": "Round a number down to the nearest integer.",
+        "MOD": "Return the remainder after division.",
+        "SQRT": "Return the square root of a number.",
+        "POWER": "Raise a number to a power.",
+        "LOG": "Return the logarithm of a number.",
+        "SIGN": "Return the sign of a number.",
+        "TRIM": "Remove leading, trailing, and repeated spaces from text.",
+        "LEFT": "Return characters from the left of text.",
+        "RIGHT": "Return characters from the right of text.",
+        "MID": "Return a section of text.",
+        "SUBSTITUTE": "Replace text within text.",
     }
     argument_kinds = {
         "IF": ["boolean", "any", "any"],
@@ -370,6 +478,18 @@ def get_builtin_formula_functions() -> list[dict[str, Any]]:
         "UPPER": ["any"],
         "LOWER": ["any"],
         "LEN": ["any"],
+        "CEILING": ["number"],
+        "FLOOR": ["number"],
+        "MOD": ["number", "number"],
+        "SQRT": ["number"],
+        "POWER": ["number", "number"],
+        "LOG": ["number", "number?"],
+        "SIGN": ["number"],
+        "TRIM": ["any"],
+        "LEFT": ["any", "number?"],
+        "RIGHT": ["any", "number?"],
+        "MID": ["any", "number", "number"],
+        "SUBSTITUTE": ["any", "any", "any", "number?"],
     }
     variadic = {"AND", "OR", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "CONCAT"}
     functions = []
@@ -377,7 +497,7 @@ def get_builtin_formula_functions() -> list[dict[str, Any]]:
         functions.append({
             "function_id": name,
             "argument_kinds": argument_kinds.get(name, ["any..."] if name in variadic else ["any"]),
-            "result_kind": "boolean" if name in {"AND", "OR", "NOT"} else "number" if name in {"ROUND", "ABS", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "LEN"} else "any",
+            "result_kind": "boolean" if name in {"AND", "OR", "NOT"} else "number" if name in {"ROUND", "ABS", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "LEN", "CEILING", "FLOOR", "MOD", "SQRT", "POWER", "LOG", "SIGN"} else "any",
             "description": description,
             "implementation": (lambda args, function_name=name: _formula_implementation(function_name, args)),
         })

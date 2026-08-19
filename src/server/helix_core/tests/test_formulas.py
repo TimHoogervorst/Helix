@@ -58,3 +58,45 @@ def test_computed_field_schema_validation():
         {"name": "Second", "type": "formula", "expression": "[First]", "resultType": "number"},
     ]
     assert "cycle" in validate_formula_columns(cycle).lower()
+
+
+def test_backend_only_math_functions():
+    cases = {
+        "CEILING(1.2)": 2,
+        "FLOOR(1.8)": 1,
+        "MOD(7, 3)": 1,
+        "SQRT(9)": 3.0,
+        "POWER(2, 3)": 8,
+        "LOG(100)": 2.0,
+        "SIGN(-4)": -1,
+    }
+    for expression, expected in cases.items():
+        result = evaluate_formula(expression, {})
+        assert result == {"ok": True, "value": expected}, expression
+
+    assert evaluate_formula("MOD(1, 0)", {})["error"]["code"] == "#DIV/0!"
+    assert evaluate_formula("SQRT(-1)", {})["error"]["code"] == "#VALUE!"
+
+
+def test_backend_only_text_functions():
+    cases = {
+        'TRIM("  a   b  ")': "a b",
+        'LEFT("hello", 2)': "he",
+        'RIGHT("hello", 2)': "lo",
+        'MID("hello", 2, 3)': "ell",
+        'SUBSTITUTE("a-b-a", "a", "x", 2)': "a-b-x",
+        'SUBSTITUTE("a-b", "-", "/")': "a/b",
+    }
+    for expression, expected in cases.items():
+        result = evaluate_formula(expression, {})
+        assert result == {"ok": True, "value": expected}, expression
+
+
+def test_backend_only_functions_are_in_catalog():
+    from helix_core.formulas import get_builtin_formula_functions
+
+    names = {function["function_id"] for function in get_builtin_formula_functions()}
+    assert names >= {
+        "CEILING", "FLOOR", "MOD", "SQRT", "POWER", "LOG", "SIGN",
+        "TRIM", "LEFT", "RIGHT", "MID", "SUBSTITUTE",
+    }

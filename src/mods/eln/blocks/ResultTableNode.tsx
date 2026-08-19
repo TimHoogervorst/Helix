@@ -4,6 +4,7 @@ import {
   Database,
   Loader,
   Plus,
+  RefreshCw,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -78,6 +79,14 @@ interface BatchResponse {
   errors: { row_index: number; message: string }[];
 }
 
+interface FormulaEvaluateResponse {
+  result: {
+    ok: boolean;
+    value?: unknown;
+    error?: { code: string };
+  };
+}
+
 function columnType(id: string) {
   return ModRegistry.getInstance().getColumnType(id.toLowerCase());
 }
@@ -119,6 +128,31 @@ function isCurrent(
     row.lastRegisteredValueHash === snapshot(row, values) &&
     !row.registrationError
   );
+}
+
+function usesBackendOnlyFunction(expression: string): boolean {
+  const registry = ModRegistry.getInstance();
+  const clientIds = new Set(
+    registry.getClientFormulaFunctions().map((entry) => entry.id),
+  );
+  return [...expression.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\(/gi)].some(
+    ([, name]) =>
+      !!name &&
+      registry.getFormulaFunctions().has(name.toUpperCase()) &&
+      !clientIds.has(name.toUpperCase()),
+  );
+}
+
+function referencedValuesAreComplete(
+  expression: string,
+  values: Record<string, unknown>,
+  formulaNames: ReadonlySet<string>,
+): boolean {
+  return [...expression.matchAll(/\[([^\]]+)\]/g)].every(([, name]) => {
+    if (name && formulaNames.has(name)) return true;
+    const value = name ? values[name] : undefined;
+    return value !== undefined && value !== null && value !== "";
+  });
 }
 
 type ResultStatus = "red" | "yellow" | "orange" | "blue" | "green";
@@ -181,6 +215,10 @@ export function ResultTableContent({
   const [schemaTypes, setSchemaTypes] = useState<EntityTypeSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [refreshingRow, setRefreshingRow] = useState<string | null>(null);
+  const [refreshedSnapshots, setRefreshedSnapshots] = useState<
+    Record<string, string>
+  >({});
   const counter = useRef(rows.length + 1);
 
   const handleTitleBlur = useCallback(
@@ -209,6 +247,12 @@ export function ResultTableContent({
     (column) => column.name === "Entity" && column.type === "reference",
   );
   const valueColumns = columns.filter((column) => column !== entityColumn);
+  const backendOnlyColumns = valueColumns.filter(
+    (column) =>
+      column.type === "formula" &&
+      column.expression &&
+      usesBackendOnlyFunction(column.expression),
+  );
   const workspaceId =
     entityColumn?.referenceSchemaId !== undefined ||
     entityColumn?.referenceSchemaTypeId !== undefined
@@ -227,10 +271,13 @@ export function ResultTableContent({
       );
       const evaluated = evaluateRow(row.values as FormulaRow, formulas);
       return Object.fromEntries(
-        Object.entries(evaluated).map(([name, result]) => [
-          name,
-          result.ok ? result.value : result.error.code,
-        ]),
+        Object.entries(evaluated).map(([name, result]) => {
+          const column = valueColumns.find((item) => item.name === name);
+          if (column?.expression && usesBackendOnlyFunction(column.expression)) {
+            return [name, row.values[name]];
+          }
+          return [name, result.ok ? result.value : result.error.code];
+        }),
       );
     },
     [valueColumns],
@@ -371,7 +418,8 @@ export function ResultTableContent({
                 Object.entries(row.values).filter(
                   ([name]) =>
                     !valueColumns.some(
-                      (column) => column.name === name && column.type === "formula",
+                      (column) =>
+                        column.name === name && column.type === "formula",
                     ),
                 ),
               ),
@@ -412,6 +460,68 @@ export function ResultTableContent({
     }
     updateAttrs({ rows: next });
     setRegistering(false);
+  };
+
+  const refreshRow = async (row: ResultTableRow) => {
+    if (
+      previewMode ||
+      !backendOnlyColumns.length ||
+      refreshingRow === row.displayId
+    )
+      return;
+    const formulaNames = new Set(
+      valueColumns
+        .filter((column) => column.type === "formula")
+        .map((column) => column.name),
+    );
+    if (
+      backendOnlyColumns.some(
+        (column) =>
+          !column.expression ||
+          !referencedValuesAreComplete(
+            column.expression,
+            row.values,
+            formulaNames,
+          ),
+      )
+    ) {
+      return;
+    }
+    const formulas = valueColumns.filter(
+      (column) => column.type === "formula" && column.expression,
+    );
+    let values = { ...row.values };
+    setRefreshingRow(row.displayId);
+    try {
+      for (const column of formulas) {
+        if (
+          !column.expression ||
+          !referencedValuesAreComplete(column.expression, values, formulaNames)
+        )
+          continue;
+        const response = await post<FormulaEvaluateResponse>(
+          "/formulas/evaluate/",
+          {
+            expression: column.expression,
+            row: values,
+          },
+        );
+        values[column.name] = response.result.ok
+          ? response.result.value
+          : (response.result.error?.code ?? "#VALUE!");
+      }
+      updateAttrs({
+        rows: rows.map((item) =>
+          item.displayId === row.displayId ? { ...item, values } : item,
+        ),
+      });
+      setRefreshedSnapshots((current) => ({
+        ...current,
+        [row.displayId]: snapshot(row, values),
+      }));
+    } finally {
+      setRefreshingRow(null);
+    }
   };
 
   if (schemaId === null)
@@ -578,6 +688,7 @@ export function ResultTableContent({
               <tbody>
                 {rows.map((row, rowIndex) => {
                   const values = computedValues(row);
+                  const rowSnapshot = snapshot(row, values);
                   const current = isCurrent(row, values, schemaContentHash);
                   const status: ResultStatus = row.registrationError
                     ? "red"
@@ -643,36 +754,66 @@ export function ResultTableContent({
                           data-testid={`result-entity-cell-${row.displayId}`}
                         />
                       </td>
-                      {valueColumns.map((column, columnIndex) => (
-                        <td
-                          key={column.name}
-                          className="p-0"
-                          {...interaction.cellProps({
-                            row: rowIndex,
-                            column: columnIndex + 1,
-                          })}
-                        >
-                          <TypedFullCell
-                            shape={shape(column)}
-                            value={values[column.name]}
-                            onCommit={(value) =>
-                              updateValue(row.displayId, column.name, value)
-                            }
-                            position={{
-                              row: rowIndex,
-                              column: columnIndex + 1,
-                            }}
-                            interaction={interaction}
-                            readOnly={readOnly || column.type === "formula"}
-                            data-testid={`result-cell-${row.displayId}-${column.name}`}
-                          />
-                        </td>
-                      ))}
+                      {valueColumns.map((column, columnIndex) =>
+                        (() => {
+                          const backendOnly =
+                            backendOnlyColumns.includes(column);
+                          const refreshed =
+                            refreshedSnapshots[row.displayId] !== undefined;
+                          const stale =
+                            backendOnly &&
+                            refreshed &&
+                            refreshedSnapshots[row.displayId] !== rowSnapshot;
+                          return (
+                            <td
+                              key={column.name}
+                              className={`p-0 ${stale ? "opacity-50" : ""}`}
+                              data-stale={stale ? "true" : undefined}
+                              {...interaction.cellProps({
+                                row: rowIndex,
+                                column: columnIndex + 1,
+                              })}
+                            >
+                              <TypedFullCell
+                                shape={shape(column)}
+                                value={
+                                  backendOnly && !refreshed
+                                    ? undefined
+                                    : values[column.name]
+                                }
+                                onCommit={(value) =>
+                                  updateValue(row.displayId, column.name, value)
+                                }
+                                position={{
+                                  row: rowIndex,
+                                  column: columnIndex + 1,
+                                }}
+                                interaction={interaction}
+                                readOnly={readOnly || column.type === "formula"}
+                                placeholder={
+                                  backendOnly && !refreshed
+                                    ? "Refresh to calculate"
+                                    : undefined
+                                }
+                                data-testid={`result-cell-${row.displayId}-${column.name}`}
+                              />
+                            </td>
+                          );
+                        })(),
+                      )}
                       {!readOnly && (
                         <StickyActionCell>
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <MoreActions
                               items={[
+                                {
+                                  key: "refresh",
+                                  icon: RefreshCw,
+                                  label: "Refresh",
+                                  disabled: refreshingRow === row.displayId,
+                                  onClick: () => refreshRow(row),
+                                  tooltip: `Refresh computed fields for ${row.displayId}`,
+                                },
                                 {
                                   key: "delete",
                                   icon: Trash2,
@@ -691,7 +832,11 @@ export function ResultTableContent({
                                     });
                                   },
                                 },
-                              ]}
+                              ].filter(
+                                (item) =>
+                                  item.key !== "refresh" ||
+                                  backendOnlyColumns.length > 0,
+                              )}
                             />
                           </div>
                         </StickyActionCell>

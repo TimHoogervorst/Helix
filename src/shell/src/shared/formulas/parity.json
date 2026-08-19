@@ -1,0 +1,92 @@
+[
+  {
+    "name": "precedence",
+    "expression": "2 + 3 * 4",
+    "row": {},
+    "expected": { "ok": true, "value": 14 }
+  },
+  {
+    "name": "parentheses",
+    "expression": "(2 + 3) * 4",
+    "row": {},
+    "expected": { "ok": true, "value": 20 }
+  },
+  {
+    "name": "numeric string coercion",
+    "expression": "[Amount] + 2",
+    "row": { "Amount": "3" },
+    "expected": { "ok": true, "value": 5 }
+  },
+  {
+    "name": "blank arithmetic is invalid",
+    "expression": "[Amount] + 2",
+    "row": { "Amount": null },
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
+    "name": "string literal",
+    "expression": "\"hello\"",
+    "row": {},
+    "expected": { "ok": true, "value": "hello" }
+  },
+  {
+    "name": "boolean literal",
+    "expression": "TRUE = 1",
+    "row": {},
+    "expected": { "ok": true, "value": false }
+  },
+  {
+    "name": "comparison",
+    "expression": "[Amount] >= 10",
+    "row": { "Amount": 12 },
+    "expected": { "ok": true, "value": true }
+  },
+  {
+    "name": "division by zero",
+    "expression": "10 / 0",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#DIV/0!" } }
+  },
+  {
+    "name": "missing reference",
+    "expression": "[Missing]",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#REF!" } }
+  },
+  {
+    "name": "unknown function",
+    "expression": "NOPE(1)",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#NAME?" } }
+  },
+  {
+    "name": "invalid value",
+    "expression": "\"text\" + 1",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
+    "name": "syntax error",
+    "expression": "[Amount] +",
+    "row": { "Amount": 1 },
+    "expected": { "ok": false, "error": { "code": "#SYNTAX!" } }
+  },
+  {
+    "name": "rounding",
+    "expression": "ROUND(2.5)",
+    "row": {},
+    "expected": { "ok": true, "value": 3 }
+  },
+  {
+    "name": "cycle",
+    "row": {},
+    "formulas": {
+      "First": { "expression": "[Second] + 1" },
+      "Second": { "expression": "[First] + 1" }
+    },
+    "expectedRow": {
+      "First": { "ok": false, "error": { "code": "#CYCLE!" } },
+      "Second": { "ok": false, "error": { "code": "#CYCLE!" } }
+    }
+  }
+]

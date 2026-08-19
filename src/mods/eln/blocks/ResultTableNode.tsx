@@ -1,5 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ChartColumn, Database, Loader, Plus, Trash2, Upload } from "lucide-react";
+import {
+  ChartColumn,
+  Database,
+  Loader,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { GridColumn } from "../../../shell/src/shared/types/types";
@@ -13,7 +20,10 @@ import {
 } from "../../../shell/src/shared/components/TableCells";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
-import { deriveForeground, resolveColorHex } from "../../../shell/src/shared/components/IconBadge";
+import {
+  deriveForeground,
+  resolveColorHex,
+} from "../../../shell/src/shared/components/IconBadge";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import {
@@ -27,6 +37,11 @@ import MoreActions from "../components/MoreActions";
 import type { EntityTypeSummary } from "../types";
 import type { ElnSidebarData } from "./sidebarData";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import {
+  evaluateRow,
+  type FormulaColumn,
+  type FormulaRow,
+} from "../../../shell/src/shared/formulas/formulaEngine";
 
 export interface ResultTableRow {
   entityId: number | null;
@@ -87,29 +102,6 @@ function snapshot(row: ResultTableRow, values: Record<string, unknown>) {
   });
 }
 
-function formulaValue(
-  expression: string,
-  values: Record<string, unknown>,
-  resultType?: string,
-): unknown {
-  const substituted = expression.replace(/\[([^\]]+)\]/g, (_, name: string) => {
-    const value = values[name];
-    if (typeof value === "number") return String(value);
-    if (value === null || value === undefined || value === "") return "0";
-    return JSON.stringify(value);
-  });
-  if (!/^[\d\s+\-*/()."']+$/.test(substituted)) return "";
-  try {
-    // Formula expressions are schema-authored and the allow-list above keeps evaluation arithmetic/string-only.
-    const result = Function(`"use strict"; return (${substituted})`)();
-    if (resultType === "number") return Number(result);
-    if (resultType === "boolean") return Boolean(result);
-    return result;
-  } catch {
-    return "";
-  }
-}
-
 function isCurrent(
   row: ResultTableRow,
   values: Record<string, unknown>,
@@ -151,7 +143,12 @@ function renderColumnTypeBadge(typeName: string) {
       return (
         <span
           className="inline-flex items-center justify-center rounded"
-          style={{ backgroundColor: background, color: deriveForeground(background), width: 18, height: 18 }}
+          style={{
+            backgroundColor: background,
+            color: deriveForeground(background),
+            width: 18,
+            height: 18,
+          }}
         >
           <Icon className="h-3 w-3" aria-label={type.displayName} />
         </span>
@@ -183,7 +180,8 @@ export function ResultTableContent({
 
   const handleTitleBlur = useCallback(
     (event: React.FocusEvent<HTMLSpanElement>) => {
-      const newTitle = event.currentTarget.textContent?.trim() || "Result Table";
+      const newTitle =
+        event.currentTarget.textContent?.trim() || "Result Table";
       if (newTitle !== title) updateAttrs({ title: newTitle });
     },
     [title, updateAttrs],
@@ -214,17 +212,21 @@ export function ResultTableContent({
 
   const computedValues = useCallback(
     (row: ResultTableRow) => {
-      const values = { ...row.values };
-      for (const column of valueColumns) {
-        if (column.type === "formula" && column.expression) {
-          values[column.name] = formulaValue(
-            column.expression,
-            values,
-            column.resultType,
-          );
-        }
-      }
-      return values;
+      const formulas = Object.fromEntries(
+        valueColumns
+          .filter((column) => column.type === "formula" && column.expression)
+          .map((column) => [
+            column.name,
+            { expression: column.expression! } satisfies FormulaColumn,
+          ]),
+      );
+      const evaluated = evaluateRow(row.values as FormulaRow, formulas);
+      return Object.fromEntries(
+        Object.entries(evaluated).map(([name, result]) => [
+          name,
+          result.ok ? result.value : result.error.code,
+        ]),
+      );
     },
     [valueColumns],
   );
@@ -445,9 +447,12 @@ export function ResultTableContent({
     <TableChrome
       className="w-full table-layout-chrome--compact"
       data-testid="result-table-loaded"
-        title={
-          <span className="inline-flex items-center gap-2">
-          <ChartColumn className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      title={
+        <span className="inline-flex items-center gap-2">
+          <ChartColumn
+            className="h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           {readOnly ? (
             <span data-testid="result-table-title">{title}</span>
           ) : (
@@ -480,9 +485,16 @@ export function ResultTableContent({
             data-testid="result-register-btn"
           >
             {registering ? (
-              <Loader className="h-4 w-4 shrink-0" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
+              <Loader
+                className="h-4 w-4 shrink-0"
+                style={{ width: "1rem", height: "1rem", flexShrink: 0 }}
+              />
             ) : (
-              <Upload className="h-4 w-4 shrink-0" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
+              <Upload
+                className="h-4 w-4 shrink-0"
+                aria-hidden="true"
+                style={{ width: "1rem", height: "1rem", flexShrink: 0 }}
+              />
             )}
           </IconButton>
         )
@@ -522,10 +534,18 @@ export function ResultTableContent({
               </colgroup>
               <thead>
                 <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
-                  <th className="w-10 px-2 py-1 whitespace-nowrap" aria-label="Status" />
-                  <th className="px-4 py-1 text-left font-medium whitespace-nowrap">Entity</th>
+                  <th
+                    className="w-10 px-2 py-1 whitespace-nowrap"
+                    aria-label="Status"
+                  />
+                  <th className="px-4 py-1 text-left font-medium whitespace-nowrap">
+                    Entity
+                  </th>
                   {valueColumns.map((column) => (
-                    <th key={column.name} className="px-4 py-1 text-left font-medium whitespace-nowrap">
+                    <th
+                      key={column.name}
+                      className="px-4 py-1 text-left font-medium whitespace-nowrap"
+                    >
                       {column.name}
                       <span className="ml-1 inline-flex items-center text-2xs text-muted-foreground font-normal align-middle">
                         {renderColumnTypeBadge(column.type)}
@@ -562,21 +582,23 @@ export function ResultTableContent({
                           aria-label={STATUS_LABELS[status]}
                           data-testid={`result-status-bar-${status}`}
                         />
-                        {row.isRegistered && row.entityId !== null && row.displayId && (
-                          <MentionBadge
-                            displayId={row.displayId}
-                            clickable
-                            compact
-                            resolved={{
-                              displayId: row.displayId,
-                              title: `${row.sourceEntityId} — ${schemaName}`,
-                              type: "entity",
-                              id: row.entityId,
-                              icon: "📦",
-                              workspaceId: "lims",
-                            }}
-                          />
-                        )}
+                        {row.isRegistered &&
+                          row.entityId !== null &&
+                          row.displayId && (
+                            <MentionBadge
+                              displayId={row.displayId}
+                              clickable
+                              compact
+                              resolved={{
+                                displayId: row.displayId,
+                                title: `${row.sourceEntityId} — ${schemaName}`,
+                                type: "entity",
+                                id: row.entityId,
+                                icon: "📦",
+                                workspaceId: "lims",
+                              }}
+                            />
+                          )}
                       </td>
                       <td
                         className="p-0"
@@ -638,10 +660,13 @@ export function ResultTableContent({
                                   destructive: true,
                                   onClick: async () => {
                                     if (row.entityId !== null)
-                                      await del(`/lims/entities/${row.entityId}/`);
+                                      await del(
+                                        `/lims/entities/${row.entityId}/`,
+                                      );
                                     updateAttrs({
                                       rows: rows.filter(
-                                        (item) => item.displayId !== row.displayId,
+                                        (item) =>
+                                          item.displayId !== row.displayId,
                                       ),
                                     });
                                   },

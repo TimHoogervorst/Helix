@@ -113,7 +113,7 @@ function makeSchema(overrides: Record<string, unknown> = {}) {
     content_hash: "abc123",
     icon: "",
     color: "",
-    tags: [],
+    tags: ["RegistrationTable"],
     ...overrides,
   };
 }
@@ -216,7 +216,7 @@ describe("SchemaSettings", () => {
         makeSchema({ id: 2, name: "Patient", prefix: "PAT" }),
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity" },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -232,6 +232,7 @@ describe("SchemaSettings", () => {
       .mockResolvedValueOnce([
         makeSchema({ id: 1, name: "Entity Schema", tags: ["RegistrationTable"] }),
         makeSchema({ id: 2, name: "Result Schema", tags: ["ResultTable"] }),
+        makeSchema({ id: 3, name: "ELN Entry", tags: [] }),
       ])
       .mockResolvedValueOnce([]);
     render(<SchemaSettings />);
@@ -240,6 +241,7 @@ describe("SchemaSettings", () => {
       expect(screen.getByText("Entity Schema")).toBeInTheDocument();
     });
     expect(screen.queryByText("Result Schema")).not.toBeInTheDocument();
+    expect(screen.queryByText("ELN Entry")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Entity Schemas" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -262,7 +264,7 @@ describe("SchemaSettings", () => {
         makeSchema({ id: 2, name: "Patient", prefix: "PAT" }),
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity" },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -598,7 +600,7 @@ describe("SchemaSettings", () => {
     mockGet
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity" },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
       ]);
     mockPost.mockResolvedValue({});
     render(<SchemaSettings />);

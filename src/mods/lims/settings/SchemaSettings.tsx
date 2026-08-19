@@ -40,6 +40,9 @@ function SettingsPage() {
   const resultSchemaTypes = schemaTypes.filter((type) =>
     type.tags?.includes("ResultTable"),
   );
+  const entitySchemaTypes = schemaTypes.filter((type) =>
+    type.tags?.includes("RegistrationTable"),
+  );
 
   const fetchSchemas = useCallback(async () => {
     try {
@@ -56,8 +59,11 @@ function SettingsPage() {
     try {
       const data = await get<SchemaTypeItem[]>("/schema-types/");
       setSchemaTypes(data);
-      if (data.length > 0 && newSchemaType === null) {
-        setNewSchemaType(data[0].id);
+      const allowed = data.filter((type) =>
+        type.tags?.includes("RegistrationTable"),
+      );
+      if (allowed.length > 0 && newSchemaType === null) {
+        setNewSchemaType(allowed[0].id);
       }
     } catch {
       // Schema types are optional for display — don't block on failure
@@ -250,7 +256,7 @@ function SettingsPage() {
       !s.is_default &&
       (activeTab === "result"
         ? s.tags?.includes("ResultTable")
-        : !s.tags?.includes("ResultTable")),
+        : s.tags?.includes("RegistrationTable")),
   );
 
   const filteredSchemas = filterValue
@@ -287,7 +293,7 @@ function SettingsPage() {
     const nextTab = tab === "result" ? "result" : "entity";
     setActiveTab(nextTab);
     setNewSchemaType((current) => {
-      const allowed = nextTab === "result" ? resultSchemaTypes : schemaTypes;
+      const allowed = nextTab === "result" ? resultSchemaTypes : entitySchemaTypes;
       return allowed.some((type) => type.id === current)
         ? current
         : (allowed[0]?.id ?? null);
@@ -382,7 +388,7 @@ function SettingsPage() {
                       value={newSchemaType ?? ""}
                       onChange={(e) => setNewSchemaType(Number(e.target.value))}
                     >
-                    {(activeTab === "result" ? resultSchemaTypes : schemaTypes).map((st) => (
+                    {(activeTab === "result" ? resultSchemaTypes : entitySchemaTypes).map((st) => (
                         <option key={st.id} value={st.id}>
                           {st.display_name}
                         </option>

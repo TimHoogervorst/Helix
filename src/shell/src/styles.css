@@ -586,6 +586,10 @@ label {
   padding: 0.75rem 1rem;
 }
 
+.table-layout-chrome--compact .table-layout-chrome__bar {
+  padding-block: 0.375rem;
+}
+
 .table-layout-chrome__title {
   margin: 0;
   color: var(--color-ink);

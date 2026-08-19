@@ -6,11 +6,25 @@ import type { GridColumn } from "../../../shell/src/shared/types/types";
 import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
 import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
 import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
-import { TypedFullCell, parseCellValue, renderCellValue } from "../../../shell/src/shared/components/TableCells";
+import {
+  TypedFullCell,
+  parseCellValue,
+  renderCellValue,
+} from "../../../shell/src/shared/components/TableCells";
+import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
+import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { deriveForeground, resolveColorHex } from "../../../shell/src/shared/components/IconBadge";
 import { Button } from "../../../shell/src/shared/primitives/Button";
-import { StickyActionCell, StickyActionHeader, TableChrome, TableScroll, TableStretch } from "../../../shell/src/shared/primitives/TableLayout";
+import {
+  StickyActionCell,
+  StickyActionHeader,
+  TableChrome,
+  TableScroll,
+  TableStretch,
+} from "../../../shell/src/shared/primitives/TableLayout";
 import MoreActions from "../components/MoreActions";
 import type { EntityTypeSummary } from "../types";
+import type { ElnSidebarData } from "./sidebarData";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 export interface ResultTableRow {
@@ -49,8 +63,10 @@ function columnType(id: string) {
 
 function shape(column: GridColumn) {
   return column.type === "formula"
-    ? columnType(column.resultType ?? "text")?.operandShape ?? column.resultType ?? "text"
-    : columnType(column.type)?.operandShape ?? column.type;
+    ? (columnType(column.resultType ?? "text")?.operandShape ??
+        column.resultType ??
+        "text")
+    : (columnType(column.type)?.operandShape ?? column.type);
 }
 
 function emptyValue(column: GridColumn): unknown {
@@ -59,13 +75,22 @@ function emptyValue(column: GridColumn): unknown {
 }
 
 function snapshot(row: ResultTableRow, values: Record<string, unknown>) {
-  return JSON.stringify({ sourceEntityId: row.sourceEntityId, values: Object.keys(values).sort().reduce<Record<string, unknown>>((out, key) => {
-    out[key] = values[key];
-    return out;
-  }, {}) });
+  return JSON.stringify({
+    sourceEntityId: row.sourceEntityId,
+    values: Object.keys(values)
+      .sort()
+      .reduce<Record<string, unknown>>((out, key) => {
+        out[key] = values[key];
+        return out;
+      }, {}),
+  });
 }
 
-function formulaValue(expression: string, values: Record<string, unknown>, resultType?: string): unknown {
+function formulaValue(
+  expression: string,
+  values: Record<string, unknown>,
+  resultType?: string,
+): unknown {
   const substituted = expression.replace(/\[([^\]]+)\]/g, (_, name: string) => {
     const value = values[name];
     if (typeof value === "number") return String(value);
@@ -84,35 +109,106 @@ function formulaValue(expression: string, values: Record<string, unknown>, resul
   }
 }
 
-function isCurrent(row: ResultTableRow, values: Record<string, unknown>, hash: string | null) {
-  return row.isRegistered && row.entityId !== null && !!hash && row.lastRegisteredValueHash === snapshot(row, values) && !row.registrationError;
+function isCurrent(
+  row: ResultTableRow,
+  values: Record<string, unknown>,
+  hash: string | null,
+) {
+  return (
+    row.isRegistered &&
+    row.entityId !== null &&
+    !!hash &&
+    row.lastRegisteredValueHash === snapshot(row, values) &&
+    !row.registrationError
+  );
+}
+
+type ResultStatus = "red" | "yellow" | "orange" | "blue" | "green";
+
+const STATUS_COLORS: Record<ResultStatus, string> = {
+  red: "var(--color-status-red)",
+  yellow: "var(--color-status-yellow)",
+  orange: "var(--color-status-orange)",
+  blue: "var(--color-status-blue)",
+  green: "var(--color-status-green)",
+};
+
+const STATUS_LABELS: Record<ResultStatus, string> = {
+  red: "Registration error",
+  yellow: "Schema has changed since last registration",
+  orange: "Data changed since last registration",
+  blue: "Not yet registered",
+  green: "Registered, up to date",
+};
+
+function renderColumnTypeBadge(typeName: string) {
+  const type = columnType(typeName);
+  if (type) {
+    const Icon = getColumnTypeIcon(type.icon);
+    if (Icon) {
+      const background = resolveColorHex(type.color || "muted");
+      return (
+        <span
+          className="inline-flex items-center justify-center rounded"
+          style={{ backgroundColor: background, color: deriveForeground(background), width: 18, height: 18 }}
+        >
+          <Icon className="h-3 w-3" aria-label={type.displayName} />
+        </span>
+      );
+    }
+  }
+  return typeName;
 }
 
 export function ResultTableContent({
-  schemaId, schemaName, schemaContentHash, title, columns, rows, projectId, folderId,
-  updateAttrs, readOnly = false, previewMode = false, workspaceId: sourceWorkspaceId,
+  schemaId,
+  schemaName,
+  schemaContentHash,
+  title,
+  columns,
+  rows,
+  projectId,
+  folderId,
+  updateAttrs,
+  readOnly = false,
+  previewMode = false,
+  workspaceId: sourceWorkspaceId,
 }: ResultTableProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [schemaTypes, setSchemaTypes] = useState<EntityTypeSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
   const counter = useRef(rows.length + 1);
-  const { triggerRef, panelRef, position } = usePickerPortal({ open: pickerOpen, onClose: () => setPickerOpen(false) });
-  const entityColumn = columns.find((column) => column.name === "Entity" && column.type === "reference");
+  const { triggerRef, panelRef, position } = usePickerPortal({
+    open: pickerOpen,
+    onClose: () => setPickerOpen(false),
+  });
+  const entityColumn = columns.find(
+    (column) => column.name === "Entity" && column.type === "reference",
+  );
   const valueColumns = columns.filter((column) => column !== entityColumn);
-  const workspaceId = entityColumn?.referenceSchemaId !== undefined || entityColumn?.referenceSchemaTypeId !== undefined
-    ? sourceWorkspaceId
-    : undefined;
+  const workspaceId =
+    entityColumn?.referenceSchemaId !== undefined ||
+    entityColumn?.referenceSchemaTypeId !== undefined
+      ? sourceWorkspaceId
+      : undefined;
 
-  const computedValues = useCallback((row: ResultTableRow) => {
-    const values = { ...row.values };
-    for (const column of valueColumns) {
-      if (column.type === "formula" && column.expression) {
-        values[column.name] = formulaValue(column.expression, values, column.resultType);
+  const computedValues = useCallback(
+    (row: ResultTableRow) => {
+      const values = { ...row.values };
+      for (const column of valueColumns) {
+        if (column.type === "formula" && column.expression) {
+          values[column.name] = formulaValue(
+            column.expression,
+            values,
+            column.resultType,
+          );
+        }
       }
-    }
-    return values;
-  }, [valueColumns]);
+      return values;
+    },
+    [valueColumns],
+  );
 
   const openPicker = useCallback(async () => {
     if (previewMode) return;
@@ -121,26 +217,75 @@ export function ResultTableContent({
     setLoading(true);
     try {
       const schemas = await get<EntityTypeSummary[]>("/schemas/");
-      setSchemaTypes(schemas.filter((item) => item.is_active && !item.is_default && item.tags.includes("ResultTable")));
-    } catch { setSchemaTypes([]); } finally { setLoading(false); }
+      setSchemaTypes(
+        schemas.filter(
+          (item) =>
+            item.is_active &&
+            !item.is_default &&
+            item.tags.includes("ResultTable"),
+        ),
+      );
+    } catch {
+      setSchemaTypes([]);
+    } finally {
+      setLoading(false);
+    }
   }, [previewMode, schemaTypes.length]);
 
   const selectSchema = (schema: EntityTypeSummary) => {
-    updateAttrs({ schemaId: schema.id, schemaName: schema.name, schemaContentHash: schema.content_hash, columns: schema.columns, rows: [] });
+    updateAttrs({
+      schemaId: schema.id,
+      schemaName: schema.name,
+      schemaContentHash: schema.content_hash,
+      columns: schema.columns,
+      rows: [],
+    });
     setPickerOpen(false);
   };
 
-  const addRow = () => updateAttrs({ rows: [...rows, {
-    entityId: null, displayId: `#new-${counter.current++}`, sourceEntityId: "", values: Object.fromEntries(valueColumns.map((column) => [column.name, emptyValue(column)])),
-    isRegistered: false, lastRegisteredValueHash: null, registrationError: null,
-  }] });
+  const addRow = () =>
+    updateAttrs({
+      rows: [
+        ...rows,
+        {
+          entityId: null,
+          displayId: `#new-${counter.current++}`,
+          sourceEntityId: "",
+          values: Object.fromEntries(
+            valueColumns.map((column) => [column.name, emptyValue(column)]),
+          ),
+          isRegistered: false,
+          lastRegisteredValueHash: null,
+          registrationError: null,
+        },
+      ],
+    });
 
-  const updateRow = (displayId: string, change: Partial<ResultTableRow>) => updateAttrs({ rows: rows.map((row) => row.displayId === displayId ? { ...row, ...change } : row) });
-  const updateValue = (displayId: string, name: string, value: unknown) => updateRow(displayId, { values: { ...rows.find((row) => row.displayId === displayId)?.values, [name]: value } });
+  const updateRow = (displayId: string, change: Partial<ResultTableRow>) =>
+    updateAttrs({
+      rows: rows.map((row) =>
+        row.displayId === displayId ? { ...row, ...change } : row,
+      ),
+    });
+  const updateValue = (displayId: string, name: string, value: unknown) =>
+    updateRow(displayId, {
+      values: {
+        ...rows.find((row) => row.displayId === displayId)?.values,
+        [name]: value,
+      },
+    });
 
   const interaction = useTableInteraction({
-    tableId: "result-table", rowCount: rows.length, columnCount: valueColumns.length + 1,
-    getValues: () => rows.map((row) => [row.sourceEntityId, ...valueColumns.map((column) => renderCellValue(shape(column), computedValues(row)[column.name]))]),
+    tableId: "result-table",
+    rowCount: rows.length,
+    columnCount: valueColumns.length + 1,
+    getValues: () =>
+      rows.map((row) => [
+        row.sourceEntityId,
+        ...valueColumns.map((column) =>
+          renderCellValue(shape(column), computedValues(row)[column.name]),
+        ),
+      ]),
     onPaste: (anchor, pasted) => {
       const nextRows = rows.map((row, rowIndex) => {
         const line = pasted[rowIndex - anchor.row];
@@ -155,7 +300,11 @@ export function ResultTableContent({
           }
           const column = valueColumns[index - 1];
           if (column && column.type !== "formula") {
-            try { values[column.name] = parseCellValue(shape(column), raw); } catch { /* leave invalid paste untouched */ }
+            try {
+              values[column.name] = parseCellValue(shape(column), raw);
+            } catch {
+              /* leave invalid paste untouched */
+            }
           }
         });
         return { ...row, sourceEntityId: source, values };
@@ -165,12 +314,17 @@ export function ResultTableContent({
   });
 
   const register = async () => {
-    if (previewMode || schemaId === null || !schemaName || !entityColumn) return;
-    const candidates = rows.map((row, index) => ({ row, index, values: computedValues(row) })).filter(({ row, values }) => !isCurrent(row, values, schemaContentHash));
+    if (previewMode || schemaId === null || !schemaName || !entityColumn)
+      return;
+    const candidates = rows
+      .map((row, index) => ({ row, index, values: computedValues(row) }))
+      .filter(({ row, values }) => !isCurrent(row, values, schemaContentHash));
     const next = [...rows];
-    candidates.filter(({ row }) => !row.sourceEntityId.trim()).forEach(({ index, row }) => {
-      next[index] = { ...row, registrationError: "Entity is required." };
-    });
+    candidates
+      .filter(({ row }) => !row.sourceEntityId.trim())
+      .forEach(({ index, row }) => {
+        next[index] = { ...row, registrationError: "Entity is required." };
+      });
     const pending = candidates.filter(({ row }) => row.sourceEntityId.trim());
     if (!pending.length) {
       if (candidates.length) updateAttrs({ rows: next });
@@ -178,32 +332,336 @@ export function ResultTableContent({
     }
     setRegistering(true);
     try {
-      const response = await post<BatchResponse>("/lims/entities/batch-register/", {
-        schema_id: schemaId, project_id: projectId ?? null,
-        rows: pending.map(({ row, values }) => ({ entity_id: row.entityId, name: `${row.sourceEntityId} — ${schemaName}`, values: { ...values, Entity: row.sourceEntityId }, ...(folderId != null ? { folder_id: folderId } : {}) })),
+      const response = await post<BatchResponse>(
+        "/lims/entities/batch-register/",
+        {
+          schema_id: schemaId,
+          project_id: projectId ?? null,
+          rows: pending.map(({ row, values }) => ({
+            entity_id: row.entityId,
+            name: `${row.sourceEntityId} — ${schemaName}`,
+            values: { ...values, Entity: row.sourceEntityId },
+            ...(folderId != null ? { folder_id: folderId } : {}),
+          })),
+        },
+      );
+      response.results.forEach((result) => {
+        const item = pending[result.row_index];
+        if (!item) return;
+        next[item.index] = {
+          ...item.row,
+          entityId: result.entity_id,
+          displayId: result.display_id,
+          isRegistered: true,
+          lastRegisteredValueHash: snapshot(item.row, item.values),
+          registrationError: null,
+        };
       });
-      response.results.forEach((result) => { const item = pending[result.row_index]; if (!item) return; next[item.index] = { ...item.row, entityId: result.entity_id, displayId: result.display_id, isRegistered: true, lastRegisteredValueHash: snapshot(item.row, item.values), registrationError: null }; });
-      response.errors.forEach((error) => { const item = pending[error.row_index]; if (item) next[item.index] = { ...item.row, registrationError: error.message }; });
+      response.errors.forEach((error) => {
+        const item = pending[error.row_index];
+        if (item)
+          next[item.index] = { ...item.row, registrationError: error.message };
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed";
-      pending.forEach(({ index, row }) => { next[index] = { ...row, registrationError: message }; });
+      const message =
+        error instanceof Error ? error.message : "Registration failed";
+      pending.forEach(({ index, row }) => {
+        next[index] = { ...row, registrationError: message };
+      });
     }
     updateAttrs({ rows: next });
     setRegistering(false);
   };
 
-  if (schemaId === null) return <div className="rounded-lg border border-hairline bg-background p-4" data-testid="result-table-placeholder">
-    <div className="flex items-center gap-2.5"><Database className="h-5 w-5" aria-hidden="true" /><span className="text-sm font-medium">{title}</span></div>
-    <button ref={triggerRef} type="button" className="mt-3 rounded-md border border-hairline px-3 py-1.5 text-sm" onClick={openPicker} data-testid="result-load-schema-btn">Load Result Schema</button>
-    {pickerOpen && <PickerPortal position={position} panelRef={panelRef} testId="result-schema-picker">{loading ? <div className="p-3"><Loader className="h-4 w-4" /></div> : schemaTypes.length ? schemaTypes.map((schema) => <button key={schema.id} type="button" className="block w-full px-3 py-2 text-left text-sm" onClick={() => selectSchema(schema)} data-testid={`result-schema-option-${schema.id}`}>{schema.name}</button>) : <div className="p-3 text-sm">No result schemas available.</div>}</PickerPortal>}
-  </div>;
+  if (schemaId === null)
+    return (
+      <div
+        className="rounded-lg border border-hairline bg-background p-4"
+        data-testid="result-table-placeholder"
+      >
+        <div className="flex items-center gap-2.5">
+          <Database className="h-5 w-5" aria-hidden="true" />
+          <span className="text-sm font-medium">{title}</span>
+        </div>
+        <button
+          ref={triggerRef}
+          type="button"
+          className="mt-3 rounded-md border border-hairline px-3 py-1.5 text-sm"
+          onClick={openPicker}
+          data-testid="result-load-schema-btn"
+        >
+          Load Result Schema
+        </button>
+        {pickerOpen && (
+          <PickerPortal
+            position={position}
+            panelRef={panelRef}
+            testId="result-schema-picker"
+          >
+            {loading ? (
+              <div className="p-3">
+                <Loader className="h-4 w-4" />
+              </div>
+            ) : schemaTypes.length ? (
+              schemaTypes.map((schema) => (
+                <button
+                  key={schema.id}
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm"
+                  onClick={() => selectSchema(schema)}
+                  data-testid={`result-schema-option-${schema.id}`}
+                >
+                  {schema.name}
+                </button>
+              ))
+            ) : (
+              <div className="p-3 text-sm">No result schemas available.</div>
+            )}
+          </PickerPortal>
+        )}
+      </div>
+    );
 
-  return <TableChrome className="w-full" data-testid="result-table-loaded" title={<span className="inline-flex items-center gap-2"><Database className="h-4 w-4" aria-hidden="true" />{title}<span className="text-xs font-normal text-muted-foreground">{schemaName}</span></span>} toolbar={!readOnly && <Button variant="primary" size="sm" onClick={register} disabled={registering || previewMode} data-testid="result-register-btn">{registering ? <Loader className="h-4 w-4" /> : <><Upload className="h-4 w-4" /> Register</>}</Button>} addRow={!readOnly && <Button variant="ghost" size="sm" onClick={addRow} data-testid="result-add-row-btn"><Plus className="h-3 w-3" /> New Row</Button>}>
-    <TableStretch mode="full"><TableScroll mode="full"><div ref={interaction.containerRef} onCopy={interaction.handleCopy} onPaste={interaction.handlePaste} className="w-max min-w-full"><table className="min-w-full bg-background" data-testid="result-table-grid"><colgroup><col style={{ width: "10rem" }} />{valueColumns.map((column) => <col key={column.name} style={{ width: "10rem" }} />)}{!readOnly && <col style={{ width: "2.5rem" }} />}</colgroup><thead><tr><th className="px-4 py-2 text-left">Entity</th>{valueColumns.map((column) => <th key={column.name} className="px-4 py-2 text-left">{column.name}</th>)}{!readOnly && <StickyActionHeader aria-label="Actions" />}</tr></thead><tbody>{rows.map((row, rowIndex) => { const values = computedValues(row); const current = isCurrent(row, values, schemaContentHash); const status = row.registrationError ? "red" : !row.isRegistered ? "blue" : !schemaContentHash ? "yellow" : current ? "green" : "orange"; return <tr key={row.displayId} data-testid={`result-table-row-${row.displayId}`} className="border-b border-hairline group"><td className="p-0" {...interaction.cellProps({ row: rowIndex, column: 0 })}><TypedFullCell shape="entity-picker" value={row.sourceEntityId} onCommit={(value) => updateRow(row.displayId, { sourceEntityId: String(value ?? "") })} position={{ row: rowIndex, column: 0 }} interaction={interaction} readOnly={readOnly || row.isRegistered} referenceSchemaId={entityColumn?.referenceSchemaId} referenceSchemaTypeId={entityColumn?.referenceSchemaTypeId} workspaceId={workspaceId} data-testid={`result-entity-cell-${row.displayId}`} /></td>{valueColumns.map((column, columnIndex) => <td key={column.name} className="p-0" {...interaction.cellProps({ row: rowIndex, column: columnIndex + 1 })}><TypedFullCell shape={shape(column)} value={values[column.name]} onCommit={(value) => updateValue(row.displayId, column.name, value)} position={{ row: rowIndex, column: columnIndex + 1 }} interaction={interaction} readOnly={readOnly || column.type === "formula"} data-testid={`result-cell-${row.displayId}-${column.name}`} /></td>)}<td className="relative w-10 text-center"><span title={status} aria-label={status} data-testid={`result-status-${status}`} className="inline-block h-2 w-2 rounded-full" />{!readOnly && <StickyActionCell><MoreActions items={[{ key: "delete", icon: Trash2, label: "Delete", destructive: true, onClick: async () => { if (row.entityId !== null) await del(`/lims/entities/${row.entityId}/`); updateAttrs({ rows: rows.filter((item) => item.displayId !== row.displayId) }); } }]} /></StickyActionCell>}</td></tr>; })}</tbody></table></div></TableScroll></TableStretch>
-  </TableChrome>;
+  return (
+    <TableChrome
+      className="w-full table-layout-chrome--compact"
+      data-testid="result-table-loaded"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Database className="h-4 w-4" aria-hidden="true" />
+          {title}
+          <span className="text-xs font-normal text-muted-foreground">
+            {schemaName}
+          </span>
+        </span>
+      }
+      toolbar={
+        !readOnly && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={register}
+            disabled={registering || previewMode}
+            data-testid="result-register-btn"
+          >
+            {registering ? (
+              <Loader className="h-4 w-4" />
+            ) : (
+              <>
+                <Upload className="h-4 w-4" /> Register
+              </>
+            )}
+          </Button>
+        )
+      }
+      addRow={
+        !readOnly && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addRow}
+            data-testid="result-add-row-btn"
+          >
+            <Plus className="h-3 w-3" /> New Row
+          </Button>
+        )
+      }
+    >
+      <TableStretch mode="full">
+        <TableScroll mode="full">
+          <div
+            ref={interaction.containerRef}
+            onCopy={interaction.handleCopy}
+            onPaste={interaction.handlePaste}
+            className="w-max min-w-full"
+          >
+            <table
+              className="min-w-full bg-background"
+              data-testid="result-table-grid"
+            >
+              <colgroup>
+                <col style={{ width: "2.5rem" }} />
+                <col style={{ width: "10rem" }} />
+                {valueColumns.map((column) => (
+                  <col key={column.name} style={{ width: "10rem" }} />
+                ))}
+                {!readOnly && <col style={{ width: "2.5rem" }} />}
+              </colgroup>
+              <thead>
+                <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
+                  <th className="w-10 px-2 py-1 whitespace-nowrap" aria-label="Status" />
+                  <th className="px-4 py-1 text-left font-medium whitespace-nowrap">Entity</th>
+                  {valueColumns.map((column) => (
+                    <th key={column.name} className="px-4 py-1 text-left font-medium whitespace-nowrap">
+                      {column.name}
+                      <span className="ml-1 inline-flex items-center text-2xs text-muted-foreground font-normal align-middle">
+                        {renderColumnTypeBadge(column.type)}
+                      </span>
+                    </th>
+                  ))}
+                  {!readOnly && <StickyActionHeader aria-label="Actions" />}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => {
+                  const values = computedValues(row);
+                  const current = isCurrent(row, values, schemaContentHash);
+                  const status: ResultStatus = row.registrationError
+                    ? "red"
+                    : !row.isRegistered
+                      ? "blue"
+                      : !schemaContentHash
+                        ? "yellow"
+                        : current
+                          ? "green"
+                          : "orange";
+                  return (
+                    <tr
+                      key={row.displayId}
+                      data-testid={`result-table-row-${row.displayId}`}
+                      className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors group"
+                    >
+                      <td className="relative px-2 py-1 text-center align-middle">
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-[3px] group-hover:w-[5px] transition-all duration-150"
+                          style={{ backgroundColor: STATUS_COLORS[status] }}
+                          title={STATUS_LABELS[status]}
+                          aria-label={STATUS_LABELS[status]}
+                          data-testid={`result-status-bar-${status}`}
+                        />
+                        {row.isRegistered && row.entityId !== null && row.displayId && (
+                          <MentionBadge
+                            displayId={row.displayId}
+                            clickable
+                            compact
+                            resolved={{
+                              displayId: row.displayId,
+                              title: `${row.sourceEntityId} — ${schemaName}`,
+                              type: "entity",
+                              id: row.entityId,
+                              icon: "📦",
+                              workspaceId: "lims",
+                            }}
+                          />
+                        )}
+                      </td>
+                      <td
+                        className="p-0"
+                        {...interaction.cellProps({ row: rowIndex, column: 0 })}
+                      >
+                        <TypedFullCell
+                          shape="entity-picker"
+                          value={row.sourceEntityId}
+                          onCommit={(value) =>
+                            updateRow(row.displayId, {
+                              sourceEntityId: String(value ?? ""),
+                            })
+                          }
+                          position={{ row: rowIndex, column: 0 }}
+                          interaction={interaction}
+                          readOnly={readOnly || row.isRegistered}
+                          referenceSchemaId={entityColumn?.referenceSchemaId}
+                          referenceSchemaTypeId={
+                            entityColumn?.referenceSchemaTypeId
+                          }
+                          workspaceId={workspaceId}
+                          data-testid={`result-entity-cell-${row.displayId}`}
+                        />
+                      </td>
+                      {valueColumns.map((column, columnIndex) => (
+                        <td
+                          key={column.name}
+                          className="p-0"
+                          {...interaction.cellProps({
+                            row: rowIndex,
+                            column: columnIndex + 1,
+                          })}
+                        >
+                          <TypedFullCell
+                            shape={shape(column)}
+                            value={values[column.name]}
+                            onCommit={(value) =>
+                              updateValue(row.displayId, column.name, value)
+                            }
+                            position={{
+                              row: rowIndex,
+                              column: columnIndex + 1,
+                            }}
+                            interaction={interaction}
+                            readOnly={readOnly || column.type === "formula"}
+                            data-testid={`result-cell-${row.displayId}-${column.name}`}
+                          />
+                        </td>
+                      ))}
+                      {!readOnly && (
+                        <StickyActionCell>
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <MoreActions
+                              items={[
+                                {
+                                  key: "delete",
+                                  icon: Trash2,
+                                  label: "Delete",
+                                  destructive: true,
+                                  onClick: async () => {
+                                    if (row.entityId !== null)
+                                      await del(`/lims/entities/${row.entityId}/`);
+                                    updateAttrs({
+                                      rows: rows.filter(
+                                        (item) => item.displayId !== row.displayId,
+                                      ),
+                                    });
+                                  },
+                                },
+                              ]}
+                            />
+                          </div>
+                        </StickyActionCell>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </TableScroll>
+      </TableStretch>
+    </TableChrome>
+  );
 }
 
-export const ResultTableBlockComponent = createBlockAdapter(ResultTableContent, ({ instance, context }) => {
-  const attrs = instance.attrs as Record<string, unknown>;
-  return { schemaId: (attrs.schemaId as number | null) ?? null, schemaName: (attrs.schemaName as string | null) ?? null, schemaContentHash: (attrs.schemaContentHash as string | null) ?? null, title: (attrs.title as string) || "Result Table", columns: (attrs.columns as GridColumn[]) ?? [], rows: (attrs.rows as ResultTableRow[]) ?? [], updateAttrs: instance.updateAttrs, readOnly: context.viewMode === "view", previewMode: context.viewMode === "prototype", workspaceId: context.workspaceId };
-});
+export const ResultTableBlockComponent = createBlockAdapter(
+  ResultTableContent,
+  ({ instance, context }) => {
+    const attrs = instance.attrs as Record<string, unknown>;
+    const entryContext = context.entry as ElnSidebarData | undefined;
+    const slotContext = context as typeof context & {
+      folderId?: number | null;
+      projectId?: number | null;
+    };
+    const projectId =
+      entryContext?.projectId ??
+      entryContext?.entry?.project ??
+      slotContext.projectId ??
+      null;
+    const folderId =
+      entryContext?.entry?.folder ??
+      entryContext?.folderId ??
+      slotContext.folderId ??
+      null;
+    return {
+      schemaId: (attrs.schemaId as number | null) ?? null,
+      schemaName: (attrs.schemaName as string | null) ?? null,
+      schemaContentHash: (attrs.schemaContentHash as string | null) ?? null,
+      title: (attrs.title as string) || "Result Table",
+      columns: (attrs.columns as GridColumn[]) ?? [],
+      rows: (attrs.rows as ResultTableRow[]) ?? [],
+      projectId,
+      folderId,
+      updateAttrs: instance.updateAttrs,
+      readOnly: context.viewMode === "view",
+      previewMode: context.viewMode === "prototype",
+      workspaceId: context.workspaceId,
+    };
+  },
+);

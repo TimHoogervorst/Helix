@@ -66,6 +66,19 @@ describe("ResultTableContent", () => {
     expect(screen.getByTestId("result-entity-cell-ASSAY1")).toBeDisabled();
   });
 
+  it("uses the compact Registry Table header and status treatment", () => {
+    const row = { entityId: null, displayId: "#new-1", sourceEntityId: "", values: { Amount: 5 }, isRegistered: false, lastRegisteredValueHash: null, registrationError: null };
+    render(<ResultTableContent {...props({ schemaId: 7, schemaName: "Assay Result", schemaContentHash: "hash-1", columns: schema.columns, rows: [row] })} />);
+
+    expect(screen.getByTestId("result-table-loaded")).toHaveClass("table-layout-chrome--compact");
+    expect(screen.getByRole("columnheader", { name: "Entity" })).toHaveClass("py-1");
+    expect(screen.getByRole("row", { name: /Status Entity Amount/ })).toHaveClass("bg-surface");
+    expect(screen.getByTestId("result-status-bar-blue")).toHaveStyle({ backgroundColor: "var(--color-status-blue)" });
+    expect(screen.getByTestId("result-register-btn")).toHaveTextContent("Register");
+    expect(screen.getByTestId("result-add-row-btn")).toHaveTextContent("New Row");
+    expect(screen.queryByRole("button", { name: /refresh schema/i })).not.toBeInTheDocument();
+  });
+
   it("constrains the Entity picker to the configured schema type", async () => {
     const updateAttrs = vi.fn();
     mockGet.mockResolvedValue({ results: [{ display_id: "BLOOD1", name: "Sample", icon: "", color: "", schema_name: "Blood", workspace_id: "lims" }] });
@@ -82,10 +95,10 @@ describe("ResultTableContent", () => {
     const updateAttrs = vi.fn();
     mockPost.mockResolvedValue({ results: [{ row_index: 0, entity_id: 22, display_id: "ASSAY1" }], errors: [] });
     const row = { entityId: null, displayId: "#new-1", sourceEntityId: "BLOOD1", values: { Amount: 5 }, isRegistered: false, lastRegisteredValueHash: null, registrationError: null };
-    render(<ResultTableContent {...props({ schemaId: 7, schemaName: "Assay Result", schemaContentHash: "hash-1", columns: schema.columns, rows: [row], updateAttrs })} />);
+    render(<ResultTableContent {...props({ schemaId: 7, schemaName: "Assay Result", schemaContentHash: "hash-1", columns: schema.columns, rows: [row], folderId: 42, updateAttrs })} />);
     fireEvent.click(screen.getByTestId("result-register-btn"));
     await waitFor(() => expect(mockPost).toHaveBeenCalledWith("/lims/entities/batch-register/", expect.objectContaining({
-      rows: [expect.objectContaining({ name: "BLOOD1 — Assay Result", values: { Entity: "BLOOD1", Amount: 5, Total: 10 } })],
+      rows: [expect.objectContaining({ name: "BLOOD1 — Assay Result", folder_id: 42, values: { Entity: "BLOOD1", Amount: 5, Total: 10 } })],
     })));
     expect(updateAttrs).toHaveBeenCalledWith(expect.objectContaining({ rows: [expect.objectContaining({ entityId: 22, displayId: "ASSAY1", isRegistered: true })] }));
   });

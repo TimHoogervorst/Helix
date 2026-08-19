@@ -788,7 +788,7 @@ export function RegistryTableContent({
   // ── Loaded table state ──────────────────────────────────────────────
   return (
     <TableChrome
-      className="w-full"
+      className="w-full table-layout-chrome--compact"
       data-testid="registry-table-loaded"
       title={
         <span className="inline-flex items-center gap-2">
@@ -914,13 +914,13 @@ export function RegistryTableContent({
             <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
               <th
-                className="w-10 px-2 py-2 whitespace-nowrap"
+                className="w-10 px-2 py-1 whitespace-nowrap"
                 data-testid="registry-table-header-status"
                 aria-label="Status"
               />
               {/* Mandatory Name column */}
               <th
-                className="px-4 py-2 text-left font-medium whitespace-nowrap"
+                  className="px-4 py-1 text-left font-medium whitespace-nowrap"
                 data-testid="registry-table-header-name"
               >
                 Name
@@ -929,7 +929,7 @@ export function RegistryTableContent({
               {columns.map((col) => (
                 <th
                   key={col.name}
-                  className="px-4 py-2 text-left font-medium whitespace-nowrap"
+                  className="px-4 py-1 text-left font-medium whitespace-nowrap"
                   data-testid={`registry-table-header-${col.name}`}
                 >
                   {col.name}

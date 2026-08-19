@@ -566,7 +566,7 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
   it("consumes the shared Table Kit chrome and layout", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     const table = screen.getByTestId("registry-table-loaded");
-    expect(table).toHaveClass("table-layout-chrome", "w-full");
+    expect(table).toHaveClass("table-layout-chrome", "table-layout-chrome--compact", "w-full");
     expect(table.querySelector(".table-layout-chrome__toolbar")).toBeInTheDocument();
     expect(table.querySelector(".table-layout-chrome__add-row")).toBeInTheDocument();
   });

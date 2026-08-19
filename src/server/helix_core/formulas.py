@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from typing import Any
 
 FormulaValue = str | int | float | bool | None
 ERROR_CODES = {"#VALUE!", "#REF!", "#DIV/0!", "#NAME?", "#SYNTAX!", "#CYCLE!"}
+logger = logging.getLogger(__name__)
 
 
 def _ok(value: FormulaValue) -> dict[str, Any]:
@@ -164,8 +166,9 @@ def _tokenize(source: str) -> list[_Token]:
 def parse_formula(expression: str):
     try:
         return {"ok": True, "value": None, "ast": _Parser(_tokenize(expression)).parse()}
-    except (ValueError, json.JSONDecodeError) as exc:
-        return _error("#SYNTAX!", str(exc))
+    except (ValueError, json.JSONDecodeError):
+        logger.warning("Formula parsing failed", exc_info=True)
+        return _error("#SYNTAX!", "Invalid formula syntax")
 
 
 def _formula_nodes(ast):

@@ -72,13 +72,15 @@ export function TableChrome({
   addRow?: ReactNode;
 }) {
   return (
-    <section className={`table-layout-chrome ${className}`} {...props}>
-      <header className="table-layout-chrome__bar">
-        <h3 className="table-layout-chrome__title">{title}</h3>
-        {toolbar && <div className="table-layout-chrome__toolbar">{toolbar}</div>}
-      </header>
-      {children}
+    <>
+      <section className={`table-layout-chrome ${className}`} {...props}>
+        <header className="table-layout-chrome__bar">
+          <h3 className="table-layout-chrome__title">{title}</h3>
+          {toolbar && <div className="table-layout-chrome__toolbar">{toolbar}</div>}
+        </header>
+        {children}
+      </section>
       {addRow && <div className="table-layout-chrome__add-row">{addRow}</div>}
-    </section>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Database, Loader, Plus, Trash2, Upload } from "lucide-react";
+import { ChartColumn, Database, Loader, Plus, Trash2, Upload } from "lucide-react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { GridColumn } from "../../../shell/src/shared/types/types";
@@ -15,6 +15,7 @@ import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { deriveForeground, resolveColorHex } from "../../../shell/src/shared/components/IconBadge";
 import { Button } from "../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import {
   StickyActionCell,
   StickyActionHeader,
@@ -179,6 +180,24 @@ export function ResultTableContent({
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
   const counter = useRef(rows.length + 1);
+
+  const handleTitleBlur = useCallback(
+    (event: React.FocusEvent<HTMLSpanElement>) => {
+      const newTitle = event.currentTarget.textContent?.trim() || "Result Table";
+      if (newTitle !== title) updateAttrs({ title: newTitle });
+    },
+    [title, updateAttrs],
+  );
+
+  const handleTitleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLSpanElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.currentTarget.blur();
+      }
+    },
+    [],
+  );
   const { triggerRef, panelRef, position } = usePickerPortal({
     open: pickerOpen,
     onClose: () => setPickerOpen(false),
@@ -426,10 +445,23 @@ export function ResultTableContent({
     <TableChrome
       className="w-full table-layout-chrome--compact"
       data-testid="result-table-loaded"
-      title={
-        <span className="inline-flex items-center gap-2">
-          <Database className="h-4 w-4" aria-hidden="true" />
-          {title}
+        title={
+          <span className="inline-flex items-center gap-2">
+          <ChartColumn className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {readOnly ? (
+            <span data-testid="result-table-title">{title}</span>
+          ) : (
+            <span
+              className="outline-none focus:outline-none"
+              contentEditable
+              suppressContentEditableWarning
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+              data-testid="result-table-title"
+            >
+              {title}
+            </span>
+          )}
           <span className="text-xs font-normal text-muted-foreground">
             {schemaName}
           </span>
@@ -437,21 +469,22 @@ export function ResultTableContent({
       }
       toolbar={
         !readOnly && (
-          <Button
-            variant="primary"
-            size="sm"
+          <IconButton
             onClick={register}
             disabled={registering || previewMode}
+            aria-label="Register results"
+            title="Register results"
+            variant="primary"
+            size="sm"
+            className="table-layout-register-button"
             data-testid="result-register-btn"
           >
             {registering ? (
-              <Loader className="h-4 w-4" />
+              <Loader className="h-4 w-4 shrink-0" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
             ) : (
-              <>
-                <Upload className="h-4 w-4" /> Register
-              </>
+              <Upload className="h-4 w-4 shrink-0" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
             )}
-          </Button>
+          </IconButton>
         )
       }
       addRow={

@@ -89,7 +89,7 @@ function SettingsPage() {
           ? [{ name: "Entity", type: "reference" }]
           : [],
         icon: activeTab === "result" ? "chart-column" : newIcon,
-        color: activeTab === "result" ? "muted" : newColor,
+        color: activeTab === "result" ? "hazard" : newColor,
       };
       await post("/schemas/", payload);
       setShowNew(false);
@@ -228,7 +228,7 @@ function SettingsPage() {
           schema_type: s.schema_type,
           columns: s.columns,
           icon: s.tags?.includes("ResultTable") ? "chart-column" : s.icon,
-          color: s.color,
+          color: s.tags?.includes("ResultTable") ? "hazard" : s.color,
         };
         await put(`/schemas/${s.id}/`, payload);
       } catch {
@@ -275,7 +275,7 @@ function SettingsPage() {
        icon: (
        <IconBadge
          iconKey={activeTab === "result" ? "chart-column" : (s.icon || "circle")}
-         colorKey={s.color || "muted"}
+          colorKey={activeTab === "result" ? "hazard" : (s.color || "muted")}
         size="sm"
       />
     ),

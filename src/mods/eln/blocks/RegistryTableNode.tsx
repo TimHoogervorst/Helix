@@ -725,7 +725,7 @@ export function RegistryTableContent({
         <div className="flex items-center gap-2.5">
           <Database className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <span
-            className="text-sm font-medium text-foreground outline-none"
+            className="text-sm font-medium text-foreground outline-none focus:outline-none"
             contentEditable
             suppressContentEditableWarning
             onBlur={handleTitleBlur}
@@ -796,8 +796,9 @@ export function RegistryTableContent({
           {readOnly ? (
             <span data-testid="registry-table-title">{title}</span>
           ) : (
-            <span
-              contentEditable
+              <span
+                className="outline-none focus:outline-none"
+                contentEditable
               suppressContentEditableWarning
               onBlur={handleTitleBlur}
               onKeyDown={handleTitleKeyDown}
@@ -856,12 +857,15 @@ export function RegistryTableContent({
                 disabled={registering}
                 title="Register entities"
                 aria-label="Register entities"
+                variant="primary"
+                size="sm"
+                className="table-layout-register-button"
                 data-testid="register-entities-btn"
               >
                 {registering ? (
-                  <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Loader className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
                 ) : (
-                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  <Upload className="h-4 w-4 shrink-0" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
                 )}
               </IconButton>
             </>
@@ -871,9 +875,12 @@ export function RegistryTableContent({
               disabled
               title="Registration is disabled in preview"
               aria-label="Register entities"
+              variant="primary"
+              size="sm"
+              className="table-layout-register-button"
               data-testid="register-entities-btn"
             >
-              <Upload className="h-4 w-4" aria-hidden="true" />
+              <Upload className="h-4 w-4 shrink-0" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
             </IconButton>
           )}
         </>

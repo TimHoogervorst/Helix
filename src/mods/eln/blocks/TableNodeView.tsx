@@ -12,11 +12,10 @@
  *
  * All edits sync back to node attributes via ``updateAttributes``.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
-import { Select } from "../../../shell/src/shared/primitives/Input";
 import { TableScroll, TableStretch } from "../../../shell/src/shared/primitives/TableLayout";
 import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
 import {
@@ -50,16 +49,6 @@ interface TableBlockContentProps {
 
 const DEFAULT_TITLE = "Table";
 const NEW_COLUMN_PREFIX = "Column ";
-const MOCK_DROPDOWN_OPTIONS = ["Researcher", "Reviewer", "Operator"];
-const MOCK_ENTITY_OPTIONS = ["ENT-001", "ENT-002", "ENT-003"];
-const PLAIN_COLUMN_TYPES = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "date", label: "Date" },
-  { value: "boolean", label: "Boolean" },
-  { value: "dropdown", label: "Dropdown" },
-  { value: "entity-picker", label: "Entity" },
-] as const;
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -98,27 +87,41 @@ function InlineEdit({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const draftRef = useRef(value);
+  const editorRef = useRef<HTMLSpanElement>(null);
 
   const startEdit = useCallback(() => {
     setDraft(value);
+    draftRef.current = value;
     setEditing(true);
   }, [value]);
 
   const commit = useCallback(() => {
     setEditing(false);
-    const trimmed = draft.trim();
+    const trimmed = draftRef.current.trim();
     if (trimmed && trimmed !== value) {
       onCommit(trimmed);
     } else if (!trimmed && value) {
       // Don't clear the value if it was non-empty
       setDraft(value);
     }
-  }, [draft, value, onCommit]);
+  }, [value, onCommit]);
 
   const cancel = useCallback(() => {
     setEditing(false);
     setDraft(value);
+    draftRef.current = value;
   }, [value]);
+
+  useEffect(() => {
+    if (!editing || !editorRef.current) return;
+    editorRef.current.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(editorRef.current);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [editing]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -135,17 +138,22 @@ function InlineEdit({
 
   if (editing && !readOnly) {
     return (
-      <input
-        type="text"
-        className={`w-full border border-primary/30 bg-panel px-1 py-0.5 text-inherit outline-none focus:border-primary ${className}`}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+      <span
+        ref={editorRef}
+        className={`outline-none focus:outline-none ${className}`}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        onInput={(e) => {
+          draftRef.current = e.currentTarget.textContent ?? "";
+        }}
         onBlur={commit}
         onKeyDown={handleKeyDown}
-        autoFocus
         aria-label={ariaLabel}
         data-testid={dataTestId}
-      />
+      >
+        {draft}
+      </span>
     );
   }
 
@@ -207,20 +215,10 @@ export function TableBlockContent({
     [columns, updateAttrs],
   );
 
-  const handleColumnTypeChange = useCallback(
-    (colId: string, type: string) => {
-      const updated = columns.map((column) =>
-        column.id === colId ? { ...column, type } : column,
-      );
-      updateAttrs({ columns: updated });
-    },
-    [columns, updateAttrs],
-  );
-
   const handleAddColumn = useCallback(() => {
     const id = crypto.randomUUID();
     const name = nextColumnName(columns);
-    const updatedColumns = [...columns, { id, name }];
+    const updatedColumns = [...columns, { id, name, type: "text" }];
     // Backfill empty cell value into all existing rows
     const updatedRows = rows.map((r) => ({
       ...r,
@@ -281,7 +279,7 @@ export function TableBlockContent({
     columnCount: columns.length,
     getValues: () =>
       rows.map((row) =>
-        columns.map((col) => renderCellValue(col.type ?? "text", row.cells[col.id])),
+        columns.map((col) => renderCellValue("text", row.cells[col.id])),
       ),
     onPaste: (anchor, values) => {
       const updatedRows = rows.map((row, rowIndex) => {
@@ -292,7 +290,7 @@ export function TableBlockContent({
           const raw = pastedRow[offset];
           if (raw === undefined) return;
           try {
-            cells[col.id] = parseCellValue(col.type ?? "text", raw);
+            cells[col.id] = parseCellValue("text", raw);
           } catch {
             // Skip values that don't parse for the column's shape
           }
@@ -359,23 +357,6 @@ export function TableBlockContent({
                         aria-label={`Column name: ${col.name}`}
                         data-testid={`column-header-${col.id}`}
                       />
-                      {!readOnly && (
-                        <Select
-                          className="h-auto max-w-24 rounded border-0 bg-transparent p-0 text-2xs font-normal normal-case tracking-normal text-muted-foreground focus:border-transparent focus:ring-2 focus:ring-[var(--color-focus-ring)]"
-                          value={col.type ?? "text"}
-                          onChange={(event) =>
-                            handleColumnTypeChange(col.id, event.currentTarget.value)
-                          }
-                          aria-label={`Column type: ${col.name}`}
-                          data-testid={`column-type-${col.id}`}
-                        >
-                          {PLAIN_COLUMN_TYPES.map((columnType) => (
-                            <option key={columnType.value} value={columnType.value}>
-                              {columnType.label}
-                            </option>
-                          ))}
-                        </Select>
-                      )}
                       {!readOnly && hoveredColumn === col.id && (
                         <button
                           type="button"
@@ -421,23 +402,16 @@ export function TableBlockContent({
                     {columns.map((col, columnIndex) => (
                       <td
                         key={col.id}
-                        className="min-w-[100px] p-0! font-[var(--font-label)] text-sm"
+                        className="h-10 min-w-[100px] p-0! font-[var(--font-label)] text-sm"
                         {...interaction.cellProps({ row: rowIndex, column: columnIndex })}
                       >
                         <TypedFullCell
-                          shape={col.type ?? "text"}
+                           shape="text"
                           value={row.cells[col.id]}
                           onCommit={(value) => handleCellChange(row.id, col.id, value)}
                           position={{ row: rowIndex, column: columnIndex }}
                           interaction={interaction}
                           readOnly={readOnly}
-                          options={
-                            col.type === "dropdown"
-                              ? MOCK_DROPDOWN_OPTIONS
-                              : col.type === "entity-picker"
-                                ? MOCK_ENTITY_OPTIONS
-                                : undefined
-                          }
                           data-testid={`cell-${row.id}-${col.id}`}
                         />
                       </td>

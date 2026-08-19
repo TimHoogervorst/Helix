@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 
 export interface TablePosition {
   row: number;
@@ -85,8 +85,21 @@ export function useTableInteraction({
   const [activeCell, setActiveCell] = useState<TablePosition>({ row: 0, column: 0 });
   const [selectionAnchor, setSelectionAnchor] = useState<TablePosition>({ row: 0, column: 0 });
   const [editingCell, setEditingCell] = useState<TablePosition | null>(null);
+  const [tableIsActive, setTableIsActive] = useState(false);
   const hoveredCellRef = useRef<TablePosition | null>(null);
   const cellKey = (position: TablePosition) => tableId ? `${tableId}:${position.row}:${position.column}` : `${position.row}:${position.column}`;
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !containerRef.current?.contains(target)) {
+        setTableIsActive(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   const focusCell = useCallback((position: TablePosition) => {
     const cell = containerRef.current?.querySelector<HTMLElement>(
@@ -101,12 +114,14 @@ export function useTableInteraction({
       column: Math.max(0, Math.min(columnCount - 1, position.column)),
     };
     setActiveCell(bounded);
+    setTableIsActive(true);
     if (!extendSelection) setSelectionAnchor(bounded);
     focusCell(bounded);
   }, [columnCount, focusCell, rowCount]);
 
   const activateCell = useCallback((position: TablePosition, edit = true) => {
     setActiveCell(position);
+    setTableIsActive(true);
     setSelectionAnchor(position);
     focusCell(position);
     if (edit) setEditingCell(position);
@@ -180,12 +195,13 @@ export function useTableInteraction({
   const cellProps = useCallback((position: TablePosition) => ({
     "data-table-cell": cellKey(position),
     tabIndex: samePosition(activeCell, position) ? 0 : -1,
-    "aria-selected": samePosition(activeCell, position),
+    "aria-selected": tableIsActive && samePosition(activeCell, position),
     onClick: () => activateCell(position),
+    onFocus: () => setTableIsActive(true),
     onMouseEnter: () => { hoveredCellRef.current = position; },
     onMouseLeave: () => { hoveredCellRef.current = null; },
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => handleCellKeyDown(position, event),
-  }), [activateCell, activeCell, handleCellKeyDown, tableId]);
+  }), [activateCell, activeCell, handleCellKeyDown, tableId, tableIsActive]);
 
   return {
     containerRef,

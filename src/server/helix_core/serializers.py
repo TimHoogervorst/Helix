@@ -169,6 +169,16 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate(self, attrs):
+        """Keep Result schema presentation consistent across API clients."""
+        schema_type = attrs.get(
+            "schema_type",
+            self.instance.schema_type if self.instance is not None else None,
+        )
+        if schema_type is not None and schema_type.workspace_id == "results":
+            attrs["color"] = "hazard"
+        return attrs
+
 
 # ── Entity Hub ────────────────────────────────────────────────────────────
 

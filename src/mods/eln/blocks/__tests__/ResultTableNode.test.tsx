@@ -74,9 +74,17 @@ describe("ResultTableContent", () => {
     expect(screen.getByRole("columnheader", { name: "Entity" })).toHaveClass("py-1");
     expect(screen.getByRole("row", { name: /Status Entity Amount/ })).toHaveClass("bg-surface");
     expect(screen.getByTestId("result-status-bar-blue")).toHaveStyle({ backgroundColor: "var(--color-status-blue)" });
-    expect(screen.getByTestId("result-register-btn")).toHaveTextContent("Register");
+    expect(screen.getByTestId("result-register-btn")).toHaveAttribute("aria-label", "Register results");
+    expect(screen.getByTestId("result-register-btn")).toHaveClass("bg-[var(--color-primary)]");
     expect(screen.getByTestId("result-add-row-btn")).toHaveTextContent("New Row");
     expect(screen.queryByRole("button", { name: /refresh schema/i })).not.toBeInTheDocument();
+  });
+
+  it("uses an editable chart header and an icon-only primary register action", () => {
+    render(<ResultTableContent {...props({ schemaId: 7, schemaName: "Assay Result", schemaContentHash: "hash-1", columns: schema.columns })} />);
+
+    expect(screen.getByTestId("result-table-title")).toHaveAttribute("contenteditable", "true");
+    expect(screen.getByTestId("result-register-btn")).toHaveClass("bg-[var(--color-primary)]");
   });
 
   it("constrains the Entity picker to the configured schema type", async () => {

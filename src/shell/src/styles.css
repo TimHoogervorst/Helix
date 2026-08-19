@@ -595,12 +595,27 @@ label {
   height: 2.25rem;
 }
 
+.table-layout-chrome--compact .table-layout-chrome__toolbar > .table-layout-register-button {
+  width: 1.875rem;
+  height: 1.875rem;
+}
+
 .table-layout-chrome--compact thead th {
   padding-block: 0.25rem;
 }
 
+.table-layout-chrome--compact .table-layout-chrome__title {
+  font-size: var(--text-sm);
+}
+
 .table-layout-chrome--compact table {
   font-size: var(--text-sm);
+}
+
+.table-layout-chrome--compact .table-cell-full,
+.table-layout-chrome--compact input.table-cell-full,
+.table-layout-chrome--compact select.table-cell-full {
+  font-size: var(--text-xs);
 }
 
 .table-layout-chrome__title {
@@ -626,7 +641,6 @@ label {
 }
 
 .table-layout-chrome__add-row {
-  border-top: 1px solid var(--color-ink-hairline);
   padding: 0.5rem 1rem;
 }
 

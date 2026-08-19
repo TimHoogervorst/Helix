@@ -372,10 +372,19 @@ _CARD_SEED_KEYS = frozenset({
     "clock", "file-text", "thermometer", "trending-up", "check-circle",
 })
 
+_RESULT_SEED_KEYS = frozenset({"chart-column"})
+
 _EXPECTED_SEED_COUNT = 100  # lowered from full count to account for dedup
 
 
 class IconSeedTests(TestCase):
+    def test_result_icon_is_seeded(self):
+        self.assertTrue(
+            _RESULT_SEED_KEYS.issubset(
+                IconLibraryEntry.objects.values_list("key", flat=True)
+            )
+        )
+
     def test_all_tag_icons_seeded(self):
         existing = set(IconLibraryEntry.objects.values_list("key", flat=True))
         self.assertTrue(

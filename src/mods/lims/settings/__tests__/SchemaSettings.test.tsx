@@ -29,6 +29,7 @@ const STANDARD_COLORS = [
   { key: "warn", label: "Warn", hex: "#e6d9b3", hexDark: "#F2EBC8", hexLight: "#E6D9B3" },
   { key: "muted", label: "Muted", hex: "#d9d9d9", hexDark: "#E8E8E8", hexLight: "#D9D9D9" },
   { key: "success", label: "Success", hex: "#b3e6b3", hexDark: "#C8F2C8", hexLight: "#B3E6B3" },
+  { key: "hazard", label: "Hazard", hex: "#e6b3b3", hexDark: "#E16E6E", hexLight: "#E6B3B3" },
 ];
 
 const STANDARD_ICONS = [
@@ -662,6 +663,7 @@ describe("SchemaSettings", () => {
     await waitFor(() => expect(mockPut).toHaveBeenCalledWith("/schemas/4/", expect.objectContaining({
       name: "Updated Yield",
       icon: "chart-column",
+      color: "hazard",
       columns: [{ name: "Entity", type: "reference", referenceSchemaTypeId: 3 }],
     })));
   });

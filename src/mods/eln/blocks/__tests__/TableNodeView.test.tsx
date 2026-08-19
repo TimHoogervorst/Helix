@@ -4,7 +4,7 @@ import { TableBlockContent, type TableColumn, type TableRow } from "../TableNode
 
 const columns: TableColumn[] = [
   { id: "name", name: "Name" },
-  { id: "amount", name: "Amount", type: "number" },
+  { id: "amount", name: "Amount" },
 ];
 
 const rows: TableRow[] = [
@@ -27,24 +27,14 @@ function renderTable(updateAttrs = vi.fn()) {
 }
 
 describe("TableBlockContent", () => {
-  it("allows each column type to be configured in the table header", () => {
-    const { updateAttrs } = renderTable();
+  it("renders text-only columns without type controls", () => {
+    renderTable();
 
-    expect(screen.getByTestId("column-type-name")).toHaveValue("text");
-    expect(screen.getByTestId("column-type-name").querySelectorAll("option")).toHaveLength(6);
-    fireEvent.change(screen.getByTestId("column-type-name"), {
-      target: { value: "date" },
-    });
-
-    expect(updateAttrs).toHaveBeenCalledWith({
-      columns: [
-        { id: "name", name: "Name", type: "date" },
-        { id: "amount", name: "Amount", type: "number" },
-      ],
-    });
+    expect(screen.queryByTestId("column-type-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("column-type-amount")).not.toBeInTheDocument();
   });
 
-  it("renders dropdown and entity columns through the shared cell registry", () => {
+  it("renders legacy typed columns as text", () => {
     const typedColumns: TableColumn[] = [
       { id: "role", name: "Role", type: "dropdown" },
       { id: "entity", name: "Entity", type: "entity-picker" },
@@ -59,9 +49,9 @@ describe("TableBlockContent", () => {
     );
 
     fireEvent.click(screen.getByTestId("cell-row-1-role"));
-    expect(screen.getByTestId("cell-row-1-role-input")).toBeInstanceOf(HTMLSelectElement);
+    expect(screen.getByTestId("cell-row-1-role-input")).toHaveAttribute("type", "text");
     fireEvent.click(screen.getByTestId("cell-row-1-entity"));
-    expect(screen.getByTestId("cell-row-1-entity-input")).toBeInstanceOf(HTMLSelectElement);
+    expect(screen.getByTestId("cell-row-1-entity-input")).toHaveAttribute("type", "text");
   });
 
   it("commits values through the selected cell behavior", () => {
@@ -69,13 +59,13 @@ describe("TableBlockContent", () => {
 
     fireEvent.click(screen.getByTestId("cell-row-1-amount"));
     const input = screen.getByTestId("cell-row-1-amount-input");
-    expect(input).toHaveAttribute("type", "number");
+    expect(input).toHaveAttribute("type", "text");
     fireEvent.change(input, { target: { value: "12.5" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(updateAttrs).toHaveBeenCalledWith({
       rows: [
-        { id: "row-1", cells: { name: "Sample", amount: 12.5 } },
+        { id: "row-1", cells: { name: "Sample", amount: "12.5" } },
         rows[1],
       ],
     });
@@ -109,7 +99,7 @@ describe("TableBlockContent", () => {
 
     expect(updateAttrs).toHaveBeenCalledWith({
       rows: [
-        { id: "row-1", cells: { name: "Changed", amount: 15.25 } },
+        { id: "row-1", cells: { name: "Changed", amount: "15.25" } },
         rows[1],
       ],
     });

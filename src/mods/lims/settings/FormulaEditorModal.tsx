@@ -134,16 +134,18 @@ export default function FormulaEditorModal({
           {showSuggestions && (
             <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-1 shadow-lg" data-testid="formula-autocomplete">
               {suggestions.map((suggestion) => (
-                <button
+                <Button
                   key={suggestion.id}
                   type="button"
-                  className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-[var(--color-surface-hover)]"
+                  variant="ghost"
+                  size="sm"
+                  className="block! w-full justify-start! rounded px-2 py-1.5 text-left text-xs font-normal!"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => insertSuggestion(suggestion.label)}
                 >
                   <span className="font-medium text-[var(--color-ink)]">{suggestion.label}</span>
                   <span className="ml-2 text-[var(--color-ink-muted-foreground)]">{suggestion.description}</span>
-                </button>
+                </Button>
               ))}
             </div>
           )}

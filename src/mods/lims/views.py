@@ -669,11 +669,16 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         for name, definition in formula_defs.items()
                     },
                 )
-            except Exception as exc:
+            except Exception:
+                logger.exception(
+                    "Formula evaluation failed during recompute (row_index=%s, entity_id=%s).",
+                    row_index,
+                    entity.id,
+                )
                 errors.append({
                     "row_index": row_index,
                     "entity_id": entity.id,
-                    "message": f"Formula evaluation failed: {exc}",
+                    "message": "Formula evaluation failed due to an internal error.",
                 })
                 continue
 

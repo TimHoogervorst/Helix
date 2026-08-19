@@ -35,6 +35,7 @@ Metrics are untouched — they remain SQL aggregates over Views. Formulas do not
 8. As a mod author, I want to register a domain function (e.g. `GC_CONTENT`) in my `mod.py` and have it usable in Computed Fields with no frontend code, so that extending the formula language needs only backend work.
 9. As a mod author with a performance-critical function, I want to additionally register a client implementation, so that tables can preview it in real time while registration stays backend-authoritative.
 10. As a scientist, when a formula divides by zero, I want a visible `#DIV/0!` error in the cell (preview) and a failed row registration with a clear message (registration), so that bad numbers never enter the LIMS silently.
+11. As an organization admin creating a Computed Field, I want to compose the expression in a dedicated editor with autocomplete and a test bench for sample values, so that I can verify the formula works before anyone enters data against it.
 
 ## Implementation Decisions
 
@@ -42,7 +43,7 @@ Metrics are untouched — they remain SQL aggregates over Views. Formulas do not
 
 | | Cell Formula | Computed Field |
 |---|---|---|
-| Authored by | User, in a cell (`=` prefix) | Admin, in schema settings (no `=` prefix) |
+| Authored by | User, in a cell (`=` prefix) | Admin, via the Formula Editor modal in schema settings (no `=` prefix) |
 | Lives in | Document JSON (per-row formula map) | Schema column definition |
 | Available in | Any editable value cell of any table (Plain, Registry, Result) | All schemas (Entity and Result), as the `formula` column type |
 | References | `[Column]` (same row), `[Column:N]` (row N, 1-based data rows) | `[Column]` (sibling columns, same row) |
@@ -131,8 +132,19 @@ Computed Fields are a proper column type registered in the backend column type r
 - Available on **all** schemas — Entity and Result — through the standard column editor.
 - Column definition carries `expression`, `resultType`, and `expression_version`.
 - Cells render read-only through the declared `resultType`'s operand shape (the existing `shape()` resolution in the table nodes already does this).
-- Expression validation is backend-authoritative at schema save: references resolve to sibling columns, no self-reference, functions exist in the catalog, no cycles among the schema's Computed Fields. The ColumnEditor keeps its fast inline validation as UX, but the backend is the authority.
+- Expression editing happens exclusively in the Formula Editor modal (below); validation runs live in the modal and the backend is authoritative at schema save: references resolve to sibling columns, no self-reference, functions exist in the catalog, no cycles among the schema's Computed Fields.
 - Computed Field values are stored entity properties, so they are filterable and sortable in the Entities Hub like any other column.
+
+### Formula Editor modal
+
+Computed Fields are set up through a modal, not an inline input in the column editor:
+
+- The column row shows the expression as a **read-only summary** plus an **Fx button** (sigma icon — the same icon as the column type badge). The button opens the Formula Editor modal; there is no inline expression text input, so the modal is the expression's only editing surface. For a newly created Computed Field column, the button opens the modal on an empty expression.
+- The modal contains three things:
+  1. **Expression input with autocomplete** — sibling column names and functions from the **full** Function Catalog (Computed Fields may use backend-only functions), each function with its signature and description from catalog metadata.
+  2. **Live validation panel** — syntax errors, unknown references, self-reference, cycles: the same rules the backend enforces at schema save, shown while composing.
+  3. **Test bench** — one sample-value input per referenced column and an evaluate action that runs the expression against the samples, so an admin can sanity-check an expression before any table exists. The test bench calls the evaluate gateway — one explicit request, works for every function, consistent with backend authority.
+- The modal is a single component with one consumer in v1 (the LIMS schema settings). Cell Formulas do **not** use it — they are typed and edited in-cell, with lightweight inline autocomplete offering the client-shadowed function subset.
 
 ### Removal of the interim implementation
 
@@ -147,12 +159,13 @@ Computed Fields are a proper column type registered in the backend column type r
 - **Backend engine** (mirroring grammar + authoritative implementations): `helix_core`, next to the column type registry.
 - **Registration surface**: `register_formula_function()` added to the backend mod registration API; `registerFormulaFunction()` added to the frontend mod system registry.
 - **Catalog hydration**: new section of the `GET /api/mod-registry/` payload.
+- **Formula Editor modal**: with the LIMS schema settings (its only v1 consumer), built on the shared engine and the hydrated catalog metadata.
 
 ### Demo scenario (acceptance)
 
 No playground page — the feature is built for real, and the NanoDrop examples are created in the UI after implementation:
 
-1. A NanoDrop Result Schema: inputs `A260`, `A280`, `Dilution`; Computed Fields `Ratio = [A260]/[A280]`, `Concentration = [A260]*50*[Dilution]`, `Quality = IF([Ratio]<1.8,"impure","ok")` — all client-shadowed, live preview while typing.
+1. A NanoDrop Result Schema: inputs `A260`, `A280`, `Dilution`; Computed Fields `Ratio = [A260]/[A280]`, `Concentration = [A260]*50*[Dilution]`, `Quality = IF([Ratio]<1.8,"impure","ok")` — each authored through the Formula Editor modal (autocomplete + test bench against sample readings) — all client-shadowed, live preview while typing.
 2. One Computed Field using a backend-only function (e.g. `SQRT([A260])`) to exercise the placeholder → row Refresh → gateway → patch-back path.
 3. Register → values patch back → edit an input → orange status + dimmed computed cells → Refresh → re-register.
 4. A Plain Table with typed Cell Formulas (`=[A260]/[A280]`, plus one `[Column:N]` reference) proving instant local evaluation, row-insert reference rewriting, and re-evaluation on entry reload.
@@ -169,6 +182,7 @@ Dual implementations are only safe if equivalence is mechanically enforced. A sh
 - **Backend engine** — unit: the same parity fixtures, plus schema expression validation (unknown columns, unknown functions, self-reference, cycles).
 - **Catalog registration** — backend: `register_formula_function()` metadata in the mod registry payload; frontend: `registerFormulaFunction()` validation against the hydrated catalog (unknown id warns and is ignored).
 - **Registration contract** — backend (extend `test_api.py` batch-register suites): computed values recomputed server-side, client-sent formula values ignored, per-row formula errors fail only that row, expression version recorded. Frontend (extend `ResultTableNode.test.tsx` / `RegistryTableNode.test.tsx`): patch-back of computed values, dimmed-stale cells on input change, Refresh menu item calling the gateway, Cell Formula store-as-sent.
+- **Formula Editor modal** — opens from the Fx button, read-only summary reflects the saved expression, autocomplete offers sibling columns + full catalog, validation panel surfaces each rule (unknown reference, self-reference, cycle), test bench calls the evaluate gateway and renders the tagged result.
 - **Cell Formula document round-trip** — formula text persists in document JSON and re-evaluates on reload.
 
 ### Prior art for tests

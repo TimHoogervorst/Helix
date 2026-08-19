@@ -596,7 +596,7 @@ A Formula a user types into an editable table cell, prefixed with `=` (e.g. `=[A
 
 ### Computed Field
 
-A schema column (column type `formula`) whose expression is authored at schema creation and applies to every row. Available on all schemas. Cells are read-only and render through the declared result type. The backend is authoritative: it validates the expression at schema save and computes the stored value at registration; client implementations provide a live, display-only preview. A registered value is stored together with the expression version that produced it — editing an expression marks affected rows stale rather than rewriting stored values.
+A schema column (column type `formula`) whose expression is authored in the Formula Editor at schema creation and applies to every row. Available on all schemas. Cells are read-only and render through the declared result type. The backend is authoritative: it validates the expression at schema save and computes the stored value at registration; client implementations provide a live, display-only preview. A registered value is stored together with the expression version that produced it — editing an expression marks affected rows stale rather than rewriting stored values.
 
 **Synonyms:** formula column (the column type's id is `formula`)
 
@@ -615,6 +615,10 @@ The optional frontend implementation of a Formula Function, registered against t
 ### Evaluate Gateway
 
 The row-scoped endpoint (`POST /api/formulas/evaluate/`) that previews Computed Field values for expressions containing functions without a client implementation, invoked by the row's Refresh action. Display-only infrastructure — stored values come exclusively from the registration path, never from the gateway.
+
+### Formula Editor
+
+The modal opened from the Fx button (sigma icon) on a Computed Field column in schema settings — the expression's only editing surface. Composes the expression with autocomplete over sibling columns and the full Function Catalog, shows live validation, and carries a test bench that evaluates sample values through the Evaluate Gateway. Cell Formulas are edited in-cell and do not use the Formula Editor.
 
 ---
 

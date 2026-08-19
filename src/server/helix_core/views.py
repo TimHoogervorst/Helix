@@ -207,7 +207,9 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     pagination_class = EntityHubPaginator
 
     def get_queryset(self):
-        qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
+        qs = EntityHubView.objects.select_related(
+            "author", "schema__schema_type", "project", "folder"
+        ).all()
         qs = qs.filter(visible_rows_q(self.request.user))
         return self._apply_filters(qs)
 

@@ -587,7 +587,20 @@ label {
 }
 
 .table-layout-chrome--compact .table-layout-chrome__bar {
-  padding-block: 0.375rem;
+  padding-block: 0;
+}
+
+.table-layout-chrome--compact .table-layout-chrome__toolbar > button[aria-label] {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.table-layout-chrome--compact thead th {
+  padding-block: 0.25rem;
+}
+
+.table-layout-chrome--compact table {
+  font-size: var(--text-sm);
 }
 
 .table-layout-chrome__title {

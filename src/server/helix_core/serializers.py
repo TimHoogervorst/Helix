@@ -93,6 +93,11 @@ class SchemaTypeListSerializer(serializers.ModelSerializer):
         dotted Python model path (e.g. ``mods.lims.models.Entity`` →
         ``lims.entity``).
         """
+        # Results share the LIMS Entity persistence model, so their registry
+        # key is intentionally not the public schema type ID.
+        if obj.workspace_id == "results":
+            return "lims.result"
+
         parts = obj.model.split(".")
         if len(parts) >= 4:
             return f"{parts[1]}.{parts[-1].lower()}"
@@ -230,11 +235,9 @@ class EntityHubSerializer(serializers.ModelSerializer):
 
     def get_schema_type_display(self, obj):
         """Human-readable label for the schema_type_id."""
-        mapping = {
-            "eln.notebookentry": "Entry",
-            "lims.entity": "Entity",
-        }
-        return mapping.get(obj.schema_type_id, obj.schema_type_id)
+        if obj.schema_id and obj.schema and obj.schema.schema_type:
+            return obj.schema.schema_type.display_name
+        return obj.schema_type_id
 
     def get_folder_path(self, obj):
         folder = obj.folder

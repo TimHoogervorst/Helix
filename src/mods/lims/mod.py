@@ -91,6 +91,9 @@ def register():
     registry.register_schema_type(
         display_name="Results",
         workspace_id="results",
+        # Result entities share the Entity table but have their own schema
+        # type identity.  Keep this registration key stable because it is
+        # already persisted in SchemaType rows.
         model="mods.lims.models.ResultEntity",
         tags=[ResultTable],
         prefix="RESULT",

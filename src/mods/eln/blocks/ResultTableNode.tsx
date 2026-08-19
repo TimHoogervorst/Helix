@@ -43,6 +43,11 @@ import {
   type FormulaColumn,
   type FormulaRow,
 } from "../../../shell/src/shared/formulas/formulaEngine";
+import {
+  evaluateCellFormulas,
+  rewriteCellFormulaRows,
+  type CellFormulaMap,
+} from "../../../shell/src/shared/formulas/cellFormulas";
 
 export interface ResultTableRow {
   entityId: number | null;
@@ -61,6 +66,7 @@ interface ResultTableProps {
   title: string;
   columns: GridColumn[];
   rows: ResultTableRow[];
+  formulaMap?: CellFormulaMap;
   projectId?: number | null;
   folderId?: number | null;
   updateAttrs: (attrs: Record<string, unknown>) => void;
@@ -204,6 +210,7 @@ export function ResultTableContent({
   title,
   columns,
   rows,
+  formulaMap = {},
   projectId,
   folderId,
   updateAttrs,
@@ -316,7 +323,8 @@ export function ResultTableContent({
     setPickerOpen(false);
   };
 
-  const addRow = () =>
+  const addRow = () => {
+    const nextFormulaMap = rewriteCellFormulaRows(formulaMap, rows.length, "insert");
     updateAttrs({
       rows: [
         ...rows,
@@ -332,7 +340,9 @@ export function ResultTableContent({
           registrationError: null,
         },
       ],
+      ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
     });
+  };
 
   const updateRow = (displayId: string, change: Partial<ResultTableRow>) =>
     updateAttrs({
@@ -340,13 +350,44 @@ export function ResultTableContent({
         row.displayId === displayId ? { ...row, ...change } : row,
       ),
     });
-  const updateValue = (displayId: string, name: string, value: unknown) =>
-    updateRow(displayId, {
-      values: {
-        ...rows.find((row) => row.displayId === displayId)?.values,
-        [name]: value,
-      },
+  const updateValue = (displayId: string, name: string, value: unknown) => {
+    const rowIndex = rows.findIndex((row) => row.displayId === displayId);
+    const nextFormulaMap = { ...formulaMap };
+    const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
+    delete rowFormulas[name];
+    if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
+    else delete nextFormulaMap[String(rowIndex)];
+    updateAttrs({
+      rows: rows.map((row) => row.displayId === displayId
+        ? { ...row, values: { ...row.values, [name]: value } }
+        : row),
+      ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
     });
+  };
+  const updateFormula = (displayId: string, name: string, expression: string) => {
+    const rowIndex = rows.findIndex((row) => row.displayId === displayId);
+    const nextFormulaMap = {
+      ...formulaMap,
+      [String(rowIndex)]: { ...(formulaMap[String(rowIndex)] ?? {}), [name]: expression },
+    };
+    const evaluated = evaluateCellFormulas(
+      rows.map((row) => row.values as Record<string, any>),
+      nextFormulaMap,
+      new Set(valueColumns.filter((column) => column.type === "formula").map((column) => column.name)),
+    );
+    const result = evaluated[rowIndex]?.[name];
+    updateAttrs({
+      rows: rows.map((row, index) => index === rowIndex
+        ? { ...row, values: { ...row.values, [name]: result?.ok ? result.value : null } }
+        : row),
+      formulaMap: nextFormulaMap,
+    });
+  };
+  const localEvaluatedRows = evaluateCellFormulas(
+    rows.map((row) => row.values as Record<string, any>),
+    formulaMap,
+    new Set(valueColumns.filter((column) => column.type === "formula").map((column) => column.name)),
+  );
 
   const interaction = useTableInteraction({
     tableId: "result-table",
@@ -776,20 +817,28 @@ export function ResultTableContent({
                             >
                               <TypedFullCell
                                 shape={shape(column)}
-                                value={
-                                  backendOnly && !refreshed
-                                    ? undefined
-                                    : values[column.name]
-                                }
-                                onCommit={(value) =>
-                                  updateValue(row.displayId, column.name, value)
-                                }
+                                 value={formulaMap[String(rowIndex)]?.[column.name] && localEvaluatedRows[rowIndex]?.[column.name]?.ok
+                                   ? localEvaluatedRows[rowIndex][column.name].value
+                                   : backendOnly && !refreshed
+                                     ? undefined
+                                     : values[column.name]}
+                                 formula={formulaMap[String(rowIndex)]?.[column.name]}
+                                 formulaError={localEvaluatedRows[rowIndex]?.[column.name]?.ok
+                                   ? undefined
+                                   : localEvaluatedRows[rowIndex]?.[column.name]?.error.code}
+                                 onCommit={(value) =>
+                                   updateValue(row.displayId, column.name, value)
+                                 }
+                                 onFormulaCommit={(expression) =>
+                                   updateFormula(row.displayId, column.name, expression)
+                                 }
+                                 formulaEnabled={column.type !== "formula" && shape(column) !== "entity-picker"}
                                 position={{
                                   row: rowIndex,
                                   column: columnIndex + 1,
                                 }}
                                 interaction={interaction}
-                                readOnly={readOnly || column.type === "formula"}
+                                 readOnly={readOnly || column.type === "formula"}
                                 placeholder={
                                   backendOnly && !refreshed
                                     ? "Refresh to calculate"
@@ -829,6 +878,9 @@ export function ResultTableContent({
                                         (item) =>
                                           item.displayId !== row.displayId,
                                       ),
+                                      ...(Object.keys(rewriteCellFormulaRows(formulaMap, rowIndex, "delete")).length
+                                        ? { formulaMap: rewriteCellFormulaRows(formulaMap, rowIndex, "delete") }
+                                        : {}),
                                     });
                                   },
                                 },

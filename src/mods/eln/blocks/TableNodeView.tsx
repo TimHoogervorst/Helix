@@ -23,6 +23,11 @@ import {
   parseCellValue,
   renderCellValue,
 } from "../../../shell/src/shared/components/TableCells";
+import {
+  evaluateCellFormulas,
+  rewriteCellFormulaRows,
+  type CellFormulaMap,
+} from "../../../shell/src/shared/formulas/cellFormulas";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -41,6 +46,7 @@ interface TableBlockContentProps {
   title: string;
   columns: TableColumn[];
   rows: TableRow[];
+  formulaMap?: CellFormulaMap;
   updateAttrs: (attrs: Record<string, unknown>) => void;
   readOnly?: boolean;
 }
@@ -193,6 +199,7 @@ export function TableBlockContent({
   title,
   columns,
   rows,
+  formulaMap = {},
   updateAttrs,
   readOnly = false,
 }: TableBlockContentProps) {
@@ -246,15 +253,37 @@ export function TableBlockContent({
   // ── Row operations ────────────────────────────────────────────────────
   const handleCellChange = useCallback(
     (rowId: string, colId: string, value: unknown) => {
+      const rowIndex = rows.findIndex((r) => r.id === rowId);
+      const nextFormulaMap = { ...formulaMap };
+      const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
+      delete rowFormulas[colId];
+      if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
+      else delete nextFormulaMap[String(rowIndex)];
       const updatedRows = rows.map((r) =>
         r.id === rowId
           ? { ...r, cells: { ...r.cells, [colId]: value } }
           : r,
       );
-      updateAttrs({ rows: updatedRows });
+      updateAttrs(Object.keys(nextFormulaMap).length
+        ? { rows: updatedRows, formulaMap: nextFormulaMap }
+        : { rows: updatedRows });
     },
-    [rows, updateAttrs],
+    [formulaMap, rows, updateAttrs],
   );
+
+  const handleFormulaChange = useCallback((rowId: string, colId: string, expression: string) => {
+    const rowIndex = rows.findIndex((row) => row.id === rowId);
+    const nextFormulaMap = {
+      ...formulaMap,
+      [String(rowIndex)]: { ...(formulaMap[String(rowIndex)] ?? {}), [colId]: expression },
+    };
+    const evaluated = evaluateCellFormulas(rows.map((row) => row.cells as Record<string, any>), nextFormulaMap);
+    const result = evaluated[rowIndex]?.[colId];
+    const updatedRows = rows.map((row, index) => index === rowIndex
+      ? { ...row, cells: { ...row.cells, [colId]: result?.ok ? result.value : null } }
+      : row);
+    updateAttrs({ rows: updatedRows, formulaMap: nextFormulaMap });
+  }, [formulaMap, rows, updateAttrs]);
 
   const handleAddRow = useCallback(() => {
     const id = crypto.randomUUID();
@@ -267,9 +296,13 @@ export function TableBlockContent({
 
   const handleDeleteRow = useCallback(
     (rowId: string) => {
-      updateAttrs({ rows: rows.filter((r) => r.id !== rowId) });
+      const rowIndex = rows.findIndex((row) => row.id === rowId);
+      const nextFormulaMap = rewriteCellFormulaRows(formulaMap, rowIndex, "delete");
+      updateAttrs(Object.keys(nextFormulaMap).length
+        ? { rows: rows.filter((r) => r.id !== rowId), formulaMap: nextFormulaMap }
+        : { rows: rows.filter((r) => r.id !== rowId) });
     },
-    [rows, updateAttrs],
+    [formulaMap, rows, updateAttrs],
   );
 
   // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
@@ -300,6 +333,10 @@ export function TableBlockContent({
       updateAttrs({ rows: updatedRows });
     },
   });
+  const evaluatedRows = evaluateCellFormulas(
+    rows.map((row) => row.cells as Record<string, any>),
+    formulaMap,
+  );
 
   // ── Render ────────────────────────────────────────────────────────────
   const hasRows = rows.length > 0;
@@ -407,8 +444,16 @@ export function TableBlockContent({
                       >
                         <TypedFullCell
                            shape="text"
-                          value={row.cells[col.id]}
-                          onCommit={(value) => handleCellChange(row.id, col.id, value)}
+                           value={evaluatedRows[rowIndex]?.[col.id]?.ok
+                             ? evaluatedRows[rowIndex][col.id].value
+                             : null}
+                           formula={formulaMap[String(rowIndex)]?.[col.id]}
+                           formulaError={evaluatedRows[rowIndex]?.[col.id]?.ok
+                             ? undefined
+                             : evaluatedRows[rowIndex]?.[col.id]?.error.code}
+                           formulaEnabled
+                           onCommit={(value) => handleCellChange(row.id, col.id, value)}
+                           onFormulaCommit={(expression) => handleFormulaChange(row.id, col.id, expression)}
                           position={{ row: rowIndex, column: columnIndex }}
                           interaction={interaction}
                           readOnly={readOnly}

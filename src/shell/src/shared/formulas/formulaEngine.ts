@@ -8,6 +8,12 @@ export interface FormulaError {
 export type FormulaResult =
   { ok: true; value: FormulaValue } | { ok: false; error: FormulaError };
 export type FormulaRow = Record<string, FormulaValue>;
+export interface FormulaTableContext {
+  rows: FormulaRow[];
+  rowIndex: number;
+  formulas?: Record<string, Record<string, string>>;
+  forbiddenColumns?: ReadonlySet<string>;
+}
 export interface FormulaColumn {
   expression: string;
   resultType?: string;
@@ -62,7 +68,10 @@ export function hydrateFormulaCatalog(ids: Iterable<string>): void {
 }
 
 export function getClientFormulaFunctionIds(): ReadonlySet<string> {
-  return new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+  const ids = new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+  return hydratedFunctionIds
+    ? new Set([...ids].filter((id) => hydratedFunctionIds!.has(id)))
+    : ids;
 }
 
 type Ast =
@@ -93,7 +102,10 @@ function tokenize(source: string): Token[] {
     if (c === "[") {
       const end = source.indexOf("]", i + 1);
       if (end < 0 || end === i + 1) throw Error("Invalid column reference");
-      result.push({ kind: "reference", value: source.slice(i + 1, end) });
+      result.push({
+        kind: "reference",
+        value: source.slice(i + 1, end),
+      });
       i = end + 1;
       continue;
     }
@@ -282,19 +294,33 @@ function truth(result: FormulaResult): boolean | FormulaResult {
     result.value !== 0
   );
 }
-function evalAst(ast: Ast, row: FormulaRow): FormulaResult {
+function evalAst(
+  ast: Ast,
+  row: FormulaRow,
+  context?: FormulaTableContext,
+): FormulaResult {
   if (ast.kind === "literal") return pass(ast.value);
-  if (ast.kind === "reference")
-    return Object.prototype.hasOwnProperty.call(row, ast.name)
-      ? pass(row[ast.name])
-      : fail("#REF!", `Unknown column '${ast.name}'`);
+  if (ast.kind === "reference") {
+    const match = ast.name.match(/^(.*):(\d+)$/);
+    const name = match ? match[1] : ast.name;
+    if (context?.forbiddenColumns?.has(name)) {
+      return fail("#REF!", `Column '${name}' cannot be referenced`);
+    }
+    const referencedRow = match
+      ? context?.rows[Number(match[2]) - 1]
+      : context?.rows[context.rowIndex];
+    const source = referencedRow ?? row;
+    return Object.prototype.hasOwnProperty.call(source, name)
+      ? pass(source[name])
+      : fail("#REF!", `Unknown column '${name}'`);
+  }
   if (ast.kind === "unary") {
-    const n = number(evalAst(ast.operand, row));
+    const n = number(evalAst(ast.operand, row, context));
     return typeof n === "number" ? pass(ast.operator === "-" ? -n : n) : n;
   }
   if (ast.kind === "binary") {
-    const left = evalAst(ast.left, row);
-    const right = evalAst(ast.right, row);
+    const left = evalAst(ast.left, row, context);
+    const right = evalAst(ast.right, row, context);
     if (!left.ok) return left;
     if (!right.ok) return right;
     if (["=", "==", "!=", "<>", "<", "<=", ">", ">="].includes(ast.operator)) {
@@ -337,25 +363,25 @@ function evalAst(ast: Ast, row: FormulaRow): FormulaResult {
   }
   const registeredImplementation = clientImplementations.get(ast.name);
   if (registeredImplementation) {
-    const args = ast.args.map((arg) => evalAst(arg, row));
+    const args = ast.args.map((arg) => evalAst(arg, row, context));
     const bad = args.find((arg) => !arg.ok);
     return bad && !bad.ok ? bad : registeredImplementation(args);
   }
   if (ast.name === "IF") {
     if (ast.args.length !== 3)
       return fail("#VALUE!", "IF expects three arguments");
-    const condition = truth(evalAst(ast.args[0], row));
+    const condition = truth(evalAst(ast.args[0], row, context));
     return typeof condition === "boolean"
-      ? evalAst(condition ? ast.args[1] : ast.args[2], row)
+      ? evalAst(condition ? ast.args[1] : ast.args[2], row, context)
       : condition;
   }
   if (ast.name === "IFERROR") {
     if (ast.args.length !== 2)
       return fail("#VALUE!", "IFERROR expects two arguments");
-    const first = evalAst(ast.args[0], row);
-    return first.ok ? first : evalAst(ast.args[1], row);
+    const first = evalAst(ast.args[0], row, context);
+    return first.ok ? first : evalAst(ast.args[1], row, context);
   }
-  const args = ast.args.map((arg) => evalAst(arg, row));
+  const args = ast.args.map((arg) => evalAst(arg, row, context));
   const bad = args.find((arg) => !arg.ok);
   if (bad && !bad.ok) return bad;
   const values = args.map(
@@ -438,6 +464,18 @@ export function evaluateFormula(
 ): FormulaResult {
   const parsed = parseFormula(expression);
   return parsed.ok && parsed.ast ? evalAst(parsed.ast, row) : parsed;
+}
+
+/** Evaluate a document-local formula against a complete table of data rows. */
+export function evaluateCellFormula(
+  expression: string,
+  row: FormulaRow,
+  context: FormulaTableContext,
+): FormulaResult {
+  const parsed = parseFormula(expression.replace(/^=/, ""));
+  return parsed.ok && parsed.ast
+    ? evalAst(parsed.ast, row, context)
+    : parsed;
 }
 function refs(ast: Ast, result: Set<string>) {
   if (ast.kind === "reference") result.add(ast.name);

@@ -75,6 +75,7 @@ export const tableBlock = mod.registerBlock("table", {
       { id: "row-1", cells: { "col-1": "", "col-2": "" } },
       { id: "row-2", cells: { "col-1": "", "col-2": "" } },
     ],
+    formulaMap: {},
   },
 });
 
@@ -150,6 +151,7 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
     title: "Registry Table",
     columns: [],
     rows: [],
+    formulaMap: {},
   },
 });
 
@@ -174,6 +176,7 @@ export const resultTableBlock = mod.registerBlock("result-table", {
     title: "Result Table",
     columns: [],
     rows: [],
+    formulaMap: {},
   },
 });
 

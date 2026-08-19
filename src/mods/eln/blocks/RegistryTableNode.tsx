@@ -48,6 +48,11 @@ import {
   type FormulaColumn,
   type FormulaRow,
 } from "../../../shell/src/shared/formulas/formulaEngine";
+import {
+  evaluateCellFormulas,
+  rewriteCellFormulaRows,
+  type CellFormulaMap,
+} from "../../../shell/src/shared/formulas/cellFormulas";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -283,6 +288,7 @@ interface RegistryTableContentProps {
   title: string;
   columns: GridColumn[];
   rows: RegistryTableRow[];
+  formulaMap?: CellFormulaMap;
   /** Project containing the current ELN entry, used for new entities. */
   projectId?: number | null;
   /** Folder containing the current ELN entry, used for new entities. */
@@ -326,6 +332,7 @@ export function RegistryTableContent({
   title,
   columns,
   rows,
+  formulaMap = {},
   projectId,
   folderId,
   updateAttrs,
@@ -473,10 +480,38 @@ export function RegistryTableContent({
           values: { ...r.values, [columnName]: newValue },
         };
       });
-      updateAttrs({ rows: updatedRows });
+      const rowIndex = rows.findIndex((row) => row.displayId === rowDisplayId);
+      const nextFormulaMap = { ...formulaMap };
+      const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
+      delete rowFormulas[columnName];
+      if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
+      else delete nextFormulaMap[String(rowIndex)];
+      updateAttrs(Object.keys(nextFormulaMap).length
+        ? { rows: updatedRows, formulaMap: nextFormulaMap }
+        : { rows: updatedRows });
     },
-    [rows, updateAttrs],
+    [formulaMap, rows, updateAttrs],
   );
+
+  const handleFormulaCommit = useCallback((rowDisplayId: string, columnName: string, expression: string) => {
+    const rowIndex = rows.findIndex((row) => row.displayId === rowDisplayId);
+    const nextFormulaMap = {
+      ...formulaMap,
+      [String(rowIndex)]: { ...(formulaMap[String(rowIndex)] ?? {}), [columnName]: expression },
+    };
+    const evaluated = evaluateCellFormulas(
+      rows.map((row) => row.values as Record<string, any>),
+      nextFormulaMap,
+      new Set(columns.filter((column) => column.type === "formula").map((column) => column.name)),
+    );
+    const result = evaluated[rowIndex]?.[columnName];
+    updateAttrs({
+      rows: rows.map((row, index) => index === rowIndex
+        ? { ...row, values: { ...row.values, [columnName]: result?.ok ? result.value : null } }
+        : row),
+      formulaMap: nextFormulaMap,
+    });
+  }, [formulaMap, rows, updateAttrs]);
 
   const formulaColumns = columns.filter(
     (column) => column.type === "formula" && column.expression,
@@ -606,6 +641,11 @@ export function RegistryTableContent({
       updateAttrs({ rows: updatedRows });
     },
   });
+  const localEvaluatedRows = evaluateCellFormulas(
+    rows.map((row) => row.values as Record<string, any>),
+    formulaMap,
+    new Set(columns.filter((column) => column.type === "formula").map((column) => column.name)),
+  );
 
   // ── Add row ──────────────────────────────────────────────────────────
   const handleAddRow = useCallback(() => {
@@ -618,11 +658,15 @@ export function RegistryTableContent({
       lastRegisteredValueHash: null,
       registrationError: null,
     };
-    updateAttrs({ rows: [...rows, newRow] });
+    const nextFormulaMap = rewriteCellFormulaRows(formulaMap, rows.length, "insert");
+    updateAttrs({
+      rows: [...rows, newRow],
+      ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
+    });
 
     // Emit custom domain action via context.emitAction (fail-open).
     emitAction?.("row-added", { rowCount: rows.length + 1 });
-  }, [rows, columns, updateAttrs, emitAction]);
+  }, [formulaMap, rows, columns, updateAttrs, emitAction]);
 
   // ── Delete row ───────────────────────────────────────────────────────
   const handleDeleteRow = useCallback(
@@ -640,9 +684,17 @@ export function RegistryTableContent({
           );
         }
       }
-      updateAttrs({ rows: rows.filter((r) => r.displayId !== rowDisplayId) });
+      const nextFormulaMap = rewriteCellFormulaRows(
+        formulaMap,
+        rows.findIndex((r) => r.displayId === rowDisplayId),
+        "delete",
+      );
+      updateAttrs({
+        rows: rows.filter((r) => r.displayId !== rowDisplayId),
+        ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
+      });
     },
-    [previewMode, rows, updateAttrs],
+    [formulaMap, previewMode, rows, updateAttrs],
   );
 
   // ── Refresh schema ───────────────────────────────────────────────────
@@ -1157,14 +1209,22 @@ export function RegistryTableContent({
                       >
                         <TypedFullCell
                           shape={shape}
-                          value={
-                            backendOnlyColumns.includes(col) && !refreshed
-                              ? undefined
-                              : values[col.name]
-                          }
-                          onCommit={(value) =>
-                            handleCellCommit(row.displayId, col.name, value)
-                          }
+                           value={formulaMap[String(rowIndex)]?.[col.name] && localEvaluatedRows[rowIndex]?.[col.name]?.ok
+                             ? localEvaluatedRows[rowIndex][col.name].value
+                             : backendOnlyColumns.includes(col) && !refreshed
+                               ? undefined
+                               : values[col.name]}
+                           formula={formulaMap[String(rowIndex)]?.[col.name]}
+                           formulaError={localEvaluatedRows[rowIndex]?.[col.name]?.ok
+                             ? undefined
+                             : localEvaluatedRows[rowIndex]?.[col.name]?.error.code}
+                           onCommit={(value) =>
+                             handleCellCommit(row.displayId, col.name, value)
+                           }
+                           onFormulaCommit={(expression) =>
+                             handleFormulaCommit(row.displayId, col.name, expression)
+                           }
+                           formulaEnabled={col.type !== "formula" && shape !== "entity-picker"}
                           position={{ row: rowIndex, column: columnIndex + 1 }}
                           interaction={interaction}
                           readOnly={readOnly || col.type === "formula"}

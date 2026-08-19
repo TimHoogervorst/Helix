@@ -70,6 +70,8 @@ export interface RegistryTableRow {
   isRegistered: boolean;
   /** SHA-256 hash of values at last successful registration (null if never registered). */
   lastRegisteredValueHash: string | null;
+  /** Schema hash that produced the last successful registration. */
+  lastRegisteredSchemaContentHash?: string | null;
   /** Error message from the most recent failed registration attempt. */
   registrationError: string | null;
 }
@@ -135,24 +137,22 @@ type DotColor = "red" | "yellow" | "orange" | "blue" | "green";
 /**
  * Computes the status color for a row following the priority rules:
  * - Red: registration error exists
- * - Yellow: schema content hash unavailable (stored hash is null → can't verify match)
+ * - Yellow: schema content hash is unavailable or differs from registration
  * - Orange: row data changed since last registration
  * - Blue: unregistered with no errors
  * - Green: registered, schema matches, data unchanged
  *
- * NOTE: Full yellow-dot detection (comparing stored schemaContentHash against
- * the current EntityType hash from the API) requires fetching the EntityType
- * on every render, which is deferred to a future enhancement.  The current
- * implementation shows yellow when a row is registered but no schema hash was
- * captured at schema-load time.
  */
 function getDotColor(row: RegistryTableRow, schemaContentHash: string | null): DotColor {
   // Red: registration error — highest priority
   if (row.registrationError) return "red";
 
   if (row.isRegistered && row.entityId !== null) {
-    // Yellow: schema content hash unavailable — can't verify match
-    if (!schemaContentHash) return "yellow";
+    // Yellow: schema hash unavailable or changed since registration.
+    if (
+      !schemaContentHash ||
+      row.lastRegisteredSchemaContentHash !== schemaContentHash
+    ) return "yellow";
 
     // Orange: data changed since last registration
     if (row.lastRegisteredValueHash !== null) {
@@ -192,6 +192,7 @@ function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boole
   if (!row.isRegistered || row.entityId === null) return false;
   if (row.registrationError) return false;
   if (!schemaContentHash) return false;
+  if (row.lastRegisteredSchemaContentHash !== schemaContentHash) return false;
   if (row.lastRegisteredValueHash === null) return false;
   return computeRowSnapshot(row) === row.lastRegisteredValueHash;
 }
@@ -266,6 +267,7 @@ interface BatchRegisterResult {
   display_id: string;
   status: string;
   values?: Record<string, unknown>;
+  schema_content_hash?: string;
 }
 
 interface BatchRegisterError {
@@ -818,7 +820,9 @@ export function RegistryTableContent({
             displayId: result.display_id,
             isRegistered: true,
             lastRegisteredValueHash: hash,
-             registrationError: null,
+            lastRegisteredSchemaContentHash:
+              result.schema_content_hash ?? schemaContentHash,
+            registrationError: null,
            };
            if (backendOnlyColumns.length > 0) {
              setRefreshedSnapshots((current) => ({

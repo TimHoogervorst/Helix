@@ -76,6 +76,10 @@ class ContentHashedModel(models.Model):
         canonical = json.dumps(hash_data, sort_keys=True)
         return hashlib.sha256(canonical.encode()).hexdigest()
 
+    def columns_for_hash(self):
+        """Return the column definitions represented by this model."""
+        return self.columns
+
     def save(self, *args, **kwargs):
         """Ensure every column has an id and the content hash is up-to-date."""
         if self.columns:
@@ -103,7 +107,7 @@ class ContentHashedModel(models.Model):
                     column["expression_version"] = old.get(
                         "expression_version", column.get("expression_version", 1)
                     )
-        self.content_hash = self.compute_content_hash(self.columns or [])
+        self.content_hash = self.compute_content_hash(self.columns_for_hash() or [])
         super().save(*args, **kwargs)
 
 
@@ -219,6 +223,10 @@ class Schema(ContentHashedModel):
 
     def __str__(self):
         return f"{self.name} [{self.prefix}]"
+
+    def columns_for_hash(self):
+        """Hash type-level and schema-level definitions as one schema."""
+        return [*(self.schema_type.columns or []), *(self.columns or [])]
 
 
 # ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────

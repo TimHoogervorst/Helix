@@ -75,6 +75,9 @@ vi.mock("lucide-react", () => ({
   Hash: (props: Record<string, unknown>) => (
     <span data-testid="icon-hash" {...props}>#</span>
   ),
+  Sigma: (props: Record<string, unknown>) => (
+    <span data-testid="icon-sigma" {...props}>sum</span>
+  ),
   Clock: (props: Record<string, unknown>) => (
     <span data-testid="icon-clock" {...props}>🕐</span>
   ),
@@ -273,6 +276,7 @@ function makeRow(overrides?: Partial<RegistryTableRow>): RegistryTableRow {
     values: { Volume: 10, "Collection Date": "2025-06-15" },
     isRegistered: false,
     lastRegisteredValueHash: null,
+    lastRegisteredSchemaContentHash: null,
     registrationError: null,
     ...overrides,
   };
@@ -699,6 +703,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       isRegistered: true,
       values,
       lastRegisteredValueHash: hash,
+      lastRegisteredSchemaContentHash: "abc123def456",
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -711,6 +716,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       isRegistered: true,
       values: { Volume: 20 },
       lastRegisteredValueHash: "different-hash",
+      lastRegisteredSchemaContentHash: "abc123def456",
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -728,6 +734,20 @@ describe("RegistryTableBlockComponent — status bars", () => {
       },
       { schemaContentHash: null },
     );
+    render(<RegistryTableBlockComponent {...props} />);
+    expect(screen.getByTestId("status-bar-yellow")).toBeInTheDocument();
+  });
+
+  it("shows yellow bar when the registered schema hash is stale", () => {
+    const values = { Volume: 10 };
+    const { props } = renderWithRow({
+      entityId: 1,
+      isRegistered: true,
+      values,
+      lastRegisteredValueHash: computeSnapshot(values, "Sample 1"),
+      lastRegisteredSchemaContentHash: "old-hash",
+      registrationError: null,
+    }, { schemaContentHash: "new-hash" });
     render(<RegistryTableBlockComponent {...props} />);
     expect(screen.getByTestId("status-bar-yellow")).toBeInTheDocument();
   });
@@ -762,6 +782,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       isRegistered: true,
       values: { Volume: 30 },
       lastRegisteredValueHash: computeSnapshot({ Volume: 10 }, "Sample 1"),
+      lastRegisteredSchemaContentHash: "abc123def456",
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -1930,6 +1951,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       values: { Volume: 10 },
       isRegistered: true,
       lastRegisteredValueHash: greenHash,
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: null,
     };
 
@@ -1948,6 +1970,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       values: { Volume: 99 },
       isRegistered: true,
       lastRegisteredValueHash: "old-different-hash",
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: null,
     };
 
@@ -1959,6 +1982,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       values: { Volume: 7 },
       isRegistered: true,
       lastRegisteredValueHash: computeSnapshot({ Volume: 7 }, "Error Sample"),
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: "Previous error",
     };
 
@@ -2402,6 +2426,7 @@ describe("RegistryTableContent — Register Entities error path", () => {
       values: { Volume: 5 },
       isRegistered: true,
       lastRegisteredValueHash: greenHash,
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: null,
     };
     const blueRow = makeRow({ displayId: "#new-1", __name: "Blue", values: { Volume: 10 } });
@@ -2487,10 +2512,11 @@ describe("RegistryTableContent — green row detection", () => {
       entityId: 1,
       displayId: "BLOOD1",
       __name: "Green",
-      values: { Volume: 10 },
-      isRegistered: true,
-      lastRegisteredValueHash: hash,
-      registrationError: null,
+       values: { Volume: 10 },
+       isRegistered: true,
+       lastRegisteredValueHash: hash,
+       lastRegisteredSchemaContentHash: "abc123",
+       registrationError: null,
     };
 
     render(

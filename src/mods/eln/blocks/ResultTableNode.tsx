@@ -56,6 +56,8 @@ export interface ResultTableRow {
   values: Record<string, unknown>;
   isRegistered: boolean;
   lastRegisteredValueHash: string | null;
+  /** Schema hash that produced the last successful registration. */
+  lastRegisteredSchemaContentHash?: string | null;
   registrationError: string | null;
 }
 
@@ -81,6 +83,7 @@ interface BatchResponse {
     entity_id: number;
     display_id: string;
     values?: Record<string, unknown>;
+    schema_content_hash?: string;
   }[];
   errors: { row_index: number; message: string }[];
 }
@@ -131,6 +134,7 @@ function isCurrent(
     row.isRegistered &&
     row.entityId !== null &&
     !!hash &&
+    row.lastRegisteredSchemaContentHash === hash &&
     row.lastRegisteredValueHash === snapshot(row, values) &&
     !row.registrationError
   );
@@ -484,6 +488,8 @@ export function ResultTableContent({
           displayId: result.display_id,
           isRegistered: true,
           lastRegisteredValueHash: snapshot(item.row, registeredValues),
+          lastRegisteredSchemaContentHash:
+            result.schema_content_hash ?? schemaContentHash,
           registrationError: null,
         };
       });
@@ -733,10 +739,11 @@ export function ResultTableContent({
                   const current = isCurrent(row, values, schemaContentHash);
                   const status: ResultStatus = row.registrationError
                     ? "red"
-                    : !row.isRegistered
-                      ? "blue"
-                      : !schemaContentHash
-                        ? "yellow"
+                      : !row.isRegistered
+                        ? "blue"
+                        : !schemaContentHash ||
+                            row.lastRegisteredSchemaContentHash !== schemaContentHash
+                          ? "yellow"
                         : current
                           ? "green"
                           : "orange";

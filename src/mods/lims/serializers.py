@@ -182,6 +182,30 @@ class EntitySerializer(serializers.ModelSerializer):
         Open references only receive format validation.
         """
         schema_instance = self._resolve_schema_for_validation()
+        formula_names = {
+            column.get("name")
+            for column in (
+                (schema_instance.schema_type.columns if schema_instance else [])
+                + (schema_instance.columns if schema_instance else [])
+            )
+            if column.get("type") == "formula" and column.get("name")
+        }
+        if self.instance is not None:
+            properties = dict(properties)
+            for name in formula_names:
+                if name in properties and properties[name] != self.instance.properties.get(name):
+                    raise serializers.ValidationError(
+                        {name: "Computed values can only be changed by registration or recompute."}
+                    )
+                if name in self.instance.properties:
+                    properties[name] = self.instance.properties[name]
+            for key in ("_computed_field_versions", "_computed_field_schema_hash"):
+                if key in self.instance.properties:
+                    properties[key] = self.instance.properties[key]
+        elif formula_names.intersection(properties):
+            raise serializers.ValidationError(
+                "Computed values must be produced by entity registration."
+            )
         return validate_reference_properties(properties, schema_instance)
 
     def _resolve_schema_for_validation(self):

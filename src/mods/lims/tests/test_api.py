@@ -504,6 +504,10 @@ class BatchRegisterComputedFieldTests(BaseTestCase):
         entity = Entity.objects.get(pk=result["entity_id"])
         self.assertEqual(entity.properties["Ratio"], 2)
         self.assertEqual(entity.properties["_computed_field_versions"], {"Ratio": 1})
+        self.assertEqual(
+            entity.properties["_computed_field_schema_hash"],
+            self.result_schema.content_hash,
+        )
 
     def test_formula_error_only_fails_its_row(self):
         response = self.client.post(

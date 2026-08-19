@@ -259,6 +259,36 @@ class SchemaColumnIdTests(TestCase):
         self.assertIn("id", schema.columns[0])
         self.assertEqual(len(schema.columns[0]["id"]), 36)
 
+    def test_formula_expression_update_increments_version_and_hash(self):
+        """Editing a formula creates a new traceable schema revision."""
+        schema = Schema.objects.create(
+            name="Formula Schema",
+            prefix="FORMULA",
+            schema_type=self.schema_type,
+            columns=[
+                {"name": "Amount", "type": "number"},
+                {
+                    "name": "Total",
+                    "type": "formula",
+                    "expression": "[Amount] * 2",
+                    "resultType": "number",
+                },
+            ],
+        )
+        original_hash = schema.content_hash
+        self.assertEqual(schema.columns[1]["expression_version"], 1)
+
+        schema.columns[1]["expression"] = "[Amount] * 3"
+        schema.save()
+        schema.refresh_from_db()
+
+        self.assertEqual(schema.columns[1]["expression_version"], 2)
+        self.assertNotEqual(schema.content_hash, original_hash)
+
+        schema.save()
+        schema.refresh_from_db()
+        self.assertEqual(schema.columns[1]["expression_version"], 2)
+
 
 # ── Content Hash ────────────────────────────────────────────────────────────
 

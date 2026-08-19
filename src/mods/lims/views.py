@@ -71,7 +71,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     search_fields = ["name", "display_id"]
 
     def get_permissions(self):
-        if self.action == "delete_all":
+        if self.action in ("delete_all", "recompute"):
             return [IsOrganizationAdmin()]
         return super().get_permissions()
 
@@ -462,6 +462,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     field: definition.get("expression_version", 1)
                     for field, definition in formula_defs.items()
                 }
+                persisted_values["_computed_field_schema_hash"] = schema.content_hash
 
             # ── Column-type validation for each property value ──────────
             row_has_errors = False
@@ -545,6 +546,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "display_id": entity.display_id,
                         "status": "updated",
                         "values": formula_values,
+                        "schema_content_hash": schema.content_hash,
                     })
                 except Entity.DoesNotExist:
                     errors.append({
@@ -570,6 +572,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "display_id": existing.display_id,
                         "status": "updated",
                         "values": formula_values,
+                        "schema_content_hash": schema.content_hash,
                     })
                 else:
                     entity = Entity.objects.create(
@@ -586,6 +589,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "display_id": entity.display_id,
                         "status": "created",
                         "values": formula_values,
+                        "schema_content_hash": schema.content_hash,
                     })
 
         # Action logging — log eln.entities.registered
@@ -609,6 +613,130 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 logger.exception(
                     "Action logging failed for EntityViewSet.batch_register"
                 )
+
+        return Response({"results": results, "errors": errors})
+
+    @action(detail=False, methods=["post"])
+    def recompute(self, request):
+        """Explicitly recompute all registered entities for a schema.
+
+        This is intentionally separate from table registration: expression
+        edits never rewrite stored values until an administrator requests it.
+        """
+        from helix_core.column_types import registry as column_type_registry
+        from helix_core.formulas import evaluate_row
+        from helix_core.models import Schema
+
+        schema_id = request.data.get("schema_id")
+        try:
+            schema = Schema.objects.get(pk=schema_id)
+        except (Schema.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {"detail": f"Schema with id {schema_id} not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        column_defs: dict[str, dict] = {}
+        for column in schema.schema_type.columns + schema.columns:
+            name = column.get("name")
+            if name:
+                column_defs[name] = column
+        formula_defs = {
+            name: definition
+            for name, definition in column_defs.items()
+            if definition.get("type") == "formula"
+        }
+        results = []
+        errors = []
+
+        for row_index, entity in enumerate(
+            Entity.objects.filter(schema=schema).order_by("pk")
+        ):
+            input_values = {
+                key: value
+                for key, value in entity.properties.items()
+                if key not in formula_defs
+                and key not in {
+                    "_computed_field_versions",
+                    "_computed_field_schema_hash",
+                }
+            }
+            try:
+                formula_results = evaluate_row(
+                    input_values,
+                    {
+                        name: {"expression": definition["expression"]}
+                        for name, definition in formula_defs.items()
+                    },
+                )
+            except Exception as exc:
+                errors.append({
+                    "row_index": row_index,
+                    "entity_id": entity.id,
+                    "message": f"Formula evaluation failed: {exc}",
+                })
+                continue
+
+            formula_error = next(
+                (
+                    (name, result)
+                    for name, result in formula_results.items()
+                    if name in formula_defs and not result["ok"]
+                ),
+                None,
+            )
+            if formula_error is not None:
+                field, result = formula_error
+                errors.append({
+                    "row_index": row_index,
+                    "entity_id": entity.id,
+                    "field": field,
+                    "message": f"{result['error']['code']}: {result['error']['message']}",
+                })
+                continue
+
+            formula_values = {
+                name: formula_results[name]["value"] for name in formula_defs
+            }
+            type_error = next(
+                (
+                    (name, value)
+                    for name, value in formula_values.items()
+                    if (
+                        (column_type := column_type_registry.get_column_type(
+                            formula_defs[name].get("resultType")
+                        )) is None
+                        or column_type.validate(value) is not True
+                    )
+                ),
+                None,
+            )
+            if type_error is not None:
+                field, _ = type_error
+                errors.append({
+                    "row_index": row_index,
+                    "entity_id": entity.id,
+                    "field": field,
+                    "message": "Computed value does not match its result type.",
+                })
+                continue
+
+            entity.properties = {
+                **input_values,
+                **formula_values,
+                "_computed_field_versions": {
+                    field: definition.get("expression_version", 1)
+                    for field, definition in formula_defs.items()
+                },
+                "_computed_field_schema_hash": schema.content_hash,
+            }
+            entity.save(update_fields=["properties"])
+            results.append({
+                "entity_id": entity.id,
+                "display_id": entity.display_id,
+                "values": formula_values,
+                "schema_content_hash": schema.content_hash,
+            })
 
         return Response({"results": results, "errors": errors})
 

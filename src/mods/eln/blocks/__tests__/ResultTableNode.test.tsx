@@ -352,7 +352,7 @@ describe("ResultTableContent", () => {
       entityId: 22,
       displayId: "ASSAY1",
       sourceEntityId: "BLOOD1",
-      values: { Amount: 4, Root: 2 },
+      values: { Amount: 4 },
       isRegistered: true,
       lastRegisteredValueHash: null,
       registrationError: null,
@@ -382,7 +382,7 @@ describe("ResultTableContent", () => {
     await waitFor(() =>
       expect(mockPost).toHaveBeenCalledWith("/formulas/evaluate/", {
         expression: "SQRT([Amount])",
-        row: { Amount: 4, Root: 2 },
+      row: { Amount: 4 },
       }),
     );
     expect(updateAttrs).toHaveBeenCalledWith(

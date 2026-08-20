@@ -37,11 +37,7 @@ import MoreActions from "../components/MoreActions";
 import type { EntityTypeSummary } from "../types";
 import type { ElnSidebarData } from "./sidebarData";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import {
-  evaluateRow,
-  type FormulaColumn,
-  type FormulaRow,
-} from "../../../shell/src/shared/formulas/formulaEngine";
+import { useComputedFields } from "../../../shell/src/shared/hooks/useComputedFields";
 
 export interface ResultTableRow {
   entityId: number | null;
@@ -82,14 +78,6 @@ interface BatchResponse {
     schema_content_hash?: string;
   }[];
   errors: { row_index: number; message: string }[];
-}
-
-interface FormulaEvaluateResponse {
-  result: {
-    ok: boolean;
-    value?: unknown;
-    error?: { code: string };
-  };
 }
 
 function columnType(id: string) {
@@ -138,31 +126,6 @@ function isCurrent(
 
 function newResultRowId() {
   return globalThis.crypto?.randomUUID?.() ?? `result-row-${Date.now()}-${Math.random()}`;
-}
-
-function usesBackendOnlyFunction(expression: string): boolean {
-  const registry = ModRegistry.getInstance();
-  const clientIds = new Set(
-    registry.getClientFormulaFunctions().map((entry) => entry.id),
-  );
-  return [...expression.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\(/gi)].some(
-    ([, name]) =>
-      !!name &&
-      registry.getFormulaFunctions().has(name.toUpperCase()) &&
-      !clientIds.has(name.toUpperCase()),
-  );
-}
-
-function referencedValuesAreComplete(
-  expression: string,
-  values: Record<string, unknown>,
-  formulaNames: ReadonlySet<string>,
-): boolean {
-  return [...expression.matchAll(/\[([^\]]+)\]/g)].every(([, name]) => {
-    if (name && formulaNames.has(name)) return true;
-    const value = name ? values[name] : undefined;
-    return value !== undefined && value !== null && value !== "";
-  });
 }
 
 type ResultStatus = "red" | "yellow" | "orange" | "blue" | "green";
@@ -225,10 +188,6 @@ export function ResultTableContent({
   const [schemaTypes, setSchemaTypes] = useState<EntityTypeSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
-  const [refreshingRow, setRefreshingRow] = useState<string | null>(null);
-  const [refreshedSnapshots, setRefreshedSnapshots] = useState<
-    Record<string, string>
-  >({});
   const counter = useRef(rows.length + 1);
 
   const handleTitleBlur = useCallback(
@@ -257,41 +216,34 @@ export function ResultTableContent({
     (column) => column.name === "Entity" && column.type === "reference",
   );
   const valueColumns = columns.filter((column) => column !== entityColumn);
-  const backendOnlyColumns = valueColumns.filter(
-    (column) =>
-      column.type === "formula" &&
-      column.expression &&
-      usesBackendOnlyFunction(column.expression),
-  );
   const workspaceId =
     entityColumn?.referenceSchemaId !== undefined ||
     entityColumn?.referenceSchemaTypeId !== undefined
       ? sourceWorkspaceId
       : undefined;
 
-  const computedValues = useCallback(
-    (row: ResultTableRow) => {
-      const formulas = Object.fromEntries(
-        valueColumns
-          .filter((column) => column.type === "formula" && column.expression)
-          .map((column) => [
-            column.name,
-            { expression: column.expression! } satisfies FormulaColumn,
-          ]),
-      );
-      const evaluated = evaluateRow(row.values as FormulaRow, formulas);
-      return Object.fromEntries(
-        Object.entries(evaluated).map(([name, result]) => {
-          const column = valueColumns.find((item) => item.name === name);
-          if (column?.expression && usesBackendOnlyFunction(column.expression)) {
-            return [name, row.values[name]];
-          }
-          return [name, result.ok ? result.value : result.error.code];
-        }),
-      );
+  const applyRowValues = useCallback(
+    (displayId: string, values: Record<string, unknown>) => {
+      updateAttrs({
+        rows: rows.map((row) =>
+          row.displayId === displayId ? { ...row, values } : row,
+        ),
+      });
     },
-    [valueColumns],
+    [rows, updateAttrs],
   );
+  const {
+    computedValues,
+    backendOnlyColumns,
+    refresh,
+    isRefreshing,
+    isStale,
+    markRefreshed,
+  } = useComputedFields({
+    columns: valueColumns,
+    enabled: !previewMode,
+    applyRowValues,
+  });
 
   const openPicker = useCallback(async () => {
     if (previewMode) return;
@@ -481,6 +433,7 @@ export function ResultTableContent({
             result.schema_content_hash ?? schemaContentHash,
           registrationError: null,
         };
+        markRefreshed(result.display_id, registeredValues);
       });
       response.errors.forEach((error) => {
         const item = pending[error.row_index];
@@ -496,68 +449,6 @@ export function ResultTableContent({
     }
     updateAttrs({ rows: next });
     setRegistering(false);
-  };
-
-  const refreshRow = async (row: ResultTableRow) => {
-    if (
-      previewMode ||
-      !backendOnlyColumns.length ||
-      refreshingRow === row.displayId
-    )
-      return;
-    const formulaNames = new Set(
-      valueColumns
-        .filter((column) => column.type === "formula")
-        .map((column) => column.name),
-    );
-    if (
-      backendOnlyColumns.some(
-        (column) =>
-          !column.expression ||
-          !referencedValuesAreComplete(
-            column.expression,
-            row.values,
-            formulaNames,
-          ),
-      )
-    ) {
-      return;
-    }
-    const formulas = valueColumns.filter(
-      (column) => column.type === "formula" && column.expression,
-    );
-    let values = { ...row.values };
-    setRefreshingRow(row.displayId);
-    try {
-      for (const column of formulas) {
-        if (
-          !column.expression ||
-          !referencedValuesAreComplete(column.expression, values, formulaNames)
-        )
-          continue;
-        const response = await post<FormulaEvaluateResponse>(
-          "/formulas/evaluate/",
-          {
-            expression: column.expression,
-            row: values,
-          },
-        );
-        values[column.name] = response.result.ok
-          ? response.result.value
-          : (response.result.error?.code ?? "#VALUE!");
-      }
-      updateAttrs({
-        rows: rows.map((item) =>
-          item.displayId === row.displayId ? { ...item, values } : item,
-        ),
-      });
-      setRefreshedSnapshots((current) => ({
-        ...current,
-        [row.displayId]: snapshot(row, values),
-      }));
-    } finally {
-      setRefreshingRow(null);
-    }
   };
 
   if (schemaId === null)
@@ -725,7 +616,6 @@ export function ResultTableContent({
               <tbody>
                 {rows.map((row, rowIndex) => {
                   const values = computedValues(row);
-                  const rowSnapshot = snapshot(row, values);
                   const current = isCurrent(row, values, schemaContentHash);
                   const status: ResultStatus = row.registrationError
                     ? "red"
@@ -779,12 +669,10 @@ export function ResultTableContent({
                         (() => {
                           const backendOnly =
                             backendOnlyColumns.includes(column);
-                          const refreshed =
-                            refreshedSnapshots[row.displayId] !== undefined;
-                          const stale =
-                            backendOnly &&
-                            refreshed &&
-                            refreshedSnapshots[row.displayId] !== rowSnapshot;
+                          const stale = isStale(row, column.name);
+                          const value = values[column.name];
+                          const missing =
+                            value === undefined || value === null || value === "";
                           return (
                             <td
                               key={column.name}
@@ -797,9 +685,7 @@ export function ResultTableContent({
                             >
                               <TypedFullCell
                                 shape={shape(column)}
-                                value={backendOnly && !refreshed
-                                      ? undefined
-                                      : values[column.name]}
+                                value={missing ? undefined : value}
                                   onCommit={(value) =>
                                     updateValue(row.displayId, column.name, value)
                                   }
@@ -810,7 +696,7 @@ export function ResultTableContent({
                                 interaction={interaction}
                                  readOnly={readOnly || column.type === "formula"}
                                 placeholder={
-                                  backendOnly && !refreshed
+                                  backendOnly && missing
                                     ? "Refresh to calculate"
                                     : undefined
                                 }
@@ -829,8 +715,8 @@ export function ResultTableContent({
                                   key: "refresh",
                                   icon: RefreshCw,
                                   label: "Refresh",
-                                  disabled: refreshingRow === row.displayId,
-                                  onClick: () => refreshRow(row),
+                                  disabled: isRefreshing(row.displayId),
+                                  onClick: () => refresh(row),
                                   tooltip: `Refresh computed fields for ${row.displayId}`,
                                 },
                                 {

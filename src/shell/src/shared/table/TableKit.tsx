@@ -73,6 +73,7 @@ export function TableKit({
     rowCount: rows.length,
     columnCount: columns.length,
     readOnly,
+    isCellReadOnly,
     getValues: () => rows.map((row) =>
       columns.map((column, columnIndex) =>
         renderCellValue(column.shape, row[columnIndex]),
@@ -98,7 +99,7 @@ export function TableKit({
       onPaste?.(anchor, values);
     },
     onClear: (positions) => {
-      onClear?.(positions.filter((position) => !isCellReadOnly?.(position)));
+      onClear?.(positions);
     },
   });
 

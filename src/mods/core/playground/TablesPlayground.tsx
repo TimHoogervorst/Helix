@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Table,
   TableCell,
@@ -136,6 +136,10 @@ function TextHarnessCell({
   const editing = interaction.editingCell?.row === position.row && interaction.editingCell?.column === position.column;
   const [draft, setDraft] = useState(value);
   const cancelled = useRef(false);
+
+  useEffect(() => {
+    if (editing && interaction.editingDraft !== null) setDraft(interaction.editingDraft);
+  }, [editing, interaction.editingDraft]);
 
   const startEditing = () => {
     setDraft(value);
@@ -331,6 +335,14 @@ function HarnessTable() {
     rowCount: rows.length,
     columnCount: 3,
     getValues: () => rows.map(({ name, role, note }) => [name, role, note]),
+    onClear: (positions) => setRows((currentRows) => currentRows.map((row, rowIndex) => {
+      const next = { ...row };
+      for (const position of positions.filter((candidate) => candidate.row === rowIndex)) {
+        const column = (["name", "role", "note"] as const)[position.column];
+        if (column) next[column] = "";
+      }
+      return next;
+    })),
     onPaste: (anchor, values) => {
       setRows((currentRows) => currentRows.map((row, rowIndex) => {
         const pastedRow = values[rowIndex - anchor.row];
@@ -424,6 +436,7 @@ function CellGalleryTable() {
     getValues: () => GALLERY_SHAPES.map((shape) =>
       GALLERY_STATES.map((state) => getCellBehavior(shape).render(getCellBehavior(shape).initialValue)),
     ),
+    onClear: () => undefined,
     onPaste: () => undefined,
   });
 
@@ -542,6 +555,10 @@ function InteractiveMockCell({
   const [draft, setDraft] = useState(behavior.render(value));
   const [error, setError] = useState(false);
   const cancelled = useRef(false);
+
+  useEffect(() => {
+    if (editing && interaction.editingDraft !== null) setDraft(interaction.editingDraft);
+  }, [editing, interaction.editingDraft]);
 
   const startEditing = () => {
     setDraft(behavior.render(value));
@@ -682,6 +699,15 @@ function SchemaDrivenPrototype() {
     rowCount: rows.length,
     columnCount: schema.columns.length,
     getValues: () => rows.map((row) => schema.columns.map((column) => String(row.values[column.id] ?? ""))),
+    onClear: (positions) => setRows((current) => current.map((row, rowIndex) => {
+      const rowPositions = positions.filter((candidate) => candidate.row === rowIndex);
+      const values = { ...row.values };
+      for (const position of rowPositions) {
+        const column = schema.columns[position.column];
+        if (column) values[column.id] = "";
+      }
+      return rowPositions.length ? { ...row, registered: false, values } : row;
+    })),
     onPaste: (anchor, values) => setRows((current) => current.map((row, rowIndex) => {
       const pasted = values[rowIndex - anchor.row];
       if (!pasted || rowIndex < anchor.row) return row;
@@ -728,6 +754,15 @@ function FreeFormPrototype() {
     rowCount: rows.length,
     columnCount: columns.length,
     getValues: () => rows.map((row) => columns.map((column) => String(row.values[column.id] ?? ""))),
+    onClear: (positions) => setRows((current) => current.map((row, rowIndex) => {
+      const rowPositions = positions.filter((candidate) => candidate.row === rowIndex);
+      const values = { ...row.values };
+      for (const position of rowPositions) {
+        const column = columns[position.column];
+        if (column) values[column.id] = "";
+      }
+      return rowPositions.length ? { ...row, values } : row;
+    })),
     onPaste: (anchor, values) => setRows((current) => current.map((row, rowIndex) => {
       const pasted = values[rowIndex - anchor.row];
       if (!pasted || rowIndex < anchor.row) return row;

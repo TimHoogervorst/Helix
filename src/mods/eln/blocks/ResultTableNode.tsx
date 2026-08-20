@@ -417,6 +417,28 @@ export function ResultTableContent({
           ),
         ),
       ]),
+    onClear: (positions) => {
+      const nextFormulaMap = { ...formulaMap };
+      const nextRows = rows.map((row, rowIndex) => {
+        const rowPositions = positions.filter((position) => position.row === rowIndex && position.column > 0);
+        if (!rowPositions.length) return row;
+        const values = { ...row.values };
+        for (const position of rowPositions) {
+          const column = valueColumns[position.column - 1];
+          if (!column) continue;
+          values[column.name] = "";
+          const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
+          delete rowFormulas[column.name];
+          if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
+          else delete nextFormulaMap[String(rowIndex)];
+        }
+        return { ...row, values };
+      });
+      updateAttrs({
+        rows: nextRows,
+        formulaMap: nextFormulaMap,
+      });
+    },
     onPaste: (anchor, pasted) => {
       const nextRows = rows.map((row, rowIndex) => {
         const line = pasted[rowIndex - anchor.row];

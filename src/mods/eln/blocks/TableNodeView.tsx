@@ -322,6 +322,27 @@ export function TableBlockContent({
           evaluatedRows[rowIndex]?.[col.id]?.ok ? evaluatedRows[rowIndex][col.id].value : null,
         )),
       ),
+    onClear: (positions) => {
+      const nextFormulaMap = { ...formulaMap };
+      const updatedRows = rows.map((row, rowIndex) => {
+        const rowPositions = positions.filter((candidate) => candidate.row === rowIndex);
+        if (!rowPositions.length) return row;
+        const cells = { ...row.cells };
+        const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
+        for (const position of rowPositions) {
+          const column = columns[position.column];
+          if (!column) continue;
+          cells[column.id] = "";
+          delete rowFormulas[column.id];
+        }
+        if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
+        else delete nextFormulaMap[String(rowIndex)];
+        return { ...row, cells };
+      });
+      updateAttrs(Object.keys(nextFormulaMap).length
+        ? { rows: updatedRows, formulaMap: nextFormulaMap }
+        : { rows: updatedRows, formulaMap: {} });
+    },
     onPaste: (anchor, values) => {
       const updatedRows = rows.map((row, rowIndex) => {
         const pastedRow = values[rowIndex - anchor.row];

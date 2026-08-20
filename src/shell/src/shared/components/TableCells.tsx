@@ -21,7 +21,7 @@
  * the ELN, or any mod.
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TablePosition, useTableInteraction } from "../hooks/useTableInteraction";
 import { EntityPickerPopover } from "./EntityPickerPopover";
 import { getClientFormulaFunctionIds } from "../formulas/formulaEngine";
@@ -188,6 +188,10 @@ export function TypedFullCell({
   const [error, setError] = useState(false);
   const cancelled = useRef(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (editing && interaction.editingDraft !== null) setDraft(interaction.editingDraft);
+  }, [editing, interaction.editingDraft]);
 
   const startEditing = () => {
     if (readOnly) return;

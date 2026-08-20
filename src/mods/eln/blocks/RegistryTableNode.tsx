@@ -629,6 +629,32 @@ export function RegistryTableContent({
           ),
         ];
       }),
+    onClear: (positions) => {
+      const nextFormulaMap = { ...formulaMap };
+      const updatedRows = rows.map((row, rowIndex) => {
+        const rowPositions = positions.filter((position) => position.row === rowIndex);
+        if (!rowPositions.length) return row;
+        let name = row.__name;
+        const values = { ...row.values };
+        for (const position of rowPositions) {
+          if (position.column === 0) {
+            name = "";
+            continue;
+          }
+          const column = columns[position.column - 1];
+          if (!column) continue;
+          values[column.name] = "";
+          const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
+          delete rowFormulas[column.name];
+          if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
+          else delete nextFormulaMap[String(rowIndex)];
+        }
+        return { ...row, __name: name, values };
+      });
+      updateAttrs(Object.keys(nextFormulaMap).length
+        ? { rows: updatedRows, formulaMap: nextFormulaMap }
+        : { rows: updatedRows, formulaMap: {} });
+    },
     onPaste: (anchor, values) => {
       const updatedRows = rows.map((row, rowIndex) => {
         const pastedRow = values[rowIndex - anchor.row];

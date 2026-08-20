@@ -72,6 +72,7 @@ interface TableInteractionOptions {
   columnCount: number;
   getValues: () => string[][];
   onPaste: (anchor: TablePosition, values: string[][]) => void;
+  onClear: (positions: TablePosition[]) => void;
   readOnly?: boolean;
 }
 
@@ -81,6 +82,7 @@ export function useTableInteraction({
   columnCount,
   getValues,
   onPaste,
+  onClear,
   readOnly = false,
 }: TableInteractionOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +90,7 @@ export function useTableInteraction({
   const [selectionAnchor, setSelectionAnchor] = useState<TablePosition>({ row: 0, column: 0 });
   const [selectedCells, setSelectedCells] = useState<Set<string>>(() => new Set());
   const [editingCell, setEditingCell] = useState<TablePosition | null>(null);
+  const [editingDraft, setEditingDraft] = useState<string | null>(null);
   const [tableIsActive, setTableIsActive] = useState(false);
   const hoveredCellRef = useRef<TablePosition | null>(null);
   const dragRef = useRef<{ anchor: TablePosition; last: TablePosition; moved: boolean; active: boolean } | null>(null);
@@ -231,18 +234,23 @@ export function useTableInteraction({
     selectCell(position);
   }, [boundPosition, focusCell, selectCell, selectionAnchor, selectRange, tableId]);
 
-  const activateCell = useCallback((position: TablePosition, edit = true) => {
+  const activateCell = useCallback((position: TablePosition, edit = true, emptyDraft = false) => {
     setActiveCell(position);
     setTableIsActive(true);
     setSelectionAnchor(position);
     setSelectedCells(new Set([cellKey(position)]));
     focusCell(position);
-    if (edit) setEditingCell(position);
-  }, [focusCell]);
+    setEditingDraft(emptyDraft ? "" : null);
+    setEditingCell(edit ? position : null);
+  }, [focusCell, tableId]);
 
-  const finishEditing = useCallback(() => setEditingCell(null), []);
+  const finishEditing = useCallback(() => {
+    setEditingCell(null);
+    setEditingDraft(null);
+  }, []);
   const cancelEditing = useCallback((position: TablePosition) => {
     setEditingCell(null);
+    setEditingDraft(null);
     focusCell(position);
   }, [focusCell]);
 
@@ -271,6 +279,19 @@ export function useTableInteraction({
       setTableIsActive(true);
       return;
     }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      if (readOnly) return;
+      const positions: TablePosition[] = [];
+      const keys = selectedCells.size ? selectedCells : new Set([cellKey(position)]);
+      for (const key of keys) {
+        const [row, column] = key.split(":").slice(tableId ? 1 : 0).map(Number);
+        positions.push({ row, column });
+      }
+      onClear(positions);
+      if (event.key === "Backspace") activateCell(position, true, true);
+      return;
+    }
     const delta = event.key === "ArrowUp" ? { row: -1, column: 0 }
       : event.key === "ArrowDown" ? { row: 1, column: 0 }
         : event.key === "ArrowLeft" ? { row: 0, column: -1 }
@@ -290,7 +311,7 @@ export function useTableInteraction({
       return;
     }
     moveTo({ row: position.row + delta.row, column: position.column + delta.column }, event.shiftKey && event.key.startsWith("Arrow"));
-  }, [activateCell, boundPosition, columnCount, focusCell, moveTo, rowCount, tableId]);
+  }, [activateCell, boundPosition, columnCount, focusCell, moveTo, onClear, readOnly, rowCount, selectedCells, tableId]);
 
   const handleEditorKeyDown = useCallback((
     position: TablePosition,
@@ -397,6 +418,7 @@ export function useTableInteraction({
     containerRef,
     activeCell,
     editingCell,
+    editingDraft,
     selectionAnchor,
     selectedCells,
     selectCell,

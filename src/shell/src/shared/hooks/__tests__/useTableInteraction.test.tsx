@@ -8,6 +8,7 @@ function TestTable({ tableId }: { tableId: string }) {
     rowCount: 1,
     columnCount: 1,
     getValues: () => [["value"]],
+    onClear: () => {},
     onPaste: () => {},
   });
 

@@ -57,6 +57,28 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("cell-row-2-note")).toHaveTextContent("Committed");
   });
 
+  it("clears a selected cell with Delete", () => {
+    render(<TablesPlayground />);
+
+    const cell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    fireEvent.click(cell);
+    fireEvent.keyDown(cell, { key: "Delete" });
+
+    expect(screen.getByTestId("cell-row-1-name")).not.toHaveTextContent("Aster");
+  });
+
+  it("clears with Backspace and opens an empty draft on the active cell", () => {
+    render(<TablesPlayground />);
+
+    const cell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    fireEvent.click(cell);
+    fireEvent.keyDown(cell, { key: "Backspace" });
+
+    expect(screen.getByTestId("cell-row-1-name-input")).toHaveValue("");
+    fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
+    expect(screen.getByTestId("cell-row-1-name")).not.toHaveTextContent("Aster");
+  });
+
   it("selects on click and starts editing on double-click", () => {
     render(<TablesPlayground />);
 

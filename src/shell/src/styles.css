@@ -626,14 +626,6 @@ label {
   font-weight: 600;
 }
 
-.table-layout-demo-grid {
-  min-width: var(--layout-table-demo-width);
-}
-
-.table-layout-demo-wide-cell {
-  min-width: var(--layout-table-demo-column);
-}
-
 .table-layout-chrome__toolbar {
   display: flex;
   align-items: center;

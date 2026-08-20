@@ -40,15 +40,6 @@ describe("eln mod registration", () => {
     expect(detailRoute!.component).toBeTruthy();
   });
 
-  it("registers the development ELN table preview route", () => {
-    const route = registry.getRoutes().get("eln.dev-eln");
-
-    expect(route).toBeDefined();
-    expect(route!.path).toBe("/dev/eln");
-    expect(route!.modId).toBe("eln");
-    expect(route!.component).toBeTruthy();
-  });
-
   it("no longer registers a library item — card rendering is generic now", () => {
     const workspaces = registry.getWorkspaces();
     expect(workspaces.has("eln")).toBe(false);

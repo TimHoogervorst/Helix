@@ -48,11 +48,6 @@ import {
   type FormulaColumn,
   type FormulaRow,
 } from "../../../shell/src/shared/formulas/formulaEngine";
-import {
-  evaluateCellFormulas,
-  rewriteCellFormulaRows,
-  type CellFormulaMap,
-} from "../../../shell/src/shared/formulas/cellFormulas";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -290,7 +285,6 @@ interface RegistryTableContentProps {
   title: string;
   columns: GridColumn[];
   rows: RegistryTableRow[];
-  formulaMap?: CellFormulaMap;
   /** Project containing the current ELN entry, used for new entities. */
   projectId?: number | null;
   /** Folder containing the current ELN entry, used for new entities. */
@@ -334,7 +328,6 @@ export function RegistryTableContent({
   title,
   columns,
   rows,
-  formulaMap = {},
   projectId,
   folderId,
   updateAttrs,
@@ -482,38 +475,10 @@ export function RegistryTableContent({
           values: { ...r.values, [columnName]: newValue },
         };
       });
-      const rowIndex = rows.findIndex((row) => row.displayId === rowDisplayId);
-      const nextFormulaMap = { ...formulaMap };
-      const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
-      delete rowFormulas[columnName];
-      if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
-      else delete nextFormulaMap[String(rowIndex)];
-      updateAttrs(Object.keys(nextFormulaMap).length
-        ? { rows: updatedRows, formulaMap: nextFormulaMap }
-        : { rows: updatedRows });
+      updateAttrs({ rows: updatedRows });
     },
-    [formulaMap, rows, updateAttrs],
+    [rows, updateAttrs],
   );
-
-  const handleFormulaCommit = useCallback((rowDisplayId: string, columnName: string, expression: string) => {
-    const rowIndex = rows.findIndex((row) => row.displayId === rowDisplayId);
-    const nextFormulaMap = {
-      ...formulaMap,
-      [String(rowIndex)]: { ...(formulaMap[String(rowIndex)] ?? {}), [columnName]: expression },
-    };
-    const evaluated = evaluateCellFormulas(
-      rows.map((row) => row.values as Record<string, any>),
-      nextFormulaMap,
-      new Set(columns.filter((column) => column.type === "formula").map((column) => column.name)),
-    );
-    const result = evaluated[rowIndex]?.[columnName];
-    updateAttrs({
-      rows: rows.map((row, index) => index === rowIndex
-        ? { ...row, values: { ...row.values, [columnName]: result?.ok ? result.value : null } }
-        : row),
-      formulaMap: nextFormulaMap,
-    });
-  }, [formulaMap, rows, updateAttrs]);
 
   const formulaColumns = columns.filter(
     (column) => column.type === "formula" && column.expression,
@@ -604,33 +569,25 @@ export function RegistryTableContent({
 
   // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
   // Grid layout: column 0 is the Name pseudo-column, schema columns follow.
-  const localEvaluatedRows = evaluateCellFormulas(
-    rows.map((row) => row.values as Record<string, any>),
-    formulaMap,
-    new Set(columns.filter((column) => column.type === "formula").map((column) => column.name)),
-  );
   const interaction = useTableInteraction({
     tableId: "registry-table",
     rowCount: rows.length,
     columnCount: columns.length + 1,
     readOnly,
     getValues: () =>
-      rows.map((row, rowIndex) => {
+      rows.map((row) => {
         const values = computedValues(row);
         return [
           row.__name,
           ...columns.map((col) =>
             renderCellValue(
               resolveColumnShape(col),
-              localEvaluatedRows[rowIndex]?.[col.name]?.ok
-                ? localEvaluatedRows[rowIndex][col.name].value
-                : values[col.name],
+                values[col.name],
             ),
           ),
         ];
       }),
     onClear: (positions) => {
-      const nextFormulaMap = { ...formulaMap };
       const updatedRows = rows.map((row, rowIndex) => {
         const rowPositions = positions.filter((position) => position.row === rowIndex);
         if (!rowPositions.length) return row;
@@ -644,16 +601,10 @@ export function RegistryTableContent({
           const column = columns[position.column - 1];
           if (!column) continue;
           values[column.name] = "";
-          const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
-          delete rowFormulas[column.name];
-          if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
-          else delete nextFormulaMap[String(rowIndex)];
         }
         return { ...row, __name: name, values };
       });
-      updateAttrs(Object.keys(nextFormulaMap).length
-        ? { rows: updatedRows, formulaMap: nextFormulaMap }
-        : { rows: updatedRows, formulaMap: {} });
+      updateAttrs({ rows: updatedRows });
     },
     onPaste: (anchor, values) => {
       const updatedRows = rows.map((row, rowIndex) => {
@@ -694,15 +645,13 @@ export function RegistryTableContent({
       lastRegisteredValueHash: null,
       registrationError: null,
     };
-    const nextFormulaMap = rewriteCellFormulaRows(formulaMap, rows.length, "insert");
     updateAttrs({
       rows: [...rows, newRow],
-      ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
     });
 
     // Emit custom domain action via context.emitAction (fail-open).
     emitAction?.("row-added", { rowCount: rows.length + 1 });
-  }, [formulaMap, rows, columns, updateAttrs, emitAction]);
+  }, [rows, columns, updateAttrs, emitAction]);
 
   // ── Delete row ───────────────────────────────────────────────────────
   const handleDeleteRow = useCallback(
@@ -720,17 +669,11 @@ export function RegistryTableContent({
           );
         }
       }
-      const nextFormulaMap = rewriteCellFormulaRows(
-        formulaMap,
-        rows.findIndex((r) => r.displayId === rowDisplayId),
-        "delete",
-      );
       updateAttrs({
         rows: rows.filter((r) => r.displayId !== rowDisplayId),
-        ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
       });
     },
-    [formulaMap, previewMode, rows, updateAttrs],
+    [previewMode, rows, updateAttrs],
   );
 
   // ── Refresh schema ───────────────────────────────────────────────────
@@ -1248,22 +1191,12 @@ export function RegistryTableContent({
                       >
                         <TypedFullCell
                           shape={shape}
-                           value={formulaMap[String(rowIndex)]?.[col.name] && localEvaluatedRows[rowIndex]?.[col.name]?.ok
-                             ? localEvaluatedRows[rowIndex][col.name].value
-                             : backendOnlyColumns.includes(col) && !refreshed
-                               ? undefined
-                               : values[col.name]}
-                           formula={formulaMap[String(rowIndex)]?.[col.name]}
-                           formulaError={localEvaluatedRows[rowIndex]?.[col.name]?.ok
-                             ? undefined
-                             : localEvaluatedRows[rowIndex]?.[col.name]?.error.code}
-                           onCommit={(value) =>
-                             handleCellCommit(row.displayId, col.name, value)
-                           }
-                           onFormulaCommit={(expression) =>
-                             handleFormulaCommit(row.displayId, col.name, expression)
-                           }
-                           formulaEnabled={col.type !== "formula" && shape !== "entity-picker"}
+                           value={backendOnlyColumns.includes(col) && !refreshed
+                                ? undefined
+                                : values[col.name]}
+                            onCommit={(value) =>
+                              handleCellCommit(row.displayId, col.name, value)
+                            }
                           position={{ row: rowIndex, column: columnIndex + 1 }}
                           interaction={interaction}
                           readOnly={readOnly || col.type === "formula"}

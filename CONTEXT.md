@@ -598,19 +598,11 @@ Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod
 
 ## Formulas
 
-> Two formula forms share one grammar, one parser, and one Function Catalog, but differ by ownership: Cell Formulas are the frontend's territory, Computed Fields are the backend's territory. See [ADR 0019](docs/adr/0019-formula-evaluation-ownership.md) and the [formula spec](docs/specs/formula-support-cell-formulas-and-computed-fields.md).
+> Computed Fields use the shared formula grammar, parser, and Function Catalog. See [ADR 0019](docs/adr/0019-formula-evaluation-ownership.md) and the [formula spec](docs/specs/formula-support-cell-formulas-and-computed-fields.md).
 
 ### Formula
 
-An expression in the shared formula grammar: `[Column Name]` references, literals, operators, and function calls, with spreadsheet-style tagged errors (`#REF!`, `#DIV/0!`, `#CYCLE!`, `#NAME?`, `#SYNTAX!`, `#VALUE!`). Every Formula is exactly one of the two forms — **Cell Formula** or **Computed Field** — which differ by who authors it, where it lives, and who owns its evaluation.
-
-**Synonyms:** *(avoid using "formula" alone when one specific form is meant — the two forms have opposite ownership)*
-
-### Cell Formula
-
-A Formula a user types into an editable table cell, prefixed with `=` (e.g. `=[A260]/[A280]`). Document-local and frontend-owned: it evaluates exclusively with registered client implementations, never touches the backend, and re-evaluates every time the entry is opened. `[Column]` references the same row; `[Column:N]` references data row N, with references rewritten when rows are inserted or deleted. In registering tables the computed value is registered as-sent — the backend stores a plain value and never sees the formula text. Cell Formulas cannot reference Computed Field columns.
-
-**Synonyms:** *(the retired term "table formula" from the #511 brainstorm refers to this form)*
+An expression in the shared formula grammar: `[Column Name]` references, literals, operators, and function calls, with tagged errors (`#DIV/0!`, `#CYCLE!`, `#NAME?`, `#SYNTAX!`, `#VALUE!`). Computed Fields are schema-authored and backend-authoritative.
 
 ### Computed Field
 
@@ -624,11 +616,11 @@ A named function usable in Formulas (e.g. `SUM`, `IF`, `molBio.gcContent`). Has 
 
 ### Function Catalog
 
-The registry of all Formula Functions: backend-owned, mod-extensible, hydrated to the frontend via the mod registry API like column types. Platform-default functions register in the core; mod functions register in their mod with namespaced ids. The frontend sees the full catalog (for Computed Field editing) and the client-shadowed subset (for Cell Formulas).
+The registry of all Formula Functions: backend-owned, mod-extensible, hydrated to the frontend via the mod registry API like column types. Platform-default functions register in the core; mod functions register in their mod with namespaced ids. The frontend exposes the full catalog for Computed Field editing.
 
 ### Client Implementation
 
-The optional frontend implementation of a Formula Function, registered against the hydrated Function Catalog. Used for Cell Formula evaluation and display-only Computed Field previews — never for stored values. Must be behaviorally identical to the authoritative backend implementation; equivalence is enforced by parity fixture tests run in both test suites.
+The optional frontend implementation of a Formula Function, registered against the hydrated Function Catalog for display-only Computed Field previews — never for stored values. It must be behaviorally identical to the authoritative backend implementation.
 
 ### Evaluate Gateway
 
@@ -636,7 +628,7 @@ The row-scoped endpoint (`POST /api/formulas/evaluate/`) that previews Computed 
 
 ### Formula Editor
 
-The modal opened from the Fx button (sigma icon) on a Computed Field column in schema settings — the expression's only editing surface. Composes the expression with autocomplete over sibling columns and the full Function Catalog, shows live validation, and carries a test bench that evaluates sample values through the Evaluate Gateway. Cell Formulas are edited in-cell and do not use the Formula Editor.
+The modal opened from the Fx button (sigma icon) on a Computed Field column in schema settings — the expression's only editing surface. It composes the expression with autocomplete over sibling columns and the full Function Catalog, shows live validation, and carries a test bench that evaluates sample values through the Evaluate Gateway.
 
 ---
 

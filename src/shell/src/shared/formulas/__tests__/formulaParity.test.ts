@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { evaluateFormula, evaluateRow } from "../formulaEngine";
-import { evaluateCellFormulas, rewriteCellFormulaRows } from "../cellFormulas";
 import fixtures from "../parity.json";
 
 type Fixture = {
@@ -42,22 +41,4 @@ describe("formula parity fixtures", () => {
     );
   });
 
-  it("resolves data-row references and rewrites them like a spreadsheet", () => {
-    expect(
-      evaluateCellFormulas(
-        [{ Amount: 2 }, { Amount: 5 }],
-        { "0": { Total: "=[Amount:2] * 2" } },
-      )[0].Total,
-    ).toEqual({ ok: true, value: 10 });
-    expect(
-      rewriteCellFormulaRows(
-        { "0": { Total: "=[Amount:2]" }, "1": { Total: "=[Amount:1]" } },
-        1,
-        "delete",
-      ),
-    ).toEqual({ "0": { Total: "=[#REF!]" } });
-    expect(
-      rewriteCellFormulaRows({ "0": { Total: "=[Amount:2]" } }, 1, "insert"),
-    ).toEqual({ "0": { Total: "=[Amount:3]" } });
-  });
 });

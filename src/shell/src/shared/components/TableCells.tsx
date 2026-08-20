@@ -24,7 +24,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { TablePosition, useTableInteraction } from "../hooks/useTableInteraction";
 import { EntityPickerPopover } from "./EntityPickerPopover";
-import { getClientFormulaFunctionIds } from "../formulas/formulaEngine";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -134,12 +133,6 @@ export interface TypedFullCellProps {
   shape: string;
   /** The current cell value. */
   value: unknown;
-  /** Persisted document-local formula text for this cell, when present. */
-  formula?: string;
-  /** Evaluated formula error code, rendered as an in-cell badge. */
-  formulaError?: string;
-  /** Called when a leading ``=`` edit is committed. */
-  onFormulaCommit?: (expression: string) => void;
   /** Called with the parsed value when the user commits an edit. */
   onCommit: (value: TableCellValue) => void;
   /** This cell's position in the interaction controller's grid. */
@@ -158,17 +151,13 @@ export interface TypedFullCellProps {
   workspaceId?: string;
   /** Placeholder shown in the display state when the value is empty. */
   placeholder?: string;
-  formulaEnabled?: boolean;
   "data-testid"?: string;
 }
 
 export function TypedFullCell({
   shape,
   value,
-  formula,
-  formulaError,
   onCommit,
-  onFormulaCommit,
   position,
   interaction,
   readOnly = false,
@@ -177,7 +166,6 @@ export function TypedFullCell({
   referenceSchemaTypeId,
   workspaceId,
   placeholder,
-  formulaEnabled = false,
   "data-testid": testId,
 }: TypedFullCellProps) {
   const editing =
@@ -195,19 +183,14 @@ export function TypedFullCell({
 
   const startEditing = () => {
     if (readOnly) return;
-    setDraft(formula ?? renderCellValue(shape, value));
+    setDraft(renderCellValue(shape, value));
     setError(false);
     interaction.activateCell(position);
   };
 
   const commit = () => {
     try {
-      if (formulaEnabled && draft.trimStart().startsWith("=")) {
-        if (!onFormulaCommit) throw new Error("Formula editing is unavailable");
-        onFormulaCommit(draft.trim());
-      } else {
-        onCommit(parseCellValue(shape, draft));
-      }
+      onCommit(parseCellValue(shape, draft));
       setError(false);
     } catch {
       setError(true);
@@ -299,9 +282,7 @@ export function TypedFullCell({
   // ── Inline full-cell editor ────────────────────────────────────────────
   if (editing) {
     const behavior = getCellBehavior(shape);
-    const editingFormula = formulaEnabled && draft.trimStart().startsWith("=");
-
-    if (behavior.editor === "checkbox" && !editingFormula) {
+    if (behavior.editor === "checkbox") {
       return (
         <div className="h-full w-full">
           <label className={FULL_CELL_EDITOR} data-testid={testId}>
@@ -321,7 +302,7 @@ export function TypedFullCell({
       );
     }
 
-    if (behavior.editor === "select" && options?.length && !editingFormula) {
+    if (behavior.editor === "select" && options?.length) {
       return (
         <div className="h-full w-full">
           <select
@@ -355,20 +336,12 @@ export function TypedFullCell({
                   ? `${testId}-input`
                   : undefined
           }
-           type={editingFormula ? "text" : behavior.editor === "number" || behavior.editor === "date" ? behavior.editor : "text"}
+           type={behavior.editor === "number" || behavior.editor === "date" ? behavior.editor : "text"}
           value={draft}
           onBlur={commitOnBlur}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={handleEditorKeyDown}
-          list={formulaEnabled ? `formula-functions-${position.row}-${position.column}` : undefined}
         />
-        {formulaEnabled && (
-          <datalist id={`formula-functions-${position.row}-${position.column}`}>
-            {[...getClientFormulaFunctionIds()].map((id) => (
-              <option key={id} value={`${id}(`} />
-            ))}
-          </datalist>
-        )}
       </div>
     );
   }
@@ -384,7 +357,7 @@ export function TypedFullCell({
     );
   }
 
-  if (shape === "boolean" && !formula) {
+  if (shape === "boolean") {
     return (
       <label className={FULL_CELL} data-testid={testId}>
         <input
@@ -394,13 +367,6 @@ export function TypedFullCell({
           data-testid="boolean-checkbox"
           onClick={(event) => interaction.handleCellClick(position, event)}
           onChange={(event) => onCommit(event.currentTarget.checked)}
-          onKeyDown={(event) => {
-            if (formulaEnabled && event.key === "=") {
-              event.preventDefault();
-              setDraft("=");
-              interaction.activateCell(position);
-            }
-          }}
         />
         <span>{value === true ? "True" : "False"}</span>
       </label>
@@ -410,7 +376,7 @@ export function TypedFullCell({
   return (
     <button
       type="button"
-      className={error || formulaError ? `${FULL_CELL} table-cell-full--error` : FULL_CELL}
+      className={error ? `${FULL_CELL} table-cell-full--error` : FULL_CELL}
       data-testid={testId}
       data-value-type={typeof value}
       contentEditable={shape === "text" ? true : undefined}
@@ -418,14 +384,6 @@ export function TypedFullCell({
       disabled={readOnly}
       tabIndex={-1}
       onDoubleClick={startEditing}
-      onKeyDown={(event) => {
-        if (formulaEnabled && event.key === "=") {
-          event.preventDefault();
-          setDraft("=");
-          setError(false);
-          interaction.activateCell(position);
-        }
-      }}
     >
       {shape === "number" ? (
         <span data-testid="number-display">{displayContent}</span>
@@ -434,9 +392,9 @@ export function TypedFullCell({
       ) : (
         displayContent
       )}
-      {(error || formulaError) && (
+      {error && (
         <span className="ml-2 text-xs" role="status">
-          {formulaError ?? "#VALUE!"}
+          #VALUE!
         </span>
       )}
     </button>

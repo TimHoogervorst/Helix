@@ -42,11 +42,6 @@ import {
   type FormulaColumn,
   type FormulaRow,
 } from "../../../shell/src/shared/formulas/formulaEngine";
-import {
-  evaluateCellFormulas,
-  rewriteCellFormulaRows,
-  type CellFormulaMap,
-} from "../../../shell/src/shared/formulas/cellFormulas";
 
 export interface ResultTableRow {
   entityId: number | null;
@@ -69,7 +64,6 @@ interface ResultTableProps {
   title: string;
   columns: GridColumn[];
   rows: ResultTableRow[];
-  formulaMap?: CellFormulaMap;
   projectId?: number | null;
   folderId?: number | null;
   updateAttrs: (attrs: Record<string, unknown>) => void;
@@ -220,7 +214,6 @@ export function ResultTableContent({
   title,
   columns,
   rows,
-  formulaMap = {},
   projectId,
   folderId,
   updateAttrs,
@@ -334,7 +327,6 @@ export function ResultTableContent({
   };
 
   const addRow = () => {
-    const nextFormulaMap = rewriteCellFormulaRows(formulaMap, rows.length, "insert");
     updateAttrs({
       rows: [
         ...rows,
@@ -351,7 +343,6 @@ export function ResultTableContent({
           registrationError: null,
         },
       ],
-      ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
     });
   };
 
@@ -362,43 +353,12 @@ export function ResultTableContent({
       ),
     });
   const updateValue = (displayId: string, name: string, value: unknown) => {
-    const rowIndex = rows.findIndex((row) => row.displayId === displayId);
-    const nextFormulaMap = { ...formulaMap };
-    const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
-    delete rowFormulas[name];
-    if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
-    else delete nextFormulaMap[String(rowIndex)];
     updateAttrs({
       rows: rows.map((row) => row.displayId === displayId
         ? { ...row, values: { ...row.values, [name]: value } }
         : row),
-      ...(Object.keys(nextFormulaMap).length ? { formulaMap: nextFormulaMap } : {}),
     });
   };
-  const updateFormula = (displayId: string, name: string, expression: string) => {
-    const rowIndex = rows.findIndex((row) => row.displayId === displayId);
-    const nextFormulaMap = {
-      ...formulaMap,
-      [String(rowIndex)]: { ...(formulaMap[String(rowIndex)] ?? {}), [name]: expression },
-    };
-    const evaluated = evaluateCellFormulas(
-      rows.map((row) => row.values as Record<string, any>),
-      nextFormulaMap,
-      new Set(valueColumns.filter((column) => column.type === "formula").map((column) => column.name)),
-    );
-    const result = evaluated[rowIndex]?.[name];
-    updateAttrs({
-      rows: rows.map((row, index) => index === rowIndex
-        ? { ...row, values: { ...row.values, [name]: result?.ok ? result.value : null } }
-        : row),
-      formulaMap: nextFormulaMap,
-    });
-  };
-  const localEvaluatedRows = evaluateCellFormulas(
-    rows.map((row) => row.values as Record<string, any>),
-    formulaMap,
-    new Set(valueColumns.filter((column) => column.type === "formula").map((column) => column.name)),
-  );
 
   const interaction = useTableInteraction({
     tableId: "result-table",
@@ -406,19 +366,16 @@ export function ResultTableContent({
     columnCount: valueColumns.length + 1,
     readOnly,
     getValues: () =>
-      rows.map((row, rowIndex) => [
+      rows.map((row) => [
         row.sourceEntityId,
         ...valueColumns.map((column) =>
           renderCellValue(
             shape(column),
-            localEvaluatedRows[rowIndex]?.[column.name]?.ok
-              ? localEvaluatedRows[rowIndex][column.name].value
-              : computedValues(row)[column.name],
+            computedValues(row)[column.name],
           ),
         ),
       ]),
     onClear: (positions) => {
-      const nextFormulaMap = { ...formulaMap };
       const nextRows = rows.map((row, rowIndex) => {
         const rowPositions = positions.filter((position) => position.row === rowIndex && position.column > 0);
         if (!rowPositions.length) return row;
@@ -427,16 +384,11 @@ export function ResultTableContent({
           const column = valueColumns[position.column - 1];
           if (!column) continue;
           values[column.name] = "";
-          const rowFormulas = { ...(nextFormulaMap[String(rowIndex)] ?? {}) };
-          delete rowFormulas[column.name];
-          if (Object.keys(rowFormulas).length) nextFormulaMap[String(rowIndex)] = rowFormulas;
-          else delete nextFormulaMap[String(rowIndex)];
         }
         return { ...row, values };
       });
       updateAttrs({
         rows: nextRows,
-        formulaMap: nextFormulaMap,
       });
     },
     onPaste: (anchor, pasted) => {
@@ -845,22 +797,12 @@ export function ResultTableContent({
                             >
                               <TypedFullCell
                                 shape={shape(column)}
-                                 value={formulaMap[String(rowIndex)]?.[column.name] && localEvaluatedRows[rowIndex]?.[column.name]?.ok
-                                   ? localEvaluatedRows[rowIndex][column.name].value
-                                   : backendOnly && !refreshed
-                                     ? undefined
-                                     : values[column.name]}
-                                 formula={formulaMap[String(rowIndex)]?.[column.name]}
-                                 formulaError={localEvaluatedRows[rowIndex]?.[column.name]?.ok
-                                   ? undefined
-                                   : localEvaluatedRows[rowIndex]?.[column.name]?.error.code}
-                                 onCommit={(value) =>
-                                   updateValue(row.displayId, column.name, value)
-                                 }
-                                 onFormulaCommit={(expression) =>
-                                   updateFormula(row.displayId, column.name, expression)
-                                 }
-                                 formulaEnabled={column.type !== "formula" && shape(column) !== "entity-picker"}
+                                value={backendOnly && !refreshed
+                                      ? undefined
+                                      : values[column.name]}
+                                  onCommit={(value) =>
+                                    updateValue(row.displayId, column.name, value)
+                                  }
                                 position={{
                                   row: rowIndex,
                                   column: columnIndex + 1,
@@ -906,9 +848,6 @@ export function ResultTableContent({
                                         (item) =>
                                           item.displayId !== row.displayId,
                                       ),
-                                      ...(Object.keys(rewriteCellFormulaRows(formulaMap, rowIndex, "delete")).length
-                                        ? { formulaMap: rewriteCellFormulaRows(formulaMap, rowIndex, "delete") }
-                                        : {}),
                                     });
                                   },
                                 },

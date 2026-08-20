@@ -359,7 +359,7 @@ A block within a Notebook Entry's Rich-Text Document (`table`) providing a simpl
 
 ### Table Kit
 
-The shared table framework that all table blocks build on: the cell registry (keyed by Column Type operand shape), full-cell editors, keyboard navigation, copy-paste, scroll container, and stretch behavior. Table blocks (Registry Table, Result Table, Plain Table) remain registered by their owning mods; the Kit provides the common machinery so new table types are cheap to create.
+The Shell-owned deep module behind table-block grids. `TableKit` accepts shape-resolved columns and a controlled two-dimensional grid of typed values, and owns cell rendering/editing, selection, keyboard interaction, typed clipboard conversion, read-only filtering, bounds clamping, and grid layout. Table blocks resolve domain Column Types, map their row objects to and from the grid, and retain persisted state, registration, formula previews, server calls, and block chrome. Leading and trailing decoration slots keep block-owned status and action UI alongside the non-selectable grid.
 
 **Synonyms:** table framework
 
@@ -485,7 +485,7 @@ An Entity created from a Result Table row. Entity-like in every respect — Disp
 
 ### Result Table
 
-A block within a Notebook Entry's Rich-Text Document that loads a Result Schema and registers rows as Result Entities. Looks and behaves like a Registry Table — typed cells, explicit register button — but each row inserts a source Entity into the Entity Column instead of typing a Name.
+A block within a Notebook Entry's Rich-Text Document that loads a Result Schema and registers rows as Result Entities. It owns schema loading, formula evaluation and preview, registration, status, and server actions while delegating its shape-resolved typed grid, controlled row mapping, interaction, clipboard behavior, and decoration slots to TableKit. Looks and behaves like a Registry Table — typed cells, explicit register button — but each row inserts a source Entity into the Entity Column instead of typing a Name.
 
 **Synonyms:** results table, assay table
 

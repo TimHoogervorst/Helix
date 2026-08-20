@@ -28,6 +28,7 @@ and onboarding reference for contributors.
 | [0016](0016-design-system-foundation.md) | Design-System Foundation — Theme Seeds, Derived Shades, and the Label/Body Type System | 2026-08-06 | Superseded by [0018](0018-design-system-and-preferences.md) |
 | [0017](0017-preferences-window-localstorage-themes.md) | Preferences Window — Themes as Seed Bundles, Persisted in localStorage | 2026-08-06 | Superseded by [0018](0018-design-system-and-preferences.md) |
 | [0018](0018-design-system-and-preferences.md) | Design System and Preferences — Seeds, Derived Overrides, Fonts, and localStorage | 2026-08-09 | Proposed |
+| [0022](0022-table-kit-deep-typed-grid.md) | Table Kit as a Deep Typed Grid Module | 2026-08-20 | Proposed |
 
 ## Creating a New ADR
 

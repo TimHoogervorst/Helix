@@ -807,6 +807,49 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         # Only one entity exists
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 1)
 
+    def test_result_row_ids_allow_duplicate_source_results(self):
+        self.schema_type.tags = ["ResultTable"]
+        self.schema_type.save(update_fields=["tags"])
+        payload = {
+            "schema_id": self.dna_schema.id,
+            "rows": [
+                {
+                    "entity_id": None,
+                    "result_row_id": "row-a",
+                    "name": "BLOOD1 — Assay Result",
+                    "values": {"concentration": 10, "Entity": "BLOOD1"},
+                    "folder_id": self.folder.id,
+                },
+                {
+                    "entity_id": None,
+                    "result_row_id": "row-b",
+                    "name": "BLOOD1 — Assay Result",
+                    "values": {"concentration": 20, "Entity": "BLOOD1"},
+                    "folder_id": self.folder.id,
+                },
+            ],
+        }
+
+        response = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(
+            Entity.objects.filter(schema=self.dna_schema).count(), 2
+        )
+        result_ids = [result["entity_id"] for result in response.data["results"]]
+        self.assertNotEqual(result_ids[0], result_ids[1])
+
+        retry = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(
+            Entity.objects.filter(schema=self.dna_schema).count(), 2
+        )
+        self.assertEqual(
+            [result["entity_id"] for result in retry.data["results"]], result_ids
+        )
+
 
 class BatchRegisterActionLoggingTests(BaseTestCase):
     """Test that batch-register logs an action with correct metadata."""

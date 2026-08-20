@@ -346,12 +346,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for name, definition in _column_defs.items()
             if definition.get("type") == "formula"
         }
+        is_result_schema = "ResultTable" in (schema.schema_type.tags or [])
 
         results = []
         errors = []
 
         for row_index, row in enumerate(rows):
             entity_id = row.get("entity_id")
+            result_row_id = row.get("result_row_id")
             name = (row.get("name") or "").strip()
             values = row.get("values", {})
             folder_id = row.get("folder_id")
@@ -457,6 +459,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 if formula_type_error:
                     continue
             persisted_values = {**input_values, **formula_values}
+            if is_result_schema and result_row_id:
+                persisted_values["_result_row_id"] = result_row_id
             if formula_defs:
                 persisted_values["_computed_field_versions"] = {
                     field: definition.get("expression_version", 1)
@@ -544,6 +548,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "row_index": row_index,
                         "entity_id": entity.id,
                         "display_id": entity.display_id,
+                        "result_row_id": result_row_id,
                         "status": "updated",
                         "values": formula_values,
                         "schema_content_hash": schema.content_hash,
@@ -555,9 +560,16 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "message": f"Entity with id {entity_id} not found.",
                     })
             else:
-                existing = Entity.objects.filter(
-                    name=name, schema=schema
-                ).first()
+                existing = None
+                if is_result_schema and result_row_id:
+                    existing = Entity.objects.filter(
+                        schema=schema,
+                        properties___result_row_id=result_row_id,
+                    ).first()
+                if existing is None and not (is_result_schema and result_row_id):
+                    existing = Entity.objects.filter(
+                        name=name, schema=schema
+                    ).first()
                 if existing:
                     existing.properties = persisted_values
                     if folder is not None:
@@ -570,6 +582,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "row_index": row_index,
                         "entity_id": existing.id,
                         "display_id": existing.display_id,
+                        "result_row_id": result_row_id,
                         "status": "updated",
                         "values": formula_values,
                         "schema_content_hash": schema.content_hash,
@@ -587,6 +600,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "row_index": row_index,
                         "entity_id": entity.id,
                         "display_id": entity.display_id,
+                        "result_row_id": result_row_id,
                         "status": "created",
                         "values": formula_values,
                         "schema_content_hash": schema.content_hash,

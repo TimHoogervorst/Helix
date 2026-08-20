@@ -257,6 +257,7 @@ class EntityBatchSerializer(serializers.Serializer):
 class EntityBatchRegisterRowSerializer(serializers.Serializer):
     """Serializer for a single row in the batch-register payload."""
     entity_id = serializers.IntegerField(required=False, allow_null=True)
+    result_row_id = serializers.CharField(required=False, allow_blank=False)
     name = serializers.CharField(required=True, allow_blank=True)
     folder_id = serializers.IntegerField(required=False, allow_null=True)
     values = serializers.DictField(default=dict)

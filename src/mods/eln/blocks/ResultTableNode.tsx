@@ -19,7 +19,6 @@ import {
   parseCellValue,
   renderCellValue,
 } from "../../../shell/src/shared/components/TableCells";
-import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import {
   deriveForeground,
@@ -52,6 +51,8 @@ import {
 export interface ResultTableRow {
   entityId: number | null;
   displayId: string;
+  /** Stable identity used to match this row to its Result Entity. */
+  resultRowId?: string;
   sourceEntityId: string;
   values: Record<string, unknown>;
   isRegistered: boolean;
@@ -82,6 +83,7 @@ interface BatchResponse {
     row_index: number;
     entity_id: number;
     display_id: string;
+    result_row_id?: string;
     values?: Record<string, unknown>;
     schema_content_hash?: string;
   }[];
@@ -138,6 +140,10 @@ function isCurrent(
     row.lastRegisteredValueHash === snapshot(row, values) &&
     !row.registrationError
   );
+}
+
+function newResultRowId() {
+  return globalThis.crypto?.randomUUID?.() ?? `result-row-${Date.now()}-${Math.random()}`;
 }
 
 function usesBackendOnlyFunction(expression: string): boolean {
@@ -335,6 +341,7 @@ export function ResultTableContent({
         {
           entityId: null,
           displayId: `#new-${counter.current++}`,
+          resultRowId: newResultRowId(),
           sourceEntityId: "",
           values: Object.fromEntries(
             valueColumns.map((column) => [column.name, emptyValue(column)]),
@@ -457,6 +464,7 @@ export function ResultTableContent({
           project_id: projectId ?? null,
           rows: pending.map(({ row }) => ({
             entity_id: row.entityId,
+            result_row_id: row.resultRowId ?? newResultRowId(),
             name: `${row.sourceEntityId} — ${schemaName}`,
             values: {
               ...Object.fromEntries(
@@ -483,6 +491,7 @@ export function ResultTableContent({
         };
         next[item.index] = {
           ...item.row,
+          resultRowId: item.row.resultRowId ?? result.result_row_id,
           values: registeredValues,
           entityId: result.entity_id,
           displayId: result.display_id,
@@ -761,23 +770,6 @@ export function ResultTableContent({
                           aria-label={STATUS_LABELS[status]}
                           data-testid={`result-status-bar-${status}`}
                         />
-                        {row.isRegistered &&
-                          row.entityId !== null &&
-                          row.displayId && (
-                            <MentionBadge
-                              displayId={row.displayId}
-                              clickable
-                              compact
-                              resolved={{
-                                displayId: row.displayId,
-                                title: `${row.sourceEntityId} — ${schemaName}`,
-                                type: "entity",
-                                id: row.entityId,
-                                icon: "📦",
-                                workspaceId: "lims",
-                              }}
-                            />
-                          )}
                       </td>
                       <td
                         className="p-0"

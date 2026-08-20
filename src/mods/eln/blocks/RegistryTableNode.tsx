@@ -26,23 +26,12 @@ import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
-import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
-import {
-  TypedFullCell,
-  parseCellValue,
-  renderCellValue,
-} from "../../../shell/src/shared/components/TableCells";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { listDropdowns } from "../../dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import {
-  StickyActionCell,
-  StickyActionHeader,
-  TableChrome,
-  TableScroll,
-  TableStretch,
-} from "../../../shell/src/shared/primitives/TableLayout";
+import { TableChrome } from "../../../shell/src/shared/primitives/TableLayout";
+import { TableKit } from "../../../shell/src/shared/table/TableKit";
 import type { ElnSidebarData } from "./sidebarData";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
@@ -499,85 +488,6 @@ export function RegistryTableContent({
     applyRowValues,
   });
 
-  // ── Name cell commit ─────────────────────────────────────────────────
-  const handleNameCommit = useCallback(
-    (rowDisplayId: string, newName: string) => {
-      const updatedRows = rows.map((r) => {
-        if (r.displayId !== rowDisplayId) return r;
-        return { ...r, __name: newName };
-      });
-      updateAttrs({ rows: updatedRows });
-    },
-    [rows, updateAttrs],
-  );
-
-  // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
-  // Grid layout: column 0 is the Name pseudo-column, schema columns follow.
-  const interaction = useTableInteraction({
-    tableId: "registry-table",
-    rowCount: rows.length,
-    columnCount: columns.length + 1,
-    readOnly,
-    getValues: () =>
-      rows.map((row) => {
-        const values = computedValues(row);
-        return [
-          row.__name,
-          ...columns.map((col) =>
-            renderCellValue(
-              resolveColumnShape(col),
-                values[col.name],
-            ),
-          ),
-        ];
-      }),
-    onClear: (positions) => {
-      const updatedRows = rows.map((row, rowIndex) => {
-        const rowPositions = positions.filter((position) => position.row === rowIndex);
-        if (!rowPositions.length) return row;
-        let name = row.__name;
-        const values = { ...row.values };
-        for (const position of rowPositions) {
-          if (position.column === 0) {
-            name = "";
-            continue;
-          }
-          const column = columns[position.column - 1];
-          if (!column) continue;
-          values[column.name] = "";
-        }
-        return { ...row, __name: name, values };
-      });
-      updateAttrs({ rows: updatedRows });
-    },
-    onPaste: (anchor, values) => {
-      const updatedRows = rows.map((row, rowIndex) => {
-        const pastedRow = values[rowIndex - anchor.row];
-        if (!pastedRow || rowIndex < anchor.row) return row;
-        let name = row.__name;
-        const nextValues = { ...row.values };
-        pastedRow.forEach((raw, offset) => {
-          const gridColumn = anchor.column + offset;
-          if (gridColumn === 0) {
-            name = raw;
-            return;
-          }
-          const col = columns[gridColumn - 1];
-          if (!col || col.type === "formula") return;
-          try {
-            nextValues[col.name] = parseCellValue(
-              resolveColumnShape(col),
-              raw,
-            );
-          } catch {
-            // Skip values that don't parse for the column's shape
-          }
-        });
-        return { ...row, __name: name, values: nextValues };
-      });
-      updateAttrs({ rows: updatedRows });
-    },
-  });
   // ── Add row ──────────────────────────────────────────────────────────
   const handleAddRow = useCallback(() => {
     const newRow: RegistryTableRow = {
@@ -981,216 +891,224 @@ export function RegistryTableContent({
       addRowOutside
     >
 
-      <TableStretch
-        mode={stretchMode}
+      <div
         data-testid="registry-table-stretch-wrapper"
+        className={`table-layout-stretch table-layout-stretch--${stretchMode}`}
       >
-      <TableScroll mode={stretchMode}>
-        <div
-          className="w-max min-w-full"
-          ref={interaction.containerRef}
-          onCopy={interaction.handleCopy}
-          onPaste={interaction.handlePaste}
-        >
-        <table className={`text-base bg-background ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
-          <colgroup>
-            <col style={{ width: "2.5rem" }} />
-            <col style={{ width: "10rem" }} />
-            {columns.map((col) => <col key={col.name} style={{ width: "10rem" }} />)}
-            {!readOnly && <col style={{ width: "2.5rem" }} />}
-          </colgroup>
-          <thead className={stretchMode === "auto" ? "bg-background" : ""}>
-            <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
-              {/* Status + entity pill column */}
-              <th
-                className="w-10 px-2 py-1 whitespace-nowrap"
-                data-testid="registry-table-header-status"
-                aria-label="Status"
-              />
-              {/* Mandatory Name column */}
-              <th
-                  className="px-4 py-1 text-left font-medium whitespace-nowrap"
-                data-testid="registry-table-header-name"
-              >
-                Name
-              </th>
-              {/* Schema columns */}
-              {columns.map((col) => (
-                <th
-                  key={col.name}
-                  className="px-4 py-1 text-left font-medium whitespace-nowrap"
-                  data-testid={`registry-table-header-${col.name}`}
-                >
-                  {col.name}
+      <TableKit
+        columns={[
+          {
+            header: <span data-testid="registry-table-header-name">Name</span>,
+            shape: "text",
+            placeholder: "Enter name…",
+            width: "10rem",
+            cellTestId: (_, index) => `name-cell-${rows[index]?.displayId}`,
+          },
+          ...columns.map((column) => {
+            const shape = resolveColumnShape(column);
+            return {
+              header: (
+                <span data-testid={`registry-table-header-${column.name}`}>
+                  {column.name}
                   <span className="ml-1 inline-flex items-center text-2xs text-muted-foreground font-normal align-middle">
-                    {renderColumnTypeBadge(col.type)}
+                    {renderColumnTypeBadge(column.type)}
                   </span>
-                </th>
-              ))}
-              {/* Actions column — sticky to right edge, always visible during horizontal scroll.
-                   No border or background so it blends seamlessly. Hidden in read-only mode. */}
-              {!readOnly && (
-                <StickyActionHeader
-                  data-testid="registry-table-header-delete"
-                  aria-label="Actions"
+                </span>
+              ),
+              shape,
+              options:
+                shape === "dropdown"
+                  ? dropdownOptionsMap.get(column.name)
+                  : previewMode && shape === "entity-picker"
+                    ? MOCK_REFERENCE_OPTIONS
+                    : undefined,
+              referenceSchemaId: column.referenceSchemaId,
+              referenceSchemaTypeId: column.referenceSchemaTypeId,
+              workspaceId: workspaceId ?? "lims",
+              placeholder:
+                backendOnlyColumns.includes(column)
+                  ? "Refresh to calculate"
+                  : shape === "entity-picker"
+                    ? "@mention…"
+                    : undefined,
+              width: "10rem",
+              cellTestId: (_, index) =>
+                `cell-${rows[index]?.displayId}-${column.name}`,
+            };
+          }),
+        ]}
+        rows={rows.map((row) => {
+          const values = computedValues(row);
+          return [
+            row.__name,
+            ...columns.map((column) => {
+              const value = values[column.name];
+              return value === undefined || value === null || value === ""
+                ? null
+                : value;
+            }),
+          ];
+        })}
+        tableId="registry-table"
+        readOnly={readOnly}
+        isCellReadOnly={(position) =>
+          position.column > 0 && columns[position.column - 1]?.type === "formula"
+        }
+        onEdit={(position, value) => {
+          const row = rows[position.row];
+          if (!row) return;
+          if (position.column === 0) {
+            updateAttrs({
+              rows: rows.map((item) =>
+                item.displayId === row.displayId
+                  ? { ...item, __name: String(value ?? "") }
+                  : item,
+              ),
+            });
+          } else {
+            const column = columns[position.column - 1];
+            if (column) handleCellCommit(row.displayId, column.name, value);
+          }
+        }}
+        onClear={(positions) => {
+          const updatedRows = rows.map((row, rowIndex) => {
+            const rowPositions = positions.filter(
+              (position) => position.row === rowIndex,
+            );
+            if (!rowPositions.length) return row;
+            let name = row.__name;
+            const values = { ...row.values };
+            for (const position of rowPositions) {
+              if (position.column === 0) {
+                name = "";
+              } else {
+                const column = columns[position.column - 1];
+                if (column) values[column.name] = "";
+              }
+            }
+            return { ...row, __name: name, values };
+          });
+          updateAttrs({ rows: updatedRows });
+        }}
+        onPaste={(anchor, pasted) => {
+          const updatedRows = rows.map((row, rowIndex) => {
+            const pastedRow = pasted[rowIndex - anchor.row];
+            if (!pastedRow || rowIndex < anchor.row) return row;
+            let name = row.__name;
+            const values = { ...row.values };
+            pastedRow.forEach((value, offset) => {
+              if (value === undefined) return;
+              const columnIndex = anchor.column + offset;
+              if (columnIndex === 0) {
+                name = String(value ?? "");
+              } else {
+                const column = columns[columnIndex - 1];
+                if (column && column.type !== "formula") {
+                  values[column.name] = value;
+                }
+              }
+            });
+            return { ...row, __name: name, values };
+          });
+          updateAttrs({ rows: updatedRows });
+        }}
+        leadingHeader={
+          <span data-testid="registry-table-header-status" aria-label="Status" />
+        }
+        renderLeadingCell={(_, rowIndex) => {
+          const row = rows[rowIndex];
+          if (!row) return null;
+          const values = computedValues(row);
+          const dotColor = getDotColor({ ...row, values }, schemaContentHash);
+          return (
+            <>
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[3px] group-hover:w-[5px] transition-all duration-150"
+                style={{ backgroundColor: DOT_COLORS[dotColor] }}
+                title={DOT_LABELS[dotColor]}
+                aria-label={DOT_LABELS[dotColor]}
+                data-testid={`status-bar-${dotColor}`}
+              />
+              {row.isRegistered && row.entityId !== null && row.displayId && (
+                <MentionBadge
+                  displayId={row.displayId}
+                  clickable
+                  compact
+                  resolved={{
+                    displayId: row.displayId,
+                    title: row.__name,
+                    type: "entity",
+                    id: row.entityId,
+                    icon: "📦",
+                    workspaceId: "lims",
+                  }}
                 />
               )}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr data-testid="registry-table-empty-row">
-                <td
-                  colSpan={readOnly ? 2 + columns.length : 3 + columns.length}
-                  className="px-4 py-6 text-center text-sm text-muted-foreground"
-                >
-                  {readOnly
-                    ? "No rows."
-                    : 'No rows yet. Click "+ New Row" below to add one.'}
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, rowIndex) => {
-                const values = computedValues(row);
-                const dotColor = getDotColor({ ...row, values }, schemaContentHash);
+            </>
+          );
+        }}
+        trailingHeader={
+          !readOnly ? (
+            <span data-testid="registry-table-header-delete">Actions</span>
+          ) : undefined
+        }
+        renderTrailingCell={
+          !readOnly
+            ? (_, rowIndex) => {
+                const row = rows[rowIndex];
+                if (!row) return null;
                 return (
-                <tr
-                  key={row.displayId}
-                  className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors group"
-                  data-testid={`registry-table-row-${row.displayId}`}
-                >
-                  {/* Status bar + entity pill */}
-                  <td className="relative px-2 py-2 text-center align-middle">
-                    {/* Colored status bar on the left edge of the row,
-                        top-to-bottom, extends inward on row hover */}
-                    <div
-                      className="absolute left-0 top-0 bottom-0 w-[3px] group-hover:w-[5px] transition-all duration-150"
-                      style={{ backgroundColor: DOT_COLORS[dotColor] }}
-                      title={DOT_LABELS[dotColor]}
-                      aria-label={DOT_LABELS[dotColor]}
-                      data-testid={`status-bar-${dotColor}`}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <MoreActions
+                      items={[
+                        {
+                          key: "refresh",
+                          icon: RefreshCw,
+                          label: "Refresh",
+                          disabled: isRefreshing(row.displayId),
+                          onClick: () => refresh(row),
+                          tooltip: `Refresh computed fields for ${row.displayId}`,
+                        },
+                        {
+                          key: "delete",
+                          icon: Trash2,
+                          label: "Delete",
+                          onClick: () => handleDeleteRow(row.displayId),
+                          destructive: true,
+                          tooltip: `Delete row ${row.displayId}`,
+                        },
+                      ].filter(
+                        (item) =>
+                          item.key !== "refresh" || backendOnlyColumns.length > 0,
+                      )}
                     />
-                    {row.isRegistered && row.entityId !== null && row.displayId && (
-                      <MentionBadge
-                        displayId={row.displayId}
-                        clickable
-                        compact
-                        resolved={{
-                          displayId: row.displayId,
-                          title: row.__name,
-                          type: "entity",
-                          id: row.entityId,
-                          icon: "📦",
-                          workspaceId: "lims",
-                        }}
-                      />
-                    )}
-                  </td>
-
-                  {/* Name column */}
-                  <td
-                    className="p-0!"
-                    {...interaction.cellProps({ row: rowIndex, column: 0 })}
-                  >
-                    <TypedFullCell
-                      shape="text"
-                      value={row.__name}
-                      onCommit={(value) =>
-                        handleNameCommit(row.displayId, String(value ?? ""))
-                      }
-                      position={{ row: rowIndex, column: 0 }}
-                      interaction={interaction}
-                      readOnly={readOnly}
-                      placeholder="Enter name…"
-                      data-testid={`name-cell-${row.displayId}`}
-                    />
-                  </td>
-
-                  {/* Schema columns */}
-                  {columns.map((col, columnIndex) => {
-                    const shape = resolveColumnShape(col);
-                    const stale = isStale(row, col.name);
-                    const value = values[col.name];
-                    const missing = value === undefined || value === null || value === "";
-                    return (
-                      <td
-                        key={col.name}
-                        className={`p-0! ${stale ? "opacity-50" : ""}`}
-                        data-stale={stale ? "true" : undefined}
-                        {...interaction.cellProps({
-                          row: rowIndex,
-                          column: columnIndex + 1,
-                        })}
-                      >
-                        <TypedFullCell
-                          shape={shape}
-                           value={missing ? undefined : value}
-                            onCommit={(value) =>
-                              handleCellCommit(row.displayId, col.name, value)
-                            }
-                          position={{ row: rowIndex, column: columnIndex + 1 }}
-                          interaction={interaction}
-                          readOnly={readOnly || col.type === "formula"}
-                          options={
-                            shape === "dropdown"
-                              ? dropdownOptionsMap.get(col.name)
-                              : previewMode && shape === "entity-picker"
-                                ? MOCK_REFERENCE_OPTIONS
-                                : undefined
-                          }
-                          referenceSchemaId={col.referenceSchemaId}
-                           workspaceId={workspaceId ?? "lims"}
-                           placeholder={
-                             backendOnlyColumns.includes(col) && missing
-                               ? "Refresh to calculate"
-                               : shape === "entity-picker" ? "@mention…" : undefined
-                           }
-                          data-testid={`cell-${row.displayId}-${col.name}`}
-                        />
-                      </td>
-                    );
-                  })}
-
-                  {/* Three-dot action menu — sticky to right edge, always visible on row hover.
-                       No border or background so it blends seamlessly. Hidden in read-only mode. */}
-                  {!readOnly && (
-                     <StickyActionCell className="align-middle">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <MoreActions
-                           items={[
-                             {
-                               key: "refresh",
-                               icon: RefreshCw,
-                               label: "Refresh",
-                                disabled: isRefreshing(row.displayId),
-                                onClick: () => refresh(row),
-                               tooltip: `Refresh computed fields for ${row.displayId}`,
-                             },
-                             {
-                              key: "delete",
-                              icon: Trash2,
-                              label: "Delete",
-                              onClick: () => handleDeleteRow(row.displayId),
-                              destructive: true,
-                              tooltip: `Delete row ${row.displayId}`,
-                            },
-                           ].filter(
-                             (item) => item.key !== "refresh" || backendOnlyColumns.length > 0,
-                           )}
-                        />
-                      </div>
-                     </StickyActionCell>
-                  )}
-                </tr>
-              );
-              })
-            )}
-          </tbody>
-        </table>
-        </div>
-      </TableScroll>
-
-      </TableStretch>
+                  </div>
+                );
+              }
+            : undefined
+        }
+        getRowProps={(_, rowIndex) => ({
+          className: "hover:bg-[var(--color-background-hover)] transition-colors group",
+          "data-testid": `registry-table-row-${rows[rowIndex]?.displayId}`,
+        })}
+        getCellProps={(_, rowIndex, position) => {
+          const column = columns[position.column - 1];
+          return position.column > 0 && column && isStale(rows[rowIndex], column.name)
+            ? { className: "opacity-50", "data-stale": "true" }
+            : {};
+        }}
+        stretchMode={stretchMode}
+        emptyState={
+          <div
+            data-testid="registry-table-empty-row"
+            className="px-4 py-6 text-center text-sm text-muted-foreground"
+          >
+            {readOnly ? "No rows." : 'No rows yet. Click "+ New Row" below to add one.'}
+          </div>
+        }
+        data-testid="registry-table-grid"
+      />
+      </div>
     </TableChrome>
   );
 }

@@ -44,6 +44,7 @@ export interface TableKitProps {
     className?: string;
     "data-stale"?: string;
   };
+  emptyState?: ReactNode;
   stretchMode?: TableStretchMode;
   className?: string;
   "data-testid"?: string;
@@ -64,6 +65,7 @@ export function TableKit({
   renderTrailingCell,
   getRowProps,
   getCellProps,
+  emptyState,
   stretchMode = "full",
   className = "",
   "data-testid": testId,
@@ -134,7 +136,13 @@ export function TableKit({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, rowIndex) => (
+              {rows.length === 0 && emptyState ? (
+                <tr>
+                  <td colSpan={columns.length + (leadingHeader !== undefined ? 1 : 0) + (trailingHeader !== undefined ? 1 : 0)}>
+                    {emptyState}
+                  </td>
+                </tr>
+              ) : rows.map((row, rowIndex) => (
                 <tr
                   key={rowIndex}
                   className={`border-b border-hairline last:border-b-0 ${getRowProps?.(row, rowIndex)?.className ?? ""}`}

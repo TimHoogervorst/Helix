@@ -43,6 +43,7 @@ const defaultClientFunctionIds = new Set([
   "LEN",
 ]);
 let hydratedFunctionIds: Set<string> | null = null;
+let authoritativeCatalog = false;
 let unavailableDeclaredFunctionIds = new Set<string>();
 
 /** Register a client implementation, optionally validated against the catalog. */
@@ -61,10 +62,12 @@ export function registerFormulaFunction(
 export function hydrateFormulaCatalog(
   entries: Iterable<string | { id: string; clientImplemented?: boolean }>,
 ): void {
-  const catalog = [...entries].map((entry) =>
-    typeof entry === "string"
-      ? { id: entry, clientImplemented: true }
-      : entry,
+  const rawEntries = [...entries];
+  authoritativeCatalog =
+    rawEntries.length === 0 ||
+    rawEntries.some((entry) => typeof entry !== "string");
+  const catalog = rawEntries.map((entry) =>
+    typeof entry === "string" ? { id: entry, clientImplemented: true } : entry,
   );
   hydratedFunctionIds = new Set(catalog.map((entry) => entry.id));
   const actualClientFunctionIds = new Set([
@@ -81,11 +84,17 @@ export function hydrateFormulaCatalog(
       .map((entry) => entry.id),
   );
   for (const entry of catalog) {
-    if (entry.clientImplemented === true && !actualClientFunctionIds.has(entry.id)) {
+    if (
+      entry.clientImplemented === true &&
+      !actualClientFunctionIds.has(entry.id)
+    ) {
       console.warn(
         `Formula function '${entry.id}' declares a client implementation but none is registered; treating it as backend-only.`,
       );
-    } else if (entry.clientImplemented === false && actualClientFunctionIds.has(entry.id)) {
+    } else if (
+      entry.clientImplemented === false &&
+      actualClientFunctionIds.has(entry.id)
+    ) {
       console.warn(
         `Formula function '${entry.id}' is registered on the client but declared backend-only.`,
       );
@@ -100,7 +109,10 @@ export function hydrateFormulaCatalog(
 }
 
 export function getClientFormulaFunctionIds(): ReadonlySet<string> {
-  const ids = new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+  const ids = new Set([
+    ...defaultClientFunctionIds,
+    ...clientImplementations.keys(),
+  ]);
   return hydratedFunctionIds
     ? new Set(
         [...ids].filter(
@@ -340,12 +352,31 @@ export function functionCallsIn(expression: string): string[] {
   return calls;
 }
 
+/** Return catalogued functions in an expression without a client implementation. */
+export function unimplementedFormulaFunctionsIn(
+  expression: string,
+  clientFunctionIds: ReadonlySet<string> = getClientFormulaFunctionIds(),
+): string[] {
+  const calls = functionCallsIn(expression);
+  const catalogIds =
+    hydratedFunctionIds ??
+    new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+  if (!authoritativeCatalog) {
+    return [...new Set(calls)].filter((id) => !clientFunctionIds.has(id));
+  }
+  return [...new Set(calls)].filter(
+    (id) => catalogIds.has(id) && !clientFunctionIds.has(id),
+  );
+}
+
 /** Return whether an expression calls a function without a client implementation. */
 export function usesBackendOnlyFunction(
   expression: string,
   clientFunctionIds: ReadonlySet<string> = getClientFormulaFunctionIds(),
 ): boolean {
-  return functionCallsIn(expression).some((id) => !clientFunctionIds.has(id));
+  return (
+    unimplementedFormulaFunctionsIn(expression, clientFunctionIds).length > 0
+  );
 }
 
 function number(result: FormulaResult): number | FormulaResult {
@@ -432,7 +463,7 @@ function evalAst(
               ? a / b
               : ast.operator === "%"
                 ? a % b
-      : Math.pow(a, b),
+                : Math.pow(a, b),
     );
   }
   const registeredImplementation = clientImplementations.get(ast.name);
@@ -547,9 +578,7 @@ export function evaluateCellFormula(
   context: FormulaTableContext,
 ): FormulaResult {
   const parsed = parseFormula(expression.replace(/^=/, ""));
-  return parsed.ok && parsed.ast
-    ? evalAst(parsed.ast, row, context)
-    : parsed;
+  return parsed.ok && parsed.ast ? evalAst(parsed.ast, row, context) : parsed;
 }
 function refs(ast: FormulaAst, result: Set<string>) {
   walkFormulaAst(ast, (node) => {

@@ -5,6 +5,7 @@ import {
   evaluateRow,
   functionCallsIn,
   parseFormula,
+  unimplementedFormulaFunctionsIn,
   usesBackendOnlyFunction,
   walkFormulaAst,
   type FormulaColumn,
@@ -32,11 +33,14 @@ export interface ComputedFields {
 }
 
 interface FormulaEvaluateResponse {
-  results: Record<string, {
-    ok: boolean;
-    value?: unknown;
-    error?: { code: string };
-  }>;
+  results: Record<
+    string,
+    {
+      ok: boolean;
+      value?: unknown;
+      error?: { code: string };
+    }
+  >;
 }
 
 /** Return column references from the parsed expression, including nested calls. */
@@ -52,10 +56,15 @@ export function referencesIn(expression: string): string[] {
 }
 
 function formulaColumns(columns: readonly GridColumn[]): GridColumn[] {
-  return columns.filter((column) => column.type === "formula" && column.expression);
+  return columns.filter(
+    (column) => column.type === "formula" && column.expression,
+  );
 }
 
-function snapshot(values: Record<string, unknown>, formulaNames: ReadonlySet<string>): string {
+function snapshot(
+  values: Record<string, unknown>,
+  formulaNames: ReadonlySet<string>,
+): string {
   const inputs = Object.keys(values)
     .filter((name) => !formulaNames.has(name))
     .sort()
@@ -70,7 +79,9 @@ function complete(value: unknown): boolean {
   return value !== undefined && value !== null && value !== "";
 }
 
-function formulaDefinitions(columns: readonly GridColumn[]): Record<string, FormulaColumn> {
+function formulaDefinitions(
+  columns: readonly GridColumn[],
+): Record<string, FormulaColumn> {
   return Object.fromEntries(
     formulaColumns(columns).map((column) => [
       column.name,
@@ -86,8 +97,11 @@ export function useComputedFields({
 }: UseComputedFieldsOptions): ComputedFields {
   const formulas = formulaColumns(columns);
   const formulaNames = new Set(formulas.map((column) => column.name));
-  const backendOnlyColumns = formulas.filter((column) =>
-    usesBackendOnlyFunction(column.expression!),
+  const backendOnlyColumns = formulas.filter(
+    (column) => unimplementedFormulaFunctionsIn(column.expression!).length > 0,
+  );
+  const backendOnlyExpressions = new Set(
+    backendOnlyColumns.map((column) => column.expression!),
   );
   const [refreshing, setRefreshing] = useState<Set<string>>(() => new Set());
   const refreshingRef = useRef(new Set<string>());
@@ -102,17 +116,21 @@ export function useComputedFields({
       const values = { ...row.values };
       for (const column of formulas) {
         const result = evaluated[column.name];
-        if (usesBackendOnlyFunction(column.expression!)) continue;
+        if (backendOnlyExpressions.has(column.expression!)) continue;
         values[column.name] = result?.ok ? result.value : result?.error.code;
       }
       return values;
     },
-    [columns, formulas],
+    [backendOnlyExpressions, columns, formulas],
   );
 
   const refresh = useCallback(
     async (row: ComputedFieldRow) => {
-      if (!enabled || !backendOnlyColumns.length || refreshingRef.current.has(row.displayId)) {
+      if (
+        !enabled ||
+        !backendOnlyColumns.length ||
+        refreshingRef.current.has(row.displayId)
+      ) {
         return;
       }
 
@@ -134,7 +152,9 @@ export function useComputedFields({
       try {
         while (pending.length) {
           const ready = pending.filter((column) =>
-            referencesIn(column.expression!).every((name) => complete(values[name])),
+            referencesIn(column.expression!).every((name) =>
+              complete(values[name]),
+            ),
           );
           if (!ready.length) break;
 
@@ -186,7 +206,10 @@ export function useComputedFields({
         return false;
       }
       const refreshed = refreshedSnapshots.current.get(row.displayId);
-      return refreshed !== undefined && refreshed !== snapshot(row.values, formulaNames);
+      return (
+        refreshed !== undefined &&
+        refreshed !== snapshot(row.values, formulaNames)
+      );
     },
     [backendOnlyColumns, formulaNames],
   );
@@ -208,4 +231,8 @@ export function useComputedFields({
   };
 }
 
-export { functionCallsIn, usesBackendOnlyFunction };
+export {
+  functionCallsIn,
+  unimplementedFormulaFunctionsIn,
+  usesBackendOnlyFunction,
+};

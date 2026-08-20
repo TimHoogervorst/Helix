@@ -72,6 +72,7 @@ interface TableInteractionOptions {
   columnCount: number;
   getValues: () => string[][];
   onPaste: (anchor: TablePosition, values: string[][]) => void;
+  readOnly?: boolean;
 }
 
 export function useTableInteraction({
@@ -80,6 +81,7 @@ export function useTableInteraction({
   columnCount,
   getValues,
   onPaste,
+  readOnly = false,
 }: TableInteractionOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeCell, setActiveCell] = useState<TablePosition>({ row: 0, column: 0 });
@@ -161,7 +163,7 @@ export function useTableInteraction({
 
   const selectCell = useCallback((position: TablePosition) => {
     const bounded = boundPosition(position);
-    if (tableIsActive && samePosition(activeCell, bounded)) return;
+    if (tableIsActive && samePosition(activeCell, bounded) && selectedCells.has(cellKey(bounded))) return;
     setActiveCell(bounded);
     setSelectionAnchor(bounded);
     setSelectedCells(new Set([cellKey(bounded)]));
@@ -174,6 +176,11 @@ export function useTableInteraction({
     event.preventDefault();
     event.stopPropagation();
     const bounded = boundPosition(position);
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      dragRef.current = null;
+      setEditingCell(null);
+      return;
+    }
     dragRef.current = { anchor: bounded, last: bounded, moved: false, active: true };
     setEditingCell(null);
     setActiveCell(bounded);
@@ -202,8 +209,27 @@ export function useTableInteraction({
       return;
     }
     suppressClickRef.current = null;
+    const bounded = boundPosition(position);
+    if (event?.shiftKey) {
+      selectRange(selectionAnchor, bounded);
+      focusCell(bounded);
+      return;
+    }
+    if (event?.ctrlKey || event?.metaKey) {
+      setActiveCell(bounded);
+      setSelectedCells((current) => {
+        const next = new Set(current);
+        const key = cellKey(bounded);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      setTableIsActive(true);
+      focusCell(bounded);
+      return;
+    }
     selectCell(position);
-  }, [selectCell]);
+  }, [boundPosition, focusCell, selectCell, selectionAnchor, selectRange, tableId]);
 
   const activateCell = useCallback((position: TablePosition, edit = true) => {
     setActiveCell(position);
@@ -232,6 +258,19 @@ export function useTableInteraction({
       activateCell(position);
       return;
     }
+    const isControlGesture = event.ctrlKey || event.metaKey;
+    if (isControlGesture && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      const next = new Set<string>();
+      for (let row = 0; row < rowCount; row += 1) {
+        for (let column = 0; column < columnCount; column += 1) {
+          next.add(cellKey({ row, column }));
+        }
+      }
+      setSelectedCells(next);
+      setTableIsActive(true);
+      return;
+    }
     const delta = event.key === "ArrowUp" ? { row: -1, column: 0 }
       : event.key === "ArrowDown" ? { row: 1, column: 0 }
         : event.key === "ArrowLeft" ? { row: 0, column: -1 }
@@ -242,8 +281,16 @@ export function useTableInteraction({
     event.preventDefault();
     // Keyboard navigation takes ownership of the cursor from the mouse.
     hoveredCellRef.current = null;
+    if (isControlGesture && event.key.startsWith("Arrow")) {
+      const bounded = boundPosition({ row: position.row + delta.row, column: position.column + delta.column });
+      setActiveCell(bounded);
+      setSelectedCells((current) => new Set(current).add(cellKey(bounded)));
+      setTableIsActive(true);
+      focusCell(bounded);
+      return;
+    }
     moveTo({ row: position.row + delta.row, column: position.column + delta.column }, event.shiftKey && event.key.startsWith("Arrow"));
-  }, [activateCell, moveTo]);
+  }, [activateCell, boundPosition, columnCount, focusCell, moveTo, rowCount, tableId]);
 
   const handleEditorKeyDown = useCallback((
     position: TablePosition,
@@ -270,18 +317,67 @@ export function useTableInteraction({
   const handleCopy = useCallback((event: ClipboardEvent<HTMLElement>) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
     event.preventDefault();
-    event.clipboardData.setData("text/plain", tableRangeToTsv(getValues(), {
-      start: selectionAnchor,
-      end: activeCell,
-    }));
-  }, [activeCell, getValues, selectionAnchor]);
+    const values = getValues();
+    const selectedPositions: TablePosition[] = [];
+    for (let row = 0; row < rowCount; row += 1) {
+      for (let column = 0; column < columnCount; column += 1) {
+        if (selectedCells.has(cellKey({ row, column }))) {
+          selectedPositions.push({ row, column });
+        }
+      }
+    }
+    const positions = selectedPositions.length > 0
+      ? selectedPositions
+      : [selectionAnchor, activeCell];
+    const start = {
+      row: Math.min(...positions.map(({ row }) => row)),
+      column: Math.min(...positions.map(({ column }) => column)),
+    };
+    const end = {
+      row: Math.max(...positions.map(({ row }) => row)),
+      column: Math.max(...positions.map(({ column }) => column)),
+    };
+    const serialized = values
+      .slice(start.row, end.row + 1)
+      .map((row, rowIndex) => row
+        .slice(start.column, end.column + 1)
+        .map((value, columnIndex) => {
+          const position = { row: start.row + rowIndex, column: start.column + columnIndex };
+          return selectedCells.size === 0 || selectedCells.has(cellKey(position)) ? value : "";
+        })
+        .map((value) => /["\t\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
+        .join("\t"))
+      .join("\n");
+    event.clipboardData.setData("text/plain", serialized);
+  }, [activeCell, columnCount, getValues, rowCount, selectedCells, selectionAnchor, tableId]);
 
   const handlePaste = useCallback((event: ClipboardEvent<HTMLElement>) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+    if (readOnly) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     const values = parseTableTsv(event.clipboardData.getData("text/plain"));
-    if (values.length > 0) onPaste(activeCell, values);
-  }, [activeCell, onPaste]);
+    if (values.length === 0) return;
+    const anchor = boundPosition(activeCell);
+    const clampedValues = values
+      .slice(0, rowCount - anchor.row)
+      .map((row) => row.slice(0, columnCount - anchor.column));
+    onPaste(anchor, clampedValues);
+    const pastedRowCount = clampedValues.length;
+    const pastedColumnCount = Math.max(...clampedValues.map((row) => row.length), 0);
+    if (pastedRowCount > 0 && pastedColumnCount > 0) {
+      const end = {
+        row: anchor.row + pastedRowCount - 1,
+        column: anchor.column + pastedColumnCount - 1,
+      };
+      setSelectionAnchor(anchor);
+      selectRange(anchor, end);
+      setActiveCell(anchor);
+      focusCell(anchor);
+    }
+  }, [activeCell, boundPosition, columnCount, focusCell, onPaste, readOnly, rowCount, selectRange]);
 
   const cellProps = useCallback((position: TablePosition) => ({
     "data-table-cell": cellKey(position),

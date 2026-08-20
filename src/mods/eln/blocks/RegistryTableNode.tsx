@@ -604,17 +604,31 @@ export function RegistryTableContent({
 
   // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
   // Grid layout: column 0 is the Name pseudo-column, schema columns follow.
+  const localEvaluatedRows = evaluateCellFormulas(
+    rows.map((row) => row.values as Record<string, any>),
+    formulaMap,
+    new Set(columns.filter((column) => column.type === "formula").map((column) => column.name)),
+  );
   const interaction = useTableInteraction({
     tableId: "registry-table",
     rowCount: rows.length,
     columnCount: columns.length + 1,
+    readOnly,
     getValues: () =>
-      rows.map((row) => [
-        row.__name,
-        ...columns.map((col) =>
-          renderCellValue(resolveColumnShape(col), row.values[col.name]),
-        ),
-      ]),
+      rows.map((row, rowIndex) => {
+        const values = computedValues(row);
+        return [
+          row.__name,
+          ...columns.map((col) =>
+            renderCellValue(
+              resolveColumnShape(col),
+              localEvaluatedRows[rowIndex]?.[col.name]?.ok
+                ? localEvaluatedRows[rowIndex][col.name].value
+                : values[col.name],
+            ),
+          ),
+        ];
+      }),
     onPaste: (anchor, values) => {
       const updatedRows = rows.map((row, rowIndex) => {
         const pastedRow = values[rowIndex - anchor.row];
@@ -643,12 +657,6 @@ export function RegistryTableContent({
       updateAttrs({ rows: updatedRows });
     },
   });
-  const localEvaluatedRows = evaluateCellFormulas(
-    rows.map((row) => row.values as Record<string, any>),
-    formulaMap,
-    new Set(columns.filter((column) => column.type === "formula").map((column) => column.name)),
-  );
-
   // ── Add row ──────────────────────────────────────────────────────────
   const handleAddRow = useCallback(() => {
     const newRow: RegistryTableRow = {

@@ -404,11 +404,17 @@ export function ResultTableContent({
     tableId: "result-table",
     rowCount: rows.length,
     columnCount: valueColumns.length + 1,
+    readOnly,
     getValues: () =>
-      rows.map((row) => [
+      rows.map((row, rowIndex) => [
         row.sourceEntityId,
         ...valueColumns.map((column) =>
-          renderCellValue(shape(column), computedValues(row)[column.name]),
+          renderCellValue(
+            shape(column),
+            localEvaluatedRows[rowIndex]?.[column.name]?.ok
+              ? localEvaluatedRows[rowIndex][column.name].value
+              : computedValues(row)[column.name],
+          ),
         ),
       ]),
     onPaste: (anchor, pasted) => {

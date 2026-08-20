@@ -306,13 +306,21 @@ export function TableBlockContent({
   );
 
   // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
+  const evaluatedRows = evaluateCellFormulas(
+    rows.map((row) => row.cells as Record<string, any>),
+    formulaMap,
+  );
   const interaction = useTableInteraction({
     tableId: "eln-table",
     rowCount: rows.length,
     columnCount: columns.length,
+    readOnly,
     getValues: () =>
-      rows.map((row) =>
-        columns.map((col) => renderCellValue("text", row.cells[col.id])),
+      rows.map((row, rowIndex) =>
+        columns.map((col) => renderCellValue(
+          "text",
+          evaluatedRows[rowIndex]?.[col.id]?.ok ? evaluatedRows[rowIndex][col.id].value : null,
+        )),
       ),
     onPaste: (anchor, values) => {
       const updatedRows = rows.map((row, rowIndex) => {
@@ -333,11 +341,6 @@ export function TableBlockContent({
       updateAttrs({ rows: updatedRows });
     },
   });
-  const evaluatedRows = evaluateCellFormulas(
-    rows.map((row) => row.cells as Record<string, any>),
-    formulaMap,
-  );
-
   // ── Render ────────────────────────────────────────────────────────────
   const hasRows = rows.length > 0;
 

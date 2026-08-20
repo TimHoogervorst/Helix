@@ -99,6 +99,67 @@ describe("TablesPlayground", () => {
     expect(document.activeElement).toBe(document.querySelector('[data-table-cell="0:1"]'));
   });
 
+  it("uses Shift-click to replace the selection from the original anchor", () => {
+    render(<TablesPlayground />);
+
+    const anchor = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    const target = document.querySelector('[data-table-cell="1:2"]') as HTMLElement;
+    fireEvent.click(anchor);
+    fireEvent.click(document.querySelector('[data-table-cell="0:1"]')!, { ctrlKey: true });
+    fireEvent.click(target, { shiftKey: true });
+
+    for (const position of ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]) {
+      expect(document.querySelector(`[data-table-cell="${position}"]`)).toHaveAttribute("aria-selected", "true");
+    }
+    expect(target).toHaveAttribute("data-table-active", "true");
+  });
+
+  it("uses Ctrl-click to build a non-contiguous selection without moving the anchor", () => {
+    render(<TablesPlayground />);
+
+    const anchor = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    const second = document.querySelector('[data-table-cell="1:1"]') as HTMLElement;
+    const third = document.querySelector('[data-table-cell="2:2"]') as HTMLElement;
+    fireEvent.click(anchor);
+    fireEvent.click(second, { ctrlKey: true });
+    fireEvent.click(third, { ctrlKey: true });
+    fireEvent.click(second, { ctrlKey: true });
+
+    expect(anchor).toHaveAttribute("aria-selected", "true");
+    expect(second).toHaveAttribute("aria-selected", "false");
+    expect(third).toHaveAttribute("aria-selected", "true");
+    expect(second).toHaveAttribute("data-table-active", "true");
+
+    fireEvent.click(document.querySelector('[data-table-cell="2:0"]')!, { shiftKey: true });
+    for (const position of ["0:0", "1:0", "2:0"]) {
+      expect(document.querySelector(`[data-table-cell="${position}"]`)).toHaveAttribute("aria-selected", "true");
+    }
+
+    fireEvent.click(second);
+    expect(second).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("uses Ctrl-Arrow to accumulate cells and Ctrl+A to select the table", () => {
+    render(<TablesPlayground />);
+
+    const firstCell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    fireEvent.click(firstCell);
+    firstCell.focus();
+    fireEvent.keyDown(firstCell, { key: "ArrowLeft", ctrlKey: true });
+    expect(firstCell).toHaveAttribute("data-table-active", "true");
+    fireEvent.keyDown(firstCell, { key: "ArrowRight", ctrlKey: true });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown", ctrlKey: true });
+
+    expect(document.querySelector('[data-table-cell="0:0"]')).toHaveAttribute("aria-selected", "true");
+    expect(document.querySelector('[data-table-cell="0:1"]')).toHaveAttribute("aria-selected", "true");
+    expect(document.querySelector('[data-table-cell="1:1"]')).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(document.activeElement!, { key: "a", ctrlKey: true });
+
+    for (const position of ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2", "2:0", "2:1", "2:2"]) {
+      expect(document.querySelector(`[data-table-cell="${position}"]`)).toHaveAttribute("aria-selected", "true");
+    }
+  });
+
   it("commits with Enter and moves down", () => {
     render(<TablesPlayground />);
 
@@ -237,6 +298,20 @@ describe("TablesPlayground", () => {
     expect(setData).toHaveBeenCalledWith("text/plain", "Aster\tResearcher");
   });
 
+  it("copies a non-contiguous selection as its bounding TSV range", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.click(document.querySelector('[data-table-cell="0:0"]')!);
+    fireEvent.click(document.querySelector('[data-table-cell="2:2"]')!, { ctrlKey: true });
+    const setData = vi.fn();
+    fireEvent.copy(screen.getByTestId("harness-table"), { clipboardData: { setData } });
+
+    expect(setData).toHaveBeenCalledWith(
+      "text/plain",
+      "Aster\t\t\n\t\t\n\t\tLocal mock data",
+    );
+  });
+
   it("pastes TSV values from the active anchor cell", () => {
     render(<TablesPlayground />);
 
@@ -249,6 +324,25 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("cell-row-1-name")).toHaveTextContent("Nova");
     expect(screen.getByTestId("cell-row-1-role")).toHaveTextContent("Scientist");
     expect(screen.getByTestId("cell-row-2-name")).toHaveTextContent("Elm");
+  });
+
+  it("clamps paste to the table and selects the pasted region", () => {
+    render(<TablesPlayground />);
+
+    const anchor = document.querySelector('[data-table-cell="1:1"]') as HTMLElement;
+    fireEvent.click(anchor);
+    fireEvent.paste(screen.getByTestId("harness-table"), {
+      clipboardData: { getData: () => "One\tTwo\tThree\nFour\tFive\tSix\nSeven\tEight\tNine" },
+    });
+
+    expect(screen.getByTestId("cell-row-2-role")).toHaveTextContent("One");
+    expect(screen.getByTestId("cell-row-2-note")).toHaveTextContent("Two");
+    expect(screen.getByTestId("cell-row-3-role")).toHaveTextContent("Four");
+    expect(screen.getByTestId("cell-row-3-note")).toHaveTextContent("Five");
+    for (const position of ["1:1", "1:2", "2:1", "2:2"]) {
+      expect(document.querySelector(`[data-table-cell="${position}"]`)).toHaveAttribute("aria-selected", "true");
+    }
+    expect(document.querySelector('[data-table-cell="0:0"]')).toHaveAttribute("aria-selected", "false");
   });
 
   it("registers every supported operand shape and falls back to text", () => {

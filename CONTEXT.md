@@ -610,25 +610,45 @@ A schema column (column type `formula`) whose expression is authored in the Form
 
 **Synonyms:** formula column (the column type's id is `formula`)
 
+### Preview
+
+The display-only, client-side evaluation of a Computed Field: the value shown in the cell as inputs are typed, produced by the client engine — never the value stored. An expression whose functions all have Client Implementations previews live; an expression containing any function without one shows a placeholder instead, awaiting Refresh. Incomplete inputs produce a silent placeholder — no request, no error flicker. Errors appear only for complete-but-invalid data.
+
+### Refresh
+
+The row action (three-dot menu of the Registry Table and Result Table) that recomputes the row's Computed Fields through the Evaluate Gateway, in dependency order, when the row's expressions contain functions without Client Implementations. Available only when every referenced input is complete; fetched values persist in the document and render dimmed (stale) once inputs change, until the next Refresh. Display-only infrastructure — Refresh never produces stored values.
+
 ### Formula Function
 
 A named function usable in Formulas (e.g. `SUM`, `IF`, `molBio.gcContent`). Has exactly one definition and one authoritative backend implementation, both registered in the backend; may optionally carry one client implementation as an optimization. There are no frontend-only functions — anything the frontend can evaluate, the backend can too.
 
 ### Function Catalog
 
-The registry of all Formula Functions: backend-owned, mod-extensible, hydrated to the frontend via the mod registry API like column types. Platform-default functions register in the core; mod functions register in their mod with namespaced ids. The frontend exposes the full catalog for Computed Field editing.
+The registry of all Formula Functions: backend-owned, mod-extensible, hydrated to the frontend via the mod registry API like column types. Platform-default functions register in the core; mod functions register in their mod with namespaced ids. Each entry declares whether its function has a Client Implementation. The frontend exposes the full catalog for Computed Field editing.
 
 ### Client Implementation
 
-The optional frontend implementation of a Formula Function, registered against the hydrated Function Catalog for display-only Computed Field previews — never for stored values. It must be behaviorally identical to the authoritative backend implementation.
+The optional frontend implementation of a Formula Function, registered against the hydrated Function Catalog for display-only Computed Field previews — never for stored values. It must be behaviorally identical to the authoritative backend implementation. Each Formula Function declares whether it has a Client Implementation; the client verifies the declaration against its own registrations at boot.
+
+### Backend-Only Function
+
+A Formula Function that has no Client Implementation. The backend evaluates it authoritatively; the client cannot preview it — Computed Field cells that use one show a placeholder awaiting Refresh. Backend-only-ness is queryable catalog data: the question "which functions in this expression lack a Client Implementation?" is answered by the engine, not by scanning the expression text. `#NAME?` is reserved for names absent from the Function Catalog entirely — a Backend-Only Function is known, merely unimplemented on the client.
 
 ### Evaluate Gateway
 
-The row-scoped endpoint (`POST /api/formulas/evaluate/`) that previews Computed Field values for expressions containing functions without a client implementation, invoked by the row's Refresh action. Display-only infrastructure — stored values come exclusively from the registration path, never from the gateway.
+The row-scoped endpoint (`POST /api/formulas/evaluate/`) that previews Computed Field values for expressions containing functions without a client implementation, invoked by the row's Refresh action. Takes one expression plus one row of values and returns one tagged result; Refresh calls it once per column, in dependency order. Display-only infrastructure — stored values come exclusively from the registration path, never from the gateway.
 
 ### Formula Editor
 
 The modal opened from the Fx button (sigma icon) on a Computed Field column in schema settings — the expression's only editing surface. It composes the expression with autocomplete over sibling columns and the full Function Catalog, shows live validation, and carries a test bench that evaluates sample values through the Evaluate Gateway.
+
+### Parity Fixture
+
+A named case in the shared parity corpus: an expression, a row of values, and the result both formula engines must produce. A fixture exercising a Backend-Only Function pins the backend's value and pins the client's inability to produce one. Fixtures are hand-authored — they are the behavioral specification of the seam, never generated from either engine's output (a generated expected value would launder an engine bug into the spec).
+
+### Parity Suite
+
+The shared Parity Fixture corpus plus the standing guarantee that **every Formula Function in the Function Catalog appears in at least one fixture** — whether or not it has a Client Implementation. Both engines run the same corpus in their own test trees; drift between the engines is caught wherever the corpus looks, and the corpus is forced to look everywhere.
 
 ---
 

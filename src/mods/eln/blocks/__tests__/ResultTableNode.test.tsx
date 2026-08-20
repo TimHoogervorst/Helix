@@ -328,7 +328,9 @@ describe("ResultTableContent", () => {
     mockGetFormulaFunctions.mockReturnValue(
       new Map([["SQRT", { id: "SQRT" }]]),
     );
-    mockPost.mockResolvedValue({ result: { ok: true, value: 2 } });
+    mockPost.mockResolvedValue({
+      results: { Root: { ok: true, value: 2 } },
+    });
     const backendSchema = {
       ...schema,
       columns: [
@@ -381,8 +383,8 @@ describe("ResultTableContent", () => {
     fireEvent.click(screen.getByText("Refresh"));
     await waitFor(() =>
       expect(mockPost).toHaveBeenCalledWith("/formulas/evaluate/", {
-        expression: "SQRT([Amount])",
-      row: { Amount: 4 },
+        expressions: { Root: "SQRT([Amount])" },
+        row: { Amount: 4 },
       }),
     );
     expect(updateAttrs).toHaveBeenCalledWith(

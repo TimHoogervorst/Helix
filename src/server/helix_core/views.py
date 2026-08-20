@@ -564,25 +564,30 @@ class SchemaViewSet(viewsets.ModelViewSet):
 
 
 class FormulaEvaluateSerializer(serializers.Serializer):
-    """Input for the display-only, single-row formula preview gateway."""
+    """Input for the display-only, row-scoped formula preview gateway."""
 
-    expression = serializers.CharField(allow_blank=False)
+    expressions = serializers.DictField(
+        child=serializers.CharField(allow_blank=False),
+        allow_empty=False,
+    )
     row = serializers.DictField(child=serializers.JSONField(), default=dict)
 
 
 class FormulaEvaluateView(APIView):
-    """Evaluate one expression against one row without persisting anything."""
+    """Evaluate independent expressions against one row without persisting."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         input_serializer = FormulaEvaluateSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
-        result = evaluate_formula(
-            input_serializer.validated_data["expression"],
-            input_serializer.validated_data["row"],
-        )
-        return Response({"result": result})
+        expressions = input_serializer.validated_data["expressions"]
+        row = input_serializer.validated_data["row"]
+        results = {
+            name: evaluate_formula(expression, row)
+            for name, expression in expressions.items()
+        }
+        return Response({"results": results})
 
 
 class ActionCreateView(APIView):

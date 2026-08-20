@@ -662,6 +662,76 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+// Computed fields
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("RegistryTableBlockComponent — computed fields", () => {
+  beforeEach(() => {
+    mockPost.mockReset();
+  });
+
+  function computedProps(expression: string, values: Record<string, unknown>) {
+    return makeBlockComponentProps({
+      attrs: {
+        schemaId: 1,
+        schemaName: "Blood Sample",
+        schemaContentHash: "abc123def456",
+        columns: [
+          { name: "Volume", type: "number" as const },
+          {
+            name: "Computed",
+            type: "formula" as const,
+            expression,
+            resultType: "number",
+          },
+        ],
+        rows: [makeRow({ values })],
+      },
+    });
+  }
+
+  it("renders a client-evaluable formula preview", () => {
+    render(
+      <RegistryTableBlockComponent
+        {...computedProps("[Volume] * 2", { Volume: 10 })}
+      />,
+    );
+
+    expect(screen.getByTestId("cell-#new-1-Computed")).toHaveTextContent("20");
+  });
+
+  it("wires backend computed-field refresh through the shared module", async () => {
+    mockPost.mockResolvedValue({
+      results: { Computed: { ok: true, value: 2 } },
+    });
+    const props = computedProps("SQRT([Volume])", { Volume: 4 });
+    render(
+      <RegistryTableBlockComponent
+        {...props}
+      />,
+    );
+
+    expect(screen.getByTestId("cell-#new-1-Computed")).toHaveTextContent(
+      "Refresh to calculate",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByText("Refresh"));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalledWith("/formulas/evaluate/", {
+        expressions: { Computed: "SQRT([Volume])" },
+        row: { Volume: 4 },
+      });
+    });
+    expect(props.instance.updateAttrs).toHaveBeenCalledWith({
+      rows: [expect.objectContaining({
+        values: { Volume: 4, Computed: 2 },
+      })],
+    });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 // Status bars
 // ══════════════════════════════════════════════════════════════════════════
 

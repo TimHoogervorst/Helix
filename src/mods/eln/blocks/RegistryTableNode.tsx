@@ -30,7 +30,7 @@ import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/com
 import { listDropdowns } from "../../dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { TableChrome } from "../../../shell/src/shared/primitives/TableLayout";
+import { TableChrome } from "../../../shell/src/shared/table/TableChrome";
 import { TableKit } from "../../../shell/src/shared/table/TableKit";
 import type { ElnSidebarData } from "./sidebarData";
 

@@ -21,7 +21,7 @@ import {
 } from "../../../shell/src/shared/components/IconBadge";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { TableChrome } from "../../../shell/src/shared/primitives/TableLayout";
+import { TableChrome } from "../../../shell/src/shared/table/TableChrome";
 import MoreActions from "../components/MoreActions";
 import type { EntityTypeSummary } from "../types";
 import type { ElnSidebarData } from "./sidebarData";

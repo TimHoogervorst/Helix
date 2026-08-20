@@ -15,9 +15,9 @@ export {
   TableScroll,
   StickyActionHeader,
   StickyActionCell,
-  TableChrome,
-} from "./TableLayout";
-export type { TableStretchMode } from "./TableLayout";
+} from "../table/TableLayout";
+export type { TableStretchMode } from "../table/TableLayout";
+export { TableChrome } from "../table/TableChrome";
 export { TabBar } from "./TabBar";
 export type { Tab } from "./TabBar";
 export { Modal } from "./Modal";

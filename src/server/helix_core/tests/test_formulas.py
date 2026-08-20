@@ -1,7 +1,13 @@
 import json
 from pathlib import Path
 
-from helix_core.formulas import evaluate_formula, evaluate_row, validate_formula_columns
+from helix_core.formulas import (
+    evaluate_formula,
+    evaluate_row,
+    function_calls_in,
+    validate_formula_columns,
+)
+from helix_core.mod_system.registry import registry
 
 
 FIXTURES = json.loads((Path(__file__).resolve().parents[4] / "src/shell/src/shared/formulas/parity.json").read_text())
@@ -60,23 +66,36 @@ def test_computed_field_schema_validation():
     assert "cycle" in validate_formula_columns(cycle).lower()
 
 
-def test_backend_only_functions_are_in_catalog():
-    from helix_core.formulas import get_builtin_formula_functions
+def test_parity_fixtures_cover_catalog_and_match_backend_only_flags():
+    catalog = {function["id"]: function for function in registry.get_formula_catalog()}
+    covered_functions = set()
 
-    functions = get_builtin_formula_functions()
-    client_functions = {
-        function["function_id"] for function in functions if function["client_implemented"]
-    }
-    backend_only_functions = {
-        function["function_id"]
-        for function in functions
-        if not function["client_implemented"]
-    }
-    assert client_functions == {
-        "IF", "IFERROR", "AND", "OR", "NOT", "ROUND", "ABS", "MIN",
-        "MAX", "SUM", "AVERAGE", "COUNT", "CONCAT", "UPPER", "LOWER", "LEN",
-    }
-    assert backend_only_functions == {
-        "CEILING", "FLOOR", "MOD", "SQRT", "POWER", "LOG", "SIGN",
-        "TRIM", "LEFT", "RIGHT", "MID", "SUBSTITUTE",
-    }
+    for fixture in FIXTURES:
+        expressions = []
+        if "expression" in fixture:
+            expressions.append(fixture["expression"])
+        expressions.extend(
+            formula["expression"] for formula in fixture.get("formulas", {}).values()
+        )
+
+        fixture_functions = set()
+        for expression in expressions:
+            fixture_functions.update(
+                function_id
+                for function_id in function_calls_in(expression)
+                if function_id in catalog
+            )
+
+        if fixture.get("backendOnly", False):
+            assert fixture_functions, f"Fixture {fixture['name']} has no catalogued function"
+
+        for function_id in fixture_functions:
+            covered_functions.add(function_id)
+            assert fixture.get("backendOnly", False) == (
+                not catalog[function_id]["clientImplemented"]
+            ), f"Fixture {fixture['name']} disagrees for {function_id}"
+
+    assert covered_functions == set(catalog), (
+        "Parity fixtures must cover every catalogued function; "
+        f"missing: {set(catalog) - covered_functions}"
+    )

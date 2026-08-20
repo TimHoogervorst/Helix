@@ -186,6 +186,18 @@ def _formula_nodes(ast):
         yield from _formula_nodes(ast[3])
 
 
+def function_calls_in(expression: str) -> list[str]:
+    """Return function IDs called by a valid formula expression."""
+    parsed = parse_formula(expression)
+    if not parsed["ok"]:
+        return []
+    return [
+        node_value
+        for node_type, node_value in _formula_nodes(parsed["ast"])
+        if node_type == "call"
+    ]
+
+
 def validate_formula_columns(columns):
     """Validate all computed-field expressions against sibling columns."""
     from helix_core.column_types import registry as column_type_registry

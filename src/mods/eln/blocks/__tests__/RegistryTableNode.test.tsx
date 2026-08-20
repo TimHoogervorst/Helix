@@ -873,14 +873,14 @@ describe("RegistryTableBlockComponent — cell editors", () => {
     expect(display).toHaveTextContent("42");
   });
 
-  it("switches number cell to input on click", async () => {
+  it("switches number cell to input on double-click", async () => {
     const { props } = renderWithColumns(
       [{ name: "Volume", type: "number" }],
       { Volume: 42 },
     );
     render(<RegistryTableBlockComponent {...props} />);
 
-    fireEvent.click(screen.getByTestId("number-display"));
+    fireEvent.doubleClick(screen.getByTestId("number-display"));
 
     await waitFor(() => {
       expect(screen.getByTestId("number-input")).toBeInTheDocument();
@@ -900,14 +900,14 @@ describe("RegistryTableBlockComponent — cell editors", () => {
     expect(display).toHaveTextContent("Jun 15, 2025");
   });
 
-  it("switches date cell to input on click", async () => {
+  it("switches date cell to input on double-click", async () => {
     const { props } = renderWithColumns(
       [{ name: "Collection Date", type: "date" }],
       { "Collection Date": "2025-06-15" },
     );
     render(<RegistryTableBlockComponent {...props} />);
 
-    fireEvent.click(screen.getByTestId("date-display"));
+    fireEvent.doubleClick(screen.getByTestId("date-display"));
 
     await waitFor(() => {
       expect(screen.getByTestId("date-input")).toBeInTheDocument();
@@ -962,7 +962,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
     );
     render(<RegistryTableBlockComponent {...props} />);
 
-    fireEvent.click(screen.getByTestId("ref-trigger-btn"));
+    fireEvent.doubleClick(screen.getByTestId("ref-trigger-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("ref-popover")).toBeInTheDocument();
@@ -1293,13 +1293,13 @@ describe("RegistryTableBlockComponent — Table Kit interaction", () => {
     const updateAttrs = vi.fn();
     render(<RegistryTableBlockComponent {...interactionProps(updateAttrs)} />);
     const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
-    fireEvent.click(screen.getByTestId("name-cell-#new-1"));
+    fireEvent.doubleClick(screen.getByTestId("name-cell-#new-1"));
     const input = screen.getByTestId("name-cell-#new-1-input");
     fireEvent.change(input, { target: { value: "Changed" } });
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.getByTestId("name-cell-#new-1")).toHaveTextContent("First");
     firstCell.focus();
-    fireEvent.click(screen.getByTestId("name-cell-#new-1"));
+    fireEvent.doubleClick(screen.getByTestId("name-cell-#new-1"));
     const committedInput = screen.getByTestId("name-cell-#new-1-input");
     fireEvent.change(committedInput, { target: { value: "Changed" } });
     fireEvent.keyDown(committedInput, { key: "Enter" });

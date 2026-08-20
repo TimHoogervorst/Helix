@@ -358,20 +358,20 @@ select.table-cell-full:focus {
 .table-cell-full--error {
   color: var(--color-destructive);
 }
-/* Selected cell: persistent primary outline (spreadsheet-style active cell).
-   Doubles as the focus indicator — the interaction controller always focuses
-   the active cell. Inset box-shadow so the border-collapse layout never shifts. */
+/* Selected cells use a quiet accent treatment; the active cell gets the
+   stronger focus ring independently. Inset shadows avoid layout shifts. */
 [data-table-cell][aria-selected="true"] {
   outline: none;
+  background: var(--color-accent-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+[data-table-cell][data-table-active="true"] {
   background: var(--color-primary-subtle);
   box-shadow: inset 0 0 0 2px var(--color-primary);
 }
 [data-table-cell]:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
-}
-[data-table-cell][aria-selected="true"]:has(.table-cell-full--editing) {
-  box-shadow: none;
 }
 /* Interactive tables keep stable column widths: with auto layout, an editor's
    intrinsic width (an input's default size, a select's longest option) would

@@ -185,7 +185,7 @@ function TextHarnessCell({
       className={FULL_CELL}
       data-testid={testId}
       tabIndex={-1}
-      onClick={startEditing}
+      onDoubleClick={startEditing}
     >
       {value}
     </button>
@@ -288,6 +288,25 @@ function GalleryCell({
 
   if (editing) return <div className="h-full w-full" data-testid={testId}>{editor()}</div>;
 
+  if (behavior.editor === "checkbox" && state !== "read-only") {
+    return (
+      <label className={FULL_CELL} data-testid={testId} data-value-type={typeof value}>
+        <input
+          type="checkbox"
+          className="accent-[var(--color-primary)]"
+          checked={value === true}
+          onClick={(event) => interaction.handleCellClick(position, event)}
+          onChange={(event) => {
+            const next = event.currentTarget.checked;
+            setValue(next);
+            onTypedCommit(next);
+          }}
+        />
+        <span>{value === true ? "True" : "False"}</span>
+      </label>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -296,7 +315,7 @@ function GalleryCell({
       data-value-type={typeof value}
       disabled={state === "read-only"}
       tabIndex={-1}
-      onClick={startEditing}
+      onDoubleClick={startEditing}
     >
       <span>{behavior.render(value)}</span>
       {error && <span className="ml-2 text-xs">#VALUE!</span>}
@@ -583,6 +602,21 @@ function InteractiveMockCell({
     return <input {...common} className={FULL_CELL_EDITOR} data-testid={`${testId}-input`} type={behavior.editor} value={draft} />;
   }
 
+  if (behavior.editor === "checkbox" && !readOnly) {
+    return (
+      <label className={FULL_CELL} data-testid={testId} data-value-type={typeof value}>
+        <input
+          type="checkbox"
+          className="accent-[var(--color-primary)]"
+          checked={value === true}
+          onClick={(event) => interaction.handleCellClick(position, event)}
+          onChange={(event) => onCommit(event.currentTarget.checked)}
+        />
+        <span>{value === true ? "True" : "False"}</span>
+      </label>
+    );
+  }
+
   return <button
     type="button"
     className={error ? `${FULL_CELL} table-cell-full--error` : FULL_CELL}
@@ -590,7 +624,7 @@ function InteractiveMockCell({
     data-value-type={typeof value}
     disabled={readOnly}
     tabIndex={-1}
-    onClick={startEditing}
+    onDoubleClick={startEditing}
   >
     {behavior.render(value)}{error && <span className="ml-2 text-xs">#VALUE!</span>}
   </button>;

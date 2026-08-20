@@ -242,7 +242,7 @@ describe("ResultTableContent", () => {
         })}
       />,
     );
-    fireEvent.click(screen.getByTestId("result-entity-cell-#new-1"));
+    fireEvent.doubleClick(screen.getByTestId("result-entity-cell-#new-1"));
     fireEvent.change(screen.getByTestId("ref-search-input"), {
       target: { value: "BLOOD" },
     });

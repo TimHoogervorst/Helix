@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 export interface TablePosition {
   row: number;
@@ -84,21 +84,59 @@ export function useTableInteraction({
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeCell, setActiveCell] = useState<TablePosition>({ row: 0, column: 0 });
   const [selectionAnchor, setSelectionAnchor] = useState<TablePosition>({ row: 0, column: 0 });
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(() => new Set());
   const [editingCell, setEditingCell] = useState<TablePosition | null>(null);
   const [tableIsActive, setTableIsActive] = useState(false);
   const hoveredCellRef = useRef<TablePosition | null>(null);
+  const dragRef = useRef<{ anchor: TablePosition; last: TablePosition; moved: boolean; active: boolean } | null>(null);
+  const suppressClickRef = useRef<TablePosition | null>(null);
   const cellKey = (position: TablePosition) => tableId ? `${tableId}:${position.row}:${position.column}` : `${position.row}:${position.column}`;
+
+  const boundPosition = useCallback((position: TablePosition) => ({
+    row: Math.max(0, Math.min(rowCount - 1, position.row)),
+    column: Math.max(0, Math.min(columnCount - 1, position.column)),
+  }), [columnCount, rowCount]);
+
+  const selectRange = useCallback((anchor: TablePosition, target: TablePosition) => {
+    const range = normalizeTableRange({ start: anchor, end: target });
+    const next = new Set<string>();
+    for (let row = range.start.row; row <= range.end.row; row += 1) {
+      for (let column = range.start.column; column <= range.end.column; column += 1) {
+        next.add(cellKey({ row, column }));
+      }
+    }
+    setSelectedCells(next);
+    setActiveCell(target);
+    setTableIsActive(true);
+  }, [tableId]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Node && !containerRef.current?.contains(target)) {
         setTableIsActive(false);
+        setSelectedCells(new Set());
       }
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    const handleMouseUp = () => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      if (drag.moved) suppressClickRef.current = drag.last;
+      dragRef.current = null;
+    };
+    const handleSelectStart = (event: Event) => {
+      if (dragRef.current?.active) event.preventDefault();
+    };
+
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("selectstart", handleSelectStart);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("selectstart", handleSelectStart);
+    };
   }, []);
 
   const focusCell = useCallback((position: TablePosition) => {
@@ -109,20 +147,69 @@ export function useTableInteraction({
   }, [tableId]);
 
   const moveTo = useCallback((position: TablePosition, extendSelection = false) => {
-    const bounded = {
-      row: Math.max(0, Math.min(rowCount - 1, position.row)),
-      column: Math.max(0, Math.min(columnCount - 1, position.column)),
-    };
+    const bounded = boundPosition(position);
     setActiveCell(bounded);
     setTableIsActive(true);
-    if (!extendSelection) setSelectionAnchor(bounded);
+    if (extendSelection) {
+      selectRange(selectionAnchor, bounded);
+    } else {
+      setSelectionAnchor(bounded);
+      setSelectedCells(new Set([cellKey(bounded)]));
+    }
     focusCell(bounded);
-  }, [columnCount, focusCell, rowCount]);
+  }, [boundPosition, focusCell, rowCount, selectionAnchor, selectRange, tableId]);
+
+  const selectCell = useCallback((position: TablePosition) => {
+    const bounded = boundPosition(position);
+    if (tableIsActive && samePosition(activeCell, bounded)) return;
+    setActiveCell(bounded);
+    setSelectionAnchor(bounded);
+    setSelectedCells(new Set([cellKey(bounded)]));
+    setTableIsActive(true);
+    focusCell(bounded);
+  }, [activeCell, boundPosition, focusCell, selectedCells, tableIsActive, tableId]);
+
+  const handleCellMouseDown = useCallback((position: TablePosition, event: ReactMouseEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const bounded = boundPosition(position);
+    dragRef.current = { anchor: bounded, last: bounded, moved: false, active: true };
+    setEditingCell(null);
+    setActiveCell(bounded);
+    setSelectionAnchor(bounded);
+    setSelectedCells(new Set([cellKey(bounded)]));
+    setTableIsActive(true);
+    focusCell(bounded);
+  }, [boundPosition, focusCell, tableId]);
+
+  const handleCellMouseEnter = useCallback((position: TablePosition) => {
+    hoveredCellRef.current = position;
+    const drag = dragRef.current;
+    if (!drag?.active) return;
+    const bounded = boundPosition(position);
+    if (samePosition(drag.anchor, bounded)) return;
+    drag.moved = true;
+    drag.last = bounded;
+    selectRange(drag.anchor, bounded);
+  }, [boundPosition, selectRange]);
+
+  const handleCellClick = useCallback((position: TablePosition, event?: ReactMouseEvent<HTMLElement>) => {
+    if (suppressClickRef.current && samePosition(suppressClickRef.current, position)) {
+      suppressClickRef.current = null;
+      event?.preventDefault();
+      event?.stopPropagation();
+      return;
+    }
+    suppressClickRef.current = null;
+    selectCell(position);
+  }, [selectCell]);
 
   const activateCell = useCallback((position: TablePosition, edit = true) => {
     setActiveCell(position);
     setTableIsActive(true);
     setSelectionAnchor(position);
+    setSelectedCells(new Set([cellKey(position)]));
     focusCell(position);
     if (edit) setEditingCell(position);
   }, [focusCell]);
@@ -136,9 +223,13 @@ export function useTableInteraction({
   const handleCellKeyDown = useCallback((position: TablePosition, event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === "Enter") {
-      // Enter the cell under the mouse if there is one, else the focused cell.
       event.preventDefault();
-      activateCell(hoveredCellRef.current ?? position);
+      activateCell(position);
+      return;
+    }
+    if (event.key === "F2") {
+      event.preventDefault();
+      activateCell(position);
       return;
     }
     const delta = event.key === "ArrowUp" ? { row: -1, column: 0 }
@@ -195,19 +286,25 @@ export function useTableInteraction({
   const cellProps = useCallback((position: TablePosition) => ({
     "data-table-cell": cellKey(position),
     tabIndex: samePosition(activeCell, position) ? 0 : -1,
-    "aria-selected": tableIsActive && samePosition(activeCell, position),
-    onClick: () => activateCell(position),
+    "aria-selected": tableIsActive && selectedCells.has(cellKey(position)),
+    "data-table-active": tableIsActive && samePosition(activeCell, position) ? "true" : undefined,
+    onMouseDown: (event: ReactMouseEvent<HTMLElement>) => handleCellMouseDown(position, event),
+    onClick: (event: ReactMouseEvent<HTMLElement>) => handleCellClick(position, event),
+    onDoubleClick: () => activateCell(position),
     onFocus: () => setTableIsActive(true),
-    onMouseEnter: () => { hoveredCellRef.current = position; },
+    onMouseEnter: () => handleCellMouseEnter(position),
     onMouseLeave: () => { hoveredCellRef.current = null; },
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => handleCellKeyDown(position, event),
-  }), [activateCell, activeCell, handleCellKeyDown, tableId, tableIsActive]);
+  }), [activateCell, activeCell, handleCellClick, handleCellKeyDown, handleCellMouseDown, handleCellMouseEnter, selectedCells, tableId, tableIsActive]);
 
   return {
     containerRef,
     activeCell,
     editingCell,
     selectionAnchor,
+    selectedCells,
+    selectCell,
+    handleCellClick,
     activateCell,
     moveTo,
     finishEditing,

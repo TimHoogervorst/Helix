@@ -38,7 +38,7 @@ describe("TablesPlayground", () => {
   it("commits a text cell on blur", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     const input = screen.getByTestId("cell-row-1-name-input");
     fireEvent.change(input, { target: { value: "Nova" } });
     fireEvent.blur(input);
@@ -49,7 +49,7 @@ describe("TablesPlayground", () => {
   it("commits a text cell on Enter", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-2-note"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-2-note"));
     const input = screen.getByTestId("cell-row-2-note-input");
     fireEvent.change(input, { target: { value: "Committed" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -57,12 +57,17 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("cell-row-2-note")).toHaveTextContent("Committed");
   });
 
-  it("starts editing when the padded cell area is clicked", () => {
+  it("selects on click and starts editing on double-click", () => {
     render(<TablesPlayground />);
 
     const cell = document.querySelector('[data-table-cell="0:0"]');
     expect(cell).toBeInTheDocument();
     fireEvent.click(cell!);
+
+    expect(cell).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("cell-row-1-name-input")).not.toBeInTheDocument();
+
+    fireEvent.doubleClick(cell!);
 
     expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
   });
@@ -71,7 +76,7 @@ describe("TablesPlayground", () => {
     render(<TablesPlayground />);
 
     const galleryCell = document.querySelector('[data-table-cell="gallery:0:0"]') as HTMLElement;
-    fireEvent.click(galleryCell);
+    fireEvent.doubleClick(galleryCell);
     expect(screen.getByTestId("gallery-text-display-input")).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByTestId("gallery-text-display-input"), { key: "Escape" });
@@ -97,7 +102,7 @@ describe("TablesPlayground", () => {
   it("commits with Enter and moves down", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     const input = screen.getByTestId("cell-row-1-name-input");
     fireEvent.change(input, { target: { value: "Nova" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -109,7 +114,7 @@ describe("TablesPlayground", () => {
   it("cancels with Escape and keeps navigation on the edited cell", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
     expect(document.activeElement).toBe(document.querySelector('[data-table-cell="0:0"]'));
 
@@ -120,30 +125,85 @@ describe("TablesPlayground", () => {
   it("starts editing the focused cell when Enter is pressed", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
     fireEvent.keyDown(document.activeElement!, { key: "Enter" });
 
     expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
   });
 
-  it("enters the hovered cell when Enter is pressed", () => {
+  it("selects a marquee range and finalizes when the mouse is released outside", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    const start = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    const end = document.querySelector('[data-table-cell="2:2"]') as HTMLElement;
+    fireEvent.mouseDown(start);
+    fireEvent.mouseEnter(end);
+    fireEvent.mouseUp(document);
+
+    for (const position of ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2", "2:0", "2:1", "2:2"]) {
+      expect(document.querySelector(`[data-table-cell="${position}"]`)).toHaveAttribute("aria-selected", "true");
+    }
+  });
+
+  it("selects a range from a boolean cell without toggling its checkbox", () => {
+    render(<TablesPlayground />);
+
+    const booleanCell = document.querySelector('[data-table-cell="gallery:3:0"]') as HTMLElement;
+    const target = document.querySelector('[data-table-cell="gallery:4:1"]') as HTMLElement;
+    const checkbox = screen.getByTestId("gallery-boolean-display").querySelector("input") as HTMLInputElement;
+    const initialValue = checkbox.checked;
+
+    fireEvent.mouseDown(checkbox);
+    fireEvent.mouseEnter(target);
+    fireEvent.mouseUp(document);
+
+    expect(checkbox.checked).toBe(initialValue);
+    expect(booleanCell).toHaveAttribute("aria-selected", "true");
+    expect(target).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("starts editing the focused cell with F2", () => {
+    render(<TablesPlayground />);
+
+    const cell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    cell.focus();
+    fireEvent.keyDown(cell, { key: "F2" });
+
+    expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
+  });
+
+  it("selects a boolean cell while a click still toggles it", () => {
+    render(<TablesPlayground />);
+
+    const cell = document.querySelector('[data-table-cell="gallery:3:0"]') as HTMLElement;
+    const checkbox = screen.getByTestId("gallery-boolean-display").querySelector("input") as HTMLInputElement;
+    expect(cell).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.click(checkbox);
+
+    expect(cell).toHaveAttribute("aria-selected", "true");
+    expect(checkbox).not.toBeChecked();
+    expect(screen.queryByTestId("gallery-boolean-display-input")).not.toBeInTheDocument();
+  });
+
+  it("enters the active cell when Enter is pressed", () => {
+    render(<TablesPlayground />);
+
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
 
     const hovered = document.querySelector('[data-table-cell="1:1"]') as HTMLElement;
     fireEvent.mouseEnter(hovered);
     fireEvent.keyDown(document.activeElement!, { key: "Enter" });
 
-    expect(screen.getByTestId("cell-row-2-role-input")).toBeInTheDocument();
+    expect(screen.getByTestId("cell-row-1-name-input")).toBeInTheDocument();
   });
 
   it("lets keyboard navigation take the cursor back from the mouse", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     fireEvent.keyDown(screen.getByTestId("cell-row-1-name-input"), { key: "Escape" });
 
     fireEvent.mouseEnter(document.querySelector('[data-table-cell="2:2"]') as HTMLElement);
@@ -156,7 +216,7 @@ describe("TablesPlayground", () => {
   it("does not navigate while editing a text value", () => {
     render(<TablesPlayground />);
 
-    fireEvent.click(screen.getByTestId("cell-row-1-name"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-name"));
     const input = screen.getByTestId("cell-row-1-name-input");
     fireEvent.keyDown(input, { key: "ArrowRight" });
 
@@ -213,7 +273,7 @@ describe("TablesPlayground", () => {
     fireEvent.click(screen.getByTestId("schema-mode-entity"));
     expect(screen.getByText("Source entity")).toBeInTheDocument();
     expect(screen.getByTestId("schema-cell-schema-row-1-entity")).toHaveTextContent("SMP-001");
-    fireEvent.click(screen.getByTestId("schema-cell-schema-row-1-entity"));
+    fireEvent.doubleClick(screen.getByTestId("schema-cell-schema-row-1-entity"));
     expect(screen.getByTestId("schema-cell-schema-row-1-entity-input")).toHaveDisplayValue("SMP-001");
     expect(screen.getByRole("option", { name: "CTRL-001" })).toBeInTheDocument();
   });
@@ -223,7 +283,7 @@ describe("TablesPlayground", () => {
 
     const quantityType = screen.getByRole("combobox", { name: "Type for Quantity" });
     fireEvent.change(quantityType, { target: { value: "text" } });
-    fireEvent.click(screen.getByTestId("free-cell-free-row-1-quantity"));
+    fireEvent.doubleClick(screen.getByTestId("free-cell-free-row-1-quantity"));
     const input = screen.getByTestId("free-cell-free-row-1-quantity-input");
     fireEvent.change(input, { target: { value: "three" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -243,7 +303,7 @@ describe("TablesPlayground", () => {
     render(<TablesPlayground />);
 
     const display = screen.getByTestId(`gallery-${shape}-display`);
-    fireEvent.click(display);
+    fireEvent.doubleClick(display);
     const input = screen.getByTestId(`gallery-${shape}-display-input`);
 
     if (input instanceof HTMLInputElement && input.type === "checkbox") {
@@ -264,7 +324,7 @@ describe("TablesPlayground", () => {
     expect(committed).toHaveAttribute("data-value-type", expectedType);
     expect(committed).toHaveTextContent(expectedValue);
 
-    fireEvent.click(committed);
+    fireEvent.doubleClick(committed);
     const cancelInput = screen.getByTestId(`gallery-${shape}-display-input`);
     fireEvent.change(cancelInput, { target: { value: "Cancelled" } });
     fireEvent.keyDown(cancelInput, { key: "Escape" });

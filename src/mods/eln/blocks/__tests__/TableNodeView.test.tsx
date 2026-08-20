@@ -48,16 +48,16 @@ describe("TableBlockContent", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("cell-row-1-role"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-role"));
     expect(screen.getByTestId("cell-row-1-role-input")).toHaveAttribute("type", "text");
-    fireEvent.click(screen.getByTestId("cell-row-1-entity"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-entity"));
     expect(screen.getByTestId("cell-row-1-entity-input")).toHaveAttribute("type", "text");
   });
 
   it("commits values through the selected cell behavior", () => {
     const { updateAttrs } = renderTable();
 
-    fireEvent.click(screen.getByTestId("cell-row-1-amount"));
+    fireEvent.doubleClick(screen.getByTestId("cell-row-1-amount"));
     const input = screen.getByTestId("cell-row-1-amount-input");
     expect(input).toHaveAttribute("type", "text");
     fireEvent.change(input, { target: { value: "12.5" } });

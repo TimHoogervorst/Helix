@@ -266,10 +266,10 @@ export function TypedFullCell({
                : testId?.startsWith("result-entity-")
                  ? testId
                  : "ref-trigger-btn"
-           }
+          }
           disabled={readOnly}
           tabIndex={-1}
-          onClick={startEditing}
+          onDoubleClick={startEditing}
         >
           {displayContent}
         </button>
@@ -388,6 +388,7 @@ export function TypedFullCell({
           className="accent-[var(--color-primary)]"
           checked={value === true}
           data-testid="boolean-checkbox"
+          onClick={(event) => interaction.handleCellClick(position, event)}
           onChange={(event) => onCommit(event.currentTarget.checked)}
           onKeyDown={(event) => {
             if (formulaEnabled && event.key === "=") {
@@ -412,7 +413,7 @@ export function TypedFullCell({
       suppressContentEditableWarning
       disabled={readOnly}
       tabIndex={-1}
-      onClick={startEditing}
+      onDoubleClick={startEditing}
       onKeyDown={(event) => {
         if (formulaEnabled && event.key === "=") {
           event.preventDefault();

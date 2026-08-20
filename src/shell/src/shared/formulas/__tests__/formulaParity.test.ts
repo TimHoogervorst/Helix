@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { evaluateFormula, evaluateRow } from "../formulaEngine";
+import {
+  evaluateFormula,
+  evaluateRow,
+  functionCallsIn,
+  getClientFormulaFunctionIds,
+  hydrateFormulaCatalog,
+  parseFormula,
+  usesBackendOnlyFunction,
+  walkFormulaAst,
+} from "../formulaEngine";
 import fixtures from "../parity.json";
 
 type Fixture = {
@@ -39,6 +48,50 @@ describe("formula parity fixtures", () => {
     expect(evaluateRow(fixture.row, fixture.formulas!)).toMatchObject(
       fixture.expectedRow!,
     );
+  });
+
+  it("extracts function calls from the parsed AST", () => {
+    expect(functionCallsIn("IF(AND(TRUE, NOT(FALSE)), ROUND([Amount], 1), 0)"))
+      .toEqual(["IF", "AND", "NOT", "ROUND"]);
+    expect(functionCallsIn("molBio.gcContent([Sequence])")).toEqual([
+      "molBio.gcContent",
+    ]);
+    expect(functionCallsIn('"NOPE(1)"')).toEqual([]);
+    expect(functionCallsIn("[Amount] +")).toEqual([]);
+  });
+
+  it("walks a parsed AST without extracting function-like string text", () => {
+    const parsed = parseFormula('CONCAT("NOPE(1)", [Name])');
+    const nodes: string[] = [];
+
+    if (parsed.ok && parsed.ast) {
+      walkFormulaAst(parsed.ast, (node) => nodes.push(node.kind));
+    }
+
+    expect(nodes).toEqual(["call", "literal", "reference"]);
+  });
+
+  it("detects calls without hydrated client implementations", () => {
+    const clientFunctionIds = new Set(["IF"]);
+
+    expect(usesBackendOnlyFunction("IF(TRUE, 1, 0)", clientFunctionIds)).toBe(
+      false,
+    );
+    expect(
+      usesBackendOnlyFunction("molBio.gcContent([Sequence])", clientFunctionIds),
+    ).toBe(true);
+    expect(usesBackendOnlyFunction('"SQRT(1)"', clientFunctionIds)).toBe(false);
+    expect(usesBackendOnlyFunction("[Amount] +", clientFunctionIds)).toBe(false);
+  });
+
+  it("uses the hydrated client-function catalog by default", () => {
+    const originalIds = [...getClientFormulaFunctionIds()];
+    try {
+      hydrateFormulaCatalog(["IF", "molBio.gcContent"]);
+      expect(usesBackendOnlyFunction("molBio.gcContent([Sequence])")).toBe(true);
+    } finally {
+      hydrateFormulaCatalog(originalIds);
+    }
   });
 
 });

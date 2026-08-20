@@ -20,6 +20,7 @@ import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn } from "../../../shell/src/shared/types/types";
 import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
+import { useComputedFields } from "../../../shell/src/shared/hooks/useComputedFields";
 import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
@@ -43,11 +44,6 @@ import {
   TableStretch,
 } from "../../../shell/src/shared/primitives/TableLayout";
 import type { ElnSidebarData } from "./sidebarData";
-import {
-  evaluateRow,
-  type FormulaColumn,
-  type FormulaRow,
-} from "../../../shell/src/shared/formulas/formulaEngine";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -480,80 +476,28 @@ export function RegistryTableContent({
     [rows, updateAttrs],
   );
 
-  const formulaColumns = columns.filter(
-    (column) => column.type === "formula" && column.expression,
-  );
-  const backendOnlyColumns = formulaColumns.filter((column) =>
-    usesBackendOnlyFunction(column.expression!),
-  );
-  const [refreshingRow, setRefreshingRow] = useState<string | null>(null);
-  const [refreshedSnapshots, setRefreshedSnapshots] = useState<Record<string, string>>({});
-
-  const computedValues = useCallback(
-    (row: RegistryTableRow) => {
-      const formulas = Object.fromEntries(
-        formulaColumns.map((column) => [
-          column.name,
-          { expression: column.expression! } satisfies FormulaColumn,
-        ]),
-      );
-      const evaluated = evaluateRow(row.values as FormulaRow, formulas);
-      return {
-        ...row.values,
-        ...Object.fromEntries(
-          Object.entries(evaluated).map(([name, result]) => {
-          const column = formulaColumns.find((item) => item.name === name);
-          if (column && usesBackendOnlyFunction(column.expression!)) {
-            return [name, row.values[name]];
-          }
-          return [name, result.ok ? result.value : result.error.code];
-          }),
-        ),
-      };
-    },
-    [formulaColumns],
-  );
-
-  const refreshRow = useCallback(async (row: RegistryTableRow) => {
-    if (previewMode || !backendOnlyColumns.length || refreshingRow === row.displayId) return;
-    const formulaNames = new Set(formulaColumns.map((column) => column.name));
-    if (backendOnlyColumns.some((column) =>
-      !referencedValuesAreComplete(column.expression!, row.values, formulaNames),
-    )) return;
-    let values = { ...row.values };
-    for (const column of formulaColumns) values[column.name] = undefined;
-    setRefreshingRow(row.displayId);
-    try {
-      const pending = [...formulaColumns];
-      while (pending.length) {
-        const ready = pending.filter((column) =>
-          referencedValuesAreComplete(column.expression!, values, formulaNames, true),
-        );
-        if (!ready.length) break;
-        for (const column of ready) {
-          const response = await post<FormulaEvaluateResponse>(
-            "/formulas/evaluate/",
-            { expression: column.expression, row: values },
-          );
-          values[column.name] = response.result.ok
-            ? response.result.value
-            : (response.result.error?.code ?? "#VALUE!");
-          pending.splice(pending.indexOf(column), 1);
-        }
-      }
+  const applyRowValues = useCallback(
+    (displayId: string, values: Record<string, unknown>) => {
       updateAttrs({
-        rows: rows.map((item) =>
-          item.displayId === row.displayId ? { ...item, values } : item,
+        rows: rows.map((row) =>
+          row.displayId === displayId ? { ...row, values } : row,
         ),
       });
-      setRefreshedSnapshots((current) => ({
-        ...current,
-        [row.displayId]: computeRowSnapshot({ ...row, values }),
-      }));
-    } finally {
-      setRefreshingRow(null);
-    }
-  }, [backendOnlyColumns, formulaColumns, previewMode, refreshingRow, rows, updateAttrs]);
+    },
+    [rows, updateAttrs],
+  );
+  const {
+    computedValues,
+    backendOnlyColumns,
+    refresh,
+    isRefreshing,
+    isStale,
+    markRefreshed,
+  } = useComputedFields({
+    columns,
+    enabled: !previewMode,
+    applyRowValues,
+  });
 
   // ── Name cell commit ─────────────────────────────────────────────────
   const handleNameCommit = useCallback(
@@ -801,16 +745,7 @@ export function RegistryTableContent({
               result.schema_content_hash ?? schemaContentHash,
             registrationError: null,
            };
-           if (backendOnlyColumns.length > 0) {
-             setRefreshedSnapshots((current) => ({
-               ...current,
-               [result.display_id]: computeRowSnapshot({
-                 ...row,
-                 displayId: result.display_id,
-                 values: registeredValues,
-               }),
-             }));
-           }
+            markRefreshed(result.display_id, registeredValues);
         }
 
         // Apply API errors
@@ -856,8 +791,7 @@ export function RegistryTableContent({
     schemaContentHash,
     projectId,
     folderId,
-    backendOnlyColumns.length,
-    setRefreshedSnapshots,
+    markRefreshed,
     updateAttrs,
     emitAction,
   ]);
@@ -1118,10 +1052,6 @@ export function RegistryTableContent({
             ) : (
               rows.map((row, rowIndex) => {
                 const values = computedValues(row);
-                const rowSnapshot = computeRowSnapshot({ ...row, values });
-                const refreshed = refreshedSnapshots[row.displayId] !== undefined;
-                const stale = backendOnlyColumns.length > 0 && refreshed &&
-                  refreshedSnapshots[row.displayId] !== rowSnapshot;
                 const dotColor = getDotColor({ ...row, values }, schemaContentHash);
                 return (
                 <tr
@@ -1179,6 +1109,9 @@ export function RegistryTableContent({
                   {/* Schema columns */}
                   {columns.map((col, columnIndex) => {
                     const shape = resolveColumnShape(col);
+                    const stale = isStale(row, col.name);
+                    const value = values[col.name];
+                    const missing = value === undefined || value === null || value === "";
                     return (
                       <td
                         key={col.name}
@@ -1191,9 +1124,7 @@ export function RegistryTableContent({
                       >
                         <TypedFullCell
                           shape={shape}
-                           value={backendOnlyColumns.includes(col) && !refreshed
-                                ? undefined
-                                : values[col.name]}
+                           value={missing ? undefined : value}
                             onCommit={(value) =>
                               handleCellCommit(row.displayId, col.name, value)
                             }
@@ -1209,11 +1140,11 @@ export function RegistryTableContent({
                           }
                           referenceSchemaId={col.referenceSchemaId}
                            workspaceId={workspaceId ?? "lims"}
-                          placeholder={
-                            backendOnlyColumns.includes(col) && !refreshed
-                              ? "Refresh to calculate"
-                              : shape === "entity-picker" ? "@mention…" : undefined
-                          }
+                           placeholder={
+                             backendOnlyColumns.includes(col) && missing
+                               ? "Refresh to calculate"
+                               : shape === "entity-picker" ? "@mention…" : undefined
+                           }
                           data-testid={`cell-${row.displayId}-${col.name}`}
                         />
                       </td>
@@ -1231,8 +1162,8 @@ export function RegistryTableContent({
                                key: "refresh",
                                icon: RefreshCw,
                                label: "Refresh",
-                               disabled: refreshingRow === row.displayId,
-                               onClick: () => refreshRow(row),
+                                disabled: isRefreshing(row.displayId),
+                                onClick: () => refresh(row),
                                tooltip: `Refresh computed fields for ${row.displayId}`,
                              },
                              {
@@ -1262,48 +1193,6 @@ export function RegistryTableContent({
       </TableStretch>
     </TableChrome>
   );
-}
-
-interface FormulaEvaluateResponse {
-  result: {
-    ok: boolean;
-    value?: unknown;
-    error?: { code: string };
-  };
-}
-
-function usesBackendOnlyFunction(expression: string): boolean {
-  const registry = ModRegistry.getInstance();
-  const clientIds = new Set(
-    registry.getClientFormulaFunctions().map((entry) => entry.id),
-  );
-  return [...expression.matchAll(/\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g)].some(
-    ([, name]) => {
-      if (!name) return false;
-      const catalogId = registry.getFormulaFunctions().has(name)
-        ? name
-        : name.toUpperCase();
-      return registry.getFormulaFunctions().has(catalogId) &&
-        !clientIds.has(catalogId);
-    },
-  );
-}
-
-function referencedValuesAreComplete(
-  expression: string,
-  values: Record<string, unknown>,
-  formulaNames: ReadonlySet<string>,
-  requireFormulaValues = false,
-): boolean {
-  return [...expression.matchAll(/\[([^\]]+)\]/g)].every(([, name]) => {
-    if (name && formulaNames.has(name)) {
-      if (!requireFormulaValues) return true;
-      const value = values[name];
-      return value !== undefined && value !== null && value !== "";
-    }
-    const value = name ? values[name] : undefined;
-    return value !== undefined && value !== null && value !== "";
-  });
 }
 
 // ── Slot-system Block Component ─────────────────────────────────────────────

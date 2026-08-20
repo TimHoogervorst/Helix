@@ -74,12 +74,12 @@ export function getClientFormulaFunctionIds(): ReadonlySet<string> {
     : ids;
 }
 
-type Ast =
+export type FormulaAst =
   | { kind: "literal"; value: FormulaValue }
   | { kind: "reference"; name: string }
-  | { kind: "unary"; operator: string; operand: Ast }
-  | { kind: "binary"; operator: string; left: Ast; right: Ast }
-  | { kind: "call"; name: string; args: Ast[] };
+  | { kind: "unary"; operator: string; operand: FormulaAst }
+  | { kind: "binary"; operator: string; left: FormulaAst; right: FormulaAst }
+  | { kind: "call"; name: string; args: FormulaAst[] };
 type Token = {
   kind: "value" | "reference" | "operator" | "left" | "right" | "comma";
   value: string;
@@ -165,7 +165,7 @@ class Parser {
     const t = this.current();
     return !!t && t.kind === kind && (value === undefined || t.value === value);
   }
-  parse(): Ast {
+  parse(): FormulaAst {
     if (!this.tokens.length) throw Error("Formula cannot be empty");
     const ast = this.comparison();
     if (this.current()) throw Error("Unexpected token");
@@ -184,7 +184,7 @@ class Parser {
         operator: this.take().value,
         left,
         right: this.term(),
-      } as Ast;
+      } as FormulaAst;
     return left;
   }
   private term() {
@@ -195,7 +195,7 @@ class Parser {
         operator: this.take().value,
         left,
         right: this.factor(),
-      } as Ast;
+      } as FormulaAst;
     return left;
   }
   private factor() {
@@ -209,10 +209,10 @@ class Parser {
         operator: this.take().value,
         left,
         right: this.unary(),
-      } as Ast;
+      } as FormulaAst;
     return left;
   }
-  private unary(): Ast {
+  private unary(): FormulaAst {
     if (this.has("operator", "-") || this.has("operator", "+"))
       return {
         kind: "unary",
@@ -221,7 +221,7 @@ class Parser {
       };
     return this.primary();
   }
-  private primary(): Ast {
+  private primary(): FormulaAst {
     const token = this.take();
     if (token.kind === "reference")
       return { kind: "reference", name: token.value };
@@ -241,7 +241,7 @@ class Parser {
       : token.value.toUpperCase();
     if (this.has("left")) {
       this.take();
-      const args: Ast[] = [];
+      const args: FormulaAst[] = [];
       if (!this.has("right")) {
         do {
           args.push(this.comparison());
@@ -263,7 +263,7 @@ class Parser {
 
 export function parseFormula(
   expression: string,
-): FormulaResult & { ast?: Ast } {
+): FormulaResult & { ast?: FormulaAst } {
   try {
     return {
       ok: true,
@@ -274,6 +274,42 @@ export function parseFormula(
     return fail("#SYNTAX!", e instanceof Error ? e.message : "Invalid formula");
   }
 }
+
+/** Visit every node in a parsed formula, including nested function arguments. */
+export function walkFormulaAst(
+  ast: FormulaAst,
+  visit: (node: FormulaAst) => void,
+): void {
+  visit(ast);
+  if (ast.kind === "unary") walkFormulaAst(ast.operand, visit);
+  else if (ast.kind === "binary") {
+    walkFormulaAst(ast.left, visit);
+    walkFormulaAst(ast.right, visit);
+  } else if (ast.kind === "call") {
+    ast.args.forEach((argument) => walkFormulaAst(argument, visit));
+  }
+}
+
+/** Return function IDs called by an expression, or an empty list if invalid. */
+export function functionCallsIn(expression: string): string[] {
+  const parsed = parseFormula(expression);
+  if (!parsed.ok || !parsed.ast) return [];
+
+  const calls: string[] = [];
+  walkFormulaAst(parsed.ast, (node) => {
+    if (node.kind === "call") calls.push(node.name);
+  });
+  return calls;
+}
+
+/** Return whether an expression calls a function without a client implementation. */
+export function usesBackendOnlyFunction(
+  expression: string,
+  clientFunctionIds: ReadonlySet<string> = getClientFormulaFunctionIds(),
+): boolean {
+  return functionCallsIn(expression).some((id) => !clientFunctionIds.has(id));
+}
+
 function number(result: FormulaResult): number | FormulaResult {
   if (!result.ok) return result;
   if (typeof result.value === "number") return result.value;
@@ -295,7 +331,7 @@ function truth(result: FormulaResult): boolean | FormulaResult {
   );
 }
 function evalAst(
-  ast: Ast,
+  ast: FormulaAst,
   row: FormulaRow,
   context?: FormulaTableContext,
 ): FormulaResult {
@@ -477,13 +513,10 @@ export function evaluateCellFormula(
     ? evalAst(parsed.ast, row, context)
     : parsed;
 }
-function refs(ast: Ast, result: Set<string>) {
-  if (ast.kind === "reference") result.add(ast.name);
-  else if (ast.kind === "unary") refs(ast.operand, result);
-  else if (ast.kind === "binary") {
-    refs(ast.left, result);
-    refs(ast.right, result);
-  } else if (ast.kind === "call") ast.args.forEach((arg) => refs(arg, result));
+function refs(ast: FormulaAst, result: Set<string>) {
+  walkFormulaAst(ast, (node) => {
+    if (node.kind === "reference") result.add(node.name);
+  });
 }
 export function evaluateRow(
   row: FormulaRow,

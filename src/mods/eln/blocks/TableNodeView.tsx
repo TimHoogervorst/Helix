@@ -16,13 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
-import { TableScroll, TableStretch } from "../../../shell/src/shared/primitives/TableLayout";
-import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
-import {
-  TypedFullCell,
-  parseCellValue,
-  renderCellValue,
-} from "../../../shell/src/shared/components/TableCells";
+import { TableKit } from "../../../shell/src/shared/table/TableKit";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -241,7 +235,6 @@ export function TableBlockContent({
 
   // ── Hover state for column delete button ──────────────────────────────
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
-  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   // ── Row operations ────────────────────────────────────────────────────
   const handleCellChange = useCallback(
@@ -272,54 +265,7 @@ export function TableBlockContent({
     [rows, updateAttrs],
   );
 
-  // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
-  const interaction = useTableInteraction({
-    tableId: "eln-table",
-    rowCount: rows.length,
-    columnCount: columns.length,
-    readOnly,
-    getValues: () =>
-      rows.map((row) =>
-        columns.map((col) => renderCellValue(
-          "text",
-          row.cells[col.id],
-        )),
-      ),
-    onClear: (positions) => {
-      const updatedRows = rows.map((row, rowIndex) => {
-        const rowPositions = positions.filter((candidate) => candidate.row === rowIndex);
-        if (!rowPositions.length) return row;
-        const cells = { ...row.cells };
-        for (const position of rowPositions) {
-          const column = columns[position.column];
-          if (!column) continue;
-          cells[column.id] = "";
-        }
-        return { ...row, cells };
-      });
-      updateAttrs({ rows: updatedRows });
-    },
-    onPaste: (anchor, values) => {
-      const updatedRows = rows.map((row, rowIndex) => {
-        const pastedRow = values[rowIndex - anchor.row];
-        if (!pastedRow || rowIndex < anchor.row) return row;
-        const cells = { ...row.cells };
-        columns.slice(anchor.column).forEach((col, offset) => {
-          const raw = pastedRow[offset];
-          if (raw === undefined) return;
-          try {
-            cells[col.id] = parseCellValue("text", raw);
-          } catch {
-            // Skip values that don't parse for the column's shape
-          }
-        });
-        return { ...row, cells };
-      });
-      updateAttrs({ rows: updatedRows });
-    },
-  });
   // ── Render ────────────────────────────────────────────────────────────
-  const hasRows = rows.length > 0;
 
   return (
     <>
@@ -339,134 +285,117 @@ export function TableBlockContent({
           />
         </div>
 
-        {/* ── Table ──────────────────────────────────────────────────── */}
-        <TableStretch mode="auto">
-          <TableScroll mode="auto">
-            <div
-              className="w-max min-w-full"
-              ref={interaction.containerRef}
-              onCopy={interaction.handleCopy}
-              onPaste={interaction.handlePaste}
-              data-testid="eln-table-grid"
-            >
-              <table className="w-max min-w-full bg-background text-base">
-                <colgroup>
-                  {columns.map((column) => <col key={column.id} style={{ width: "10rem" }} />)}
-                  {!readOnly && <col style={{ width: "2.5rem" }} />}
-                </colgroup>
-            {/* ── Header ─────────────────────────────────────────────── */}
-            <thead>
-              <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
-                {columns.map((col) => (
-                  <th
-                    key={col.id}
-                    className="min-w-[100px] px-3 py-2 font-medium"
-                    onMouseEnter={() => setHoveredColumn(col.id)}
-                    onMouseLeave={() => setHoveredColumn(null)}
-                  >
-                    <div className="flex items-center gap-1">
-                      <InlineEdit
-                        value={col.name}
-                        onCommit={(newName) =>
-                          handleColumnRename(col.id, newName)
-                        }
-                        readOnly={readOnly}
-                        aria-label={`Column name: ${col.name}`}
-                        data-testid={`column-header-${col.id}`}
-                      />
-                      {!readOnly && hoveredColumn === col.id && (
-                        <button
-                          type="button"
-                          className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleDeleteColumn(col.id);
-                          }}
-                          aria-label={`Delete column ${col.name}`}
-                          data-testid={`delete-column-${col.id}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
-                {/* Ghost "+" button for adding a column */}
-                {!readOnly && <th className="w-10 px-0 py-2">
+        <TableKit
+          columns={columns.map((col) => ({
+            header: (
+              <div
+                className="flex items-center gap-1"
+                onMouseEnter={() => setHoveredColumn(col.id)}
+                onMouseLeave={() => setHoveredColumn(null)}
+              >
+                <InlineEdit
+                  value={col.name}
+                  onCommit={(newName) => handleColumnRename(col.id, newName)}
+                  readOnly={readOnly}
+                  aria-label={`Column name: ${col.name}`}
+                  data-testid={`column-header-${col.id}`}
+                />
+                {!readOnly && hoveredColumn === col.id && (
                   <button
                     type="button"
-                    className="btn-icon grid place-items-center rounded"
-                    onClick={handleAddColumn}
-                    aria-label="Add column"
-                    data-testid="add-column-btn"
+                    className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDeleteColumn(col.id);
+                    }}
+                    aria-label={`Delete column ${col.name}`}
+                    data-testid={`delete-column-${col.id}`}
                   >
-                    <Plus className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
-                </th>}
-              </tr>
-            </thead>
-
-            {/* ── Body ────────────────────────────────────────────────── */}
-            <tbody>
-              {hasRows ? (
-                rows.map((row, rowIndex) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors"
-                    onMouseEnter={() => setHoveredRow(row.id)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                  >
-                    {columns.map((col, columnIndex) => (
-                      <td
-                        key={col.id}
-                        className="h-10 min-w-[100px] p-0! font-[var(--font-label)] text-sm"
-                        {...interaction.cellProps({ row: rowIndex, column: columnIndex })}
-                      >
-                        <TypedFullCell
-                           shape="text"
-                           value={row.cells[col.id]}
-                            onCommit={(value) => handleCellChange(row.id, col.id, value)}
-                          position={{ row: rowIndex, column: columnIndex }}
-                          interaction={interaction}
-                          readOnly={readOnly}
-                          data-testid={`cell-${row.id}-${col.id}`}
-                        />
-                      </td>
-                    ))}
-                    {/* Delete row button on hover */}
-                    <td className="w-10 px-0 py-2">
-                      {!readOnly && hoveredRow === row.id && (
-                        <button
-                          type="button"
-                          className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleDeleteRow(row.id);
-                          }}
-                          aria-label="Delete row"
-                          data-testid={`delete-row-${row.id}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={columns.length + 1}
-                    className="px-3 py-4 text-center text-xs text-muted-foreground italic"
-                  >
-                    No rows yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-              </table>
+                )}
+              </div>
+            ),
+            shape: "text",
+            width: "10rem",
+            cellTestId: (_, index) => `cell-${rows[index]?.id}-${col.id}`,
+          }))}
+          rows={rows.map((row) => columns.map((col) => row.cells[col.id]))}
+          tableId="eln-table"
+          readOnly={readOnly}
+          onEdit={(position, value) => {
+            const row = rows[position.row];
+            const column = columns[position.column];
+            if (row && column) handleCellChange(row.id, column.id, value);
+          }}
+          onClear={(positions) => {
+            const updatedRows = rows.map((row, rowIndex) => {
+              const rowPositions = positions.filter((position) => position.row === rowIndex);
+              if (!rowPositions.length) return row;
+              const cells = { ...row.cells };
+              for (const position of rowPositions) {
+                const column = columns[position.column];
+                if (column) cells[column.id] = "";
+              }
+              return { ...row, cells };
+            });
+            updateAttrs({ rows: updatedRows });
+          }}
+          onPaste={(anchor, values) => {
+            const updatedRows = rows.map((row, rowIndex) => {
+              const pastedRow = values[rowIndex - anchor.row];
+              if (!pastedRow || rowIndex < anchor.row) return row;
+              const cells = { ...row.cells };
+              columns.slice(anchor.column).forEach((column, offset) => {
+                const value = pastedRow[offset];
+                if (value !== undefined) cells[column.id] = value;
+              });
+              return { ...row, cells };
+            });
+            updateAttrs({ rows: updatedRows });
+          }}
+          trailingHeader={!readOnly ? (
+            <button
+              type="button"
+              className="btn-icon grid place-items-center rounded"
+              onClick={handleAddColumn}
+              aria-label="Add column"
+              data-testid="add-column-btn"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          ) : undefined}
+          renderTrailingCell={!readOnly ? (_, rowIndex) => {
+            const row = rows[rowIndex];
+            return (
+              <button
+                type="button"
+                className="invisible btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:visible"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (row) handleDeleteRow(row.id);
+                }}
+                aria-label="Delete row"
+                data-testid={`delete-row-${row?.id}`}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            );
+          } : undefined}
+          getRowProps={() => ({
+            className: "hover:bg-surface transition-colors group",
+          })}
+          getCellProps={() => ({
+            className: "h-10 min-w-[100px] font-[var(--font-label)] text-sm",
+          })}
+          emptyState={
+            <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">
+              No rows yet
             </div>
-          </TableScroll>
-        </TableStretch>
+          }
+          stretchMode="auto"
+          data-testid="eln-table-grid"
+        />
       </div>
 
       {/* ── Ghost "+ New Row" button below the card ──────────────────── */}

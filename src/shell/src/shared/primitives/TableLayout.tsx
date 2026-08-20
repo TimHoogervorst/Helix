@@ -63,6 +63,7 @@ export function TableChrome({
   title,
   toolbar,
   addRow,
+  addRowOutside = false,
   children,
   className = "",
   ...props
@@ -70,6 +71,7 @@ export function TableChrome({
   title: ReactNode;
   toolbar?: ReactNode;
   addRow?: ReactNode;
+  addRowOutside?: boolean;
 }) {
   return (
     <>
@@ -79,8 +81,13 @@ export function TableChrome({
           {toolbar && <div className="table-layout-chrome__toolbar">{toolbar}</div>}
         </header>
         {children}
-        {addRow && <div className="table-layout-chrome__add-row">{addRow}</div>}
+        {addRow && !addRowOutside && (
+          <div className="table-layout-chrome__add-row">{addRow}</div>
+        )}
       </section>
+      {addRow && addRowOutside && (
+        <div className="table-layout-chrome__add-row">{addRow}</div>
+      )}
     </>
   );
 }

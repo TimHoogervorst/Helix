@@ -363,6 +363,24 @@ The shared table framework that all table blocks build on: the cell registry (ke
 
 **Synonyms:** table framework
 
+### Cell Selection
+
+The set of cells currently selected in a table. Always contains exactly one Active Cell. A selection is either a rectangular **Range** (created by dragging or Shift gestures) or non-contiguous (built with Ctrl gestures). Copy serializes the whole selection; paste targets the Active Cell. A plain click or plain arrow key collapses any selection to that single cell.
+
+### Active Cell
+
+The single cell in a table that is the target of keyboard focus, editing, and paste. Marked with a heavier border than the rest of the Cell Selection.
+
+_Avoid_: current cell, focused cell
+
+### Selection Anchor
+
+The origin cell from which a Range is extended by dragging or Shift gestures. Only plain clicks, plain arrow keys, and drag origins move the Anchor — Ctrl gestures move the Active Cell without moving the Anchor.
+
+### Range
+
+A rectangular Cell Selection defined by two diagonally opposite corner cells. Created by dragging or Shift gestures, always extended from the Selection Anchor. Non-contiguous selections are copied as their bounding Range, with unselected cells left blank.
+
 ### Mention
 
 A parsed reference from one Notebook Entry to another object (another Entry, an Entity, or any registered entity type). Created when a `#` reference is found in the entry text or when a `reference` node or a Registry Table row references a display ID. The Mention stores the source entry, the target object, and the surrounding context text.

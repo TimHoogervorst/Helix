@@ -697,6 +697,7 @@ export function ResultTableContent({
           </Button>
         )
       }
+      addRowOutside
     >
       <TableStretch mode="full">
         <TableScroll mode="full">

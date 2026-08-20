@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { del, get, post, put } from "../../../shell/src/api/client";
+import { get, post, put } from "../../../shell/src/api/client";
 import type { Schema, SchemaPayload, SchemaTypeItem, ColumnDef } from "../types";
 import ColumnEditor from "./ColumnEditor";
 import { Button } from "../../../shell/src/shared/primitives/Button";
@@ -302,27 +302,6 @@ function SettingsPage() {
     setFilterValue("");
   };
 
-  const deleteResultSchema = async () => {
-    if (!selectedSchema || activeTab !== "result") return;
-    if (!window.confirm(`Delete ${selectedSchema.name}?`)) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await del(`/schemas/${selectedSchema.id}/`);
-      setSelectedId(null);
-      setDirtyEdits((prev) => {
-        const next = new Map(prev);
-        next.delete(selectedSchema.id);
-        return next;
-      });
-      await fetchSchemas();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (loading) return <p className="empty">Loading…</p>;
 
   return (
@@ -499,16 +478,6 @@ function SettingsPage() {
               <SettingsSectionCard
                 title="Schema definition"
                 subtitle="Identity fields"
-                actions={activeTab === "result" ? (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={deleteResultSchema}
-                    disabled={saving}
-                  >
-                    Delete Result Schema
-                  </Button>
-                ) : undefined}
               >
                 <div className="space-y-3">
                     <div className="flex items-end gap-3">

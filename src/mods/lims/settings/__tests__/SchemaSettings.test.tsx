@@ -8,14 +8,12 @@ import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegi
 const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockPut = vi.fn();
-const mockDel = vi.fn();
 
 vi.mock("../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: (...args: unknown[]) => mockPost(...args),
   put: (...args: unknown[]) => mockPut(...args),
   patch: vi.fn(),
-  del: (...args: unknown[]) => mockDel(...args),
 }));
 
 vi.mock("../../../dropdowns/api", () => ({
@@ -668,22 +666,4 @@ describe("SchemaSettings", () => {
     })));
   });
 
-  it("deletes a Result Schema through the schema API", async () => {
-    mockGet
-      .mockResolvedValueOnce([makeSchema({ id: 4, name: "Yield Result", tags: ["ResultTable"] })])
-      .mockResolvedValueOnce([]);
-    mockDel.mockResolvedValue({});
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<SchemaSettings />);
-
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Result Schemas" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
-    await waitFor(() => expect(screen.getByText("Yield Result")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("Yield Result"));
-    await waitFor(() => expect(screen.getByText("Delete Result Schema")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("Delete Result Schema"));
-
-    await waitFor(() => expect(mockDel).toHaveBeenCalledWith("/schemas/4/"));
-    vi.restoreAllMocks();
-  });
 });

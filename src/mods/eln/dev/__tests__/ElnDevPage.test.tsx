@@ -30,6 +30,7 @@ describe("ELN Table Kit capability matrix", () => {
 
     expect(screen.getByRole("heading", { name: "Table Kit capability matrix" })).toBeInTheDocument();
     expect(screen.getByText("Entity-picker cells")).toBeInTheDocument();
+    expect(screen.getByText("Multi-cell selection (active cell and range)")).toBeInTheDocument();
     expect(screen.getByText("TSV copy/paste")).toBeInTheDocument();
     expect(screen.getByText("Registration and status indicators")).toBeInTheDocument();
     expect(screen.getAllByText("Domain").length).toBeGreaterThan(0);

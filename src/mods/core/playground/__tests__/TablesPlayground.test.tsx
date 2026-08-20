@@ -79,6 +79,19 @@ describe("TablesPlayground", () => {
     expect(screen.getByTestId("cell-row-1-name")).not.toHaveTextContent("Aster");
   });
 
+  it("clears only the active cell with Backspace in a multi-selection", () => {
+    render(<TablesPlayground />);
+
+    const firstCell = document.querySelector('[data-table-cell="0:0"]') as HTMLElement;
+    const activeCell = document.querySelector('[data-table-cell="0:1"]') as HTMLElement;
+    fireEvent.click(firstCell);
+    fireEvent.click(activeCell, { ctrlKey: true });
+    fireEvent.keyDown(activeCell, { key: "Backspace" });
+
+    expect(screen.getByTestId("cell-row-1-name")).toHaveTextContent("Aster");
+    expect(screen.getByTestId("cell-row-1-role-input")).toHaveValue("");
+  });
+
   it("selects on click and starts editing on double-click", () => {
     render(<TablesPlayground />);
 

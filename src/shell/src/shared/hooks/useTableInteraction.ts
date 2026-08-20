@@ -102,6 +102,35 @@ export function useTableInteraction({
     column: Math.max(0, Math.min(columnCount - 1, position.column)),
   }), [columnCount, rowCount]);
 
+  useEffect(() => {
+    setActiveCell((current) => {
+      const bounded = boundPosition(current);
+      return samePosition(current, bounded) ? current : bounded;
+    });
+    setSelectionAnchor((current) => {
+      const bounded = boundPosition(current);
+      return samePosition(current, bounded) ? current : bounded;
+    });
+    setSelectedCells((current) => {
+      const next = new Set<string>();
+      for (const key of current) {
+        const parts = key.split(":");
+        const row = Number(parts[parts.length - 2]);
+        const column = Number(parts[parts.length - 1]);
+        if (Number.isInteger(row) && Number.isInteger(column)
+          && row >= 0 && row < rowCount && column >= 0 && column < columnCount) {
+          next.add(key);
+        }
+      }
+      if (current.size > 0 && next.size === 0) {
+        const bounded = boundPosition(activeCell);
+        next.add(tableId ? `${tableId}:${bounded.row}:${bounded.column}` : `${bounded.row}:${bounded.column}`);
+      }
+      if (next.size === current.size && [...next].every((key) => current.has(key))) return current;
+      return next;
+    });
+  }, [activeCell, boundPosition, columnCount, rowCount, tableId]);
+
   const selectRange = useCallback((anchor: TablePosition, target: TablePosition) => {
     const range = normalizeTableRange({ start: anchor, end: target });
     const next = new Set<string>();
@@ -283,7 +312,9 @@ export function useTableInteraction({
       event.preventDefault();
       if (readOnly) return;
       const positions: TablePosition[] = [];
-      const keys = selectedCells.size ? selectedCells : new Set([cellKey(position)]);
+      const keys = event.key === "Backspace"
+        ? new Set([cellKey(position)])
+        : selectedCells.size ? selectedCells : new Set([cellKey(position)]);
       for (const key of keys) {
         const [row, column] = key.split(":").slice(tableId ? 1 : 0).map(Number);
         positions.push({ row, column });

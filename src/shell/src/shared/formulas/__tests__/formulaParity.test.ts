@@ -17,6 +17,7 @@ type Fixture = {
   name: string;
   expression?: string;
   row: Record<string, string | number | boolean | null>;
+  backendOnly?: boolean;
   formulas?: Record<string, { expression: string }>;
   expected?: object;
   expectedRow?: object;
@@ -27,14 +28,28 @@ describe("formula parity fixtures", () => {
   it.each(parityFixtures.filter((fixture) => fixture.expression))(
     "evaluates $name",
     (fixture) => {
+      const expected = fixture.backendOnly
+        ? { ok: false, error: { code: "#NAME?" } }
+        : fixture.expected;
       expect(
         evaluateFormula(
           fixture.expression!,
           fixture.row as Record<string, string | number | boolean | null>,
         ),
-      ).toMatchObject(fixture.expected as object);
+      ).toMatchObject(expected as object);
     },
   );
+
+  it("queries the backend-only function for every backend-only fixture", () => {
+    for (const fixture of parityFixtures.filter(
+      (item) => item.backendOnly && item.expression,
+    )) {
+      const calls = functionCallsIn(fixture.expression!);
+      expect(unimplementedFormulaFunctionsIn(fixture.expression!)).toEqual(
+        calls,
+      );
+    }
+  });
 
   it("evaluates formula dependencies and reports cycles", () => {
     expect(

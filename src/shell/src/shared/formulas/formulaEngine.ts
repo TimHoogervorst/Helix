@@ -462,7 +462,7 @@ function evalAst(
             : ast.operator === "/"
               ? a / b
               : ast.operator === "%"
-                ? a % b
+                ? ((a % b) + b) % b
                 : Math.pow(a, b),
     );
   }

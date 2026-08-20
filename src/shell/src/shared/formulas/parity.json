@@ -48,6 +48,30 @@
     "expected": { "ok": false, "error": { "code": "#DIV/0!" } }
   },
   {
+    "name": "negative dividend modulo",
+    "expression": "-7 % 3",
+    "row": {},
+    "expected": { "ok": true, "value": 2 }
+  },
+  {
+    "name": "negative divisor modulo",
+    "expression": "7 % -3",
+    "row": {},
+    "expected": { "ok": true, "value": -2 }
+  },
+  {
+    "name": "both operands negative modulo",
+    "expression": "-7 % -3",
+    "row": {},
+    "expected": { "ok": true, "value": -1 }
+  },
+  {
+    "name": "boolean in arithmetic is invalid",
+    "expression": "TRUE + 1",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
     "name": "missing reference",
     "expression": "[Missing]",
     "row": {},

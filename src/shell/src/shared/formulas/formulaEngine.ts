@@ -43,6 +43,7 @@ const defaultClientFunctionIds = new Set([
   "LEN",
 ]);
 let hydratedFunctionIds: Set<string> | null = null;
+let unavailableDeclaredFunctionIds = new Set<string>();
 
 /** Register a client implementation, optionally validated against the catalog. */
 export function registerFormulaFunction(
@@ -56,9 +57,40 @@ export function registerFormulaFunction(
   clientImplementations.set(id, implementation);
 }
 
-/** Set the backend catalog and discard registrations for unknown functions. */
-export function hydrateFormulaCatalog(ids: Iterable<string>): void {
-  hydratedFunctionIds = new Set(ids);
+/** Set the backend catalog and verify its client implementation declarations. */
+export function hydrateFormulaCatalog(
+  entries: Iterable<string | { id: string; clientImplemented?: boolean }>,
+): void {
+  const catalog = [...entries].map((entry) =>
+    typeof entry === "string"
+      ? { id: entry, clientImplemented: true }
+      : entry,
+  );
+  hydratedFunctionIds = new Set(catalog.map((entry) => entry.id));
+  const actualClientFunctionIds = new Set([
+    ...defaultClientFunctionIds,
+    ...clientImplementations.keys(),
+  ]);
+  unavailableDeclaredFunctionIds = new Set(
+    catalog
+      .filter(
+        (entry) =>
+          entry.clientImplemented === true &&
+          !actualClientFunctionIds.has(entry.id),
+      )
+      .map((entry) => entry.id),
+  );
+  for (const entry of catalog) {
+    if (entry.clientImplemented === true && !actualClientFunctionIds.has(entry.id)) {
+      console.warn(
+        `Formula function '${entry.id}' declares a client implementation but none is registered; treating it as backend-only.`,
+      );
+    } else if (entry.clientImplemented === false && actualClientFunctionIds.has(entry.id)) {
+      console.warn(
+        `Formula function '${entry.id}' is registered on the client but declared backend-only.`,
+      );
+    }
+  }
   for (const id of clientImplementations.keys()) {
     if (!hydratedFunctionIds.has(id)) {
       clientImplementations.delete(id);
@@ -70,7 +102,13 @@ export function hydrateFormulaCatalog(ids: Iterable<string>): void {
 export function getClientFormulaFunctionIds(): ReadonlySet<string> {
   const ids = new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
   return hydratedFunctionIds
-    ? new Set([...ids].filter((id) => hydratedFunctionIds!.has(id)))
+    ? new Set(
+        [...ids].filter(
+          (id) =>
+            hydratedFunctionIds!.has(id) &&
+            !unavailableDeclaredFunctionIds.has(id),
+        ),
+      )
     : ids;
 }
 

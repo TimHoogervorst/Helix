@@ -495,6 +495,10 @@ def get_builtin_formula_functions() -> list[dict[str, Any]]:
         "SUBSTITUTE": ["any", "any", "any", "number?"],
     }
     variadic = {"AND", "OR", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "CONCAT"}
+    client_implemented = {
+        "IF", "IFERROR", "AND", "OR", "NOT", "ROUND", "ABS", "MIN",
+        "MAX", "SUM", "AVERAGE", "COUNT", "CONCAT", "UPPER", "LOWER", "LEN",
+    }
     functions = []
     for name, description in descriptions.items():
         functions.append({
@@ -502,6 +506,7 @@ def get_builtin_formula_functions() -> list[dict[str, Any]]:
             "argument_kinds": argument_kinds.get(name, ["any..."] if name in variadic else ["any"]),
             "result_kind": "boolean" if name in {"AND", "OR", "NOT"} else "number" if name in {"ROUND", "ABS", "MIN", "MAX", "SUM", "AVERAGE", "COUNT", "LEN", "CEILING", "FLOOR", "MOD", "SQRT", "POWER", "LOG", "SIGN"} else "any",
             "description": description,
+            "client_implemented": name in client_implemented,
             "implementation": (lambda args, function_name=name: _formula_implementation(function_name, args)),
         })
     return functions

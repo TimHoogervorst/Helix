@@ -95,8 +95,20 @@ def test_backend_only_text_functions():
 def test_backend_only_functions_are_in_catalog():
     from helix_core.formulas import get_builtin_formula_functions
 
-    names = {function["function_id"] for function in get_builtin_formula_functions()}
-    assert names >= {
+    functions = get_builtin_formula_functions()
+    client_functions = {
+        function["function_id"] for function in functions if function["client_implemented"]
+    }
+    backend_only_functions = {
+        function["function_id"]
+        for function in functions
+        if not function["client_implemented"]
+    }
+    assert client_functions == {
+        "IF", "IFERROR", "AND", "OR", "NOT", "ROUND", "ABS", "MIN",
+        "MAX", "SUM", "AVERAGE", "COUNT", "CONCAT", "UPPER", "LOWER", "LEN",
+    }
+    assert backend_only_functions == {
         "CEILING", "FLOOR", "MOD", "SQRT", "POWER", "LOG", "SIGN",
         "TRIM", "LEFT", "RIGHT", "MID", "SUBSTITUTE",
     }

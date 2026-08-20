@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   evaluateFormula,
   evaluateRow,
   functionCallsIn,
   getClientFormulaFunctionIds,
   hydrateFormulaCatalog,
+  registerFormulaFunction,
   parseFormula,
   usesBackendOnlyFunction,
   walkFormulaAst,
@@ -91,6 +92,43 @@ describe("formula parity fixtures", () => {
       expect(usesBackendOnlyFunction("molBio.gcContent([Sequence])")).toBe(true);
     } finally {
       hydrateFormulaCatalog(originalIds);
+    }
+  });
+
+  it("degrades a declared client function when no implementation is registered", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      hydrateFormulaCatalog([
+        { id: "missing.client", clientImplemented: true },
+      ]);
+      expect(getClientFormulaFunctionIds()).not.toContain("missing.client");
+      expect(warning).toHaveBeenCalledWith(
+        "Formula function 'missing.client' declares a client implementation but none is registered; treating it as backend-only.",
+      );
+    } finally {
+      hydrateFormulaCatalog([]);
+      warning.mockRestore();
+    }
+  });
+
+  it("keeps a registered function when the catalog declaration is stale", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const originalIds = [...getClientFormulaFunctionIds()];
+    try {
+      hydrateFormulaCatalog([
+        { id: "stale.client", clientImplemented: false },
+      ]);
+      registerFormulaFunction("stale.client", () => ({ ok: true, value: 1 }));
+      hydrateFormulaCatalog([
+        { id: "stale.client", clientImplemented: false },
+      ]);
+      expect(getClientFormulaFunctionIds()).toContain("stale.client");
+      expect(warning).toHaveBeenCalledWith(
+        "Formula function 'stale.client' is registered on the client but declared backend-only.",
+      );
+    } finally {
+      hydrateFormulaCatalog(originalIds);
+      warning.mockRestore();
     }
   });
 

@@ -136,3 +136,23 @@ Since this ADR was accepted, [ADR-0008](0008-single-source-registration.md) (Sin
 - **Mod separation in the database.** The `RegisteredEntityType.workspace_id` field is a natural boundary for multi-tenancy or database-per-mod isolation.
 - **Custom URL patterns as an override.** If a workspace needs non-standard URLs (e.g., `/sequences/DNA34` instead of `/molBio/DNA34`), the workspace config can gain an optional `buildUrl(displayId)` function. The convention remains the default.
 - **Dynamic registration after boot.** If hot-reloading mods becomes a requirement, the registration flow supports it — `registerEntityType()` is just a function call that updates in-memory state.
+
+---
+
+## Amendment: Results schema type workspace identity
+
+> Origin: [Spec: Table Kit — typed cells and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+
+### Context
+
+Result Entities are ordinary entities exposed through the Entities Hub, but the Results schema type does not yet have a dedicated frontend workspace or detail route. It still needs a registered workspace identity so it can participate in the backend registry and existing display-ID conventions.
+
+### Decision
+
+The Results schema type registers normally with `workspace_id: "results"`. It has no frontend route yet. Entities Hub rows for this route-less type render as non-clickable until the follow-up workspace PR adds the Results workspace and detail route.
+
+### Consequences
+
+- Results retain the existing backend registration, workspace identity, and display-ID conventions.
+- The registered workspace identity is distinct from frontend navigability; missing routes do not prevent discovery or display in the Hub.
+- Result rows cannot link to a workspace or detail page until the follow-up workspace PR is implemented.

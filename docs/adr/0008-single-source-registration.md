@@ -142,3 +142,30 @@ The only consumer was the Pins mod, which injected a "pin/unpin" button into wor
 - **External mod schema types.** External mods register schema types through the same `register_schema_type()` API. The frontend discovers them through the same `GET /api/mod-registry/` endpoint. No new mechanism needed.
 - **Schema type evolution.** When a schema type's columns change, the frontend picks up the new definition on next boot. Migration of existing entity data to new schemas is a separate concern.
 - **Per-mod custom discovery fields.** The `GET /api/mod-registry/` payload can grow per-mod sections (e.g., custom settings schemas, permission models) without changing the discovery contract.
+
+---
+
+## Amendment: Schema type capability tags
+
+> Origin: [Spec: Table Kit — typed cells and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+
+### Context
+
+The Table Kit needs to distinguish schema types that are applicable to registration tables from schema types that represent result tables. Workspace identity alone does not express that capability, and duplicating the classification in frontend configuration would violate the backend-owned registration rule.
+
+### Decision
+
+`SchemaType` gains a JSON `tags` list declared by the owning mod through `register_schema_type()`, for example:
+
+```python
+register_schema_type(..., tags=["RegistrationTable", "ResultTable"])
+```
+
+Tags are backend-owned capability markers and are not settings-editable. The canonical tags are `RegistrationTable` and `ResultTable`. Existing LIMS entity types are seeded with `RegistrationTable`; ELN Entry receives no table tag. Tags may be combined when a schema type supports multiple table capabilities. The discovery payload exposes the hydrated tags, and frontend pickers filter schemas client-side using those values.
+
+### Consequences
+
+- Mod declarations remain the single source of truth for schema capabilities, extending rather than replacing backend-owned registration.
+- Registry Table pickers can exclude untagged types such as ELN Entry, while Result Table pickers can include only `ResultTable` types.
+- Settings can separate Entity Schemas from Result Schemas without introducing a second frontend registration mechanism.
+- Changing a capability remains a backend/mod change and is reflected after registry discovery; users cannot edit the tags as settings.

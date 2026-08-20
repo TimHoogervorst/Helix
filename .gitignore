@@ -40,7 +40,7 @@ Thumbs.db
 # MCP
 .playwright-mcp
 backend/test.db
-test-results/.last-run.json
+test-results/*
 
 # prototypes
 docs/protoypes/

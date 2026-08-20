@@ -10,6 +10,14 @@ export {
   TableHeaderCell,
   TableCell,
 } from "./Table";
+export {
+  TableStretch,
+  TableScroll,
+  StickyActionHeader,
+  StickyActionCell,
+  TableChrome,
+} from "./TableLayout";
+export type { TableStretchMode } from "./TableLayout";
 export { TabBar } from "./TabBar";
 export type { Tab } from "./TabBar";
 export { Modal } from "./Modal";

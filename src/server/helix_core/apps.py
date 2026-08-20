@@ -13,6 +13,7 @@ class HelixCoreConfig(AppConfig):
             get_builtin_column_types,
             registry as column_type_registry,
         )
+        from helix_core.formulas import get_builtin_formula_functions
         from helix_core.mod_system.loader import (
             _get_all_manifests,
             get_helix_mods,
@@ -22,6 +23,12 @@ class HelixCoreConfig(AppConfig):
         # ── Register built-in column types ───────────────────────────────
         for ct in get_builtin_column_types():
             column_type_registry.register_column_type(ct)
+
+        # Platform formula functions are available before any mod registers
+        # its namespaced domain functions.
+        for function in get_builtin_formula_functions():
+            if registry.get_formula_function(function["function_id"]) is None:
+                registry.register_formula_function(**function)
 
         # Discover all manifests (core + external) for signal validation.
         manifests, _ = _get_all_manifests(

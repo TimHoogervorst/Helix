@@ -356,7 +356,7 @@ function ElnChrome({
           {/* Zone 2: Left gutter counterweight */}
           <div
             className="hidden xl:block shrink-0"
-            style={{ width: "17.5rem" }}
+            style={{ width: "var(--layout-workspace-gutter)" }}
             aria-hidden="true"
           />
 

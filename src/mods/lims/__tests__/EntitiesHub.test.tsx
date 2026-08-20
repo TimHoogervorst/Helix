@@ -360,6 +360,67 @@ describe("EntitiesHub", () => {
     });
   });
 
+  it("renders Result entities with display IDs and typed properties", async () => {
+    const resultColumns: EntityHubResponse["available_columns"] = [
+      ...DEFAULT_COLUMNS,
+      {
+        key: "calculated_value",
+        label: "Calculated Value",
+        source: "schema",
+        type: "number",
+        filterable: true,
+        width: null,
+      },
+    ];
+    const result = makeEntityHubItem({
+      id: 10,
+      display_id: "R-001",
+      name: "Assay Result",
+      schema_type_id: "lims.result",
+      schema_type_display: "Results",
+      workspace_id: "results",
+      _expanded: { calculated_value: 42.5 },
+    });
+    mockGetEntities.mockResolvedValue(
+      makePopulatedResponse([result], { available_columns: resultColumns }),
+    );
+
+    renderHub(
+      "/entities?columns=display_id,name,schema_type_id,calculated_value",
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("R-001")).toBeInTheDocument();
+      expect(screen.getByText("Results")).toBeInTheDocument();
+      expect(screen.getByText("42.5")).toBeInTheDocument();
+    });
+  });
+
+  it("forwards Result search, filter, and sort parameters", async () => {
+    const result = makeEntityHubItem({
+      id: 10,
+      display_id: "R-001",
+      schema_type_id: "lims.result",
+      schema_type_display: "Results",
+      workspace_id: "results",
+    });
+    mockGetEntities.mockResolvedValue(makePopulatedResponse([result]));
+
+    renderHub(
+      "/entities?search=R-001&schema_type=lims.result&sort=name",
+    );
+
+    await waitFor(() => {
+      expect(mockGetEntities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          search: "R-001",
+          schema_type: "lims.result",
+          sort: "name",
+        }),
+      );
+    });
+  });
+
   it("renders schema type badges", async () => {
     const items = [
       makeEntityHubItem({ id: 1, schema_type_display: "Entry" }),
@@ -474,6 +535,31 @@ describe("EntitiesHub", () => {
     fireEvent.click(row!);
 
     expect(mockNavigate).toHaveBeenCalledWith("/lims/BLOOD1");
+  });
+
+  it("does not make route-less Result rows clickable", async () => {
+    const result = makeEntityHubItem({
+      id: 10,
+      display_id: "R-001",
+      schema_type_id: "lims.result",
+      schema_type_display: "Results",
+      workspace_id: "results",
+    });
+    mockGetEntities.mockResolvedValue(makePopulatedResponse([result]));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("R-001")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("R-001").closest("tr");
+    expect(row).not.toBeNull();
+    expect(row).not.toHaveAttribute("tabindex");
+
+    fireEvent.click(row!);
+    fireEvent.keyDown(row!, { key: "Enter" });
+    fireEvent.keyDown(row!, { key: " " });
+
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("view mode toggle does NOT trigger a data refetch", async () => {

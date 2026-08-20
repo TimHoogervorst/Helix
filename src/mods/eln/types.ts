@@ -67,9 +67,13 @@ export interface EntityTypeSummary {
     description?: string;
     dropdownId?: number;
     referenceSchemaId?: number;
+    referenceSchemaTypeId?: number;
+    expression?: string;
+    resultType?: string;
   }[];
   is_active: boolean;
   content_hash: string; // SHA-256 of column definitions (#252)
+  tags: string[];
 }
 
 /** An empty TipTap document — a single empty paragraph. */

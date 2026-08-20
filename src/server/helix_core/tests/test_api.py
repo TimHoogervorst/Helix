@@ -1,6 +1,8 @@
 """
 Tests for the Schema and SchemaType API endpoints.
 """
+from importlib import import_module
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -17,6 +19,35 @@ def make_admin(user):
     )
 
 
+class FormulaEvaluateApiTests(TestCase):
+    """The formula preview gateway evaluates one row and never persists it."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="formula-user", password="pass")
+        self.client.force_authenticate(user=self.user)
+
+    def test_evaluates_expression_against_row(self):
+        response = self.client.post(
+            "/api/formulas/evaluate/",
+            {"expression": "[Amount] * [Count]", "row": {"Amount": 4, "Count": 3}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"result": {"ok": True, "value": 12}})
+
+    def test_returns_tagged_errors(self):
+        response = self.client.post(
+            "/api/formulas/evaluate/",
+            {"expression": "[Amount] / [Count]", "row": {"Amount": 4, "Count": 0}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["result"]["error"]["code"], "#DIV/0!")
+
+
 class SchemaTypeApiTests(TestCase):
     """Tests for the read-only SchemaType list endpoint."""
 
@@ -28,6 +59,7 @@ class SchemaTypeApiTests(TestCase):
         SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
+            tags=["RegistrationTable"],
         )
         SchemaType.objects.create(
             display_name="ELN Entry", workspace_id="eln",
@@ -42,6 +74,38 @@ class SchemaTypeApiTests(TestCase):
         names = {st["display_name"] for st in response.data}
         self.assertIn("Entity", names)
         self.assertNotIn("ELN Entry", names)
+        entity = next(st for st in response.data if st["display_name"] == "Entity")
+        self.assertEqual(entity["tags"], ["RegistrationTable"])
+
+    def test_migration_seeds_schema_type_tags(self):
+        """The data migration assigns table capability tags by model identity."""
+        lims = SchemaType.objects.create(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+        )
+        eln = SchemaType.objects.create(
+            display_name="ELN Entry",
+            workspace_id="eln",
+            model="mods.eln.models.NotebookEntry",
+            tags=["RegistrationTable"],
+        )
+
+        class Apps:
+            @staticmethod
+            def get_model(app_label, model_name):
+                assert app_label == "helix_core"
+                assert model_name == "SchemaType"
+                return SchemaType
+
+        import_module(
+            "helix_core.migrations.0011_schema_type_tags"
+        ).seed_schema_type_tags(Apps(), None)
+
+        lims.refresh_from_db()
+        eln.refresh_from_db()
+        self.assertEqual(lims.tags, ["RegistrationTable"])
+        self.assertEqual(eln.tags, [])
 
 
 class SchemaCrudTests(TestCase):
@@ -55,6 +119,7 @@ class SchemaCrudTests(TestCase):
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="mods.lims.models.Entity",
+            tags=["RegistrationTable"],
         )
 
     def test_create_schema(self):
@@ -77,6 +142,7 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(response.data["prefix"], "BLOOD")
         self.assertEqual(response.data["schema_type"], self.schema_type.id)
         self.assertEqual(response.data["schema_type_display"], "Entity")
+        self.assertEqual(response.data["tags"], ["RegistrationTable"])
         self.assertEqual(len(response.data["columns"]), 2)
         self.assertTrue(response.data["is_active"])
         self.assertFalse(response.data["is_default"])
@@ -86,6 +152,36 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(s.prefix, "BLOOD")
         self.assertEqual(len(s.columns), 2)
         self.assertIsNotNone(s.content_hash)
+
+    def test_schema_column_metadata_round_trips(self):
+        columns = [
+            {
+                "name": "source",
+                "type": "reference",
+                "referenceSchemaTypeId": self.schema_type.id,
+            },
+        ]
+        response = self.client.post(
+            "/api/schemas/",
+            {
+                "name": "Referenced",
+                "prefix": "REF",
+                "schema_type": self.schema_type.id,
+                "columns": columns,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            [
+                {key: value for key, value in column.items() if key != "id"}
+                for column in response.data["columns"]
+            ],
+            columns,
+        )
+        retrieved = self.client.get(f"/api/schemas/{response.data['id']}/")
+        self.assertEqual(retrieved.status_code, 200)
+        self.assertEqual(retrieved.data["columns"], response.data["columns"])
 
     def test_list_schemas(self):
         """GET returns all schemas with schema type info."""
@@ -220,6 +316,24 @@ class SchemaColumnValidationTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("columns", response.data)
+
+    def test_rejects_both_reference_targets(self):
+        response = self.client.post(
+            "/api/schemas/",
+            {
+                "name": "Test",
+                "prefix": "REFS",
+                "schema_type": self.schema_type.id,
+                "columns": [{
+                    "name": "source",
+                    "type": "reference",
+                    "referenceSchemaId": 1,
+                    "referenceSchemaTypeId": self.schema_type.id,
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_rejects_column_named_name(self):
         """User-defined column 'Name' is blocked (case-insensitive)."""

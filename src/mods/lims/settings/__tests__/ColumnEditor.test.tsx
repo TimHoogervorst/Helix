@@ -6,6 +6,18 @@ import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
 import { resolveColorHex } from "../../../../shell/src/shared/components/IconBadge";
 
+vi.mock("../../hub/api", () => ({
+  getSchemas: vi.fn().mockResolvedValue([
+    { id: 7, name: "Sample", prefix: "SAMPLE", schema_type: 1 },
+  ]),
+  getSchemaTypes: vi.fn().mockResolvedValue([
+    { id: 3, display_name: "Source Type" },
+  ]),
+}));
+vi.mock("../../../dropdowns/api", () => ({
+  listDropdowns: vi.fn().mockResolvedValue([]),
+}));
+
 const STANDARD_COLORS = [
   { key: "enzyme", label: "Enzyme", hex: "#d9b3e6", hexDark: "#EBC8F2", hexLight: "#D9B3E6" },
   { key: "flask", label: "Flask", hex: "#b3d9e6", hexDark: "#C8EBF2", hexLight: "#B3D9E6" },
@@ -77,6 +89,15 @@ const MOCK_COLUMN_TYPES: BackendColumnType[] = [
     color: "flask",
     operandShape: "entity-picker",
     defaultValue: null,
+    operators: [],
+  },
+  {
+    id: "formula",
+    displayName: "Formula",
+    icon: "sigma",
+    color: "muted",
+    operandShape: "text",
+    defaultValue: "",
     operators: [],
   },
 ];
@@ -416,5 +437,84 @@ describe("ColumnEditor", () => {
     // Change column 0 from "number" to "boolean"
     fireEvent.change(typeSelects[1], { target: { value: "boolean" } });
     expect(onUpdate).toHaveBeenCalledWith(0, "type", "boolean");
+  });
+
+  it("edits the Result Schema Entity Column target by schema or schema type", async () => {
+    const onUpdate = vi.fn();
+    render(
+      <ColumnEditor
+        isResultSchema
+        columns={[{ name: "Entity", type: "reference" }]}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByTestId("entity-column")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Entity Column target schema" }), {
+      target: { value: "7" },
+    });
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaId", 7);
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaTypeId", "");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Entity Column target schema type" }), {
+      target: { value: "3" },
+    });
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaTypeId", 3);
+    expect(onUpdate).toHaveBeenCalledWith(0, "referenceSchemaId", "");
+  });
+
+  it("opens the formula editor with a read-only summary and saves expression changes", () => {
+    const onUpdate = vi.fn();
+    render(
+      <ColumnEditor
+        isResultSchema
+        columns={[
+          { name: "Entity", type: "reference" },
+          { name: "Amount", type: "number" },
+          { name: "Total", type: "formula", expression: "[Missing]", resultType: "number" },
+        ]}
+        onUpdate={onUpdate}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("[Missing]")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit formula for Total" }));
+    expect(screen.getByRole("dialog", { name: "Formula Editor: Total" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Formula expression" }), {
+      target: { value: "[Amount] * 2" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Formula result type" }), {
+      target: { value: "number" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save expression" }));
+    expect(onUpdate).toHaveBeenCalledWith(2, "expression", "[Amount] * 2");
+    expect(onUpdate).toHaveBeenCalledWith(2, "resultType", "number");
+  });
+
+  it("does not open a new formula editor until the formula row options are clicked", () => {
+    render(
+      <ColumnEditor
+        isResultSchema
+        columns={[
+          { name: "Entity", type: "reference" },
+          { name: "Total", type: "formula" },
+        ]}
+        onUpdate={vi.fn()}
+        onRemove={vi.fn()}
+        onMove={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("dialog", { name: "Formula Editor: Total" })).not.toBeInTheDocument();
+
+    const formulaRow = screen.getByDisplayValue("Total").closest("div.border-b");
+    expect(formulaRow).not.toBeNull();
+    fireEvent.click(formulaRow!.querySelector('button[title="Options"]')!);
+
+    expect(screen.getByRole("dialog", { name: "Formula Editor: Total" })).toBeInTheDocument();
   });
 });

@@ -456,6 +456,76 @@ class BatchRegisterCreateTests(BaseTestCase):
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 3)
 
 
+class BatchRegisterComputedFieldTests(BaseTestCase):
+    """Computed fields are evaluated by the backend during registration."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results", model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.result_schema = Schema.objects.create(
+            name="Assay Result", prefix="ASR", schema_type=self.schema_type,
+            columns=[
+                {"name": "A260", "type": "number"},
+                {"name": "A280", "type": "number"},
+                {
+                    "name": "Ratio",
+                    "type": "formula",
+                    "expression": "[A260] / [A280]",
+                    "resultType": "number",
+                },
+            ],
+        )
+
+    def test_recomputes_client_formula_values_and_returns_patch(self):
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.result_schema.id,
+                "rows": [{
+                    "entity_id": None,
+                    "name": "Sample A",
+                    "folder_id": self.folder.id,
+                    "values": {"A260": 4, "A280": 2, "Ratio": 999},
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errors"], [])
+        result = response.data["results"][0]
+        self.assertEqual(result["values"], {"Ratio": 2})
+        entity = Entity.objects.get(pk=result["entity_id"])
+        self.assertEqual(entity.properties["Ratio"], 2)
+        self.assertEqual(entity.properties["_computed_field_versions"], {"Ratio": 1})
+        self.assertEqual(
+            entity.properties["_computed_field_schema_hash"],
+            self.result_schema.content_hash,
+        )
+
+    def test_formula_error_only_fails_its_row(self):
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.result_schema.id,
+                "rows": [
+                    {"name": "Bad", "folder_id": self.folder.id, "values": {"A260": 4, "A280": 0}},
+                    {"name": "Good", "folder_id": self.folder.id, "values": {"A260": 4, "A280": 2}},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([error["row_index"] for error in response.data["errors"]], [0])
+        self.assertEqual(response.data["errors"][0]["field"], "Ratio")
+        self.assertEqual(response.data["results"][0]["row_index"], 1)
+
 class BatchRegisterUpdateTests(BaseTestCase):
     """Test batch-register updates existing entities when entity_id is provided."""
 
@@ -736,6 +806,49 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
 
         # Only one entity exists
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 1)
+
+    def test_result_row_ids_allow_duplicate_source_results(self):
+        self.schema_type.tags = ["ResultTable"]
+        self.schema_type.save(update_fields=["tags"])
+        payload = {
+            "schema_id": self.dna_schema.id,
+            "rows": [
+                {
+                    "entity_id": None,
+                    "result_row_id": "row-a",
+                    "name": "BLOOD1 — Assay Result",
+                    "values": {"concentration": 10, "Entity": "BLOOD1"},
+                    "folder_id": self.folder.id,
+                },
+                {
+                    "entity_id": None,
+                    "result_row_id": "row-b",
+                    "name": "BLOOD1 — Assay Result",
+                    "values": {"concentration": 20, "Entity": "BLOOD1"},
+                    "folder_id": self.folder.id,
+                },
+            ],
+        }
+
+        response = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(
+            Entity.objects.filter(schema=self.dna_schema).count(), 2
+        )
+        result_ids = [result["entity_id"] for result in response.data["results"]]
+        self.assertNotEqual(result_ids[0], result_ids[1])
+
+        retry = self.client.post(BATCH_REGISTER_URL, payload, format="json")
+
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(
+            Entity.objects.filter(schema=self.dna_schema).count(), 2
+        )
+        self.assertEqual(
+            [result["entity_id"] for result in retry.data["results"]], result_ids
+        )
 
 
 class BatchRegisterActionLoggingTests(BaseTestCase):
@@ -1562,6 +1675,9 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         cls.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
         )
+        cls.type_target_schema_type = SchemaType.objects.create(
+            display_name="Target Type", workspace_id="target", model="mods.lims.models.Entity",
+        )
 
     def setUp(self):
         super().setUp()
@@ -1580,6 +1696,18 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         self.open_ref_schema = Schema.objects.create(
             name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
             columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.type_target_schema = Schema.objects.create(
+            name="Type Target", prefix="TTGT", schema_type=self.type_target_schema_type,
+            columns=[],
+        )
+        self.type_ref_schema = Schema.objects.create(
+            name="Type Reference", prefix="TREF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaTypeId": self.type_target_schema_type.id,
+            }],
         )
         self.client.force_authenticate(user=self.user)
 
@@ -1637,6 +1765,63 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         err = response.data["properties"]["linked_entity"]
         self.assertIn("does not exist", str(err))
+
+    def test_create_reference_matching_schema_type_succeeds(self):
+        target = Entity.objects.create(
+            name="Type Target Entity", schema=self.type_target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "folder": self.folder.id,
+                "schema": self.type_ref_schema.id,
+                "properties": {"linked_entity": target.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_reference_wrong_schema_type_rejected(self):
+        other = Entity.objects.create(
+            name="Wrong Type", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            "/api/lims/entities/",
+            {
+                "name": "Test Entity",
+                "folder": self.folder.id,
+                "schema": self.type_ref_schema.id,
+                "properties": {"linked_entity": other.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Target Type", str(response.data["properties"]["linked_entity"]))
+
+    def test_batch_register_reference_wrong_schema_type_rejected(self):
+        other = Entity.objects.create(
+            name="Wrong Type", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.type_ref_schema.id,
+                "rows": [{
+                    "entity_id": None,
+                    "name": "Test Entity",
+                    "folder_id": self.folder.id,
+                    "values": {"linked_entity": other.display_id},
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+        self.assertIn("Target Type", str(response.data["errors"][0]["message"]))
 
     def test_create_open_reference_accepts_any_valid_display_id(self):
         """Open reference (no referenceSchemaId) accepts any valid display_id."""
@@ -1704,6 +1889,9 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         cls.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
         )
+        cls.type_target_schema_type = SchemaType.objects.create(
+            display_name="Target Type", workspace_id="target", model="mods.lims.models.Entity",
+        )
 
     def setUp(self):
         super().setUp()
@@ -1722,6 +1910,18 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         self.open_ref_schema = Schema.objects.create(
             name="OpenRef", prefix="OPEN", schema_type=self.schema_type,
             columns=[{"name": "any_entity", "type": "reference"}],
+        )
+        self.type_target_schema = Schema.objects.create(
+            name="Type Target", prefix="TTGT", schema_type=self.type_target_schema_type,
+            columns=[],
+        )
+        self.type_ref_schema = Schema.objects.create(
+            name="Type Reference", prefix="TREF", schema_type=self.schema_type,
+            columns=[{
+                "name": "linked_entity",
+                "type": "reference",
+                "referenceSchemaTypeId": self.type_target_schema_type.id,
+            }],
         )
         self.client.force_authenticate(user=self.user)
 
@@ -1806,6 +2006,33 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         err = response.data["properties"]["linked_entity"]
         self.assertIn("does not exist", str(err))
+
+    def test_update_reference_wrong_schema_type_rejected(self):
+        target = Entity.objects.create(
+            name="Target", schema=self.type_target_schema,
+            folder=self.folder, author=self.user,
+        )
+        entity = Entity.objects.create(
+            name="Test", schema=self.type_ref_schema,
+            folder=self.folder, author=self.user,
+            properties={"linked_entity": target.display_id},
+        )
+        other = Entity.objects.create(
+            name="Wrong Type", schema=self.target_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.put(
+            f"/api/lims/entities/{entity.display_id}/",
+            {
+                "name": "Test (updated)",
+                "folder": self.folder.id,
+                "schema": self.type_ref_schema.id,
+                "properties": {"linked_entity": other.display_id},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Target Type", str(response.data["properties"]["linked_entity"]))
 
     def test_update_open_reference_accepts_any_valid_display_id(self):
         """PUT entity with open reference accepts any valid display_id."""

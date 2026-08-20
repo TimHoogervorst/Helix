@@ -172,6 +172,7 @@ const _schemaDefaults: Schema = {
   prefix: "BLOOD",
   schema_type: 1,
   schema_type_display: "Entity",
+  tags: [],
   is_default: false,
   is_active: true,
   columns: [],
@@ -193,6 +194,7 @@ const _schemaTypeDefaults: SchemaTypeItem = {
   workspace_id: "lims",
   is_active: true,
   schema_type_id: "lims.entity",
+  tags: [],
 };
 
 /** A single SchemaType item. */

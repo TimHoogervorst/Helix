@@ -67,6 +67,7 @@ class ModRegistryContractTests(TestCase):
             workspace_id="lims",
             model="mods.lims.models.Entity",
             columns=[{"name": "volume", "type": "number"}],
+            tags=["RegistrationTable"],
         )
         Schema.objects.create(
             name="Default",
@@ -82,6 +83,7 @@ class ModRegistryContractTests(TestCase):
             workspace_id="eln",
             model="mods.eln.models.NotebookEntry",
             columns=[],
+            tags=[],
         )
         Schema.objects.create(
             name="Default",
@@ -144,6 +146,7 @@ class ModRegistryContractTests(TestCase):
         self.assertEqual(lims_sts[0]["id"], "lims.entity")
         self.assertEqual(lims_sts[0]["displayName"], "Entity")
         self.assertEqual(lims_sts[0]["prefix"], "BLOOD")
+        self.assertEqual(lims_sts[0]["tags"], ["RegistrationTable"])
 
     def test_eln_schema_type(self):
         """ELN schema type is present with prefix E."""
@@ -156,6 +159,7 @@ class ModRegistryContractTests(TestCase):
         self.assertEqual(eln_sts[0]["id"], "eln.notebookentry")
         self.assertEqual(eln_sts[0]["displayName"], "ELN Entry")
         self.assertEqual(eln_sts[0]["prefix"], "E")
+        self.assertEqual(eln_sts[0]["tags"], [])
 
     # ── Action catalog ───────────────────────────────────────────────────
 
@@ -191,7 +195,7 @@ class ModRegistryContractTests(TestCase):
     def test_workspace_id_field(self):
         """Each mod entry includes its workspaceId."""
         response = self.client.get("/api/mod-registry/")
-        TOP_LEVEL_NON_WORKSPACE = {"columnTypes", "iconLibrary", "colorPalette"}
+        TOP_LEVEL_NON_WORKSPACE = {"columnTypes", "iconLibrary", "colorPalette", "formulaFunctions"}
         for ws_id, entry in response.data.items():
             if ws_id in TOP_LEVEL_NON_WORKSPACE:
                 continue
@@ -216,14 +220,15 @@ class ModRegistryEmptyTests(TestCase):
         registry._action_models.update(self._original_action_models)
 
     def test_empty_registry_returns_column_types_only(self):
-        """When no SchemaTypes exist, the endpoint returns columnTypes, iconLibrary, and colorPalette."""
+        """When no SchemaTypes exist, the endpoint returns shared catalogs."""
         response = self.client.get("/api/mod-registry/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("columnTypes", response.data)
         self.assertIn("iconLibrary", response.data)
         self.assertIn("colorPalette", response.data)
+        self.assertIn("formulaFunctions", response.data)
         # No workspace entries should be present.
-        TOP_LEVEL_NON_WORKSPACE = {"columnTypes", "iconLibrary", "colorPalette"}
+        TOP_LEVEL_NON_WORKSPACE = {"columnTypes", "iconLibrary", "colorPalette", "formulaFunctions"}
         workspace_keys = [k for k in response.data if k not in TOP_LEVEL_NON_WORKSPACE]
         self.assertEqual(workspace_keys, [])
 

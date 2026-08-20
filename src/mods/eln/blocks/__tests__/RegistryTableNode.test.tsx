@@ -75,6 +75,9 @@ vi.mock("lucide-react", () => ({
   Hash: (props: Record<string, unknown>) => (
     <span data-testid="icon-hash" {...props}>#</span>
   ),
+  Sigma: (props: Record<string, unknown>) => (
+    <span data-testid="icon-sigma" {...props}>sum</span>
+  ),
   Clock: (props: Record<string, unknown>) => (
     <span data-testid="icon-clock" {...props}>🕐</span>
   ),
@@ -186,6 +189,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "abc123def456",
+    tags: ["RegistrationTable"],
   },
   {
     id: 2,
@@ -198,6 +202,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "xyz789ghi012",
+    tags: ["RegistrationTable"],
   },
   {
     id: 3,
@@ -207,6 +212,7 @@ const sampleEntityTypes = [
     is_active: false,
     is_default: false,
     content_hash: "deadbeef",
+    tags: ["RegistrationTable"],
   },
   {
     id: 4,
@@ -216,6 +222,17 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: true,
     content_hash: "sysdefault",
+    tags: ["RegistrationTable"],
+  },
+  {
+    id: 5,
+    name: "ELN Entry",
+    prefix: "ELN",
+    columns: [],
+    is_active: true,
+    is_default: false,
+    content_hash: "eln-entry",
+    tags: [],
   },
 ];
 
@@ -259,6 +276,7 @@ function makeRow(overrides?: Partial<RegistryTableRow>): RegistryTableRow {
     values: { Volume: 10, "Collection Date": "2025-06-15" },
     isRegistered: false,
     lastRegisteredValueHash: null,
+    lastRegisteredSchemaContentHash: null,
     registrationError: null,
     ...overrides,
   };
@@ -419,6 +437,16 @@ describe("RegistryTableBlockComponent — picker dropdown", () => {
     expect(screen.queryByText("System Default")).not.toBeInTheDocument();
   });
 
+  it("only displays schemas tagged for registration tables", async () => {
+    mockGet.mockResolvedValue(sampleEntityTypes);
+    render(<RegistryTableBlockComponent {...makeBlockComponentProps()} />);
+
+    fireEvent.click(screen.getByTestId("load-schema-btn"));
+
+    await screen.findByText("Blood Sample");
+    expect(screen.queryByText("ELN Entry")).not.toBeInTheDocument();
+  });
+
   it("shows prefix next to each entity type name", async () => {
     mockGet.mockResolvedValue(sampleEntityTypes);
     render(<RegistryTableBlockComponent {...makeBlockComponentProps()} />);
@@ -537,6 +565,17 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
   it("renders the loaded table container", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.getByTestId("registry-table-loaded")).toBeInTheDocument();
+  });
+
+  it("consumes the shared Table Kit chrome and layout", () => {
+    render(<RegistryTableBlockComponent {...loadedProps()} />);
+    const table = screen.getByTestId("registry-table-loaded");
+    expect(table).toHaveClass("table-layout-chrome", "table-layout-chrome--compact", "w-full");
+    expect(table.querySelector(".table-layout-chrome__toolbar")).toBeInTheDocument();
+    expect(
+      table.parentElement?.querySelector(".table-layout-chrome__add-row"),
+    ).toBeInTheDocument();
+    expect(table.querySelector(".table-layout-chrome__add-row")).not.toBeInTheDocument();
   });
 
   it("renders the editable title", () => {
@@ -667,6 +706,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       isRegistered: true,
       values,
       lastRegisteredValueHash: hash,
+      lastRegisteredSchemaContentHash: "abc123def456",
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -679,6 +719,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       isRegistered: true,
       values: { Volume: 20 },
       lastRegisteredValueHash: "different-hash",
+      lastRegisteredSchemaContentHash: "abc123def456",
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -696,6 +737,20 @@ describe("RegistryTableBlockComponent — status bars", () => {
       },
       { schemaContentHash: null },
     );
+    render(<RegistryTableBlockComponent {...props} />);
+    expect(screen.getByTestId("status-bar-yellow")).toBeInTheDocument();
+  });
+
+  it("shows yellow bar when the registered schema hash is stale", () => {
+    const values = { Volume: 10 };
+    const { props } = renderWithRow({
+      entityId: 1,
+      isRegistered: true,
+      values,
+      lastRegisteredValueHash: computeSnapshot(values, "Sample 1"),
+      lastRegisteredSchemaContentHash: "old-hash",
+      registrationError: null,
+    }, { schemaContentHash: "new-hash" });
     render(<RegistryTableBlockComponent {...props} />);
     expect(screen.getByTestId("status-bar-yellow")).toBeInTheDocument();
   });
@@ -730,6 +785,7 @@ describe("RegistryTableBlockComponent — status bars", () => {
       isRegistered: true,
       values: { Volume: 30 },
       lastRegisteredValueHash: computeSnapshot({ Volume: 10 }, "Sample 1"),
+      lastRegisteredSchemaContentHash: "abc123def456",
       registrationError: null,
     });
     render(<RegistryTableBlockComponent {...props} />);
@@ -817,14 +873,14 @@ describe("RegistryTableBlockComponent — cell editors", () => {
     expect(display).toHaveTextContent("42");
   });
 
-  it("switches number cell to input on click", async () => {
+  it("switches number cell to input on double-click", async () => {
     const { props } = renderWithColumns(
       [{ name: "Volume", type: "number" }],
       { Volume: 42 },
     );
     render(<RegistryTableBlockComponent {...props} />);
 
-    fireEvent.click(screen.getByTestId("number-display"));
+    fireEvent.doubleClick(screen.getByTestId("number-display"));
 
     await waitFor(() => {
       expect(screen.getByTestId("number-input")).toBeInTheDocument();
@@ -844,14 +900,14 @@ describe("RegistryTableBlockComponent — cell editors", () => {
     expect(display).toHaveTextContent("Jun 15, 2025");
   });
 
-  it("switches date cell to input on click", async () => {
+  it("switches date cell to input on double-click", async () => {
     const { props } = renderWithColumns(
       [{ name: "Collection Date", type: "date" }],
       { "Collection Date": "2025-06-15" },
     );
     render(<RegistryTableBlockComponent {...props} />);
 
-    fireEvent.click(screen.getByTestId("date-display"));
+    fireEvent.doubleClick(screen.getByTestId("date-display"));
 
     await waitFor(() => {
       expect(screen.getByTestId("date-input")).toBeInTheDocument();
@@ -906,7 +962,7 @@ describe("RegistryTableBlockComponent — cell editors", () => {
     );
     render(<RegistryTableBlockComponent {...props} />);
 
-    fireEvent.click(screen.getByTestId("ref-trigger-btn"));
+    fireEvent.doubleClick(screen.getByTestId("ref-trigger-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("ref-popover")).toBeInTheDocument();
@@ -1172,6 +1228,111 @@ describe("RegistryTableContent — refresh schema button", () => {
   it("hides the Refresh Schema button when readOnly is true", () => {
     render(<RegistryTableContent {...contentProps({ readOnly: true })} />);
     expect(screen.queryByTestId("refresh-schema-btn")).not.toBeInTheDocument();
+  });
+
+  it("renders an inert registration control in preview mode", async () => {
+    const props = contentProps();
+    render(<RegistryTableContent {...props} previewMode readOnly />);
+
+    const registerButton = screen.getByTestId("register-entities-btn");
+    expect(registerButton).toBeDisabled();
+
+    fireEvent.click(registerButton);
+    await waitFor(() => {
+      expect(mockPost).not.toHaveBeenCalled();
+      expect(props.updateAttrs).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("RegistryTableBlockComponent — Table Kit interaction", () => {
+  function interactionProps(updateAttrs = vi.fn()) {
+    const first = makeRow({ __name: "First", values: { Volume: 10 } });
+    const second = makeRow({ displayId: "#new-2", __name: "Second", values: { Volume: 20 } });
+    const attrs = {
+      schemaId: 1,
+      schemaName: "Blood Sample",
+      schemaContentHash: "hash123",
+      title: "Test Table",
+      columns: [{ name: "Volume", type: "number" as const }],
+      rows: [first, second],
+    };
+    return makeBlockComponentProps({
+      attrs,
+      rest: {
+        instance: {
+          id: "inst-1",
+          blockId: "eln.registry-table",
+          slotId: "eln.editor",
+          attrs,
+          updateAttrs,
+        },
+      },
+    });
+  }
+
+  it("navigates Registry Table cells with arrows and Tab", () => {
+    render(<RegistryTableBlockComponent {...interactionProps()} />);
+    const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
+    firstCell.focus();
+    fireEvent.keyDown(firstCell, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:0:1"]'),
+    );
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:1:1"]'),
+    );
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:1:0"]'),
+    );
+  });
+
+  it("commits with Enter, cancels with Escape, and moves down", () => {
+    const updateAttrs = vi.fn();
+    render(<RegistryTableBlockComponent {...interactionProps(updateAttrs)} />);
+    const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
+    fireEvent.doubleClick(screen.getByTestId("name-cell-#new-1"));
+    const input = screen.getByTestId("name-cell-#new-1-input");
+    fireEvent.change(input, { target: { value: "Changed" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.getByTestId("name-cell-#new-1")).toHaveTextContent("First");
+    firstCell.focus();
+    fireEvent.doubleClick(screen.getByTestId("name-cell-#new-1"));
+    const committedInput = screen.getByTestId("name-cell-#new-1-input");
+    fireEvent.change(committedInput, { target: { value: "Changed" } });
+    fireEvent.keyDown(committedInput, { key: "Enter" });
+    expect(updateAttrs).toHaveBeenCalledWith({
+      rows: expect.arrayContaining([
+        expect.objectContaining({ __name: "Changed" }),
+      ]),
+    });
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-table-cell="registry-table:1:0"]'),
+    );
+  });
+
+  it("copies and pastes Registry Table values as TSV", () => {
+    const updateAttrs = vi.fn();
+    render(<RegistryTableBlockComponent {...interactionProps(updateAttrs)} />);
+    const grid = screen.getByTestId("registry-table-grid");
+    const firstCell = document.querySelector('[data-table-cell="registry-table:0:0"]') as HTMLElement;
+    fireEvent.click(firstCell);
+    fireEvent.keyDown(firstCell, { key: "ArrowRight", shiftKey: true });
+    const setData = vi.fn();
+    fireEvent.copy(grid, { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith("text/plain", "First\t10");
+
+    fireEvent.click(firstCell);
+    fireEvent.paste(grid, {
+      clipboardData: { getData: () => "Updated\t12.5" },
+    });
+    expect(updateAttrs).toHaveBeenCalledWith({
+      rows: expect.arrayContaining([
+        expect.objectContaining({ __name: "Updated", values: { Volume: 12.5 } }),
+      ]),
+    });
   });
 });
 
@@ -1793,6 +1954,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       values: { Volume: 10 },
       isRegistered: true,
       lastRegisteredValueHash: greenHash,
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: null,
     };
 
@@ -1811,6 +1973,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       values: { Volume: 99 },
       isRegistered: true,
       lastRegisteredValueHash: "old-different-hash",
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: null,
     };
 
@@ -1822,6 +1985,7 @@ describe("RegistryTableContent — Register Entities button", () => {
       values: { Volume: 7 },
       isRegistered: true,
       lastRegisteredValueHash: computeSnapshot({ Volume: 7 }, "Error Sample"),
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: "Previous error",
     };
 
@@ -2265,6 +2429,7 @@ describe("RegistryTableContent — Register Entities error path", () => {
       values: { Volume: 5 },
       isRegistered: true,
       lastRegisteredValueHash: greenHash,
+      lastRegisteredSchemaContentHash: "abc123",
       registrationError: null,
     };
     const blueRow = makeRow({ displayId: "#new-1", __name: "Blue", values: { Volume: 10 } });
@@ -2350,10 +2515,11 @@ describe("RegistryTableContent — green row detection", () => {
       entityId: 1,
       displayId: "BLOOD1",
       __name: "Green",
-      values: { Volume: 10 },
-      isRegistered: true,
-      lastRegisteredValueHash: hash,
-      registrationError: null,
+       values: { Volume: 10 },
+       isRegistered: true,
+       lastRegisteredValueHash: hash,
+       lastRegisteredSchemaContentHash: "abc123",
+       registrationError: null,
     };
 
     render(
@@ -2603,14 +2769,14 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
     expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
   });
 
-  it("default stretchMode uses max-w-3xl class (auto-fit, left-aligned)", () => {
+  it("default stretchMode uses the shared auto layout primitive", () => {
     render(
       <RegistryTableBlockComponent
         {...loadedStretchProps({ overrides: { stretch: true } })}
       />,
     );
     const wrapper = screen.getByTestId("registry-table-stretch-wrapper");
-    expect(wrapper.className).toContain("max-w-3xl");
+    expect(wrapper.className).toContain("table-layout-stretch--auto");
     // Auto mode: card is capped at 48rem, table scrolls within it.
     // No mx-auto centering — left-aligned in the centre gutter.
     expect(wrapper.className).not.toContain("mx-auto");
@@ -2714,7 +2880,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
       />,
     );
     const wrapper = screen.getByTestId("registry-table-stretch-wrapper");
-    expect(wrapper.className).toContain("max-w-3xl");
+    expect(wrapper.className).toContain("table-layout-stretch--auto");
     // Auto mode: left-aligned, not centred
     expect(wrapper.className).not.toContain("mx-auto");
   });

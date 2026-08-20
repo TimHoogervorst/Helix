@@ -107,3 +107,32 @@ Not every reference column needs a target. A generic "Related Entity" column tha
 - **Cascading validation.** If Schema A references Schema B, and Schema B is archived or deleted, the system must decide whether to cascade-null the reference, block the archive, or warn. This is deferred to a future schema-lifecycle spec.
 - **Multi-target references.** A future column type could target multiple schemas or schema types. The `referenceSchemaId` field is deliberately singular — `referenceSchemaIds: number[]` would be a new column type, not an extension of this one.
 - **Relationship map interactivity.** The initial ERD is a static SVG. Pan, zoom, drag, and auto-layout are deferred. The `referenceSchemaId` data model supports interactive features when they are prioritized.
+
+---
+
+## Amendment: Schema type reference targets
+
+> Origin: [Spec: Table Kit — typed cells and Result Tables #492](https://github.com/TimHoogervorst/Helix/issues/492)
+
+### Context
+
+Some reference columns need to accept entities from any concrete schema under a schema type rather than one specific schema. The original decision that concrete `referenceSchemaId` targets produce precise relationship-map edges remains valid for columns that need a singular target.
+
+### Decision
+
+Extend the column definition with an optional type-level target:
+
+```typescript
+referenceSchemaTypeId?: number;
+```
+
+`referenceSchemaId` and `referenceSchemaTypeId` are mutually exclusive. `referenceSchemaId` remains the concrete-schema target; `referenceSchemaTypeId` permits any concrete schema under the selected schema type. The backend validates this constraint at write and registration time. Existing columns with neither field remain unrestricted.
+
+Concrete targets continue to produce concrete relationship-map edges. Type-targeted columns produce no concrete relationship-map edge because their target is not singular.
+
+### Consequences
+
+- Reference columns can express both precise schema targets and broader schema-type targets without changing the existing reference column type.
+- The backend prevents ambiguous definitions that specify both target forms.
+- Relationship maps remain precise: only `referenceSchemaId` creates a concrete edge; type-level targeting is intentionally not represented as a concrete edge.
+- This amendment extends the original schema-only targeting decision without discarding its concrete-target behavior.

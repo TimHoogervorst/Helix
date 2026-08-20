@@ -66,6 +66,9 @@ type ViewMode = "list" | "compact";
 
 const VIEW_MODE_STORAGE_KEY = "helix-entities-view-mode";
 
+// Results have a backend workspace identity but no frontend detail route yet.
+const ROUTELESS_WORKSPACE_IDS = new Set(["results"]);
+
 function getInitialViewMode(): ViewMode {
   try {
     const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
@@ -92,7 +95,7 @@ interface SortState {
 }
 
 const SORTABLE_COLUMNS = ["name", "project__name", "status", "created_at", "updated_at"] as const;
-type SortableColumn = typeof SORTABLE_COLUMNS[number];
+type SortableColumn = string;
 
 const SORT_CYCLE: SortableColumn[] = ["name", "project__name", "status", "created_at", "updated_at"];
 
@@ -111,14 +114,9 @@ function sortFromParam(param: string | null): SortState {
   if (!param) return { field: null, direction: null };
   if (param.startsWith("-")) {
     const field = param.slice(1);
-    if (SORTABLE_COLUMNS.includes(field as typeof SORTABLE_COLUMNS[number])) {
-      return { field, direction: "desc" };
-    }
+    return { field, direction: "desc" };
   }
-  if (SORTABLE_COLUMNS.includes(param as typeof SORTABLE_COLUMNS[number])) {
-    return { field: param, direction: "asc" };
-  }
-  return { field: null, direction: null };
+  return { field: param, direction: "asc" };
 }
 
 const SORT_LABELS: Record<string, string> = {
@@ -416,6 +414,7 @@ function EntitiesHub() {
 
   const handleRowClick = useCallback(
     (item: EntityHubItem) => {
+      if (ROUTELESS_WORKSPACE_IDS.has(item.workspace_id)) return;
       navigate(`/${item.workspace_id}/${item.display_id}`);
     },
     [navigate],
@@ -607,7 +606,8 @@ function EntitiesHub() {
     const value = item._expanded?.[col.key];
     if (value === null || value === undefined) return "—";
 
-    switch (col.type) {
+    const displayType = col.type === "formula" ? (col.resultType ?? "text") : col.type;
+    switch (displayType) {
       case "text":
         return String(value);
       case "number": {
@@ -625,6 +625,7 @@ function EntitiesHub() {
       case "dropdown":
         return renderSelectBadge(String(value));
       case "reference":
+        if (ROUTELESS_WORKSPACE_IDS.has(item.workspace_id)) return String(value);
         return (
           <a
             className="entities-ref-link"
@@ -1040,19 +1041,27 @@ function EntitiesHub() {
                   </tr>
                 </TableHead>
                 <tbody>
-                  {data.results.map((item) => (
-                    <tr
-                      key={`${item.schema_type_id}-${item.id}`}
-                      className="entities-tr"
-                      onClick={() => handleRowClick(item)}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleRowClick(item);
+                  {data.results.map((item) => {
+                    const isNavigable = !ROUTELESS_WORKSPACE_IDS.has(
+                      item.workspace_id,
+                    );
+                    return (
+                      <tr
+                        key={`${item.schema_type_id}-${item.id}`}
+                        className={`entities-tr${isNavigable ? "" : " is-non-clickable"}`}
+                        onClick={isNavigable ? () => handleRowClick(item) : undefined}
+                        tabIndex={isNavigable ? 0 : undefined}
+                        onKeyDown={
+                          isNavigable
+                            ? (e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  handleRowClick(item);
+                                }
+                              }
+                            : undefined
                         }
-                      }}
-                    >
+                      >
                       {validVisibleColumns.map((col, idx) => {
                         const isLocked = isColumnLocked(lockedColumns, idx);
                         const style: React.CSSProperties = {};
@@ -1071,8 +1080,9 @@ function EntitiesHub() {
                           </td>
                         );
                       })}
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

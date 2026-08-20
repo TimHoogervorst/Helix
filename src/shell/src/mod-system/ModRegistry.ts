@@ -16,6 +16,12 @@ import type {
   IconLibraryEntry,
   ColorToken,
 } from "./types";
+import {
+  getClientFormulaFunctionIds,
+  hydrateFormulaCatalog,
+  registerFormulaFunction as registerClientFormulaFunction,
+  type FormulaFunctionImplementation,
+} from "../shared/formulas/formulaEngine";
 
 /** Schema type entry from the backend mod-registry payload. */
 interface BackendSchemaType {
@@ -51,6 +57,14 @@ export interface BackendColumnType {
   defaultValue: unknown;
   operators: BackendOperator[];
   aggregates: BackendAggregate[];
+}
+
+/** Formula metadata hydrated from the backend function catalog. */
+export interface BackendFormulaFunction {
+  id: string;
+  argumentKinds: string[];
+  resultKind: string;
+  description: string;
 }
 
 /** Single workspace entry in the backend mod-registry response. */
@@ -132,6 +146,9 @@ export class ModRegistry {
 
   /** Color palette entries keyed by key, hydrated from the backend. */
   private colorPalette = new Map<string, ColorToken>();
+  private formulaFunctions = new Map<string, BackendFormulaFunction>();
+  private clientFormulaFunctionIds = new Set<string>();
+  private formulaCatalogHydrated = false;
 
   /** Set of registered mod IDs for cross-reference validation. */
   private modIds = new Set<string>();
@@ -208,6 +225,22 @@ export class ModRegistry {
         continue;
       }
 
+      if (key === "formulaFunctions" && Array.isArray(value)) {
+        this.formulaCatalogHydrated = true;
+        this.formulaFunctions.clear();
+        for (const entry of value) {
+          const functionEntry = entry as BackendFormulaFunction;
+          this.formulaFunctions.set(functionEntry.id, functionEntry);
+        }
+        hydrateFormulaCatalog(this.formulaFunctions.keys());
+        for (const id of this.clientFormulaFunctionIds) {
+          if (!this.formulaFunctions.has(id)) {
+            this.clientFormulaFunctionIds.delete(id);
+          }
+        }
+        continue;
+      }
+
       if (key === "iconLibrary" && Array.isArray(value)) {
         this.iconLibrary.clear();
         for (const entry of value) {
@@ -275,6 +308,19 @@ export class ModRegistry {
         );
       }
     }
+  }
+
+  /** Register a client implementation for a hydrated or pending catalog ID. */
+  registerFormulaFunction(
+    id: string,
+    implementation: FormulaFunctionImplementation,
+  ): void {
+    if (this.formulaCatalogHydrated && !this.formulaFunctions.has(id)) {
+      console.warn(`Unknown formula function '${id}' was not registered.`);
+      return;
+    }
+    registerClientFormulaFunction(id, implementation);
+    this.clientFormulaFunctionIds.add(id);
   }
 
   /**
@@ -579,6 +625,19 @@ export class ModRegistry {
    */
   getColumnType(typeId: string): BackendColumnType | undefined {
     return this.columnTypes.get(typeId);
+  }
+
+  /** Return the complete backend formula catalog. */
+  getFormulaFunctions(): ReadonlyMap<string, BackendFormulaFunction> {
+    return this.formulaFunctions;
+  }
+
+  /** Return catalog entries with client implementations available. */
+  getClientFormulaFunctions(): BackendFormulaFunction[] {
+    const clientIds = getClientFormulaFunctionIds();
+    return [...this.formulaFunctions.values()].filter((entry) =>
+      clientIds.has(entry.id),
+    );
   }
 
   /**

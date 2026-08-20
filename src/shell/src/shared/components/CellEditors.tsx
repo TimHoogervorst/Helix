@@ -23,6 +23,7 @@ import {
   Link,
   User,
   FileText,
+  Sigma,
   type LucideIcon,
 } from "lucide-react";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -323,6 +324,22 @@ function DropdownCell({
 
   // ── Fall back to text editing when no dropdown options ────────────────
   const options = dropdownOptions ?? [];
+
+  // Dropdown options may arrive asynchronously. Keep hooks unconditional so
+  // the text fallback and select renderer have the same hook order.
+  const handleSelect = useCallback(
+    (option: string) => {
+      onCommit(option);
+      setOpen(false);
+    },
+    [onCommit],
+  );
+
+  const handleClear = useCallback(() => {
+    onCommit("");
+    setOpen(false);
+  }, [onCommit]);
+
   if (options.length === 0) {
     return (
       <TextCell
@@ -332,21 +349,6 @@ function DropdownCell({
       />
     );
   }
-
-  // ── Select an option ──────────────────────────────────────────────────
-  const handleSelect = useCallback(
-    (option: string) => {
-      onCommit(option);
-      setOpen(false);
-    },
-    [onCommit],
-  );
-
-  // ── Clear the selection ───────────────────────────────────────────────
-  const handleClear = useCallback(() => {
-    onCommit("");
-    setOpen(false);
-  }, [onCommit]);
 
   return (
     <div className="relative inline-flex items-center gap-1 px-4 py-2">
@@ -485,6 +487,7 @@ export const COLUMN_TYPE_ICON_MAP: Record<string, LucideIcon> = {
   link: Link,
   user: User,
   "file-text": FileText,
+  sigma: Sigma,
 };
 
 /**

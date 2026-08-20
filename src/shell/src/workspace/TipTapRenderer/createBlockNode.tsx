@@ -129,6 +129,19 @@ export function createBlockNode(
             return true;
           }
 
+          // Clipboard events inside an interaction-controlled table cell
+          // are handled by the block itself (TSV copy/paste via
+          // useTableInteraction) — ProseMirror must not also serialise or
+          // insert at the editor selection.
+          if (
+            (event.type === "copy" ||
+              event.type === "paste" ||
+              event.type === "cut") &&
+            target.closest("[data-table-cell]") !== null
+          ) {
+            return true;
+          }
+
           // Clipboard events go to ProseMirror for integration.
           if (
             event.type === "copy" ||

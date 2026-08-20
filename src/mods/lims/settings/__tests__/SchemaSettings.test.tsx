@@ -8,14 +8,12 @@ import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegi
 const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockPut = vi.fn();
-const mockDel = vi.fn();
 
 vi.mock("../../../../shell/src/api/client", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: (...args: unknown[]) => mockPost(...args),
   put: (...args: unknown[]) => mockPut(...args),
   patch: vi.fn(),
-  del: (...args: unknown[]) => mockDel(...args),
 }));
 
 vi.mock("../../../dropdowns/api", () => ({
@@ -29,6 +27,7 @@ const STANDARD_COLORS = [
   { key: "warn", label: "Warn", hex: "#e6d9b3", hexDark: "#F2EBC8", hexLight: "#E6D9B3" },
   { key: "muted", label: "Muted", hex: "#d9d9d9", hexDark: "#E8E8E8", hexLight: "#D9D9D9" },
   { key: "success", label: "Success", hex: "#b3e6b3", hexDark: "#C8F2C8", hexLight: "#B3E6B3" },
+  { key: "hazard", label: "Hazard", hex: "#e6b3b3", hexDark: "#E16E6E", hexLight: "#E6B3B3" },
 ];
 
 const STANDARD_ICONS = [
@@ -113,6 +112,7 @@ function makeSchema(overrides: Record<string, unknown> = {}) {
     content_hash: "abc123",
     icon: "",
     color: "",
+    tags: ["RegistrationTable"],
     ...overrides,
   };
 }
@@ -215,7 +215,7 @@ describe("SchemaSettings", () => {
         makeSchema({ id: 2, name: "Patient", prefix: "PAT" }),
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity" },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -226,6 +226,36 @@ describe("SchemaSettings", () => {
     expect(screen.getByText("PAT")).toBeInTheDocument();
   });
 
+  it("filters entity and result schemas by tab", async () => {
+    mockGet
+      .mockResolvedValueOnce([
+        makeSchema({ id: 1, name: "Entity Schema", tags: ["RegistrationTable"] }),
+        makeSchema({ id: 2, name: "Result Schema", tags: ["ResultTable"] }),
+        makeSchema({ id: 3, name: "ELN Entry", tags: [] }),
+      ])
+      .mockResolvedValueOnce([]);
+    render(<SchemaSettings />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Entity Schema")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Result Schema")).not.toBeInTheDocument();
+    expect(screen.queryByText("ELN Entry")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Entity Schemas" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+
+    expect(screen.getByText("Result Schema")).toBeInTheDocument();
+    expect(screen.queryByText("Entity Schema")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Result Schemas" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("filters schemas by search", async () => {
     mockGet
       .mockResolvedValueOnce([
@@ -233,7 +263,7 @@ describe("SchemaSettings", () => {
         makeSchema({ id: 2, name: "Patient", prefix: "PAT" }),
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity" },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -569,7 +599,7 @@ describe("SchemaSettings", () => {
     mockGet
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity" },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
       ]);
     mockPost.mockResolvedValue({});
     render(<SchemaSettings />);
@@ -595,4 +625,45 @@ describe("SchemaSettings", () => {
       });
     });
   });
+
+  it("edits Result Schemas without icon controls and preserves the Entity Column", async () => {
+    mockGet
+      .mockResolvedValueOnce([
+        makeSchema({
+          id: 4,
+          name: "Yield Result",
+          prefix: "YIELD",
+          tags: ["ResultTable"],
+          icon: "circle",
+          columns: [{ name: "Entity", type: "reference", referenceSchemaTypeId: 3 }],
+        }),
+      ])
+      .mockResolvedValueOnce([
+        { id: 3, display_name: "Source Type", workspace_id: "lims", is_active: true, schema_type_id: "lims.source", tags: ["RegistrationTable"] },
+        { id: 4, display_name: "Results", workspace_id: "results", is_active: true, schema_type_id: "lims.result", tags: ["ResultTable"] },
+      ]);
+    mockPut.mockResolvedValue({});
+    render(<SchemaSettings />);
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Result Schemas" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+    await waitFor(() => expect(screen.getByText("Yield Result")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Yield Result"));
+
+    await waitFor(() => expect(screen.getByTestId("entity-column")).toBeInTheDocument());
+    expect(screen.queryByTestId("name-pseudo-column")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("icon-picker-popover")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Yield Result"), {
+      target: { value: "Updated Yield" },
+    });
+    fireEvent.click(screen.getByText("Save Changes (1)"));
+
+    await waitFor(() => expect(mockPut).toHaveBeenCalledWith("/schemas/4/", expect.objectContaining({
+      name: "Updated Yield",
+      icon: "chart-column",
+      color: "hazard",
+      columns: [{ name: "Entity", type: "reference", referenceSchemaTypeId: 3 }],
+    })));
+  });
+
 });

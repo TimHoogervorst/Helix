@@ -7,6 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from helix_core.column_types import registry as column_type_registry
+from helix_core.formulas import validate_formula_columns
 from helix_core.models import ColorToken, IconLibraryEntry, Schema, SchemaType, EntityHubView
 from helix_core.svg_sanitizer import sanitize_svg, SvgSanitizationError
 
@@ -49,6 +50,27 @@ def validate_columns(value):
                 f"columns[{i}] cannot use 'Name' — it is a default column "
                 f"on every schema and cannot be added as a user-defined column."
             )
+
+        if (
+            col.get("referenceSchemaId") is not None
+            and col.get("referenceSchemaTypeId") is not None
+        ):
+            raise serializers.ValidationError(
+                f"columns[{i}] cannot set both 'referenceSchemaId' and "
+                f"'referenceSchemaTypeId'."
+            )
+
+        target_type_id = col.get("referenceSchemaTypeId")
+        if target_type_id is not None and not SchemaType.objects.filter(
+            pk=target_type_id
+        ).exists():
+            raise serializers.ValidationError(
+                f"columns[{i}].referenceSchemaTypeId must reference an existing "
+                "schema type."
+            )
+    formula_error = validate_formula_columns(value)
+    if formula_error:
+        raise serializers.ValidationError(formula_error)
     return value
 
 
@@ -59,7 +81,14 @@ class SchemaTypeListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SchemaType
-        fields = ["id", "display_name", "workspace_id", "is_active", "schema_type_id"]
+        fields = [
+            "id",
+            "display_name",
+            "workspace_id",
+            "is_active",
+            "schema_type_id",
+            "tags",
+        ]
 
     def get_schema_type_id(self, obj):
         """Derive the schema_type_id used by the entity_hub_view VIEW.
@@ -68,6 +97,11 @@ class SchemaTypeListSerializer(serializers.ModelSerializer):
         dotted Python model path (e.g. ``mods.lims.models.Entity`` →
         ``lims.entity``).
         """
+        # Results share the LIMS Entity persistence model, so their registry
+        # key is intentionally not the public schema type ID.
+        if obj.workspace_id == "results":
+            return "lims.result"
+
         parts = obj.model.split(".")
         if len(parts) >= 4:
             return f"{parts[1]}.{parts[-1].lower()}"
@@ -79,6 +113,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
+    tags = serializers.JSONField(source="schema_type.tags", read_only=True)
 
     class Meta:
         model = Schema
@@ -88,6 +123,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
             "prefix",
             "schema_type",
             "schema_type_display",
+            "tags",
             "columns",
             "is_default",
             "is_active",
@@ -105,6 +141,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
+    tags = serializers.JSONField(source="schema_type.tags", read_only=True)
 
     class Meta:
         model = Schema
@@ -114,6 +151,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "prefix",
             "schema_type",
             "schema_type_display",
+            "tags",
             "columns",
             "is_default",
             "is_active",
@@ -134,6 +172,16 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
                 f"A schema with prefix '{value}' already exists."
             )
         return value
+
+    def validate(self, attrs):
+        """Keep Result schema presentation consistent across API clients."""
+        schema_type = attrs.get(
+            "schema_type",
+            self.instance.schema_type if self.instance is not None else None,
+        )
+        if schema_type is not None and schema_type.workspace_id == "results":
+            attrs["color"] = "hazard"
+        return attrs
 
 
 # ── Entity Hub ────────────────────────────────────────────────────────────
@@ -201,11 +249,9 @@ class EntityHubSerializer(serializers.ModelSerializer):
 
     def get_schema_type_display(self, obj):
         """Human-readable label for the schema_type_id."""
-        mapping = {
-            "eln.notebookentry": "Entry",
-            "lims.entity": "Entity",
-        }
-        return mapping.get(obj.schema_type_id, obj.schema_type_id)
+        if obj.schema_id and obj.schema and obj.schema.schema_type:
+            return obj.schema.schema_type.display_name
+        return obj.schema_type_id
 
     def get_folder_path(self, obj):
         folder = obj.folder

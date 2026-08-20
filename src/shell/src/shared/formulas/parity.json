@@ -1,0 +1,182 @@
+[
+  {
+    "name": "precedence",
+    "expression": "2 + 3 * 4",
+    "row": {},
+    "expected": { "ok": true, "value": 14 }
+  },
+  {
+    "name": "parentheses",
+    "expression": "(2 + 3) * 4",
+    "row": {},
+    "expected": { "ok": true, "value": 20 }
+  },
+  {
+    "name": "numeric string coercion",
+    "expression": "[Amount] + 2",
+    "row": { "Amount": "3" },
+    "expected": { "ok": true, "value": 5 }
+  },
+  {
+    "name": "blank arithmetic is invalid",
+    "expression": "[Amount] + 2",
+    "row": { "Amount": null },
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
+    "name": "string literal",
+    "expression": "\"hello\"",
+    "row": {},
+    "expected": { "ok": true, "value": "hello" }
+  },
+  {
+    "name": "boolean literal",
+    "expression": "TRUE = 1",
+    "row": {},
+    "expected": { "ok": true, "value": false }
+  },
+  {
+    "name": "comparison",
+    "expression": "[Amount] >= 10",
+    "row": { "Amount": 12 },
+    "expected": { "ok": true, "value": true }
+  },
+  {
+    "name": "division by zero",
+    "expression": "10 / 0",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#DIV/0!" } }
+  },
+  {
+    "name": "missing reference",
+    "expression": "[Missing]",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#REF!" } }
+  },
+  {
+    "name": "unknown function",
+    "expression": "NOPE(1)",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#NAME?" } }
+  },
+  {
+    "name": "invalid value",
+    "expression": "\"text\" + 1",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
+    "name": "syntax error",
+    "expression": "[Amount] +",
+    "row": { "Amount": 1 },
+    "expected": { "ok": false, "error": { "code": "#SYNTAX!" } }
+  },
+  {
+    "name": "rounding",
+    "expression": "ROUND(2.5)",
+    "row": {},
+    "expected": { "ok": true, "value": 3 }
+  },
+  {
+    "name": "if",
+    "expression": "IF(TRUE, \"yes\", \"no\")",
+    "row": {},
+    "expected": { "ok": true, "value": "yes" }
+  },
+  {
+    "name": "iferror",
+    "expression": "IFERROR(1 / 0, \"fallback\")",
+    "row": {},
+    "expected": { "ok": true, "value": "fallback" }
+  },
+  {
+    "name": "and",
+    "expression": "AND(TRUE, 1)",
+    "row": {},
+    "expected": { "ok": true, "value": true }
+  },
+  {
+    "name": "or",
+    "expression": "OR(FALSE, 1)",
+    "row": {},
+    "expected": { "ok": true, "value": true }
+  },
+  {
+    "name": "not",
+    "expression": "NOT(FALSE)",
+    "row": {},
+    "expected": { "ok": true, "value": true }
+  },
+  {
+    "name": "absolute value",
+    "expression": "ABS(-4)",
+    "row": {},
+    "expected": { "ok": true, "value": 4 }
+  },
+  {
+    "name": "minimum",
+    "expression": "MIN(3, 1, 2)",
+    "row": {},
+    "expected": { "ok": true, "value": 1 }
+  },
+  {
+    "name": "maximum",
+    "expression": "MAX(3, 1, 2)",
+    "row": {},
+    "expected": { "ok": true, "value": 3 }
+  },
+  {
+    "name": "sum",
+    "expression": "SUM(1, 2, 3)",
+    "row": {},
+    "expected": { "ok": true, "value": 6 }
+  },
+  {
+    "name": "average",
+    "expression": "AVERAGE(1, 2, 3)",
+    "row": {},
+    "expected": { "ok": true, "value": 2 }
+  },
+  {
+    "name": "count",
+    "expression": "COUNT(1, \"text\", 2)",
+    "row": {},
+    "expected": { "ok": true, "value": 2 }
+  },
+  {
+    "name": "concat",
+    "expression": "CONCAT(\"a\", 1, TRUE)",
+    "row": {},
+    "expected": { "ok": true, "value": "a1true" }
+  },
+  {
+    "name": "uppercase",
+    "expression": "UPPER(\"hello\")",
+    "row": {},
+    "expected": { "ok": true, "value": "HELLO" }
+  },
+  {
+    "name": "lowercase",
+    "expression": "LOWER(\"HELLO\")",
+    "row": {},
+    "expected": { "ok": true, "value": "hello" }
+  },
+  {
+    "name": "length",
+    "expression": "LEN(\"hello\")",
+    "row": {},
+    "expected": { "ok": true, "value": 5 }
+  },
+  {
+    "name": "cycle",
+    "row": {},
+    "formulas": {
+      "First": { "expression": "[Second] + 1" },
+      "Second": { "expression": "[First] + 1" }
+    },
+    "expectedRow": {
+      "First": { "ok": false, "error": { "code": "#CYCLE!" } },
+      "Second": { "ok": false, "error": { "code": "#CYCLE!" } }
+    }
+  }
+]

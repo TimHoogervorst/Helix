@@ -32,7 +32,20 @@ class ContentHashedModel(models.Model):
     are included in the hash.
     """
 
-    _HASH_FIELDS = ("id", "name", "type", "required", "default", "units", "dropdownId", "referenceSchemaId")
+    _HASH_FIELDS = (
+        "id",
+        "name",
+        "type",
+        "required",
+        "default",
+        "units",
+        "dropdownId",
+        "referenceSchemaId",
+        "referenceSchemaTypeId",
+        "expression",
+        "resultType",
+        "expression_version",
+    )
 
     class Meta:
         abstract = True
@@ -63,11 +76,38 @@ class ContentHashedModel(models.Model):
         canonical = json.dumps(hash_data, sort_keys=True)
         return hashlib.sha256(canonical.encode()).hexdigest()
 
+    def columns_for_hash(self):
+        """Return the column definitions represented by this model."""
+        return self.columns
+
     def save(self, *args, **kwargs):
         """Ensure every column has an id and the content hash is up-to-date."""
         if self.columns:
             self.ensure_column_ids(self.columns)
-        self.content_hash = self.compute_content_hash(self.columns or [])
+            previous_columns = {}
+            has_formula_columns = any(
+                column.get("type") == "formula" for column in self.columns
+            )
+            if self.pk and has_formula_columns:
+                previous = type(self).objects.filter(pk=self.pk).values_list("columns", flat=True).first()
+                previous_columns = {
+                    column.get("id"): column
+                    for column in (previous or [])
+                    if column.get("id")
+                }
+            for column in self.columns:
+                if column.get("type") != "formula":
+                    continue
+                old = previous_columns.get(column.get("id"))
+                if old is None:
+                    column["expression_version"] = column.get("expression_version", 1)
+                elif old.get("expression") != column.get("expression"):
+                    column["expression_version"] = old.get("expression_version", 1) + 1
+                else:
+                    column["expression_version"] = old.get(
+                        "expression_version", column.get("expression_version", 1)
+                    )
+        self.content_hash = self.compute_content_hash(self.columns_for_hash() or [])
         super().save(*args, **kwargs)
 
 
@@ -95,6 +135,11 @@ class SchemaType(ContentHashedModel):
         default=list,
         blank=True,
         help_text="Ordered array of column definitions: {id, name, type, required, default, units, description}.",
+    )
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Capability tags declared by the owning mod.",
     )
     is_active = models.BooleanField(
         default=True,
@@ -178,6 +223,10 @@ class Schema(ContentHashedModel):
 
     def __str__(self):
         return f"{self.name} [{self.prefix}]"
+
+    def columns_for_hash(self):
+        """Hash type-level and schema-level definitions as one schema."""
+        return [*(self.schema_type.columns or []), *(self.columns or [])]
 
 
 # ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────

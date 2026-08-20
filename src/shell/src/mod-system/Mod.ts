@@ -1,4 +1,5 @@
 import { ModRegistry } from "./ModRegistry";
+import type { FormulaFunctionImplementation } from "../shared/formulas/formulaEngine";
 import type {
   ModManifest,
   BlockHandle,
@@ -56,6 +57,17 @@ export class Mod {
    */
   get id(): string {
     return `${this.manifest.vendor}.${this.manifest.name}`;
+  }
+
+  /** Register a client implementation for a namespaced formula function. */
+  registerFormulaFunction(
+    name: string,
+    implementation: FormulaFunctionImplementation,
+  ): void {
+    ModRegistry.getInstance().registerFormulaFunction(
+      `${this.manifest.name}.${name}`,
+      implementation,
+    );
   }
 
   // ── Block ─────────────────────────────────────────────────────────────

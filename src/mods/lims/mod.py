@@ -1,6 +1,7 @@
 from django.urls import include, path
 
 from helix_core.mod_system.registry import registry
+from helix_core.schema_tags import RegistrationTable, ResultTable
 
 
 def _seed_builtin_metrics():
@@ -79,9 +80,25 @@ def register():
         display_name="Entity",
         workspace_id="lims",
         model="mods.lims.models.Entity",
+        tags=[RegistrationTable],
         prefix="BLOOD",
         icon="flask-conical",
         color="success",
+    )
+
+    # Result schemas use the shared Entity persistence path but have their own
+    # schema-type identity and table capability.
+    registry.register_schema_type(
+        display_name="Results",
+        workspace_id="results",
+        # Result entities share the Entity table but have their own schema
+        # type identity.  Keep this registration key stable because it is
+        # already persisted in SchemaType rows.
+        model="mods.lims.models.ResultEntity",
+        tags=[ResultTable],
+        prefix="RESULT",
+        icon="chart-column",
+        color="muted",
     )
 
     # Pre-seed built-in Views and Metrics.

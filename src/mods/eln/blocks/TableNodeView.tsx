@@ -4,27 +4,37 @@
  * Renders a simple editable data table matching the prototype's
  * "Reagents & materials" table styling.  Supports:
  * - Click-to-edit column headers
- * - Click-to-edit cells
+ * - Full-cell typed editing: the cell becomes the editor in place
+ * - Spreadsheet-style cell selection, arrow/Tab/Enter keyboard navigation,
+ *   and TSV copy/paste via the shared useTableInteraction controller
  * - Ghost "+ New Row" button below the last row
  * - Ghost "+" button after the last column header
  *
  * All edits sync back to node attributes via ``updateAttributes``.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
+import { TableScroll, TableStretch } from "../../../shell/src/shared/primitives/TableLayout";
+import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
+import {
+  TypedFullCell,
+  parseCellValue,
+  renderCellValue,
+} from "../../../shell/src/shared/components/TableCells";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
 export interface TableColumn {
   id: string;
   name: string;
+  type?: string;
 }
 
 export interface TableRow {
   id: string;
-  cells: Record<string, string>;
+  cells: Record<string, unknown>;
 }
 
 interface TableBlockContentProps {
@@ -32,6 +42,7 @@ interface TableBlockContentProps {
   columns: TableColumn[];
   rows: TableRow[];
   updateAttrs: (attrs: Record<string, unknown>) => void;
+  readOnly?: boolean;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────
@@ -62,6 +73,7 @@ function InlineEdit({
   onCommit,
   className = "",
   placeholder = "",
+  readOnly = false,
   "aria-label": ariaLabel,
   "data-testid": dataTestId,
 }: {
@@ -69,32 +81,47 @@ function InlineEdit({
   onCommit: (newValue: string) => void;
   className?: string;
   placeholder?: string;
+  readOnly?: boolean;
   "aria-label"?: string;
   "data-testid"?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const draftRef = useRef(value);
+  const editorRef = useRef<HTMLSpanElement>(null);
 
   const startEdit = useCallback(() => {
     setDraft(value);
+    draftRef.current = value;
     setEditing(true);
   }, [value]);
 
   const commit = useCallback(() => {
     setEditing(false);
-    const trimmed = draft.trim();
+    const trimmed = draftRef.current.trim();
     if (trimmed && trimmed !== value) {
       onCommit(trimmed);
     } else if (!trimmed && value) {
       // Don't clear the value if it was non-empty
       setDraft(value);
     }
-  }, [draft, value, onCommit]);
+  }, [value, onCommit]);
 
   const cancel = useCallback(() => {
     setEditing(false);
     setDraft(value);
+    draftRef.current = value;
   }, [value]);
+
+  useEffect(() => {
+    if (!editing || !editorRef.current) return;
+    editorRef.current.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(editorRef.current);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [editing]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -109,34 +136,41 @@ function InlineEdit({
     [commit, cancel],
   );
 
-  if (editing) {
+  if (editing && !readOnly) {
     return (
-      <input
-        type="text"
-        className={`w-full border border-primary/30 bg-panel px-1 py-0.5 text-inherit outline-none focus:border-primary ${className}`}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+      <span
+        ref={editorRef}
+        className={`outline-none focus:outline-none ${className}`}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        onInput={(e) => {
+          draftRef.current = e.currentTarget.textContent ?? "";
+        }}
         onBlur={commit}
         onKeyDown={handleKeyDown}
-        autoFocus
         aria-label={ariaLabel}
         data-testid={dataTestId}
-      />
+      >
+        {draft}
+      </span>
     );
   }
 
   return (
     <span
-      className={`cursor-text ${value ? "" : "italic text-muted-foreground"} ${className}`}
-      onClick={startEdit}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          startEdit();
-        }
-      }}
+      className={`${readOnly ? "" : "cursor-text"} ${value ? "" : "italic text-muted-foreground"} ${className}`}
+      {...(!readOnly && {
+        onClick: startEdit,
+        role: "button",
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent<HTMLSpanElement>) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            startEdit();
+          }
+        },
+      })}
       aria-label={ariaLabel}
       data-testid={dataTestId}
     >
@@ -160,6 +194,7 @@ export function TableBlockContent({
   columns,
   rows,
   updateAttrs,
+  readOnly = false,
 }: TableBlockContentProps) {
   // ── Title ──────────────────────────────────────────────────────────────
   const handleTitleChange = useCallback(
@@ -183,7 +218,7 @@ export function TableBlockContent({
   const handleAddColumn = useCallback(() => {
     const id = crypto.randomUUID();
     const name = nextColumnName(columns);
-    const updatedColumns = [...columns, { id, name }];
+    const updatedColumns = [...columns, { id, name, type: "text" }];
     // Backfill empty cell value into all existing rows
     const updatedRows = rows.map((r) => ({
       ...r,
@@ -210,7 +245,7 @@ export function TableBlockContent({
 
   // ── Row operations ────────────────────────────────────────────────────
   const handleCellChange = useCallback(
-    (rowId: string, colId: string, value: string) => {
+    (rowId: string, colId: string, value: unknown) => {
       const updatedRows = rows.map((r) =>
         r.id === rowId
           ? { ...r, cells: { ...r.cells, [colId]: value } }
@@ -223,7 +258,7 @@ export function TableBlockContent({
 
   const handleAddRow = useCallback(() => {
     const id = crypto.randomUUID();
-    const cells: Record<string, string> = {};
+    const cells: Record<string, unknown> = {};
     for (const col of columns) {
       cells[col.id] = "";
     }
@@ -237,6 +272,52 @@ export function TableBlockContent({
     [rows, updateAttrs],
   );
 
+  // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
+  const interaction = useTableInteraction({
+    tableId: "eln-table",
+    rowCount: rows.length,
+    columnCount: columns.length,
+    readOnly,
+    getValues: () =>
+      rows.map((row) =>
+        columns.map((col) => renderCellValue(
+          "text",
+          row.cells[col.id],
+        )),
+      ),
+    onClear: (positions) => {
+      const updatedRows = rows.map((row, rowIndex) => {
+        const rowPositions = positions.filter((candidate) => candidate.row === rowIndex);
+        if (!rowPositions.length) return row;
+        const cells = { ...row.cells };
+        for (const position of rowPositions) {
+          const column = columns[position.column];
+          if (!column) continue;
+          cells[column.id] = "";
+        }
+        return { ...row, cells };
+      });
+      updateAttrs({ rows: updatedRows });
+    },
+    onPaste: (anchor, values) => {
+      const updatedRows = rows.map((row, rowIndex) => {
+        const pastedRow = values[rowIndex - anchor.row];
+        if (!pastedRow || rowIndex < anchor.row) return row;
+        const cells = { ...row.cells };
+        columns.slice(anchor.column).forEach((col, offset) => {
+          const raw = pastedRow[offset];
+          if (raw === undefined) return;
+          try {
+            cells[col.id] = parseCellValue("text", raw);
+          } catch {
+            // Skip values that don't parse for the column's shape
+          }
+        });
+        return { ...row, cells };
+      });
+      updateAttrs({ rows: updatedRows });
+    },
+  });
   // ── Render ────────────────────────────────────────────────────────────
   const hasRows = rows.length > 0;
 
@@ -251,6 +332,7 @@ export function TableBlockContent({
           <InlineEdit
             value={title}
             onCommit={handleTitleChange}
+            readOnly={readOnly}
             className="text-sm font-medium text-foreground"
             aria-label="Table title"
             data-testid="table-title"
@@ -258,8 +340,20 @@ export function TableBlockContent({
         </div>
 
         {/* ── Table ──────────────────────────────────────────────────── */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-base">
+        <TableStretch mode="auto">
+          <TableScroll mode="auto">
+            <div
+              className="w-max min-w-full"
+              ref={interaction.containerRef}
+              onCopy={interaction.handleCopy}
+              onPaste={interaction.handlePaste}
+              data-testid="eln-table-grid"
+            >
+              <table className="w-max min-w-full bg-background text-base">
+                <colgroup>
+                  {columns.map((column) => <col key={column.id} style={{ width: "10rem" }} />)}
+                  {!readOnly && <col style={{ width: "2.5rem" }} />}
+                </colgroup>
             {/* ── Header ─────────────────────────────────────────────── */}
             <thead>
               <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
@@ -276,10 +370,11 @@ export function TableBlockContent({
                         onCommit={(newName) =>
                           handleColumnRename(col.id, newName)
                         }
+                        readOnly={readOnly}
                         aria-label={`Column name: ${col.name}`}
                         data-testid={`column-header-${col.id}`}
                       />
-                      {hoveredColumn === col.id && (
+                      {!readOnly && hoveredColumn === col.id && (
                         <button
                           type="button"
                           className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
@@ -297,7 +392,7 @@ export function TableBlockContent({
                   </th>
                 ))}
                 {/* Ghost "+" button for adding a column */}
-                <th className="w-10 px-0 py-2">
+                {!readOnly && <th className="w-10 px-0 py-2">
                   <button
                     type="button"
                     className="btn-icon grid place-items-center rounded"
@@ -307,36 +402,40 @@ export function TableBlockContent({
                   >
                     <Plus className="h-3 w-3" />
                   </button>
-                </th>
+                </th>}
               </tr>
             </thead>
 
             {/* ── Body ────────────────────────────────────────────────── */}
             <tbody>
               {hasRows ? (
-                rows.map((row) => (
+                rows.map((row, rowIndex) => (
                   <tr
                     key={row.id}
                     className="border-b border-hairline last:border-b-0 hover:bg-surface transition-colors"
                     onMouseEnter={() => setHoveredRow(row.id)}
                     onMouseLeave={() => setHoveredRow(null)}
                   >
-                    {columns.map((col) => (
-                      <td key={col.id} className="min-w-[100px] px-3 py-2 font-[var(--font-label)] text-sm">
-                        <InlineEdit
-                          value={row.cells[col.id] ?? ""}
-                          onCommit={(newValue) =>
-                            handleCellChange(row.id, col.id, newValue)
-                          }
-                          placeholder="—"
-                          aria-label={`Cell: ${col.name}`}
+                    {columns.map((col, columnIndex) => (
+                      <td
+                        key={col.id}
+                        className="h-10 min-w-[100px] p-0! font-[var(--font-label)] text-sm"
+                        {...interaction.cellProps({ row: rowIndex, column: columnIndex })}
+                      >
+                        <TypedFullCell
+                           shape="text"
+                           value={row.cells[col.id]}
+                            onCommit={(value) => handleCellChange(row.id, col.id, value)}
+                          position={{ row: rowIndex, column: columnIndex }}
+                          interaction={interaction}
+                          readOnly={readOnly}
                           data-testid={`cell-${row.id}-${col.id}`}
                         />
                       </td>
                     ))}
                     {/* Delete row button on hover */}
                     <td className="w-10 px-0 py-2">
-                      {hoveredRow === row.id && (
+                      {!readOnly && hoveredRow === row.id && (
                         <button
                           type="button"
                           className="btn-ghost grid place-items-center rounded p-0.5 text-muted-foreground hover:text-destructive"
@@ -364,12 +463,14 @@ export function TableBlockContent({
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          </TableScroll>
+        </TableStretch>
       </div>
 
       {/* ── Ghost "+ New Row" button below the card ──────────────────── */}
-      <Button
+      {!readOnly && <Button
         variant="ghost"
         size="sm"
         className="mt-2"
@@ -379,7 +480,7 @@ export function TableBlockContent({
       >
         <Plus className="h-3 w-3" />
         <span>New Row</span>
-      </Button>
+      </Button>}
     </>
   );
 }
@@ -391,13 +492,14 @@ export function TableBlockContent({
  */
 export const TableBlockComponent = createBlockAdapter(
   TableBlockContent,
-  ({ instance }) => {
+  ({ instance, context }) => {
     const attrs = instance.attrs as Record<string, unknown>;
     return {
       title: (attrs.title as string) ?? DEFAULT_TITLE,
       columns: (attrs.columns as TableColumn[]) ?? [],
       rows: (attrs.rows as TableRow[]) ?? [],
       updateAttrs: instance.updateAttrs,
+      readOnly: context.viewMode === "view",
     };
   },
 );

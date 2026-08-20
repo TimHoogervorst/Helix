@@ -120,6 +120,39 @@ class EntityHubViewTests(TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row.schema_type_id, "lims.entity")
 
+    def test_view_uses_schema_type_for_result_entities(self):
+        """Result entities retain their registered schema type in the view."""
+        from helix_core.models import EntityHubView
+        from mods.lims.models import Entity
+
+        result_type = SchemaType.objects.create(
+            display_name="Results",
+            workspace_id="results",
+            model="mods.lims.models.ResultEntity",
+        )
+        result_schema = Schema.objects.create(
+            name="Assay Result",
+            prefix="RESULT",
+            schema_type=result_type,
+            is_default=True,
+        )
+        result = Entity.objects.create(
+            name="Blood assay result",
+            author=self.user,
+            schema=result_schema,
+            folder=self.folder,
+        )
+
+        row = EntityHubView.objects.get(id=result.id, schema_id=result_schema.id)
+        self.assertEqual(row.schema_type_id, "lims.result")
+        self.assertEqual(row.workspace_id, "results")
+
+        from helix_core.serializers import EntityHubSerializer
+
+        self.assertEqual(
+            EntityHubSerializer(row).data["schema_type_display"], "Results"
+        )
+
     def test_view_is_read_only(self):
         """The VIEW is read-only — writes should fail."""
         from helix_core.models import EntityHubView

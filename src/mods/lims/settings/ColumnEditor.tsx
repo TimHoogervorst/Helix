@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowUp, ArrowDown, Trash2, Settings2, Type, Circle } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Settings2, Type, Circle, Sigma } from "lucide-react";
 import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../dropdowns/api";
@@ -10,6 +10,8 @@ import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/com
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { Input } from "../../../shell/src/shared/primitives/Input";
 import { Select } from "../../../shell/src/shared/primitives/Input";
+import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import FormulaEditorModal from "./FormulaEditorModal";
 
 function resolveTypeColor(typeId: string): { bg: string; fg: string } {
   const ct = ModRegistry.getInstance().getColumnType(typeId);
@@ -27,6 +29,7 @@ export interface ColumnEditorProps {
   ) => void;
   onRemove: (index: number) => void;
   onMove: (index: number, direction: "up" | "down") => void;
+  isResultSchema?: boolean;
 }
 
 
@@ -39,12 +42,14 @@ function ColumnEditor({
   onUpdate,
   onRemove,
   onMove,
+  isResultSchema = false,
 }: ColumnEditorProps) {
   const columnTypes = ModRegistry.getInstance().getColumnTypes();
   const textType = columnTypes.get("text");
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([]);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [schemaTypes, setSchemaTypes] = useState<SchemaTypeItem[]>([]);
+  const [editingFormulaIndex, setEditingFormulaIndex] = useState<number | null>(null);
 
   useEffect(() => {
     listDropdowns()
@@ -71,6 +76,9 @@ function ColumnEditor({
     }
     return [...groups.entries()];
   }, [schemas, schemaTypes]);
+
+  const entityColumn = isResultSchema ? columns[0] : undefined;
+  const userColumns = isResultSchema ? columns.slice(1) : columns;
 
   const handleNameChange = (
     index: number,
@@ -110,7 +118,7 @@ function ColumnEditor({
         </span>
       </div>
 
-      <div
+      {!isResultSchema && <div
         className="border-b border-[var(--color-ink-hairline)]"
         data-testid="name-pseudo-column"
       >
@@ -135,9 +143,50 @@ function ColumnEditor({
           <div />
           <div />
         </div>
-      </div>
+      </div>}
 
-      {columns.map((col, i) => {
+      {isResultSchema && entityColumn && (
+        <div className="border-b border-[var(--color-ink-hairline)]" data-testid="entity-column">
+          <div className="grid grid-cols-1 gap-2 px-4 py-2 md:grid-cols-[minmax(0,1fr)_150px_1fr_92px] md:items-center">
+            <Input value="Entity" disabled title="The Entity Column is required on every result schema." />
+            <Select value="reference" disabled aria-label="Entity Column type"><option value="reference">Reference</option></Select>
+            <div className="flex flex-col gap-1">
+              <Select
+                value={entityColumn.referenceSchemaId ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  onUpdate(0, "referenceSchemaId", value ? Number(value) : "");
+                  if (value) onUpdate(0, "referenceSchemaTypeId", "");
+                }}
+                aria-label="Entity Column target schema"
+              >
+                <option value="">Target Schema</option>
+                {schemaTypeGroups.flatMap(([, typeSchemas]) => typeSchemas.map((schema) => (
+                  <option key={schema.id} value={schema.id}>{schema.name} ({schema.prefix})</option>
+                )))}
+              </Select>
+              <Select
+                value={entityColumn.referenceSchemaTypeId ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  onUpdate(0, "referenceSchemaTypeId", value ? Number(value) : "");
+                  if (value) onUpdate(0, "referenceSchemaId", "");
+                }}
+                aria-label="Entity Column target schema type"
+              >
+                <option value="">Target Schema Type</option>
+                {schemaTypes.map((schemaType) => (
+                  <option key={schemaType.id} value={schemaType.id}>{schemaType.display_name}</option>
+                ))}
+              </Select>
+            </div>
+            <div />
+          </div>
+        </div>
+      )}
+
+      {(isResultSchema ? userColumns : columns).map((col, i) => {
+        const columnIndex = isResultSchema ? i + 1 : i;
         const ct = ModRegistry.getInstance().getColumnType(col.type);
         const Icon = ct?.icon ? getColumnTypeIcon(ct.icon) : Circle;
         const typeColor = resolveTypeColor(col.type);
@@ -156,8 +205,8 @@ function ColumnEditor({
                 </span>
                 <Input
                   value={col.name}
-                  onChange={(e) =>
-                    handleNameChange(i, "name", e.target.value)
+                   onChange={(e) =>
+                     handleNameChange(columnIndex, "name", e.target.value)
                   }
                   placeholder="Column name"
                   className="w-full border-0 bg-transparent px-1 py-1 text-base outline-none focus:outline-none focus:ring-0 placeholder:text-[var(--color-ink-muted-foreground)]"
@@ -166,12 +215,12 @@ function ColumnEditor({
               <div>
                 <Select
                   value={col.type}
-                  onChange={(e) =>
-                    onUpdate(i, "type", e.target.value)
+                    onChange={(e) =>
+                     onUpdate(columnIndex, "type", e.target.value)
                   }
                   className="rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                 >
-                  {[...columnTypes.values()].map(renderTypeOption)}
+                   {[...columnTypes.values()].map(renderTypeOption)}
                 </Select>
                 {col.type === "dropdown" && (
                   <Select
@@ -179,7 +228,7 @@ function ColumnEditor({
                     onChange={(e) => {
                       const raw = e.target.value;
                       onUpdate(
-                        i,
+                         columnIndex,
                         "dropdownId",
                         raw ? Number(raw) : "",
                       );
@@ -202,10 +251,11 @@ function ColumnEditor({
                     onChange={(e) => {
                       const raw = e.target.value;
                       onUpdate(
-                        i,
+                        columnIndex,
                         "referenceSchemaId",
                         raw ? Number(raw) : "",
                       );
+                      if (raw) onUpdate(columnIndex, "referenceSchemaTypeId", "");
                     }}
                     className="mt-1 rounded-md border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-2 py-1 text-sm"
                     title="Target schema for this reference column"
@@ -223,6 +273,22 @@ function ColumnEditor({
                     ))}
                   </Select>
                 )}
+                {col.type === "formula" && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-ink-muted-foreground)]" title={col.expression || "No expression"}>
+                      {col.expression || "No expression"}
+                    </span>
+                    <IconButton
+                      title="Edit formula"
+                      aria-label={`Edit formula for ${col.name || "new field"}`}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setEditingFormulaIndex(columnIndex)}
+                    >
+                      <Sigma size={13} />
+                    </IconButton>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <button
@@ -233,7 +299,7 @@ function ColumnEditor({
                       : "bg-[var(--color-surface)] text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
                   }`}
                   onClick={() =>
-                    onUpdate(i, "required", !col.required)
+                     onUpdate(columnIndex, "required", !col.required)
                   }
                 >
                   req
@@ -246,7 +312,7 @@ function ColumnEditor({
                       : "bg-[var(--color-surface)] text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
                   }`}
                   onClick={() =>
-                    onUpdate(i, "unique", !col.unique)
+                     onUpdate(columnIndex, "unique", !col.unique)
                   }
                 >
                   uniq
@@ -257,28 +323,31 @@ function ColumnEditor({
                   title="Move up"
                   className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
                   disabled={i === 0}
-                  onClick={() => onMove(i, "up")}
+                   onClick={() => onMove(columnIndex, "up")}
                 >
                   <ArrowUp size={12} />
                 </button>
                 <button
                   title="Move down"
                   className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)] disabled:opacity-30"
-                  disabled={i === columns.length - 1}
-                  onClick={() => onMove(i, "down")}
+                   disabled={i === userColumns.length - 1}
+                   onClick={() => onMove(columnIndex, "down")}
                 >
                   <ArrowDown size={12} />
                 </button>
                 <button
                   title="Options"
                   className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
+                  onClick={() => {
+                    if (col.type === "formula") setEditingFormulaIndex(columnIndex);
+                  }}
                 >
                   <Settings2 size={12} />
                 </button>
                 <button
                   title="Delete"
                   className="grid h-6 w-6 place-items-center rounded border-transparent bg-transparent text-[var(--color-ink-muted-foreground)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-ink)]"
-                  onClick={() => onRemove(i)}
+                   onClick={() => onRemove(columnIndex)}
                 >
                   <Trash2 size={12} className="text-[var(--color-destructive)]" />
                 </button>
@@ -286,7 +355,23 @@ function ColumnEditor({
             </div>
           </div>
         );
-      })}
+       })}
+      {editingFormulaIndex !== null && columns[editingFormulaIndex] && (
+        <FormulaEditorModal
+          key={editingFormulaIndex}
+          open
+          column={columns[editingFormulaIndex]}
+          siblingColumns={columns.filter(
+            (_, index) => index !== editingFormulaIndex && (!isResultSchema || index !== 0),
+          )}
+          onClose={() => setEditingFormulaIndex(null)}
+          onSave={(expression, resultType) => {
+            onUpdate(editingFormulaIndex, "expression", expression);
+            onUpdate(editingFormulaIndex, "resultType", resultType);
+            setEditingFormulaIndex(null);
+          }}
+        />
+      )}
     </div>
   );
 }

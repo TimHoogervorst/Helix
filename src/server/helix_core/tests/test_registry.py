@@ -51,6 +51,42 @@ def _mock_sender(mod_id: str, name: str = "FakeModel") -> MagicMock:
     return sender
 
 
+class TestFormulaFunctionRegistration:
+    def test_register_and_serialize_metadata(self):
+        reg = _fresh_registry()
+        implementation = lambda args: {"ok": True, "value": None}
+
+        reg.register_formula_function(
+            "molBio.gcContent",
+            argument_kinds=["text"],
+            result_kind="number",
+            description="GC content percentage.",
+            implementation=implementation,
+        )
+
+        assert reg.get_formula_function("molBio.gcContent")["implementation"] is implementation
+        assert reg.get_formula_catalog() == [{
+            "id": "molBio.gcContent",
+            "argumentKinds": ["text"],
+            "resultKind": "number",
+            "description": "GC content percentage.",
+        }]
+
+    def test_duplicate_and_invalid_ids_are_rejected(self):
+        reg = _fresh_registry()
+        kwargs = {
+            "argument_kinds": [],
+            "result_kind": "number",
+            "description": "Test",
+            "implementation": lambda args: {"ok": True, "value": 1},
+        }
+        reg.register_formula_function("SUM", **kwargs)
+        with pytest.raises(ValueError, match="Duplicate formula function ID"):
+            reg.register_formula_function("SUM", **kwargs)
+        with pytest.raises(ValueError, match="identifiers"):
+            reg.register_formula_function("not valid", **kwargs)
+
+
 # ── register_action_model / get_action_model ─────────────────────────────────
 
 
@@ -1000,6 +1036,29 @@ class TestRegisterSchemaType:
         assert st.display_name == "Entity"
         assert len(st.columns) == 1
         assert st.columns[0]["name"] == "volume"
+
+    def test_updates_tags_idempotently(self):
+        """Repeated registration replaces the mod-declared tag set."""
+        from helix_core.models import SchemaType
+
+        reg = _fresh_registry()
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            tags=["RegistrationTable"],
+            prefix="E",
+        )
+        reg.register_schema_type(
+            display_name="Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+            tags=["ResultTable"],
+            prefix="E",
+        )
+
+        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        assert st.tags == ["ResultTable"]
 
     def test_custom_schema_name(self):
         """The schema_name parameter controls the default Schema's name."""

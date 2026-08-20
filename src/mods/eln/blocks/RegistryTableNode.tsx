@@ -24,12 +24,30 @@ import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal"
 import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import { getCellEditor, getColumnTypeIcon, type CellEditorComponent } from "../../../shell/src/shared/components/CellEditors";
+import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { useTableInteraction } from "../../../shell/src/shared/hooks/useTableInteraction";
+import {
+  TypedFullCell,
+  parseCellValue,
+  renderCellValue,
+} from "../../../shell/src/shared/components/TableCells";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { listDropdowns } from "../../dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import {
+  StickyActionCell,
+  StickyActionHeader,
+  TableChrome,
+  TableScroll,
+  TableStretch,
+} from "../../../shell/src/shared/primitives/TableLayout";
 import type { ElnSidebarData } from "./sidebarData";
+import {
+  evaluateRow,
+  type FormulaColumn,
+  type FormulaRow,
+} from "../../../shell/src/shared/formulas/formulaEngine";
 
 // ── Registry Table Row Type ────────────────────────────────────────────────
 
@@ -47,6 +65,8 @@ export interface RegistryTableRow {
   isRegistered: boolean;
   /** SHA-256 hash of values at last successful registration (null if never registered). */
   lastRegisteredValueHash: string | null;
+  /** Schema hash that produced the last successful registration. */
+  lastRegisteredSchemaContentHash?: string | null;
   /** Error message from the most recent failed registration attempt. */
   registrationError: string | null;
 }
@@ -97,6 +117,10 @@ function toGridColumns(entityType: EntityTypeSummary): GridColumn[] {
     description: c.description,
     dropdownId: c.dropdownId,
     referenceSchemaId: c.referenceSchemaId,
+    referenceSchemaTypeId: c.referenceSchemaTypeId,
+    expression: c.expression,
+    resultType: c.resultType,
+    expression_version: c.expression_version,
   }));
 }
 
@@ -108,24 +132,22 @@ type DotColor = "red" | "yellow" | "orange" | "blue" | "green";
 /**
  * Computes the status color for a row following the priority rules:
  * - Red: registration error exists
- * - Yellow: schema content hash unavailable (stored hash is null → can't verify match)
+ * - Yellow: schema content hash is unavailable or differs from registration
  * - Orange: row data changed since last registration
  * - Blue: unregistered with no errors
  * - Green: registered, schema matches, data unchanged
  *
- * NOTE: Full yellow-dot detection (comparing stored schemaContentHash against
- * the current EntityType hash from the API) requires fetching the EntityType
- * on every render, which is deferred to a future enhancement.  The current
- * implementation shows yellow when a row is registered but no schema hash was
- * captured at schema-load time.
  */
 function getDotColor(row: RegistryTableRow, schemaContentHash: string | null): DotColor {
   // Red: registration error — highest priority
   if (row.registrationError) return "red";
 
   if (row.isRegistered && row.entityId !== null) {
-    // Yellow: schema content hash unavailable — can't verify match
-    if (!schemaContentHash) return "yellow";
+    // Yellow: schema hash unavailable or changed since registration.
+    if (
+      !schemaContentHash ||
+      row.lastRegisteredSchemaContentHash !== schemaContentHash
+    ) return "yellow";
 
     // Orange: data changed since last registration
     if (row.lastRegisteredValueHash !== null) {
@@ -165,6 +187,7 @@ function isGreen(row: RegistryTableRow, schemaContentHash: string | null): boole
   if (!row.isRegistered || row.entityId === null) return false;
   if (row.registrationError) return false;
   if (!schemaContentHash) return false;
+  if (row.lastRegisteredSchemaContentHash !== schemaContentHash) return false;
   if (row.lastRegisteredValueHash === null) return false;
   return computeRowSnapshot(row) === row.lastRegisteredValueHash;
 }
@@ -185,24 +208,25 @@ const DOT_LABELS: Record<DotColor, string> = {
   green: "Registered, up to date",
 };
 
-// ── Editable Cell ──────────────────────────────────────────────────────────
+/**
+ * Preview mode has no backend to search, so reference columns fall back to
+ * static options (rendered as a full-cell select) instead of the entity
+ * picker popover.
+ */
+const MOCK_REFERENCE_OPTIONS = ["ENT-001", "ENT-002", "ENT-003"];
 
-interface EditableCellProps {
-  columnName: string;
-  columnType: string;
-  value: unknown;
-  onCommit: (columnName: string, newValue: unknown) => void;
-  readOnly?: boolean;
-  /** Resolved dropdown options for dropdown-type columns. */
-  dropdownOptions?: string[];
-  /** Target schema ID for reference columns. */
-  referenceSchemaId?: number;
-}
+// ── Editable Cell ──────────────────────────────────────────────────────────
 
 /** Resolve the operand_shape for a column type string from the registry. */
 function resolveOperandShape(columnType: string): string {
   const colType = resolveColumnType(columnType);
   return colType?.operandShape ?? "text";
+}
+
+function resolveColumnShape(column: GridColumn): string {
+  return column.type === "formula"
+    ? resolveOperandShape(column.resultType ?? "text")
+    : resolveOperandShape(column.type);
 }
 
 /** Render the compact type badge shown after a column name in the header row.
@@ -230,73 +254,6 @@ function renderColumnTypeBadge(columnType: string): React.ReactNode {
   return columnType;
 }
 
-/**
- * Renders the appropriate editor for a cell based on its column type's
- * ``operand_shape``, looked up from the column type registry.
- *
- * The dispatch is fully generic — adding a new column type requires zero
- * changes to this component (unless a completely custom editor is needed,
- * deferred).
- */
-function EditableCell({
-  columnName,
-  columnType,
-  value,
-  onCommit,
-  readOnly = false,
-  dropdownOptions,
-  referenceSchemaId,
-}: EditableCellProps) {
-  const operandShape = resolveOperandShape(columnType);
-  const CellEditor: CellEditorComponent = getCellEditor(operandShape);
-
-  if (readOnly) {
-    // Render all cell types as read-only display, except entity-picker
-    // and select which keep their interactive elements visible.
-    if (operandShape === "entity-picker") {
-      return (
-        <CellEditor
-          value={value}
-          onCommit={(v) => onCommit(columnName, v)}
-          readOnly
-          referenceSchemaId={referenceSchemaId}
-        />
-      );
-    }
-    if (operandShape === "dropdown" && dropdownOptions && dropdownOptions.length > 0) {
-      return (
-        <CellEditor
-          value={value}
-          onCommit={(v) => onCommit(columnName, v)}
-          readOnly
-          dropdownOptions={dropdownOptions}
-        />
-      );
-    }
-    if (operandShape === "boolean") {
-      return (
-        <span data-testid="boolean-display" className="inline-block px-4 py-2">
-          {value === true ? "Yes" : "No"}
-        </span>
-      );
-    }
-    return (
-      <span data-testid="readonly-cell" className="inline-block px-4 py-2">
-        {value != null ? String(value) : ""}
-      </span>
-    );
-  }
-
-  return (
-    <CellEditor
-      value={value}
-      onCommit={(v) => onCommit(columnName, v)}
-      dropdownOptions={dropdownOptions}
-      referenceSchemaId={referenceSchemaId}
-    />
-  );
-}
-
 // ── Batch Register Response Types ───────────────────────────────────────────
 
 interface BatchRegisterResult {
@@ -304,6 +261,8 @@ interface BatchRegisterResult {
   entity_id: number;
   display_id: string;
   status: string;
+  values?: Record<string, unknown>;
+  schema_content_hash?: string;
 }
 
 interface BatchRegisterError {
@@ -339,6 +298,10 @@ interface RegistryTableContentProps {
   onToggleStretch?: () => void;
   /** When true, the stretch toggle button is rendered. */
   showStretchToggle?: boolean;
+  /** When true, render the table without any backend or local mutations. */
+  previewMode?: boolean;
+  /** Workspace context for entity-picker cells (metadata only). */
+  workspaceId?: string;
   /**
    * Optional emitAction function for emitting custom domain actions
    * declared in the block registration's `emits` field.
@@ -372,6 +335,8 @@ export function RegistryTableContent({
   stretchMode = "auto",
   onToggleStretch,
   showStretchToggle = false,
+  previewMode = false,
+  workspaceId,
   emitAction,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
@@ -393,6 +358,14 @@ export function RegistryTableContent({
   >(new Map());
 
   useEffect(() => {
+    if (previewMode) {
+      setDropdownOptionsMap(new Map(
+        columns
+          .filter((column) => column.type === "dropdown")
+          .map((column) => [column.name, ["Researcher", "Reviewer", "Operator"]]),
+      ));
+      return;
+    }
     const selectColumns = columns.filter(
       (c) => c.type === "dropdown" && c.dropdownId,
     );
@@ -427,27 +400,36 @@ export function RegistryTableContent({
     return () => {
       cancelled = true;
     };
-  }, [columns]);
+  }, [columns, previewMode]);
 
   // ── Fetch entity types when picker opens ────────────────────────────
   const handleOpenPicker = useCallback(async () => {
+    if (previewMode) return;
     setShowPicker(true);
     if (entityTypes.length === 0) {
       setLoading(true);
       try {
         const data = await get<EntityTypeSummary[]>("/schemas/");
-        setEntityTypes(data.filter((t) => t.is_active && !t.is_default));
+        setEntityTypes(
+          data.filter(
+            (t) =>
+              t.is_active &&
+              !t.is_default &&
+              t.tags.includes("RegistrationTable"),
+          ),
+        );
       } catch {
         // silently leave list empty
       } finally {
         setLoading(false);
       }
     }
-  }, [entityTypes.length]);
+  }, [entityTypes.length, previewMode]);
 
   // ── Select an entity type → snapshot schema into block attrs ────────
   const handleSelectEntityType = useCallback(
     (entityType: EntityTypeSummary) => {
+      if (previewMode) return;
       const newColumns = toGridColumns(entityType);
 
       updateAttrs({
@@ -459,7 +441,7 @@ export function RegistryTableContent({
       });
       setShowPicker(false);
     },
-    [updateAttrs],
+    [previewMode, updateAttrs],
   );
 
   // ── Title editing ───────────────────────────────────────────────────
@@ -498,6 +480,81 @@ export function RegistryTableContent({
     [rows, updateAttrs],
   );
 
+  const formulaColumns = columns.filter(
+    (column) => column.type === "formula" && column.expression,
+  );
+  const backendOnlyColumns = formulaColumns.filter((column) =>
+    usesBackendOnlyFunction(column.expression!),
+  );
+  const [refreshingRow, setRefreshingRow] = useState<string | null>(null);
+  const [refreshedSnapshots, setRefreshedSnapshots] = useState<Record<string, string>>({});
+
+  const computedValues = useCallback(
+    (row: RegistryTableRow) => {
+      const formulas = Object.fromEntries(
+        formulaColumns.map((column) => [
+          column.name,
+          { expression: column.expression! } satisfies FormulaColumn,
+        ]),
+      );
+      const evaluated = evaluateRow(row.values as FormulaRow, formulas);
+      return {
+        ...row.values,
+        ...Object.fromEntries(
+          Object.entries(evaluated).map(([name, result]) => {
+          const column = formulaColumns.find((item) => item.name === name);
+          if (column && usesBackendOnlyFunction(column.expression!)) {
+            return [name, row.values[name]];
+          }
+          return [name, result.ok ? result.value : result.error.code];
+          }),
+        ),
+      };
+    },
+    [formulaColumns],
+  );
+
+  const refreshRow = useCallback(async (row: RegistryTableRow) => {
+    if (previewMode || !backendOnlyColumns.length || refreshingRow === row.displayId) return;
+    const formulaNames = new Set(formulaColumns.map((column) => column.name));
+    if (backendOnlyColumns.some((column) =>
+      !referencedValuesAreComplete(column.expression!, row.values, formulaNames),
+    )) return;
+    let values = { ...row.values };
+    for (const column of formulaColumns) values[column.name] = undefined;
+    setRefreshingRow(row.displayId);
+    try {
+      const pending = [...formulaColumns];
+      while (pending.length) {
+        const ready = pending.filter((column) =>
+          referencedValuesAreComplete(column.expression!, values, formulaNames, true),
+        );
+        if (!ready.length) break;
+        for (const column of ready) {
+          const response = await post<FormulaEvaluateResponse>(
+            "/formulas/evaluate/",
+            { expression: column.expression, row: values },
+          );
+          values[column.name] = response.result.ok
+            ? response.result.value
+            : (response.result.error?.code ?? "#VALUE!");
+          pending.splice(pending.indexOf(column), 1);
+        }
+      }
+      updateAttrs({
+        rows: rows.map((item) =>
+          item.displayId === row.displayId ? { ...item, values } : item,
+        ),
+      });
+      setRefreshedSnapshots((current) => ({
+        ...current,
+        [row.displayId]: computeRowSnapshot({ ...row, values }),
+      }));
+    } finally {
+      setRefreshingRow(null);
+    }
+  }, [backendOnlyColumns, formulaColumns, previewMode, refreshingRow, rows, updateAttrs]);
+
   // ── Name cell commit ─────────────────────────────────────────────────
   const handleNameCommit = useCallback(
     (rowDisplayId: string, newName: string) => {
@@ -510,6 +567,73 @@ export function RegistryTableContent({
     [rows, updateAttrs],
   );
 
+  // ── Interaction controller: cell selection, keyboard nav, TSV clipboard ──
+  // Grid layout: column 0 is the Name pseudo-column, schema columns follow.
+  const interaction = useTableInteraction({
+    tableId: "registry-table",
+    rowCount: rows.length,
+    columnCount: columns.length + 1,
+    readOnly,
+    getValues: () =>
+      rows.map((row) => {
+        const values = computedValues(row);
+        return [
+          row.__name,
+          ...columns.map((col) =>
+            renderCellValue(
+              resolveColumnShape(col),
+                values[col.name],
+            ),
+          ),
+        ];
+      }),
+    onClear: (positions) => {
+      const updatedRows = rows.map((row, rowIndex) => {
+        const rowPositions = positions.filter((position) => position.row === rowIndex);
+        if (!rowPositions.length) return row;
+        let name = row.__name;
+        const values = { ...row.values };
+        for (const position of rowPositions) {
+          if (position.column === 0) {
+            name = "";
+            continue;
+          }
+          const column = columns[position.column - 1];
+          if (!column) continue;
+          values[column.name] = "";
+        }
+        return { ...row, __name: name, values };
+      });
+      updateAttrs({ rows: updatedRows });
+    },
+    onPaste: (anchor, values) => {
+      const updatedRows = rows.map((row, rowIndex) => {
+        const pastedRow = values[rowIndex - anchor.row];
+        if (!pastedRow || rowIndex < anchor.row) return row;
+        let name = row.__name;
+        const nextValues = { ...row.values };
+        pastedRow.forEach((raw, offset) => {
+          const gridColumn = anchor.column + offset;
+          if (gridColumn === 0) {
+            name = raw;
+            return;
+          }
+          const col = columns[gridColumn - 1];
+          if (!col || col.type === "formula") return;
+          try {
+            nextValues[col.name] = parseCellValue(
+              resolveColumnShape(col),
+              raw,
+            );
+          } catch {
+            // Skip values that don't parse for the column's shape
+          }
+        });
+        return { ...row, __name: name, values: nextValues };
+      });
+      updateAttrs({ rows: updatedRows });
+    },
+  });
   // ── Add row ──────────────────────────────────────────────────────────
   const handleAddRow = useCallback(() => {
     const newRow: RegistryTableRow = {
@@ -521,7 +645,9 @@ export function RegistryTableContent({
       lastRegisteredValueHash: null,
       registrationError: null,
     };
-    updateAttrs({ rows: [...rows, newRow] });
+    updateAttrs({
+      rows: [...rows, newRow],
+    });
 
     // Emit custom domain action via context.emitAction (fail-open).
     emitAction?.("row-added", { rowCount: rows.length + 1 });
@@ -530,6 +656,7 @@ export function RegistryTableContent({
   // ── Delete row ───────────────────────────────────────────────────────
   const handleDeleteRow = useCallback(
     async (rowDisplayId: string) => {
+      if (previewMode) return;
       const row = rows.find((r) => r.displayId === rowDisplayId);
       // If the row is registered, call the API to delete the entity
       if (row?.entityId !== null && row?.entityId !== undefined) {
@@ -542,15 +669,17 @@ export function RegistryTableContent({
           );
         }
       }
-      updateAttrs({ rows: rows.filter((r) => r.displayId !== rowDisplayId) });
+      updateAttrs({
+        rows: rows.filter((r) => r.displayId !== rowDisplayId),
+      });
     },
-    [rows, updateAttrs],
+    [previewMode, rows, updateAttrs],
   );
 
   // ── Refresh schema ───────────────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const handleRefreshSchema = useCallback(async () => {
-    if (schemaId === null) return;
+    if (previewMode || schemaId === null) return;
     setRefreshing(true);
     try {
       const entityType = await get<EntityTypeSummary>(
@@ -593,13 +722,13 @@ export function RegistryTableContent({
     } finally {
       setRefreshing(false);
     }
-  }, [schemaId, columns, rows, updateAttrs]);
+  }, [previewMode, schemaId, columns, rows, updateAttrs]);
 
   // ── Register entities ───────────────────────────────────────────────
   const [registering, setRegistering] = useState(false);
 
   const handleRegister = useCallback(async () => {
-    if (schemaId === null) return;
+    if (previewMode || schemaId === null) return;
 
     // Collect non-green rows with their original indices
     const nonGreenRows: { index: number; row: RegistryTableRow }[] = [];
@@ -634,7 +763,13 @@ export function RegistryTableContent({
           rows: nonGreenRows.map(({ row }) => ({
             entity_id: row.entityId,
             name: row.__name,
-            values: row.values,
+            values: Object.fromEntries(
+              Object.entries(row.values).filter(
+                ([name]) => !columns.some(
+                  (column) => column.name === name && column.type === "formula",
+                ),
+              ),
+            ),
             ...(folderId !== null && folderId !== undefined
               ? { folder_id: folderId }
               : {}),
@@ -650,15 +785,32 @@ export function RegistryTableContent({
         for (const result of response.results) {
           if (result.row_index < 0 || result.row_index >= nonGreenRows.length) continue;
           const { index: originalIndex, row } = nonGreenRows[result.row_index];
-          const hash = computeRowSnapshot(row);
-          updatedRows[originalIndex] = {
+          const registeredValues = {
+            ...row.values,
+            ...(result.values ?? {}),
+          };
+          const hash = computeRowSnapshot({ ...row, values: registeredValues });
+           updatedRows[originalIndex] = {
             ...updatedRows[originalIndex],
+            values: registeredValues,
             entityId: result.entity_id,
             displayId: result.display_id,
             isRegistered: true,
             lastRegisteredValueHash: hash,
+            lastRegisteredSchemaContentHash:
+              result.schema_content_hash ?? schemaContentHash,
             registrationError: null,
-          };
+           };
+           if (backendOnlyColumns.length > 0) {
+             setRefreshedSnapshots((current) => ({
+               ...current,
+               [result.display_id]: computeRowSnapshot({
+                 ...row,
+                 displayId: result.display_id,
+                 values: registeredValues,
+               }),
+             }));
+           }
         }
 
         // Apply API errors
@@ -698,11 +850,14 @@ export function RegistryTableContent({
       });
     }
   }, [
+    previewMode,
     schemaId,
     rows,
     schemaContentHash,
     projectId,
     folderId,
+    backendOnlyColumns.length,
+    setRefreshedSnapshots,
     updateAttrs,
     emitAction,
   ]);
@@ -717,7 +872,7 @@ export function RegistryTableContent({
         <div className="flex items-center gap-2.5">
           <Database className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <span
-            className="text-sm font-medium text-foreground outline-none"
+            className="text-sm font-medium text-foreground outline-none focus:outline-none"
             contentEditable
             suppressContentEditableWarning
             onBlur={handleTitleBlur}
@@ -779,120 +934,148 @@ export function RegistryTableContent({
 
   // ── Loaded table state ──────────────────────────────────────────────
   return (
-    <>
-      <div
-        className="rounded-lg border border-hairline bg-background w-full"
-        data-testid="registry-table-loaded"
-      >
-      {/* Title bar — always full width, matching the workspace content container. */}
-      <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5 w-full">
-        <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        {/* Stretch toggle — only rendered when overrides.stretch is truthy */}
-        {showStretchToggle && (
-          <IconButton
-            onClick={onToggleStretch}
-            title={
-              stretchMode === "auto"
-                ? "Stretch table to full width"
-                : "Auto-fit table to content"
-            }
-            aria-label={
-              stretchMode === "auto"
-                ? "Stretch table to full width"
-                : "Auto-fit table to content"
-            }
-            aria-pressed={stretchMode === "full"}
-            data-testid="stretch-toggle-btn"
-          >
-            <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-          </IconButton>
-        )}
-        {readOnly ? (
-          <span
-            className="text-sm font-medium text-foreground"
-            data-testid="registry-table-title"
-          >
-            {title}
-          </span>
-        ) : (
-          <span
-            className="text-sm font-medium text-foreground outline-none"
-            contentEditable
-            suppressContentEditableWarning
-            onBlur={handleTitleBlur}
-            onKeyDown={handleTitleKeyDown}
-            data-testid="registry-table-title"
-          >
-            {title}
-          </span>
-        )}
-        {schemaName && (
-          <span
-            className="text-xs text-muted-foreground"
-            data-testid="registry-table-schema-label"
-          >
-            {schemaName}
-          </span>
-        )}
-        <div className="flex-1" />
-        {refreshing && (
-          <Loader className="h-3.5 w-3.5 animate-spin text-muted-foreground" data-testid="refresh-spinner" />
-        )}
-        {!readOnly && (
-          <>
-            <IconButton
-              onClick={handleRefreshSchema}
-              disabled={refreshing}
-              title="Refresh schema"
-              aria-label="Refresh schema"
-              data-testid="refresh-schema-btn"
+    <TableChrome
+      className="w-full table-layout-chrome--compact"
+      data-testid="registry-table-loaded"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Database className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {readOnly ? (
+            <span data-testid="registry-table-title">{title}</span>
+          ) : (
+              <span
+                className="outline-none focus:outline-none"
+                contentEditable
+              suppressContentEditableWarning
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+              data-testid="registry-table-title"
             >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            </IconButton>
+              {title}
+            </span>
+          )}
+          {schemaName && (
+            <span
+              className="text-xs font-normal text-muted-foreground"
+              data-testid="registry-table-schema-label"
+            >
+              {schemaName}
+            </span>
+          )}
+        </span>
+      }
+      toolbar={
+        <>
+          {showStretchToggle && (
             <IconButton
-              onClick={handleRegister}
-              disabled={registering}
-              title="Register entities"
+              onClick={onToggleStretch}
+              title={
+                stretchMode === "auto"
+                  ? "Stretch table to full width"
+                  : "Auto-fit table to content"
+              }
+              aria-label={
+                stretchMode === "auto"
+                  ? "Stretch table to full width"
+                  : "Auto-fit table to content"
+              }
+              aria-pressed={stretchMode === "full"}
+              data-testid="stretch-toggle-btn"
+            >
+              <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+            </IconButton>
+          )}
+          {refreshing && (
+            <Loader className="h-3.5 w-3.5 text-muted-foreground" data-testid="refresh-spinner" />
+          )}
+          {!readOnly && !previewMode && (
+            <>
+              <IconButton
+                onClick={handleRefreshSchema}
+                disabled={refreshing}
+                title="Refresh schema"
+                aria-label="Refresh schema"
+                data-testid="refresh-schema-btn"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton
+                onClick={handleRegister}
+                disabled={registering}
+                title="Register entities"
+                aria-label="Register entities"
+                variant="primary"
+                size="sm"
+                className="table-layout-register-button"
+                data-testid="register-entities-btn"
+              >
+                {registering ? (
+                  <Loader className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
+                ) : (
+                  <Upload className="h-4 w-4 shrink-0" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
+                )}
+              </IconButton>
+            </>
+          )}
+          {previewMode && (
+            <IconButton
+              disabled
+              title="Registration is disabled in preview"
               aria-label="Register entities"
+              variant="primary"
+              size="sm"
+              className="table-layout-register-button"
               data-testid="register-entities-btn"
             >
-              {registering ? (
-                <Loader className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Upload className="h-4 w-4" aria-hidden="true" />
-              )}
+              <Upload className="h-4 w-4 shrink-0" aria-hidden="true" style={{ width: "1rem", height: "1rem", flexShrink: 0 }} />
             </IconButton>
-          </>
-        )}
-      </div>
+          )}
+        </>
+      }
+      addRow={!readOnly && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleAddRow}
+          aria-label="Add new row"
+          data-testid="add-row-btn"
+        >
+          <Plus className="h-3 w-3" />
+          <span>New Row</span>
+        </Button>
+      )}
+      addRowOutside
+    >
 
-      {/* Table wrapper — constrained in auto mode so only the title bar
-          spans the full workspace content width. */}
-      <div
-        className={stretchMode === "auto" ? "max-w-3xl" : "w-full"}
+      <TableStretch
+        mode={stretchMode}
         data-testid="registry-table-stretch-wrapper"
       >
-      {/* Table — overflow-x-auto constrains the scrollbar while negative
-          margins + padding let the table content extend visually into both
-          left and right gutters when scrolled. In auto mode the wrapper
-          breaks out 19rem on each side (17.5rem gutter + 1.5rem main px-6)
-          so columns remain visible in the gutter spaces.  The table uses
-          w-max min-w-full so it can grow past the card width. */}
-      <div className={`overflow-x-auto scrollbar-on-hover ${
-        stretchMode === "auto" ? "-ml-[19rem] -mr-[19rem] pl-[19rem] pr-[19rem]" : ""
-      }`}>
+      <TableScroll mode={stretchMode}>
+        <div
+          className="w-max min-w-full"
+          ref={interaction.containerRef}
+          onCopy={interaction.handleCopy}
+          onPaste={interaction.handlePaste}
+        >
         <table className={`text-base bg-background ${stretchMode === "auto" ? "w-max min-w-full" : "min-w-full"}`} data-testid="registry-table-grid">
+          <colgroup>
+            <col style={{ width: "2.5rem" }} />
+            <col style={{ width: "10rem" }} />
+            {columns.map((col) => <col key={col.name} style={{ width: "10rem" }} />)}
+            {!readOnly && <col style={{ width: "2.5rem" }} />}
+          </colgroup>
           <thead className={stretchMode === "auto" ? "bg-background" : ""}>
             <tr className="border-b border-hairline bg-surface text-left font-[var(--font-label)] text-2xs uppercase tracking-widest text-muted-foreground">
               {/* Status + entity pill column */}
               <th
-                className="px-2 py-2 whitespace-nowrap"
+                className="w-10 px-2 py-1 whitespace-nowrap"
                 data-testid="registry-table-header-status"
                 aria-label="Status"
               />
               {/* Mandatory Name column */}
               <th
-                className="px-4 py-2 text-left font-medium whitespace-nowrap"
+                  className="px-4 py-1 text-left font-medium whitespace-nowrap"
                 data-testid="registry-table-header-name"
               >
                 Name
@@ -901,7 +1084,7 @@ export function RegistryTableContent({
               {columns.map((col) => (
                 <th
                   key={col.name}
-                  className="px-4 py-2 text-left font-medium whitespace-nowrap"
+                  className="px-4 py-1 text-left font-medium whitespace-nowrap"
                   data-testid={`registry-table-header-${col.name}`}
                 >
                   {col.name}
@@ -913,8 +1096,7 @@ export function RegistryTableContent({
               {/* Actions column — sticky to right edge, always visible during horizontal scroll.
                    No border or background so it blends seamlessly. Hidden in read-only mode. */}
               {!readOnly && (
-                <th
-                  className="sticky right-0 w-0 p-0"
+                <StickyActionHeader
                   data-testid="registry-table-header-delete"
                   aria-label="Actions"
                 />
@@ -934,8 +1116,13 @@ export function RegistryTableContent({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
-                const dotColor = getDotColor(row, schemaContentHash);
+              rows.map((row, rowIndex) => {
+                const values = computedValues(row);
+                const rowSnapshot = computeRowSnapshot({ ...row, values });
+                const refreshed = refreshedSnapshots[row.displayId] !== undefined;
+                const stale = backendOnlyColumns.length > 0 && refreshed &&
+                  refreshedSnapshots[row.displayId] !== rowSnapshot;
+                const dotColor = getDotColor({ ...row, values }, schemaContentHash);
                 return (
                 <tr
                   key={row.displayId}
@@ -971,79 +1158,84 @@ export function RegistryTableContent({
                   </td>
 
                   {/* Name column */}
-                  <td className="align-middle font-[var(--font-label)] text-sm whitespace-nowrap">
-                    {readOnly ? (
-                      <span
-                        data-testid={`name-cell-${row.displayId}`}
-                        className="inline-block px-4 py-2"
-                      >
-                        {row.__name || ""}
-                      </span>
-                    ) : (
-                      <span
-                        className={`outline-none min-w-[100px] inline-block px-4 py-2 rounded hover:bg-surface focus:bg-surface ${!row.__name ? "name-cell-placeholder" : ""}`}
-                        contentEditable
-                        suppressContentEditableWarning
-                        data-placeholder="Enter name…"
-                        onInput={(e) => {
-                          // Keep the placeholder class in sync on every keystroke
-                          // so it survives browser-injected <br> tags in contentEditable.
-                          const el = e.currentTarget;
-                          const text = el.textContent ?? "";
-                          if (text.trim().length === 0) {
-                            el.classList.add("name-cell-placeholder");
-                          } else {
-                            el.classList.remove("name-cell-placeholder");
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const newName = e.currentTarget.textContent ?? "";
-                          if (newName !== (row.__name ?? "")) {
-                            handleNameCommit(row.displayId, newName);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            (e.target as HTMLElement).blur();
-                          }
-                        }}
-                        data-testid={`name-cell-${row.displayId}`}
-                      >
-                        {row.__name || null}
-                      </span>
-                    )}
+                  <td
+                    className="p-0!"
+                    {...interaction.cellProps({ row: rowIndex, column: 0 })}
+                  >
+                    <TypedFullCell
+                      shape="text"
+                      value={row.__name}
+                      onCommit={(value) =>
+                        handleNameCommit(row.displayId, String(value ?? ""))
+                      }
+                      position={{ row: rowIndex, column: 0 }}
+                      interaction={interaction}
+                      readOnly={readOnly}
+                      placeholder="Enter name…"
+                      data-testid={`name-cell-${row.displayId}`}
+                    />
                   </td>
 
                   {/* Schema columns */}
-                  {columns.map((col) => (
-                    <td
-                      key={col.name}
-                      className="align-middle font-[var(--font-label)] text-sm whitespace-nowrap"
-                      data-testid={`cell-${row.displayId}-${col.name}`}
-                    >
-                      <EditableCell
-                        columnName={col.name}
-                        columnType={col.type}
-                        value={row.values[col.name]}
-                        onCommit={(colName, newValue) =>
-                          handleCellCommit(row.displayId, colName, newValue)
-                        }
-                        readOnly={readOnly}
-                        dropdownOptions={dropdownOptionsMap.get(col.name)}
-                        referenceSchemaId={col.referenceSchemaId}
-                      />
-                    </td>
-                  ))}
+                  {columns.map((col, columnIndex) => {
+                    const shape = resolveColumnShape(col);
+                    return (
+                      <td
+                        key={col.name}
+                        className={`p-0! ${stale ? "opacity-50" : ""}`}
+                        data-stale={stale ? "true" : undefined}
+                        {...interaction.cellProps({
+                          row: rowIndex,
+                          column: columnIndex + 1,
+                        })}
+                      >
+                        <TypedFullCell
+                          shape={shape}
+                           value={backendOnlyColumns.includes(col) && !refreshed
+                                ? undefined
+                                : values[col.name]}
+                            onCommit={(value) =>
+                              handleCellCommit(row.displayId, col.name, value)
+                            }
+                          position={{ row: rowIndex, column: columnIndex + 1 }}
+                          interaction={interaction}
+                          readOnly={readOnly || col.type === "formula"}
+                          options={
+                            shape === "dropdown"
+                              ? dropdownOptionsMap.get(col.name)
+                              : previewMode && shape === "entity-picker"
+                                ? MOCK_REFERENCE_OPTIONS
+                                : undefined
+                          }
+                          referenceSchemaId={col.referenceSchemaId}
+                           workspaceId={workspaceId ?? "lims"}
+                          placeholder={
+                            backendOnlyColumns.includes(col) && !refreshed
+                              ? "Refresh to calculate"
+                              : shape === "entity-picker" ? "@mention…" : undefined
+                          }
+                          data-testid={`cell-${row.displayId}-${col.name}`}
+                        />
+                      </td>
+                    );
+                  })}
 
                   {/* Three-dot action menu — sticky to right edge, always visible on row hover.
                        No border or background so it blends seamlessly. Hidden in read-only mode. */}
                   {!readOnly && (
-                    <td className="sticky right-0 w-0 p-0 align-middle">
+                     <StickyActionCell className="align-middle">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <MoreActions
-                          items={[
-                            {
+                           items={[
+                             {
+                               key: "refresh",
+                               icon: RefreshCw,
+                               label: "Refresh",
+                               disabled: refreshingRow === row.displayId,
+                               onClick: () => refreshRow(row),
+                               tooltip: `Refresh computed fields for ${row.displayId}`,
+                             },
+                             {
                               key: "delete",
                               icon: Trash2,
                               label: "Delete",
@@ -1051,10 +1243,12 @@ export function RegistryTableContent({
                               destructive: true,
                               tooltip: `Delete row ${row.displayId}`,
                             },
-                          ]}
+                           ].filter(
+                             (item) => item.key !== "refresh" || backendOnlyColumns.length > 0,
+                           )}
                         />
                       </div>
-                    </td>
+                     </StickyActionCell>
                   )}
                 </tr>
               );
@@ -1062,35 +1256,54 @@ export function RegistryTableContent({
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      </TableScroll>
 
-      </div>
-    </div>
-    {/* "+ New Row" button below the card — constrained to center gutter width.
-         In auto mode left-aligned so it stays anchored to the center gutter
-         even when the table extends past it; in full mode centered at 48rem.
-         Hidden in read-only mode. */}
-    {!readOnly && (
-      <div className={`mt-2 ${
-        stretchMode === "auto"
-          ? "max-w-3xl"
-          : "max-w-3xl mx-auto"
-      }`}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-2"
-          onClick={handleAddRow}
-          aria-label="Add new row"
-          data-testid="add-row-btn"
-        >
-          <Plus className="h-3 w-3" />
-          <span>New Row</span>
-        </Button>
-      </div>
-    )}
-    </>
+      </TableStretch>
+    </TableChrome>
   );
+}
+
+interface FormulaEvaluateResponse {
+  result: {
+    ok: boolean;
+    value?: unknown;
+    error?: { code: string };
+  };
+}
+
+function usesBackendOnlyFunction(expression: string): boolean {
+  const registry = ModRegistry.getInstance();
+  const clientIds = new Set(
+    registry.getClientFormulaFunctions().map((entry) => entry.id),
+  );
+  return [...expression.matchAll(/\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g)].some(
+    ([, name]) => {
+      if (!name) return false;
+      const catalogId = registry.getFormulaFunctions().has(name)
+        ? name
+        : name.toUpperCase();
+      return registry.getFormulaFunctions().has(catalogId) &&
+        !clientIds.has(catalogId);
+    },
+  );
+}
+
+function referencedValuesAreComplete(
+  expression: string,
+  values: Record<string, unknown>,
+  formulaNames: ReadonlySet<string>,
+  requireFormulaValues = false,
+): boolean {
+  return [...expression.matchAll(/\[([^\]]+)\]/g)].every(([, name]) => {
+    if (name && formulaNames.has(name)) {
+      if (!requireFormulaValues) return true;
+      const value = values[name];
+      return value !== undefined && value !== null && value !== "";
+    }
+    const value = name ? values[name] : undefined;
+    return value !== undefined && value !== null && value !== "";
+  });
 }
 
 // ── Slot-system Block Component ─────────────────────────────────────────────
@@ -1122,13 +1335,15 @@ export const RegistryTableBlockComponent = createBlockAdapter(
        folderId,
       updateAttrs: instance.updateAttrs,
       readOnly: context.viewMode === "view",
+      previewMode: context.viewMode === "prototype",
+      workspaceId: context.workspaceId,
       stretchMode,
       onToggleStretch: () => {
         const nextMode = stretchMode === "auto" ? "full" : "auto";
         instance.updateAttrs({ stretchMode: nextMode });
       },
       showStretchToggle: overrides.stretch === true,
-      emitAction: context.emitAction,
+      emitAction: context.viewMode === "prototype" ? undefined : context.emitAction,
     };
   },
 );

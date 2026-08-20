@@ -25,6 +25,7 @@ from helix_core.column_types import (
     ColumnTypeRegistry,
     DateColumnType,
     DatetimeColumnType,
+    FormulaColumnType,
     NumberColumnType,
     OperatorMeta,
     ProjectColumnType,
@@ -814,9 +815,9 @@ class ColumnTypeRegistryPayloadTests(TestCase):
 class BuiltinTypesListTests(TestCase):
     """Tests for get_builtin_column_types()."""
 
-    def test_returns_all_eight_types(self):
+    def test_returns_all_builtin_types(self):
         types = get_builtin_column_types()
-        self.assertEqual(len(types), 9)
+        self.assertEqual(len(types), 10)
 
     def test_all_types_have_unique_ids(self):
         types = get_builtin_column_types()
@@ -833,7 +834,14 @@ class BuiltinTypesListTests(TestCase):
         registry = _fresh_registry()
         for ct in get_builtin_column_types():
             registry.register_column_type(ct)
-        self.assertEqual(len(registry), 9)
+        self.assertEqual(len(registry), 10)
+
+    def test_formula_is_read_only_and_has_no_query_operations(self):
+        formula = FormulaColumnType()
+        self.assertEqual(formula.id, "formula")
+        self.assertEqual(formula.operand_shape, "text")
+        self.assertEqual(formula.get_operators(), [])
+        self.assertEqual(formula.get_aggregates(), [])
 
 
 # ── Contract test: columnTypes in mod-registry response ──────────────────────
@@ -883,11 +891,11 @@ class ColumnTypesContractTests(TestCase):
         except ValidationError as exc:
             self.fail(f"Response does not match JSON schema: {exc.message}")
 
-    def test_all_eight_builtin_types_present(self):
+    def test_all_builtin_types_present(self):
         """All built-in column types plus mod-registered types are present."""
         response = self.client.get("/api/mod-registry/")
         type_ids = {ct["id"] for ct in response.data["columnTypes"]}
-        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "project", "tiptap_content"}
+        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "project", "formula", "tiptap_content"}
         self.assertEqual(type_ids, expected)
 
     def test_builtin_operators_have_correct_shape(self):

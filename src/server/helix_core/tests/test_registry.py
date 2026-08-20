@@ -70,6 +70,7 @@ class TestFormulaFunctionRegistration:
             "argumentKinds": ["text"],
             "resultKind": "number",
             "description": "GC content percentage.",
+            "clientImplemented": False,
         }]
 
     def test_duplicate_and_invalid_ids_are_rejected(self):
@@ -85,6 +86,43 @@ class TestFormulaFunctionRegistration:
             reg.register_formula_function("SUM", **kwargs)
         with pytest.raises(ValueError, match="identifiers"):
             reg.register_formula_function("not valid", **kwargs)
+
+    def test_client_implementation_defaults_to_false_and_can_be_declared(self):
+        reg = _fresh_registry()
+        implementation = lambda args: {"ok": True, "value": 1}
+
+        reg.register_formula_function(
+            "backend.only",
+            argument_kinds=[],
+            result_kind="number",
+            description="Backend only",
+            implementation=implementation,
+        )
+        reg.register_formula_function(
+            "client.fn",
+            argument_kinds=[],
+            result_kind="number",
+            description="Client function",
+            implementation=implementation,
+            client_implemented=True,
+        )
+
+        assert reg.get_formula_catalog() == [
+            {
+                "id": "backend.only",
+                "argumentKinds": [],
+                "resultKind": "number",
+                "description": "Backend only",
+                "clientImplemented": False,
+            },
+            {
+                "id": "client.fn",
+                "argumentKinds": [],
+                "resultKind": "number",
+                "description": "Client function",
+                "clientImplemented": True,
+            },
+        ]
 
 
 # ── register_action_model / get_action_model ─────────────────────────────────

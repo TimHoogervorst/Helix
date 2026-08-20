@@ -101,9 +101,10 @@
           "id": { "type": "string" },
           "argumentKinds": { "type": "array", "items": { "type": "string" } },
           "resultKind": { "type": "string" },
-          "description": { "type": "string" }
+          "description": { "type": "string" },
+          "clientImplemented": { "type": "boolean" }
         },
-        "required": ["id", "argumentKinds", "resultKind", "description"]
+        "required": ["id", "argumentKinds", "resultKind", "description", "clientImplemented"]
       }
     }
   },

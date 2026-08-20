@@ -65,6 +65,7 @@ export interface BackendFormulaFunction {
   argumentKinds: string[];
   resultKind: string;
   description: string;
+  clientImplemented: boolean;
 }
 
 /** Single workspace entry in the backend mod-registry response. */
@@ -232,7 +233,7 @@ export class ModRegistry {
           const functionEntry = entry as BackendFormulaFunction;
           this.formulaFunctions.set(functionEntry.id, functionEntry);
         }
-        hydrateFormulaCatalog(this.formulaFunctions.keys());
+        hydrateFormulaCatalog(this.formulaFunctions.values());
         for (const id of this.clientFormulaFunctionIds) {
           if (!this.formulaFunctions.has(id)) {
             this.clientFormulaFunctionIds.delete(id);

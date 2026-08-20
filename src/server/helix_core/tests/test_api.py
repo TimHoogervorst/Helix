@@ -27,25 +27,69 @@ class FormulaEvaluateApiTests(TestCase):
         self.user = User.objects.create_user(username="formula-user", password="pass")
         self.client.force_authenticate(user=self.user)
 
-    def test_evaluates_expression_against_row(self):
+    def test_evaluates_expression_batch_against_one_row(self):
         response = self.client.post(
             "/api/formulas/evaluate/",
-            {"expression": "[Amount] * [Count]", "row": {"Amount": 4, "Count": 3}},
+            {
+                "expressions": {
+                    "Total": "[Amount] * [Count]",
+                    "Derived": "[Total] * 2",
+                },
+                "row": {"Amount": 4, "Count": 2},
+            },
             format="json",
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"result": {"ok": True, "value": 12}})
+        self.assertEqual(
+            response.data,
+            {
+                "results": {
+                    "Total": {"ok": True, "value": 8},
+                    "Derived": {
+                        "ok": False,
+                        "error": {
+                            "code": "#REF!",
+                            "message": "Unknown column 'Total'",
+                        },
+                    },
+                },
+            },
+        )
+
+    def test_batch_evaluation_does_not_persist_results(self):
+        schema_count = Schema.objects.count()
+        response = self.client.post(
+            "/api/formulas/evaluate/",
+            {"expressions": {"Total": "[Amount] * 2"}, "row": {"Amount": 4}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Schema.objects.count(), schema_count)
 
     def test_returns_tagged_errors(self):
         response = self.client.post(
             "/api/formulas/evaluate/",
-            {"expression": "[Amount] / [Count]", "row": {"Amount": 4, "Count": 0}},
+            {
+                "expressions": {"Ratio": "[Amount] / [Count]"},
+                "row": {"Amount": 4, "Count": 0},
+            },
             format="json",
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["result"]["error"]["code"], "#DIV/0!")
+        self.assertEqual(response.data["results"]["Ratio"]["error"]["code"], "#DIV/0!")
+
+    def test_rejects_single_expression_shape(self):
+        response = self.client.post(
+            "/api/formulas/evaluate/",
+            {"expression": "[Amount] * 2", "row": {"Amount": 4}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("expressions", response.data)
 
 
 class SchemaTypeApiTests(TestCase):

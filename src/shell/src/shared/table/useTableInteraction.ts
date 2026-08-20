@@ -74,6 +74,7 @@ interface TableInteractionOptions {
   onPaste: (anchor: TablePosition, values: string[][]) => void;
   onClear: (positions: TablePosition[]) => void;
   readOnly?: boolean;
+  isCellReadOnly?: (position: TablePosition) => boolean;
 }
 
 export function useTableInteraction({
@@ -84,6 +85,7 @@ export function useTableInteraction({
   onPaste,
   onClear,
   readOnly = false,
+  isCellReadOnly,
 }: TableInteractionOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeCell, setActiveCell] = useState<TablePosition>({ row: 0, column: 0 });
@@ -96,6 +98,10 @@ export function useTableInteraction({
   const dragRef = useRef<{ anchor: TablePosition; last: TablePosition; moved: boolean; active: boolean } | null>(null);
   const suppressClickRef = useRef<TablePosition | null>(null);
   const cellKey = (position: TablePosition) => tableId ? `${tableId}:${position.row}:${position.column}` : `${position.row}:${position.column}`;
+  const cellIsReadOnly = useCallback(
+    (position: TablePosition) => readOnly || isCellReadOnly?.(position) === true,
+    [isCellReadOnly, readOnly],
+  );
 
   const boundPosition = useCallback((position: TablePosition) => ({
     row: Math.max(0, Math.min(rowCount - 1, position.row)),
@@ -264,6 +270,7 @@ export function useTableInteraction({
   }, [boundPosition, focusCell, selectCell, selectionAnchor, selectRange, tableId]);
 
   const activateCell = useCallback((position: TablePosition, edit = true, emptyDraft = false) => {
+    if (edit && cellIsReadOnly(position)) return;
     setActiveCell(position);
     setTableIsActive(true);
     setSelectionAnchor(position);
@@ -271,7 +278,7 @@ export function useTableInteraction({
     focusCell(position);
     setEditingDraft(emptyDraft ? "" : null);
     setEditingCell(edit ? position : null);
-  }, [focusCell, tableId]);
+  }, [cellIsReadOnly, focusCell, tableId]);
 
   const finishEditing = useCallback(() => {
     setEditingCell(null);
@@ -317,10 +324,11 @@ export function useTableInteraction({
         : selectedCells.size ? selectedCells : new Set([cellKey(position)]);
       for (const key of keys) {
         const [row, column] = key.split(":").slice(tableId ? 1 : 0).map(Number);
-        positions.push({ row, column });
+        const position = { row, column };
+        if (!cellIsReadOnly(position)) positions.push(position);
       }
-      onClear(positions);
-      if (event.key === "Backspace") activateCell(position, true, true);
+      if (positions.length > 0) onClear(positions);
+      if (event.key === "Backspace" && !cellIsReadOnly(position)) activateCell(position, true, true);
       return;
     }
     const delta = event.key === "ArrowUp" ? { row: -1, column: 0 }
@@ -342,7 +350,7 @@ export function useTableInteraction({
       return;
     }
     moveTo({ row: position.row + delta.row, column: position.column + delta.column }, event.shiftKey && event.key.startsWith("Arrow"));
-  }, [activateCell, boundPosition, columnCount, focusCell, moveTo, onClear, readOnly, rowCount, selectedCells, tableId]);
+  }, [activateCell, boundPosition, cellIsReadOnly, columnCount, focusCell, moveTo, onClear, readOnly, rowCount, selectedCells, tableId]);
 
   const handleEditorKeyDown = useCallback((
     position: TablePosition,

@@ -84,7 +84,7 @@ The catalog hydrates to the frontend as a new section of `GET /api/mod-registry/
 **Computed Fields** route by expression content:
 
 - Every function in the expression has a client implementation → live preview as inputs are typed (display-only — the number shown is never the number stored; the backend recomputes at registration).
-- The expression contains any backend-only function → the cell shows a placeholder; the row's three-dot menu gains a **Refresh** item that recomputes the whole row's Computed Fields via the evaluate gateway — `POST /api/formulas/evaluate/`, row-scoped batch: expressions + row values in, tagged results out. When inputs change, fetched values render dimmed (stale) until the next refresh. No automatic requests, no debouncing.
+- The expression contains any backend-only function → the cell shows a placeholder; the row's three-dot menu gains a **Refresh** item that recomputes the whole row's Computed Fields via the evaluate gateway. Each dependency-ready round sends one request to `POST /api/formulas/evaluate/` with `{ "expressions": { "Column": "expression" }, "row": { ... } }` and receives `{ "results": { "Column": { "ok": true, "value": ... } } }` (or a tagged error). Expressions in one round all evaluate against the same row and do not cascade. When inputs change, fetched values render dimmed (stale) until the next refresh. No automatic requests, no debouncing.
 - Inputs incomplete → silent placeholder (no request, no spinner).
 
 The gateway is display-only infrastructure: it never produces stored values. Stored values come exclusively from the registration path.
@@ -126,7 +126,7 @@ Computed Fields are set up through a modal, not an inline input in the column ed
 - The modal contains three things:
   1. **Expression input with autocomplete** — sibling column names and functions from the **full** Function Catalog (Computed Fields may use backend-only functions), each function with its signature and description from catalog metadata.
   2. **Live validation panel** — syntax errors, unknown references, self-reference, cycles: the same rules the backend enforces at schema save, shown while composing.
-  3. **Test bench** — one sample-value input per referenced column and an evaluate action that runs the expression against the samples, so an admin can sanity-check an expression before any table exists. The test bench calls the evaluate gateway — one explicit request, works for every function, consistent with backend authority.
+   3. **Test bench** — one sample-value input per referenced column and an evaluate action that runs the expression against the samples, so an admin can sanity-check an expression before any table exists. Client-evaluable expressions use the shared client engine; backend-only expressions use one explicit batch request to the evaluate gateway with the formula column name as its result key.
 - The modal is a single component with one consumer in v1 (the LIMS schema settings).
 
 ### Removal of the interim implementation
@@ -140,6 +140,7 @@ Computed Fields are set up through a modal, not an inline input in the column ed
 - **Frontend engine** (parser, AST, evaluator, error model): `src/shell/src/shared/formulas/` — shared by table blocks for Computed Field previews.
 - **Client implementations of the default set**: ship with the engine in the shell, registered at boot.
 - **Backend engine** (mirroring grammar + authoritative implementations): `helix_core`, next to the column type registry.
+- **Computed Fields module** (row preview, dependency-ready refresh, staleness, and gateway adapter): `src/shell/src/shared/hooks/useComputedFields.ts`.
 - **Registration surface**: `register_formula_function()` added to the backend mod registration API; `registerFormulaFunction()` added to the frontend mod system registry.
 - **Catalog hydration**: new section of the `GET /api/mod-registry/` payload.
 - **Formula Editor modal**: with the LIMS schema settings (its only v1 consumer), built on the shared engine and the hydrated catalog metadata.
@@ -164,7 +165,9 @@ Dual implementations are only safe if equivalence is mechanically enforced. A sh
 - **Backend engine** — unit: the same parity fixtures, plus schema expression validation (unknown columns, unknown functions, self-reference, cycles).
 - **Catalog registration** — backend: `register_formula_function()` metadata in the mod registry payload; frontend: `registerFormulaFunction()` validation against the hydrated catalog (unknown id warns and is ignored).
 - **Registration contract** — backend (extend `test_api.py` batch-register suites): computed values recomputed server-side, per-row formula errors fail only that row, expression version recorded. Frontend (extend `ResultTableNode.test.tsx` / `RegistryTableNode.test.tsx`): patch-back of computed values, dimmed-stale cells on input change, and Refresh menu behavior.
-- **Formula Editor modal** — opens from the Fx button, read-only summary reflects the saved expression, autocomplete offers sibling columns + full catalog, validation panel surfaces each rule (unknown reference, self-reference, cycle), test bench calls the evaluate gateway and renders the tagged result.
+- **Evaluate gateway** — backend API: keyed expression batches evaluate independently against one row, old single-expression requests are rejected, results are tagged per column, and no values are persisted.
+- **Computed Fields module** — hook-level: AST-based detection, local preview routing, dependency-ready batches, clearing, staleness, `markRefreshed`, concurrent row refreshes, and batch payloads.
+- **Formula Editor modal** — opens from the Fx button, read-only summary reflects the saved expression, autocomplete offers sibling columns + full catalog, validation panel surfaces each rule (unknown reference, self-reference, cycle), client-evaluable expressions preview locally, and backend-only expressions use the batch gateway and render the tagged result.
 
 ### Prior art for tests
 

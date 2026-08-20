@@ -43,6 +43,8 @@ const defaultClientFunctionIds = new Set([
   "LEN",
 ]);
 let hydratedFunctionIds: Set<string> | null = null;
+let authoritativeCatalog = false;
+let unavailableDeclaredFunctionIds = new Set<string>();
 
 /** Register a client implementation, optionally validated against the catalog. */
 export function registerFormulaFunction(
@@ -56,9 +58,48 @@ export function registerFormulaFunction(
   clientImplementations.set(id, implementation);
 }
 
-/** Set the backend catalog and discard registrations for unknown functions. */
-export function hydrateFormulaCatalog(ids: Iterable<string>): void {
-  hydratedFunctionIds = new Set(ids);
+/** Set the backend catalog and verify its client implementation declarations. */
+export function hydrateFormulaCatalog(
+  entries: Iterable<string | { id: string; clientImplemented?: boolean }>,
+): void {
+  const rawEntries = [...entries];
+  authoritativeCatalog =
+    rawEntries.length === 0 ||
+    rawEntries.some((entry) => typeof entry !== "string");
+  const catalog = rawEntries.map((entry) =>
+    typeof entry === "string" ? { id: entry, clientImplemented: true } : entry,
+  );
+  hydratedFunctionIds = new Set(catalog.map((entry) => entry.id));
+  const actualClientFunctionIds = new Set([
+    ...defaultClientFunctionIds,
+    ...clientImplementations.keys(),
+  ]);
+  unavailableDeclaredFunctionIds = new Set(
+    catalog
+      .filter(
+        (entry) =>
+          entry.clientImplemented === true &&
+          !actualClientFunctionIds.has(entry.id),
+      )
+      .map((entry) => entry.id),
+  );
+  for (const entry of catalog) {
+    if (
+      entry.clientImplemented === true &&
+      !actualClientFunctionIds.has(entry.id)
+    ) {
+      console.warn(
+        `Formula function '${entry.id}' declares a client implementation but none is registered; treating it as backend-only.`,
+      );
+    } else if (
+      entry.clientImplemented === false &&
+      actualClientFunctionIds.has(entry.id)
+    ) {
+      console.warn(
+        `Formula function '${entry.id}' is registered on the client but declared backend-only.`,
+      );
+    }
+  }
   for (const id of clientImplementations.keys()) {
     if (!hydratedFunctionIds.has(id)) {
       clientImplementations.delete(id);
@@ -68,18 +109,27 @@ export function hydrateFormulaCatalog(ids: Iterable<string>): void {
 }
 
 export function getClientFormulaFunctionIds(): ReadonlySet<string> {
-  const ids = new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+  const ids = new Set([
+    ...defaultClientFunctionIds,
+    ...clientImplementations.keys(),
+  ]);
   return hydratedFunctionIds
-    ? new Set([...ids].filter((id) => hydratedFunctionIds!.has(id)))
+    ? new Set(
+        [...ids].filter(
+          (id) =>
+            hydratedFunctionIds!.has(id) &&
+            !unavailableDeclaredFunctionIds.has(id),
+        ),
+      )
     : ids;
 }
 
-type Ast =
+export type FormulaAst =
   | { kind: "literal"; value: FormulaValue }
   | { kind: "reference"; name: string }
-  | { kind: "unary"; operator: string; operand: Ast }
-  | { kind: "binary"; operator: string; left: Ast; right: Ast }
-  | { kind: "call"; name: string; args: Ast[] };
+  | { kind: "unary"; operator: string; operand: FormulaAst }
+  | { kind: "binary"; operator: string; left: FormulaAst; right: FormulaAst }
+  | { kind: "call"; name: string; args: FormulaAst[] };
 type Token = {
   kind: "value" | "reference" | "operator" | "left" | "right" | "comma";
   value: string;
@@ -165,7 +215,7 @@ class Parser {
     const t = this.current();
     return !!t && t.kind === kind && (value === undefined || t.value === value);
   }
-  parse(): Ast {
+  parse(): FormulaAst {
     if (!this.tokens.length) throw Error("Formula cannot be empty");
     const ast = this.comparison();
     if (this.current()) throw Error("Unexpected token");
@@ -184,7 +234,7 @@ class Parser {
         operator: this.take().value,
         left,
         right: this.term(),
-      } as Ast;
+      } as FormulaAst;
     return left;
   }
   private term() {
@@ -195,7 +245,7 @@ class Parser {
         operator: this.take().value,
         left,
         right: this.factor(),
-      } as Ast;
+      } as FormulaAst;
     return left;
   }
   private factor() {
@@ -209,10 +259,10 @@ class Parser {
         operator: this.take().value,
         left,
         right: this.unary(),
-      } as Ast;
+      } as FormulaAst;
     return left;
   }
-  private unary(): Ast {
+  private unary(): FormulaAst {
     if (this.has("operator", "-") || this.has("operator", "+"))
       return {
         kind: "unary",
@@ -221,7 +271,7 @@ class Parser {
       };
     return this.primary();
   }
-  private primary(): Ast {
+  private primary(): FormulaAst {
     const token = this.take();
     if (token.kind === "reference")
       return { kind: "reference", name: token.value };
@@ -241,7 +291,7 @@ class Parser {
       : token.value.toUpperCase();
     if (this.has("left")) {
       this.take();
-      const args: Ast[] = [];
+      const args: FormulaAst[] = [];
       if (!this.has("right")) {
         do {
           args.push(this.comparison());
@@ -263,7 +313,7 @@ class Parser {
 
 export function parseFormula(
   expression: string,
-): FormulaResult & { ast?: Ast } {
+): FormulaResult & { ast?: FormulaAst } {
   try {
     return {
       ok: true,
@@ -274,6 +324,61 @@ export function parseFormula(
     return fail("#SYNTAX!", e instanceof Error ? e.message : "Invalid formula");
   }
 }
+
+/** Visit every node in a parsed formula, including nested function arguments. */
+export function walkFormulaAst(
+  ast: FormulaAst,
+  visit: (node: FormulaAst) => void,
+): void {
+  visit(ast);
+  if (ast.kind === "unary") walkFormulaAst(ast.operand, visit);
+  else if (ast.kind === "binary") {
+    walkFormulaAst(ast.left, visit);
+    walkFormulaAst(ast.right, visit);
+  } else if (ast.kind === "call") {
+    ast.args.forEach((argument) => walkFormulaAst(argument, visit));
+  }
+}
+
+/** Return function IDs called by an expression, or an empty list if invalid. */
+export function functionCallsIn(expression: string): string[] {
+  const parsed = parseFormula(expression);
+  if (!parsed.ok || !parsed.ast) return [];
+
+  const calls: string[] = [];
+  walkFormulaAst(parsed.ast, (node) => {
+    if (node.kind === "call") calls.push(node.name);
+  });
+  return calls;
+}
+
+/** Return catalogued functions in an expression without a client implementation. */
+export function unimplementedFormulaFunctionsIn(
+  expression: string,
+  clientFunctionIds: ReadonlySet<string> = getClientFormulaFunctionIds(),
+): string[] {
+  const calls = functionCallsIn(expression);
+  const catalogIds =
+    hydratedFunctionIds ??
+    new Set([...defaultClientFunctionIds, ...clientImplementations.keys()]);
+  if (!authoritativeCatalog) {
+    return [...new Set(calls)].filter((id) => !clientFunctionIds.has(id));
+  }
+  return [...new Set(calls)].filter(
+    (id) => catalogIds.has(id) && !clientFunctionIds.has(id),
+  );
+}
+
+/** Return whether an expression calls a function without a client implementation. */
+export function usesBackendOnlyFunction(
+  expression: string,
+  clientFunctionIds: ReadonlySet<string> = getClientFormulaFunctionIds(),
+): boolean {
+  return (
+    unimplementedFormulaFunctionsIn(expression, clientFunctionIds).length > 0
+  );
+}
+
 function number(result: FormulaResult): number | FormulaResult {
   if (!result.ok) return result;
   if (typeof result.value === "number") return result.value;
@@ -295,7 +400,7 @@ function truth(result: FormulaResult): boolean | FormulaResult {
   );
 }
 function evalAst(
-  ast: Ast,
+  ast: FormulaAst,
   row: FormulaRow,
   context?: FormulaTableContext,
 ): FormulaResult {
@@ -357,8 +462,8 @@ function evalAst(
             : ast.operator === "/"
               ? a / b
               : ast.operator === "%"
-                ? a % b
-      : Math.pow(a, b),
+                ? ((a % b) + b) % b
+                : Math.pow(a, b),
     );
   }
   const registeredImplementation = clientImplementations.get(ast.name);
@@ -473,17 +578,12 @@ export function evaluateCellFormula(
   context: FormulaTableContext,
 ): FormulaResult {
   const parsed = parseFormula(expression.replace(/^=/, ""));
-  return parsed.ok && parsed.ast
-    ? evalAst(parsed.ast, row, context)
-    : parsed;
+  return parsed.ok && parsed.ast ? evalAst(parsed.ast, row, context) : parsed;
 }
-function refs(ast: Ast, result: Set<string>) {
-  if (ast.kind === "reference") result.add(ast.name);
-  else if (ast.kind === "unary") refs(ast.operand, result);
-  else if (ast.kind === "binary") {
-    refs(ast.left, result);
-    refs(ast.right, result);
-  } else if (ast.kind === "call") ast.args.forEach((arg) => refs(arg, result));
+function refs(ast: FormulaAst, result: Set<string>) {
+  walkFormulaAst(ast, (node) => {
+    if (node.kind === "reference") result.add(node.name);
+  });
 }
 export function evaluateRow(
   row: FormulaRow,

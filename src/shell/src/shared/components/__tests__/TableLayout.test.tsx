@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   StickyActionCell,
   StickyActionHeader,
-  TableChrome,
   TableScroll,
   TableStretch,
-} from "../../primitives/TableLayout";
+} from "../../table/TableLayout";
+import { TableChrome } from "../../table/TableChrome";
 
 describe("Table layout primitives", () => {
   it("composes stretch, scroll, sticky action, and chrome contracts", () => {

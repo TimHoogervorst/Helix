@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useTableInteraction } from "../useTableInteraction";
+import { useTableInteraction } from "../../table/useTableInteraction";
 
 function TestTable({ tableId, rowCount = 1, columnCount = 1 }: { tableId: string; rowCount?: number; columnCount?: number }) {
   const interaction = useTableInteraction({

@@ -22,8 +22,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { TablePosition, useTableInteraction } from "../hooks/useTableInteraction";
-import { EntityPickerPopover } from "./EntityPickerPopover";
+import type { TablePosition, useTableInteraction } from "./useTableInteraction";
+import { EntityPickerPopover } from "../components/EntityPickerPopover";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

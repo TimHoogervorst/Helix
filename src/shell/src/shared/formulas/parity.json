@@ -48,6 +48,30 @@
     "expected": { "ok": false, "error": { "code": "#DIV/0!" } }
   },
   {
+    "name": "negative dividend modulo",
+    "expression": "-7 % 3",
+    "row": {},
+    "expected": { "ok": true, "value": 2 }
+  },
+  {
+    "name": "negative divisor modulo",
+    "expression": "7 % -3",
+    "row": {},
+    "expected": { "ok": true, "value": -2 }
+  },
+  {
+    "name": "both operands negative modulo",
+    "expression": "-7 % -3",
+    "row": {},
+    "expected": { "ok": true, "value": -1 }
+  },
+  {
+    "name": "boolean in arithmetic is invalid",
+    "expression": "TRUE + 1",
+    "row": {},
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
     "name": "missing reference",
     "expression": "[Missing]",
     "row": {},
@@ -166,6 +190,132 @@
     "expression": "LEN(\"hello\")",
     "row": {},
     "expected": { "ok": true, "value": 5 }
+  },
+  {
+    "name": "backend-only ceiling",
+    "expression": "CEILING(1.2)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 2 }
+  },
+  {
+    "name": "backend-only floor",
+    "expression": "FLOOR(1.8)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 1 }
+  },
+  {
+    "name": "backend-only modulo",
+    "expression": "MOD(7, 3)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 1 }
+  },
+  {
+    "name": "backend-only modulo negative dividend",
+    "expression": "MOD(-7, 3)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 2 }
+  },
+  {
+    "name": "backend-only modulo negative divisor",
+    "expression": "MOD(7, -3)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": -2 }
+  },
+  {
+    "name": "backend-only modulo with both operands negative",
+    "expression": "MOD(-7, -3)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": -1 }
+  },
+  {
+    "name": "backend-only modulo divisor zero",
+    "expression": "MOD(1, 0)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": false, "error": { "code": "#DIV/0!" } }
+  },
+  {
+    "name": "backend-only square root",
+    "expression": "SQRT(9)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 3.0 }
+  },
+  {
+    "name": "backend-only square root of negative",
+    "expression": "SQRT(-1)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": false, "error": { "code": "#VALUE!" } }
+  },
+  {
+    "name": "backend-only power",
+    "expression": "POWER(2, 3)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 8 }
+  },
+  {
+    "name": "backend-only logarithm",
+    "expression": "LOG(100)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": 2.0 }
+  },
+  {
+    "name": "backend-only sign",
+    "expression": "SIGN(-4)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": -1 }
+  },
+  {
+    "name": "backend-only trim",
+    "expression": "TRIM(\"  a   b  \")",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": "a b" }
+  },
+  {
+    "name": "backend-only left",
+    "expression": "LEFT(\"hello\", 2)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": "he" }
+  },
+  {
+    "name": "backend-only right",
+    "expression": "RIGHT(\"hello\", 2)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": "lo" }
+  },
+  {
+    "name": "backend-only mid",
+    "expression": "MID(\"hello\", 2, 3)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": "ell" }
+  },
+  {
+    "name": "backend-only substitute with occurrence",
+    "expression": "SUBSTITUTE(\"a-b-a\", \"a\", \"x\", 2)",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": "a-b-x" }
+  },
+  {
+    "name": "backend-only substitute",
+    "expression": "SUBSTITUTE(\"a-b\", \"-\", \"/\")",
+    "row": {},
+    "backendOnly": true,
+    "expected": { "ok": true, "value": "a/b" }
   },
   {
     "name": "cycle",

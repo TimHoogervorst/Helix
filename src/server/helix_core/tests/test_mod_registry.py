@@ -133,6 +133,18 @@ class ModRegistryContractTests(TestCase):
         except ValidationError as exc:
             self.fail(f"Response does not match JSON schema: {exc.message}")
 
+    def test_formula_catalog_exposes_client_implementation_declaration(self):
+        response = self.client.get("/api/mod-registry/")
+        self.assertEqual(response.status_code, 200)
+
+        functions = {entry["id"]: entry for entry in response.data["formulaFunctions"]}
+        self.assertIn("IF", functions)
+        self.assertIn("MOD", functions)
+        self.assertTrue(functions["IF"]["clientImplemented"])
+        self.assertFalse(functions["MOD"]["clientImplemented"])
+        self.assertIn("argumentKinds", functions["IF"])
+        self.assertIn("resultKind", functions["IF"])
+
     # ── Content assertions ───────────────────────────────────────────────
 
     def test_lims_schema_type(self):

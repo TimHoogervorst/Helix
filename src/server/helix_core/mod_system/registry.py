@@ -146,6 +146,7 @@ class BackendModRegistry:
         result_kind: str,
         description: str,
         implementation: Callable[..., Any],
+        client_implemented: bool = False,
     ) -> None:
         """Register one authoritative formula function and its public metadata."""
         if not FORMULA_FUNCTION_ID.fullmatch(function_id):
@@ -159,6 +160,7 @@ class BackendModRegistry:
             "argumentKinds": list(argument_kinds),
             "resultKind": result_kind,
             "description": description,
+            "clientImplemented": client_implemented,
             "implementation": implementation,
         }
 

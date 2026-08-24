@@ -554,6 +554,7 @@ label {
 
 .table-layout-chrome {
   border: 1px solid var(--color-ink-hairline);
+  border-top: 0;
   border-radius: var(--radius-lg);
   background: var(--color-card);
 }
@@ -563,9 +564,7 @@ label {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-inline: 1px solid var(--color-ink-hairline);
-  border-top: 0;
-  border-bottom: 1px solid var(--color-ink-hairline);
+  border: 1px solid var(--color-ink-hairline);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 0.25rem 0.75rem;
 }

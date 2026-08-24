@@ -519,6 +519,7 @@ label {
 .table-layout-scroll {
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   display: grid;
   grid-template-columns: subgrid;
 }
@@ -562,39 +563,41 @@ label {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  border: 1px solid var(--color-ink-hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border-bottom: 1px solid var(--color-ink-hairline);
-  padding: 0.75rem 1rem;
+  padding: 0.25rem 0.75rem;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__bar {
+.table-layout-chrome__bar.table-layout-chrome--compact {
   padding-block: 0;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__toolbar > button[aria-label] {
-  width: 2.25rem;
-  height: 2.25rem;
+.table-layout-chrome__bar.table-layout-chrome--compact .table-layout-chrome__toolbar > button[aria-label] {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__toolbar > .table-layout-register-button {
-  width: 1.875rem;
-  height: 1.875rem;
+.table-layout-chrome__bar.table-layout-chrome--compact .table-layout-chrome__toolbar > .table-layout-register-button {
+  width: 1.625rem;
+  height: 1.625rem;
 }
 
-.table-layout-chrome--compact thead th {
+.table-layout-scroll.table-layout-chrome--compact thead th {
   padding-block: 0.25rem;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__title {
+.table-layout-chrome__bar.table-layout-chrome--compact .table-layout-chrome__title {
   font-size: var(--text-sm);
 }
 
-.table-layout-chrome--compact table {
+.table-layout-scroll.table-layout-chrome--compact table {
   font-size: var(--text-sm);
 }
 
-.table-layout-chrome--compact .table-cell-full,
-.table-layout-chrome--compact input.table-cell-full,
-.table-layout-chrome--compact select.table-cell-full {
+.table-layout-scroll.table-layout-chrome--compact .table-cell-full,
+.table-layout-scroll.table-layout-chrome--compact input.table-cell-full,
+.table-layout-scroll.table-layout-chrome--compact select.table-cell-full {
   font-size: var(--text-xs);
 }
 

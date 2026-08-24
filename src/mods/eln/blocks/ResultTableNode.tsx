@@ -617,7 +617,7 @@ export function ResultTableContent({
             />
           );
         }}
-        trailingHeader={!readOnly ? "Actions" : undefined}
+        trailingHeader={!readOnly ? "" : undefined}
           renderTrailingCell={!readOnly ? (_, rowIndex) => {
           const row = rows[rowIndex];
           return (

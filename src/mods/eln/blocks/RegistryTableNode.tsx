@@ -1016,7 +1016,7 @@ export function RegistryTableContent({
         }}
         trailingHeader={
           !readOnly ? (
-            <span data-testid="registry-table-header-delete">Actions</span>
+            <span data-testid="registry-table-header-delete" />
           ) : undefined
         }
         renderTrailingCell={

@@ -532,6 +532,15 @@ label {
   min-width: 100%;
 }
 
+/* The chrome owns the top frame; prevent collapsed table borders from adding
+   a second rule at the top edge of the header row. */
+.table-layout-scroll table,
+.table-layout-scroll thead,
+.table-layout-scroll thead tr,
+.table-layout-scroll thead th {
+  border-top: 0;
+}
+
 .table-layout-scroll:not(:hover) {
   scrollbar-width: none;
 }

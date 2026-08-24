@@ -8,7 +8,7 @@
  *  - UserMenu trigger renders (avatar + username from CurrentUserContext)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { BookOpen, House } from "lucide-react";
 import { ModRegistry } from "../../mod-system/ModRegistry";
@@ -58,7 +58,35 @@ function renderLayout(initialRoute = "/library") {
   );
 }
 
+function mockMatchMedia(initialMatches: boolean) {
+  let matches = initialMatches;
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const mediaQuery = {
+    get matches() {
+      return matches;
+    },
+    media: "(max-width: 1023px)",
+    addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    },
+    removeEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    },
+    setMatches(nextMatches: boolean) {
+      matches = nextMatches;
+      listeners.forEach((listener) => listener({ matches } as MediaQueryListEvent));
+    },
+  };
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => mediaQuery,
+  });
+  return mediaQuery;
+}
+
 beforeEach(() => {
+  mockMatchMedia(false);
   vi.clearAllMocks();
   ModRegistry._reset();
   // Register mock hubs so the dynamic sidebar renders nav links.
@@ -441,6 +469,30 @@ describe("CollapsibleSidebar integration", () => {
     expect(
       screen.getByRole("button", { name: "Collapse sidebar" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the icon strip below lg regardless of the manual state", () => {
+    const mediaQuery = mockMatchMedia(true);
+    renderLayout("/library");
+
+    const aside = screen.getByRole("complementary");
+    expect(aside).toHaveClass("is-collapsed");
+    expect(aside).toHaveClass("variant-icon-strip");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(aside).toHaveClass("is-collapsed");
+
+    act(() => mediaQuery.setMatches(false));
+    expect(aside).toHaveClass("is-expanded");
+  });
+
+  it("keeps manual collapse available at lg and above", () => {
+    mockMatchMedia(false);
+    renderLayout("/library");
+
+    const aside = screen.getByRole("complementary");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(aside).toHaveClass("is-collapsed");
   });
 
   it("renders SidebarSection headers for Navigation and Workspace", () => {

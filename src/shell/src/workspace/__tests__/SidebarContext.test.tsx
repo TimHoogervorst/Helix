@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { SidebarProvider, useSidebar } from "../SidebarContext";
 
@@ -11,6 +11,33 @@ import { SidebarProvider, useSidebar } from "../SidebarContext";
  */
 function renderWithProvider(ui: ReactNode) {
   return render(<SidebarProvider>{ui}</SidebarProvider>);
+}
+
+function mockMatchMedia(initialMatches: boolean) {
+  let matches = initialMatches;
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const mediaQuery = {
+    get matches() {
+      return matches;
+    },
+    media: "(max-width: 1023px)",
+    addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    },
+    removeEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    },
+    setMatches(nextMatches: boolean) {
+      matches = nextMatches;
+      listeners.forEach((listener) => listener({ matches } as MediaQueryListEvent));
+    },
+  };
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => mediaQuery,
+  });
+  return mediaQuery;
 }
 
 /**
@@ -68,6 +95,10 @@ function SidebarConsumer({
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SidebarContext", () => {
+  beforeEach(() => {
+    mockMatchMedia(false);
+  });
+
   // ── Initial state ────────────────────────────────────────────────────
 
   describe("initial state", () => {
@@ -104,6 +135,30 @@ describe("SidebarContext", () => {
       fireEvent.click(btn);
       fireEvent.click(btn);
       expect(screen.getByTestId("isCollapsed").textContent).toBe("false");
+    });
+
+    it("stays collapsed below lg and ignores the manual toggle", () => {
+      const mediaQuery = mockMatchMedia(true);
+      renderWithProvider(<SidebarConsumer />);
+
+      expect(screen.getByTestId("isCollapsed").textContent).toBe("true");
+      fireEvent.click(screen.getByTestId("toggleSidebar"));
+      expect(screen.getByTestId("isCollapsed").textContent).toBe("true");
+
+      act(() => mediaQuery.setMatches(false));
+      expect(screen.getByTestId("isCollapsed").textContent).toBe("false");
+    });
+
+    it("restores the manual state when the viewport returns to lg", () => {
+      const mediaQuery = mockMatchMedia(false);
+      renderWithProvider(<SidebarConsumer />);
+
+      fireEvent.click(screen.getByTestId("toggleSidebar"));
+      act(() => mediaQuery.setMatches(true));
+      expect(screen.getByTestId("isCollapsed").textContent).toBe("true");
+
+      act(() => mediaQuery.setMatches(false));
+      expect(screen.getByTestId("isCollapsed").textContent).toBe("true");
     });
   });
 

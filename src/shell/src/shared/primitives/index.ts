@@ -11,12 +11,10 @@ export {
   TableCell,
 } from "./Table";
 export {
-  TableStretch,
   TableScroll,
   StickyActionHeader,
   StickyActionCell,
 } from "../table/TableLayout";
-export type { TableStretchMode } from "../table/TableLayout";
 export { TableChrome } from "../table/TableChrome";
 export { TabBar } from "./TabBar";
 export type { Tab } from "./TabBar";

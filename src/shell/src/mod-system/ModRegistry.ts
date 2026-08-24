@@ -419,6 +419,7 @@ export class ModRegistry {
           onEvent: block.onEvent,
           getDisplayName: block.getDisplayName,
           tags: block.tags,
+          layout: block.layout,
           emits: block.emits,
           overrides: mergedOverrides,
           serialize: block.serialize,

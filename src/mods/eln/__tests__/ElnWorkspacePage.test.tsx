@@ -404,68 +404,29 @@ describe("ElnWorkspacePage — five-zone layout", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════
-  // ── Five-zone layout ── (#281)
+  // ── Full-bleed layout ── (#565)
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  describe("Five-zone layout", () => {
-    it("renders all five zones: center gutter, right gutter, and right sidebar", () => {
+  describe("Full-bleed layout", () => {
+    it("renders the center content column and metadata sidebar", () => {
       renderAtRoute("/eln/EXP-0284");
 
-      // Zone 2 + right spacer: auto margins from justify-center on the
-      // content row centre the (center + right gutter) group.  No explicit
-      // spacer elements — the gutters are implicit.
-
-      // Zone 3: Center gutter — main element with editor content
       const main = document.querySelector("main");
-      expect(main).toBeDefined();
       expect(main).not.toBeNull();
-      // The editor renderer is rendered inside main
       expect(main!.querySelector('[data-testid="tiptap-renderer"]')).toBeDefined();
-
-      // Zone 4: Right gutter — aside for comments, hidden below xl
-      const commentsAside = screen.getByLabelText("Comments");
-      expect(commentsAside).toBeDefined();
-      expect(commentsAside.tagName).toBe("ASIDE");
-      // Hidden below xl — the class should include 'hidden' (jsdom
-      // doesn't match xl media queries, so the element is hidden in the DOM)
-      expect(commentsAside.className).toContain("hidden");
-
-      // Zone 5: Right sidebar — metadata panel via SlotSidebar
-      // The sidebar renders sections that are verified in Metadata Panel tests below.
-      // Just confirm the sidebar content is present.
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
+      expect(screen.getByTestId("metadata-line").parentElement).toHaveClass(
+        "eln-workspace-center",
+      );
     });
 
-    it("center gutter is centred via justify-center with counterweight balancing right gutter", () => {
-      // The content row uses justify-center. An invisible left counterweight
-      // (17.5rem, hidden xl:block) balances the right gutter so the center
-      // gutter is always horizontally centred — not pushed left by the right
-      // gutter. Per-block centering (max-w-3xl mx-auto) lives on .ProseMirror
-      // children and BlockNodeView wrappers, not on the <main> itself.
+    it("does not render removed gutters or centered-row balancing", () => {
       renderAtRoute("/eln/EXP-0284");
-      const main = document.querySelector("main");
-      expect(main).toBeDefined();
-      // Main no longer carries max-w-3xl — per-block centering handles it
-      expect(main!.className).not.toContain("max-w-3xl");
-      // The parent flex row uses justify-center for centering
-      const contentRow = main!.parentElement;
-      expect(contentRow).toBeDefined();
-      expect(contentRow!.className).toContain("justify-center");
-    });
-
-    it("right gutter is w-64 and hides below xl", () => {
-      renderAtRoute("/eln/EXP-0284");
-      const commentsAside = screen.getByLabelText("Comments");
-      // w-64 Tailwind class
-      expect(commentsAside.className).toContain("w-64");
-    });
-
-    it("right gutter hides below xl breakpoint (hidden xl:block)", () => {
-      renderAtRoute("/eln/EXP-0284");
-      const commentsAside = screen.getByLabelText("Comments");
-      // Must have 'hidden' for mobile, 'xl:block' for wide screens
-      expect(commentsAside.className).toContain("hidden");
-      expect(commentsAside.className).toContain("xl:block");
+      expect(screen.queryByLabelText("Comments")).toBeNull();
+      expect(document.querySelector("main")!.parentElement!.className).not.toContain(
+        "justify-center",
+      );
+      expect(document.body.innerHTML).not.toContain("layout-workspace-gutter");
     });
   });
 

@@ -162,6 +162,10 @@ describe("ResultTableContent", () => {
     expect(screen.getByTestId("result-table-loaded")).toHaveClass(
       "table-layout-chrome--compact",
     );
+    expect(screen.getByTestId("result-table-loaded")).toHaveAttribute(
+      "data-layout",
+      "full-bleed",
+    );
     expect(screen.getByRole("columnheader", { name: "Entity" })).toHaveClass(
       "py-1",
     );

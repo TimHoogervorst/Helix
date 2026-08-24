@@ -310,6 +310,41 @@ describe("TipTapRenderer", () => {
     expect(capture.editor).not.toBeNull();
   });
 
+  it("marks dynamic-bleed blocks at the workspace seam", async () => {
+    const capture = captureEditor();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        component: TestBlock,
+        layout: "dynamic-bleed",
+      }),
+    ];
+
+    render(
+      <TipTapRenderer
+        slotId={defaultSlotId}
+        bindings={bindings}
+        bus={bus}
+        context={defaultContext}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onCreate={(capture as any).onCreate}
+      />,
+    );
+
+    await waitFor(() => expect(capture.editor).toBeTruthy());
+    await act(async () => {
+      capture.editor!.commands.setContent({
+        type: "doc",
+        content: [{ type: "eln.table", attrs: { content: "{}" } }],
+      });
+    });
+
+    await waitFor(() => {
+      const marker = document.querySelector('[data-layout="dynamic-bleed"]');
+      expect(marker).toBeTruthy();
+      expect(marker?.parentElement).toHaveClass("react-renderer");
+    });
+  });
+
   it("editor schema includes block node types", async () => {
     const capture = captureEditor();
     const bindings: BlockBinding[] = [

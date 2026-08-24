@@ -415,22 +415,24 @@ describe("ElnChrome", () => {
     });
   });
 
-  describe("five-zone layout", () => {
-    it("renders center gutter main element", () => {
+  describe("full-bleed layout", () => {
+    it("renders the editor in the center content column", () => {
       renderChrome();
       const main = document.querySelector("main");
       expect(main).not.toBeNull();
       expect(main!.querySelector('[data-testid="tiptap-renderer"]')).toBeDefined();
+      expect(screen.getByTestId("metadata-line").parentElement).toHaveClass(
+        "eln-workspace-center",
+      );
     });
 
-    it("renders right gutter comments aside", () => {
+    it("does not render the removed comment gutter or balancing classes", () => {
       renderChrome();
-      const aside = screen.getByLabelText("Comments");
-      expect(aside).toBeDefined();
-      expect(aside.tagName).toBe("ASIDE");
-      expect(aside.className).toContain("w-64");
-      expect(aside.className).toContain("hidden");
-      expect(aside.className).toContain("xl:block");
+      expect(screen.queryByLabelText("Comments")).toBeNull();
+      expect(document.querySelector("main")!.parentElement!.className).not.toContain(
+        "justify-center",
+      );
+      expect(document.body.innerHTML).not.toContain("layout-workspace-gutter");
     });
 
     it("renders injected sidebar node", () => {
@@ -439,6 +441,15 @@ describe("ElnChrome", () => {
       });
       expect(screen.getByTestId("slot-sidebar")).toBeDefined();
       expect(screen.getByText("Sidebar")).toBeDefined();
+    });
+
+    it("hides the metadata sidebar below xl", () => {
+      renderChrome({
+        sidebar: React.createElement("div", { "data-testid": "slot-sidebar" }, "Sidebar"),
+      });
+      const sidebarWrapper = screen.getByTestId("slot-sidebar").parentElement;
+      expect(sidebarWrapper).not.toBeNull();
+      expect(sidebarWrapper).toHaveClass("hidden", "xl:block");
     });
 
     it("renders injected header actions node", () => {

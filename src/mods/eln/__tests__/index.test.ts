@@ -55,6 +55,11 @@ describe("eln mod registration", () => {
     expect(() => registry.validate()).not.toThrow();
   });
 
+  it("registers tables as dynamic-bleed editor blocks", () => {
+    expect(registry.getBlocks().get("eln.table")?.layout).toBe("dynamic-bleed");
+    expect(registry.getBlocks().get("eln.registry-table")?.layout).toBe("dynamic-bleed");
+  });
+
   // ── Slot System — Header Toolbar Dogfood (#227) ─────────────────────────
 
   it("declares the eln.header-actions slot with ButtonGroupRenderer", () => {

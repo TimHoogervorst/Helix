@@ -2768,11 +2768,7 @@ describe("RegistryTableContent — green row detection", () => {
   });
 });
 
-// ══════════════════════════════════════════════════════════════════════════
-// Stretch toggle (#282)
-// ══════════════════════════════════════════════════════════════════════════
-
-describe("RegistryTableBlockComponent — stretch toggle", () => {
+describe("RegistryTableBlockComponent — constrained layout", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockDel.mockReset();
@@ -2799,91 +2795,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
     });
   }
 
-  it("renders stretch toggle button when overrides.stretch is true", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({ overrides: { stretch: true } })}
-      />,
-    );
-    const btn = screen.getByTestId("stretch-toggle-btn");
-    expect(btn).toBeInTheDocument();
-    expect(btn).toHaveAttribute("aria-label", "Stretch table to full width");
-    expect(btn).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("does NOT render stretch toggle when overrides.stretch is absent", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({ overrides: {} })}
-      />,
-    );
-    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
-  });
-
-  it("does NOT render stretch toggle when overrides.stretch is false", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({ overrides: { stretch: false } })}
-      />,
-    );
-    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
-  });
-
-  it("does NOT render stretch toggle in placeholder state even with stretch override", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...makeBlockComponentProps({ overrides: { stretch: true } })}
-      />,
-    );
-    // Placeholder state (schemaId is null) — no toggle shown
-    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
-  });
-
-  it("default stretchMode uses the shared auto layout primitive", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({ overrides: { stretch: true } })}
-      />,
-    );
-    const wrapper = screen.getByTestId("registry-table-stretch-wrapper");
-    expect(wrapper.className).toContain("table-layout-stretch--auto");
-    // Auto mode: card is capped at 48rem, table scrolls within it.
-    // No mx-auto centering — left-aligned in the centre gutter.
-    expect(wrapper.className).not.toContain("mx-auto");
-  });
-
-  it("toggle click switches to full-width mode", () => {
-    const updateAttrs = vi.fn();
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({
-          overrides: { stretch: true },
-          rest: {
-            instance: {
-              id: "inst-1",
-              blockId: "eln.registry-table",
-              slotId: "eln.editor",
-              attrs: {
-                schemaId: 1,
-                schemaName: "Blood Sample",
-                schemaContentHash: "abc123",
-                title: "Test Table",
-                columns: [{ name: "Volume", type: "number", units: "mL" }],
-                rows: [makeRow()],
-              },
-              updateAttrs,
-            },
-          },
-        })}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("stretch-toggle-btn"));
-
-    expect(updateAttrs).toHaveBeenCalledWith({ stretchMode: "full" });
-  });
-
-  it("toggle click switches back to auto-fit mode", () => {
+  it("does not render the removed stretch toggle", () => {
     const updateAttrs = vi.fn();
     render(
       <RegistryTableBlockComponent
@@ -2892,7 +2804,7 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
           overrides: { stretch: true },
           rest: {
             instance: {
-              id: "inst-1",
+              id: "inst-legacy-stretch",
               blockId: "eln.registry-table",
               slotId: "eln.editor",
               attrs: {
@@ -2910,48 +2822,10 @@ describe("RegistryTableBlockComponent — stretch toggle", () => {
         })}
       />,
     );
-
-    fireEvent.click(screen.getByTestId("stretch-toggle-btn"));
-
-    expect(updateAttrs).toHaveBeenCalledWith({ stretchMode: "auto" });
-  });
-
-  it("full-width mode uses w-full class", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({
-          attrs: { stretchMode: "full" },
-          overrides: { stretch: true },
-        })}
-      />,
+    expect(screen.queryByTestId("stretch-toggle-btn")).not.toBeInTheDocument();
+    expect(screen.getByTestId("registry-table-grid").parentElement?.parentElement).toHaveClass(
+      "table-layout-scroll",
     );
-    const container = screen.getByTestId("registry-table-loaded");
-    expect(container.className).toContain("w-full");
-  });
-
-  it("toggle has correct aria-label and aria-pressed in full mode", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({
-          attrs: { stretchMode: "full" },
-          overrides: { stretch: true },
-        })}
-      />,
-    );
-    const btn = screen.getByTestId("stretch-toggle-btn");
-    expect(btn).toHaveAttribute("aria-label", "Auto-fit table to content");
-    expect(btn).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("stretchMode defaults to 'auto' when not in attrs", () => {
-    render(
-      <RegistryTableBlockComponent
-        {...loadedStretchProps({ overrides: { stretch: true } })}
-      />,
-    );
-    const wrapper = screen.getByTestId("registry-table-stretch-wrapper");
-    expect(wrapper.className).toContain("table-layout-stretch--auto");
-    // Auto mode: left-aligned, not centred
-    expect(wrapper.className).not.toContain("mx-auto");
+    expect(updateAttrs).not.toHaveBeenCalled();
   });
 });

@@ -136,7 +136,7 @@ function ElnChrome({
     return (
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 justify-center overflow-y-auto" style={{ overflowX: "clip" }}>
+          <div className="flex min-h-0 flex-1 overflow-y-auto" style={{ overflowX: "clip" }}>
             <main className="min-h-0 w-full">
               <div className="px-6 pb-24 pt-8">
                 <ContentLoadingSkeleton />
@@ -156,7 +156,7 @@ function ElnChrome({
     return (
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 justify-center overflow-y-auto" style={{ overflowX: "clip" }}>
+          <div className="flex min-h-0 flex-1 overflow-y-auto" style={{ overflowX: "clip" }}>
             <main className="min-h-0 w-full">
               <div className="px-6 pb-24 pt-8">
                 <div>
@@ -351,16 +351,8 @@ function ElnChrome({
           </div>
         </div>
 
-        {/* ── Content: five-zone layout ── */}
-        <div className="flex min-h-0 flex-1 justify-center overflow-y-auto" style={{ overflowX: "clip" }}>
-          {/* Zone 2: Left gutter counterweight */}
-          <div
-            className="hidden xl:block shrink-0"
-            style={{ width: "var(--layout-workspace-gutter)" }}
-            aria-hidden="true"
-          />
-
-          {/* Zone 3: Center gutter */}
+        {/* ── Content: padded full-bleed editor ── */}
+        <div className="flex min-h-0 flex-1 overflow-y-auto" style={{ overflowX: "clip" }}>
           <main className="min-h-0 w-full">
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
@@ -381,7 +373,7 @@ function ElnChrome({
                   )}
 
                   {/* ── Content area ── */}
-                  <div className="max-w-3xl mx-auto">
+                  <div className="eln-workspace-center">
 
                     {/* Metadata line */}
                     <div
@@ -477,17 +469,11 @@ function ElnChrome({
               </CommentVisibilityProvider>
             </div>
           </main>
-
-          {/* Zone 4: Right gutter — comment cards */}
-          <aside
-            className="hidden xl:block w-64 shrink-0 overflow-y-auto ml-6"
-            aria-label="Comments"
-          />
         </div>
       </div>
 
-      {/* Zone 5: Right sidebar — metadata panel */}
-      {sidebar}
+      {/* Metadata sidebar */}
+      {sidebar && <div className="hidden xl:block">{sidebar}</div>}
     </div>
   );
 }

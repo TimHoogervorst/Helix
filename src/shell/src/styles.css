@@ -67,11 +67,8 @@
   --color-accent-foreground: var(--color-ink);
 
   /* ── Workspace layout tokens ── */
-  --layout-workspace-gutter: 17.5rem;
   --layout-content-padding: 1.5rem;
-  --layout-table-breakout: calc(var(--layout-workspace-gutter) + var(--layout-content-padding));
   --layout-text-column: 48rem;
-  --layout-text-column-half: 24rem;
   --layout-table-demo-width: 56rem;
   --layout-table-demo-column: 12rem;
 
@@ -449,83 +446,54 @@ label {
 
 /* ── ProseMirror (TipTap's inner editor) ── */
 
+.eln-workspace-center {
+  width: min(100%, var(--layout-text-column));
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .ProseMirror {
   outline: none;
   min-height: 60vh;
   padding: 0;
   color: var(--color-foreground);
-  /* Per-child centering replaces the old container-level max-width
-     (see .ProseMirror > * below).  Stretch blocks use
-     .block-node-view-wrapper--stretch to go full-width. */
-  max-width: none;
+  /* Per-child centering replaces the old container-level max-width. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--layout-text-column)) minmax(0, 1fr);
+  width: 100%;
 }
 
 /* Default centering for all direct children: paragraphs, headings,
    block wrappers, etc.  Inherits the center-gutter constraint from
    the old .ProseMirror container rule. */
 .ProseMirror > * {
-  max-width: var(--layout-text-column);
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Stretch blocks override the per-child max-width so they expand
-   beyond the text column into the left and right gutters.
-
-   TipTap wraps NodeViewWrapper in a .react-renderer div, so the
-   .block-node-view-wrapper--stretch class sits one level deeper:
-     .ProseMirror > .react-renderer > .block-node-view-wrapper--stretch
-
-   :has() lifts the override to the ProseMirror-direct wrapper so it
-   stops constraining the block to max-w-3xl. */
-.ProseMirror > .react-renderer:has(.block-node-view-wrapper--stretch) {
-  max-width: none;
-}
-.block-node-view-wrapper--stretch {
+  grid-column: 2;
+  min-width: 0;
   max-width: none;
   width: 100%;
-}
-
-/* Stretch-auto: left-aligned with the text column so the block's left edge
-   matches centered max-w-3xl blocks.  The left margin is calculated to match
-   the auto margin of centered blocks: max(0, (100% - 48rem) / 2).  When the
-   viewport is narrower than 48rem, the margin is 0 so the block fills the
-   column.  width: max-content lets the block grow past 48rem into the right
-   gutter without ever expanding into the left gutter. */
-.ProseMirror > .react-renderer:has(.block-node-view-wrapper--stretch-auto) {
-  max-width: none;
-  margin-left: max(0px, calc(50% - var(--layout-text-column-half)));
+  margin-left: 0;
   margin-right: 0;
-  width: max-content;
-}
-.block-node-view-wrapper--stretch-auto {
-  max-width: none;
 }
 
-/* Full-stretch: expand past the five-zone layout's counterweight (zone 2,
-   17.5rem) and right gutter (zone 4, w-64 + ml-6 = 17.5rem), plus the px-6
-   padding (1.5rem per side) on the center <main> inner wrapper.  Total
-   breakout per side = 19rem (17.5 + 1.5). */
-.block-node-view-wrapper--stretch-full {
-  max-width: none;
-  width: calc(100% + (2 * var(--layout-table-breakout)));
-  margin-left: calc(-1 * var(--layout-table-breakout));
-  margin-right: calc(-1 * var(--layout-table-breakout));
+.ProseMirror > .react-renderer:has([data-layout="full-bleed"]) {
+  grid-column: 1 / -1;
 }
 
-/* ── Shared table layout primitives ── */
+/* Dynamic-bleed blocks keep their left edge on the reading column while
+   extending through the right track. Subgrid keeps that edge anchored when
+   the editor's center track changes size. */
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
 
-.table-layout-stretch {
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > * {
+  grid-column: 2 / -1;
   min-width: 0;
 }
 
-.table-layout-stretch--auto {
-  max-width: var(--layout-text-column);
-}
-
-.table-layout-stretch--full {
-  width: 100%;
-}
+/* ── Shared table layout primitives ── */
 
 .table-layout-scroll {
   min-width: 0;
@@ -537,17 +505,6 @@ label {
 .table-layout-scroll > div {
   width: max-content;
   min-width: 100%;
-}
-
-.table-layout-scroll--auto {
-  margin-inline: calc(-1 * var(--layout-table-breakout));
-  padding-inline: var(--layout-table-breakout);
-}
-
-/* Chrome owns the table boundary, so its scroll area must stay inside it. */
-.table-layout-chrome .table-layout-scroll--auto {
-  margin-inline: 0;
-  padding-inline: 0;
 }
 
 .table-layout-scroll:not(:hover) {

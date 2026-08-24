@@ -34,6 +34,14 @@ describe("TableBlockContent", () => {
     expect(screen.queryByTestId("column-type-amount")).not.toBeInTheDocument();
   });
 
+  it("uses the constrained scroll layout without breakout classes", () => {
+    renderTable();
+
+    const scroll = screen.getByTestId("eln-table-grid").parentElement?.parentElement;
+    expect(scroll).toHaveClass("table-layout-scroll");
+    expect(scroll?.className).not.toContain("table-layout-scroll--");
+  });
+
   it("renders legacy typed columns as text", () => {
     const typedColumns: TableColumn[] = [
       { id: "role", name: "Role", type: "dropdown" },

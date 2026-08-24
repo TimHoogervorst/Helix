@@ -393,7 +393,6 @@ export function TableBlockContent({
               No rows yet
             </div>
           }
-          stretchMode="auto"
           data-testid="eln-table-grid"
         />
       </div>

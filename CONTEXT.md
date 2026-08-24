@@ -665,7 +665,7 @@ Sidebar collapse state is independent of section collapse state — collapsing t
 
 ### Sidebar Section
 
-A named, collapsible group within a CollapsibleSidebar (e.g., "Workspaces", "Metadata", "Activity"). Has a header with a chevron toggle. All sections are collapsible by default; opt-out via `collapsible={false}`. Collapse icon convention follows VS Code: `▼` (ChevronDown) when expanded, `>` (ChevronRight) when collapsed.
+A named, collapsible group within a CollapsibleSidebar (e.g., "Tabs", "Metadata", "Activity"). Has a header with a chevron toggle. All sections are collapsible by default; opt-out via `collapsible={false}`. Collapse icon convention follows VS Code: `▼` (ChevronDown) when expanded, `>` (ChevronRight) when collapsed.
 
 ### Collapsed Section
 
@@ -681,19 +681,41 @@ The `[<]` / `[>]` button that collapses/expands an entire sidebar. Positioned on
 
 ### Tab (Pinned Workspace)
 
-A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs appear in the sidebar's Workspace section and persist across sessions. Each Tab stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation. The Tabs mod (formerly Pins) owns the pinning lifecycle — it listens to workspace navigation events and renders the pinned workspace list accordingly.
+A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs appear in the sidebar's **Tabs** section and persist across sessions. Each Tab stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation. The label is a snapshot supplied by the frontend at pin time and refreshed whenever the User visits the workspace — the Tabs mod does not resolve names itself. A Tab row shows the label as the primary text with the display ID alongside in small, muted text; when no label exists yet, the display ID stands in. The Tabs mod (formerly Pins) owns the pinning lifecycle and renders the Tabs and History sections of the sidebar.
 
 **Lifecycle:**
-- A User pins a workspace via the sidebar (hover to reveal the pin button on the Current row)
+- A User pins a workspace from any History row (hover to reveal the pin button) — the new Tab is placed at the top of the Tabs root list, carrying the name History already resolved
 - A User unpins a workspace via the sidebar (hover to reveal the unpin button on a pinned row)
-- If the current workspace is unpinned while being viewed, it moves from the pinned list back to the temporary Current slot
-- Pinned Workspaces are ordered newest-first by pin time
+- Tabs are ordered by the User — drag-and-drop re-ordering at the section root and inside Tab Folders, persisted as the layout
+- A Tab lives either at the root of the Tabs section or inside exactly one Tab Folder; moving a Tab is a move, never a copy
 
-**Invariant:** A Pinned Workspace belongs to exactly one User. A User cannot pin the same workspace URL twice.
+**Invariant:** A Tab belongs to exactly one User. A User cannot pin the same workspace URL twice. A Tab lives in at most one Tab Folder.
 
-**Out of scope:** workspace history (recently opened), inline workspace previews, drag-to-reorder.
+**Stale targets:** Deleted or inaccessible targets are not detected — a Tab keeps its snapshot label and clicking it navigates to the workspace's error page, like any broken link. Automatic label refreshes on visit are not logged.
+
+**Out of scope:** inline workspace previews.
 
 **Synonyms:** bookmarked workspace, saved workspace, workspace tab
+
+### Tab Folder
+
+A named, User-created container that organizes Tabs within the Tabs section. One level deep — a Tab Folder holds Tabs only, never other Tab Folders. Folders are created from the Tabs section header, renamed via a row menu, and can be re-ordered by drag alongside root Tabs. Clicking a Tab Folder expands or collapses it; the expanded state persists across sessions.
+
+Deleting a Tab Folder **deletes every Tab inside it**, confirmed by a warning that names the number of affected Tabs. Folder lifecycle events are logged like Tab events; re-ordering is not.
+
+**Invariant:** A Tab Folder belongs to exactly one User. A Tab Folder never nests inside another Tab Folder.
+
+**Synonyms:** pin folder, bookmark folder
+
+### History
+
+The sidebar section under Tabs listing the workspaces the User has visited, without any pinning required. Every visit to a workspace URL records the item; revisiting moves the existing record to the top rather than duplicating it. The list is capped at 20 items (oldest falls off), most-recent-first, and deliberately includes pinned workspaces too — History is intentionally dumb: no filtering, no Tab Folders, no organization. Every row carries a hover pin button (promoting the item to a Tab) and a hover remove button; the currently open workspace is always the topmost, highlighted row.
+
+History is **device-local**: it belongs to the browser, not the User account, and does not follow the User across devices — unlike Tabs, which persist per User.
+
+**Invariant:** A History record is keyed by workspace URL — exactly one record per URL.
+
+**Synonyms:** recently visited, recent workspaces
 
 ---
 
@@ -744,6 +766,7 @@ User ──▶ NotebookEntry (1:N — author of entries)
 User ──▶ Action (1:N — performer of actions)
 User ──▶ Entity (1:N — creator of entities)
 User ──▶ Tab (1:N — user bookmarks workspaces)
+User ──▶ Tab Folder (1:N — user organizes tabs into folders)
 User ──▶ Affiliation (1:N — user has career timeline entries)
 User ──▶ Publication (1:N — user has publications)
 User ──▶ Recognition (1:N — user has honors and awards)

@@ -35,11 +35,10 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), an optional `emits` declaration for custom actions, and serialization. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. Blocks declare what they listen to and what they emit; the renderer wires everything. Blocks do not have direct access to the bus or the HTTP layer. |
 | **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Use for toolbar buttons (export, lock, delete). |
 | **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
-| **Binding Override** | A per-binding configuration key (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; binding wins per-key. Used for presentation-level configuration like `stretch: true` — the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
+| **Binding Override** | A per-binding configuration object (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; the binding wins per key. Used for presentation-level configuration that is specific to a slot binding; the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
 | **Inline Block** | A block stored inside the ProseMirror/TipTap document JSON. Part of the document body — locked when the document is locked (e.g. during review). Created and edited through the editor. |
 | **Outline Block** | A block stored outside the ProseMirror document, in a separate `outline_blocks` array on the entry. Carries a document position anchor (`pos`). Can be added even when the document content is locked — enabling review-time annotations. Rendered outside the editor (e.g. in a gutter). |
 | **Event Bus** | A workspace-scoped pub/sub bus. Created by the workspace and passed to renderers; blocks never see it directly. Buttons emit events via `bus.emit()`; blocks listen declaratively via `listensTo` + `onEvent` handlers (wired by the renderer) and emit custom actions via their `emits` declaration. The bus carries cross-boundary events like `{workspaceId}.action.performed` (resolved, ready-to-render action items). Block lifecycle events (created/edited/deleted) are internal renderer callbacks — not on the public bus. Supports wildcard pattern matching for subscriptions. |
-| **Block Stretch** | A slot-binding override (`stretch: true`) that allows a block to grow beyond the center content gutter. When enabled, the block expands outward equally into the left and right gutters, staying centered. Other blocks remain constrained to the center gutter. The block component reads `overrides.stretch` to conditionally render stretch-related UI (e.g. a full-width toggle button). Stretch is a presentation concern of the slot/renderer, not an intrinsic property of the block type. |
 
 ### Backend Mod System
 
@@ -267,29 +266,35 @@ An entity (from the LIMS domain) that is connected to a Notebook Entry through t
 
 ### ELN Workspace Layout
 
-The ELN workspace uses a **five-zone** horizontal layout (left to right): Left Sidebar (shell icon strip, collapsible), Left Gutter (empty space that absorbs stretch from centered blocks), Center Gutter (the main content column, `max-w-3xl`, centered — normal blocks like paragraphs and headings live here), Right Gutter (comment cards, `w-64`, hidden below `xl` breakpoint), and Right Sidebar (metadata panel, `w-72`, hidden below `xl`). Stretch-capable blocks expand outward equally from the center gutter into the left and right gutters, preserving centering.
+The ELN workspace uses a three-track CSS grid inside `1.5rem` of content padding: `1fr / min(48rem, 100%) / 1fr`. The ProseMirror editor is the grid container; ordinary document blocks occupy the center track, which keeps narrative text readable on wide screens and prevents narrow windows from squeezing it into a sliver. Workspace chrome such as the title, description, tags, and metadata line shares that text-column alignment. The shell sidebar remains persistent chrome outside the content boundary, while the metadata sidebar is `256px` wide and hidden below the `xl` breakpoint (`1280px`).
+
+### Full-Bleed
+
+A block that spans all three ELN workspace grid tracks while remaining inside the workspace's content padding and persistent chrome. The Result Table is Full-Bleed, so it uses the complete available content width rather than the narrative text column.
+
+### Dynamic Bleed
+
+A table block that starts at the left edge of the ELN text column and bleeds rightward through the available content area. Registry Tables and Plain Tables are Dynamic Bleed. They use the editor's fluid center track as their alignment anchor, expand as space permits, and retain horizontal scrolling when their columns are wider than the available area. Scrolling can expose columns into the left region, but a bleed never reaches the literal window edge or crosses content padding and persistent chrome.
 
 ### Workspace Chrome
 
-The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, and the five-zone layout scaffolding. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
+The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, and the content padding that bounds the editor. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
 
 **Synonyms:** editor chrome, workspace frame
 
 ### Center Gutter
 
-The main content column of the ELN workspace — `max-w-3xl` (768px), horizontally centered. All normal blocks (paragraphs, headings, lists) render inside this column by default. Provides a comfortable reading width for narrative text.
+The fluid center track of the ELN workspace grid — `min(48rem, 100%)`, centered between two flexible `1fr` tracks. Normal document blocks (paragraphs, headings, and lists) render here by default. Tables may use Full-Bleed or Dynamic Bleed layout roles instead of remaining limited to this track.
 
 **Synonyms:** content column, centered editor area
 
-### Left Gutter
-
-Empty space between the left sidebar and the center gutter. Absorbs expansion from stretch-capable blocks — a stretched table grows into this space equally with the right gutter, keeping the block centered.
-
 ### Right Gutter
 
-The column to the right of the center gutter that renders **outline blocks** (specifically comment cards). Fixed width (`w-64`), hidden on smaller viewports (below `xl`). Cards are sorted by document position, top to bottom. Distinct from the Right Sidebar (metadata panel).
+The flexible right track of the ELN workspace grid. It is available to Dynamic Bleed tables after their text-column-aligned start edge and is not a comment-card or outline-block column. The right track ends at the workspace content padding and persistent chrome. Distinct from the Metadata Sidebar.
 
-**Synonyms:** comment gutter, annotations column
+### Metadata Sidebar
+
+The ELN workspace's persistent metadata panel. It is `256px` wide and is hidden below the `xl` breakpoint (`1280px`); hiding it does not change the editor's content-padding boundary.
 
 ### Rich-Text Document
 

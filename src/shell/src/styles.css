@@ -574,7 +574,7 @@ label {
   justify-content: space-between;
   gap: 1rem;
   border: 1px solid var(--color-ink-hairline);
-  border-bottom: 0;
+  border-bottom: none !important;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 0.25rem 0.75rem;
 }

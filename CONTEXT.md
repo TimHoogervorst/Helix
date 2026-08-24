@@ -268,13 +268,9 @@ An entity (from the LIMS domain) that is connected to a Notebook Entry through t
 
 The ELN workspace uses a three-track CSS grid inside `1.5rem` of content padding: `1fr / min(48rem, 100%) / 1fr`. The ProseMirror editor is the grid container; ordinary document blocks occupy the center track, which keeps narrative text readable on wide screens and prevents narrow windows from squeezing it into a sliver. Workspace chrome such as the title, description, tags, and metadata line shares that text-column alignment. The shell sidebar remains persistent chrome outside the content boundary, while the metadata sidebar is `256px` wide and hidden below the `xl` breakpoint (`1280px`).
 
-### Full-Bleed
-
-A block that spans all three ELN workspace grid tracks while remaining inside the workspace's content padding and persistent chrome. The Result Table is Full-Bleed, so it uses the complete available content width rather than the narrative text column.
-
 ### Dynamic Bleed
 
-A table block that starts at the left edge of the ELN text column and bleeds rightward through the available content area. Registry Tables and Plain Tables are Dynamic Bleed. They use the editor's fluid center track as their alignment anchor, expand as space permits, and retain horizontal scrolling when their columns are wider than the available area. Scrolling can expose columns into the left region, but a bleed never reaches the literal window edge or crosses content padding and persistent chrome.
+The layout role of every table block in the ELN editor (Registry Table, Plain Table, Result Table). The table's scroll viewport spans the entire content width (all three grid tracks), with the table anchored at rest so its left edge aligns with the text column's left edge; a narrower table fills exactly the text column. Wide tables bleed rightward as far as the content padding and persistent chrome allow, and horizontal scrolling slides the table leftward into the left region so that every column is reachable. The block's chrome bar (title and toolbar) and its add-row control stay anchored to the text column and never slide. A bleed never reaches the literal window edge.
 
 ### Workspace Chrome
 
@@ -284,7 +280,7 @@ The persistent UI frame of the ELN Workspace that surrounds the Document: the to
 
 ### Center Gutter
 
-The fluid center track of the ELN workspace grid — `min(48rem, 100%)`, centered between two flexible `1fr` tracks. Normal document blocks (paragraphs, headings, and lists) render here by default. Tables may use Full-Bleed or Dynamic Bleed layout roles instead of remaining limited to this track.
+The fluid center track of the ELN workspace grid — `min(48rem, 100%)`, centered between two flexible `1fr` tracks. Normal document blocks (paragraphs, headings, and lists) render here by default. Tables use the Dynamic Bleed layout role instead of remaining limited to this track.
 
 **Synonyms:** content column, centered editor area
 

@@ -21,6 +21,11 @@ describe("Table layout primitives", () => {
     );
 
     expect(screen.getByTestId("scroll")).toHaveClass("table-layout-scroll");
+    expect(screen.getByTestId("scroll")).toHaveAttribute("data-bleed-role", "viewport");
+    expect(screen.getByRole("heading", { name: "Results" }).parentElement).toHaveAttribute(
+      "data-bleed-role",
+      "bar",
+    );
     expect(screen.getByTestId("scroll").className).not.toContain("table-layout-scroll--");
     expect(screen.getByRole("heading", { name: "Results" })).toBeInTheDocument();
     expect(screen.getByText("Toolbar")).toBeInTheDocument();

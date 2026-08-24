@@ -860,7 +860,6 @@ export function RegistryTableContent({
           <span>New Row</span>
         </Button>
       )}
-      addRowOutside
     >
 
       <TableKit

@@ -4,6 +4,7 @@ interface LayoutProps {
   children: ReactNode;
   className?: string;
   "data-testid"?: string;
+  "data-bleed-role"?: string;
 }
 
 export function TableScroll({

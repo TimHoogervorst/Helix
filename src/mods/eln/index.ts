@@ -150,7 +150,7 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
 // ── Block: Result Table ───────────────────────────────────────────────────
 export const resultTableBlock = mod.registerBlock("result-table", {
   label: "Result Table",
-  layout: "full-bleed",
+  layout: "dynamic-bleed",
   icon: Database,
   component: ResultTableBlockComponent,
   listensTo: [],

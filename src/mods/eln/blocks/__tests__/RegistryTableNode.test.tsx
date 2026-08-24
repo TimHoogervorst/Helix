@@ -571,11 +571,14 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     const table = screen.getByTestId("registry-table-loaded");
     expect(table).toHaveClass("table-layout-chrome", "table-layout-chrome--compact", "w-full");
-    expect(table.querySelector(".table-layout-chrome__toolbar")).toBeInTheDocument();
-    expect(
-      table.parentElement?.querySelector(".table-layout-chrome__add-row"),
-    ).toBeInTheDocument();
-    expect(table.querySelector(".table-layout-chrome__add-row")).not.toBeInTheDocument();
+    expect(table.parentElement?.querySelector(".table-layout-chrome__toolbar")).toBeInTheDocument();
+    expect(table).toHaveAttribute("data-bleed-role", "card");
+    expect(table.parentElement?.querySelector('[data-bleed-role="bar"]')).toBeInTheDocument();
+    expect(table.parentElement?.querySelector('[data-bleed-role="viewport"]')).toBeInTheDocument();
+    expect(table.parentElement?.querySelector('[data-bleed-role="add-row"]')).toBeInTheDocument();
+    expect(table.parentElement?.querySelector('[data-bleed-role="viewport"]')?.parentElement).toBe(
+      table.parentElement,
+    );
   });
 
   it("renders the editable title", () => {

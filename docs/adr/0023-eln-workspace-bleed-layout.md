@@ -1,6 +1,6 @@
 # ELN Workspace Bleed Layout
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-24
 
 ## Context
@@ -24,17 +24,11 @@ Use a three-track grid inside `1.5rem` of content padding:
 ```
 
 The ProseMirror editor owns this grid. Direct children use the center track by
-default. Result Tables use the **Full-Bleed** role and span all three tracks.
-Registry Tables and Plain Tables use **Dynamic Bleed**: they align to the
-center track's left edge and extend through the available right-side tracks,
-with horizontal scrolling for columns that still do not fit.
-
-The mechanism is a negative-margin breakout from the text-column alignment
-point rather than the earlier full-bleed-grid breakout arithmetic. The
-breakout supplies the horizontal extension, while CSS subgrid anchors the
-Dynamic Bleed child to the editor's fluid center track as the available width
-changes. The breakout is bounded by the content padding and persistent shell
-chrome; it must never reach the literal viewport edge.
+default. All three ELN tables use the **Dynamic Bleed** role: their chrome is
+anchored to the center track, while a full-width subgrid viewport contains an
+interaction surface anchored at the center track. Horizontal scrolling slides
+the table leftward into the left track and remains bounded by content padding
+and persistent shell chrome.
 
 CSS subgrid is intentionally used here because it is supported by current
 evergreen browsers and preserves the alignment relationship without duplicating
@@ -49,11 +43,10 @@ Making the editor the grid container gives prose, headings, metadata, and table
 alignment one stable reference point. The `48rem` cap protects readability on
 wide screens without squeezing content on narrow screens.
 
-### Explicit table roles
+### One table role
 
-Full-Bleed and Dynamic Bleed describe behavior directly. They replace the
-ambiguous stretch toggle and ensure Registry and Plain Tables share the same
-layout semantics while Result Tables can use the complete content width.
+Dynamic Bleed replaces the ambiguous stretch toggle and ensures Registry, Plain,
+and Result Tables share identical layout semantics. Full-Bleed is retired.
 
 ### Bounded overflow
 
@@ -64,8 +57,8 @@ workspace into a viewport-edge-to-edge surface.
 ## Consequences
 
 - Ordinary document blocks remain aligned to a capped, readable text column.
-- Result Tables span the content grid, while Registry and Plain Tables align to
-  the text column and bleed dynamically to the right.
+- All ELN tables keep their chrome aligned to the text column while their
+  viewport spans the content grid and allows leftward scrolling.
 - Dynamic Bleed behavior depends on CSS subgrid in browsers that support it,
   with a bounded center-column fallback elsewhere.
 - The glossary must use Full-Bleed and Dynamic Bleed rather than the retired
@@ -81,3 +74,5 @@ workspace into a viewport-edge-to-edge surface.
   content padding and persistent chrome.
 - **Duplicate center-track calculations in each table:** rejected because CSS
   subgrid keeps Dynamic Bleed anchored to the editor's actual fluid track.
+- **Reserve Full-Bleed for the Result Table:** retired in favor of one identical
+  layout role for all tables.

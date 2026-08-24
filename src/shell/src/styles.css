@@ -475,10 +475,6 @@ label {
   margin-right: 0;
 }
 
-.ProseMirror > .react-renderer:has([data-layout="full-bleed"]) {
-  grid-column: 1 / -1;
-}
-
 /* Dynamic-bleed blocks keep their left edge on the reading column while
    extending through the right track. Subgrid keeps that edge anchored when
    the editor's center track changes size. */
@@ -488,8 +484,33 @@ label {
   grid-template-columns: subgrid;
 }
 
-.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > * {
-  grid-column: 2 / -1;
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  min-width: 0;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="card"] {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  z-index: 0;
+  min-width: 0;
+  overflow: visible;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="bar"],
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="add-row"] {
+  grid-column: 2;
+  z-index: 1;
+  min-width: 0;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="viewport"] {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  z-index: 1;
   min-width: 0;
 }
 
@@ -498,11 +519,14 @@ label {
 .table-layout-scroll {
   min-width: 0;
   overflow-x: auto;
+  display: grid;
+  grid-template-columns: subgrid;
 }
 
 /* Keep the interaction surface content-sized so wide tables create real
    overflow on the shared scroll container. */
 .table-layout-scroll > div {
+  grid-column: 2;
   width: max-content;
   min-width: 100%;
 }
@@ -528,7 +552,6 @@ label {
 }
 
 .table-layout-chrome {
-  overflow: hidden;
   border: 1px solid var(--color-ink-hairline);
   border-radius: var(--radius-lg);
   background: var(--color-card);

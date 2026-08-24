@@ -325,7 +325,7 @@ export interface BlockRegistration {
   emits?: BlockEvent[];
   tags?: string[];
   /** Layout role used by renderers for blocks that intentionally span the editor. */
-  layout?: "default" | "full-bleed" | "dynamic-bleed";
+  layout?: "default" | "dynamic-bleed";
   /** Serialize block state to a JSON string for persistence. */
   serialize: (state: Record<string, unknown>) => string;
   /** Deserialize a JSON string back to block state. */
@@ -427,7 +427,7 @@ export interface BlockBinding extends BaseBinding {
   /** Tags for block picker filtering. */
   tags?: string[];
   /** Layout role copied from the block registration. */
-  layout?: "default" | "full-bleed" | "dynamic-bleed";
+  layout?: "default" | "dynamic-bleed";
   /** Custom domain actions this block can emit via `context.emitAction()`. */
   emits?: BlockEvent[];
   /** Merged overrides: slot defaults ← binding overrides (binding wins per-key). */

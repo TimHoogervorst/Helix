@@ -434,7 +434,7 @@ export function ResultTableContent({
   return (
     <TableChrome
       className="w-full table-layout-chrome--compact"
-      data-layout="full-bleed"
+      data-layout="dynamic-bleed"
       data-testid="result-table-loaded"
       title={
         <span className="inline-flex items-center gap-2">
@@ -500,7 +500,6 @@ export function ResultTableContent({
           </Button>
         )
       }
-      addRowOutside
     >
       <TableKit
         columns={[

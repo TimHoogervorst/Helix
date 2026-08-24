@@ -47,6 +47,7 @@ export interface TableKitProps {
   emptyState?: ReactNode;
   className?: string;
   "data-testid"?: string;
+  "data-bleed-role"?: string;
 }
 
 export function TableKit({
@@ -67,6 +68,7 @@ export function TableKit({
   emptyState,
   className = "",
   "data-testid": testId,
+  "data-bleed-role": bleedRole,
 }: TableKitProps) {
   const interaction = useTableInteraction({
     tableId,
@@ -104,7 +106,7 @@ export function TableKit({
   });
 
   return (
-    <TableScroll className={className}>
+    <TableScroll className={className} data-bleed-role={bleedRole}>
         <div
           ref={interaction.containerRef}
           className="w-max min-w-full"

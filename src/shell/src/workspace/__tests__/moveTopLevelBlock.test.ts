@@ -3,7 +3,11 @@ import { Editor } from "@tiptap/core";
 import type { Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
-import { moveTopLevelBlock } from "../TipTapRenderer/moveTopLevelBlock";
+import {
+  deleteTopLevelBlock,
+  duplicateTopLevelBlock,
+  moveTopLevelBlock,
+} from "../TipTapRenderer/moveTopLevelBlock";
 
 function createEditor(content: Record<string, unknown>[] = [
   { type: "paragraph", content: [{ type: "text", text: "one" }] },
@@ -41,6 +45,17 @@ describe("moveTopLevelBlock", () => {
     editor.destroy();
   });
 
+  it("dispatches one transaction for each neighbor move", () => {
+    const editor = createEditor();
+    let updates = 0;
+    editor.on("update", () => updates += 1);
+
+    expect(moveTopLevelBlock(editor, 1, 0)).toBe(true);
+    expect(moveTopLevelBlock(editor, 1, 3)).toBe(true);
+    expect(updates).toBe(2);
+    editor.destroy();
+  });
+
   it("moves a complete node without changing its content", () => {
     const editor = createEditor();
     const original = editor.getJSON().content?.[1];
@@ -64,6 +79,34 @@ describe("moveTopLevelBlock", () => {
     expect(editor.state.doc.child(1).type.name).toBe("bulletList");
     expect(editor.state.doc.child(1).firstChild?.firstChild?.textContent).toBe("item");
     expect(editor.state.doc.child(0).type.name).toBe("table");
+    editor.destroy();
+  });
+
+  it("deletes one complete root node in one transaction", () => {
+    const editor = createEditor();
+    let updates = 0;
+    editor.on("update", () => updates += 1);
+
+    expect(deleteTopLevelBlock(editor, 1)).toBe(true);
+    expect(editor.state.doc.content.content.map((node) => node.textContent || undefined)).toEqual([
+      "one",
+      "three",
+      undefined,
+    ]);
+    expect(updates).toBe(1);
+    editor.destroy();
+  });
+
+  it("duplicates the complete serialized root node directly after the original", () => {
+    const editor = createEditor();
+    const original = editor.getJSON().content?.[1];
+    let updates = 0;
+    editor.on("update", () => updates += 1);
+
+    expect(duplicateTopLevelBlock(editor, 1)).toBe(true);
+    expect(editor.getJSON().content?.[1]).toEqual(original);
+    expect(editor.getJSON().content?.[2]).toEqual(original);
+    expect(updates).toBe(1);
     editor.destroy();
   });
 });

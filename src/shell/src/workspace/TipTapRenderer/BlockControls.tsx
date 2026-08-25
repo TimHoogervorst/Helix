@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
-import { GripVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, GripVertical, Plus, Trash2 } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -13,8 +13,13 @@ import {
 } from "@dnd-kit/core";
 import type { BlockBinding } from "../../mod-system/types";
 import { IconButton } from "../../shared/primitives/IconButton";
+import { Menu } from "../../shared/primitives/Menu";
 import { BlockPopover } from "./BlockPopover";
-import { moveTopLevelBlock } from "./moveTopLevelBlock";
+import {
+  deleteTopLevelBlock,
+  duplicateTopLevelBlock,
+  moveTopLevelBlock,
+} from "./moveTopLevelBlock";
 
 interface BlockControlsProps {
   editor: Editor;
@@ -142,7 +147,39 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
                     <Plus size={18} aria-hidden="true" />
                   </IconButton>
                 ) : null}
-                <BlockHandle index={index} />
+                <Menu
+                  className="block-action-trigger"
+                  trigger={<BlockHandle index={index} />}
+                  items={[
+                    {
+                      id: "delete",
+                      label: "Delete",
+                      icon: Trash2,
+                      danger: true,
+                      onSelect: () => { deleteTopLevelBlock(editor, index); },
+                    },
+                    {
+                      id: "duplicate",
+                      label: "Duplicate",
+                      icon: Copy,
+                      onSelect: () => { duplicateTopLevelBlock(editor, index); },
+                    },
+                    {
+                      id: "move-up",
+                      label: "Move up",
+                      icon: ChevronUp,
+                      disabled: index === 0,
+                      onSelect: () => { moveTopLevelBlock(editor, index, index - 1); },
+                    },
+                    {
+                      id: "move-down",
+                      label: "Move down",
+                      icon: ChevronDown,
+                      disabled: index === children.length - 1,
+                      onSelect: () => { moveTopLevelBlock(editor, index, index + 2); },
+                    },
+                  ]}
+                />
               </div>
             </div>
           );
@@ -176,9 +213,9 @@ function BlockHandle({ index }: { index: number }) {
       type="button"
       aria-label="Block Handle"
       size="sm"
-      onClick={(event) => event.preventDefault()}
       {...attributes}
       {...listeners}
+      onClick={(event) => event.preventDefault()}
     >
       <GripVertical size={18} aria-hidden="true" />
     </IconButton>

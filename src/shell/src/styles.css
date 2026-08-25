@@ -502,6 +502,11 @@ label {
   pointer-events: auto;
 }
 
+.block-controls-row:has(.block-action-trigger[aria-expanded="true"]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .block-control-button {
   flex: 0 0 auto;
 }

@@ -17,6 +17,7 @@
  * - ProseMirror Discuss #8290
  */
 import { Extension } from "@tiptap/core";
+import { ReactRenderer } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { findSuggestionMatch, exitSuggestion } from "@tiptap/suggestion";
 import type {
@@ -25,6 +26,8 @@ import type {
 } from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import { BlockPopover } from "../../../../shell/src/workspace/TipTapRenderer/BlockPopover";
+import type { BlockBinding } from "../../../../shell/src/mod-system/types";
 import { get } from "../../../../shell/src/api/client";
 import type { SearchResult } from "../../../../shell/src/mentions/types";
 
@@ -98,32 +101,6 @@ export async function fetchItems(query: string): Promise<SearchResult[]> {
 }
 
 // ── Dropdown renderers ───────────────────────────────────────────────
-
-function slashDropdownRenderer() {
-  return createSuggestionDropdown<SlashCommand>({
-    popupClass: "slash-dropdown",
-    emptyClass: "slash-dropdown-item is-empty",
-
-    renderItem: (item, _i, _isSelected) =>
-      `<span class="slash-item-icon">${item.icon}</span>
-       <div class="slash-item-body">
-         <span class="slash-item-label">${item.label}</span>
-         <span class="slash-item-desc">${item.description}</span>
-       </div>`,
-
-    onExtraKeyDown: (props, state) => {
-      if (
-        props.event.key === "Tab" &&
-        state.command &&
-        state.items[state.selectedIndex]
-      ) {
-        state.command(state.items[state.selectedIndex]);
-        return true;
-      }
-      return false;
-    },
-  })();
-}
 
 function mentionDropdownRenderer() {
   return createSuggestionDropdown<SearchResult>({
@@ -205,10 +182,12 @@ const UnifiedSuggestion = Extension.create({
           // # triggered, activeTrigger overwritten).
           const trigger = activeTrigger;
           if (trigger === "/") {
-            const commands = getCommands();
-            if (!query) return commands;
-            return commands.filter((cmd) =>
-              fuzzyMatch(`${cmd.label} ${cmd.description}`, query),
+            const bindings = ModRegistry.getInstance()
+              .resolveSlot("eln.editor")?.bindings
+              .filter((binding): binding is BlockBinding => binding.type === "block") ?? [];
+            if (!query) return bindings;
+            return bindings.filter((binding) =>
+              fuzzyMatch(`${binding.label} ${binding.id} ${(binding.tags ?? []).join(" ")}`, query),
             );
           }
           if (trigger === "#") {
@@ -240,7 +219,16 @@ const UnifiedSuggestion = Extension.create({
           // processes anything else.
           exitSuggestion(editor.view, UNIFIED_SUGGESTION_KEY);
           if (trigger === "/") {
-            (props as SlashCommand).action(editor, range);
+            const binding = props as BlockBinding;
+            editor
+              .chain()
+              .focus()
+              .deleteRange(range)
+              .insertContentAt(range.from, {
+                type: binding.id,
+                attrs: { content: binding.serialize(binding.defaultState) },
+              })
+              .run();
           } else if (trigger === "#") {
             const result = props as SearchResult;
             editor
@@ -284,23 +272,58 @@ const UnifiedSuggestion = Extension.create({
 
         // ── Render (delegates to the appropriate dropdown) ─────
         render: () => {
-          const slashRenderer = slashDropdownRenderer();
           const mentionRenderer = mentionDropdownRenderer();
+          let slashRenderer: ReactRenderer | null = null;
+
+          const selectSlashBlock = (props: any, binding: BlockBinding) => {
+            exitSuggestion(props.editor.view, UNIFIED_SUGGESTION_KEY);
+            (props.editor as any)
+              .chain()
+              .focus()
+              .deleteRange(props.range)
+              .insertContentAt(props.range.from, {
+                type: binding.id,
+                attrs: { content: binding.serialize(binding.defaultState) },
+              })
+              .run();
+          };
 
           return {
             onStart: (props: any) => {
               const trigger = activeTrigger;
-              if (trigger === "/") slashRenderer.onStart(props);
+              if (trigger === "/") {
+                const rect = props.clientRect?.();
+                slashRenderer = new ReactRenderer(BlockPopover, {
+                  editor: props.editor,
+                  props: {
+                    editor: props.editor,
+                    bindings: props.items as BlockBinding[],
+                    initialQuery: props.query,
+                    showSearch: false,
+                    position: { top: (rect?.bottom ?? 0) + 4, left: rect?.left ?? 0 },
+                    onClose: () => exitSuggestion(props.editor.view, UNIFIED_SUGGESTION_KEY),
+                    onSelect: (binding: BlockBinding) => selectSlashBlock(props, binding),
+                  },
+                });
+                document.body.appendChild(slashRenderer.element);
+              }
               else if (trigger === "#") mentionRenderer.onStart(props);
             },
             onUpdate: (props: any) => {
               const trigger = activeTrigger;
-              if (trigger === "/") slashRenderer.onUpdate(props);
+              if (trigger === "/" && slashRenderer) {
+                const rect = props.clientRect?.();
+                slashRenderer.updateProps({
+                  bindings: props.items,
+                  initialQuery: props.query,
+                  position: { top: (rect?.bottom ?? 0) + 4, left: rect?.left ?? 0 },
+                  onSelect: (binding: BlockBinding) => selectSlashBlock(props, binding),
+                });
+              }
               else if (trigger === "#") mentionRenderer.onUpdate(props);
             },
             onKeyDown: (props: any): boolean => {
               const trigger = activeTrigger;
-              if (trigger === "/") return slashRenderer.onKeyDown(props);
               if (trigger === "#")
                 return mentionRenderer.onKeyDown(props);
               return false;
@@ -308,7 +331,7 @@ const UnifiedSuggestion = Extension.create({
             onExit: (props: any) => {
               // Clean up both popups — only one is visible, but both
               // need their DOM state reset.
-              slashRenderer.onExit(props);
+              slashRenderer?.destroy();
               mentionRenderer.onExit(props);
               // Reset so a stale trigger doesn't leak into the next
               // suggestion session via allow / items / command.

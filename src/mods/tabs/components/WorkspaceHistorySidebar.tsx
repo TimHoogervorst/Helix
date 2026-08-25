@@ -6,10 +6,11 @@ import {
   type WorkspaceHistoryItem,
 } from "../hooks/useWorkspaceHistory";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 import { TabRow } from "./TabRow";
 import { normalizeWorkspaceUrl } from "../navigation";
+import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
+import { WorkspaceIcon } from "./WorkspaceIcon";
 
 function WorkspaceHistorySidebar() {
   const navigate = useNavigate();
@@ -18,11 +19,8 @@ function WorkspaceHistorySidebar() {
   const { isCollapsed } = useSidebar();
 
   function renderIcon(item: WorkspaceHistoryItem) {
-    return item.icon ? (
-      <IconBadge iconKey={item.icon} colorKey="muted" size="sm" />
-    ) : (
-      <Box className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-    );
+    const workspaceId = extractWorkspaceId(item.url);
+    return workspaceId ? <WorkspaceIcon workspaceId={workspaceId} /> : <Box className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
   }
 
   async function pin(item: WorkspaceHistoryItem) {

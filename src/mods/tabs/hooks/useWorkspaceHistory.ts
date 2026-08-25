@@ -83,7 +83,6 @@ export function useWorkspaceHistory() {
               ? {
                   ...item,
                   name: resolved.title || item.displayId,
-                  icon: resolved.icon || item.icon,
                 }
               : item,
           );

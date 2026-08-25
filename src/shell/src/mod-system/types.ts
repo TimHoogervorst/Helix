@@ -176,6 +176,8 @@ export interface SchemaTypeConfig {
   defaultPrefix: string;
   /** Optional column definitions. */
   columns?: SchemaColumnDef[];
+  /** Icon-library key for the schema's default icon. */
+  icon?: string;
 }
 
 /**

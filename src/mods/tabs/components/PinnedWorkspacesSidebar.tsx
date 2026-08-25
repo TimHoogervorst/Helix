@@ -19,7 +19,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import React, { type ReactNode } from "react";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
@@ -29,6 +28,7 @@ import { Button, Menu, Modal } from "../../../shell/src/shared/primitives";
 import type { CurrentWorkspace, PinnedWorkspace, TabFolder } from "../types";
 import type { LayoutDropTarget, LayoutItem } from "../layoutTransition";
 import { normalizeWorkspaceUrl } from "../navigation";
+import { WorkspaceIcon } from "./WorkspaceIcon";
 
 function SortableTab({
   id,
@@ -65,18 +65,6 @@ function SortableTab({
         : children}
     </div>
   );
-}
-
-/**
- * Render the icon for a workspace, falling back to a generic Box icon.
- */
-function WorkspaceIcon({ workspaceId }: { workspaceId: string }) {
-  const config = ModRegistry.getInstance().getWorkspaces().get(workspaceId);
-  if (config?.icon) {
-    const Icon = config.icon;
-    return <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
-  }
-  return <Box className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
 }
 
 function PinnedWorkspacesSidebar() {

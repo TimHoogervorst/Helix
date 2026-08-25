@@ -716,9 +716,10 @@ describe("ModRegistry", () => {
           schemaTypes: [
             {
               id: "lims.entity",
-              displayName: "Entity",
-              prefix: "BLOOD",
-              columns: [{ name: "Name", type: "text" as const }],
+               displayName: "Entity",
+               prefix: "BLOOD",
+               icon: "flask-conical",
+               columns: [{ name: "Name", type: "text" as const }],
             },
           ],
           actions: [
@@ -741,8 +742,9 @@ describe("ModRegistry", () => {
       expect(ws.schemaType).toEqual({
         id: "lims.entity",
         displayName: "Entity",
-        defaultPrefix: "BLOOD",
-        columns: [{ name: "Name", type: "text" }],
+         defaultPrefix: "BLOOD",
+         icon: "flask-conical",
+         columns: [{ name: "Name", type: "text" }],
       });
     });
 

@@ -29,6 +29,7 @@ interface BackendSchemaType {
   displayName: string;
   prefix: string;
   columns?: Record<string, unknown>[];
+  icon?: string;
 }
 
 /** Operator definition from the backend column type registry. */
@@ -291,6 +292,7 @@ export class ModRegistry {
               displayName: schemaType.displayName,
               defaultPrefix: schemaType.prefix,
               columns: schemaType.columns as SchemaColumnDef[] | undefined,
+              ...(schemaType.icon ? { icon: schemaType.icon } : {}),
             }
           : undefined,
       });

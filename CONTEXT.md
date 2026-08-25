@@ -278,6 +278,18 @@ The persistent UI frame of the ELN Workspace that surrounds the Document: the to
 
 **Synonyms:** editor chrome, workspace frame
 
+### End of Entry
+
+Workspace chrome rendered below the Rich-Text Document on every Notebook Entry workspace. It is not document content — it is never saved into the document JSON, and it is identical for every viewer in both edit and locked/read-only modes. A thin rule with the entry's display ID on the left (e.g. `ELN – E123`) and the label `End of Entry` on the right. The empty region between the last block and the End of Entry accepts clicks and appends a new paragraph to the document.
+
+**Synonyms:** entry footer, end marker
+
+### Left Gutter
+
+The flexible left `1fr` track of the ELN workspace grid. Home to the hover block controls — the add (`+`) and drag (`::`) affordances shown beside top-level blocks. Reserved for block controls; no other UI may claim it. Distinct from the Center Gutter and Right Gutter.
+
+**Synonyms:** block-controls track
+
 ### Center Gutter
 
 The fluid center track of the ELN workspace grid — `min(48rem, 100%)`, centered between two flexible `1fr` tracks. Normal document blocks (paragraphs, headings, and lists) render here by default. Tables use the Dynamic Bleed layout role instead of remaining limited to this track.

@@ -9,9 +9,10 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { getTabs, createTab, deleteTab, resolveWorkspace, updateTabLabel } from "../api";
-import type { PinnedWorkspace, CurrentWorkspace } from "../types";
+import { getTabs, getTabFolders, createTab, deleteTab, putTabLayout, resolveWorkspace, updateTabLabel } from "../api";
+import type { PinnedWorkspace, CurrentWorkspace, TabLayout } from "../types";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
+import { reorderRootTabs } from "../layoutTransition";
 
 // ── Hook ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ export interface UsePinnedWorkspacesReturn {
   current: CurrentWorkspace | null;
   pin: () => Promise<void>;
   unpin: (id: number) => Promise<void>;
+  reorder: (activeId: number, overId: number) => Promise<void>;
   loading: boolean;
 }
 
@@ -142,5 +144,38 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     }
   }, [pins]);
 
-  return { pins, current, pin, unpin, loading };
+  const reorder = useCallback(async (activeId: number, overId: number) => {
+    const rootPins = pins.filter((pin) => pin.folder == null);
+    const reorderedRoots = reorderRootTabs(rootPins, activeId, overId);
+    if (reorderedRoots === rootPins) return;
+
+    const reordered = [
+      ...reorderedRoots,
+      ...pins.filter((pin) => pin.folder != null),
+    ];
+    setPins(reordered);
+
+    try {
+      const folders = await getTabFolders();
+      const layout: TabLayout = {
+        folders: folders.map((folder) => ({
+          id: folder.id,
+          order: folder.order,
+          expanded: folder.expanded,
+          tab_ids: reordered.filter((pin) => pin.folder === folder.id).map((pin) => pin.id),
+        })),
+        tabs: reordered.map((pin, order) => ({
+          id: pin.id,
+          order,
+          folder: pin.folder ?? null,
+        })),
+      };
+      const response = await putTabLayout(layout);
+      setPins(response.tabs);
+    } catch {
+      setPins(pins);
+    }
+  }, [pins]);
+
+  return { pins, current, pin, unpin, reorder, loading };
 }

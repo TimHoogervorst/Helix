@@ -30,6 +30,7 @@ function setupWorkspaces(): void {
 
 const mockPin = vi.fn();
 const mockUnpin = vi.fn();
+const mockReorder = vi.fn();
 
 function mockHook(overrides: {
   pins?: PinnedWorkspace[];
@@ -42,6 +43,7 @@ function mockHook(overrides: {
       current: overrides.current ?? null,
       pin: mockPin,
       unpin: mockUnpin,
+      reorder: mockReorder,
       loading: overrides.loading ?? false,
     }),
   }));
@@ -132,6 +134,21 @@ describe("PinnedWorkspacesSidebar", () => {
     expect(screen.getByText("BLOOD1")).toBeInTheDocument();
     expect(screen.getByText("PCR Results")).toBeInTheDocument();
     expect(screen.getByText("E1")).toBeInTheDocument();
+  });
+
+  it("renders pinned workspaces in the supplied order", async () => {
+    const pins = [
+      makePin({ id: 2, display_id: "E1", label: "Second" }),
+      makePin({ id: 1, display_id: "BLOOD1", label: "First" }),
+    ];
+
+    await renderSidebar({ pins });
+
+    const rows = screen.getAllByRole("button", { name: /Open workspace:/ });
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
+      "Open workspace: E1",
+      "Open workspace: BLOOD1",
+    ]);
   });
 
   it("falls back to the display ID when a tab has no name", async () => {

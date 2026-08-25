@@ -1,5 +1,22 @@
 import { useNavigate } from "react-router-dom";
-import { PinOff, Box } from "lucide-react";
+import { PinOff, Box, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { ReactNode } from "react";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
@@ -7,6 +24,53 @@ import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { TabRow } from "./TabRow";
+
+function SortableTab({
+  id,
+  sortable = true,
+  children,
+}: {
+  id: number;
+  sortable?: boolean;
+  children: ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id,
+    disabled: !sortable,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      {sortable && (
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          className="grid h-7 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-muted-foreground"
+          title="Reorder workspace"
+          aria-label="Reorder workspace"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {children}
+    </div>
+  );
+}
 
 /**
  * Render the icon for a workspace, falling back to a generic Box icon.
@@ -22,11 +86,21 @@ function WorkspaceIcon({ workspaceId }: { workspaceId: string }) {
 
 function PinnedWorkspacesSidebar() {
   const navigate = useNavigate();
-  const { pins, current, unpin } = usePinnedWorkspaces();
+  const { pins, current, unpin, reorder } = usePinnedWorkspaces();
   const { isCollapsed } = useSidebar();
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   function handleRowClick(url: string) {
     navigate(url);
+  }
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (over && active.id !== over.id) {
+      void reorder(Number(active.id), Number(over.id));
+    }
   }
 
   // ── Collapsed: compact icon-only buttons ─────────────────────────────
@@ -68,14 +142,21 @@ function PinnedWorkspacesSidebar() {
       {/* Workspace tree area */}
       <div className="flex-1 overflow-y-auto px-2 pb-6 text-base">
         {/* Pinned workspaces */}
-        {pins.map((p) => {
-          const isActive = current?.url === p.url;
-          return (
-            <div
-              key={p.id}
-              className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left"
-            >
-              <TabRow
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={pins.filter((pin) => pin.folder == null).map((pin) => pin.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {pins.map((p) => {
+              const isActive = current?.url === p.url;
+              return (
+                <SortableTab key={p.id} id={p.id} sortable={p.folder == null}>
+              <div className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left">
+                <TabRow
                 displayId={p.display_id}
                 name={p.label}
                 icon={
@@ -106,10 +187,13 @@ function PinnedWorkspacesSidebar() {
                     <PinOff className="h-3.5 w-3.5" aria-hidden="true" />
                   </IconButton>
                 }
-              />
-            </div>
-          );
-        })}
+                />
+              </div>
+                </SortableTab>
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </div>
     </>
   );

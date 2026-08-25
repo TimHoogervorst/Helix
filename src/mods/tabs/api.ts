@@ -1,5 +1,5 @@
-import { get, post, patch, del } from "../../shell/src/api/client";
-import type { PinnedWorkspace } from "./types";
+import { get, post, patch, put, del } from "../../shell/src/api/client";
+import type { PinnedWorkspace, TabFolder, TabLayout, TabLayoutResponse } from "./types";
 import type { ResolvedMention } from "../../shell/src/mentions/types";
 
 /** Fetch all pinned workspaces for the current user. */
@@ -21,9 +21,19 @@ export function deleteTab(id: number): Promise<void> {
   return del(`/core/tabs/${id}/`);
 }
 
+/** Fetch the current user's tab folders for complete layout saves. */
+export function getTabFolders(): Promise<TabFolder[]> {
+  return get<TabFolder[]>("/core/tab-folders/");
+}
+
 /** Update only a tab's frontend-supplied snapshot label. */
 export function updateTabLabel(id: number, label: string): Promise<PinnedWorkspace> {
   return patch<PinnedWorkspace>(`/core/tabs/${id}/label/`, { label });
+}
+
+/** Persist the complete tab layout after a reorder. */
+export function putTabLayout(layout: TabLayout): Promise<TabLayoutResponse> {
+  return put<TabLayoutResponse>("/core/tabs/layout/", layout);
 }
 
 /** Resolve a workspace display ID for a fresh visit-time label snapshot. */

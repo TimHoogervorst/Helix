@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { GripVertical, Plus } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  useDroppable,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core";
 import type { BlockBinding } from "../../mod-system/types";
 import { IconButton } from "../../shared/primitives/IconButton";
 import { BlockPopover } from "./BlockPopover";
+import { moveTopLevelBlock } from "./moveTopLevelBlock";
 
 interface BlockControlsProps {
   editor: Editor;
@@ -21,7 +32,12 @@ interface OpenPopover {
 export function BlockControls({ editor, bindings, editable }: BlockControlsProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [popover, setPopover] = useState<OpenPopover | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
   const popoverRef = useRef<OpenPopover | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
   const children = editor.state.doc.content.content;
   const editorElement = editor.view.dom;
 
@@ -68,52 +84,108 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
   if (!editable) return null;
   const editorRect = editorElement.getBoundingClientRect();
 
+  const handleDragStart = ({ active }: { active: { id: string | number } }) => {
+    setActiveIndex(Number(String(active.id).replace("block:", "")));
+  };
+  const handleDragOver = ({ over }: DragOverEvent) => {
+    setOverIndex(over ? Number(String(over.id).replace("gap:", "")) : null);
+  };
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const sourceIndex = Number(String(active.id).replace("block:", ""));
+    const targetIndex = over ? Number(String(over.id).replace("gap:", "")) : -1;
+    if (over) moveTopLevelBlock(editor, sourceIndex, targetIndex);
+    setActiveIndex(null);
+    setOverIndex(null);
+  };
+
   return (
-    <div
-      className="block-controls-overlay"
-      aria-label="Block controls"
+    <DndContext
+      sensors={sensors}
+      autoScroll={{ threshold: { x: 0, y: 0.12 }, acceleration: 10 }}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragCancel={() => { setActiveIndex(null); setOverIndex(null); }}
+      onDragEnd={handleDragEnd}
     >
-      {children.map((node, index) => {
-        const element = editorElement.children[index] as HTMLElement | undefined;
-        if (!element) return null;
-        const rect = element.getBoundingClientRect();
-        const emptyParagraph = node.type.name === "paragraph" && node.content.size === 0;
-        const position = children.slice(0, index).reduce((sum, child) => sum + child.nodeSize, 0);
-        const visible = hoveredIndex === index || popover?.paragraphPosition === position;
-        return (
-          <div
-            key={`${position}-${node.type.name}`}
-            className={`block-controls-row${visible ? " is-visible" : ""}`}
-            style={{ top: rect.top - editorRect.top, height: rect.height }}
-            onMouseEnter={() => setHoveredIndex((current) => current === index ? current : index)}
-            onMouseLeave={() => setHoveredIndex(null)}
-          >
-            {emptyParagraph ? (
-              <IconButton
-                type="button"
-                aria-label="Add block"
-                className="block-control-button block-add-button"
-                size="sm"
-                onClick={() => setPopover({ index, paragraphPosition: position, top: rect.bottom + 4, left: rect.left })}
+      <div className={`block-controls-overlay${activeIndex !== null ? " is-dragging" : ""}`} aria-label="Block controls">
+        {children.map((node, index) => {
+          const element = editorElement.children[index] as HTMLElement | undefined;
+          if (!element) return null;
+          const rect = element.getBoundingClientRect();
+          const emptyParagraph = node.type.name === "paragraph" && node.content.size === 0;
+          const position = children.slice(0, index).reduce((sum, child) => sum + child.nodeSize, 0);
+          const previousElement = editorElement.children[index - 1] as HTMLElement | undefined;
+          const visible = hoveredIndex === index || popover?.paragraphPosition === position || activeIndex === index;
+          return (
+            <div key={`${position}-${node.type.name}`}>
+              <DropTarget
+                index={index}
+                top={(previousElement ? (previousElement.getBoundingClientRect().bottom + rect.top) / 2 : rect.top) - editorRect.top}
+                left={rect.left - editorRect.left}
+                width={rect.width}
+                active={activeIndex !== null && overIndex === index}
+              />
+              <div
+                className={`block-controls-row${visible ? " is-visible" : ""}`}
+                style={{ top: rect.top - editorRect.top, height: rect.height }}
+                onMouseEnter={() => setHoveredIndex((current) => current === index ? current : index)}
+                onMouseLeave={() => setHoveredIndex(null)}
               >
-                <Plus size={16} aria-hidden="true" />
-              </IconButton>
-            ) : null}
-            <IconButton type="button" aria-label="Block Handle" size="sm" className="block-control-button block-handle" onClick={(event) => event.preventDefault()}>
-              <GripVertical size={16} aria-hidden="true" />
-            </IconButton>
-          </div>
-        );
-      })}
-      {popover ? (
-        <BlockPopover
-          editor={editor}
-          bindings={bindings}
-          paragraphPosition={popover.paragraphPosition}
-          position={{ top: popover.top, left: popover.left }}
-          onClose={() => setPopover(null)}
-        />
-      ) : null}
-    </div>
+                {emptyParagraph ? (
+                  <IconButton
+                    type="button"
+                    aria-label="Add block"
+                    className="block-control-button block-add-button"
+                    size="sm"
+                    onClick={() => setPopover({ index, paragraphPosition: position, top: rect.bottom + 4, left: rect.left })}
+                  >
+                    <Plus size={18} aria-hidden="true" />
+                  </IconButton>
+                ) : null}
+                <BlockHandle index={index} />
+              </div>
+            </div>
+          );
+        })}
+        {children.length > 0 ? (() => {
+          const last = editorElement.children[children.length - 1] as HTMLElement | undefined;
+          if (!last) return null;
+          const rect = last.getBoundingClientRect();
+          return <DropTarget index={children.length} top={rect.bottom - editorRect.top} left={rect.left - editorRect.left} width={rect.width} active={activeIndex !== null && overIndex === children.length} />;
+        })() : null}
+        {popover ? (
+          <BlockPopover
+            editor={editor}
+            bindings={bindings}
+            paragraphPosition={popover.paragraphPosition}
+            position={{ top: popover.top, left: popover.left }}
+            onClose={() => setPopover(null)}
+          />
+        ) : null}
+      </div>
+    </DndContext>
   );
+}
+
+function BlockHandle({ index }: { index: number }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `block:${index}` });
+  return (
+    <IconButton
+      ref={setNodeRef}
+      className={`block-control-button block-handle${isDragging ? " is-dragging" : ""}`}
+      type="button"
+      aria-label="Block Handle"
+      size="sm"
+      onClick={(event) => event.preventDefault()}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical size={18} aria-hidden="true" />
+    </IconButton>
+  );
+}
+
+function DropTarget({ index, top, left, width, active }: { index: number; top: number; left: number; width: number; active: boolean }) {
+  const { setNodeRef } = useDroppable({ id: `gap:${index}` });
+  return <div ref={setNodeRef} className={`block-drop-indicator${active ? " is-active" : ""}`} style={{ top, left, width }} aria-label={`Drop block at position ${index + 1}`} />;
 }

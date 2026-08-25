@@ -506,6 +506,39 @@ label {
   flex: 0 0 auto;
 }
 
+.block-handle {
+  cursor: grab;
+}
+
+.block-handle:active,
+.block-handle.is-dragging {
+  cursor: grabbing;
+}
+
+.block-drop-indicator {
+  position: absolute;
+  z-index: 21;
+  height: 2px;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.block-drop-indicator.is-active {
+  opacity: 1;
+}
+
+.block-controls-overlay.is-dragging .block-drop-indicator {
+  pointer-events: auto;
+  opacity: 0.15;
+}
+
+.block-controls-overlay.is-dragging .block-drop-indicator.is-active {
+  opacity: 1;
+}
+
 .block-popover {
   z-index: 50;
   width: 18rem;

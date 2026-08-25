@@ -7,8 +7,11 @@ import { Node } from "@tiptap/core";
 import type { BlockBinding } from "../../mod-system/types";
 import {
   deleteTopLevelBlock,
+  deleteTopLevelBlocks,
   duplicateTopLevelBlock,
+  duplicateTopLevelBlocks,
   moveTopLevelBlock,
+  moveTopLevelBlocks,
 } from "../TipTapRenderer/moveTopLevelBlock";
 
 function createEditor(content: Record<string, unknown>[] = [
@@ -99,6 +102,30 @@ describe("moveTopLevelBlock", () => {
     editor.destroy();
   });
 
+  it("moves non-adjacent root children as one ordered transaction", () => {
+    const editor = createEditor();
+    let updates = 0;
+    editor.on("update", () => updates += 1);
+
+    expect(moveTopLevelBlocks(editor, [0, 2], 4)).toBe(true);
+    expect(editor.state.doc.content.content.map((node) => node.textContent || undefined)).toEqual([
+      "two", undefined, "one", "three",
+    ]);
+    expect(updates).toBe(1);
+    editor.destroy();
+  });
+
+  it("deletes selected root children in one transaction", () => {
+    const editor = createEditor();
+    let updates = 0;
+    editor.on("update", () => updates += 1);
+
+    expect(deleteTopLevelBlocks(editor, [0, 2])).toBe(true);
+    expect(editor.state.doc.content.content.map((node) => node.textContent || undefined)).toEqual(["two", undefined]);
+    expect(updates).toBe(1);
+    editor.destroy();
+  });
+
   it("duplicates the complete serialized root node directly after the original", () => {
     const editor = createEditor();
     const original = editor.getJSON().content?.[1];
@@ -156,6 +183,19 @@ describe("moveTopLevelBlock", () => {
       schemaName: "Fresh schema",
       rows: [],
     });
+    editor.destroy();
+  });
+
+  it("duplicates selected blocks in document order in one transaction", () => {
+    const editor = createEditor();
+    let updates = 0;
+    editor.on("update", () => updates += 1);
+
+    expect(duplicateTopLevelBlocks(editor, [0, 2], () => undefined)).toBe(true);
+    expect(editor.state.doc.content.content.map((node) => node.textContent || undefined)).toEqual([
+      "one", "one", "two", "three", "three", undefined,
+    ]);
+    expect(updates).toBe(1);
     editor.destroy();
   });
 });

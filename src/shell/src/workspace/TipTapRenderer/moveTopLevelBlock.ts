@@ -1,14 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
+import { Fragment } from "@tiptap/pm/model";
 import type { BlockBinding } from "../../mod-system/types";
-
-function topLevelPosition(doc: Editor["state"]["doc"], index: number): number {
-  let position = 0;
-  for (let current = 0; current < index; current += 1) {
-    position += doc.child(current).nodeSize;
-  }
-  return position;
-}
 
 /** Moves one root document child in a single transaction. */
 export function moveTopLevelBlock(
@@ -16,44 +9,51 @@ export function moveTopLevelBlock(
   sourceIndex: number,
   targetIndex: number,
 ): boolean {
+  return moveTopLevelBlocks(editor, [sourceIndex], targetIndex);
+}
+
+/** Moves selected root children in one transaction, preserving their order. */
+export function moveTopLevelBlocks(
+  editor: Editor,
+  sourceIndices: number[],
+  targetIndex: number,
+): boolean {
   const { doc, tr } = editor.state;
-  if (
-    sourceIndex < 0 ||
-    sourceIndex >= doc.childCount ||
-    targetIndex < 0 ||
-    targetIndex > doc.childCount
-  ) {
-    return false;
-  }
+  const indices = normalizedIndices(sourceIndices, doc.childCount);
+  if (!indices.length || targetIndex < 0 || targetIndex > doc.childCount) return false;
 
-  const node = doc.child(sourceIndex);
-  if (targetIndex === sourceIndex || targetIndex === sourceIndex + 1) return false;
+  const selected = new Set(indices);
+  const remaining = Array.from({ length: doc.childCount }, (_, index) => index)
+    .filter((index) => !selected.has(index));
+  const insertionIndex = targetIndex - indices.filter((index) => index < targetIndex).length;
+  const order = [
+    ...remaining.slice(0, insertionIndex),
+    ...indices,
+    ...remaining.slice(insertionIndex),
+  ];
+  if (order.every((index, position) => index === position)) return false;
 
-  const sourcePosition = topLevelPosition(doc, sourceIndex);
-  tr.delete(sourcePosition, sourcePosition + node.nodeSize);
-
-  const insertionIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex;
-  let insertionPosition = 0;
-  let remainingIndex = 0;
-  for (let index = 0; index < doc.childCount; index += 1) {
-    if (index === sourceIndex) continue;
-    if (remainingIndex === insertionIndex) break;
-    insertionPosition += doc.child(index).nodeSize;
-    remainingIndex += 1;
-  }
-
-  tr.insert(insertionPosition, node);
+  tr.replaceWith(0, doc.content.size, Fragment.fromArray(order.map((index) => doc.child(index))));
   editor.view.dispatch(tr);
   return true;
 }
 
 /** Deletes one root document child in a single transaction. */
 export function deleteTopLevelBlock(editor: Editor, index: number): boolean {
-  const { doc, tr } = editor.state;
-  if (index < 0 || index >= doc.childCount) return false;
+  return deleteTopLevelBlocks(editor, [index]);
+}
 
-  const position = topLevelPosition(doc, index);
-  tr.delete(position, position + doc.child(index).nodeSize);
+/** Deletes selected root children in one transaction. */
+export function deleteTopLevelBlocks(editor: Editor, sourceIndices: number[]): boolean {
+  const { doc, tr } = editor.state;
+  const indices = normalizedIndices(sourceIndices, doc.childCount);
+  if (!indices.length) return false;
+  const selected = new Set(indices);
+  tr.replaceWith(
+    0,
+    doc.content.size,
+    Fragment.fromArray(Array.from({ length: doc.childCount }, (_, index) => doc.child(index)).filter((_, index) => !selected.has(index))),
+  );
   editor.view.dispatch(tr);
   return true;
 }
@@ -64,15 +64,34 @@ export function duplicateTopLevelBlock(
   index: number,
   binding?: BlockBinding,
 ): boolean {
-  const { doc, tr } = editor.state;
-  if (index < 0 || index >= doc.childCount) return false;
+  return duplicateTopLevelBlocks(editor, [index], () => binding);
+}
 
-  const node = doc.child(index);
-  const position = topLevelPosition(doc, index) + node.nodeSize;
-  const duplicate = createDuplicateNode(node, binding);
-  tr.insert(position, duplicate);
+/** Duplicates selected root children in one transaction, in document order. */
+export function duplicateTopLevelBlocks(
+  editor: Editor,
+  sourceIndices: number[],
+  bindingForNode: (node: Node) => BlockBinding | undefined,
+): boolean {
+  const { doc, tr } = editor.state;
+  const indices = normalizedIndices(sourceIndices, doc.childCount);
+  if (!indices.length) return false;
+  const selected = new Set(indices);
+  const content: Node[] = [];
+  for (let index = 0; index < doc.childCount; index += 1) {
+    const node = doc.child(index);
+    content.push(node);
+    if (selected.has(index)) content.push(createDuplicateNode(node, bindingForNode(node)));
+  }
+  tr.replaceWith(0, doc.content.size, Fragment.fromArray(content));
   editor.view.dispatch(tr);
   return true;
+}
+
+function normalizedIndices(indices: number[], childCount: number): number[] {
+  return [...new Set(indices)]
+    .filter((index) => index >= 0 && index < childCount)
+    .sort((left, right) => left - right);
 }
 
 function createDuplicateNode(

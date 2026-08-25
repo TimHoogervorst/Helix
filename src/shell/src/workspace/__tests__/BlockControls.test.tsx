@@ -98,6 +98,63 @@ describe("Block Action Menu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("toggles a discontiguous selection and clears it on Escape or text click", () => {
+    const editor = createEditor();
+    renderControls(editor);
+    const handles = screen.getAllByRole("button", { name: "Block Handle" });
+
+    fireEvent.click(handles[0], { shiftKey: true });
+    fireEvent.click(handles[2], { shiftKey: true });
+    expect(document.querySelectorAll(".block-controls-row.is-selected")).toHaveLength(2);
+    expect(editor.view.dom.querySelectorAll(":scope > .is-block-selected")).toHaveLength(2);
+
+    fireEvent.click(handles[0], { shiftKey: true });
+    expect(document.querySelectorAll(".block-controls-row.is-selected")).toHaveLength(1);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.querySelectorAll(".block-controls-row.is-selected")).toHaveLength(0);
+    expect(editor.view.dom.querySelectorAll(":scope > .is-block-selected")).toHaveLength(0);
+
+    fireEvent.click(handles[1], { shiftKey: true });
+    fireEvent.click(editor.view.dom.children[0]);
+    expect(document.querySelectorAll(".block-controls-row.is-selected")).toHaveLength(0);
+  });
+
+  it("applies menu actions to all selected blocks", () => {
+    const editor = createEditor();
+    renderControls(editor);
+    const handles = screen.getAllByRole("button", { name: "Block Handle" });
+
+    fireEvent.click(handles[0], { shiftKey: true });
+    fireEvent.click(handles[2], { shiftKey: true });
+    fireEvent.click(handles[0]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    expect(editor.state.doc.childCount).toBe(1);
+    expect(editor.state.doc.child(0).textContent).toBe("two");
+  });
+
+  it("duplicates and moves the selected group", () => {
+    const editor = createEditor();
+    renderControls(editor);
+    let handles = screen.getAllByRole("button", { name: "Block Handle" });
+
+    fireEvent.click(handles[0], { shiftKey: true });
+    fireEvent.click(handles[2], { shiftKey: true });
+    fireEvent.click(handles[0]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+    expect(editor.state.doc.childCount).toBe(5);
+
+    handles = screen.getAllByRole("button", { name: "Block Handle" });
+    fireEvent.click(handles[1], { shiftKey: true });
+    fireEvent.click(handles[2], { shiftKey: true });
+    fireEvent.click(handles[1]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move up" }));
+    expect(editor.state.doc.child(0).textContent).toBe("one");
+    expect(editor.state.doc.child(1).textContent).toBe("two");
+    expect(editor.state.doc.child(2).textContent).toBe("one");
+  });
+
   it("suppresses controls when the editor is read-only", () => {
     const editor = createEditor();
     render(<BlockControls editor={editor} bindings={[]} editable={false} />);

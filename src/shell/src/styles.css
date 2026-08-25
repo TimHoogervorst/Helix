@@ -507,6 +507,26 @@ label {
   pointer-events: auto;
 }
 
+.block-controls-row.is-selected {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.block-controls-row.is-selected::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--color-accent);
+  pointer-events: none;
+}
+
+.ProseMirror > *.is-block-selected {
+  background: var(--color-accent-subtle);
+}
+
 .block-control-button {
   flex: 0 0 auto;
 }

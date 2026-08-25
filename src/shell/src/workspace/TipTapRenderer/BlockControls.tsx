@@ -16,9 +16,9 @@ import { IconButton } from "../../shared/primitives/IconButton";
 import { Menu } from "../../shared/primitives/Menu";
 import { BlockPopover } from "./BlockPopover";
 import {
-  deleteTopLevelBlock,
-  duplicateTopLevelBlock,
-  moveTopLevelBlock,
+  deleteTopLevelBlocks,
+  duplicateTopLevelBlocks,
+  moveTopLevelBlocks,
 } from "./moveTopLevelBlock";
 
 interface BlockControlsProps {
@@ -39,6 +39,7 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
   const [popover, setPopover] = useState<OpenPopover | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(() => new Set());
   const popoverRef = useRef<OpenPopover | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -49,6 +50,16 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
   popoverRef.current = popover;
 
   useEffect(() => {
+    const updateSelectedBlocks = () => {
+      Array.from(editorElement.children).forEach((element, index) => {
+        element.classList.toggle("is-block-selected", selectedIndices.has(index));
+      });
+    };
+    updateSelectedBlocks();
+    const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (transaction.docChanged) setSelectedIndices(new Set());
+    };
+    editor.on("transaction", handleTransaction);
     const update = () => {
       const currentPopover = popoverRef.current;
       if (currentPopover) {
@@ -74,23 +85,39 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
     const handleMouseLeave = () => {
       if (!popoverRef.current) setHoveredIndex(null);
     };
+    const clearSelectionOnTextClick = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (target.closest(".ProseMirror > *")) setSelectedIndices(new Set());
+    };
     editorElement.addEventListener("mousemove", handleMouseMove);
     editorElement.addEventListener("mouseleave", handleMouseLeave);
+    editorElement.addEventListener("click", clearSelectionOnTextClick);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedIndices(new Set());
+    };
+    document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {
       editorElement.removeEventListener("mousemove", handleMouseMove);
       editorElement.removeEventListener("mouseleave", handleMouseLeave);
+      editorElement.removeEventListener("click", clearSelectionOnTextClick);
+      document.removeEventListener("keydown", handleKeyDown);
+      editor.off("transaction", handleTransaction);
+      Array.from(editorElement.children).forEach((element) => {
+        element.classList.remove("is-block-selected");
+      });
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [editor, editorElement]);
+  }, [editor, editorElement, selectedIndices]);
 
   if (!editable) return null;
   const editorRect = editorElement.getBoundingClientRect();
 
   const handleDragStart = ({ active }: { active: { id: string | number } }) => {
-    setActiveIndex(Number(String(active.id).replace("block:", "")));
+    const index = Number(String(active.id).replace("block:", ""));
+    setActiveIndex(index);
   };
   const handleDragOver = ({ over }: DragOverEvent) => {
     setOverIndex(over ? Number(String(over.id).replace("gap:", "")) : null);
@@ -98,7 +125,10 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     const sourceIndex = Number(String(active.id).replace("block:", ""));
     const targetIndex = over ? Number(String(over.id).replace("gap:", "")) : -1;
-    if (over) moveTopLevelBlock(editor, sourceIndex, targetIndex);
+    if (over) {
+      moveTopLevelBlocks(editor, selectedIndices.has(sourceIndex) ? [...selectedIndices] : [sourceIndex], targetIndex);
+      setSelectedIndices(new Set());
+    }
     setActiveIndex(null);
     setOverIndex(null);
   };
@@ -131,7 +161,7 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
                 active={activeIndex !== null && overIndex === index}
               />
               <div
-                className={`block-controls-row${visible ? " is-visible" : ""}`}
+                className={`block-controls-row${visible ? " is-visible" : ""}${selectedIndices.has(index) ? " is-selected" : ""}`}
                 style={{ top: rect.top - editorRect.top, height: rect.height }}
                 onMouseEnter={() => setHoveredIndex((current) => current === index ? current : index)}
                 onMouseLeave={() => setHoveredIndex(null)}
@@ -149,40 +179,62 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
                 ) : null}
                 <Menu
                   className="block-action-trigger"
-                  trigger={<BlockHandle index={index} />}
+                  trigger={
+                    <BlockHandle
+                      index={index}
+                      onShiftClick={() => {
+                        setSelectedIndices((current) => {
+                          const next = new Set(current);
+                          if (next.has(index)) next.delete(index); else next.add(index);
+                          return next;
+                        });
+                      }}
+                    />
+                  }
                   items={[
                     {
                       id: "delete",
                       label: "Delete",
                       icon: Trash2,
                       danger: true,
-                      onSelect: () => { deleteTopLevelBlock(editor, index); },
+                      onSelect: () => {
+                        const indices = selectedIndices.has(index) ? [...selectedIndices] : [index];
+                        deleteTopLevelBlocks(editor, indices);
+                        setSelectedIndices(new Set());
+                      },
                     },
                     {
                       id: "duplicate",
                       label: "Duplicate",
                       icon: Copy,
                       onSelect: () => {
-                        duplicateTopLevelBlock(
-                          editor,
-                          index,
-                          bindings.find((binding) => binding.id === node.type.name),
-                        );
+                        const indices = selectedIndices.has(index) ? [...selectedIndices] : [index];
+                        duplicateTopLevelBlocks(editor, indices, (selectedNode) =>
+                          bindings.find((binding) => binding.id === selectedNode.type.name));
+                        setSelectedIndices(new Set());
                       },
                     },
                     {
                       id: "move-up",
                       label: "Move up",
                       icon: ChevronUp,
-                      disabled: index === 0,
-                      onSelect: () => { moveTopLevelBlock(editor, index, index - 1); },
+                      disabled: (selectedIndices.has(index) ? Math.min(...selectedIndices) : index) === 0,
+                      onSelect: () => {
+                        const indices = selectedIndices.has(index) ? [...selectedIndices] : [index];
+                        moveTopLevelBlocks(editor, indices, Math.min(...indices) - 1);
+                        setSelectedIndices(new Set());
+                      },
                     },
                     {
                       id: "move-down",
                       label: "Move down",
                       icon: ChevronDown,
-                      disabled: index === children.length - 1,
-                      onSelect: () => { moveTopLevelBlock(editor, index, index + 2); },
+                      disabled: (selectedIndices.has(index) ? Math.max(...selectedIndices) : index) === children.length - 1,
+                      onSelect: () => {
+                        const indices = selectedIndices.has(index) ? [...selectedIndices] : [index];
+                        moveTopLevelBlocks(editor, indices, Math.max(...indices) + 2);
+                        setSelectedIndices(new Set());
+                      },
                     },
                   ]}
                 />
@@ -210,7 +262,7 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
   );
 }
 
-function BlockHandle({ index }: { index: number }) {
+function BlockHandle({ index, onShiftClick }: { index: number; onShiftClick: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `block:${index}` });
   return (
     <IconButton
@@ -221,7 +273,15 @@ function BlockHandle({ index }: { index: number }) {
       size="sm"
       {...attributes}
       {...listeners}
-      onClick={(event) => event.preventDefault()}
+      onClick={(event) => {
+        if (event.shiftKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          onShiftClick();
+        } else {
+          event.preventDefault();
+        }
+      }}
     >
       <GripVertical size={18} aria-hidden="true" />
     </IconButton>

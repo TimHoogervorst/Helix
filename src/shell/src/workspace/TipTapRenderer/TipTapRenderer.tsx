@@ -24,6 +24,7 @@ import StarterKit from "@tiptap/starter-kit";
 import type { RendererProps, BlockBinding } from "../../mod-system/types";
 import { createBlockNode } from "./createBlockNode";
 import { useActionAccumulator } from "./useActionAccumulator";
+import { BlockControls } from "./BlockControls";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ export function TipTapRenderer({
   return (
     <div className="tiptap-renderer">
       <EditorContent editor={editor} />
+      {editor ? <BlockControls editor={editor} bindings={bindings} editable={editable} /> : null}
     </div>
   );
 }

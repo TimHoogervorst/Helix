@@ -103,6 +103,7 @@ export const protocolBlock = mod.registerBlock("protocol", {
   onEvent: {},
   emits: [],
   tags: ["procedure", "workflow"],
+  preserve: ["protocolId"],
   getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
   serialize: (state) => JSON.stringify(state),
   deserialize: (json) => {
@@ -131,6 +132,7 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
     BlockEvent.ui({ id: "column-resized" }),
   ],
   tags: ["table", "registry", "lims"],
+  preserve: ["schemaId"],
   getDisplayName: (attrs) =>
     (attrs.schemaName || attrs.title) as string || "Registry Table",
   serialize: (state) => JSON.stringify(state),
@@ -157,6 +159,7 @@ export const resultTableBlock = mod.registerBlock("result-table", {
   onEvent: {},
   emits: [BlockEvent.action({ id: "results-registered", core: "edited" })],
   tags: ["table", "result", "lims"],
+  preserve: ["schemaId"],
   getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Result Table",
   serialize: (state) => JSON.stringify(state),
   deserialize: (json) => {

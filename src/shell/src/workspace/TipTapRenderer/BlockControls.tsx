@@ -162,7 +162,13 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
                       id: "duplicate",
                       label: "Duplicate",
                       icon: Copy,
-                      onSelect: () => { duplicateTopLevelBlock(editor, index); },
+                      onSelect: () => {
+                        duplicateTopLevelBlock(
+                          editor,
+                          index,
+                          bindings.find((binding) => binding.id === node.type.name),
+                        );
+                      },
                     },
                     {
                       id: "move-up",

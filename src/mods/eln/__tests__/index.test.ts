@@ -61,6 +61,14 @@ describe("eln mod registration", () => {
     expect(registry.getBlocks().get("eln.result-table")?.layout).toBe("dynamic-bleed");
   });
 
+  it("declares duplication policies for entity-backed blocks", () => {
+    expect(registry.getBlocks().get("eln.table")?.preserve).toBeUndefined();
+    expect(registry.getBlocks().get("eln.comment")?.preserve).toBeUndefined();
+    expect(registry.getBlocks().get("eln.protocol")?.preserve).toEqual(["protocolId"]);
+    expect(registry.getBlocks().get("eln.registry-table")?.preserve).toEqual(["schemaId"]);
+    expect(registry.getBlocks().get("eln.result-table")?.preserve).toEqual(["schemaId"]);
+  });
+
   // ── Slot System — Header Toolbar Dogfood (#227) ─────────────────────────
 
   it("declares the eln.header-actions slot with ButtonGroupRenderer", () => {

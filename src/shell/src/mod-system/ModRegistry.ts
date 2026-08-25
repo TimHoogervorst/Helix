@@ -425,6 +425,7 @@ export class ModRegistry {
           serialize: block.serialize,
           deserialize: block.deserialize,
           defaultState: block.defaultState,
+          preserve: block.preserve,
           order: binding.order,
         });
       } else {

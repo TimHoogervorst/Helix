@@ -1,4 +1,6 @@
 import type { Editor } from "@tiptap/core";
+import type { Node } from "@tiptap/pm/model";
+import type { BlockBinding } from "../../mod-system/types";
 
 function topLevelPosition(doc: Editor["state"]["doc"], index: number): number {
   let position = 0;
@@ -57,13 +59,39 @@ export function deleteTopLevelBlock(editor: Editor, index: number): boolean {
 }
 
 /** Duplicates one root document child immediately after itself. */
-export function duplicateTopLevelBlock(editor: Editor, index: number): boolean {
+export function duplicateTopLevelBlock(
+  editor: Editor,
+  index: number,
+  binding?: BlockBinding,
+): boolean {
   const { doc, tr } = editor.state;
   if (index < 0 || index >= doc.childCount) return false;
 
   const node = doc.child(index);
   const position = topLevelPosition(doc, index) + node.nodeSize;
-  tr.insert(position, node);
+  const duplicate = createDuplicateNode(node, binding);
+  tr.insert(position, duplicate);
   editor.view.dispatch(tr);
   return true;
+}
+
+function createDuplicateNode(
+  node: Node,
+  binding?: BlockBinding,
+) {
+  if (!binding?.preserve?.length) return node;
+
+  const currentState = binding.deserialize(String(node.attrs.content ?? "{}"));
+  const preservedState = Object.fromEntries(
+    binding.preserve
+      .filter((field) => Object.prototype.hasOwnProperty.call(currentState, field))
+      .map((field) => [field, currentState[field]]),
+  );
+  const state = { ...binding.defaultState, ...preservedState };
+
+  return node.type.create(
+    { ...node.attrs, content: binding.serialize(state) },
+    node.content,
+    node.marks,
+  );
 }

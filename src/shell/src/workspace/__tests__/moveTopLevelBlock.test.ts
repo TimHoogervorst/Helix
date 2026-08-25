@@ -3,6 +3,8 @@ import { Editor } from "@tiptap/core";
 import type { Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
+import { Node } from "@tiptap/core";
+import type { BlockBinding } from "../../mod-system/types";
 import {
   deleteTopLevelBlock,
   duplicateTopLevelBlock,
@@ -107,6 +109,53 @@ describe("moveTopLevelBlock", () => {
     expect(editor.getJSON().content?.[1]).toEqual(original);
     expect(editor.getJSON().content?.[2]).toEqual(original);
     expect(updates).toBe(1);
+    editor.destroy();
+  });
+
+  it("duplicates a policy-aware block from defaults with only preserved fields", () => {
+    const policyBlock = Node.create({
+      name: "policyBlock",
+      group: "block",
+      atom: true,
+      addAttributes: () => ({ content: { default: "{}" } }),
+      parseHTML: () => [{ tag: "div[data-policy-block]" }],
+      renderHTML: ({ HTMLAttributes }) => ["div", { "data-policy-block": "true", ...HTMLAttributes }],
+    });
+    const editor = createEditor([
+      {
+        type: "policyBlock",
+        attrs: {
+          content: JSON.stringify({
+            schemaId: 7,
+            schemaName: "Old schema",
+            rows: [{ entityId: 12, displayId: "SAMPLE1" }],
+          }),
+        },
+      },
+      { type: "paragraph" },
+    ], [StarterKit, policyBlock]);
+    const binding = {
+      id: "policyBlock",
+      label: "Policy block",
+      component: () => null,
+      icon: () => null,
+      listensTo: [],
+      onEvent: {},
+      serialize: (state: Record<string, unknown>) => JSON.stringify(state),
+      deserialize: (json: string) => JSON.parse(json) as Record<string, unknown>,
+      defaultState: { schemaId: null, schemaName: "Fresh schema", rows: [] },
+      preserve: ["schemaId"],
+      overrides: {},
+      order: 0,
+      type: "block",
+    } satisfies BlockBinding;
+
+    expect(duplicateTopLevelBlock(editor, 0, binding)).toBe(true);
+    expect(JSON.parse(editor.state.doc.child(1).attrs.content)).toEqual({
+      schemaId: 7,
+      schemaName: "Fresh schema",
+      rows: [],
+    });
     editor.destroy();
   });
 });

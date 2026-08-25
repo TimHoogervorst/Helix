@@ -332,6 +332,8 @@ export interface BlockRegistration {
   deserialize: (json: string) => Record<string, unknown>;
   /** Default state used when no stored content exists. */
   defaultState: Record<string, unknown>;
+  /** State fields to carry over when duplicating this block. */
+  preserve?: string[];
 }
 
 /**
@@ -438,6 +440,8 @@ export interface BlockBinding extends BaseBinding {
   deserialize: (json: string) => Record<string, unknown>;
   /** Default state used when no stored content exists. */
   defaultState: Record<string, unknown>;
+  /** State fields to carry over when duplicating this block. */
+  preserve?: string[];
 }
 
 /**

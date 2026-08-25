@@ -42,10 +42,8 @@ export function FormattingMenu({ editor, bindings, editable }: FormattingMenuPro
   useEffect(() => {
     const update = () => refresh((value) => value + 1);
     editor.on("selectionUpdate", update);
-    editor.on("transaction", update);
     return () => {
       editor.off("selectionUpdate", update);
-      editor.off("transaction", update);
     };
   }, [editor]);
 

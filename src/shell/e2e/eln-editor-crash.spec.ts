@@ -115,4 +115,26 @@ test.describe("ELN editor crash regression", () => {
     const editorStillThere = await page.locator(".ProseMirror").first().isVisible();
     expect(editorStillThere).toBe(true);
   });
+
+  test("hovering ELN paragraphs does not cause an update loop", async ({ page }) => {
+    const updateDepthErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error" && msg.text().includes("Maximum update depth")) {
+        updateDepthErrors.push(msg.text());
+      }
+    });
+
+    await loginViaApi(page);
+    await page.goto("/eln/E4");
+    await page.waitForLoadState("domcontentloaded");
+
+    const paragraphs = page.locator(".ProseMirror > p");
+    await paragraphs.first().waitFor({ state: "visible", timeout: 10000 });
+    const paragraphCount = await paragraphs.count();
+    for (let index = 0; index < Math.min(paragraphCount, 8); index += 1) {
+      await paragraphs.nth(index).hover();
+    }
+
+    expect(updateDepthErrors).toHaveLength(0);
+  });
 });

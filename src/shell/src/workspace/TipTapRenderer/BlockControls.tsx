@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { GripVertical, Plus } from "lucide-react";
 import type { BlockBinding } from "../../mod-system/types";
@@ -21,22 +21,24 @@ interface OpenPopover {
 export function BlockControls({ editor, bindings, editable }: BlockControlsProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [popover, setPopover] = useState<OpenPopover | null>(null);
-  const [, refresh] = useState(0);
+  const popoverRef = useRef<OpenPopover | null>(null);
   const children = editor.state.doc.content.content;
   const editorElement = editor.view.dom;
 
+  popoverRef.current = popover;
+
   useEffect(() => {
     const update = () => {
-      refresh((value) => value + 1);
-      if (popover) {
-        const element = editorElement.children[popover.index] as HTMLElement | undefined;
+      const currentPopover = popoverRef.current;
+      if (currentPopover) {
+        const element = editorElement.children[currentPopover.index] as HTMLElement | undefined;
         if (element) {
           const rect = element.getBoundingClientRect();
-          setPopover((current) => current ? {
-            ...current,
-            top: rect.bottom + 4,
-            left: rect.left,
-          } : null);
+          const top = rect.bottom + 4;
+          const left = rect.left;
+          if (currentPopover.top !== top || currentPopover.left !== left) {
+            setPopover((current) => current ? { ...current, top, left } : null);
+          }
         }
       }
     };
@@ -44,25 +46,24 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
       const target = event.target as Element;
       const row = target.closest(".ProseMirror > *");
       if (row?.parentElement === editorElement) {
-        setHoveredIndex(Array.prototype.indexOf.call(editorElement.children, row));
+        const index = Array.prototype.indexOf.call(editorElement.children, row);
+        setHoveredIndex((current) => current === index ? current : index);
       }
     };
     const handleMouseLeave = () => {
-      if (!popover) setHoveredIndex(null);
+      if (!popoverRef.current) setHoveredIndex(null);
     };
-    editor.on("transaction", update);
     editorElement.addEventListener("mousemove", handleMouseMove);
     editorElement.addEventListener("mouseleave", handleMouseLeave);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {
-      editor.off("transaction", update);
       editorElement.removeEventListener("mousemove", handleMouseMove);
       editorElement.removeEventListener("mouseleave", handleMouseLeave);
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [editor, editorElement, popover]);
+  }, [editor, editorElement]);
 
   if (!editable) return null;
   const editorRect = editorElement.getBoundingClientRect();
@@ -84,7 +85,7 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
             key={`${position}-${node.type.name}`}
             className={`block-controls-row${visible ? " is-visible" : ""}`}
             style={{ top: rect.top - editorRect.top, height: rect.height }}
-            onMouseEnter={() => setHoveredIndex(index)}
+            onMouseEnter={() => setHoveredIndex((current) => current === index ? current : index)}
             onMouseLeave={() => setHoveredIndex(null)}
           >
             {emptyParagraph ? (

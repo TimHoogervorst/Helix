@@ -23,7 +23,19 @@ export function deleteTab(id: number): Promise<void> {
 
 /** Fetch the current user's tab folders for complete layout saves. */
 export function getTabFolders(): Promise<TabFolder[]> {
-  return get<TabFolder[]>("/core/tab-folders/");
+  return get<TabFolder[]>("/core/tabs/folders/");
+}
+
+export function createTabFolder(name: string): Promise<TabFolder> {
+  return post<TabFolder>("/core/tabs/folders/", { name });
+}
+
+export function updateTabFolder(id: number, data: Partial<Pick<TabFolder, "name" | "expanded">>): Promise<TabFolder> {
+  return patch<TabFolder>(`/core/tabs/folders/${id}/`, data);
+}
+
+export function deleteTabFolder(id: number): Promise<void> {
+  return del(`/core/tabs/folders/${id}/`);
 }
 
 /** Update only a tab's frontend-supplied snapshot label. */

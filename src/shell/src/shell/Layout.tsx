@@ -8,6 +8,7 @@ import { UserMenu } from "../user/UserMenu";
 import { SidebarProvider, useSidebar } from "../workspace/SidebarContext";
 import { CollapsibleSidebar } from "../shared/components/Sidebar/CollapsibleSidebar";
 import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
+import { FolderPlus } from "lucide-react";
 import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
 import { IconButton } from "../shared/primitives/IconButton";
 import PinnedWorkspacesSidebar from "../../../mods/tabs/components/PinnedWorkspacesSidebar";
@@ -216,7 +217,11 @@ function Layout() {
                       </nav>
                     </SidebarSection>
 
-                    <SidebarSection id="tabs" label="Tabs">
+                    <SidebarSection id="tabs" label="Tabs" actions={
+                      <IconButton aria-label="Create tab folder" size="sm" onClick={() => window.dispatchEvent(new Event("helix-create-tab-folder"))}>
+                        <FolderPlus size={15} aria-hidden="true" />
+                      </IconButton>
+                    }>
                       <PinnedWorkspacesSidebar />
                     </SidebarSection>
                     <SidebarSection id="history" label="History">

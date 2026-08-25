@@ -9,24 +9,31 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { getTabs, getTabFolders, createTab, deleteTab, putTabLayout, resolveWorkspace, updateTabLabel } from "../api";
-import type { PinnedWorkspace, CurrentWorkspace, TabLayout } from "../types";
+import { getTabs, getTabFolders, createTab, deleteTab, putTabLayout, resolveWorkspace, updateTabLabel, createTabFolder, updateTabFolder, deleteTabFolder } from "../api";
+import type { PinnedWorkspace, CurrentWorkspace, TabFolder, TabLayout } from "../types";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
-import { reorderRootTabs } from "../layoutTransition";
+import { moveTab, reorderFolders, reorderRootTabs } from "../layoutTransition";
 
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export interface UsePinnedWorkspacesReturn {
   pins: PinnedWorkspace[];
+  folders: TabFolder[];
   current: CurrentWorkspace | null;
   pin: () => Promise<void>;
   unpin: (id: number) => Promise<void>;
   reorder: (activeId: number, overId: number) => Promise<void>;
+  move: (activeId: number, overId: number | "root" | `folder:${number}`) => Promise<void>;
+  createFolder: (name: string) => Promise<TabFolder | null>;
+  renameFolder: (id: number, name: string) => Promise<void>;
+  removeFolder: (id: number) => Promise<void>;
+  toggleFolder: (id: number) => Promise<void>;
   loading: boolean;
 }
 
 export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
   const [pins, setPins] = useState<PinnedWorkspace[]>([]);
+  const [folders, setFolders] = useState<TabFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const pinsRef = useRef(pins);
@@ -37,10 +44,11 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
   // ── Fetch tabs on mount ────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    const refresh = () => getTabs()
-      .then((data) => {
+    const refresh = () => Promise.all([getTabs(), getTabFolders()])
+      .then(([data, folderData]) => {
         if (!cancelled) {
           setPins(data);
+          setFolders(folderData);
           setLoading(false);
         }
       })
@@ -156,7 +164,6 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     setPins(reordered);
 
     try {
-      const folders = await getTabFolders();
       const layout: TabLayout = {
         folders: folders.map((folder) => ({
           id: folder.id,
@@ -175,7 +182,67 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     } catch {
       setPins(pins);
     }
-  }, [pins]);
+  }, [pins, folders]);
 
-  return { pins, current, pin, unpin, reorder, loading };
+  const persist = useCallback(async (nextPins: PinnedWorkspace[], nextFolders: TabFolder[]) => {
+    const response = await putTabLayout({
+      folders: nextFolders.map((folder) => ({ id: folder.id, order: folder.order, expanded: folder.expanded, tab_ids: nextPins.filter((pin) => pin.folder === folder.id).map((pin) => pin.id) })),
+      tabs: nextPins.map((pin, order) => ({ id: pin.id, order, folder: pin.folder ?? null })),
+    });
+    setPins(response.tabs);
+    setFolders(response.folders);
+  }, []);
+
+  const move = useCallback(async (activeId: number, overId: number | "root" | `folder:${number}`) => {
+    if (typeof overId === "number" && folders.some((folder) => folder.id === activeId)) {
+      const order = reorderFolders(folders.map((folder) => folder.id), activeId, overId);
+      if (order.every((id, index) => id === folders[index]?.id)) return;
+      const nextFolders = order.map((id, orderIndex) => ({ ...folders.find((folder) => folder.id === id)!, order: orderIndex }));
+      setFolders(nextFolders);
+      try { await persist(pins, nextFolders); } catch { setFolders(folders); }
+      return;
+    }
+    const flat = [
+      ...folders.map((folder) => ({ kind: "folder" as const, id: folder.id })),
+      ...pins.map((pin) => ({ kind: "tab" as const, id: pin.id, folder: pin.folder ?? null })),
+    ];
+    const next = moveTab(flat, activeId, overId);
+    if (next === flat) return;
+    const folderById = new Map(folders.map((folder) => [folder.id, folder]));
+    const nextPins = next.filter((item): item is { kind: "tab"; id: number; folder: number | null } => item.kind === "tab").map((item) => ({ ...pins.find((pin) => pin.id === item.id)!, folder: item.folder }));
+    const nextFolders = next.filter((item): item is { kind: "folder"; id: number } => item.kind === "folder").map((item, order) => ({ ...folderById.get(item.id)!, order }));
+    setPins(nextPins);
+    setFolders(nextFolders);
+    try { await persist(nextPins, nextFolders); } catch { setPins(pins); setFolders(folders); }
+  }, [folders, pins, persist]);
+
+  const createFolder = useCallback(async (name: string) => {
+    try { const folder = await createTabFolder(name); setFolders((prev) => [...prev, folder]); return folder; } catch { return null; }
+  }, []);
+  const renameFolder = useCallback(async (id: number, name: string) => {
+    try {
+      const folder = await updateTabFolder(id, { name });
+      setFolders((prev) => prev.map((item) => item.id === id ? folder : item));
+    } catch {
+      // Keep the existing name when the server rejects the edit.
+    }
+  }, []);
+  const removeFolder = useCallback(async (id: number) => {
+    try {
+      await deleteTabFolder(id);
+      setFolders((prev) => prev.filter((folder) => folder.id !== id));
+      setPins((prev) => prev.filter((pin) => pin.folder !== id));
+    } catch {
+      // Keep the folder and its tabs when deletion fails.
+    }
+  }, []);
+  const toggleFolder = useCallback(async (id: number) => {
+    const folder = folders.find((item) => item.id === id);
+    if (!folder) return;
+    const next = { ...folder, expanded: !folder.expanded };
+    setFolders((prev) => prev.map((item) => item.id === id ? next : item));
+    try { await updateTabFolder(id, { expanded: next.expanded }); } catch { setFolders(folders); }
+  }, [folders]);
+
+  return { pins, folders, current, pin, unpin, reorder, move, createFolder, renameFolder, removeFolder, toggleFolder, loading };
 }

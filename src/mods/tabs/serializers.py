@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import PinnedWorkspace
+from .models import PinnedWorkspace, TabFolder
 
 
 def _extract_prefix(display_id: str) -> str:
@@ -17,11 +17,25 @@ def _extract_prefix(display_id: str) -> str:
 class PinnedWorkspaceSerializer(serializers.ModelSerializer):
     icon = serializers.SerializerMethodField()
     color = serializers.SerializerMethodField()
+    folder_expanded = serializers.SerializerMethodField()
 
     class Meta:
         model = PinnedWorkspace
-        fields = ["id", "display_id", "label", "url", "created_at", "icon", "color"]
-        read_only_fields = ["id", "created_at", "icon", "color"]
+        fields = [
+            "id",
+            "display_id",
+            "label",
+            "url",
+            "created_at",
+            "order",
+            "folder",
+            "folder_expanded",
+            "icon",
+            "color",
+        ]
+        read_only_fields = [
+            "id", "created_at", "order", "folder", "folder_expanded", "icon", "color"
+        ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -51,3 +65,33 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
             return ""
         schema = self._get_schema(prefix)
         return schema.color if schema else ""
+
+    def get_folder_expanded(self, obj):
+        return obj.folder.expanded if obj.folder_id else None
+
+
+class TabFolderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TabFolder
+        fields = ["id", "name", "order", "expanded"]
+        read_only_fields = ["id", "order"]
+
+
+class LayoutTabSerializer(serializers.Serializer):
+    id = serializers.IntegerField(min_value=1)
+    order = serializers.IntegerField(min_value=0)
+    folder = serializers.IntegerField(min_value=1, allow_null=True)
+
+
+class LayoutFolderSerializer(serializers.Serializer):
+    id = serializers.IntegerField(min_value=1)
+    order = serializers.IntegerField(min_value=0)
+    expanded = serializers.BooleanField()
+    tab_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+
+
+class TabLayoutSerializer(serializers.Serializer):
+    folders = LayoutFolderSerializer(many=True)
+    tabs = LayoutTabSerializer(many=True)

@@ -197,3 +197,123 @@ class TabsActionLoggingTests(BaseTestCase):
     def test_get_does_not_log(self):
         self.client.get("/api/core/tabs/")
         self.mock_log.assert_not_called()
+
+
+class TabFoldersAndLayoutApiTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+
+    def _create_tab(self, display_id):
+        response = self.client.post(
+            "/api/core/tabs/",
+            {
+                "display_id": display_id,
+                "label": display_id,
+                "url": f"/lims/{display_id}",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        return response.data
+
+    def test_new_pins_are_inserted_at_root_top(self):
+        first = self._create_tab("A1")
+        second = self._create_tab("B2")
+
+        response = self.client.get("/api/core/tabs/")
+
+        self.assertEqual([item["id"] for item in response.data], [second["id"], first["id"]])
+        self.assertEqual([item["order"] for item in response.data], [0, 1])
+
+    def test_folder_crud_and_cascade_delete(self):
+        folder_response = self.client.post(
+            "/api/core/tabs/folders/", {"name": "Samples"}, format="json"
+        )
+        self.assertEqual(folder_response.status_code, 201)
+        folder_id = folder_response.data["id"]
+        tab = self._create_tab("A1")
+
+        from mods.tabs.models import PinnedWorkspace
+
+        PinnedWorkspace.objects.filter(pk=tab["id"]).update(folder_id=folder_id)
+        response = self.client.delete(f"/api/core/tabs/folders/{folder_id}/")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(PinnedWorkspace.objects.filter(pk=tab["id"]).exists())
+
+    def test_folder_isolation(self):
+        from core.models import User
+        from mods.tabs.models import TabFolder
+
+        other_user = User.objects.create_user(username="other", password="testpass123")
+        folder = TabFolder.objects.create(user=other_user, name="Other")
+
+        response = self.client.get("/api/core/tabs/folders/")
+        self.assertEqual(response.data, [])
+        response = self.client.delete(f"/api/core/tabs/folders/{folder.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_layout_save_orders_and_moves_tabs_idempotently(self):
+        first = self._create_tab("A1")
+        second = self._create_tab("B2")
+        folder_response = self.client.post(
+            "/api/core/tabs/folders/", {"name": "Samples"}, format="json"
+        )
+        folder_id = folder_response.data["id"]
+        layout = {
+            "folders": [{"id": folder_id, "order": 0, "expanded": False, "tab_ids": [first["id"]]}],
+            "tabs": [
+                {"id": first["id"], "order": 0, "folder": folder_id},
+                {"id": second["id"], "order": 0, "folder": None},
+            ],
+        }
+
+        response = self.client.put("/api/core/tabs/layout/", layout, format="json")
+        self.assertEqual(response.status_code, 200)
+        response = self.client.put("/api/core/tabs/layout/", layout, format="json")
+        self.assertEqual(response.status_code, 200)
+
+        tabs = {item["id"]: item for item in self.client.get("/api/core/tabs/").data}
+        self.assertEqual(tabs[first["id"]]["folder"], folder_id)
+        self.assertFalse(tabs[first["id"]]["folder_expanded"])
+        self.assertIsNone(tabs[second["id"]]["folder"])
+
+
+class TabFolderActionLoggingTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
+        self.mock_log = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_folder_lifecycle_is_logged_and_layout_is_not(self):
+        response = self.client.post(
+            "/api/core/tabs/folders/", {"name": "Samples"}, format="json"
+        )
+        self.assertEqual(_log_kwargs(self.mock_log)["action"], "core.tab_folder.created")
+        folder_id = response.data["id"]
+
+        self.mock_log.reset_mock()
+        response = self.client.patch(
+            f"/api/core/tabs/folders/{folder_id}/", {"name": "Renamed"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_log_kwargs(self.mock_log)["action"], "core.tab_folder.edited")
+
+        self.mock_log.reset_mock()
+        response = self.client.put(
+            "/api/core/tabs/layout/",
+            {"folders": [{"id": folder_id, "order": 0, "expanded": True, "tab_ids": []}], "tabs": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.mock_log.assert_not_called()
+
+        self.mock_log.reset_mock()
+        response = self.client.delete(f"/api/core/tabs/folders/{folder_id}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(_log_kwargs(self.mock_log)["action"], "core.tab_folder.deleted")

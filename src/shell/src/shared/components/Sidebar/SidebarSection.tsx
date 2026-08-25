@@ -51,7 +51,7 @@ export function SidebarSection({
   };
 
   return (
-    <div className="sidebar-section">
+    <div className="sidebar-section" data-section-id={id}>
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div
         className="sidebar-section-header"
@@ -64,12 +64,12 @@ export function SidebarSection({
       >
         {Icon && <Icon size={16} className="sidebar-section-icon" />}
         <span className="sidebar-section-label">{label}</span>
+        {actions && <span onClick={(event) => event.stopPropagation()}>{actions}</span>}
         {collapsible && (
           <span className="sidebar-section-chevron" aria-hidden="true">
             {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
           </span>
         )}
-        {actions && <span onClick={(event) => event.stopPropagation()}>{actions}</span>}
       </div>
 
       {/* ── Content ─────────────────────────────────────────────────── */}

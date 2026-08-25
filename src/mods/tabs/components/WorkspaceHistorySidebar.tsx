@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Pin, Trash2, Box } from "lucide-react";
+import { Pin, Box } from "lucide-react";
 import { createTab } from "../api";
 import {
   useWorkspaceHistory,
@@ -14,7 +14,7 @@ import { normalizeWorkspaceUrl } from "../navigation";
 function WorkspaceHistorySidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { history, remove } = useWorkspaceHistory();
+  const { history } = useWorkspaceHistory();
   const { isCollapsed } = useSidebar();
 
   function renderIcon(item: WorkspaceHistoryItem) {
@@ -61,45 +61,20 @@ function WorkspaceHistorySidebar() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-2 pb-6 text-base">
+    <div className="sidebar-history-list min-h-0 flex-1 px-2 pb-6 text-base">
       {history.map((item) => (
         <div
           key={item.url}
-          className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left"
+          className="flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left"
         >
           <TabRow
             displayId={item.displayId}
             name={item.name}
             icon={renderIcon(item)}
+            iconAction={<IconButton className="grid h-6 w-6 place-items-center rounded p-0" style={{ width: "1.5rem", height: "1.5rem" }} title="Pin this workspace" aria-label={`Pin workspace: ${item.displayId}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); pin(item); }}><Pin className="h-3.5 w-3.5" aria-hidden="true" /></IconButton>}
             active={item.url === location.pathname}
             ariaLabel={`Open workspace: ${item.displayId}`}
             onClick={() => openWorkspace(item.url)}
-            trailing={
-              <>
-                <IconButton
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  title="Pin this workspace"
-                  aria-label={`Pin workspace: ${item.displayId}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    pin(item);
-                  }}
-                >
-                  <Pin className="h-3.5 w-3.5" aria-hidden="true" />
-                </IconButton>
-                <IconButton
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  title="Remove from history"
-                  aria-label={`Remove workspace from history: ${item.displayId}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    remove(item.url);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                </IconButton>
-              </>
-            }
           />
         </div>
       ))}

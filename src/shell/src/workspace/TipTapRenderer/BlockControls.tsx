@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { ChevronDown, ChevronUp, Copy, GripVertical, Plus, Trash2 } from "lucide-react";
 import {
@@ -40,14 +40,29 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(() => new Set());
+  const [, forceLayoutUpdate] = useState(0);
   const popoverRef = useRef<OpenPopover | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
-  const children = editor.state.doc.content.content;
+  const documentState = editor.state.doc;
+  const children = documentState.content.content;
   const editorElement = editor.view.dom;
 
   popoverRef.current = popover;
+
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(() => forceLayoutUpdate((version) => version + 1));
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => forceLayoutUpdate((version) => version + 1));
+    resizeObserver?.observe(editorElement);
+    Array.from(editorElement.children).forEach((child) => resizeObserver?.observe(child));
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+    };
+  }, [editorElement, documentState]);
 
   useEffect(() => {
     const updateSelectedBlocks = () => {
@@ -147,6 +162,11 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
           const element = editorElement.children[index] as HTMLElement | undefined;
           if (!element) return null;
           const rect = element.getBoundingClientRect();
+          const controlAnchor = element.querySelector<HTMLElement>('[data-bleed-role="card"]')
+            ?? element.querySelector<HTMLElement>(
+              '.block-node-view-wrapper[data-layout="dynamic-bleed"] > :first-child',
+            );
+          const controlLeft = (controlAnchor ?? element).getBoundingClientRect().left;
           const emptyParagraph = node.type.name === "paragraph" && node.content.size === 0;
           const position = children.slice(0, index).reduce((sum, child) => sum + child.nodeSize, 0);
           const previousElement = editorElement.children[index - 1] as HTMLElement | undefined;
@@ -162,7 +182,11 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
               />
               <div
                 className={`block-controls-row${visible ? " is-visible" : ""}${selectedIndices.has(index) ? " is-selected" : ""}`}
-                style={{ top: rect.top - editorRect.top, height: rect.height }}
+                style={{
+                  top: rect.top - editorRect.top,
+                  left: controlLeft - editorRect.left,
+                  height: rect.height,
+                }}
                 onMouseEnter={() => setHoveredIndex((current) => current === index ? current : index)}
                 onMouseLeave={() => setHoveredIndex(null)}
               >
@@ -171,10 +195,10 @@ export function BlockControls({ editor, bindings, editable }: BlockControlsProps
                     type="button"
                     aria-label="Add block"
                     className="block-control-button block-add-button"
-                    size="sm"
+                    size="md"
                     onClick={() => setPopover({ index, paragraphPosition: position, top: rect.bottom + 4, left: rect.left })}
                   >
-                    <Plus size={18} aria-hidden="true" />
+                    <Plus size={22} aria-hidden="true" />
                   </IconButton>
                 ) : null}
                 <Menu
@@ -270,7 +294,7 @@ function BlockHandle({ index, onShiftClick }: { index: number; onShiftClick: () 
       className={`block-control-button block-handle${isDragging ? " is-dragging" : ""}`}
       type="button"
       aria-label="Block Handle"
-      size="sm"
+      size="md"
       {...attributes}
       {...listeners}
       onClick={(event) => {
@@ -283,7 +307,7 @@ function BlockHandle({ index, onShiftClick }: { index: number; onShiftClick: () 
         }
       }}
     >
-      <GripVertical size={18} aria-hidden="true" />
+      <GripVertical size={22} aria-hidden="true" />
     </IconButton>
   );
 }

@@ -483,7 +483,7 @@ function ElnChrome({
                   </div>
                   <button
                     type="button"
-                    className="eln-end-of-entry block w-full border-0 bg-transparent p-0 text-left"
+                    className="eln-end-of-entry eln-workspace-center block w-full border-0 bg-transparent p-0 text-left"
                     data-testid="end-of-entry"
                     onClick={() => !isLockedByOther && onAppendParagraph()}
                   >

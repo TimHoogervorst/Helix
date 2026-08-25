@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
+import { TabRow } from "../components/TabRow";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { ModManifest } from "../../../shell/src/mod-system/types";
 
@@ -103,9 +104,9 @@ describe("PinnedWorkspacesSidebar", () => {
 
   it("renders without the section header (delegated to parent SidebarSection)", async () => {
     await renderSidebar();
-    // The "Workspace" header is rendered by Layout's SidebarSection label,
+    // The "Tabs" header is rendered by Layout's SidebarSection label,
     // not by this component — it should not duplicate the heading.
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tabs")).not.toBeInTheDocument();
   });
 
   // ── Current workspace (not pinned) ────────────────────────────────────
@@ -144,6 +145,12 @@ describe("PinnedWorkspacesSidebar", () => {
     expect(screen.getByText("BLOOD1")).toBeInTheDocument();
     expect(screen.getByText("PCR Results")).toBeInTheDocument();
     expect(screen.getByText("E1")).toBeInTheDocument();
+  });
+
+  it("falls back to the display ID when a tab has no name", async () => {
+    await renderSidebar({ pins: [makePin({ label: "" })] });
+
+    expect(screen.getByText("BLOOD1")).toBeInTheDocument();
   });
 
   it("renders unpin button for each pinned workspace", async () => {
@@ -219,5 +226,33 @@ describe("PinnedWorkspacesSidebar", () => {
 
     const link = screen.getByLabelText("Open workspace: BLOOD1");
     expect(link).toBeInTheDocument();
+  });
+});
+
+describe("TabRow", () => {
+  it("renders a name with a muted display ID and falls back to the ID", () => {
+    const { rerender } = render(
+      <TabRow
+        displayId="BLOOD1"
+        name="Blood Sample A"
+        icon={<span>icon</span>}
+        ariaLabel="Open tab"
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Blood Sample A")).toBeInTheDocument();
+    expect(screen.getByText("BLOOD1")).toHaveClass("text-muted-foreground");
+
+    rerender(
+      <TabRow
+        displayId="BLOOD1"
+        name=""
+        icon={<span>icon</span>}
+        ariaLabel="Open tab"
+        onClick={() => {}}
+      />,
+    );
+    expect(screen.getByText("BLOOD1")).not.toHaveClass("text-muted-foreground");
   });
 });

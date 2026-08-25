@@ -7,9 +7,9 @@
  * Only the sidebar consumes this hook. If future components need it, the
  * hook can be lifted to React Context.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { getTabs, createTab, deleteTab } from "../api";
+import { getTabs, createTab, deleteTab, resolveWorkspace, updateTabLabel } from "../api";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 
@@ -27,6 +27,8 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
   const [pins, setPins] = useState<PinnedWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
+  const pinsRef = useRef(pins);
+  pinsRef.current = pins;
 
   const current = resolveCurrentWorkspace(location.pathname);
 
@@ -47,6 +49,35 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
       cancelled = true;
     };
   }, []);
+
+  // Refresh the stored snapshot label whenever a workspace is visited.
+  useEffect(() => {
+    if (!current || loading) return;
+    let cancelled = false;
+
+    resolveWorkspace(current.displayId)
+      .then((resolved) => {
+        if (cancelled || !resolved) return;
+        const label = resolved.title || "";
+        const matching = pinsRef.current.find((pin) => pin.url === current.url);
+        if (!matching || matching.label === label) return;
+
+        return updateTabLabel(matching.id, label).then((updated) => {
+          if (!cancelled) {
+            setPins((previous) =>
+              previous.map((pin) => (pin.id === updated.id ? updated : pin)),
+            );
+          }
+        });
+      })
+      .catch(() => {
+        // Resolution is best-effort; the display ID remains usable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.displayId, current?.url, loading]);
 
   // ── Pin the current workspace ──────────────────────────────────────────
   const pin = useCallback(async () => {

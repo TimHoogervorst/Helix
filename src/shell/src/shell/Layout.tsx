@@ -194,7 +194,7 @@ function Layout() {
                     </SidebarSection>
                   </>
                 ) : (
-                  /* ── Normal layout: Navigation + Workspace sections ── */
+                   /* ── Normal layout: Navigation + Tabs sections ── */
                   <>
                     <SidebarSection id="navigation" label="Navigation">
                       <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
@@ -215,7 +215,7 @@ function Layout() {
                       </nav>
                     </SidebarSection>
 
-                    <SidebarSection id="workspace" label="Workspace">
+                    <SidebarSection id="tabs" label="Tabs">
                       <PinnedWorkspacesSidebar />
                     </SidebarSection>
                   </>

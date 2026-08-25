@@ -12,9 +12,11 @@ vi.mock("../api", () => ({
   getTabs: vi.fn(),
   createTab: vi.fn(),
   deleteTab: vi.fn(),
+  resolveWorkspace: vi.fn(),
+  updateTabLabel: vi.fn(),
 }));
 
-import { getTabs, createTab, deleteTab } from "../api";
+import { getTabs, createTab, deleteTab, resolveWorkspace, updateTabLabel } from "../api";
 
 // ── ModRegistry setup ──────────────────────────────────────────────────────
 
@@ -66,6 +68,7 @@ function wrapper(initialEntries: string[] = ["/lims/BLOOD1"]) {
 describe("usePinnedWorkspaces", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(resolveWorkspace).mockResolvedValue(null);
     setupWorkspaces();
   });
 
@@ -255,6 +258,38 @@ describe("usePinnedWorkspaces", () => {
     });
 
     expect(createTab).not.toHaveBeenCalled();
+  });
+
+  it("refreshes a matching tab label from the visited workspace", async () => {
+    const pin = makePin({ label: "Old name" });
+    vi.mocked(getTabs).mockResolvedValue([pin]);
+    vi.mocked(resolveWorkspace).mockResolvedValue({
+      id: 1,
+      display_id: "BLOOD1",
+      title: "New name",
+      type: "sample",
+      icon: "",
+      color: "",
+      workspaceId: "lims",
+    });
+    vi.mocked(updateTabLabel).mockResolvedValue({ ...pin, label: "New name" });
+
+    renderHook(() => usePinnedWorkspaces(), { wrapper: wrapper(["/lims/BLOOD1"]) });
+
+    await waitFor(() => expect(updateTabLabel).toHaveBeenCalledWith(1, "New name"));
+  });
+
+  it("keeps an unresolved workspace visit usable", async () => {
+    vi.mocked(getTabs).mockResolvedValue([makePin()]);
+    vi.mocked(resolveWorkspace).mockResolvedValue(null);
+
+    const { result } = renderHook(() => usePinnedWorkspaces(), {
+      wrapper: wrapper(["/lims/BLOOD1"]),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.current?.displayId).toBe("BLOOD1");
+    expect(updateTabLabel).not.toHaveBeenCalled();
   });
 
   // ── Unpin (optimistic) ────────────────────────────────────────────────

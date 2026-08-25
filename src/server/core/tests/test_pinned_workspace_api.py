@@ -140,6 +140,22 @@ class PinnedWorkspaceApiTests(BaseTestCase):
         response = self.client.delete(f"/api/core/tabs/{other_pin.id}/")
         self.assertEqual(response.status_code, 404)
 
+    def test_update_label_only(self):
+        create_response = self.client.post(
+            "/api/core/tabs/",
+            {"display_id": "BLOOD1", "label": "Old name", "url": "/lims/BLOOD1"},
+            format="json",
+        )
+        pin_id = create_response.data["id"]
+
+        response = self.client.patch(
+            f"/api/core/tabs/{pin_id}/label/", {"label": "New name"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["label"], "New name")
+        self.assertEqual(response.data["url"], "/lims/BLOOD1")
+
 
 class TabsActionLoggingTests(BaseTestCase):
     """Test that tab/untab operations log actions via ActionLoggingMixin."""
@@ -196,6 +212,23 @@ class TabsActionLoggingTests(BaseTestCase):
 
     def test_get_does_not_log(self):
         self.client.get("/api/core/tabs/")
+        self.mock_log.assert_not_called()
+
+    def test_label_refresh_does_not_log(self):
+        create_response = self.client.post(
+            "/api/core/tabs/",
+            {"display_id": "BLOOD1", "label": "Old name", "url": "/lims/BLOOD1"},
+            format="json",
+        )
+        self.mock_log.reset_mock()
+
+        response = self.client.patch(
+            f"/api/core/tabs/{create_response.data['id']}/label/",
+            {"label": "New name"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
         self.mock_log.assert_not_called()
 
 

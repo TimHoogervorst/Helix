@@ -21,7 +21,7 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     queryset = PinnedWorkspace.objects.all()
     serializer_class = PinnedWorkspaceSerializer
     pagination_class = None
-    http_method_names = ["get", "post", "put", "delete", "head", "options"]
+    http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
 
     action_log_config = {
         "create": {"action": "core.tab.created"},
@@ -54,6 +54,21 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 {"url": ["This workspace is already pinned."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @action(detail=True, methods=["patch"], url_path="label")
+    def label(self, request, pk=None):
+        """Refresh a tab's snapshot label without logging an action."""
+        if set(request.data) != {"label"}:
+            return Response(
+                {"label": ["Only the label can be updated here."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tab = self.get_object()
+        serializer = self.get_serializer(tab, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
     @action(detail=False, methods=["put"], url_path="layout")
     def layout(self, request):

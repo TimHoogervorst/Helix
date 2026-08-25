@@ -12,7 +12,7 @@ import { useLocation } from "react-router-dom";
 import { getTabs, getTabFolders, createTab, deleteTab, putTabLayout, resolveWorkspace, updateTabLabel, createTabFolder, updateTabFolder, deleteTabFolder } from "../api";
 import type { PinnedWorkspace, CurrentWorkspace, TabFolder, TabLayout } from "../types";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
-import { moveTab, reorderFolders, reorderRootTabs } from "../layoutTransition";
+import { moveLayoutItem, reorderRootTabs, type LayoutDropTarget } from "../layoutTransition";
 
 // ── Hook ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ export interface UsePinnedWorkspacesReturn {
   pin: () => Promise<void>;
   unpin: (id: number) => Promise<void>;
   reorder: (activeId: number, overId: number) => Promise<void>;
-  move: (activeId: number, overId: number | "root" | `folder:${number}`) => Promise<void>;
+  move: (activeId: number, target: number | "root" | `folder:${number}` | LayoutDropTarget) => Promise<void>;
   createFolder: (name: string) => Promise<TabFolder | null>;
   renameFolder: (id: number, name: string) => Promise<void>;
   removeFolder: (id: number) => Promise<void>;
@@ -185,32 +185,27 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
   }, [pins, folders]);
 
   const persist = useCallback(async (nextPins: PinnedWorkspace[], nextFolders: TabFolder[]) => {
+    const layoutItems = [
+      ...nextFolders.map((folder) => ({ kind: "folder" as const, id: folder.id, order: folder.order })),
+      ...nextPins.map((pin) => ({ kind: "tab" as const, id: pin.id, folder: pin.folder ?? null, order: pin.order ?? 0 })),
+    ].sort((a, b) => a.order - b.order);
+    const orderById = new Map(layoutItems.map((item, order) => [item.kind + item.id, order]));
     const response = await putTabLayout({
-      folders: nextFolders.map((folder) => ({ id: folder.id, order: folder.order, expanded: folder.expanded, tab_ids: nextPins.filter((pin) => pin.folder === folder.id).map((pin) => pin.id) })),
-      tabs: nextPins.map((pin, order) => ({ id: pin.id, order, folder: pin.folder ?? null })),
+      folders: nextFolders.map((folder) => ({ id: folder.id, order: orderById.get("folder" + folder.id) ?? 0, expanded: folder.expanded, tab_ids: nextPins.filter((pin) => pin.folder === folder.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((pin) => pin.id) })),
+      tabs: nextPins.map((pin) => ({ id: pin.id, order: orderById.get("tab" + pin.id) ?? 0, folder: pin.folder ?? null })),
     });
     setPins(response.tabs);
     setFolders(response.folders);
   }, []);
 
-  const move = useCallback(async (activeId: number, overId: number | "root" | `folder:${number}`) => {
-    if (typeof overId === "number" && folders.some((folder) => folder.id === activeId)) {
-      const order = reorderFolders(folders.map((folder) => folder.id), activeId, overId);
-      if (order.every((id, index) => id === folders[index]?.id)) return;
-      const nextFolders = order.map((id, orderIndex) => ({ ...folders.find((folder) => folder.id === id)!, order: orderIndex }));
-      setFolders(nextFolders);
-      try { await persist(pins, nextFolders); } catch { setFolders(folders); }
-      return;
-    }
-    const flat = [
-      ...folders.map((folder) => ({ kind: "folder" as const, id: folder.id })),
-      ...pins.map((pin) => ({ kind: "tab" as const, id: pin.id, folder: pin.folder ?? null })),
-    ];
-    const next = moveTab(flat, activeId, overId);
+  const move = useCallback(async (activeId: number, overId: number | "root" | `folder:${number}` | LayoutDropTarget) => {
+    const flat = [...folders.map((folder) => ({ kind: "folder" as const, id: folder.id, order: folder.order })), ...pins.map((pin) => ({ kind: "tab" as const, id: pin.id, folder: pin.folder ?? null, order: pin.order ?? 0 }))].sort((a, b) => a.order - b.order).map(({ order: _order, ...item }) => item);
+    const target: LayoutDropTarget = typeof overId === "number" ? { kind: "tab", id: overId } : typeof overId === "object" ? overId : overId === "root" ? { kind: "top-edge", position: "after" } : { kind: "folder", id: Number(overId.slice(7)) };
+    const next = moveLayoutItem(flat, activeId, target);
     if (next === flat) return;
     const folderById = new Map(folders.map((folder) => [folder.id, folder]));
-    const nextPins = next.filter((item): item is { kind: "tab"; id: number; folder: number | null } => item.kind === "tab").map((item) => ({ ...pins.find((pin) => pin.id === item.id)!, folder: item.folder }));
-    const nextFolders = next.filter((item): item is { kind: "folder"; id: number } => item.kind === "folder").map((item, order) => ({ ...folderById.get(item.id)!, order }));
+    const nextFolders = next.filter((item): item is { kind: "folder"; id: number } => item.kind === "folder").map((item) => ({ ...folderById.get(item.id)!, order: next.indexOf(item) }));
+    const nextPins = next.filter((item): item is { kind: "tab"; id: number; folder: number | null } => item.kind === "tab").map((item) => ({ ...pins.find((pin) => pin.id === item.id)!, folder: item.folder, order: next.indexOf(item) }));
     setPins(nextPins);
     setFolders(nextFolders);
     try { await persist(nextPins, nextFolders); } catch { setPins(pins); setFolders(folders); }

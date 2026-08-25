@@ -9,6 +9,7 @@ import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 import { TabRow } from "./TabRow";
+import { normalizeWorkspaceUrl } from "../navigation";
 
 function WorkspaceHistorySidebar() {
   const navigate = useNavigate();
@@ -37,6 +38,10 @@ function WorkspaceHistorySidebar() {
     }
   }
 
+  function openWorkspace(url: string) {
+    navigate(normalizeWorkspaceUrl(url));
+  }
+
   if (isCollapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-2">
@@ -44,7 +49,7 @@ function WorkspaceHistorySidebar() {
           <IconButton
             key={item.url}
             className="flex h-8 w-8 items-center justify-center rounded-md"
-            onClick={() => navigate(item.url)}
+            onClick={() => openWorkspace(item.url)}
             title={item.name === item.displayId ? item.displayId : `${item.name} — ${item.displayId}`}
             aria-label={`Open workspace: ${item.displayId}`}
           >
@@ -68,7 +73,7 @@ function WorkspaceHistorySidebar() {
             icon={renderIcon(item)}
             active={item.url === location.pathname}
             ariaLabel={`Open workspace: ${item.displayId}`}
-            onClick={() => navigate(item.url)}
+            onClick={() => openWorkspace(item.url)}
             trailing={
               <>
                 <IconButton

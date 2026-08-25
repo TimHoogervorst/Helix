@@ -66,6 +66,7 @@ export interface ElnChromeProps {
 
   headerActions: ReactNode;
   editor: ReactNode;
+  onAppendParagraph: () => void;
   sidebar: ReactNode;
 }
 
@@ -94,6 +95,7 @@ function ElnChrome({
   recentEditors,
   headerActions,
   editor,
+  onAppendParagraph,
   sidebar,
 }: ElnChromeProps) {
   const titleRef = useRef<HTMLHeadingElement | null>(null);
@@ -462,9 +464,35 @@ function ElnChrome({
                   </div>
 
                   {/* ── ProseMirror Content (injected editor) ── */}
-                  <div className="min-h-[60vh]" data-testid="prosemirror-wrapper">
+                  <div
+                    className="min-h-[60vh]"
+                    data-testid="prosemirror-wrapper"
+                    onClick={(event) => {
+                      const target = event.target;
+                      if (!(target instanceof Element)) return;
+                      if (
+                        !target.closest(".ProseMirror") ||
+                        target.closest(".ProseMirror > *")
+                      ) {
+                        return;
+                      }
+                      if (!isLockedByOther) onAppendParagraph();
+                    }}
+                  >
                     {editor}
                   </div>
+                  <button
+                    type="button"
+                    className="eln-end-of-entry block w-full border-0 bg-transparent p-0 text-left"
+                    data-testid="end-of-entry"
+                    onClick={() => !isLockedByOther && onAppendParagraph()}
+                  >
+                    <div className="h-px bg-hairline" />
+                    <div className="flex items-center justify-between pt-2 font-[var(--font-label)] text-xs uppercase tracking-widest text-muted-foreground">
+                      <span>{`ELN – ${entryDisplayId}`}</span>
+                      <span>End of Entry</span>
+                    </div>
+                  </button>
                 </div>
               </CommentVisibilityProvider>
             </div>

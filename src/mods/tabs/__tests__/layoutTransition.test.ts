@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveTab, rejectFolderNesting, reorderFolders, reorderRootTabs } from "../layoutTransition";
+import { moveLayoutItem, moveTab, rejectFolderNesting, reorderFolders, reorderRootTabs } from "../layoutTransition";
 import type { PinnedWorkspace } from "../types";
 
 function tab(id: number): PinnedWorkspace {
@@ -36,6 +36,35 @@ describe("reorderRootTabs", () => {
 });
 
 describe("folder layout transitions", () => {
+  it("moves a folder and all of its children as one subtree", () => {
+    const items = [
+      { kind: "folder" as const, id: 10 },
+      { kind: "tab" as const, id: 1, folder: 10 },
+      { kind: "tab" as const, id: 2, folder: null },
+      { kind: "folder" as const, id: 20 },
+      { kind: "tab" as const, id: 3, folder: 20 },
+    ];
+
+    expect(moveLayoutItem(items, 10, { kind: "top", position: "after", item: { kind: "tab", id: 2, folder: null } })).toEqual([
+      { kind: "tab", id: 2, folder: null },
+      { kind: "folder", id: 10 },
+      { kind: "tab", id: 1, folder: 10 },
+      { kind: "folder", id: 20 },
+      { kind: "tab", id: 3, folder: 20 },
+    ]);
+  });
+
+  it("moves a root tab before and after top-level items", () => {
+    const items = [
+      { kind: "folder" as const, id: 10 },
+      { kind: "tab" as const, id: 1, folder: null },
+      { kind: "tab" as const, id: 2, folder: null },
+    ];
+
+    expect(moveLayoutItem(items, 2, { kind: "top-edge", position: "before" }).map((item) => item.id)).toEqual([2, 10, 1]);
+    expect(moveLayoutItem(items, 1, { kind: "top", position: "after", item: { kind: "folder", id: 10 } }).map((item) => item.id)).toEqual([10, 1, 2]);
+  });
+
   it("moves a root tab into a folder", () => {
     const items = [
       { kind: "folder" as const, id: 10 },

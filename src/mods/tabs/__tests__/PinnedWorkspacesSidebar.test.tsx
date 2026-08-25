@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
 import { TabRow } from "../components/TabRow";
+import { normalizeWorkspaceUrl } from "../navigation";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { ModManifest } from "../../../shell/src/mod-system/types";
 
@@ -237,5 +238,10 @@ describe("TabRow", () => {
       />,
     );
     expect(screen.getByText("BLOOD1")).not.toHaveClass("text-muted-foreground");
+  });
+
+  it("keeps workspace URLs rooted when opened from a nested route", () => {
+    expect(normalizeWorkspaceUrl("lims/BLOOD1")).toBe("/lims/BLOOD1");
+    expect(normalizeWorkspaceUrl("/eln/E1")).toBe("/eln/E1");
   });
 });

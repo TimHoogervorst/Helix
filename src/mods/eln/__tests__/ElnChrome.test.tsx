@@ -106,6 +106,7 @@ function defaultProps(overrides: Partial<ElnChromeProps> = {}): ElnChromeProps {
     recentEditors: [],
     headerActions: null,
     editor: React.createElement("div", { "data-testid": "tiptap-renderer" }),
+    onAppendParagraph: vi.fn(),
     sidebar: null,
     ...overrides,
   };
@@ -458,6 +459,50 @@ describe("ElnChrome", () => {
       });
       expect(screen.getByTestId("header-actions")).toBeDefined();
       expect(screen.getByText("Actions")).toBeDefined();
+    });
+
+    it("renders the End of Entry divider", () => {
+      renderChrome();
+
+      const endOfEntry = screen.getByTestId("end-of-entry");
+      expect(endOfEntry).toHaveTextContent("ELN – EXP-0284");
+      expect(endOfEntry).toHaveTextContent("End of Entry");
+      expect(endOfEntry.querySelector(".bg-hairline")).not.toBeNull();
+    });
+
+    it("renders the divider when the entry is locked", () => {
+      renderChrome({ isLockedByOther: true, lockHeldBy: "bob" });
+
+      expect(screen.getByTestId("end-of-entry")).toBeDefined();
+    });
+
+    it("appends a paragraph when the end region is clicked", () => {
+      const onAppendParagraph = vi.fn();
+      renderChrome({
+        onAppendParagraph,
+        editor: React.createElement(
+          "div",
+          { className: "tiptap-renderer" },
+          React.createElement(
+            "div",
+            { className: "ProseMirror" },
+            React.createElement("p", null, "Final block"),
+          ),
+        ),
+      });
+
+      fireEvent.click(document.querySelector(".ProseMirror")!);
+
+      expect(onAppendParagraph).toHaveBeenCalledOnce();
+    });
+
+    it("does not append when the entry is locked", () => {
+      const onAppendParagraph = vi.fn();
+      renderChrome({ isLockedByOther: true, onAppendParagraph });
+
+      fireEvent.click(screen.getByTestId("end-of-entry"));
+
+      expect(onAppendParagraph).not.toHaveBeenCalled();
     });
   });
 

@@ -30,6 +30,7 @@ and onboarding reference for contributors.
 | [0018](0018-design-system-and-preferences.md) | Design System and Preferences — Seeds, Derived Overrides, Fonts, and localStorage | 2026-08-09 | Proposed |
 | [0022](0022-table-kit-deep-typed-grid.md) | Table Kit as a Deep Typed Grid Module | 2026-08-20 | Proposed |
 | [0023](0023-eln-workspace-bleed-layout.md) | ELN Workspace Bleed Layout | 2026-08-24 | Proposed |
+| [0024](0024-block-duplication-policy.md) | Block Duplication Is Policy-Driven — data and completion state never travel | 2026-08-25 | Proposed |
 
 ## Creating a New ADR
 

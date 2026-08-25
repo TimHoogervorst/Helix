@@ -125,7 +125,7 @@ class PinnedWorkspaceViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         return Response({
             "folders": TabFolderSerializer(
-                TabFolder.objects.filter(user=request.user), many=True
+                TabFolder.objects.filter(user=request.user).order_by("order", "id"), many=True
             ).data,
             "tabs": PinnedWorkspaceSerializer(
                 PinnedWorkspace.objects.filter(user=request.user)

@@ -21,39 +21,79 @@ export type LayoutItem =
   | { kind: "tab"; id: number; folder: number | null }
   | { kind: "folder"; id: number };
 
+export type LayoutDropTarget =
+  | { kind: "top"; position: "before" | "after"; item: LayoutItem }
+  | { kind: "top-edge"; position: "before" | "after" }
+  | { kind: "folder"; id: number }
+  | { kind: "tab"; id: number };
+
+function topLevelIndex(items: LayoutItem[], target: LayoutItem): number {
+  return items.findIndex((item) => item.kind === target.kind && item.id === target.id && (item.kind === "folder" || item.folder === null));
+}
+
+/** Move a tab or a folder (including its tabs) to a valid layout position. */
+export function moveLayoutItem(
+  items: LayoutItem[],
+  activeId: number,
+  target: LayoutDropTarget,
+): LayoutItem[] {
+  const activeIndex = items.findIndex((item) => item.id === activeId);
+  if (activeIndex < 0) return items;
+  const active = items[activeIndex];
+  const movingFolder = active.kind === "folder";
+  if (movingFolder && target.kind !== "top" && target.kind !== "top-edge") return items;
+
+  const moving = movingFolder
+    ? items.filter((item) => item.kind === "folder" && item.id === activeId || item.kind === "tab" && item.folder === activeId)
+    : [active];
+  const remaining = items.filter((item) => !moving.includes(item));
+
+  if (!movingFolder && target.kind === "folder") {
+    const folderIndex = remaining.findIndex((item) => item.kind === "folder" && item.id === target.id);
+    if (folderIndex < 0) return items;
+    const tab = { ...active, folder: target.id } as LayoutItem;
+    const childEnd = remaining.reduce((index, item, indexInList) =>
+      item.kind === "tab" && item.folder === target.id ? indexInList + 1 : index, folderIndex + 1);
+    remaining.splice(childEnd, 0, tab);
+    return remaining;
+  }
+
+  if (!movingFolder && target.kind === "tab") {
+    const targetIndex = remaining.findIndex((item) => item.kind === "tab" && item.id === target.id);
+    if (targetIndex < 0) return items;
+    const over = remaining[targetIndex];
+    if (over.kind !== "tab") return items;
+    remaining.splice(targetIndex, 0, { ...active, folder: over.folder });
+    return remaining;
+  }
+
+  if (target.kind !== "top" && target.kind !== "top-edge") return items;
+
+  const targetIndex = target.kind === "top-edge"
+    ? (target.position === "before" ? 0 : remaining.length)
+    : topLevelIndex(remaining, target.item) + (target.position === "after" ? 1 : 0);
+  if (targetIndex < 0) return items;
+  const moved = moving.map((item) => movingFolder ? item : { ...item, folder: null });
+  const insertionIndex = targetIndex > remaining.length ? remaining.length : targetIndex;
+  remaining.splice(insertionIndex, 0, ...moved);
+  return remaining;
+}
+
 /** Move a tab to another tab position or into a folder without allowing nesting. */
 export function moveTab(
   items: LayoutItem[],
   activeId: number,
   overId: number | "root" | `folder:${number}`,
 ): LayoutItem[] {
-  const activeIndex = items.findIndex((item) => item.kind === "tab" && item.id === activeId);
-  if (activeIndex < 0) return items;
-  const next = [...items];
-  const [active] = next.splice(activeIndex, 1);
-  if (!active || active.kind !== "tab") return items;
-
   if (overId === "root") {
-    active.folder = null;
-    next.push(active);
-    return next;
+    return moveLayoutItem(items, activeId, { kind: "top-edge", position: "after" });
   }
   if (typeof overId === "string") {
     const folderId = Number(overId.slice("folder:".length));
-    if (!Number.isInteger(folderId) || !next.some((item) => item.kind === "folder" && item.id === folderId)) return items;
-    active.folder = folderId;
-    const folderIndex = next.findIndex((item) => item.kind === "folder" && item.id === folderId);
-    next.splice(folderIndex + 1, 0, active);
-    return next;
+    if (!Number.isInteger(folderId)) return items;
+    return moveLayoutItem(items, activeId, { kind: "folder", id: folderId });
   }
-
-  const overIndex = next.findIndex((item) => item.kind === "tab" && item.id === overId);
-  if (overIndex < 0) return items;
-  const over = next[overIndex];
-  if (!over || over.kind !== "tab") return items;
-  active.folder = over.folder;
-  next.splice(overIndex, 0, active);
-  return next;
+  return moveLayoutItem(items, activeId, { kind: "tab", id: overId });
 }
 
 /** A folder drop target must never become a child of another folder. */

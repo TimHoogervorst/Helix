@@ -37,7 +37,7 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
 | **Binding Override** | A per-binding configuration object (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; the binding wins per key. Used for presentation-level configuration that is specific to a slot binding; the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
 | **Inline Block** | A block stored inside the ProseMirror/TipTap document JSON. Part of the document body — locked when the document is locked (e.g. during review). Created and edited through the editor. |
-| **Outline Block** | A block stored outside the ProseMirror document, in a separate `outline_blocks` array on the entry. Carries a document position anchor (`pos`). Can be added even when the document content is locked — enabling review-time annotations. Rendered outside the editor (e.g. in a gutter). |
+| **Duplication Policy** | A declarative `preserve` list on a block registration governing what Duplicate carries over. Empty by default — Duplicate copies the block's full state. A policy names which parts survive (e.g. only a schema ID or a protocol ID); everything else is re-derived fresh, exactly as at a fresh insertion. Table row data and protocol step completion never travel on Duplicate. See [ADR 0024](docs/adr/0024-block-duplication-policy.md). |
 | **Event Bus** | A workspace-scoped pub/sub bus. Created by the workspace and passed to renderers; blocks never see it directly. Buttons emit events via `bus.emit()`; blocks listen declaratively via `listensTo` + `onEvent` handlers (wired by the renderer) and emit custom actions via their `emits` declaration. The bus carries cross-boundary events like `{workspaceId}.action.performed` (resolved, ready-to-render action items). Block lifecycle events (created/edited/deleted) are internal renderer callbacks — not on the public bus. Supports wildcard pattern matching for subscriptions. |
 
 ### Backend Mod System
@@ -274,7 +274,7 @@ The layout role of every table block in the ELN editor (Registry Table, Plain Ta
 
 ### Workspace Chrome
 
-The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, and the content padding that bounds the editor. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
+The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, the End of Entry, and the content padding that bounds the editor. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
 
 **Synonyms:** editor chrome, workspace frame
 
@@ -284,9 +284,39 @@ Workspace chrome rendered below the Rich-Text Document on every Notebook Entry w
 
 **Synonyms:** entry footer, end marker
 
-### Left Gutter
+### Block Handle
 
-The flexible left `1fr` track of the ELN workspace grid. Home to the hover block controls — the add (`+`) and drag (`::`) affordances shown beside top-level blocks. Reserved for block controls; no other UI may claim it. Distinct from the Center Gutter and Right Gutter.
+The `::` affordance of the Block Controls, shown on row hover to the left of every top-level block. Press-and-move drags the block to another position in the document; a plain click opens the Block Action Menu. Hidden when the entry is locked or read-only.
+
+_Avoid_: grip, drag handle
+
+### Add Button
+
+The `+` affordance of the Block Controls, shown on row hover to the left of empty paragraphs only. Opens the Block Popover; the chosen block takes the empty paragraph's position. A paragraph containing any content — even a lone reference node — is not empty. Hidden when the entry is locked or read-only.
+
+### Block Popover
+
+The shared block-insertion menu. Lists the same block catalog as the `/` command, filtered by a fuzzy search bar. The search bar is hideable per invocation: the Add Button shows it; the `/` trigger hides it, because the query typed into the text does the filtering there.
+
+_Avoid_: slash menu (names only the `/` trigger path)
+
+### Block Action Menu
+
+The menu opened by clicking a Block Handle. Offers Delete, Duplicate, Move up, and Move down. Acts on the whole Block Selection when one exists, otherwise on the handle's own block.
+
+### Block Selection
+
+A set of top-level blocks chosen via Shift-click on their Block Handles. Selected blocks are highlighted; drag, delete, duplicate, and move apply to the set as a group — a multi-drag preserves the blocks' relative order. Cleared by Escape or by clicking into document text.
+
+### Formatting Menu
+
+The floating menu shown on a non-empty text selection in the document body. Offers Heading 1–3 (which convert the whole block), Bold, Italic, Strikethrough, Inline Code, and clear formatting. Never appears on custom blocks or table cells — table cells are not document text.
+
+_Avoid_: bubble menu (implementation term)
+
+### Block Controls
+
+The hover affordances shown beside top-level blocks in the ELN editor — the Add Button (`+`) and the Block Handle (`::`). They are rendered as an overlay layer above the editor; they never become part of the document grid, and the document's grid rules and the Dynamic Bleed machinery are never modified for them. They appear in the flexible left `1fr` track of the ELN workspace grid, and that track is reserved for the Block Controls — no other UI may claim it. Distinct from the Center Gutter and Right Gutter.
 
 **Synonyms:** block-controls track
 
@@ -298,7 +328,7 @@ The fluid center track of the ELN workspace grid — `min(48rem, 100%)`, centere
 
 ### Right Gutter
 
-The flexible right track of the ELN workspace grid. It is available to Dynamic Bleed tables after their text-column-aligned start edge and is not a comment-card or outline-block column. The right track ends at the workspace content padding and persistent chrome. Distinct from the Metadata Sidebar.
+The flexible right track of the ELN workspace grid. It is available to Dynamic Bleed tables after their text-column-aligned start edge. The right track ends at the workspace content padding and persistent chrome. Distinct from the Metadata Sidebar.
 
 ### Metadata Sidebar
 
@@ -309,6 +339,8 @@ The ELN workspace's persistent metadata panel. It is `256px` wide and is hidden 
 The structured content *inside* a Notebook Entry. A tree of blocks (paragraphs, headings, lists, tables) stored as a TipTap/ProseMirror JSON document. The document is the editable, renderable content — distinct from the entry's metadata (title, author, folder, dates).
 
 **Invariant:** A document belongs to exactly one Notebook Entry.
+
+**Invariant:** A document always ends with a paragraph — one is appended automatically whenever the last block is not a paragraph, so there is always a caret target at the bottom.
 
 **Synonyms:** content, document body, editor content
 

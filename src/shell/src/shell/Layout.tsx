@@ -11,6 +11,7 @@ import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
 import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
 import { IconButton } from "../shared/primitives/IconButton";
 import PinnedWorkspacesSidebar from "../../../mods/tabs/components/PinnedWorkspacesSidebar";
+import WorkspaceHistorySidebar from "../../../mods/tabs/components/WorkspaceHistorySidebar";
 
 /**
  * Brand header with logo, "Helix Alpha" text, and a collapse toggle.
@@ -217,6 +218,9 @@ function Layout() {
 
                     <SidebarSection id="tabs" label="Tabs">
                       <PinnedWorkspacesSidebar />
+                    </SidebarSection>
+                    <SidebarSection id="history" label="History">
+                      <WorkspaceHistorySidebar />
                     </SidebarSection>
                   </>
                 )}

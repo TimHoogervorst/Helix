@@ -1,12 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import { Pin, PinOff, Box } from "lucide-react";
+import { PinOff, Box } from "lucide-react";
 import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { extractWorkspaceId } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 import { useSidebar } from "../../../shell/src/workspace/SidebarContext";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { Badge } from "../../../shell/src/shared/primitives/Badge";
 import { TabRow } from "./TabRow";
 
 /**
@@ -21,19 +20,10 @@ function WorkspaceIcon({ workspaceId }: { workspaceId: string }) {
   return <Box className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
 }
 
-function CurrentBadge() {
-  return <Badge className="ml-1 px-1 text-2xs leading-[18px]">Current</Badge>;
-}
-
 function PinnedWorkspacesSidebar() {
   const navigate = useNavigate();
-  const { pins, current, pin, unpin } = usePinnedWorkspaces();
+  const { pins, current, unpin } = usePinnedWorkspaces();
   const { isCollapsed } = useSidebar();
-
-  // ── Derived: is the current workspace already pinned? ──────────────────
-  const isCurrentPinned = current
-    ? pins.some((p) => p.url === current.url)
-    : false;
 
   function handleRowClick(url: string) {
     navigate(url);
@@ -43,18 +33,6 @@ function PinnedWorkspacesSidebar() {
   if (isCollapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-2">
-        {/* Current workspace (temporary, not pinned) */}
-        {current && !isCurrentPinned && (
-          <IconButton
-            className="flex items-center justify-center w-8 h-8 rounded-md"
-            onClick={() => handleRowClick(current.url)}
-            title={current.displayId}
-            aria-label={`Current workspace: ${current.displayId}`}
-          >
-            <WorkspaceIcon workspaceId={current.icon} />
-          </IconButton>
-        )}
-
         {/* Pinned workspaces */}
         {pins.map((p) => {
           const wsId = extractWorkspaceId(p.url);
@@ -89,34 +67,6 @@ function PinnedWorkspacesSidebar() {
     <>
       {/* Workspace tree area */}
       <div className="flex-1 overflow-y-auto px-2 pb-6 text-base">
-        {/* Current workspace (temporary, not pinned) */}
-        {current && !isCurrentPinned && (
-          <div className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-0.5 text-left">
-            <TabRow
-              displayId={current.displayId}
-              icon={<WorkspaceIcon workspaceId={current.icon} />}
-              ariaLabel={`Open workspace: ${current.displayId}`}
-              onClick={() => handleRowClick(current.url)}
-              badge={
-                <CurrentBadge />
-              }
-              trailing={
-                <IconButton
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  title="Pin this workspace"
-                  aria-label="Pin current workspace"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    pin();
-                  }}
-                >
-                  <Pin className="h-3.5 w-3.5" aria-hidden="true" />
-                </IconButton>
-              }
-            />
-          </div>
-        )}
-
         {/* Pinned workspaces */}
         {pins.map((p) => {
           const isActive = current?.url === p.url;
@@ -143,11 +93,6 @@ function PinnedWorkspacesSidebar() {
                 active={isActive}
                 ariaLabel={`Open workspace: ${p.display_id}`}
                 onClick={() => handleRowClick(p.url)}
-                badge={
-                  isActive ? (
-                    <CurrentBadge />
-                  ) : undefined
-                }
                 trailing={
                   <IconButton
                     className="grid h-7 w-7 shrink-0 place-items-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"

@@ -248,6 +248,16 @@ describe("Tabs section", () => {
     expect(screen.getByText("Tabs")).toBeInTheDocument();
   });
 
+  it("renders the History section below Tabs", () => {
+    renderLayout();
+
+    const tabs = screen.getByText("Tabs");
+    const history = screen.getByText("History");
+    expect(tabs).toBeInTheDocument();
+    expect(history).toBeInTheDocument();
+    expect(tabs.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("does not crash when rendering with no pinned tabs and no current workspace", () => {
     renderLayout();
     // Layout should render normally — just verify no crash

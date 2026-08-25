@@ -35,7 +35,7 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
   // ── Fetch tabs on mount ────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    getTabs()
+    const refresh = () => getTabs()
       .then((data) => {
         if (!cancelled) {
           setPins(data);
@@ -45,8 +45,11 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
       .catch(() => {
         if (!cancelled) setLoading(false);
       });
+    refresh();
+    window.addEventListener("helix-tabs-changed", refresh);
     return () => {
       cancelled = true;
+      window.removeEventListener("helix-tabs-changed", refresh);
     };
   }, []);
 

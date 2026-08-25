@@ -109,27 +109,14 @@ describe("PinnedWorkspacesSidebar", () => {
     expect(screen.queryByText("Tabs")).not.toBeInTheDocument();
   });
 
-  // ── Current workspace (not pinned) ────────────────────────────────────
-
-  it("renders current workspace when not pinned", async () => {
+  it("does not render a separate current workspace row", async () => {
     await renderSidebar({
       current: makeCurrent({ displayId: "BLOOD1" }),
       pins: [],
     });
 
-    expect(screen.getByText("BLOOD1")).toBeInTheDocument();
-    expect(screen.getByText("Current")).toBeInTheDocument();
-    expect(screen.getByLabelText("Pin current workspace")).toBeInTheDocument();
-  });
-
-  it("calls pin when the pin button is clicked", async () => {
-    await renderSidebar({
-      current: makeCurrent({ displayId: "BLOOD1" }),
-      pins: [],
-    });
-
-    fireEvent.click(screen.getByLabelText("Pin current workspace"));
-    expect(mockPin).toHaveBeenCalled();
+    expect(screen.queryByText("BLOOD1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Pin current workspace")).not.toBeInTheDocument();
   });
 
   // ── Pinned workspaces ─────────────────────────────────────────────────
@@ -171,24 +158,6 @@ describe("PinnedWorkspacesSidebar", () => {
     expect(mockUnpin).toHaveBeenCalledWith(42);
   });
 
-  // ── Already pinned current ────────────────────────────────────────────
-
-  it("does not show current row when current workspace is already pinned", async () => {
-    const pins = [makePin({ id: 1, url: "/lims/BLOOD1" })];
-
-    await renderSidebar({
-      current: makeCurrent({ url: "/lims/BLOOD1" }),
-      pins,
-    });
-
-    // The pinned row should show as "Current" (active), not a separate current row
-    expect(screen.getByText("BLOOD1")).toBeInTheDocument();
-    // There should be no pin button (since it's already pinned)
-    expect(
-      screen.queryByLabelText("Pin current workspace"),
-    ).not.toBeInTheDocument();
-  });
-
   it("shows active state on pinned workspace that matches current URL", async () => {
     const pins = [
       makePin({ id: 1, url: "/lims/BLOOD1" }),
@@ -200,10 +169,7 @@ describe("PinnedWorkspacesSidebar", () => {
       pins,
     });
 
-    // The current (BLOOD1) pinned row should have the "Current" badge
-    const currentBadges = screen.getAllByText("Current");
-    // There should be at least one "Current" badge on the active pinned row
-    expect(currentBadges.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("Open workspace: BLOOD1")[0]).toHaveClass("bg-muted");
   });
 
   // ── Empty state ───────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo, useCallback } from "react";
+import type { Editor } from "@tiptap/core";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
 import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
@@ -83,6 +84,19 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const { saveStatus, lastSavedAt, queueLength, save, deleteEntry } = workspace.save;
   const { isLockedByOther, lockHeldBy } = workspace.lock;
   const { tags, pendingTagIds, addTag, removeTag } = taggableItems;
+  const editorRef = useRef<Editor | null>(null);
+
+  const handleEditorCreate = useCallback((editor: Editor) => {
+    editorRef.current = editor;
+    workspace.editor.onUpdate(editor);
+  }, [workspace.editor]);
+
+  const handleAppendParagraph = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.commands.insertContentAt(editor.state.doc.content.size, { type: "paragraph" });
+    editor.commands.focus("end");
+  }, []);
 
   const editorBindings = useMemo(() => {
     const resolved = ModRegistry.getInstance().resolveSlot("eln.editor");
@@ -181,6 +195,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       context={slotContext}
       content={workspace.editor.content}
       extensions={elnExtensions}
+      onCreate={handleEditorCreate}
       onUpdate={workspace.editor.onUpdate}
       editable={workspace.editor.editable}
       saveSignal={workspace.editor.saveSignal}
@@ -224,6 +239,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       recentEditors={recentEditors}
       headerActions={headerActions}
       editor={editorElement}
+      onAppendParagraph={handleAppendParagraph}
       sidebar={sidebarElement}
     />
   );

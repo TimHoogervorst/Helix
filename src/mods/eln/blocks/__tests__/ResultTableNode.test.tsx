@@ -162,6 +162,15 @@ describe("ResultTableContent", () => {
     expect(screen.getByTestId("result-table-loaded")).toHaveClass(
       "table-layout-chrome--compact",
     );
+    expect(screen.getByTestId("result-table-loaded")).toHaveAttribute(
+      "data-layout",
+      "dynamic-bleed",
+    );
+    const card = screen.getByTestId("result-table-loaded");
+    expect(card).toHaveAttribute("data-bleed-role", "card");
+    expect(card.parentElement?.querySelector('[data-bleed-role="bar"]')).toBeInTheDocument();
+    expect(card.parentElement?.querySelector('[data-bleed-role="viewport"]')).toBeInTheDocument();
+    expect(card.parentElement?.querySelector('[data-bleed-role="add-row"]')).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Entity" })).toHaveClass(
       "py-1",
     );

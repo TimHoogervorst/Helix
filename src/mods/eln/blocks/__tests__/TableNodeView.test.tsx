@@ -34,6 +34,24 @@ describe("TableBlockContent", () => {
     expect(screen.queryByTestId("column-type-amount")).not.toBeInTheDocument();
   });
 
+  it("uses the constrained scroll layout without breakout classes", () => {
+    renderTable();
+
+    const scroll = screen.getByTestId("eln-table-grid").parentElement?.parentElement;
+    expect(scroll).toHaveClass("table-layout-scroll");
+    expect(scroll?.className).not.toContain("table-layout-scroll--");
+  });
+
+  it("uses the shared dynamic-bleed chrome anatomy", () => {
+    renderTable();
+
+    const card = screen.getByTestId("eln-table");
+    expect(card).toHaveAttribute("data-bleed-role", "card");
+    expect(card.parentElement?.querySelector('[data-bleed-role="bar"]')).toBeInTheDocument();
+    expect(card.parentElement?.querySelector('[data-bleed-role="viewport"]')).toBeInTheDocument();
+    expect(card.parentElement?.querySelector('[data-bleed-role="add-row"]')).toBeInTheDocument();
+  });
+
   it("renders legacy typed columns as text", () => {
     const typedColumns: TableColumn[] = [
       { id: "role", name: "Role", type: "dropdown" },

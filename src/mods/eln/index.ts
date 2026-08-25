@@ -46,6 +46,7 @@ export const editorSlot = mod.declareSlot("editor", {
 // ── Block: Table ───────────────────────────────────────────────────────
 export const tableBlock = mod.registerBlock("table", {
   label: "Table",
+  layout: "dynamic-bleed",
   icon: Table,
   component: TableBlockComponent,
   listensTo: [],
@@ -102,6 +103,7 @@ export const protocolBlock = mod.registerBlock("protocol", {
   onEvent: {},
   emits: [],
   tags: ["procedure", "workflow"],
+  preserve: ["protocolId"],
   getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
   serialize: (state) => JSON.stringify(state),
   deserialize: (json) => {
@@ -119,6 +121,7 @@ export const protocolBlock = mod.registerBlock("protocol", {
 // ── Block: Registry Table ──────────────────────────────────────────────
 export const registryTableBlock = mod.registerBlock("registry-table", {
   label: "Registry Table",
+  layout: "dynamic-bleed",
   icon: Database,
   component: RegistryTableBlockComponent,
   listensTo: [],
@@ -129,6 +132,7 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
     BlockEvent.ui({ id: "column-resized" }),
   ],
   tags: ["table", "registry", "lims"],
+  preserve: ["schemaId"],
   getDisplayName: (attrs) =>
     (attrs.schemaName || attrs.title) as string || "Registry Table",
   serialize: (state) => JSON.stringify(state),
@@ -148,12 +152,14 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
 // ── Block: Result Table ───────────────────────────────────────────────────
 export const resultTableBlock = mod.registerBlock("result-table", {
   label: "Result Table",
+  layout: "dynamic-bleed",
   icon: Database,
   component: ResultTableBlockComponent,
   listensTo: [],
   onEvent: {},
   emits: [BlockEvent.action({ id: "results-registered", core: "edited" })],
   tags: ["table", "result", "lims"],
+  preserve: ["schemaId"],
   getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Result Table",
   serialize: (state) => JSON.stringify(state),
   deserialize: (json) => {
@@ -173,8 +179,8 @@ export const resultTableBlock = mod.registerBlock("result-table", {
 mod.registerIntoSlot(editorSlot, tableBlock, {}, 0);
 mod.registerIntoSlot(editorSlot, commentBlock, {}, 1);
 mod.registerIntoSlot(editorSlot, protocolBlock, {}, 2);
-mod.registerIntoSlot(editorSlot, registryTableBlock, { stretch: true }, 3);
-mod.registerIntoSlot(editorSlot, resultTableBlock, { stretch: true }, 4);
+mod.registerIntoSlot(editorSlot, registryTableBlock, {}, 3);
+mod.registerIntoSlot(editorSlot, resultTableBlock, {}, 4);
 
 // ── Slot: ELN Sidebar (dogfood #233) ────────────────────────────────────
 export const sidebarSlot = mod.declareSlot("sidebar", {

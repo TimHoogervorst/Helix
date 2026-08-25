@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
   type ReactNode,
 } from "react";
 
@@ -42,14 +43,35 @@ export interface SidebarProviderProps {
  * do not interfere with one another.
  */
 export function SidebarProvider({ children }: SidebarProviderProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [manuallyCollapsed, setManuallyCollapsed] = useState(false);
+  const [isBelowLg, setIsBelowLg] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 1023px)").matches
+      : false,
+  );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     new Set(),
   );
 
-  const toggleSidebar = useCallback(() => {
-    setIsCollapsed((prev) => !prev);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsBelowLg(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
+
+  const toggleSidebar = useCallback(() => {
+    if (!isBelowLg) {
+      setManuallyCollapsed((prev) => !prev);
+    }
+  }, [isBelowLg]);
 
   const toggleSection = useCallback((id: string) => {
     setCollapsedSections((prev) => {
@@ -70,13 +92,13 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   const value = useMemo<SidebarContextValue>(
     () => ({
-      isCollapsed,
+      isCollapsed: isBelowLg || manuallyCollapsed,
       toggleSidebar,
       collapsedSections,
       toggleSection,
       isSectionCollapsed,
     }),
-    [isCollapsed, toggleSidebar, collapsedSections, toggleSection, isSectionCollapsed],
+    [isBelowLg, manuallyCollapsed, toggleSidebar, collapsedSections, toggleSection, isSectionCollapsed],
   );
 
   return (

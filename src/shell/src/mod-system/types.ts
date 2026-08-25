@@ -176,6 +176,8 @@ export interface SchemaTypeConfig {
   defaultPrefix: string;
   /** Optional column definitions. */
   columns?: SchemaColumnDef[];
+  /** Icon-library key for the schema's default icon. */
+  icon?: string;
 }
 
 /**
@@ -324,12 +326,16 @@ export interface BlockRegistration {
   /** Custom domain actions this block can emit via `context.emitAction()`. */
   emits?: BlockEvent[];
   tags?: string[];
+  /** Layout role used by renderers for blocks that intentionally span the editor. */
+  layout?: "default" | "dynamic-bleed";
   /** Serialize block state to a JSON string for persistence. */
   serialize: (state: Record<string, unknown>) => string;
   /** Deserialize a JSON string back to block state. */
   deserialize: (json: string) => Record<string, unknown>;
   /** Default state used when no stored content exists. */
   defaultState: Record<string, unknown>;
+  /** State fields to carry over when duplicating this block. */
+  preserve?: string[];
 }
 
 /**
@@ -424,6 +430,8 @@ export interface BlockBinding extends BaseBinding {
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker filtering. */
   tags?: string[];
+  /** Layout role copied from the block registration. */
+  layout?: "default" | "dynamic-bleed";
   /** Custom domain actions this block can emit via `context.emitAction()`. */
   emits?: BlockEvent[];
   /** Merged overrides: slot defaults ← binding overrides (binding wins per-key). */
@@ -434,6 +442,8 @@ export interface BlockBinding extends BaseBinding {
   deserialize: (json: string) => Record<string, unknown>;
   /** Default state used when no stored content exists. */
   defaultState: Record<string, unknown>;
+  /** State fields to carry over when duplicating this block. */
+  preserve?: string[];
 }
 
 /**

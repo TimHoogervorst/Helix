@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
-import { Database, Loader, Trash2, Plus, RefreshCw, Upload, ArrowLeftRight } from "lucide-react";
+import { Database, Loader, Trash2, Plus, RefreshCw, Upload } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
 import type { GridColumn } from "../../../shell/src/shared/types/types";
@@ -277,12 +277,6 @@ interface RegistryTableContentProps {
   updateAttrs: (attrs: Record<string, unknown>) => void;
   /** When true, inline editing and action buttons are hidden. */
   readOnly?: boolean;
-  /** Current stretch mode — "auto" (max-content) or "full" (full-width). */
-  stretchMode?: "auto" | "full";
-  /** Called when the user clicks the stretch toggle button. */
-  onToggleStretch?: () => void;
-  /** When true, the stretch toggle button is rendered. */
-  showStretchToggle?: boolean;
   /** When true, render the table without any backend or local mutations. */
   previewMode?: boolean;
   /** Workspace context for entity-picker cells (metadata only). */
@@ -317,9 +311,6 @@ export function RegistryTableContent({
   folderId,
   updateAttrs,
   readOnly = false,
-  stretchMode = "auto",
-  onToggleStretch,
-  showStretchToggle = false,
   previewMode = false,
   workspaceId,
   emitAction,
@@ -810,25 +801,6 @@ export function RegistryTableContent({
       }
       toolbar={
         <>
-          {showStretchToggle && (
-            <IconButton
-              onClick={onToggleStretch}
-              title={
-                stretchMode === "auto"
-                  ? "Stretch table to full width"
-                  : "Auto-fit table to content"
-              }
-              aria-label={
-                stretchMode === "auto"
-                  ? "Stretch table to full width"
-                  : "Auto-fit table to content"
-              }
-              aria-pressed={stretchMode === "full"}
-              data-testid="stretch-toggle-btn"
-            >
-              <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-            </IconButton>
-          )}
           {refreshing && (
             <Loader className="h-3.5 w-3.5 text-muted-foreground" data-testid="refresh-spinner" />
           )}
@@ -888,13 +860,8 @@ export function RegistryTableContent({
           <span>New Row</span>
         </Button>
       )}
-      addRowOutside
     >
 
-      <div
-        data-testid="registry-table-stretch-wrapper"
-        className={`table-layout-stretch table-layout-stretch--${stretchMode}`}
-      >
       <TableKit
         columns={[
           {
@@ -1049,7 +1016,7 @@ export function RegistryTableContent({
         }}
         trailingHeader={
           !readOnly ? (
-            <span data-testid="registry-table-header-delete">Actions</span>
+            <span data-testid="registry-table-header-delete" />
           ) : undefined
         }
         renderTrailingCell={
@@ -1097,7 +1064,6 @@ export function RegistryTableContent({
             ? { className: "opacity-50", "data-stale": "true" }
             : {};
         }}
-        stretchMode={stretchMode}
         emptyState={
           <div
             data-testid="registry-table-empty-row"
@@ -1108,7 +1074,6 @@ export function RegistryTableContent({
         }
         data-testid="registry-table-grid"
       />
-      </div>
     </TableChrome>
   );
 }
@@ -1125,7 +1090,6 @@ export const RegistryTableBlockComponent = createBlockAdapter(
   RegistryTableContent,
   ({ instance, context, overrides = {} }) => {
     const attrs = instance.attrs as Record<string, unknown>;
-    const stretchMode = (attrs.stretchMode as "auto" | "full") ?? "auto";
     const entryContext = context.entry as ElnSidebarData | undefined;
     const projectId = entryContext?.projectId ?? entryContext?.entry?.project ?? null;
     const folderId = entryContext?.folderId ?? entryContext?.entry?.folder ?? null;
@@ -1144,12 +1108,6 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       readOnly: context.viewMode === "view",
       previewMode: context.viewMode === "prototype",
       workspaceId: context.workspaceId,
-      stretchMode,
-      onToggleStretch: () => {
-        const nextMode = stretchMode === "auto" ? "full" : "auto";
-        instance.updateAttrs({ stretchMode: nextMode });
-      },
-      showStretchToggle: overrides.stretch === true,
       emitAction: context.viewMode === "prototype" ? undefined : context.emitAction,
     };
   },

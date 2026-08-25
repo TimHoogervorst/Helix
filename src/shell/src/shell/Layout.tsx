@@ -8,9 +8,11 @@ import { UserMenu } from "../user/UserMenu";
 import { SidebarProvider, useSidebar } from "../workspace/SidebarContext";
 import { CollapsibleSidebar } from "../shared/components/Sidebar/CollapsibleSidebar";
 import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
+import { FolderPlus } from "lucide-react";
 import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
 import { IconButton } from "../shared/primitives/IconButton";
 import PinnedWorkspacesSidebar from "../../../mods/tabs/components/PinnedWorkspacesSidebar";
+import WorkspaceHistorySidebar from "../../../mods/tabs/components/WorkspaceHistorySidebar";
 
 /**
  * Brand header with logo, "Helix Alpha" text, and a collapse toggle.
@@ -150,12 +152,12 @@ function Layout() {
             collapsedContent={collapsedContent}
           >
             {/* Brand — visible only when expanded (logo renders in IconStrip when collapsed) */}
-            <div className="flex flex-1 w-64 flex-col bg-background">
+            <div className="flex min-h-0 flex-1 w-64 flex-col overflow-hidden bg-background">
               <BrandHeader />
 
 
               {/* Navigation + sidebar actions — fills remaining space to push UserMenu to bottom */}
-              <div className="flex flex-1 flex-col overflow-y-auto">
+              <div className="sidebar-sections flex min-h-0 flex-1 flex-col overflow-hidden">
                 {isSettings ? (
                   /* ── Settings layout: Navigation + Settings as sibling sections ── */
                   <>
@@ -194,7 +196,7 @@ function Layout() {
                     </SidebarSection>
                   </>
                 ) : (
-                  /* ── Normal layout: Navigation + Workspace sections ── */
+                   /* ── Normal layout: Navigation + Tabs sections ── */
                   <>
                     <SidebarSection id="navigation" label="Navigation">
                       <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
@@ -215,8 +217,15 @@ function Layout() {
                       </nav>
                     </SidebarSection>
 
-                    <SidebarSection id="workspace" label="Workspace">
-                      <PinnedWorkspacesSidebar />
+                     <SidebarSection id="tabs" label="Tabs" actions={
+                       <IconButton aria-label="Create tab folder" size="sm" onClick={() => window.dispatchEvent(new Event("helix-create-tab-folder"))}>
+                         <FolderPlus size={16} className="shrink-0" aria-hidden="true" />
+                       </IconButton>
+                     }>
+                       <PinnedWorkspacesSidebar />
+                     </SidebarSection>
+                    <SidebarSection id="history" label="History">
+                      <WorkspaceHistorySidebar />
                     </SidebarSection>
                   </>
                 )}

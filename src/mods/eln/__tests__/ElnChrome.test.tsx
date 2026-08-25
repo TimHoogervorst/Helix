@@ -106,6 +106,7 @@ function defaultProps(overrides: Partial<ElnChromeProps> = {}): ElnChromeProps {
     recentEditors: [],
     headerActions: null,
     editor: React.createElement("div", { "data-testid": "tiptap-renderer" }),
+    onAppendParagraph: vi.fn(),
     sidebar: null,
     ...overrides,
   };
@@ -415,22 +416,24 @@ describe("ElnChrome", () => {
     });
   });
 
-  describe("five-zone layout", () => {
-    it("renders center gutter main element", () => {
+  describe("full-bleed layout", () => {
+    it("renders the editor in the center content column", () => {
       renderChrome();
       const main = document.querySelector("main");
       expect(main).not.toBeNull();
       expect(main!.querySelector('[data-testid="tiptap-renderer"]')).toBeDefined();
+      expect(screen.getByTestId("metadata-line").parentElement).toHaveClass(
+        "eln-workspace-center",
+      );
     });
 
-    it("renders right gutter comments aside", () => {
+    it("does not render the removed comment gutter or balancing classes", () => {
       renderChrome();
-      const aside = screen.getByLabelText("Comments");
-      expect(aside).toBeDefined();
-      expect(aside.tagName).toBe("ASIDE");
-      expect(aside.className).toContain("w-64");
-      expect(aside.className).toContain("hidden");
-      expect(aside.className).toContain("xl:block");
+      expect(screen.queryByLabelText("Comments")).toBeNull();
+      expect(document.querySelector("main")!.parentElement!.className).not.toContain(
+        "justify-center",
+      );
+      expect(document.body.innerHTML).not.toContain("layout-workspace-gutter");
     });
 
     it("renders injected sidebar node", () => {
@@ -441,12 +444,65 @@ describe("ElnChrome", () => {
       expect(screen.getByText("Sidebar")).toBeDefined();
     });
 
+    it("hides the metadata sidebar below xl", () => {
+      renderChrome({
+        sidebar: React.createElement("div", { "data-testid": "slot-sidebar" }, "Sidebar"),
+      });
+      const sidebarWrapper = screen.getByTestId("slot-sidebar").parentElement;
+      expect(sidebarWrapper).not.toBeNull();
+      expect(sidebarWrapper).toHaveClass("hidden", "xl:block");
+    });
+
     it("renders injected header actions node", () => {
       renderChrome({
         headerActions: React.createElement("div", { "data-testid": "header-actions" }, "Actions"),
       });
       expect(screen.getByTestId("header-actions")).toBeDefined();
       expect(screen.getByText("Actions")).toBeDefined();
+    });
+
+    it("renders the End of Entry divider", () => {
+      renderChrome();
+
+      const endOfEntry = screen.getByTestId("end-of-entry");
+      expect(endOfEntry).toHaveTextContent("ELN – EXP-0284");
+      expect(endOfEntry).toHaveTextContent("End of Entry");
+      expect(endOfEntry.querySelector(".bg-hairline")).not.toBeNull();
+    });
+
+    it("renders the divider when the entry is locked", () => {
+      renderChrome({ isLockedByOther: true, lockHeldBy: "bob" });
+
+      expect(screen.getByTestId("end-of-entry")).toBeDefined();
+    });
+
+    it("appends a paragraph when the end region is clicked", () => {
+      const onAppendParagraph = vi.fn();
+      renderChrome({
+        onAppendParagraph,
+        editor: React.createElement(
+          "div",
+          { className: "tiptap-renderer" },
+          React.createElement(
+            "div",
+            { className: "ProseMirror" },
+            React.createElement("p", null, "Final block"),
+          ),
+        ),
+      });
+
+      fireEvent.click(document.querySelector(".ProseMirror")!);
+
+      expect(onAppendParagraph).toHaveBeenCalledOnce();
+    });
+
+    it("does not append when the entry is locked", () => {
+      const onAppendParagraph = vi.fn();
+      renderChrome({ isLockedByOther: true, onAppendParagraph });
+
+      fireEvent.click(screen.getByTestId("end-of-entry"));
+
+      expect(onAppendParagraph).not.toHaveBeenCalled();
     });
   });
 

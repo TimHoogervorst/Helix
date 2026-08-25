@@ -17,6 +17,7 @@ import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAda
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { TableKit } from "../../../shell/src/shared/table/TableKit";
+import { TableChrome } from "../../../shell/src/shared/table/TableChrome";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -268,23 +269,33 @@ export function TableBlockContent({
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <div
-        className="rounded-lg border border-hairline bg-background"
-        data-testid="eln-table"
-      >
-        {/* ── Title bar ──────────────────────────────────────────────── */}
-        <div className="border-b border-hairline px-4 py-2.5">
-          <InlineEdit
-            value={title}
-            onCommit={handleTitleChange}
-            readOnly={readOnly}
-            className="text-sm font-medium text-foreground"
-            aria-label="Table title"
-            data-testid="table-title"
-          />
-        </div>
-
+    <TableChrome
+      className="w-full table-layout-chrome--compact"
+      data-layout="dynamic-bleed"
+      data-testid="eln-table"
+      title={
+        <InlineEdit
+          value={title}
+          onCommit={handleTitleChange}
+          readOnly={readOnly}
+          className="text-sm font-medium text-foreground"
+          aria-label="Table title"
+          data-testid="table-title"
+        />
+      }
+      addRow={!readOnly && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleAddRow}
+          aria-label="Add new row"
+          data-testid="add-row-btn"
+        >
+          <Plus className="h-3 w-3" />
+          <span>New Row</span>
+        </Button>
+      )}
+    >
         <TableKit
           columns={columns.map((col) => ({
             header: (
@@ -393,24 +404,9 @@ export function TableBlockContent({
               No rows yet
             </div>
           }
-          stretchMode="auto"
           data-testid="eln-table-grid"
         />
-      </div>
-
-      {/* ── Ghost "+ New Row" button below the card ──────────────────── */}
-      {!readOnly && <Button
-        variant="ghost"
-        size="sm"
-        className="mt-2"
-        onClick={handleAddRow}
-        aria-label="Add new row"
-        data-testid="add-row-btn"
-      >
-        <Plus className="h-3 w-3" />
-        <span>New Row</span>
-      </Button>}
-    </>
+    </TableChrome>
   );
 }
 /**

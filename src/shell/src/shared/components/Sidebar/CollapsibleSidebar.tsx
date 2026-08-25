@@ -223,7 +223,7 @@ export function CollapsibleSidebar({
           </div>
         )}
         {children}
-        {footer}
+        {footer && <div className="sidebar-footer">{footer}</div>}
       </div>
     </aside>
   );

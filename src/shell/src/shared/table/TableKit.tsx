@@ -5,7 +5,7 @@ import {
   renderCellValue,
   type TableCellValue,
 } from "./TableCells";
-import { TableScroll, TableStretch, type TableStretchMode } from "./TableLayout";
+import { TableScroll } from "./TableLayout";
 import {
   useTableInteraction,
   type TablePosition,
@@ -45,9 +45,9 @@ export interface TableKitProps {
     "data-stale"?: string;
   };
   emptyState?: ReactNode;
-  stretchMode?: TableStretchMode;
   className?: string;
   "data-testid"?: string;
+  "data-bleed-role"?: string;
 }
 
 export function TableKit({
@@ -66,9 +66,9 @@ export function TableKit({
   getRowProps,
   getCellProps,
   emptyState,
-  stretchMode = "full",
   className = "",
   "data-testid": testId,
+  "data-bleed-role": bleedRole,
 }: TableKitProps) {
   const interaction = useTableInteraction({
     tableId,
@@ -106,8 +106,7 @@ export function TableKit({
   });
 
   return (
-    <TableStretch mode={stretchMode} className={className}>
-      <TableScroll mode={stretchMode}>
+    <TableScroll className={className} data-bleed-role={bleedRole}>
         <div
           ref={interaction.containerRef}
           className="w-max min-w-full"
@@ -183,6 +182,5 @@ export function TableKit({
           </table>
         </div>
       </TableScroll>
-    </TableStretch>
   );
 }

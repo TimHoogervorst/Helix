@@ -67,11 +67,8 @@
   --color-accent-foreground: var(--color-ink);
 
   /* ── Workspace layout tokens ── */
-  --layout-workspace-gutter: 17.5rem;
   --layout-content-padding: 1.5rem;
-  --layout-table-breakout: calc(var(--layout-workspace-gutter) + var(--layout-content-padding));
   --layout-text-column: 48rem;
-  --layout-text-column-half: 24rem;
   --layout-table-demo-width: 56rem;
   --layout-table-demo-column: 12rem;
 
@@ -449,105 +446,261 @@ label {
 
 /* ── ProseMirror (TipTap's inner editor) ── */
 
+.eln-workspace-center {
+  width: min(100%, var(--layout-text-column));
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .ProseMirror {
   outline: none;
   min-height: 60vh;
   padding: 0;
   color: var(--color-foreground);
-  /* Per-child centering replaces the old container-level max-width
-     (see .ProseMirror > * below).  Stretch blocks use
-     .block-node-view-wrapper--stretch to go full-width. */
-  max-width: none;
+  /* Per-child centering replaces the old container-level max-width. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--layout-text-column)) minmax(0, 1fr);
+  align-content: start;
+  width: 100%;
 }
 
 /* Default centering for all direct children: paragraphs, headings,
    block wrappers, etc.  Inherits the center-gutter constraint from
    the old .ProseMirror container rule. */
 .ProseMirror > * {
-  max-width: var(--layout-text-column);
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Stretch blocks override the per-child max-width so they expand
-   beyond the text column into the left and right gutters.
-
-   TipTap wraps NodeViewWrapper in a .react-renderer div, so the
-   .block-node-view-wrapper--stretch class sits one level deeper:
-     .ProseMirror > .react-renderer > .block-node-view-wrapper--stretch
-
-   :has() lifts the override to the ProseMirror-direct wrapper so it
-   stops constraining the block to max-w-3xl. */
-.ProseMirror > .react-renderer:has(.block-node-view-wrapper--stretch) {
-  max-width: none;
-}
-.block-node-view-wrapper--stretch {
+  grid-column: 2;
+  min-width: 0;
   max-width: none;
   width: 100%;
-}
-
-/* Stretch-auto: left-aligned with the text column so the block's left edge
-   matches centered max-w-3xl blocks.  The left margin is calculated to match
-   the auto margin of centered blocks: max(0, (100% - 48rem) / 2).  When the
-   viewport is narrower than 48rem, the margin is 0 so the block fills the
-   column.  width: max-content lets the block grow past 48rem into the right
-   gutter without ever expanding into the left gutter. */
-.ProseMirror > .react-renderer:has(.block-node-view-wrapper--stretch-auto) {
-  max-width: none;
-  margin-left: max(0px, calc(50% - var(--layout-text-column-half)));
+  margin-left: 0;
   margin-right: 0;
-  width: max-content;
-}
-.block-node-view-wrapper--stretch-auto {
-  max-width: none;
 }
 
-/* Full-stretch: expand past the five-zone layout's counterweight (zone 2,
-   17.5rem) and right gutter (zone 4, w-64 + ml-6 = 17.5rem), plus the px-6
-   padding (1.5rem per side) on the center <main> inner wrapper.  Total
-   breakout per side = 19rem (17.5 + 1.5). */
-.block-node-view-wrapper--stretch-full {
-  max-width: none;
-  width: calc(100% + (2 * var(--layout-table-breakout)));
-  margin-left: calc(-1 * var(--layout-table-breakout));
-  margin-right: calc(-1 * var(--layout-table-breakout));
+.tiptap-renderer {
+  position: relative;
+}
+
+.block-controls-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.block-controls-row {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.125rem;
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.block-controls-row.is-visible,
+.block-controls-row:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.block-controls-row:has(.block-action-trigger[aria-expanded="true"]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.block-controls-row.is-selected {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.block-controls-row.is-selected::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--color-accent);
+  pointer-events: none;
+}
+
+.ProseMirror > *.is-block-selected {
+  background: var(--color-accent-subtle);
+}
+
+.block-control-button {
+  flex: 0 0 auto;
+}
+
+.block-handle {
+  cursor: grab;
+}
+
+.block-handle:active,
+.block-handle.is-dragging {
+  cursor: grabbing;
+}
+
+.block-drop-indicator {
+  position: absolute;
+  z-index: 21;
+  height: 2px;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.block-drop-indicator.is-active {
+  opacity: 1;
+}
+
+.block-controls-overlay.is-dragging .block-drop-indicator {
+  pointer-events: auto;
+  opacity: 0.15;
+}
+
+.block-controls-overlay.is-dragging .block-drop-indicator.is-active {
+  opacity: 1;
+}
+
+.block-popover {
+  z-index: 50;
+  width: 18rem;
+  max-height: 20rem;
+  overflow: hidden;
+  padding: 0.375rem;
+  border: 1px solid var(--color-ink-hairline);
+  border-radius: 0.5rem;
+  background: var(--color-card);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 15%);
+}
+
+.formatting-menu {
+  z-index: 50;
+  padding: 0.25rem;
+  border: 1px solid var(--color-ink-hairline);
+  border-radius: 0.5rem;
+  background: var(--color-card);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 15%);
+}
+
+.formatting-menu [role="toolbar"] {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.block-popover-search {
+  width: 100%;
+  margin-bottom: 0.375rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-ink-border);
+  border-radius: 0.375rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.block-popover-search:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.block-popover-item {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  padding: 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+}
+
+.block-popover-item.is-selected,
+.block-popover-item:hover {
+  background: var(--color-surface);
+}
+
+.block-popover-item small,
+.block-popover-empty {
+  color: var(--color-ink-muted-foreground);
+}
+
+/* Dynamic-bleed blocks keep their left edge on the reading column while
+   extending through the right track. Subgrid keeps that edge anchored when
+   the editor's center track changes size. */
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  min-width: 0;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="card"] {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  z-index: 0;
+  min-width: 0;
+  overflow: visible;
+}
+
+/* Schema-selection placeholders use one content child instead of the table
+   card/bar/viewport stack, so keep that child on the reading column too. */
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > :only-child {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="bar"],
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="add-row"] {
+  grid-column: 2;
+  z-index: 1;
+  min-width: 0;
+}
+
+.ProseMirror > .react-renderer:has([data-layout="dynamic-bleed"]) > .block-node-view-wrapper > [data-bleed-role="viewport"] {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  z-index: 1;
+  min-width: 0;
 }
 
 /* ── Shared table layout primitives ── */
 
-.table-layout-stretch {
-  min-width: 0;
-}
-
-.table-layout-stretch--auto {
-  max-width: var(--layout-text-column);
-}
-
-.table-layout-stretch--full {
-  width: 100%;
-}
-
 .table-layout-scroll {
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  display: grid;
+  grid-template-columns: subgrid;
 }
 
 /* Keep the interaction surface content-sized so wide tables create real
    overflow on the shared scroll container. */
 .table-layout-scroll > div {
+  grid-column: 2;
   width: max-content;
   min-width: 100%;
 }
 
-.table-layout-scroll--auto {
-  margin-inline: calc(-1 * var(--layout-table-breakout));
-  padding-inline: var(--layout-table-breakout);
-}
-
-/* Chrome owns the table boundary, so its scroll area must stay inside it. */
-.table-layout-chrome .table-layout-scroll--auto {
-  margin-inline: 0;
-  padding-inline: 0;
+/* The chrome owns the top frame; prevent collapsed table borders from adding
+   a second rule at the top edge of the header row. */
+.table-layout-scroll table,
+.table-layout-scroll thead,
+.table-layout-scroll thead tr,
+.table-layout-scroll thead th {
+  border-top: 0;
 }
 
 .table-layout-scroll:not(:hover) {
@@ -571,8 +724,7 @@ label {
 }
 
 .table-layout-chrome {
-  overflow: hidden;
-  border: 1px solid var(--color-ink-hairline);
+  border: 0;
   border-radius: var(--radius-lg);
   background: var(--color-card);
 }
@@ -582,39 +734,44 @@ label {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid var(--color-ink-hairline);
-  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-ink-hairline);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 0.25rem 0.75rem;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__bar {
+.table-layout-chrome__bar.table-layout-chrome--compact {
+  box-sizing: border-box;
+  height: 2rem;
+  min-height: 2rem;
   padding-block: 0;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__toolbar > button[aria-label] {
-  width: 2.25rem;
-  height: 2.25rem;
+.table-layout-chrome__bar.table-layout-chrome--compact .table-layout-chrome__toolbar > button[aria-label] {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__toolbar > .table-layout-register-button {
-  width: 1.875rem;
-  height: 1.875rem;
+.table-layout-chrome__bar.table-layout-chrome--compact .table-layout-chrome__toolbar > .table-layout-register-button {
+  width: 1.625rem;
+  height: 1.625rem;
 }
 
-.table-layout-chrome--compact thead th {
+.table-layout-scroll.table-layout-chrome--compact thead th {
   padding-block: 0.25rem;
 }
 
-.table-layout-chrome--compact .table-layout-chrome__title {
+.table-layout-chrome__bar.table-layout-chrome--compact .table-layout-chrome__title {
   font-size: var(--text-sm);
 }
 
-.table-layout-chrome--compact table {
+.table-layout-scroll.table-layout-chrome--compact table {
   font-size: var(--text-sm);
 }
 
-.table-layout-chrome--compact .table-cell-full,
-.table-layout-chrome--compact input.table-cell-full,
-.table-layout-chrome--compact select.table-cell-full {
+.table-layout-scroll.table-layout-chrome--compact .table-cell-full,
+.table-layout-scroll.table-layout-chrome--compact input.table-cell-full,
+.table-layout-scroll.table-layout-chrome--compact select.table-cell-full {
   font-size: var(--text-xs);
 }
 
@@ -1599,7 +1756,8 @@ input.library-new-folder-input:focus {
 
 .sidebar-content {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   overflow-x: hidden;
   min-width: 0;
   display: flex;
@@ -1610,6 +1768,11 @@ input.library-new-folder-input:focus {
 
 .sidebar-content::-webkit-scrollbar {
   display: none;
+}
+
+.sidebar-footer {
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 /* ── Sidebar Toggle ── */
@@ -1680,8 +1843,20 @@ input.library-new-folder-input:focus {
 .sidebar-section {
   border-bottom: 1px solid var(--color-hairline);
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 1;
+}
+.sidebar-section[data-section-id="navigation"] {
+  flex: 0 0 auto;
+}
+.sidebar-section[data-section-id="tabs"] {
+  flex: 0 1 auto;
+}
+.sidebar-section[data-section-id="history"] {
+  flex: 1 1 0%;
 }
 .sidebar-section:last-child {
   border-bottom: none;
@@ -1731,9 +1906,48 @@ input.library-new-folder-input:focus {
 }
 
 .sidebar-section-content {
-  padding: 0.1rem 0.5rem 0.5rem;
+  display: flex;
+  min-height: 0;
   min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 0.1rem 0.5rem 0.5rem;
   overflow-x: hidden;
+}
+
+/* Keep the history scrollbar over the rows and reveal it only when needed. */
+[data-section-id="history"] .sidebar-section-content,
+.sidebar-history-list {
+  overflow-y: overlay;
+  scrollbar-width: none;
+}
+[data-section-id="history"]:hover .sidebar-section-content,
+[data-section-id="history"]:focus-within .sidebar-section-content,
+[data-section-id="history"]:hover .sidebar-history-list,
+[data-section-id="history"]:focus-within .sidebar-history-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-hairline) transparent;
+}
+[data-section-id="history"] .sidebar-section-content::-webkit-scrollbar,
+.sidebar-history-list::-webkit-scrollbar {
+  width: 0;
+}
+[data-section-id="history"]:hover .sidebar-section-content::-webkit-scrollbar,
+[data-section-id="history"]:focus-within .sidebar-section-content::-webkit-scrollbar,
+[data-section-id="history"]:hover .sidebar-history-list::-webkit-scrollbar,
+[data-section-id="history"]:focus-within .sidebar-history-list::-webkit-scrollbar {
+  width: 8px;
+}
+[data-section-id="history"] .sidebar-section-content::-webkit-scrollbar-thumb,
+.sidebar-history-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+[data-section-id="history"]:hover .sidebar-section-content::-webkit-scrollbar-thumb,
+[data-section-id="history"]:focus-within .sidebar-section-content::-webkit-scrollbar-thumb,
+[data-section-id="history"]:hover .sidebar-history-list::-webkit-scrollbar-thumb,
+[data-section-id="history"]:focus-within .sidebar-history-list::-webkit-scrollbar-thumb {
+  background: var(--color-ink-hairline);
 }
 
 /* ── Right Sidebar (migrated content styles) ── */

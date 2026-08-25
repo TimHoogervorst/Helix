@@ -4,27 +4,29 @@ import {
   StickyActionCell,
   StickyActionHeader,
   TableScroll,
-  TableStretch,
 } from "../../table/TableLayout";
 import { TableChrome } from "../../table/TableChrome";
 
 describe("Table layout primitives", () => {
-  it("composes stretch, scroll, sticky action, and chrome contracts", () => {
+  it("composes constrained scrolling, sticky action, and chrome contracts", () => {
     render(
-      <TableStretch mode="full" data-testid="stretch">
-        <TableChrome title="Results" toolbar={<span>Toolbar</span>} addRow={<button>Add</button>}>
-          <TableScroll mode="auto" data-testid="scroll">
-            <table>
-              <thead><tr><StickyActionHeader aria-label="Actions" /></tr></thead>
-              <tbody><tr><StickyActionCell>Action</StickyActionCell></tr></tbody>
-            </table>
-          </TableScroll>
-        </TableChrome>
-      </TableStretch>,
+      <TableChrome title="Results" toolbar={<span>Toolbar</span>} addRow={<button>Add</button>}>
+        <TableScroll data-testid="scroll">
+          <table>
+            <thead><tr><StickyActionHeader aria-label="Actions" /></tr></thead>
+            <tbody><tr><StickyActionCell>Action</StickyActionCell></tr></tbody>
+          </table>
+        </TableScroll>
+      </TableChrome>,
     );
 
-    expect(screen.getByTestId("stretch").className).toContain("table-layout-stretch--full");
-    expect(screen.getByTestId("scroll").className).toContain("table-layout-scroll--auto");
+    expect(screen.getByTestId("scroll")).toHaveClass("table-layout-scroll");
+    expect(screen.getByTestId("scroll")).toHaveAttribute("data-bleed-role", "viewport");
+    expect(screen.getByRole("heading", { name: "Results" }).parentElement).toHaveAttribute(
+      "data-bleed-role",
+      "bar",
+    );
+    expect(screen.getByTestId("scroll").className).not.toContain("table-layout-scroll--");
     expect(screen.getByRole("heading", { name: "Results" })).toBeInTheDocument();
     expect(screen.getByText("Toolbar")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();

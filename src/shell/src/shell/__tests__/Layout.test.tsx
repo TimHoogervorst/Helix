@@ -8,7 +8,7 @@
  *  - UserMenu trigger renders (avatar + username from CurrentUserContext)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { BookOpen, House } from "lucide-react";
 import { ModRegistry } from "../../mod-system/ModRegistry";
@@ -58,7 +58,35 @@ function renderLayout(initialRoute = "/library") {
   );
 }
 
+function mockMatchMedia(initialMatches: boolean) {
+  let matches = initialMatches;
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const mediaQuery = {
+    get matches() {
+      return matches;
+    },
+    media: "(max-width: 1023px)",
+    addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    },
+    removeEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    },
+    setMatches(nextMatches: boolean) {
+      matches = nextMatches;
+      listeners.forEach((listener) => listener({ matches } as MediaQueryListEvent));
+    },
+  };
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => mediaQuery,
+  });
+  return mediaQuery;
+}
+
 beforeEach(() => {
+  mockMatchMedia(false);
   vi.clearAllMocks();
   ModRegistry._reset();
   // Register mock hubs so the dynamic sidebar renders nav links.
@@ -190,9 +218,9 @@ describe("Layout sidebar", () => {
   });
 });
 
-// ── Workspace section (Tabs) ───────────────────────────────────────────────
+// ── Tabs section ────────────────────────────────────────────────────────────
 
-describe("Workspace section", () => {
+describe("Tabs section", () => {
   beforeEach(() => {
     ModRegistry._reset();
     ModRegistry.getInstance().registerHub({
@@ -214,17 +242,27 @@ describe("Workspace section", () => {
     mockGet.mockResolvedValue([]);
   });
 
-  it("renders the Workspace section with Tabs component", () => {
+  it("renders the Tabs section", () => {
     renderLayout();
-    // Workspace section header is always rendered
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    // Tabs section header is always rendered
+    expect(screen.getByText("Tabs")).toBeInTheDocument();
+  });
+
+  it("renders the History section below Tabs", () => {
+    renderLayout();
+
+    const tabs = screen.getByText("Tabs");
+    const history = screen.getByText("History");
+    expect(tabs).toBeInTheDocument();
+    expect(history).toBeInTheDocument();
+    expect(tabs.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("does not crash when rendering with no pinned tabs and no current workspace", () => {
     renderLayout();
     // Layout should render normally — just verify no crash
     expect(screen.getByText("Helix")).toBeInTheDocument();
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Tabs")).toBeInTheDocument();
   });
 });
 
@@ -359,7 +397,7 @@ describe("Layout settings sidebar", () => {
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
   });
 
-  it("hides Workspace section when on /settings", () => {
+  it("hides Tabs section when on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <ThemeProvider>
@@ -368,7 +406,7 @@ describe("Layout settings sidebar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tabs")).not.toBeInTheDocument();
   });
 
   it("still shows brand and user menu on /settings", () => {
@@ -397,10 +435,10 @@ describe("Layout settings sidebar", () => {
     expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
   });
 
-  it("shows Workspace section when NOT on /settings", () => {
+  it("shows Tabs section when NOT on /settings", () => {
     renderLayout("/library");
 
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Tabs")).toBeInTheDocument();
   });
 });
 
@@ -443,11 +481,35 @@ describe("CollapsibleSidebar integration", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders SidebarSection headers for Navigation and Workspace", () => {
+  it("renders the icon strip below lg regardless of the manual state", () => {
+    const mediaQuery = mockMatchMedia(true);
+    renderLayout("/library");
+
+    const aside = screen.getByRole("complementary");
+    expect(aside).toHaveClass("is-collapsed");
+    expect(aside).toHaveClass("variant-icon-strip");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(aside).toHaveClass("is-collapsed");
+
+    act(() => mediaQuery.setMatches(false));
+    expect(aside).toHaveClass("is-expanded");
+  });
+
+  it("keeps manual collapse available at lg and above", () => {
+    mockMatchMedia(false);
+    renderLayout("/library");
+
+    const aside = screen.getByRole("complementary");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(aside).toHaveClass("is-collapsed");
+  });
+
+  it("renders SidebarSection headers for Navigation and Tabs", () => {
     renderLayout("/library");
 
     expect(screen.getByText("Navigation")).toBeInTheDocument();
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Tabs")).toBeInTheDocument();
   });
 
   it("Navigation section has a chevron (collapsible by default)", () => {
@@ -460,17 +522,17 @@ describe("CollapsibleSidebar integration", () => {
     ).toBeInTheDocument();
   });
 
-  it("Workspace section has a chevron (collapsible by default)", () => {
+  it("Tabs section has a chevron (collapsible by default)", () => {
     renderLayout("/library");
 
-    const wsHeader = screen.getByText("Workspace").closest(".sidebar-section-header");
+    const wsHeader = screen.getByText("Tabs").closest(".sidebar-section-header");
     expect(wsHeader).toBeInTheDocument();
     expect(
       wsHeader!.querySelector(".sidebar-section-chevron"),
     ).toBeInTheDocument();
   });
 
-  it("hides Workspace section on settings pages", () => {
+  it("hides Tabs section on settings pages", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <ThemeProvider>
@@ -479,10 +541,10 @@ describe("CollapsibleSidebar integration", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tabs")).not.toBeInTheDocument();
   });
 
-  it("always renders Workspace section (Tabs component is always mounted)", () => {
+  it("always renders Tabs section", () => {
     // Reset and only register hubs
     ModRegistry._reset();
     ModRegistry.getInstance().registerHub({
@@ -499,6 +561,6 @@ describe("CollapsibleSidebar integration", () => {
     // Navigation still shows
     expect(screen.getByText("Navigation")).toBeInTheDocument();
     // Workspace section is always rendered (Tabs component is directly mounted)
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Tabs")).toBeInTheDocument();
   });
 });

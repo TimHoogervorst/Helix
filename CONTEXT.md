@@ -35,11 +35,10 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | **Block** | A reusable content unit registered via `registerBlock()`. Carries a React `component`, event handlers (`listensTo` + `onEvent`), an optional `emits` declaration for custom actions, and serialization. Renderer-agnostic — the same block works in TipTap, a panel, or a tab. Blocks declare what they listen to and what they emit; the renderer wires everything. Blocks do not have direct access to the bus or the HTTP layer. |
 | **Button** | A fire-only action registered via `registerButton()`. Emits events via the workspace event bus but never listens. Use for toolbar buttons (export, lock, delete). |
 | **Binding** | The connection between a block/button and a slot, created by `registerIntoSlot()`. Carries per-binding overrides merged with slot defaults. |
-| **Binding Override** | A per-binding configuration key (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; binding wins per-key. Used for presentation-level configuration like `stretch: true` — the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
+| **Binding Override** | A per-binding configuration object (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; the binding wins per key. Used for presentation-level configuration that is specific to a slot binding; the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
 | **Inline Block** | A block stored inside the ProseMirror/TipTap document JSON. Part of the document body — locked when the document is locked (e.g. during review). Created and edited through the editor. |
-| **Outline Block** | A block stored outside the ProseMirror document, in a separate `outline_blocks` array on the entry. Carries a document position anchor (`pos`). Can be added even when the document content is locked — enabling review-time annotations. Rendered outside the editor (e.g. in a gutter). |
+| **Duplication Policy** | A declarative `preserve` list on a block registration governing what Duplicate carries over. Empty by default — Duplicate copies the block's full state. A policy names which parts survive (e.g. only a schema ID or a protocol ID); everything else is re-derived fresh, exactly as at a fresh insertion. Table row data and protocol step completion never travel on Duplicate. See [ADR 0024](docs/adr/0024-block-duplication-policy.md). |
 | **Event Bus** | A workspace-scoped pub/sub bus. Created by the workspace and passed to renderers; blocks never see it directly. Buttons emit events via `bus.emit()`; blocks listen declaratively via `listensTo` + `onEvent` handlers (wired by the renderer) and emit custom actions via their `emits` declaration. The bus carries cross-boundary events like `{workspaceId}.action.performed` (resolved, ready-to-render action items). Block lifecycle events (created/edited/deleted) are internal renderer callbacks — not on the public bus. Supports wildcard pattern matching for subscriptions. |
-| **Block Stretch** | A slot-binding override (`stretch: true`) that allows a block to grow beyond the center content gutter. When enabled, the block expands outward equally into the left and right gutters, staying centered. Other blocks remain constrained to the center gutter. The block component reads `overrides.stretch` to conditionally render stretch-related UI (e.g. a full-width toggle button). Stretch is a presentation concern of the slot/renderer, not an intrinsic property of the block type. |
 
 ### Backend Mod System
 
@@ -267,35 +266,81 @@ An entity (from the LIMS domain) that is connected to a Notebook Entry through t
 
 ### ELN Workspace Layout
 
-The ELN workspace uses a **five-zone** horizontal layout (left to right): Left Sidebar (shell icon strip, collapsible), Left Gutter (empty space that absorbs stretch from centered blocks), Center Gutter (the main content column, `max-w-3xl`, centered — normal blocks like paragraphs and headings live here), Right Gutter (comment cards, `w-64`, hidden below `xl` breakpoint), and Right Sidebar (metadata panel, `w-72`, hidden below `xl`). Stretch-capable blocks expand outward equally from the center gutter into the left and right gutters, preserving centering.
+The ELN workspace uses a three-track CSS grid inside `1.5rem` of content padding: `1fr / min(48rem, 100%) / 1fr`. The ProseMirror editor is the grid container; ordinary document blocks occupy the center track, which keeps narrative text readable on wide screens and prevents narrow windows from squeezing it into a sliver. Workspace chrome such as the title, description, tags, and metadata line shares that text-column alignment. The shell sidebar remains persistent chrome outside the content boundary, while the metadata sidebar is `256px` wide and hidden below the `xl` breakpoint (`1280px`).
+
+### Dynamic Bleed
+
+The layout role of every table block in the ELN editor (Registry Table, Plain Table, Result Table). The table's scroll viewport spans the entire content width (all three grid tracks), with the table anchored at rest so its left edge aligns with the text column's left edge; a narrower table fills exactly the text column. Wide tables bleed rightward as far as the content padding and persistent chrome allow, and horizontal scrolling slides the table leftward into the left region so that every column is reachable. The block's chrome bar (title and toolbar) and its add-row control stay anchored to the text column and never slide. A bleed never reaches the literal window edge.
 
 ### Workspace Chrome
 
-The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, and the five-zone layout scaffolding. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
+The persistent UI frame of the ELN Workspace that surrounds the Document: the toolbar (breadcrumb, save status, actions, share), the title/description/tags block, the metadata line, the locked banner, the End of Entry, and the content padding that bounds the editor. Chrome is distinct from the **Document** (the editable rich-text content) and from **slot-rendered extensions** (blocks and buttons) — those are rendered into the chrome's regions but are not part of the chrome itself.
 
 **Synonyms:** editor chrome, workspace frame
 
+### End of Entry
+
+Workspace chrome rendered below the Rich-Text Document on every Notebook Entry workspace. It is not document content — it is never saved into the document JSON, and it is identical for every viewer in both edit and locked/read-only modes. A thin rule with the entry's display ID on the left (e.g. `ELN – E123`) and the label `End of Entry` on the right. The empty region between the last block and the End of Entry accepts clicks and appends a new paragraph to the document.
+
+**Synonyms:** entry footer, end marker
+
+### Block Handle
+
+The `::` affordance of the Block Controls, shown on row hover to the left of every top-level block. Press-and-move drags the block to another position in the document; a plain click opens the Block Action Menu. Hidden when the entry is locked or read-only.
+
+_Avoid_: grip, drag handle
+
+### Add Button
+
+The `+` affordance of the Block Controls, shown on row hover to the left of empty paragraphs only. Opens the Block Popover; the chosen block takes the empty paragraph's position. A paragraph containing any content — even a lone reference node — is not empty. Hidden when the entry is locked or read-only.
+
+### Block Popover
+
+The shared block-insertion menu. Lists the same block catalog as the `/` command, filtered by a fuzzy search bar. The search bar is hideable per invocation: the Add Button shows it; the `/` trigger hides it, because the query typed into the text does the filtering there.
+
+_Avoid_: slash menu (names only the `/` trigger path)
+
+### Block Action Menu
+
+The menu opened by clicking a Block Handle. Offers Delete, Duplicate, Move up, and Move down. Acts on the whole Block Selection when one exists, otherwise on the handle's own block.
+
+### Block Selection
+
+A set of top-level blocks chosen via Shift-click on their Block Handles. Selected blocks are highlighted; drag, delete, duplicate, and move apply to the set as a group — a multi-drag preserves the blocks' relative order. Cleared by Escape or by clicking into document text.
+
+### Formatting Menu
+
+The floating menu shown on a non-empty text selection in the document body. Offers Heading 1–3 (which convert the whole block), Bold, Italic, Strikethrough, Inline Code, and clear formatting. Never appears on custom blocks or table cells — table cells are not document text.
+
+_Avoid_: bubble menu (implementation term)
+
+### Block Controls
+
+The hover affordances shown beside top-level blocks in the ELN editor — the Add Button (`+`) and the Block Handle (`::`). They are rendered as an overlay layer above the editor; they never become part of the document grid, and the document's grid rules and the Dynamic Bleed machinery are never modified for them. They appear in the flexible left `1fr` track of the ELN workspace grid, and that track is reserved for the Block Controls — no other UI may claim it. Distinct from the Center Gutter and Right Gutter.
+
+**Synonyms:** block-controls track
+
 ### Center Gutter
 
-The main content column of the ELN workspace — `max-w-3xl` (768px), horizontally centered. All normal blocks (paragraphs, headings, lists) render inside this column by default. Provides a comfortable reading width for narrative text.
+The fluid center track of the ELN workspace grid — `min(48rem, 100%)`, centered between two flexible `1fr` tracks. Normal document blocks (paragraphs, headings, and lists) render here by default. Tables use the Dynamic Bleed layout role instead of remaining limited to this track.
 
 **Synonyms:** content column, centered editor area
 
-### Left Gutter
-
-Empty space between the left sidebar and the center gutter. Absorbs expansion from stretch-capable blocks — a stretched table grows into this space equally with the right gutter, keeping the block centered.
-
 ### Right Gutter
 
-The column to the right of the center gutter that renders **outline blocks** (specifically comment cards). Fixed width (`w-64`), hidden on smaller viewports (below `xl`). Cards are sorted by document position, top to bottom. Distinct from the Right Sidebar (metadata panel).
+The flexible right track of the ELN workspace grid. It is available to Dynamic Bleed tables after their text-column-aligned start edge. The right track ends at the workspace content padding and persistent chrome. Distinct from the Metadata Sidebar.
 
-**Synonyms:** comment gutter, annotations column
+### Metadata Sidebar
+
+The ELN workspace's persistent metadata panel. It is `256px` wide and is hidden below the `xl` breakpoint (`1280px`); hiding it does not change the editor's content-padding boundary.
 
 ### Rich-Text Document
 
 The structured content *inside* a Notebook Entry. A tree of blocks (paragraphs, headings, lists, tables) stored as a TipTap/ProseMirror JSON document. The document is the editable, renderable content — distinct from the entry's metadata (title, author, folder, dates).
 
 **Invariant:** A document belongs to exactly one Notebook Entry.
+
+**Invariant:** A document always ends with a paragraph — one is appended automatically whenever the last block is not a paragraph, so there is always a caret target at the bottom.
 
 **Synonyms:** content, document body, editor content
 
@@ -665,7 +710,7 @@ Sidebar collapse state is independent of section collapse state — collapsing t
 
 ### Sidebar Section
 
-A named, collapsible group within a CollapsibleSidebar (e.g., "Workspaces", "Metadata", "Activity"). Has a header with a chevron toggle. All sections are collapsible by default; opt-out via `collapsible={false}`. Collapse icon convention follows VS Code: `▼` (ChevronDown) when expanded, `>` (ChevronRight) when collapsed.
+A named, collapsible group within a CollapsibleSidebar (e.g., "Tabs", "Metadata", "Activity"). Has a header with a chevron toggle. All sections are collapsible by default; opt-out via `collapsible={false}`. Collapse icon convention follows VS Code: `▼` (ChevronDown) when expanded, `>` (ChevronRight) when collapsed.
 
 ### Collapsed Section
 
@@ -681,19 +726,41 @@ The `[<]` / `[>]` button that collapses/expands an entire sidebar. Positioned on
 
 ### Tab (Pinned Workspace)
 
-A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs appear in the sidebar's Workspace section and persist across sessions. Each Tab stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation. The Tabs mod (formerly Pins) owns the pinning lifecycle — it listens to workspace navigation events and renders the pinned workspace list accordingly.
+A workspace (Entity or Entry) that a User has bookmarked for quick access. Tabs appear in the sidebar's **Tabs** section and persist across sessions. Each Tab stores the target's **display ID**, a human-readable **label**, and the **dedicated URL** for navigation. The label is a snapshot supplied by the frontend at pin time and refreshed whenever the User visits the workspace — the Tabs mod does not resolve names itself. A Tab row shows the label as the primary text with the display ID alongside in small, muted text; when no label exists yet, the display ID stands in. The Tabs mod (formerly Pins) owns the pinning lifecycle and renders the Tabs and History sections of the sidebar.
 
 **Lifecycle:**
-- A User pins a workspace via the sidebar (hover to reveal the pin button on the Current row)
+- A User pins a workspace from any History row (hover to reveal the pin button) — the new Tab is placed at the top of the Tabs root list, carrying the name History already resolved
 - A User unpins a workspace via the sidebar (hover to reveal the unpin button on a pinned row)
-- If the current workspace is unpinned while being viewed, it moves from the pinned list back to the temporary Current slot
-- Pinned Workspaces are ordered newest-first by pin time
+- Tabs are ordered by the User — drag-and-drop re-ordering at the section root and inside Tab Folders, persisted as the layout
+- A Tab lives either at the root of the Tabs section or inside exactly one Tab Folder; moving a Tab is a move, never a copy
 
-**Invariant:** A Pinned Workspace belongs to exactly one User. A User cannot pin the same workspace URL twice.
+**Invariant:** A Tab belongs to exactly one User. A User cannot pin the same workspace URL twice. A Tab lives in at most one Tab Folder.
 
-**Out of scope:** workspace history (recently opened), inline workspace previews, drag-to-reorder.
+**Stale targets:** Deleted or inaccessible targets are not detected — a Tab keeps its snapshot label and clicking it navigates to the workspace's error page, like any broken link. Automatic label refreshes on visit are not logged.
+
+**Out of scope:** inline workspace previews.
 
 **Synonyms:** bookmarked workspace, saved workspace, workspace tab
+
+### Tab Folder
+
+A named, User-created container that organizes Tabs within the Tabs section. One level deep — a Tab Folder holds Tabs only, never other Tab Folders. Folders are created from the Tabs section header, renamed via a row menu, and can be re-ordered by drag alongside root Tabs. Clicking a Tab Folder expands or collapses it; the expanded state persists across sessions.
+
+Deleting a Tab Folder **deletes every Tab inside it**, confirmed by a warning that names the number of affected Tabs. Folder lifecycle events are logged like Tab events; re-ordering is not.
+
+**Invariant:** A Tab Folder belongs to exactly one User. A Tab Folder never nests inside another Tab Folder.
+
+**Synonyms:** pin folder, bookmark folder
+
+### History
+
+The sidebar section under Tabs listing the workspaces the User has visited, without any pinning required. Every visit to a workspace URL records the item; revisiting moves the existing record to the top rather than duplicating it. The list is capped at 20 items (oldest falls off), most-recent-first, and deliberately includes pinned workspaces too — History is intentionally dumb: no filtering, no Tab Folders, no organization. Every row carries a hover pin button (promoting the item to a Tab) and a hover remove button; the currently open workspace is always the topmost, highlighted row.
+
+History is **device-local**: it belongs to the browser, not the User account, and does not follow the User across devices — unlike Tabs, which persist per User.
+
+**Invariant:** A History record is keyed by workspace URL — exactly one record per URL.
+
+**Synonyms:** recently visited, recent workspaces
 
 ---
 
@@ -744,6 +811,7 @@ User ──▶ NotebookEntry (1:N — author of entries)
 User ──▶ Action (1:N — performer of actions)
 User ──▶ Entity (1:N — creator of entities)
 User ──▶ Tab (1:N — user bookmarks workspaces)
+User ──▶ Tab Folder (1:N — user organizes tabs into folders)
 User ──▶ Affiliation (1:N — user has career timeline entries)
 User ──▶ Publication (1:N — user has publications)
 User ──▶ Recognition (1:N — user has honors and awards)

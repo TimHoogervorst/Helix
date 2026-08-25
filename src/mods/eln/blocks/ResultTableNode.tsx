@@ -434,6 +434,7 @@ export function ResultTableContent({
   return (
     <TableChrome
       className="w-full table-layout-chrome--compact"
+      data-layout="dynamic-bleed"
       data-testid="result-table-loaded"
       title={
         <span className="inline-flex items-center gap-2">
@@ -499,7 +500,6 @@ export function ResultTableContent({
           </Button>
         )
       }
-      addRowOutside
     >
       <TableKit
         columns={[
@@ -617,7 +617,7 @@ export function ResultTableContent({
             />
           );
         }}
-        trailingHeader={!readOnly ? "Actions" : undefined}
+        trailingHeader={!readOnly ? "" : undefined}
           renderTrailingCell={!readOnly ? (_, rowIndex) => {
           const row = rows[rowIndex];
           return (
@@ -651,7 +651,6 @@ export function ResultTableContent({
           className: "hover:bg-[var(--color-background-hover)] transition-colors group",
           "data-testid": `result-table-row-${rows[rowIndex]?.displayId}`,
         })}
-        stretchMode="full"
         data-testid="result-table-grid"
       />
     </TableChrome>

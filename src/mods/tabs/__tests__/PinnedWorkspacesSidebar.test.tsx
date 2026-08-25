@@ -3,6 +3,8 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
+import { TabRow } from "../components/TabRow";
+import { normalizeWorkspaceUrl } from "../navigation";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { ModManifest } from "../../../shell/src/mod-system/types";
 
@@ -29,6 +31,7 @@ function setupWorkspaces(): void {
 
 const mockPin = vi.fn();
 const mockUnpin = vi.fn();
+const mockReorder = vi.fn();
 
 function mockHook(overrides: {
   pins?: PinnedWorkspace[];
@@ -41,6 +44,7 @@ function mockHook(overrides: {
       current: overrides.current ?? null,
       pin: mockPin,
       unpin: mockUnpin,
+      reorder: mockReorder,
       loading: overrides.loading ?? false,
     }),
   }));
@@ -103,32 +107,19 @@ describe("PinnedWorkspacesSidebar", () => {
 
   it("renders without the section header (delegated to parent SidebarSection)", async () => {
     await renderSidebar();
-    // The "Workspace" header is rendered by Layout's SidebarSection label,
+    // The "Tabs" header is rendered by Layout's SidebarSection label,
     // not by this component — it should not duplicate the heading.
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tabs")).not.toBeInTheDocument();
   });
 
-  // ── Current workspace (not pinned) ────────────────────────────────────
-
-  it("renders current workspace when not pinned", async () => {
+  it("does not render a separate current workspace row", async () => {
     await renderSidebar({
       current: makeCurrent({ displayId: "BLOOD1" }),
       pins: [],
     });
 
-    expect(screen.getByText("BLOOD1")).toBeInTheDocument();
-    expect(screen.getByText("Current")).toBeInTheDocument();
-    expect(screen.getByLabelText("Pin current workspace")).toBeInTheDocument();
-  });
-
-  it("calls pin when the pin button is clicked", async () => {
-    await renderSidebar({
-      current: makeCurrent({ displayId: "BLOOD1" }),
-      pins: [],
-    });
-
-    fireEvent.click(screen.getByLabelText("Pin current workspace"));
-    expect(mockPin).toHaveBeenCalled();
+    expect(screen.queryByText("BLOOD1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Pin current workspace")).not.toBeInTheDocument();
   });
 
   // ── Pinned workspaces ─────────────────────────────────────────────────
@@ -144,6 +135,27 @@ describe("PinnedWorkspacesSidebar", () => {
     expect(screen.getByText("BLOOD1")).toBeInTheDocument();
     expect(screen.getByText("PCR Results")).toBeInTheDocument();
     expect(screen.getByText("E1")).toBeInTheDocument();
+  });
+
+  it("renders pinned workspaces in the supplied order", async () => {
+    const pins = [
+      makePin({ id: 2, display_id: "E1", label: "Second" }),
+      makePin({ id: 1, display_id: "BLOOD1", label: "First" }),
+    ];
+
+    await renderSidebar({ pins });
+
+    const rows = screen.getAllByRole("button", { name: /Open workspace:/ });
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
+      "Open workspace: E1",
+      "Open workspace: BLOOD1",
+    ]);
+  });
+
+  it("falls back to the display ID when a tab has no name", async () => {
+    await renderSidebar({ pins: [makePin({ label: "" })] });
+
+    expect(screen.getByText("BLOOD1")).toBeInTheDocument();
   });
 
   it("renders unpin button for each pinned workspace", async () => {
@@ -164,24 +176,6 @@ describe("PinnedWorkspacesSidebar", () => {
     expect(mockUnpin).toHaveBeenCalledWith(42);
   });
 
-  // ── Already pinned current ────────────────────────────────────────────
-
-  it("does not show current row when current workspace is already pinned", async () => {
-    const pins = [makePin({ id: 1, url: "/lims/BLOOD1" })];
-
-    await renderSidebar({
-      current: makeCurrent({ url: "/lims/BLOOD1" }),
-      pins,
-    });
-
-    // The pinned row should show as "Current" (active), not a separate current row
-    expect(screen.getByText("BLOOD1")).toBeInTheDocument();
-    // There should be no pin button (since it's already pinned)
-    expect(
-      screen.queryByLabelText("Pin current workspace"),
-    ).not.toBeInTheDocument();
-  });
-
   it("shows active state on pinned workspace that matches current URL", async () => {
     const pins = [
       makePin({ id: 1, url: "/lims/BLOOD1" }),
@@ -193,10 +187,7 @@ describe("PinnedWorkspacesSidebar", () => {
       pins,
     });
 
-    // The current (BLOOD1) pinned row should have the "Current" badge
-    const currentBadges = screen.getAllByText("Current");
-    // There should be at least one "Current" badge on the active pinned row
-    expect(currentBadges.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("Open workspace: BLOOD1")[0]).toHaveClass("bg-muted");
   });
 
   // ── Empty state ───────────────────────────────────────────────────────
@@ -219,5 +210,38 @@ describe("PinnedWorkspacesSidebar", () => {
 
     const link = screen.getByLabelText("Open workspace: BLOOD1");
     expect(link).toBeInTheDocument();
+  });
+});
+
+describe("TabRow", () => {
+  it("renders a name with a muted display ID and falls back to the ID", () => {
+    const { rerender } = render(
+      <TabRow
+        displayId="BLOOD1"
+        name="Blood Sample A"
+        icon={<span>icon</span>}
+        ariaLabel="Open tab"
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Blood Sample A")).toBeInTheDocument();
+    expect(screen.getByText("BLOOD1")).toHaveClass("text-muted-foreground");
+
+    rerender(
+      <TabRow
+        displayId="BLOOD1"
+        name=""
+        icon={<span>icon</span>}
+        ariaLabel="Open tab"
+        onClick={() => {}}
+      />,
+    );
+    expect(screen.getByText("BLOOD1")).not.toHaveClass("text-muted-foreground");
+  });
+
+  it("keeps workspace URLs rooted when opened from a nested route", () => {
+    expect(normalizeWorkspaceUrl("lims/BLOOD1")).toBe("/lims/BLOOD1");
+    expect(normalizeWorkspaceUrl("/eln/E1")).toBe("/eln/E1");
   });
 });

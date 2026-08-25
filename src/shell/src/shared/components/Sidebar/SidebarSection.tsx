@@ -15,6 +15,8 @@ export interface SidebarSectionProps {
   collapsible?: boolean;
   /** Content rendered when the section is expanded. */
   children: ReactNode;
+  /** Optional controls rendered at the end of the section header. */
+  actions?: ReactNode;
 }
 
 // ── Component ───────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ export function SidebarSection({
   icon: Icon,
   collapsible = true,
   children,
+  actions,
 }: SidebarSectionProps) {
   const { isSectionCollapsed, toggleSection } = useSidebar();
   const collapsed = collapsible && isSectionCollapsed(id);
@@ -48,7 +51,7 @@ export function SidebarSection({
   };
 
   return (
-    <div className="sidebar-section">
+    <div className="sidebar-section" data-section-id={id}>
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div
         className="sidebar-section-header"
@@ -61,6 +64,7 @@ export function SidebarSection({
       >
         {Icon && <Icon size={16} className="sidebar-section-icon" />}
         <span className="sidebar-section-label">{label}</span>
+        {actions && <span onClick={(event) => event.stopPropagation()}>{actions}</span>}
         {collapsible && (
           <span className="sidebar-section-chevron" aria-hidden="true">
             {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}

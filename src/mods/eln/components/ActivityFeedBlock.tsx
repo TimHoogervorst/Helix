@@ -23,44 +23,14 @@
  */
 import { useEffect, useMemo, useRef } from "react";
 import type { BlockComponentProps, BlockInstance } from "../../../shell/src/mod-system/types";
-import { useActivity } from "../hooks/useActivity";
+import { useElnActivity } from "../hooks/useActivity";
 import { Activity } from "../../../shell/src/shared/components/Activity";
 import { groupConfirmedActions } from "../../../shell/src/shared/groupActions";
 import type {
   DisplayActionItem,
   FeedItem,
-  ActionUser,
 } from "../../../shell/src/shared/types/actions";
-import type { ElnAction } from "../types";
-
-// ── Type mapping ────────────────────────────────────────────────────────────
-
-/** Map an ELN API ActionUser to the shared ActionUser shape. */
-function mapActionUser(u: ElnAction["performed_by"]): ActionUser {
-  return {
-    id: u.id,
-    username: u.username,
-    firstName: u.first_name,
-    lastName: u.last_name,
-    color: u.color,
-  };
-}
-
-/** Map an ELN API ElnAction to a confirmed DisplayActionItem. */
-export function mapElnAction(a: ElnAction): DisplayActionItem {
-  return {
-    id: a.id,
-    performedBy: mapActionUser(a.performed_by),
-    action: a.action,
-    actionType: a.action_type,
-    targetType: a.target_type,
-    targetId: a.target_id,
-    requestId: a.request_id ?? undefined,
-    metadata: a.metadata,
-    createdAt: a.created_at,
-    state: "confirmed",
-  };
-}
+export { mapElnAction } from "../hooks/useActivity";
 
 // ── Bus event payload shape ─────────────────────────────────────────────────
 
@@ -145,7 +115,7 @@ function buildOptimisticItems(
     requestId: p.requestId,
     metadata: p.metadata,
     createdAt: p.createdAt,
-    state: "optimistic" as const,
+    state: "pending" as const,
   }));
 }
 
@@ -163,7 +133,15 @@ function buildOptimisticItems(
  */
 export function ActivityFeedBlock({ context, instance }: BlockComponentProps) {
   const entryId = context.entryId;
-  const { actions, isLoading, error, refetch } = useActivity(entryId);
+  const {
+    actions,
+    isLoading,
+    isLoadingMore,
+    error,
+    hasMore,
+    refetch,
+    loadMore,
+  } = useElnActivity(entryId);
 
   // ── Refetch trigger from onEvent ──────────────────────────────────────
   //
@@ -207,7 +185,7 @@ export function ActivityFeedBlock({ context, instance }: BlockComponentProps) {
   // (they've been persisted and the confirmed version takes precedence).
   const displayItems = useMemo<FeedItem[]>(() => {
     // Confirmed items from API
-    const confirmed: DisplayActionItem[] = actions.map(mapElnAction);
+    const confirmed: DisplayActionItem[] = actions;
 
     // Optimistic items from bus events
     const payloads =
@@ -238,6 +216,9 @@ export function ActivityFeedBlock({ context, instance }: BlockComponentProps) {
       isLoading={isLoading}
       error={error}
       onRetry={refetch}
+      hasMore={hasMore}
+      onLoadMore={loadMore}
+      isLoadingMore={isLoadingMore}
     />
   );
 }

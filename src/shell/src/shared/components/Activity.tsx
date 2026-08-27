@@ -44,17 +44,20 @@ export interface ActivityProps {
   error?: string | null;
   /** Called when the user clicks the retry button in the error state. */
   onRetry?: () => void;
+  /** Whether another server page is available. */
+  hasMore?: boolean;
+  /** Loads and appends the next server page. */
+  onLoadMore?: () => void;
+  /** True while the next page is being fetched. */
+  isLoadingMore?: boolean;
 }
-
-/** Maximum items shown before the "Show all" toggle appears. */
-const PREVIEW_ITEM_COUNT = 10;
 
 /**
  * Cross-mod activity feed component.
  *
  * Renders a chronological list of action log entries with loading, empty,
- * and error states. Shows a 10-item preview with a "Show all (N)" toggle
- * when there are more than 10 items.
+ * and error states. Loaded pages are rendered in full and can be extended
+ * incrementally with the "Show 20 more" button.
  *
  * Supports three visual states per item:
  * - **confirmed** — returned from server with real ID, rendered normally.
@@ -71,8 +74,10 @@ export function Activity({
   isLoading,
   error,
   onRetry,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
 }: ActivityProps) {
-  const [showAll, setShowAll] = useState(false);
 
   // ── Loading state ──────────────────────────────────────────────────────
   if (isLoading) {
@@ -133,13 +138,10 @@ export function Activity({
   }
 
   // ── Normal state ───────────────────────────────────────────────────────
-  const visible = showAll ? actions : actions.slice(0, PREVIEW_ITEM_COUNT);
-  const hasMore = actions.length > PREVIEW_ITEM_COUNT;
-
   return (
     <section>
       <ul className="space-y-2 text-sm">
-        {visible.map((item) =>
+        {actions.map((item) =>
           isGroup(item) ? (
             <GroupedActivityItem key={item.id} group={item} />
           ) : (
@@ -147,15 +149,16 @@ export function Activity({
           ),
         )}
       </ul>
-      {hasMore && (
+      {hasMore && onLoadMore && (
         <Button
           variant="ghost"
           size="sm"
           className="mt-2"
-          onClick={() => setShowAll((prev) => !prev)}
-          data-testid="activity-show-all"
+          onClick={onLoadMore}
+          disabled={isLoadingMore}
+          data-testid="activity-load-more"
         >
-          {showAll ? "Show less" : `Show all (${actions.length})`}
+          {isLoadingMore ? "Loading..." : "Show 20 more"}
         </Button>
       )}
     </section>

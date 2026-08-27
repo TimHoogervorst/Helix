@@ -21,10 +21,14 @@ import "../index";
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
 const { mockFetchActions, mockLockedState, mockIsReady } = vi.hoisted(() => ({
-  mockFetchActions: vi.fn().mockResolvedValue([]),
+  mockFetchActions: vi.fn().mockResolvedValue({ results: [], next: null }),
   mockLockedState: { isLockedByOther: false, lockHeldBy: null as string | null },
   mockIsReady: { value: true },
 }));
+
+function actionPage<T>(results: T[], next: string | null = null) {
+  return { results, next };
+}
 
 vi.mock("../api", () => ({
   fetchActions: mockFetchActions,
@@ -117,7 +121,7 @@ import ElnWorkspacePage from "../workspace/ElnWorkspacePage";
 describe("ElnWorkspacePage — five-zone layout", () => {
   beforeEach(() => {
     mockFetchActions.mockReset();
-    mockFetchActions.mockResolvedValue([]);
+    mockFetchActions.mockResolvedValue(actionPage([]));
     mockLockedState.isLockedByOther = false;
     mockLockedState.lockHeldBy = null;
     mockIsReady.value = true;
@@ -227,7 +231,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
   // ── Top toolbar: user avatars ──────────────────────────────────────────
 
   it("does not render avatar row when no recent editors exist", async () => {
-    mockFetchActions.mockResolvedValue([]);
+    mockFetchActions.mockResolvedValue(actionPage([]));
     renderAtRoute("/eln/EXP-0284");
     // No fetchActions error — avatars simply absent
     await vi.waitFor(() => {
@@ -247,7 +251,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       last_name: "Keller",
       color: "#d9b3e6",
     };
-    mockFetchActions.mockResolvedValue([
+    mockFetchActions.mockResolvedValue(actionPage([
       {
         id: 1,
         action: "eln.entry.edited",
@@ -258,7 +262,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
         created_at: new Date().toISOString(),
         performed_by: mockUser,
       },
-    ]);
+    ]));
     renderAtRoute("/eln/EXP-0284");
     // The shared Avatar renders initials via aria-label — may appear in
     // both the toolbar (recentEditors) and metadata panel (lastEditor)
@@ -285,12 +289,12 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       created_at: now,
       performed_by: makeUser(userId),
     });
-    mockFetchActions.mockResolvedValue([
+    mockFetchActions.mockResolvedValue(actionPage([
       makeAction(1),
       makeAction(2),
       makeAction(3),
       makeAction(4),
-    ]);
+    ]));
     renderAtRoute("/eln/EXP-0284");
     const dots = await screen.findByText("…");
     expect(dots).toBeDefined();
@@ -519,7 +523,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
     });
 
     it("shows empty state when there are no actions", async () => {
-      mockFetchActions.mockResolvedValue([]);
+      mockFetchActions.mockResolvedValue(actionPage([]));
       renderAtRoute("/eln/EXP-0284");
       const empty = await screen.findByTestId("activity-empty");
       expect(empty.textContent).toBe("No activity yet");
@@ -527,7 +531,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
 
     it("renders activity items from fetched actions", async () => {
       const now = new Date().toISOString();
-      mockFetchActions.mockResolvedValue([
+      mockFetchActions.mockResolvedValue(actionPage([
         {
           id: 1,
           action: "eln.entry.created",
@@ -560,7 +564,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
             color: "#a3c4f3",
           },
         },
-      ]);
+      ]));
       renderAtRoute("/eln/EXP-0284");
 
       const items = await screen.findAllByTestId("activity-item");
@@ -575,7 +579,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(screen.getByText("Edited")).toBeDefined();
     });
 
-    it("shows Show all toggle when there are more than 10 items", async () => {
+    it("shows and loads the next activity page", async () => {
       const now = new Date().toISOString();
       const actions = Array.from({ length: 12 }, (_, i) => ({
         id: i + 1,
@@ -593,11 +597,15 @@ describe("ElnWorkspacePage — five-zone layout", () => {
           color: "#d9b3e6",
         },
       }));
-      mockFetchActions.mockResolvedValue(actions);
+      mockFetchActions.mockResolvedValueOnce(actionPage(actions, "/next-page"));
+      mockFetchActions.mockResolvedValueOnce(actionPage([]));
       renderAtRoute("/eln/EXP-0284");
 
-      const toggle = await screen.findByTestId("activity-show-all");
-      expect(toggle.textContent).toBe("Show all (12)");
+      const button = await screen.findByTestId("activity-load-more");
+      expect(button.textContent).toBe("Show 20 more");
+      button.click();
+      await waitFor(() => expect(mockFetchActions).toHaveBeenCalledWith("EXP-0284", undefined, undefined, "/next-page"));
+      await waitFor(() => expect(screen.queryByTestId("activity-load-more")).toBeNull());
     });
 
     it("shows error state with retry button when fetch fails", async () => {

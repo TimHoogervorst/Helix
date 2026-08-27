@@ -5,9 +5,12 @@ The signal (in ``eln/cascade.py``) fires on ``post_save`` for
 NotebookEntry and updates the status of all linked Entities to match.
 """
 from core.tests.base import BaseServiceTestCase
+from core.models import Folder
 from helix_core.models import SchemaType, Schema
+from core.mentions.models import Mention
 from mods.eln.models import NotebookEntry
 from mods.lims.models import Entity
+from helix_core.source_deletion import delete_source_descendants
 
 
 class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
@@ -72,6 +75,58 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         entity2.refresh_from_db()
         self.assertEqual(self.entity.status, "finished")
         self.assertEqual(entity2.status, "finished")
+
+    def test_status_change_cascades_transitively_over_source(self):
+        """Entry status updates reach entities sourced by descendant entities."""
+        result = Entity.objects.create(
+            name="Result",
+            schema=self.schema,
+            source=self.entity,
+            folder=self.folder,
+            author=self.user,
+        )
+
+        self.entry.status = "finished"
+        self.entry.save()
+
+        result.refresh_from_db()
+        self.assertEqual(result.status, "finished")
+
+    def test_entity_status_change_cascades_to_source_descendants(self):
+        """Entity status updates propagate to its descendants."""
+        result = Entity.objects.create(
+            name="Result",
+            schema=self.schema,
+            source=self.entity,
+            folder=self.folder,
+            author=self.user,
+        )
+
+        self.entity.status = "finished"
+        self.entity.save()
+
+        result.refresh_from_db()
+        self.assertEqual(result.status, "finished")
+
+    def test_upstream_status_change_overwrites_descendant_override(self):
+        """A later upstream save overwrites a manually changed descendant."""
+        result = Entity.objects.create(
+            name="Result",
+            schema=self.schema,
+            source=self.entity,
+            folder=self.folder,
+            author=self.user,
+        )
+        self.entry.status = "finished"
+        self.entry.save()
+        result.status = "in_progress"
+        result.save()
+
+        self.entry.name = "Updated Title"
+        self.entry.save(update_fields=["name"])
+
+        result.refresh_from_db()
+        self.assertEqual(result.status, "finished")
 
     # ── No cascade on create ───────────────────────────────────────────
 
@@ -178,3 +233,155 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
             sync_receivers or async_receivers,
             "No receiver connected to post_save for NotebookEntry",
         )
+
+    def test_entity_signal_is_connected(self):
+        """The cascade receiver is connected to post_save for Entity."""
+        from django.db.models.signals import post_save
+
+        sync_receivers, async_receivers = post_save._live_receivers(sender=Entity)
+        self.assertTrue(
+            sync_receivers or async_receivers,
+            "No receiver connected to post_save for Entity",
+        )
+
+
+class SourceDeletionTests(BaseServiceTestCase):
+    """Source deletion removes descendants without following references."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.eln_schema_type = SchemaType.objects.create(
+            display_name="ELN Entry", workspace_id="eln",
+            model="mods.eln.models.NotebookEntry",
+        )
+        cls.lims_schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims",
+            model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.eln_schema = Schema.objects.create(
+            name="Entry", prefix="E", schema_type=self.eln_schema_type,
+        )
+        self.lims_schema = Schema.objects.create(
+            name="Entity", prefix="S", schema_type=self.lims_schema_type,
+        )
+        self.entry = NotebookEntry.objects.create(
+            name="Entry", folder=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+        self.entity = Entity.objects.create(
+            name="Entity", schema=self.lims_schema, source=self.entry,
+            folder=self.folder, author=self.user,
+        )
+        self.result = Entity.objects.create(
+            name="Result", schema=self.lims_schema, source=self.entity,
+            folder=self.folder, author=self.user,
+        )
+
+    def test_entry_delete_cascades_transitive_source_descendants(self):
+        other_entry = NotebookEntry.objects.create(
+            name="Other", folder=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+        unrelated = Entity.objects.create(
+            name="Unrelated", schema=self.lims_schema, source=other_entry,
+            folder=self.folder, author=self.user,
+        )
+
+        delete_source_descendants(self.entry)
+        self.entry.delete()
+
+        self.assertFalse(Entity.objects.filter(pk=self.entity.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=self.result.pk).exists())
+        self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
+        self.assertTrue(NotebookEntry.objects.filter(pk=other_entry.pk).exists())
+
+    def test_folder_delete_does_not_follow_legacy_folder_reference(self):
+        other_folder = Folder.objects.create(
+            name="Other", project=self.project,
+        )
+        unrelated = Entity.objects.create(
+            name="Unrelated", schema=self.lims_schema, source=other_folder,
+            folder=self.folder, author=self.user,
+        )
+
+        delete_source_descendants(self.folder)
+        self.folder.delete()
+
+        self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
+        unrelated.refresh_from_db()
+        self.assertIsNone(unrelated.folder_id)
+
+    def test_folder_delete_cascades_source_subtree(self):
+        source_folder = Folder.objects.create(
+            name="Source Folder", project=self.project,
+        )
+        child_folder = Folder.objects.create(
+            name="Child Folder", project=self.project, parent=source_folder,
+        )
+        child_entry = NotebookEntry.objects.create(
+            name="Child Entry", source=child_folder, folder=child_folder,
+            author=self.user, schema=self.eln_schema,
+        )
+        child_entity = Entity.objects.create(
+            name="Child Entity", schema=self.lims_schema, source=child_entry,
+            folder=child_folder, author=self.user,
+        )
+        child_result = Entity.objects.create(
+            name="Child Result", schema=self.lims_schema, source=child_entity,
+            folder=child_folder, author=self.user,
+        )
+        child_result_result = Entity.objects.create(
+            name="Nested Child Result", schema=self.lims_schema,
+            source=child_result, folder=child_folder, author=self.user,
+        )
+        self.lims_schema.columns = [{"name": "linked_entity", "type": "reference"}]
+        self.lims_schema.save(update_fields=["columns"])
+        survivor = Entity.objects.create(
+            name="Referenced Survivor", schema=self.lims_schema,
+            source=self.entry, folder=self.folder, author=self.user,
+            properties={"linked_entity": child_entity.display_id},
+        )
+        mention = Mention.objects.create(source=survivor, target=child_entity)
+
+        delete_source_descendants(source_folder)
+        source_folder.delete()
+
+        self.assertFalse(Folder.objects.filter(pk=source_folder.pk).exists())
+        self.assertFalse(Folder.objects.filter(pk=child_folder.pk).exists())
+        self.assertFalse(NotebookEntry.objects.filter(pk=child_entry.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=child_entity.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=child_result.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=child_result_result.pk).exists())
+        self.assertTrue(Entity.objects.filter(pk=survivor.pk).exists())
+        self.assertTrue(
+            Mention.objects.filter(pk=mention.pk, target_id=child_entity.pk).exists()
+        )
+
+    def test_entity_delete_cascades_results_but_not_soft_references(self):
+        self.lims_schema.columns = [{"name": "linked_entity", "type": "reference"}]
+        self.lims_schema.save(update_fields=["columns"])
+        result = Entity.objects.create(
+            name="Nested Result", schema=self.lims_schema, source=self.entity,
+            folder=self.folder, author=self.user,
+        )
+        nested_result = Entity.objects.create(
+            name="Nested Result Result", schema=self.lims_schema, source=result,
+            folder=self.folder, author=self.user,
+        )
+        survivor = Entity.objects.create(
+            name="Referencing Entity", schema=self.lims_schema,
+            source=self.entry, folder=self.folder, author=self.user,
+            properties={"linked_entity": self.entity.display_id},
+        )
+
+        delete_source_descendants(self.entity)
+        self.entity.delete()
+
+        self.assertFalse(Entity.objects.filter(pk=self.entity.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=result.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=nested_result.pk).exists())
+        self.assertTrue(Entity.objects.filter(pk=survivor.pk).exists())

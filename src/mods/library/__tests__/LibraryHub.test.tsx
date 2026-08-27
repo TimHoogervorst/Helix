@@ -25,15 +25,16 @@ vi.mock("react-router-dom", async () => {
 });
 
 const mockGetAccessibleProjects = vi.fn();
-const mockGetLibraryContents = vi.fn();
+const mockGetLibraryChildren = vi.fn();
+const mockGetLibraryContents = mockGetLibraryChildren;
 const mockGetFolders = vi.fn().mockResolvedValue([]);
 const mockDeleteFolder = vi.fn();
 const mockDeleteEntry = vi.fn();
 vi.mock("../api", () => ({
   getAccessibleProjects: (...args: unknown[]) =>
     mockGetAccessibleProjects(...args),
-  getLibraryContents: (...args: unknown[]) =>
-    mockGetLibraryContents(...args),
+  getLibraryChildren: (...args: unknown[]) =>
+    mockGetLibraryChildren(...args),
   getFolders: (...args: unknown[]) =>
     mockGetFolders(...args),
   patchFolder: (...args: unknown[]) =>
@@ -169,7 +170,6 @@ const populatedContentsResponse = makeLibraryContents(
       display_id: "EXP-0284",
       title: "PCR Results",
       folder: 1,
-      folder_name: "Experiments",
       author_username: "testuser",
       author_info: {
         id: 2,
@@ -349,8 +349,9 @@ describe("LibraryHub", () => {
         ).toBeInTheDocument();
       });
       expect(mockGetLibraryContents).toHaveBeenCalledWith(
+        "project",
         "missing-project",
-        undefined,
+        false,
         undefined,
       );
     });
@@ -372,8 +373,9 @@ describe("LibraryHub", () => {
       renderLibrary("/library?project=proj-1&path=/Experiments");
       await waitFor(() => {
         expect(mockGetLibraryContents).toHaveBeenCalledWith(
+          "project",
           "proj-1",
-          "/Experiments",
+          false,
           undefined,
         );
       });
@@ -516,8 +518,9 @@ describe("LibraryHub", () => {
 
       await waitFor(() => {
         expect(mockGetLibraryContents).toHaveBeenCalledWith(
+          "project",
           "proj-001",
-          "/Protocols",
+          false,
           undefined,
         );
       });
@@ -648,7 +651,7 @@ describe("LibraryHub", () => {
         [makeLibraryFolder({ id: 1 })],
         [makeLibraryEntry({ id: 10, workspace_id: "eln" })],
         {
-          next: "/library/contents/?project=proj-001&path=&page=2",
+          next: "/library/children/?source_type=project&source_id=proj-001&page=2",
           project_uid: "proj-001",
           project_name: "Test Project",
           project_is_archived: false,
@@ -728,8 +731,9 @@ describe("LibraryHub", () => {
     renderLibrary("/library?project=proj-001&path=/SharedFolder");
     await waitFor(() => {
       expect(mockGetLibraryContents).toHaveBeenCalledWith(
+        "project",
         "proj-001",
-        "/SharedFolder",
+        false,
         undefined,
       );
     });
@@ -900,6 +904,83 @@ describe("LibraryHub", () => {
       await waitFor(() => {
         expect(screen.getByText("Properties")).toBeInTheDocument();
       });
+    });
+
+    it("renders sourced entities and only shows chevrons for rows with children", async () => {
+      const entity = makeLibraryEntry({
+        type: "entity",
+        id: 20,
+        display_id: "S-20",
+        title: "Registered sample",
+        children_count: 0,
+      });
+      mockGetLibraryContents.mockResolvedValue(
+        makeLibraryContents(
+          [makeLibraryFolder({ id: 1, name: "Data", children_count: 0 })],
+          [entity],
+          { project_uid: "proj-001", project_name: "Test Project" },
+        ),
+      );
+
+      renderLibrary("/library?project=proj-001");
+
+      await waitFor(() => {
+        expect(screen.getByText("Registered sample")).toBeInTheDocument();
+      });
+      expect(screen.getAllByTestId("library-tree-row")).toHaveLength(2);
+      expect(screen.queryByRole("button", { name: /Expand folder Data/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Expand entity Registered sample/i })).toBeNull();
+    });
+
+    it("lazily expands arbitrary entry and entity source descendants", async () => {
+      const entry = makeLibraryEntry({
+        id: 10,
+        title: "Parent entry",
+        display_id: "E-10",
+        children_count: 1,
+      });
+      const entity = makeLibraryEntry({
+        type: "entity",
+        id: 20,
+        title: "Registered sample",
+        display_id: "S-20",
+        children_count: 1,
+      });
+      const result = makeLibraryEntry({
+        type: "entity",
+        id: 30,
+        title: "Result entity",
+        display_id: "R-30",
+        children_count: 0,
+      });
+      mockGetLibraryContents.mockImplementation((sourceType: string, sourceId: number | string) => {
+        if (sourceType === "entry" && sourceId === 10) {
+          return Promise.resolve(makeLibraryContents([], [entity]));
+        }
+        if (sourceType === "entity" && sourceId === 20) {
+          return Promise.resolve(makeLibraryContents([], [result]));
+        }
+        return Promise.resolve(makeLibraryContents([], [entry], {
+          project_uid: "proj-001",
+          project_name: "Test Project",
+        }));
+      });
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => expect(screen.getByText("Parent entry")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: /Expand entry Parent entry/i }));
+      await waitFor(() => expect(screen.getByText("Registered sample")).toBeInTheDocument());
+      expect(mockGetLibraryContents).toHaveBeenCalledWith("entry", 10, false, undefined);
+
+      const childRow = screen.getByText("Registered sample").closest(".library-tree-row");
+      expect(childRow).toHaveAttribute("data-depth", "1");
+      expect(childRow).toHaveClass("is-child");
+
+      fireEvent.click(screen.getByRole("button", { name: /Expand entity Registered sample/i }));
+      await waitFor(() => expect(screen.getByText("Result entity")).toBeInTheDocument());
+      expect(mockGetLibraryContents).toHaveBeenCalledWith("entity", 20, false, undefined);
+      expect(screen.getByText("Result entity").closest(".library-tree-row")).toHaveAttribute("data-depth", "2");
     });
 
     it("does not open the row when the three-dot button is clicked", async () => {
@@ -1201,7 +1282,7 @@ describe("LibraryHub", () => {
           [
             makeLibraryEntry({
               id: 10, workspace_id: "eln", display_id: "EXP-0284",
-              title: "PCR Results", folder: 1, folder_name: "Experiments",
+              title: "PCR Results",
               status: "in_progress",
             }),
           ],
@@ -1218,7 +1299,7 @@ describe("LibraryHub", () => {
       await waitFor(() => {
         expect(within(dialog).getByText("Protocols")).toBeInTheDocument();
       });
-      expect(within(dialog).queryByText("Experiments")).toBeNull();
+      expect(within(dialog).getByText("Experiments")).toBeInTheDocument();
     });
 
     it("filters move picker by search text", async () => {

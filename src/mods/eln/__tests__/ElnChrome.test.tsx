@@ -37,8 +37,6 @@ function makeEntry(overrides: Partial<EntryDetail> = {}): EntryDetail {
     name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph" }] },
     folder: 1,
-    folder_name: "Research",
-    folder_path: "/Research/CRISPR",
     author: 1,
     author_username: "mirak",
     author_info: null,
@@ -233,7 +231,14 @@ describe("ElnChrome", () => {
 
   describe("breadcrumb links", () => {
     it("renders breadcrumb segments linking to library paths", () => {
-      renderChrome({ folderPath: "/Research/CRISPR/Optimization" });
+      renderChrome({
+        sourcePath: [
+          { kind: "project", id: 1, name: "Project", uid: "proj-001" },
+          { kind: "folder", id: 2, name: "Research" },
+          { kind: "folder", id: 3, name: "CRISPR" },
+          { kind: "folder", id: 4, name: "Optimization" },
+        ],
+      });
       expect(screen.getByText("Research")).toBeDefined();
       expect(screen.getByText("CRISPR")).toBeDefined();
       expect(screen.getByText("Optimization")).toBeDefined();
@@ -253,7 +258,10 @@ describe("ElnChrome", () => {
       const optSpan = screen.getByText("Optimization").closest("span");
       expect(optSpan).not.toBeNull();
       const lastSegmentAnchor = screen.getByText("Optimization").closest("a");
-      expect(lastSegmentAnchor).toBeNull();
+      expect(lastSegmentAnchor).toHaveAttribute(
+        "href",
+        "/library?project=proj-001&path=%2FResearch%2FCRISPR%2FOptimization",
+      );
     });
 
     it("renders entry display ID as last segment in breadcrumb", () => {
@@ -261,11 +269,35 @@ describe("ElnChrome", () => {
       expect(screen.getByText("EXP-0284")).toBeDefined();
     });
 
-    it("renders the entry at the Project root when folderPath is empty", () => {
+  it("renders the entry at the Project root when folderPath is empty", () => {
       renderChrome({ folderPath: "" });
       expect(screen.getByText("EXP-0284")).toBeInTheDocument();
       expect(screen.queryByText("—")).toBeNull();
     });
+  });
+
+  it("renders hydrated Source Path segments with kind-aware links", () => {
+    renderChrome({
+      sourcePath: [
+        { kind: "project", id: 1, name: "Project", uid: "project-1" },
+        { kind: "folder", id: 2, name: "Research" },
+        { kind: "entry", id: 3, name: "Parent entry", display_id: "EXP-1" },
+        { kind: "entity", id: 4, name: "Sample", display_id: "DNA-1" },
+      ],
+    });
+
+    expect(screen.getByText("Project").closest("a")?.getAttribute("href")).toBe(
+      "/library?project=project-1",
+    );
+    expect(screen.getByText("Research").closest("a")?.getAttribute("href")).toBe(
+      "/library?project=project-1&path=%2FResearch",
+    );
+    expect(screen.getByText("Parent entry").closest("a")?.getAttribute("href")).toBe(
+      "/eln/EXP-1",
+    );
+    expect(screen.getByText("Sample").closest("a")?.getAttribute("href")).toBe(
+      "/lims/DNA-1",
+    );
   });
 
   describe("title callbacks", () => {

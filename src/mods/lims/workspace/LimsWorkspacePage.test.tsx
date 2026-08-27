@@ -62,10 +62,7 @@ describe("LimsWorkspacePage", () => {
       schema_color: "muted",
       enabled_components: [],
       properties: { Concentration: 42 },
-      source_entry: null,
-      source_entry_display_id: null,
-      folder: null,
-      folder_path: "/Research",
+       source_path: [{ kind: "folder", id: 2, name: "Research" }],
       project_uid: "project-1",
       author: 1,
       author_username: "alice",
@@ -94,6 +91,50 @@ describe("LimsWorkspacePage", () => {
     );
   });
 
+  it("renders Source Path breadcrumbs with workspace links", async () => {
+    mockGet.mockResolvedValue({
+      id: 1,
+      display_id: "DNA-1",
+      name: "Sample A",
+      schema: 1,
+      schema_name: "DNA",
+      schema_prefix: "DNA",
+      schema_columns: [],
+      schema_icon: "dna",
+      schema_color: "muted",
+      enabled_components: [],
+      properties: {},
+      source_path: [
+        { kind: "project", id: 1, name: "Project", uid: "project-1" },
+        { kind: "folder", id: 2, name: "Research" },
+        { kind: "entry", id: 3, name: "Entry", display_id: "EXP-1" },
+      ],
+      project_uid: "project-1",
+      author: 1,
+      author_username: "alice",
+      last_editor: null,
+      last_editor_username: null,
+      status: "finished",
+      updated_at: "2026-01-02T00:00:00Z",
+      created_at: "2026-01-01T00:00:00Z",
+      tags: [],
+      effective_role: "read",
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Project").then((node) => node.closest("a"))).toHaveAttribute(
+      "href",
+      "/library?project=project-1",
+    );
+    expect(screen.getByText("Research").closest("a")).toHaveAttribute(
+      "href",
+      "/library?project=project-1&path=%2FResearch",
+    );
+    expect(screen.getByText("Entry").closest("a")).toHaveAttribute("href", "/eln/EXP-1");
+    expect(screen.getAllByText("DNA-1").length).toBeGreaterThan(0);
+  });
+
   it("renders grouped read-only results and skips unknown components", async () => {
     mockGet
       .mockResolvedValueOnce({
@@ -107,10 +148,6 @@ describe("LimsWorkspacePage", () => {
         schema_color: "muted",
         enabled_components: ["lims.unknown", "lims.results"],
         properties: {},
-        source_entry: null,
-        source_entry_display_id: null,
-        folder: null,
-        folder_path: "",
         project_uid: "project-1",
         author: 1,
         author_username: "alice",
@@ -170,10 +207,6 @@ describe("LimsWorkspacePage", () => {
         schema_color: "muted",
         enabled_components: ["lims.results"],
         properties: {},
-        source_entry: null,
-        source_entry_display_id: null,
-        folder: null,
-        folder_path: "",
         project_uid: "project-1",
         author: 1,
         author_username: "alice",

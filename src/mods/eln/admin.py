@@ -7,7 +7,7 @@ from .models import NotebookEntry
 
 @admin.register(NotebookEntry)
 class NotebookEntryAdmin(admin.ModelAdmin):
-    list_display = ["name", "author", "folder", "created_at", "updated_at"]
+    list_display = ["name", "author", "project", "created_at", "updated_at"]
     search_fields = ["name", "content"]
     list_filter = ["created_at", "author"]
 

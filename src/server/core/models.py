@@ -4,6 +4,8 @@ import uuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from helix_core.abstracts import Sourceable
+
 # 8-color palette for avatar backgrounds — randomly assigned at user creation
 USER_COLOR_PALETTE = [
     "#4A90D9",  # blue
@@ -83,7 +85,7 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
-class Folder(models.Model):
+class Folder(Sourceable):
     """Hierarchical folder for organizing entries and entities.
 
     Every Folder belongs to exactly one Project. A folder with no parent is

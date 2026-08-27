@@ -48,8 +48,6 @@ function makeEntry(overrides?: Partial<EntryDetail>): EntryDetail {
     title: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph" }] },
     folder: null,
-    folder_name: "",
-    folder_path: "",
     author: null,
     author_username: null,
     author_info: null,

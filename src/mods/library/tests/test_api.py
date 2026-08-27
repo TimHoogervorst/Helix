@@ -63,6 +63,30 @@ class LibraryApiTests(BaseTestCase):
     def _url(self):
         return f"/api/library/contents/?project={self.project.uid}"
 
+    def _children_url(self, source_type="project", source_id=None, recursive=False):
+        source_id = source_id or self.project.uid
+        suffix = "&recursive=1" if recursive else ""
+        return f"/api/library/children/?source_type={source_type}&source_id={source_id}{suffix}"
+
+    def test_children_endpoint_returns_mixed_direct_children(self):
+        response = self.client.get(self._children_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["type"] for item in response.data["results"]],
+            ["folder", "folder", "entry"],
+        )
+        self.assertTrue(all("children_count" in item for item in response.data["results"]))
+
+    def test_children_endpoint_returns_flat_recursive_subtree_with_depth(self):
+        response = self.client.get(self._children_url(recursive=True))
+
+        self.assertEqual(response.status_code, 200)
+        rows = {item["id"]: item for item in response.data["results"]}
+        self.assertEqual(rows[self.experiments_folder.id]["depth"], 0)
+        self.assertEqual(rows[self.nested_folder.id]["depth"], 1)
+        self.assertEqual(rows[self.nested_entry.id]["depth"], 2)
+
     def test_folder_picker_paths_are_project_relative(self):
         response = self.client.get(
             f"/api/library/folders/?project={self.project.uid}"

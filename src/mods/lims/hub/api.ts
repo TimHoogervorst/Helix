@@ -76,6 +76,17 @@ export function attachEntityTags(
   });
 }
 
+export function patchEntity(
+  displayId: string,
+  payload: {
+    status?: string;
+    source_type?: number;
+    source_id?: number;
+  },
+): Promise<EntityListItem> {
+  return patch<EntityListItem>(`/lims/entities/${displayId}/`, payload);
+}
+
 export function detachEntityTag(
   displayId: string,
   tagId: number,

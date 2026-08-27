@@ -12,14 +12,8 @@ reuses it.
 from __future__ import annotations
 
 from django.db.models import Q
-from django.db.models.expressions import RawSQL
 
 from .policies import _is_org_admin, accessible_project_ids
-
-# Depth guard for the shared-subtree recursive CTE.  Prevents runaway
-# recursion on a corrupted (cyclic) Folder tree; well above any realistic
-# folder depth.
-MAX_FOLDER_TREE_DEPTH = 50
 
 
 def visible_rows_q(user):
@@ -32,17 +26,15 @@ def visible_rows_q(user):
     reads.
 
     The accessible Project set is resolved once via
-    :func:`accessible_project_ids`.  Shared-subtree coverage is collected
-    with a PostgreSQL recursive CTE composed into the filter, relying on
-    the indexed ``Folder.parent`` foreign key, with a depth guard.  No
-    caching.
+    :func:`accessible_project_ids`. Shared-subtree coverage is collected
+    from the stored Source Path. No caching.
     """
     project_ids = accessible_project_ids(user)
     if not project_ids:
         return Q(pk__in=[])
 
     # Organization Admins and Superusers already read every Project, so
-    # the subtree CTE adds nothing — skip it.
+    # Shared paths add nothing for admins — skip the extra predicate.
     if _is_org_admin(user):
         return Q(project_id__in=project_ids)
 
@@ -72,35 +64,22 @@ def visible_folders_q(user):
 
 
 def _shared_subtree_folder_q(project_ids, lookup_field="folder_id"):
-    """Return a Q matching Folders inside subtrees shared into *project_ids*.
-
-    The CTE seeds from every FolderShare targeting an accessible Project
-    and walks ``Folder.parent`` downward, so the source Folder and
-    all of its nested descendants are included.  Returns ``None`` when no
-    FolderShare targets an accessible Project, so callers can skip the
-    CTE entirely.
-    """
-    from core.models import Folder
-
+    """Return a Q matching rows whose Source Path crosses a shared Folder."""
     from .models import FolderShare
 
-    if not FolderShare.objects.filter(
-        target_project_id__in=project_ids
-    ).exists():
+    shared_folder_ids = list(
+        FolderShare.objects.filter(
+            target_project_id__in=project_ids,
+        ).values_list("source_folder_id", flat=True)
+    )
+    if not shared_folder_ids:
         return None
 
-    shares_table = FolderShare._meta.db_table
-    folders_table = Folder._meta.db_table
-    placeholders = ", ".join(["%s"] * len(project_ids))
-    sql = (
-        "WITH RECURSIVE shared_subtree(id, depth) AS ("
-        f" SELECT source_folder_id, 0 FROM {shares_table}"
-        f" WHERE target_project_id IN ({placeholders})"
-        " UNION ALL"
-        f" SELECT f.id, s.depth + 1 FROM {folders_table} f"
-        " INNER JOIN shared_subtree s ON f.parent_id = s.id"
-        " WHERE s.depth < %s"
-        ") SELECT id FROM shared_subtree"
-    )
-    params = list(project_ids) + [MAX_FOLDER_TREE_DEPTH]
-    return Q(**{f"{lookup_field}__in": RawSQL(sql, params)})
+    path_q = Q()
+    for folder_id in shared_folder_ids:
+        path_q |= Q(source_path__contains=[{"kind": "folder", "id": folder_id}])
+
+    if lookup_field == "pk":
+        path_q |= Q(pk__in=shared_folder_ids)
+
+    return path_q

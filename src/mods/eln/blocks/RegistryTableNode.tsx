@@ -274,6 +274,8 @@ interface RegistryTableContentProps {
   projectId?: number | null;
   /** Folder containing the current ELN entry, used for new entities. */
   folderId?: number | null;
+  /** Entry containing this Registry Table, used as the entity Source. */
+  entryId?: number | null;
   updateAttrs: (attrs: Record<string, unknown>) => void;
   /** When true, inline editing and action buttons are hidden. */
   readOnly?: boolean;
@@ -309,6 +311,7 @@ export function RegistryTableContent({
   rows,
   projectId,
   folderId,
+  entryId,
   updateAttrs,
   readOnly = false,
   previewMode = false,
@@ -604,6 +607,7 @@ export function RegistryTableContent({
       try {
         const payload = {
           schema_id: schemaId,
+          entry_id: entryId ?? null,
           project_id: projectId ?? null,
           rows: nonGreenRows.map(({ row }) => ({
             entity_id: row.entityId,
@@ -615,9 +619,6 @@ export function RegistryTableContent({
                 ),
               ),
             ),
-            ...(folderId !== null && folderId !== undefined
-              ? { folder_id: folderId }
-              : {}),
           })),
         };
 
@@ -1092,7 +1093,7 @@ export const RegistryTableBlockComponent = createBlockAdapter(
     const attrs = instance.attrs as Record<string, unknown>;
     const entryContext = context.entry as ElnSidebarData | undefined;
     const projectId = entryContext?.projectId ?? entryContext?.entry?.project ?? null;
-    const folderId = entryContext?.folderId ?? entryContext?.entry?.folder ?? null;
+    const folderId = entryContext?.folderId ?? null;
 
     return {
       schemaId: (attrs.schemaId as number | null) ?? null,
@@ -1104,6 +1105,7 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       rows: (attrs.rows as RegistryTableRow[]) ?? [],
        projectId,
        folderId,
+      entryId: entryContext?.entry?.id ?? null,
       updateAttrs: instance.updateAttrs,
       readOnly: context.viewMode === "view",
       previewMode: context.viewMode === "prototype",

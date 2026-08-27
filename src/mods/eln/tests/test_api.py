@@ -79,6 +79,22 @@ class ElnApiTests(BaseTestCase):
         self.assertEqual(response.data["name"], "My Entry")
         self.assertEqual(response.data["content"], TEXT_DOC)
 
+    def test_retrieve_entry_hydrates_source_path(self):
+        entry = NotebookEntry.objects.create(
+            name="My Entry", content=TEXT_DOC, folder=self.folder, author=self.user,
+            schema=self.schema,
+        )
+        response = self.client.get(f"/api/eln/entries/{entry.display_id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["source_path"], [
+            {"kind": "project", "id": self.project.id, "name": "Test Project", "uid": str(self.project.uid)},
+            {"kind": "folder", "id": self.folder.id, "name": "Default"},
+        ])
+        self.folder.name = "Renamed"
+        self.folder.save()
+        response = self.client.get(f"/api/eln/entries/{entry.display_id}/")
+        self.assertEqual(response.data["source_path"][-1]["name"], "Renamed")
+
     def test_update_entry(self):
         """PUT updates title and content, returns 200."""
         entry = NotebookEntry.objects.create(

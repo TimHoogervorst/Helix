@@ -5,6 +5,7 @@ top-level folders, and cross-Project move rejection paths.
 """
 from django.db import transaction
 from django.test import TestCase
+from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from core.models import Folder, Project, User
@@ -62,8 +63,8 @@ class FolderOwnershipTests(TestCase):
         from django.db import IntegrityError
         try:
             Folder.objects.create(name="No Project", parent=None, project=None)
-            self.fail("Expected IntegrityError")
-        except IntegrityError:
+            self.fail("Expected a validation or database error")
+        except (IntegrityError, ValidationError):
             pass
 
     def test_project_root_content_is_parent_null_folder(self):
@@ -301,9 +302,10 @@ class EntryOwnershipTests(TestCase):
             project=self.project_a,
         )
         entry.folder = self.folder_b
-        entry.save()
+        with self.assertRaises(ValidationError):
+            entry.save()
         entry.refresh_from_db()
-        self.assertEqual(entry.folder_id, self.folder_b.id)
+        self.assertEqual(entry.folder_id, self.folder_a.id)
         self.assertEqual(entry.project_id, self.project_a.id)
 
 
@@ -420,9 +422,10 @@ class EntityOwnershipTests(TestCase):
             project=self.project_a,
         )
         entity.folder = self.folder_b
-        entity.save()
+        with self.assertRaises(ValidationError):
+            entity.save()
         entity.refresh_from_db()
-        self.assertEqual(entity.folder_id, self.folder_b.id)
+        self.assertEqual(entity.folder_id, self.folder_a.id)
         self.assertEqual(entity.project_id, self.project_a.id)
 
 

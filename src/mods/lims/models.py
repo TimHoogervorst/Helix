@@ -92,19 +92,12 @@ class Metric(models.Model):
 class Entity(AbstractEntity):
     """A structured entity representing a physical sample or item.
 
-    Inherits name, author, status, folder, project, schema, properties,
+    Inherits name, author, status, source, project, schema, properties,
     updated_at, display_id, and created_at from :class:`AbstractEntity`.
 
     display_id is auto-generated from the Schema prefix on first save.
     """
 
-    source_entry = models.ForeignKey(
-        "eln.NotebookEntry",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="lims_entities",
-    )
     tags = models.ManyToManyField(
         "tags.Tag",
         related_name="+",
@@ -125,8 +118,8 @@ class Entity(AbstractEntity):
 class Action(AbstractBaseAction):
     """A recorded action performed on an entity.
 
-    Extends :class:`AbstractBaseAction` to add LIMS-specific fields
-    (``entity``, ``source_entry``) while inheriting the shared action
+    Extends :class:`AbstractBaseAction` to add the LIMS-specific entity
+    field while inheriting the shared action
     columns (``performed_by``, ``action``, ``action_type``,
     ``target_type``, ``target_id``, ``metadata``, ``created_at``).
     """
@@ -141,13 +134,6 @@ class Action(AbstractBaseAction):
     ]
 
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, null=True, blank=True, related_name="actions")
-    source_entry = models.ForeignKey(
-        "eln.NotebookEntry",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="actions",
-    )
 
     class Meta:
         db_table = "lims_action"

@@ -78,7 +78,7 @@ _COMMON_COLUMN_DEFS: list[dict] = [
     {"key": "name",          "label": "Name",        "type": "text"},
     {"key": "schema_type_id","label": "Schema Type",  "type": "text"},
     {"key": "project",       "label": "Project",     "type": "project"},
-    {"key": "folder",        "label": "Folder",      "type": "folder"},
+    {"key": "source",        "label": "Source",      "type": "source"},
     {"key": "status",        "label": "Status",      "type": "dropdown"},
     {"key": "author",        "label": "Author",      "type": "user"},
     {"key": "created_at",    "label": "Created",     "type": "datetime"},
@@ -218,7 +218,7 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         qs = EntityHubView.objects.select_related(
-            "author", "schema__schema_type", "project", "folder"
+            "author", "schema__schema_type", "project", "source_type"
         ).all()
         qs = qs.filter(visible_rows_q(self.request.user))
         return self._apply_filters(qs)
@@ -409,7 +409,7 @@ class EntityHubQueryView(APIView):
             raise drf_serializers.ValidationError(errors)
 
         # ── Build the filtered queryset ────────────────────────────────
-        qs = EntityHubView.objects.select_related("author", "schema", "project", "folder").all()
+        qs = EntityHubView.objects.select_related("author", "schema", "project").all()
         qs = qs.filter(visible_rows_q(request.user))
 
         # Search

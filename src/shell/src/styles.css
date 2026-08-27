@@ -1715,6 +1715,92 @@ input.library-new-folder-input:focus {
   padding-bottom: 0;
 }
 
+.library-tree-row {
+  --tree-indent: calc(var(--tree-depth, 0) * 1.25rem);
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  padding-left: var(--tree-indent);
+}
+
+.library-tree-guides {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--tree-indent);
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(1.25rem - 1px),
+    var(--color-ink-hairline) calc(1.25rem - 1px),
+    var(--color-ink-hairline) 1.25rem
+  );
+}
+
+.library-tree-toggle,
+.library-tree-toggle-placeholder {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 2rem;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-ink-muted-foreground);
+}
+
+.library-tree-toggle {
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.library-tree-toggle:hover,
+.library-tree-toggle:focus-visible {
+  color: var(--color-ink);
+  background: var(--color-background-hover);
+}
+
+.library-tree-row > .base-library-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.library-tree-row.is-child > .base-library-card {
+  font-size: var(--text-sm);
+}
+
+.library-tree-row.is-child .card-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.library-tree-row.is-child .card-display-id {
+  font-size: var(--text-xs);
+}
+
+.library-tree-row.is-child .card-title {
+  font-size: var(--text-md);
+}
+
+.library-tree-row.is-child .card-description {
+  font-size: var(--text-sm);
+}
+
+.library-tree-loading {
+  margin: 0;
+  padding: 0.35rem 1rem 0.35rem calc(var(--tree-indent, 0px) + 2.5rem);
+  color: var(--color-ink-muted-foreground);
+  font-size: var(--text-sm);
+}
+
+.library-card-list.view-grid .library-tree-row {
+  grid-column: 1 / -1;
+}
+
 /* ── Collapsible Sidebar ────────────────────────────────────────────────── */
 
 .collapsible-sidebar {

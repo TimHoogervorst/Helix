@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Search,
   ChevronDown,
+  ChevronRight,
   ArrowUpDown,
   LayoutList,
   LayoutGrid,
@@ -14,7 +15,7 @@ import {
 import type { LibraryItem, LibraryEntryItem, LibraryProjectItem, LibraryFolderPath } from "../types";
 import type { Project } from "../../access/types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
-import { getLibraryContents, getAccessibleProjects, getFolders, deleteFolder, deleteEntry } from "../api";
+import { getLibraryChildren, getAccessibleProjects, getFolders, deleteFolder, deleteEntry, deleteEntity } from "../api";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
@@ -77,8 +78,6 @@ function folderToEntryShape(folder: {
     workspace_id: "",
     display_id: "",
     title: folder.name,
-    folder: folder.parent,
-    folder_name: null,
     author_username: folder.source_project_name ?? null,
     author_info: folder.is_shared
       ? {
@@ -111,6 +110,83 @@ function columnsToPropertyFields(
     key: col.name.toLowerCase().replace(/\s+/g, "_"),
     label: col.name,
   }));
+}
+
+type LibraryTreeState = {
+  expanded: Set<string>;
+  children: Record<string, LibraryItem[]>;
+  loading: Set<string>;
+};
+
+function libraryItemKey(item: LibraryItem) {
+  return `${item.type}-${item.id}`;
+}
+
+interface LibraryTreeNodeProps {
+  item: LibraryItem;
+  depth: number;
+  state: LibraryTreeState;
+  onToggle: (item: LibraryItem) => void;
+  renderCard: (item: LibraryItem) => ReactNode;
+}
+
+function LibraryTreeNode({
+  item,
+  depth,
+  state,
+  onToggle,
+  renderCard,
+}: LibraryTreeNodeProps) {
+  const key = libraryItemKey(item);
+  const hasChildren = (item.children_count ?? 0) > 0;
+  const isExpanded = state.expanded.has(key);
+  const children = state.children[key] ?? [];
+
+  return (
+    <>
+      <div
+        className={`library-tree-row${depth > 0 ? " is-child" : ""}`}
+        style={{ "--tree-depth": depth } as CSSProperties}
+        data-testid="library-tree-row"
+        data-depth={depth}
+      >
+        <span className="library-tree-guides" aria-hidden="true" />
+        {hasChildren ? (
+          <IconButton
+            size="sm"
+            className="library-tree-toggle"
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.type} ${item.type === "folder" ? item.name : item.title}`}
+            aria-expanded={isExpanded}
+            onClick={() => onToggle(item)}
+          >
+            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </IconButton>
+        ) : (
+          <span className="library-tree-toggle-placeholder" aria-hidden="true" />
+        )}
+        {renderCard(item)}
+      </div>
+      {isExpanded && (
+        <>
+          {state.loading.has(key) && (
+            <p className="library-tree-loading" data-testid="library-tree-loading">
+              Loading…
+            </p>
+          )}
+          {children.map((child) => (
+            <LibraryTreeNode
+              key={libraryItemKey(child)}
+              item={child}
+              depth={depth + 1}
+              state={state}
+              onToggle={onToggle}
+              renderCard={renderCard}
+            />
+          ))}
+        </>
+      )}
+    </>
+  );
 }
 
 // ── Project-aware breadcrumbs ──────────────────────────────────────────────
@@ -275,6 +351,7 @@ function LibraryHub() {
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const contentsRequestVersion = useRef(0);
+  const treeRequestVersion = useRef(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Project metadata from contents response
@@ -303,6 +380,11 @@ function LibraryHub() {
 
   // Properties modal state
   const [propertiesItem, setPropertiesItem] = useState<LibraryItem | null>(null);
+  const [treeState, setTreeState] = useState<LibraryTreeState>({
+    expanded: new Set(),
+    children: {},
+    loading: new Set(),
+  });
 
   const isInProject = !!projectUid;
 
@@ -376,16 +458,20 @@ function LibraryHub() {
           current_project_id: null,
         };
       }
+      const folderPath = currentPath.replace(/^\//, "").split("/").filter(Boolean).join(" / ");
+      const currentFolder = folderPaths.find((folder) => folder.path === folderPath);
+      const sourceType = currentFolder ? "folder" : "project";
+      const sourceId = currentFolder?.id ?? projectUid;
       let response;
       if (url) {
         const urlObj = new URL(url, window.location.origin);
         const page = Number(urlObj.searchParams.get("page") || 2);
-        response = await getLibraryContents(projectUid, currentPath || undefined, page);
+        response = await getLibraryChildren(sourceType, sourceId, false, page);
       } else {
-        response = await getLibraryContents(projectUid, currentPath || undefined, undefined);
+        response = await getLibraryChildren(sourceType, sourceId, false, undefined);
       }
       if (requestVersion !== contentsRequestVersion.current) return response;
-      setCurrentFolderId(response.current_folder_id);
+      setCurrentFolderId(response.current_folder_id ?? null);
       setCurrentProjectId(response.current_project_id ?? null);
       if (response.project_name) {
         setProjectMeta({
@@ -397,7 +483,7 @@ function LibraryHub() {
       }
       return response;
     },
-    [projectUid, currentPath, refreshKey],
+    [projectUid, currentPath, folderPaths, refreshKey],
   );
 
   const data = usePaginatedData({
@@ -405,7 +491,7 @@ function LibraryHub() {
     filterKey: "path",
     getId: (item) => item.id,
     getDisplayId: (item) =>
-      item.type === "entry" ? item.display_id : `folder-${item.id}`,
+      item.type === "folder" ? `folder-${item.id}` : item.display_id,
   });
 
   useEffect(() => {
@@ -414,6 +500,60 @@ function LibraryHub() {
     setProjectMeta(null);
     data.clearSelection();
   }, [projectUid, currentPath, data.clearSelection]);
+
+  useEffect(() => {
+    setTreeState({ expanded: new Set(), children: {}, loading: new Set() });
+    treeRequestVersion.current += 1;
+  }, [projectUid, currentPath]);
+
+  const toggleTreeNode = useCallback((item: LibraryItem) => {
+    const key = libraryItemKey(item);
+    const shouldFetch = !treeState.expanded.has(key)
+      && !treeState.children[key]
+      && !treeState.loading.has(key);
+    setTreeState((previous) => {
+      const expanded = new Set(previous.expanded);
+      if (expanded.has(key)) {
+        expanded.delete(key);
+      } else {
+        expanded.add(key);
+      }
+      return { ...previous, expanded };
+    });
+
+    if (!shouldFetch) return;
+    const requestVersion = treeRequestVersion.current;
+    setTreeState((previous) => ({
+      ...previous,
+      loading: new Set(previous.loading).add(key),
+    }));
+    getLibraryChildren(item.type, item.id, false, undefined)
+      .then(async (response) => {
+        const results = [...response.results];
+        let next = response.next;
+        while (next) {
+          const page = Number(new URL(next, window.location.origin).searchParams.get("page"));
+          if (!page) break;
+          const nextResponse = await getLibraryChildren(item.type, item.id, false, page);
+          results.push(...nextResponse.results);
+          next = nextResponse.next;
+        }
+        if (requestVersion !== treeRequestVersion.current) return;
+        setTreeState((previous) => ({
+          ...previous,
+          children: { ...previous.children, [key]: results },
+          loading: new Set([...previous.loading].filter((value) => value !== key)),
+        }));
+      })
+      .catch(() => {
+        if (requestVersion !== treeRequestVersion.current) return;
+        setTreeState((previous) => ({
+          ...previous,
+          children: { ...previous.children, [key]: [] },
+          loading: new Set([...previous.loading].filter((value) => value !== key)),
+        }));
+      });
+  }, [treeState]);
 
   // ── Sidebar bus and context ─────────────────────────────────────────
 
@@ -497,10 +637,14 @@ function LibraryHub() {
         }
         if (!window.confirm(message)) return;
         deleteFolder(item.id).then(() => setRefreshKey((k) => k + 1));
-      } else {
+      } else if (item.type === "entry") {
         const message = `Delete entry "${item.title}"? This cannot be undone.`;
         if (!window.confirm(message)) return;
         deleteEntry(item.display_id).then(() => setRefreshKey((k) => k + 1));
+      } else {
+        const message = `Delete entity "${item.title}"? This cannot be undone.`;
+        if (!window.confirm(message)) return;
+        deleteEntity(item.display_id).then(() => setRefreshKey((k) => k + 1));
       }
     },
     [],
@@ -588,13 +732,16 @@ function LibraryHub() {
     }
 
     const isSelected = data.selectedId === item.id;
-    const propertyFields = getPropertyFieldsForEntry(item);
+    const cardItem = item.type === "entity"
+      ? { ...item, type: "entry" as const }
+      : item;
+    const propertyFields = getPropertyFieldsForEntry(cardItem);
     const canDelete = isOrgAdmin || currentRole === "edit";
 
     return (
       <BaseCard
         key={`entry-${item.id}`}
-        item={item}
+        item={cardItem}
         viewMode={viewMode}
         isSelected={isSelected}
         iconKey={item.icon || "file-text"}
@@ -865,7 +1012,16 @@ function LibraryHub() {
             </div>
           )}
 
-          {data.items.map(renderCard)}
+          {data.items.map((item) => (
+            <LibraryTreeNode
+              key={libraryItemKey(item)}
+              item={item}
+              depth={0}
+              state={treeState}
+              onToggle={toggleTreeNode}
+              renderCard={renderCard}
+            />
+          ))}
 
           {data.nextUrl && (
             <div className="hub-load-more">
@@ -888,7 +1044,7 @@ function LibraryHub() {
       />
 
       {/* ── Properties Modals ─────────────────────────────────────────── */}
-      {propertiesItem?.type === "entry" && (
+      {(propertiesItem?.type === "entry" || propertiesItem?.type === "entity") && (
         <EntryPropertiesModal
           open={true}
           onClose={() => setPropertiesItem(null)}

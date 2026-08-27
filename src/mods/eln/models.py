@@ -16,7 +16,7 @@ class NotebookEntry(AbstractEntity):
     """An ELN notebook entry containing narrative text.
 
     Inherits from :class:`AbstractEntity`, which provides ``name``,
-    ``author``, ``status``, ``folder``, ``schema``, ``properties``,
+    ``author``, ``status``, ``source``, ``schema``, ``properties``,
     ``updated_at``, ``display_id``, and ``created_at``.
     """
 

@@ -112,6 +112,21 @@ class EntityApiTests(BaseTestCase):
         self.assertEqual(response.data["display_id"], entity.display_id)
         self.assertEqual(response.data["name"], "Retrieve Me")
 
+    def test_retrieve_entity_hydrates_source_path(self):
+        entity = Entity.objects.create(
+            name="Hydrated", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
+        )
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["source_path"][-1], {
+            "kind": "folder", "id": self.folder.id, "name": "Default",
+        })
+        self.folder.name = "Renamed"
+        self.folder.save()
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
+        self.assertEqual(response.data["source_path"][-1]["name"], "Renamed")
+
     def test_retrieve_by_numeric_pk_returns_404(self):
         """GET by numeric pk returns 404 (lookup is by display_id, not pk)."""
         entity = Entity.objects.create(
@@ -1065,6 +1080,101 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         self.assertEqual(
             [result["entity_id"] for result in retry.data["results"]], result_ids
         )
+
+
+class BatchRegisterResultSourceTests(BaseTestCase):
+    """Result registration derives Source from the Entity column."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.source_schema_type = SchemaType.objects.create(
+            display_name="Source Entity",
+            workspace_id="lims",
+            model="mods.lims.models.Entity",
+        )
+        cls.result_schema_type = SchemaType.objects.create(
+            display_name="Result",
+            workspace_id="results",
+            model="mods.lims.models.Entity",
+            tags=["ResultTable"],
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.source_schema = Schema.objects.create(
+            name="Source",
+            prefix="SRC",
+            schema_type=self.source_schema_type,
+        )
+        self.result_schema = Schema.objects.create(
+            name="Assay Result",
+            prefix="RESULT",
+            schema_type=self.result_schema_type,
+            columns=[{"name": "Entity", "type": "reference"}],
+        )
+        self.source_entity = Entity.objects.create(
+            name="Source Sample",
+            schema=self.source_schema,
+            folder=self.folder,
+            author=self.user,
+        )
+        self.other_source_entity = Entity.objects.create(
+            name="Other Source Sample",
+            schema=self.source_schema,
+            folder=self.folder,
+            author=self.user,
+        )
+
+    def test_result_registration_sets_source_and_preserves_entity_column(self):
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.result_schema.id,
+                "rows": [{
+                    "entity_id": None,
+                    "result_row_id": "result-1",
+                    "name": "Source Sample - Result",
+                    "values": {"Entity": self.source_entity.display_id, "Value": 7},
+                    "folder_id": self.folder.id,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errors"], [])
+        result = Entity.objects.get(pk=response.data["results"][0]["entity_id"])
+        self.assertEqual(result.source, self.source_entity)
+        self.assertEqual(result.properties["Entity"], self.source_entity.display_id)
+
+        children = self.client.get(
+            "/api/library/children/",
+            {"source_type": "entity", "source_id": self.source_entity.pk},
+        )
+        self.assertEqual(children.status_code, 200)
+        self.assertIn(result.id, [item["id"] for item in children.data["results"]])
+
+        response = self.client.post(
+            BATCH_REGISTER_URL,
+            {
+                "schema_id": self.result_schema.id,
+                "rows": [{
+                    "entity_id": result.id,
+                    "result_row_id": "result-1",
+                    "name": "Other Source Sample - Result",
+                    "values": {"Entity": self.other_source_entity.display_id},
+                    "folder_id": self.folder.id,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result.refresh_from_db()
+        self.assertEqual(result.source, self.other_source_entity)
+        self.assertEqual(result.properties["Entity"], self.other_source_entity.display_id)
 
 
 class BatchRegisterActionLoggingTests(BaseTestCase):
@@ -2339,8 +2449,8 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Entity.objects.filter(pk=entity.pk).exists())
 
-    def test_delete_referenced_by_targeted_reference_rejected(self):
-        """409 when a targeted reference column points at the entity."""
+    def test_delete_referenced_by_targeted_reference_leaves_dangling_reference(self):
+        """Referenced entities can be deleted, leaving a soft reference."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
             folder=self.folder, author=self.user,
@@ -2351,15 +2461,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
             properties={"linked_entity": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
-        self.assertEqual(response.status_code, 409)
-        detail = str(response.data["detail"])
-        self.assertIn(str(target.display_id), detail)
-        self.assertIn(self.ref_schema.name, detail)
-        self.assertTrue(Entity.objects.filter(pk=target.pk).exists())
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
 
-    def test_delete_referenced_by_open_reference_rejected(self):
-        """409 when an open reference column (no referenceSchemaId) points
-        at the entity."""
+    def test_delete_referenced_by_open_reference_leaves_dangling_reference(self):
+        """Open references remain after their target is deleted."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
             folder=self.folder, author=self.user,
@@ -2370,13 +2476,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
             properties={"any_entity": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
-        self.assertEqual(response.status_code, 409)
-        detail = str(response.data["detail"])
-        self.assertIn(self.open_ref_schema.name, detail)
-        self.assertTrue(Entity.objects.filter(pk=target.pk).exists())
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
 
-    def test_delete_referenced_by_multiple_schemas_lists_all(self):
-        """409 message includes every schema that references the entity."""
+    def test_delete_referenced_by_multiple_schemas_succeeds(self):
+        """Multiple soft references do not block deletion."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
             folder=self.folder, author=self.user,
@@ -2392,10 +2496,8 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
             properties={"partner": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
-        self.assertEqual(response.status_code, 409)
-        detail = str(response.data["detail"])
-        self.assertIn(self.ref_schema.name, detail)
-        self.assertIn(self.other_ref_schema.name, detail)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
 
     def test_delete_succeeds_after_reference_cleared(self):
         """Delete proceeds after all referencing entities clear their

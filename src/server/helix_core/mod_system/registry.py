@@ -16,7 +16,7 @@ Usage::
     registry.register_service("lims.cascadeEntryStatus", cascade_handler)
 
     # Cross-mod behavioral call:
-    result = registry.call("lims.cascadeEntryStatus", source_entry_id=42, status="published")
+    result = registry.call("lims.cascadeSourceStatus", source_type_id=42, source_id=42, status="finished")
     services = registry.list_services()
 
     # In config/urls.py:

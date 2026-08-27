@@ -78,8 +78,6 @@ function folderToEntryShape(folder: {
     workspace_id: "",
     display_id: "",
     title: folder.name,
-    folder: folder.parent,
-    folder_name: null,
     author_username: folder.source_project_name ?? null,
     author_info: folder.is_shared
       ? {

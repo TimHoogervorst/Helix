@@ -65,7 +65,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     release_lock: DELETE /api/eln/entries/{display_id}/lock/ — release lock
     """
 
-    queryset = NotebookEntry.objects.select_related("author", "folder").prefetch_related(
+    queryset = NotebookEntry.objects.select_related("author", "project").prefetch_related(
         "mentions"
     )
     serializer_class = NotebookEntrySerializer
@@ -139,9 +139,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from mods.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
-        folder = serializer.validated_data.get("folder")
         project = serializer.validated_data["project"]
-        permission = effective_role(self.request.user, folder) if folder else role(
+        source_type = serializer.validated_data.get("source_type")
+        source = (
+            NotebookEntry.resolve_source(
+                source_type,
+                serializer.validated_data.get("source_id"),
+            ) if source_type is not None else project
+        )
+        permission = effective_role(self.request.user, source) if source_type is not None else role(
             self.request.user, project,
         )
         if permission != "edit":
@@ -164,22 +170,6 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from mods.access.policies import effective_role
 
         return effective_role(self.request.user, instance) == "edit"
-
-    def _reject_cross_subtree_move(self, instance, new_folder):
-        """Raise ValidationError when *new_folder* is outside the shared subtree.
-
-        Called only when the entry's folder resides inside a shared source folder
-        and the user is not a direct Project editor.
-        """
-        from mods.access.policies import destination_within_shared_subtree
-        from rest_framework.exceptions import ValidationError
-
-        if not destination_within_shared_subtree(
-            instance.folder, new_folder, instance.project_id,
-        ):
-            raise ValidationError(
-                {"folder": "Entries cannot be moved outside the shared subtree."}
-            )
 
     def perform_destroy(self, instance):
         if not self._can_edit_entry(instance):
@@ -225,25 +215,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
 
         # ── Cross-Project move rejection ───────────────────────────────────
-        if "folder" in validated_data:
-            new_folder = validated_data["folder"]
-            if new_folder is not None and new_folder.project_id != instance.project_id:
-                from rest_framework.exceptions import ValidationError
-                raise ValidationError(
-                    {"folder": "Entries cannot be moved to a different Project."}
+        if "source_type" in validated_data or "source_id" in validated_data:
+            if validated_data.get("source_type") is None:
+                from core.models import Folder
+                new_source = instance.project if validated_data.get("source_id") is None else Folder.objects.get(pk=validated_data["source_id"])
+            else:
+                new_source = instance.resolve_source(
+                    validated_data["source_type"],
+                    validated_data.get("source_id", instance.source_id),
                 )
-            self._reject_cross_subtree_move(instance, new_folder)
-            instance.set_source(new_folder or instance.project)
-        elif "source_type" in validated_data or "source_id" in validated_data:
-            new_source = instance.resolve_source(
-                validated_data.get("source_type", instance.source_type),
-                validated_data.get("source_id", instance.source_id),
-            )
-            self._reject_cross_subtree_move(
-                instance,
-                new_source if new_source.__class__.__name__ == "Folder"
-                else getattr(new_source, "folder", None),
-            )
             instance.set_source(new_source)
 
         # Determine save_mode from request header.

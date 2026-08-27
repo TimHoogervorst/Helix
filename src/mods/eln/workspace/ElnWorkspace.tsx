@@ -123,9 +123,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     }
   }, [workspace.entry?.mentions, resolveIds]);
 
-  const folderPath = workspace.entry?.folder_path || "";
+  const folderPath = (workspace.entry?.source_path || [])
+    .filter((segment) => segment.kind === "folder")
+    .map((segment) => segment.name)
+    .join("/");
   const projectId = workspace.entry?.project ?? initialProjectId;
-  const contextFolderId = folderId ?? workspace.entry?.folder ?? null;
+  const contextFolderId = folderId ?? null;
 
   const slotContext: SlotContext = useMemo(
     () => ({

@@ -24,7 +24,6 @@ import { TagSection } from "../../tags/ui";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import NotFound from "../../../shell/src/shared/components/NotFound";
-import { pathSegments, segmentPath } from "../../library/path";
 import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
@@ -136,7 +135,6 @@ function ElnChrome({
   const libraryRoot = resolvedProjectUid
     ? `/library?project=${encodeURIComponent(resolvedProjectUid)}`
     : "/library";
-  const folderPathSegments = pathSegments(folderPath);
 
   if (!isReady && !error) {
     return (
@@ -208,29 +206,6 @@ function ElnChrome({
                       {segment.name}
                     </Link>
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" aria-hidden="true" />
-                  </span>
-                );
-              })
-            ) : folderPathSegments.length > 0 ? (
-              folderPathSegments.map((segment, i) => {
-                const isLast = i === folderPathSegments.length - 1;
-                const path = segmentPath(folderPathSegments, i);
-                return (
-                  <span key={i} className="flex items-center gap-1.5">
-                    {isLast ? (
-                      <span>{segment}</span>
-                    ) : (
-                      <Link
-                        to={`${libraryRoot}&path=${encodeURIComponent(path)}`}
-                        className="hover:text-foreground transition-colors"
-                      >
-                        {segment}
-                      </Link>
-                    )}
-                    <ChevronRight
-                      className="h-3.5 w-3.5 text-muted-foreground/60"
-                      aria-hidden="true"
-                    />
                   </span>
                 );
               })

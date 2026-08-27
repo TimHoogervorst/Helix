@@ -2100,19 +2100,16 @@ describe("RegistryTableContent — Register Entities button", () => {
       entity_id: null,
       name: "New Sample",
       values: { Volume: 5 },
-      folder_id: 42,
     });
     expect(postCall[1].rows[1]).toEqual({
       entity_id: 2,
       name: "Changed Sample",
       values: { Volume: 99 },
-      folder_id: 42,
     });
     expect(postCall[1].rows[2]).toEqual({
       entity_id: 3,
       name: "Error Sample",
       values: { Volume: 7 },
-      folder_id: 42,
     });
   });
 

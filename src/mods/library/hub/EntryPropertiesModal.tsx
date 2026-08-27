@@ -79,11 +79,10 @@ export function EntryPropertiesModal({
   const filteredFolders = useMemo(() => {
     return folders.filter(
       (f) =>
-        f.id !== entry.folder &&
         (moveSearch === "" ||
           f.path.toLowerCase().includes(moveSearch.toLowerCase())),
     );
-  }, [folders, entry.folder, moveSearch]);
+  }, [folders, moveSearch]);
 
   const handleStatusChange = async (newStatus: string) => {
     setStatus(newStatus);
@@ -112,9 +111,9 @@ export function EntryPropertiesModal({
     setSaving(true);
     try {
       if (entry.type === "entity") {
-        await patchEntity(entry.display_id, { folder: folderId });
+        await patchEntity(entry.display_id, { source_id: folderId });
       } else {
-        await patchEntry(entry.display_id, { folder: folderId });
+        await patchEntry(entry.display_id, { source_id: folderId });
       }
       onMutated();
     } catch (err: unknown) {
@@ -214,7 +213,7 @@ export function EntryPropertiesModal({
                 <p className="text-xs text-red-500 mt-1">{moveError}</p>
               )}
               <div className="max-h-32 overflow-y-auto mt-1 border border-[var(--color-ink-hairline)] rounded-md">
-                {entry.folder !== null && (moveSearch === "" || "project root".includes(moveSearch.toLowerCase())) && (
+                {(moveSearch === "" || "project root".includes(moveSearch.toLowerCase())) && (
                   <button
                     type="button"
                     disabled={isDisabled}

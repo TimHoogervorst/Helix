@@ -87,14 +87,10 @@ export interface EntityListItem {
   schema_color: string;
   enabled_components: string[];
   properties: Record<string, unknown>;
-  source_entry: number | null;
-  source_entry_display_id: string | null;
-  folder: number | null;
   author: number | null;
   author_username: string | null;
   last_editor: number | null;
   last_editor_username: string | null;
-  folder_path: string;
   source_path: SourcePathSegment[];
   project_uid: string | null;
   status: string;
@@ -170,9 +166,6 @@ export interface EntityHubItem {
   project_name: string;
   project_icon: string;
   project_color: string;
-  folder_id: number;
-  folder_name: string;
-  folder_path: string;
   source: EntityHubSource | null;
   /** Schema properties columns extracted from the properties JSON.
    * Only populated when a specific Schema is selected. */

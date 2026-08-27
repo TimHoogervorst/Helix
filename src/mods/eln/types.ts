@@ -42,10 +42,9 @@ export interface EntryDetail {
   display_id: string;
   name: string;
   content: TipTapDoc;
-  folder: number | null;
-  folder_name: string;
-  folder_path: string;
   source_path: SourcePathSegment[];
+  source_type?: number;
+  source_id?: number;
   project?: number | null;
   project_name?: string | null;
   author: number | null;

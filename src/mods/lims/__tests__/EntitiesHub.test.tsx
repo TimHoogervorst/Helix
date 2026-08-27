@@ -168,9 +168,6 @@ function makeEntityHubItem(
     project_name: "Alpha Project",
     project_icon: "folder",
     project_color: "accent-blue",
-    folder_id: 1,
-    folder_name: "Experiments",
-    folder_path: "/Experiments",
     source: {
       kind: "folder",
       id: 1,
@@ -605,7 +602,6 @@ describe("EntitiesHub", () => {
   it("renders Source column with folder name", async () => {
     const items = [makeEntityHubItem({
       id: 1,
-      folder_name: "Experiments",
     })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
@@ -617,7 +613,6 @@ describe("EntitiesHub", () => {
   it("renders em dash in Source column when source is absent", async () => {
     const items = [makeEntityHubItem({
       id: 1,
-      folder_name: "",
       source: null,
     })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
@@ -644,8 +639,6 @@ describe("EntitiesHub", () => {
     const items = [makeEntityHubItem({
       id: 1,
       project_uid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-      folder_name: "Other Folder",
-      folder_path: "/Other Folder/Experiments",
     })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();

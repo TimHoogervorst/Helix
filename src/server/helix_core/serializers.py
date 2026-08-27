@@ -215,9 +215,6 @@ class EntityHubSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source="project.name", read_only=True, default="")
     project_icon = serializers.CharField(source="project.icon_key", read_only=True, default="")
     project_color = serializers.CharField(source="project.color_key", read_only=True, default="")
-    folder_id = serializers.IntegerField(source="folder.id", read_only=True, default=None)
-    folder_name = serializers.CharField(source="folder.name", read_only=True, default="")
-    folder_path = serializers.SerializerMethodField()
     source = serializers.SerializerMethodField()
     schema_type_display = serializers.SerializerMethodField()
     _expanded = serializers.SerializerMethodField()
@@ -248,9 +245,6 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "project_color",
             "source_type",
             "source_id",
-            "folder_id",
-            "folder_name",
-            "folder_path",
             "source",
             "_expanded",
         ]
@@ -261,12 +255,6 @@ class EntityHubSerializer(serializers.ModelSerializer):
         if obj.schema_id and obj.schema and obj.schema.schema_type:
             return obj.schema.schema_type.display_name
         return obj.schema_type_id
-
-    def get_folder_path(self, obj):
-        folder = obj.folder
-        if folder is None:
-            return ""
-        return folder.path
 
     def get_source(self, obj):
         source = obj.source

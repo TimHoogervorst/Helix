@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from core.models import Folder, Project, User
+from core.models import Project, User
 from helix_core.abstracts import hydrate_source_path
 from mods.users.serializers import UserSerializer
 
@@ -71,8 +71,6 @@ from mods.tags.serializers import TagSerializer  # noqa: F401, E402
 class NotebookEntrySerializer(serializers.ModelSerializer):
     author_username = serializers.SerializerMethodField()
     author_info = UserSerializer(source="author", read_only=True)
-    folder_name = serializers.CharField(source="folder.name", read_only=True)
-    folder_path = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     schema_prefix = serializers.CharField(source="schema.prefix", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
@@ -82,7 +80,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     source_type = serializers.PrimaryKeyRelatedField(
         queryset=ContentType.objects.all(), required=False,
     )
-    source_id = serializers.IntegerField(required=False)
+    source_id = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = NotebookEntry
@@ -91,12 +89,9 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "display_id",
             "name",
             "content",
-            "folder",
             "source_type",
             "source_id",
             "source_path",
-            "folder_name",
-            "folder_path",
             "project",
             "project_name",
             "author",
@@ -116,22 +111,18 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
 
-    def get_folder_path(self, obj):
-        if obj.folder:
-            return obj.folder.path
-        return ""
-
     def get_source_path(self, obj):
         cache = self.context.setdefault("source_path_cache", {})
         return hydrate_source_path(obj.source_path, cache)
 
 
 class NotebookEntryCreateSerializer(serializers.ModelSerializer):
-    """Write-only serializer for folder or Project-root entries."""
+    """Write-only serializer for Source-owned entries."""
 
-    folder = serializers.PrimaryKeyRelatedField(
-        queryset=Folder.objects.all(), required=False, allow_null=True
+    source_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContentType.objects.all(), required=False,
     )
+    source_id = serializers.IntegerField(required=False, allow_null=True)
     project = serializers.PrimaryKeyRelatedField(
         queryset=Project.objects.all(), required=False,
     )
@@ -142,21 +133,23 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = NotebookEntry
-        fields = ["name", "content", "folder", "project", "status", "tag_ids"]
+        fields = ["name", "content", "source_type", "source_id", "project", "status", "tag_ids"]
 
     def validate(self, data):
-        folder = data.get("folder")
+        source_type = data.get("source_type")
+        source_id = data.get("source_id")
         project = data.get("project")
-        if folder is None and project is None:
+        if source_type is None and project is None:
             raise serializers.ValidationError(
-                {"project": "Provide a project when folder is empty."}
+                {"project": "Provide a project or source."}
             )
-        if folder is not None:
-            if project is not None and project.pk != folder.project_id:
-                raise serializers.ValidationError(
-                    {"folder": "The folder must belong to the project."}
-                )
-            data["project"] = folder.project
+        if source_type is not None:
+            if source_id is None:
+                raise serializers.ValidationError({"source_id": "This field is required with source_type."})
+            source = NotebookEntry.resolve_source(source_type, source_id)
+            if not isinstance(source, (Project,)) and not hasattr(source, "project_id"):
+                raise serializers.ValidationError({"source_type": "Source type is not supported."})
+            data["project"] = source if isinstance(source, Project) else Project.objects.get(pk=source.project_id)
         return data
 
     def create(self, validated_data):

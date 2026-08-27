@@ -107,8 +107,6 @@ function makeEntry(overrides?: Record<string, unknown>) {
       ],
     },
     folder: null,
-    folder_name: "",
-    folder_path: "",
     author: null,
     author_username: null,
     created_at: "2025-01-01T00:00:00Z",
@@ -446,7 +444,7 @@ describe("useEntryWorkspace", () => {
     expect(result.current.folder.folderId).toBe(10);
   });
 
-  it("folder: uses the persisted entry folder when no initial folder is provided", async () => {
+  it("folder: does not infer a UI folder from the persisted Source", async () => {
     mockGet.mockImplementation((url: string) => {
       if (url === "/core/folders/?project=7") {
         return Promise.resolve([{ id: 20, name: "Lab" }]);
@@ -454,7 +452,7 @@ describe("useEntryWorkspace", () => {
       if (url.startsWith("/eln/entries/") && url.endsWith("/lock/")) {
         return Promise.resolve({ locked: false });
       }
-      return Promise.resolve(makeEntry({ folder: 20, project: 7 }));
+      return Promise.resolve(makeEntry({ project: 7 }));
     });
 
     const { result } = renderHook(() =>
@@ -462,7 +460,7 @@ describe("useEntryWorkspace", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.folder.folderId).toBe(20);
+      expect(result.current.folder.folderId).toBe(null);
     });
   });
 

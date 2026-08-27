@@ -48,8 +48,6 @@ export interface LibraryEntryItem {
   workspace_id: string;
   display_id: string;
   title: string;
-  folder: number | null;
-  folder_name: string | null;
   author_username: string | null;
   author_info: AuthorInfo | null;
   status: string;
@@ -74,7 +72,6 @@ export interface LibraryContentsResponse {
   next: string | null;
   previous: string | null;
   results: LibraryItem[];
-  current_folder_id?: number | null;
   current_project_id?: number | null;
   project_uid?: string;
   project_name?: string;

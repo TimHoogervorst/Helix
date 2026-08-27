@@ -5,7 +5,7 @@ from .models import Entity, Action, LimsView
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ["display_id", "name", "schema", "folder", "author", "created_at"]
+    list_display = ["display_id", "name", "schema", "project", "author", "created_at"]
     search_fields = ["display_id", "name"]
     list_filter = ["schema", "created_at"]
 

@@ -268,13 +268,6 @@ class EntityHubView(models.Model):
         db_column="last_editor_id",
     )
     status = models.CharField(max_length=100)
-    folder = models.ForeignKey(
-        "core.Folder",
-        on_delete=models.DO_NOTHING,
-        null=True,
-        related_name="+",
-        db_column="folder_id",
-    )
     project = models.ForeignKey(
         "core.Project",
         on_delete=models.DO_NOTHING,

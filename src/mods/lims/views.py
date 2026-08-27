@@ -25,7 +25,7 @@ from .serializers import (
     LimsViewSerializer,
     MetricSerializer,
 )
-from core.models import Folder, Project
+from core.models import Project
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     queryset = (
         Entity.objects.select_related(
-            "schema", "schema__schema_type", "author", "last_editor", "folder", "project",
+            "schema", "schema__schema_type", "author", "last_editor", "project",
         )
         .prefetch_related("tags")
     )
@@ -106,9 +106,12 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from mods.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
-        folder = serializer.validated_data.get("folder")
-        project = serializer.validated_data.get("project") or folder.project
-        permission = effective_role(self.request.user, folder) if folder else role(
+        project = serializer.validated_data.get("project")
+        source = serializer.validated_data.get("source_type")
+        source = Entity.resolve_source(
+            source, serializer.validated_data.get("source_id")
+        ) if source is not None else project
+        permission = effective_role(self.request.user, source) if source is not project else role(
             self.request.user, project,
         )
         if permission != "edit":
@@ -126,7 +129,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
-        from mods.access.policies import destination_within_shared_subtree, effective_role
+        from mods.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied, ValidationError
 
         instance = serializer.instance
@@ -134,33 +137,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entity."
             )
-        if "folder" in serializer.validated_data:
-            new_folder = serializer.validated_data["folder"]
-            if new_folder is not None and new_folder.project_id != instance.project_id:
-                raise ValidationError(
-                    {"folder": "Entities cannot be moved to a different Project."}
-                )
-            if not destination_within_shared_subtree(
-                instance.folder, new_folder, instance.project_id,
-            ):
-                raise ValidationError(
-                    {"folder": "Entities cannot be moved outside the shared subtree."}
-                )
-            instance.set_source(new_folder or instance.project)
-        elif "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
-            new_source = instance.resolve_source(
-                serializer.validated_data.get("source_type", instance.source_type),
-                serializer.validated_data.get("source_id", instance.source_id),
-            )
-            if new_source.__class__.__name__ == "Folder":
-                destination = new_source
+        if "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
+            if serializer.validated_data.get("source_type") is None:
+                from core.models import Folder
+                new_source = instance.project if serializer.validated_data.get("source_id") is None else Folder.objects.get(pk=serializer.validated_data["source_id"])
             else:
-                destination = getattr(new_source, "folder", None)
-            if not destination_within_shared_subtree(
-                instance.folder, destination, instance.project_id,
-            ):
-                raise ValidationError(
-                    {"source": "Entities cannot be moved outside the shared subtree."}
+                new_source = instance.resolve_source(
+                    serializer.validated_data["source_type"],
+                    serializer.validated_data.get("source_id", instance.source_id),
                 )
             instance.set_source(new_source)
         serializer.save()
@@ -305,7 +289,6 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "schema_id": entity.schema_id,
                     "schema_name": entity.schema.name,
                     "properties": entity.properties,
-                    "folder_id": entity.folder_id,
                     "created_at": entity.created_at.isoformat(),
                 }
 
@@ -395,7 +378,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         # Batch registration mutates content, so it enforces the same Edit
         # rule as single mutations.  A row that targets content the
         # submitter cannot Edit rejects the whole request with 403.  Rows
-        # whose target does not exist (unknown entity or folder) are data
+        # whose target does not exist (unknown entity) are data
         # errors handled per-row below, not access denials.
         from mods.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
@@ -409,14 +392,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 except Entity.DoesNotExist:
                     return None
                 return effective_role(request.user, target) == "edit"
-            folder_id = row.get("folder_id")
-            if folder_id is None:
-                return None
-            try:
-                target = Folder.objects.get(pk=folder_id)
-            except Folder.DoesNotExist:
-                return None
-            return effective_role(request.user, target) == "edit"
+            target = containing_entry or project
+            return effective_role(request.user, target) == "edit" if target else None
 
         for row in rows:
             if _row_target_is_editable(row) is False:
@@ -452,7 +429,6 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             result_row_id = row.get("result_row_id")
             name = (row.get("name") or "").strip()
             values = row.get("values", {})
-            folder_id = row.get("folder_id")
 
             if not name:
                 errors.append({
@@ -462,46 +438,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 })
                 continue
 
-            if folder_id is None and entity_id is None:
-                errors.append({
-                    "row_index": row_index,
-                    "field": "folder_id",
-                    "message": "folder_id is required for new entities.",
-                })
-                continue
-
-            folder = None
-            if folder_id is not None:
-                try:
-                    folder = Folder.objects.get(pk=folder_id)
-                except Folder.DoesNotExist:
-                    errors.append({
-                        "row_index": row_index,
-                        "field": "folder_id",
-                        "message": f"Folder with id {folder_id} not found.",
-                    })
-                    continue
-
-            if (
-                project is not None
-                and folder is not None
-                and folder.project_id != project.id
-            ):
+            if entity_id is None and containing_entry is None and project is None:
                 errors.append({
                     "row_index": row_index,
                     "field": "project_id",
-                    "message": "The folder must belong to the project.",
-                })
-                continue
-            if (
-                containing_entry is not None
-                and folder is not None
-                and containing_entry.project_id != folder.project_id
-            ):
-                errors.append({
-                    "row_index": row_index,
-                    "field": "entry_id",
-                    "message": "The entry and folder must belong to the same project.",
+                    "message": "A project or entry is required for new entities.",
                 })
                 continue
 
@@ -645,7 +586,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "message": f"Referenced entity '{source_display_id}' does not exist.",
                     })
                     continue
-                if folder is not None and result_source.project_id != folder.project_id:
+                if project is not None and result_source.project_id != project.id:
                     errors.append({
                         "row_index": row_index,
                         "field": "Entity",
@@ -656,13 +597,6 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             if entity_id is not None:
                 try:
                     entity = Entity.objects.get(pk=entity_id)
-                    if folder is not None and folder.project_id != entity.project_id:
-                        errors.append({
-                            "row_index": row_index,
-                            "field": "folder_id",
-                            "message": "Entities cannot be moved to a different Project.",
-                        })
-                        continue
                     if project is not None and entity.project_id != project.id:
                         errors.append({
                             "row_index": row_index,
@@ -670,18 +604,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                             "message": "The entity must belong to the project.",
                         })
                         continue
-                    if folder is not None:
-                        entity.folder = folder
-                        update_fields = ["name", "properties", "folder"]
-                    else:
-                        update_fields = ["name", "properties"]
+                    update_fields = ["name", "properties"]
                     entity.name = name
                     entity.properties = persisted_values
                     if result_source is not None:
                         try:
                             entity.set_source(result_source)
                             update_fields.extend([
-                                "source_type", "source_id", "source_path", "folder",
+                                "source_type", "source_id", "source_path",
                             ])
                             entity.save(update_fields=update_fields)
                         except DjangoValidationError as exc:
@@ -721,12 +651,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     ).first()
                 if existing:
                     existing.properties = persisted_values
-                    if folder is not None:
-                        existing.folder = folder
-                        existing.project = folder.project
-                        existing.save(update_fields=["properties", "folder", "project"])
-                    else:
-                        existing.save(update_fields=["properties"])
+                    existing.save(update_fields=["properties"])
                     results.append({
                         "row_index": row_index,
                         "entity_id": existing.id,
@@ -741,24 +666,19 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         name=name,
                         schema=schema,
                         properties=persisted_values,
-                        folder=folder,
-                        project=folder.project,
-                        source_entry=containing_entry,
+                        project=project or containing_entry.project,
                         author=author,
                     )
-                    if result_source is not None:
-                        try:
-                            entity.set_source(result_source)
-                            entity.save()
-                        except DjangoValidationError as exc:
-                            errors.append({
-                                "row_index": row_index,
-                                "field": "Entity",
-                                "message": str(exc),
-                            })
-                            continue
-                    else:
+                    try:
+                        entity.set_source(result_source or containing_entry or project)
                         entity.save()
+                    except DjangoValidationError as exc:
+                        errors.append({
+                            "row_index": row_index,
+                            "field": "Entity",
+                            "message": str(exc),
+                        })
+                        continue
                     results.append({
                         "row_index": row_index,
                         "entity_id": entity.id,
@@ -943,13 +863,9 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         visible_related_targets = (
             Q(entity_id__in=visible_entities)
-            & (Q(source_entry__isnull=True) | Q(source_entry_id__in=visible_entries))
-        ) | (
-            Q(entity__isnull=True)
-            & Q(source_entry_id__in=visible_entries)
         )
         visible_generic_targets = (
-            Q(entity__isnull=True, source_entry__isnull=True)
+            Q(entity__isnull=True)
             & (
                 Q(
                     target_type__in=("lims.entity", "lims.entities"),
@@ -960,7 +876,7 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return Action.objects.filter(
             visible_related_targets | visible_generic_targets
-        ).select_related("entity", "performed_by", "source_entry")
+        ).select_related("entity", "performed_by")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):

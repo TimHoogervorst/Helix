@@ -6,7 +6,7 @@ from helix_core.column_types import registry as column_type_registry
 from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
-from core.models import Folder, Project
+from core.models import Project
 from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 
@@ -132,12 +132,6 @@ class EntitySerializer(serializers.ModelSerializer):
     schema_name = serializers.CharField(source="schema.name", read_only=True)
     schema_prefix = serializers.CharField(source="schema.prefix", read_only=True)
     author_username = serializers.CharField(source="author.username", read_only=True)
-    source_entry_display_id = serializers.CharField(
-        source="source_entry.display_id", read_only=True, default=None
-    )
-    folder = serializers.PrimaryKeyRelatedField(
-        queryset=Folder.objects.all(), required=False, allow_null=True,
-    )
     project = serializers.PrimaryKeyRelatedField(
         queryset=Project.objects.all(), required=False,
     )
@@ -148,13 +142,12 @@ class EntitySerializer(serializers.ModelSerializer):
     enabled_components = serializers.ListField(
         source="schema.enabled_components", read_only=True, default=list
     )
-    folder_path = serializers.SerializerMethodField()
     project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
     source_path = serializers.SerializerMethodField()
     source_type = serializers.PrimaryKeyRelatedField(
         queryset=ContentType.objects.all(), required=False,
     )
-    source_id = serializers.IntegerField(required=False)
+    source_id = serializers.IntegerField(required=False, allow_null=True)
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
@@ -169,12 +162,9 @@ class EntitySerializer(serializers.ModelSerializer):
             "schema_name",
             "schema_prefix",
             "properties",
-            "source_entry",
-            "source_entry_display_id",
             "source_type",
             "source_id",
             "source_path",
-            "folder",
             "project",
             "project_name",
             "project_uid",
@@ -191,7 +181,6 @@ class EntitySerializer(serializers.ModelSerializer):
             "schema_icon",
             "schema_color",
             "enabled_components",
-            "folder_path",
         ]
         read_only_fields = [
             "id",
@@ -215,26 +204,16 @@ class EntitySerializer(serializers.ModelSerializer):
         """Return the hydrated schema columns used to render metadata."""
         return (obj.schema.schema_type.columns or []) + (obj.schema.columns or [])
 
-    def get_folder_path(self, obj):
-        return obj.folder.path if obj.folder else ""
-
     def get_source_path(self, obj):
         cache = self.context.setdefault("source_path_cache", {})
         return hydrate_source_path(obj.source_path, cache)
 
     def validate(self, data):
-        folder = data.get("folder")
         project = data.get("project")
-        if folder is None and project is None:
+        if project is None and self.instance is None:
             raise serializers.ValidationError(
-                {"project": "Provide a project when folder is empty."}
+                {"project": "Provide a project or source."}
             )
-        if folder is not None:
-            if project is not None and project.pk != folder.project_id:
-                raise serializers.ValidationError(
-                    {"folder": "The folder must belong to the project."}
-                )
-            data["project"] = folder.project
         return data
 
     def create(self, validated_data):
@@ -305,20 +284,20 @@ class EntitySerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Resolve the default Schema when none is provided on create."""
-        folder = data.get("folder")
         project = data.get("project")
-        if self.instance is not None and "folder" in data and folder is None:
-            data["project"] = self.instance.project
-        elif self.instance is None and folder is None and project is None:
+        source_type = data.get("source_type")
+        source_id = data.get("source_id")
+        if source_type is not None:
+            if source_id is None:
+                raise serializers.ValidationError({"source_id": "This field is required with source_type."})
+            source = Entity.resolve_source(source_type, source_id)
+            if not hasattr(source, "project_id") and source.__class__.__name__ != "Project":
+                raise serializers.ValidationError({"source_type": "Source type is not supported."})
+            data["project"] = source if source.__class__.__name__ == "Project" else Project.objects.get(pk=source.project_id)
+        if self.instance is None and project is None:
             raise serializers.ValidationError(
-                {"project": "Provide a project when folder is empty."}
+                {"project": "Provide a project or source."}
             )
-        elif folder is not None:
-            if project is not None and project.pk != folder.project_id:
-                raise serializers.ValidationError(
-                    {"folder": "The folder must belong to the project."}
-                )
-            data["project"] = folder.project
         if self.instance is None and ("schema" not in data or data["schema"] is None):
             from helix_core.models import SchemaType
             try:
@@ -348,7 +327,6 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
     entity_id = serializers.IntegerField(required=False, allow_null=True)
     result_row_id = serializers.CharField(required=False, allow_blank=False)
     name = serializers.CharField(required=True, allow_blank=True)
-    folder_id = serializers.IntegerField(required=False, allow_null=True)
     values = serializers.DictField(default=dict)
 
 
@@ -400,7 +378,6 @@ class ActionSerializer(serializers.ModelSerializer):
             "action_type",
             "performed_by",
             "performed_by_username",
-            "source_entry",
             "request_id",
             "target_type",
             "target_id",

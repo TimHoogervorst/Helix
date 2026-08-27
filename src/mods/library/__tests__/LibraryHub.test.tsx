@@ -170,7 +170,6 @@ const populatedContentsResponse = makeLibraryContents(
       display_id: "EXP-0284",
       title: "PCR Results",
       folder: 1,
-      folder_name: "Experiments",
       author_username: "testuser",
       author_info: {
         id: 2,
@@ -1283,7 +1282,7 @@ describe("LibraryHub", () => {
           [
             makeLibraryEntry({
               id: 10, workspace_id: "eln", display_id: "EXP-0284",
-              title: "PCR Results", folder: 1, folder_name: "Experiments",
+              title: "PCR Results",
               status: "in_progress",
             }),
           ],
@@ -1300,7 +1299,7 @@ describe("LibraryHub", () => {
       await waitFor(() => {
         expect(within(dialog).getByText("Protocols")).toBeInTheDocument();
       });
-      expect(within(dialog).queryByText("Experiments")).toBeNull();
+      expect(within(dialog).getByText("Experiments")).toBeInTheDocument();
     });
 
     it("filters move picker by search text", async () => {

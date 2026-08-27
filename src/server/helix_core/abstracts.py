@@ -5,7 +5,7 @@ fields used by any model that appears in the console Master Panel
 (NotebookEntry, Entity, etc.).
 
 AbstractEntity extends BrowsableItem with the common fields shared by
-all entity-like models across mods — name, author, status, folder,
+all entity-like models across mods — name, author, status, Source,
 schema, properties, etc.
 
 This is the canonical location — mods import from ``helix_core``.
@@ -99,14 +99,7 @@ class Sourceable(models.Model):
             return self.parent if self.parent_id else (
                 self.project if self.project_id else None
             )
-        legacy_entry_id = getattr(self, "source_entry_id", None)
-        if legacy_entry_id:
-            from mods.eln.models import NotebookEntry
-
-            return NotebookEntry.objects.get(pk=legacy_entry_id)
-        return self.folder if self.folder_id else (
-            self.project if self.project_id else None
-        )
+        return self.project if self.project_id else None
 
     def _validate_source(self, source):
         from core.models import Folder, Project
@@ -150,16 +143,12 @@ class Sourceable(models.Model):
         return path + [{"kind": self._source_kind(source), "id": source.pk}]
 
     def set_source(self, source):
-        """Assign a Source and keep the legacy containment field in sync."""
-        from core.models import Folder
-
+        """Assign the item's sole containment reference."""
         self.source_type = ContentType.objects.get_for_model(source)
         self.source_id = source.pk
         self._source_assignment_explicit = True
         if self.__class__.__name__ == "Folder":
-            self.parent = source if isinstance(source, Folder) else None
-        elif hasattr(self, "folder_id"):
-            self.folder = source if isinstance(source, Folder) else None
+            self.parent = source if source.__class__.__name__ == "Folder" else None
 
     @staticmethod
     def resolve_source(source_type, source_id):
@@ -175,27 +164,6 @@ class Sourceable(models.Model):
             return model.objects.get(pk=source_id)
         except model.DoesNotExist:
             raise APIValidationError({"source_id": "Source does not exist."})
-
-    def _sync_source_from_legacy_move(self, old_source):
-        """Translate direct legacy parent/folder assignments into Source."""
-        from core.models import Folder, Project
-
-        if self.__class__.__name__ == "Folder":
-            legacy_source = self.parent if self.parent_id else self.project
-        elif hasattr(self, "folder_id"):
-            current_source = old_source
-            current_folder_id = getattr(current_source, "folder_id", None)
-            if self.folder_id == current_folder_id:
-                return old_source
-            legacy_source = self.folder if self.folder_id else self.project
-        else:
-            return old_source
-
-        if isinstance(legacy_source, (Folder, Project)):
-            self.source_type = ContentType.objects.get_for_model(legacy_source)
-            self.source_id = legacy_source.pk
-            return legacy_source
-        return old_source
 
     def _update_descendant_paths(self, old_path, old_source_marker, new_path):
         """Replace this item's old path prefix on every descendant."""
@@ -230,10 +198,6 @@ class Sourceable(models.Model):
             if old_record:
                 old_source = self.__class__.objects.get(pk=self.pk).source
 
-        if old_record and old_source is not None and not getattr(
-            self, "_source_assignment_explicit", False
-        ):
-            self._sync_source_from_legacy_move(old_source)
         if self.source_type_id is None or self.source_id is None:
             source = self._default_source()
             self._validate_source(source)
@@ -325,7 +289,7 @@ class AbstractEntity(Sourceable, BrowsableItem):
     """Abstract base for entity-like models across all mods.
 
     Extends :class:`BrowsableItem` with the common fields every entity
-    needs — name, author, status, folder, schema, properties — so mods
+    needs — name, author, status, Source, schema, properties — so mods
     don't duplicate them.
 
     Subclasses **must** override ``_get_display_id_prefix()``.  The default
@@ -352,13 +316,6 @@ class AbstractEntity(Sourceable, BrowsableItem):
                   "valid statuses is stored in the Status dropdown (managed in "
                   "Settings → Dropdowns).",
     )
-    folder = models.ForeignKey(
-        "core.Folder",
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
     project = models.ForeignKey(
         "core.Project",
         on_delete=models.CASCADE,
@@ -376,8 +333,6 @@ class AbstractEntity(Sourceable, BrowsableItem):
         abstract = True
 
     def save(self, *args, **kwargs):
-        if self.project_id is None and self.folder_id is not None:
-            self.project = self.folder.project
         super().save(*args, **kwargs)
 
     def _get_display_id_prefix(self) -> str:

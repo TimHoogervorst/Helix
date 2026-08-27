@@ -619,9 +619,6 @@ export function RegistryTableContent({
                 ),
               ),
             ),
-            ...(folderId !== null && folderId !== undefined
-              ? { folder_id: folderId }
-              : {}),
           })),
         };
 
@@ -1096,7 +1093,7 @@ export const RegistryTableBlockComponent = createBlockAdapter(
     const attrs = instance.attrs as Record<string, unknown>;
     const entryContext = context.entry as ElnSidebarData | undefined;
     const projectId = entryContext?.projectId ?? entryContext?.entry?.project ?? null;
-    const folderId = entryContext?.folderId ?? entryContext?.entry?.folder ?? null;
+    const folderId = entryContext?.folderId ?? null;
 
     return {
       schemaId: (attrs.schemaId as number | null) ?? null,

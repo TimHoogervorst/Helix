@@ -341,7 +341,6 @@ export function ResultTableContent({
               ),
               Entity: row.sourceEntityId,
             },
-            ...(folderId != null ? { folder_id: folderId } : {}),
           })),
         },
       );
@@ -671,11 +670,7 @@ export const ResultTableBlockComponent = createBlockAdapter(
       entryContext?.entry?.project ??
       slotContext.projectId ??
       null;
-    const folderId =
-      entryContext?.entry?.folder ??
-      entryContext?.folderId ??
-      slotContext.folderId ??
-      null;
+  const folderId = entryContext?.folderId ?? slotContext.folderId ?? null;
     return {
       schemaId: (attrs.schemaId as number | null) ?? null,
       schemaName: (attrs.schemaName as string | null) ?? null,

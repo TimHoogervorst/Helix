@@ -311,7 +311,6 @@ describe("ResultTableContent", () => {
           rows: [
             expect.objectContaining({
               name: "BLOOD1 — Assay Result",
-              folder_id: 42,
               values: { Entity: "BLOOD1", Amount: 5 },
             }),
           ],

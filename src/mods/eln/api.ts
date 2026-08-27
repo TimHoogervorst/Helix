@@ -103,8 +103,9 @@ export function createAction(
 export interface CreateEntryPayload {
   name: string;
   content: TipTapDoc;
-  folder?: number | null;
   project?: number | null;
+  source_type?: number;
+  source_id?: number;
   status?: string;
   tag_ids?: number[];
 }
@@ -119,7 +120,6 @@ export function createEntry(payload: CreateEntryPayload): Promise<EntryDetail> {
 
 export interface PatchEntryPayload {
   status?: string;
-  folder?: number | null;
   source_type?: number;
   source_id?: number;
 }

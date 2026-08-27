@@ -29,7 +29,10 @@ import { FormattingMenu } from "./FormattingMenu";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
-export interface TipTapRendererProps extends RendererProps<BlockBinding> {
+export interface TipTapRendererProps
+  extends Omit<RendererProps<BlockBinding>, "bus"> {
+  /** The editor requires a bus for lifecycle accumulation and event routing. */
+  bus: NonNullable<RendererProps<BlockBinding>["bus"]>;
   /**
    * Optional callback invoked when the editor is created.
    *

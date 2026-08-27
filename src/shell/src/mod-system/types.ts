@@ -475,8 +475,8 @@ export interface RendererProps<T extends BaseBinding = BaseBinding> {
   slotId: string;
   /** Resolved bindings — blocks or buttons, depending on the slot's `accepts`. */
   bindings: T[];
-  /** The workspace-scoped event bus. */
-  bus: WorkspaceBus;
+  /** The optional workspace-scoped event bus. */
+  bus?: WorkspaceBus;
   /** Flat bag of metadata available to all blocks and buttons. */
   context: SlotContext;
 }

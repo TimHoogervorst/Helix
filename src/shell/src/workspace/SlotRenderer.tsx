@@ -13,8 +13,8 @@ import type { RendererProps, SlotContext, BaseBinding } from "../mod-system/type
 export interface SlotRendererProps {
   /** The slot to resolve, e.g. "eln.editor". */
   slotId: string;
-  /** The workspace-scoped event bus, created by the workspace shell. */
-  bus: WorkspaceBus;
+  /** The optional workspace-scoped event bus, created by the workspace shell. */
+  bus?: WorkspaceBus;
   /** Flat bag of metadata available to all blocks and buttons. */
   context: SlotContext;
 }

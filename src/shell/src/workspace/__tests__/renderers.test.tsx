@@ -295,6 +295,32 @@ describe("PanelRenderer", () => {
     ).toBe(JSON.stringify({ rows: 5, cols: 3 }));
   });
 
+  it("renders without a bus and does not subscribe to events", () => {
+    const onEventHandler = vi.fn();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        component: TestBlock,
+        listensTo: ["data.export"],
+        onEvent: { "data.export": onEventHandler },
+      }),
+    ];
+
+    expect(() =>
+      render(
+        <PanelRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={undefined}
+          context={defaultContext}
+        />,
+      ),
+    ).not.toThrow();
+
+    expect(screen.getByTestId("block-eln.table")).toBeInTheDocument();
+    bus.emit("data.export", {});
+    expect(onEventHandler).not.toHaveBeenCalled();
+  });
+
   it("subscribes to bus.on() for listensTo events and routes to onEvent", () => {
     const onEventHandler = vi.fn((_instance: unknown, payload: unknown) => payload);
     const bindings: BlockBinding[] = [
@@ -723,6 +749,38 @@ describe("TabRenderer", () => {
     expect(
       screen.getByTestId("block-context-workspace-eln.table").textContent,
     ).toBe("eln");
+  });
+
+  it("renders all tabs without a bus and does not subscribe to events", () => {
+    const onEventHandler = vi.fn();
+    const bindings: BlockBinding[] = [
+      makeBlockBinding({
+        component: TestBlock,
+        listensTo: ["data.export"],
+        onEvent: { "data.export": onEventHandler },
+      }),
+      makeBlockBinding({
+        id: "eln.chart",
+        label: "Chart",
+        component: TestBlock,
+      }),
+    ];
+
+    expect(() =>
+      render(
+        <TabRenderer
+          slotId={defaultSlotId}
+          bindings={bindings}
+          bus={undefined}
+          context={defaultContext}
+        />,
+      ),
+    ).not.toThrow();
+
+    expect(screen.getByTestId("block-eln.table")).toBeInTheDocument();
+    expect(screen.getByTestId("block-eln.chart")).toBeInTheDocument();
+    bus.emit("data.export", {});
+    expect(onEventHandler).not.toHaveBeenCalled();
   });
 
   it("subscribes to bus.on() for listensTo events", () => {

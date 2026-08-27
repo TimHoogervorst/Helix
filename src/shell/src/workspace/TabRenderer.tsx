@@ -99,6 +99,8 @@ function TabContent({
     for (const e of binding.emits) {
       emits[e.id] = {
         fire: (payload: Record<string, unknown>) => {
+          if (!bus) return;
+
           bus.emit(`${binding.id}.${e.id}`, {
             blockInstanceId: instance.id,
             blockId: binding.id,
@@ -118,6 +120,8 @@ function TabContent({
     () => ({
       ...context,
       emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        if (!bus) return;
+
         bus.emit(`${binding.id}.${localId}`, {
           blockInstanceId: instance.id,
           blockId: binding.id,

@@ -573,48 +573,6 @@ function SettingsPage() {
                 </div>
               </SettingsSectionCard>
 
-              {activeTab === "entity" && (
-                <SettingsSectionCard
-                  title="Schema Components"
-                  subtitle="Choose the tabs available on entities using this schema."
-                >
-                  {schemaComponents.length === 0 ? (
-                    <p
-                      className="text-sm text-[var(--color-ink-muted-foreground)]"
-                      data-testid="schema-components-empty"
-                    >
-                      No Schema Components are registered.
-                    </p>
-                  ) : (
-                    <div className="divide-y divide-[var(--color-ink-hairline)]" data-testid="schema-components-list">
-                      {schemaComponents.map((component) => {
-                        const Icon = component.icon;
-                        const enabled = (editingSchema.enabled_components ?? []).includes(component.id);
-                        return (
-                          <label
-                            key={component.id}
-                            className="flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                          >
-                            <span className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
-                              <Icon size={14} />
-                              {component.label}
-                            </span>
-                            <input
-                              type="checkbox"
-                              role="switch"
-                              aria-label={component.label}
-                              className="rounded focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-1"
-                              checked={enabled}
-                              onChange={() => toggleSchemaComponent(editingSchema.id, component.id)}
-                            />
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </SettingsSectionCard>
-              )}
-
               <SettingsSectionCard
                 flush
                 title="Columns"
@@ -639,6 +597,58 @@ function SettingsPage() {
                   }
                 />
               </SettingsSectionCard>
+
+              {activeTab === "entity" && (
+                <SettingsSectionCard
+                  title="Schema Components"
+                  subtitle="Choose the tabs available on entities using this schema."
+                >
+                  {schemaComponents.length === 0 ? (
+                    <p
+                      className="text-sm text-[var(--color-ink-muted-foreground)]"
+                      data-testid="schema-components-empty"
+                    >
+                      No Schema Components are registered.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-[var(--color-ink-hairline)]" data-testid="schema-components-list">
+                      {schemaComponents.map((component) => {
+                        const Icon = component.icon;
+                        const enabled = (editingSchema.enabled_components ?? []).includes(component.id);
+                        return (
+                          <div
+                            key={component.id}
+                            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                          >
+                            <span className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+                              <Icon size={14} />
+                              {component.label}
+                            </span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-label={component.label}
+                              aria-checked={enabled}
+                              onClick={() => toggleSchemaComponent(editingSchema.id, component.id)}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-1 ${
+                                enabled
+                                  ? "bg-[var(--color-primary)]"
+                                  : "bg-[var(--color-ink-muted-foreground)]/25"
+                              }`}
+                            >
+                              <span
+                                className={`absolute left-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-transform ${
+                                  enabled ? "translate-x-4" : "translate-x-0"
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </SettingsSectionCard>
+              )}
             </>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-[var(--color-ink-muted-foreground)]">

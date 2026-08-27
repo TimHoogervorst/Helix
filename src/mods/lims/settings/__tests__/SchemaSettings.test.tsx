@@ -651,9 +651,9 @@ describe("SchemaSettings", () => {
     fireEvent.click(screen.getByText("Blood Sample"));
     expect(await screen.findByText("Schema Components")).toBeInTheDocument();
     const toggle = screen.getByRole("switch", { name: "Results" });
-    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAttribute("aria-checked", "false");
     fireEvent.click(toggle);
-    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByText("Save Changes (1)"));
 
     await waitFor(() => {

@@ -53,8 +53,8 @@ export default function ResultsTab({ entity }: SchemaComponentProps) {
       {groups.map((group) => {
         const columns = group.schema.columns.filter((column) => column.name !== "Entity");
         return (
-          <section key={group.schema.id} className="rounded-lg border border-hairline p-5">
-            <h2 className="mb-4 flex items-center gap-2 font-medium">
+          <section key={group.schema.id}>
+            <h2 className="mb-3 flex items-center gap-2 font-medium">
               <IconBadge iconKey={group.schema.icon || "circle"} colorKey={group.schema.color || "muted"} size="sm" />
               {group.schema.name}
             </h2>

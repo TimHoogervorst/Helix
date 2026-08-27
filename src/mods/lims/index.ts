@@ -1,4 +1,4 @@
-import { Cog, History, Info, LayoutList, Microscope, Users } from "lucide-react";
+import { Cog, Database, Info, LayoutList, Microscope, Users } from "lucide-react";
 import { Mod } from "../../shell/src/mod-system/Mod";
 import type { ModManifest } from "../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
@@ -16,7 +16,7 @@ const mod = new Mod(manifest as ModManifest);
 
 mod.registerSchemaComponent("results", {
   label: "Results",
-  icon: History,
+  icon: Database,
   component: ResultsTab,
   order: 10,
 });

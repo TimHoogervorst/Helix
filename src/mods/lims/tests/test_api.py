@@ -2339,8 +2339,8 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Entity.objects.filter(pk=entity.pk).exists())
 
-    def test_delete_referenced_by_targeted_reference_rejected(self):
-        """409 when a targeted reference column points at the entity."""
+    def test_delete_referenced_by_targeted_reference_leaves_dangling_reference(self):
+        """Referenced entities can be deleted, leaving a soft reference."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
             folder=self.folder, author=self.user,
@@ -2351,15 +2351,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
             properties={"linked_entity": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
-        self.assertEqual(response.status_code, 409)
-        detail = str(response.data["detail"])
-        self.assertIn(str(target.display_id), detail)
-        self.assertIn(self.ref_schema.name, detail)
-        self.assertTrue(Entity.objects.filter(pk=target.pk).exists())
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
 
-    def test_delete_referenced_by_open_reference_rejected(self):
-        """409 when an open reference column (no referenceSchemaId) points
-        at the entity."""
+    def test_delete_referenced_by_open_reference_leaves_dangling_reference(self):
+        """Open references remain after their target is deleted."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
             folder=self.folder, author=self.user,
@@ -2370,13 +2366,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
             properties={"any_entity": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
-        self.assertEqual(response.status_code, 409)
-        detail = str(response.data["detail"])
-        self.assertIn(self.open_ref_schema.name, detail)
-        self.assertTrue(Entity.objects.filter(pk=target.pk).exists())
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
 
-    def test_delete_referenced_by_multiple_schemas_lists_all(self):
-        """409 message includes every schema that references the entity."""
+    def test_delete_referenced_by_multiple_schemas_succeeds(self):
+        """Multiple soft references do not block deletion."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
             folder=self.folder, author=self.user,
@@ -2392,10 +2386,8 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
             properties={"partner": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
-        self.assertEqual(response.status_code, 409)
-        detail = str(response.data["detail"])
-        self.assertIn(self.ref_schema.name, detail)
-        self.assertIn(self.other_ref_schema.name, detail)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Entity.objects.filter(pk=target.pk).exists())
 
     def test_delete_succeeds_after_reference_cleared(self):
         """Delete proceeds after all referencing entities clear their

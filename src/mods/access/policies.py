@@ -246,8 +246,10 @@ def effective_role(user, resource):
     if best == "edit":
         return "edit"
 
-    folder_id = _resolve_folder_id(resource)
-    if folder_id is None:
+    if (
+        _resolve_folder_id(resource) is None
+        and not getattr(resource, "source_path", None)
+    ):
         return best
 
     shares = FolderShare.objects.filter(
@@ -256,12 +258,9 @@ def effective_role(user, resource):
         "id", "source_folder_id", "target_project_id", "level",
     )
 
-    resource_ancestors = _ancestor_ids_for_folder(folder_id)
-
     for share in shares:
-        covers = (
-            share.source_folder_id == folder_id
-            or share.source_folder_id in resource_ancestors
+        covers = _source_path_contains_folder(
+            resource, share.source_folder_id,
         )
         if not covers:
             continue
@@ -350,22 +349,17 @@ def destination_within_shared_subtree(current_folder, destination_folder, projec
         "id", "source_folder_id",
     )
 
-    current_ancestors = _ancestor_ids_for_folder(current_folder.id)
-
     for share in shares:
-        covers = (
-            current_folder.id == share.source_folder_id
-            or share.source_folder_id in current_ancestors
+        covers = _source_path_contains_folder(
+            current_folder, share.source_folder_id,
         )
         if not covers:
             continue
 
         if destination_folder is None:
             return False
-        destination_ancestors = _ancestor_ids_for_folder(destination_folder.id)
-        in_subtree = (
-            destination_folder.id == share.source_folder_id
-            or share.source_folder_id in destination_ancestors
+        in_subtree = _source_path_contains_folder(
+            destination_folder, share.source_folder_id,
         )
         return in_subtree
 
@@ -565,8 +559,6 @@ def _find_folder_share(resource, via_project):
     if resource is None or not hasattr(resource, "project_id"):
         return None
 
-    folder_id = _resolve_folder_id(resource)
-
     candidates = list(
         FolderShare.objects.filter(
             target_project_id=via_project,
@@ -577,33 +569,19 @@ def _find_folder_share(resource, via_project):
     if not candidates:
         return None
 
-    if folder_id is not None:
-        resource_ancestors = _ancestor_ids_for_folder(folder_id)
-        for share in candidates:
-            if share.source_folder_id == folder_id or share.source_folder_id in resource_ancestors:
-                return share
-        return None
-
-    return candidates[0] if candidates else None
+    for share in candidates:
+        if _source_path_contains_folder(resource, share.source_folder_id):
+            return share
+    return None
 
 
-def _ancestor_ids_for_folder(folder_id):
-    """Return a set of ancestor folder IDs for *folder_id*."""
+def _source_path_contains_folder(resource, folder_id):
+    """Return whether *resource* is the folder or lies in its source subtree."""
     from core.models import Folder
 
-    ids = set()
-    try:
-        folder = Folder.objects.only("id", "parent_id").get(pk=folder_id)
-    except Folder.DoesNotExist:
-        return ids
-    node = folder.parent
-    while node is not None:
-        ids.add(node.id)
-        node_id = node.parent_id
-        if node_id is None:
-            break
-        try:
-            node = Folder.objects.only("id", "parent_id").get(pk=node_id)
-        except Folder.DoesNotExist:
-            break
-    return ids
+    if isinstance(resource, Folder) and resource.id == folder_id:
+        return True
+    return any(
+        segment.get("kind") == "folder" and segment.get("id") == folder_id
+        for segment in (getattr(resource, "source_path", None) or [])
+    )

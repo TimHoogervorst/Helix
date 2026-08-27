@@ -3,6 +3,7 @@ import uuid
 
 import django.db.models
 from django.db import IntegrityError
+from django.db import transaction
 
 from django.utils.dateparse import parse_datetime
 from django.http import Http404
@@ -13,6 +14,7 @@ from rest_framework.response import Response
 
 from helix_core.actions.logger import bulk_log_actions, log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
+from helix_core.source_deletion import delete_source_descendants
 
 from mods.tags.models import Tag
 from mods.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
@@ -184,7 +186,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to delete this entry."
             )
-        super().perform_destroy(instance)
+        with transaction.atomic():
+            delete_source_descendants(instance)
+            super().perform_destroy(instance)
 
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
@@ -317,7 +321,14 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=["delete"], url_path="delete_all")
     def delete_all(self, request):
         """Delete ALL notebook entries. Danger zone endpoint for testing."""
-        count, _ = NotebookEntry.objects.all().delete()
+        count = 0
+        with transaction.atomic():
+            for entry in list(NotebookEntry.objects.all()):
+                if not NotebookEntry.objects.filter(pk=entry.pk).exists():
+                    continue
+                delete_source_descendants(entry)
+                entry.delete()
+                count += 1
         return Response({"deleted": count})
 
     @logs_action(

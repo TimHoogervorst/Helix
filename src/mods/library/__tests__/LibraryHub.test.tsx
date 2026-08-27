@@ -25,15 +25,16 @@ vi.mock("react-router-dom", async () => {
 });
 
 const mockGetAccessibleProjects = vi.fn();
-const mockGetLibraryContents = vi.fn();
+const mockGetLibraryChildren = vi.fn();
+const mockGetLibraryContents = mockGetLibraryChildren;
 const mockGetFolders = vi.fn().mockResolvedValue([]);
 const mockDeleteFolder = vi.fn();
 const mockDeleteEntry = vi.fn();
 vi.mock("../api", () => ({
   getAccessibleProjects: (...args: unknown[]) =>
     mockGetAccessibleProjects(...args),
-  getLibraryContents: (...args: unknown[]) =>
-    mockGetLibraryContents(...args),
+  getLibraryChildren: (...args: unknown[]) =>
+    mockGetLibraryChildren(...args),
   getFolders: (...args: unknown[]) =>
     mockGetFolders(...args),
   patchFolder: (...args: unknown[]) =>
@@ -349,8 +350,9 @@ describe("LibraryHub", () => {
         ).toBeInTheDocument();
       });
       expect(mockGetLibraryContents).toHaveBeenCalledWith(
+        "project",
         "missing-project",
-        undefined,
+        false,
         undefined,
       );
     });
@@ -372,8 +374,9 @@ describe("LibraryHub", () => {
       renderLibrary("/library?project=proj-1&path=/Experiments");
       await waitFor(() => {
         expect(mockGetLibraryContents).toHaveBeenCalledWith(
+          "project",
           "proj-1",
-          "/Experiments",
+          false,
           undefined,
         );
       });
@@ -516,8 +519,9 @@ describe("LibraryHub", () => {
 
       await waitFor(() => {
         expect(mockGetLibraryContents).toHaveBeenCalledWith(
+          "project",
           "proj-001",
-          "/Protocols",
+          false,
           undefined,
         );
       });
@@ -648,7 +652,7 @@ describe("LibraryHub", () => {
         [makeLibraryFolder({ id: 1 })],
         [makeLibraryEntry({ id: 10, workspace_id: "eln" })],
         {
-          next: "/library/contents/?project=proj-001&path=&page=2",
+          next: "/library/children/?source_type=project&source_id=proj-001&page=2",
           project_uid: "proj-001",
           project_name: "Test Project",
           project_is_archived: false,
@@ -728,8 +732,9 @@ describe("LibraryHub", () => {
     renderLibrary("/library?project=proj-001&path=/SharedFolder");
     await waitFor(() => {
       expect(mockGetLibraryContents).toHaveBeenCalledWith(
+        "project",
         "proj-001",
-        "/SharedFolder",
+        false,
         undefined,
       );
     });

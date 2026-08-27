@@ -1,4 +1,5 @@
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator as DjangoPaginator
 from django.http import Http404
 from rest_framework.views import APIView
@@ -7,6 +8,8 @@ from rest_framework.pagination import PageNumberPagination
 
 from core.models import Folder, Project
 from mods.access.policies import role as get_role
+from mods.access.policies import effective_role
+from mods.access.scoping import visible_folders_q, visible_rows_q
 from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 
@@ -147,20 +150,7 @@ def _get_shared_folders(project: Project, *, include_path: bool = False) -> list
 
 
 class LibraryContentsView(APIView):
-    """
-    GET /api/library/contents/?project=<uid>&path=<path>&search=<q>&page=<n>
-
-    Returns a paginated, mixed list of folders and entries scoped to
-    *project*.  Requires at least Read access to the Project; returns
-    404 otherwise.
-
-    At the Project root, shared folders appear mixed with owned folders
-    (sorted alphabetically).
-
-    Folders are listed first (alphabetical by name), followed by entries
-    (newest first by ``created_at``).  Every item carries a ``type``
-    discriminator (``"folder"`` or ``"entry"``).
-    """
+    """Legacy implementation retained only for migration reference."""
 
     def get(self, request):
         project_uid = request.query_params.get("project")
@@ -297,6 +287,229 @@ class LibraryContentsView(APIView):
         response.data["project_icon"] = project.icon_key
         response.data["project_color"] = project.color_key
         response.data["breadcrumb_path"] = path_str if not is_at_root else ""
+        return response
+
+
+SOURCE_MODELS = {
+    "project": Project,
+    "folder": Folder,
+    "entry": lambda: apps.get_model("eln", "NotebookEntry"),
+    "entity": lambda: apps.get_model("lims", "Entity"),
+}
+
+
+def _source_model(kind):
+    model = SOURCE_MODELS.get(kind.lower())
+    if model is None:
+        raise Http404("Unsupported source type.")
+    return model() if callable(model) and not hasattr(model, "_meta") else model
+
+
+def _resolve_source(kind, source_id):
+    model = _source_model(kind)
+    try:
+        queryset = model.objects.all()
+        if model is not Project:
+            queryset = queryset.select_related("project")
+        return queryset.get(pk=source_id)
+    except (model.DoesNotExist, ValueError):
+        raise Http404("Source not found.")
+
+
+def _children_qs(model, parent):
+    content_type = ContentType.objects.get_for_model(parent, for_concrete_model=False)
+    return model.objects.filter(source_type=content_type, source_id=parent.pk)
+
+
+def _children_count(item, user):
+    scopes = {
+        Folder: visible_folders_q(user),
+        apps.get_model("eln", "NotebookEntry"): visible_rows_q(user),
+        apps.get_model("lims", "Entity"): visible_rows_q(user),
+    }
+    return sum(
+        _children_qs(model, item).filter(scope).count()
+        for model, scope in scopes.items()
+    )
+
+
+def _folder_item(folder, user, *, shared=False):
+    item = {
+        "type": "folder",
+        "id": folder.id,
+        "name": folder.name,
+        "parent": folder.parent_id,
+        "created_at": folder.created_at,
+        "icon": "folder",
+        "color": "muted",
+        "is_shared": shared,
+        "children_count": _children_count(folder, user),
+    }
+    if shared:
+        project = folder.project
+        item.update({
+            "source_project_id": project.id,
+            "source_project_name": project.name,
+            "source_project_icon": project.icon_key,
+            "source_project_color": project.color_key,
+        })
+    outgoing = list(folder.outgoing_shares.select_related("target_project").all())
+    if outgoing:
+        item["share_summary"] = {
+            "shared": True,
+            "target_projects": [
+                {
+                    "id": share.target_project.id,
+                    "name": share.target_project.name,
+                    "icon_key": share.target_project.icon_key,
+                    "color_key": share.target_project.color_key,
+                }
+                for share in outgoing
+            ],
+        }
+    return item
+
+
+def _entry_item(entry, user):
+    return {
+        "type": "entry",
+        "id": entry.id,
+        "workspace_id": "eln",
+        "display_id": entry.display_id,
+        "title": entry.name,
+        "folder": entry.folder_id,
+        "folder_name": entry.folder.name if entry.folder else None,
+        "author_username": entry.author.username if entry.author else None,
+        "author_info": UserSerializer(entry.author).data if entry.author else None,
+        "status": entry.status,
+        "description": _first_paragraph_text(entry.content),
+        "tags": TagSerializer(entry.tags.all(), many=True).data,
+        "editors": [],
+        "samples_count": None,
+        "attachments_count": None,
+        "property_fields": {},
+        "created_at": entry.created_at,
+        "updated_at": entry.updated_at,
+        "icon": entry.schema.icon if entry.schema else "",
+        "color": entry.schema.color if entry.schema else "",
+        "children_count": _children_count(entry, user),
+    }
+
+
+def _entity_item(entity, user):
+    return {
+        "type": "entity",
+        "id": entity.id,
+        "workspace_id": "lims",
+        "display_id": entity.display_id,
+        "title": entity.name,
+        "folder": entity.folder_id,
+        "folder_name": entity.folder.name if entity.folder else None,
+        "author_username": entity.author.username if entity.author else None,
+        "author_info": UserSerializer(entity.author).data if entity.author else None,
+        "status": entity.status,
+        "description": "",
+        "tags": TagSerializer(entity.tags.all(), many=True).data,
+        "editors": [],
+        "samples_count": None,
+        "attachments_count": None,
+        "property_fields": entity.properties or {},
+        "created_at": entity.created_at,
+        "updated_at": entity.updated_at,
+        "icon": entity.schema.icon if entity.schema else "",
+        "color": entity.schema.color if entity.schema else "",
+        "children_count": _children_count(entity, user),
+    }
+
+
+def _serialize_source_item(item, user, *, shared=False):
+    if isinstance(item, Folder):
+        return _folder_item(item, user, shared=shared)
+    if item.__class__.__name__ == "NotebookEntry":
+        return _entry_item(item, user)
+    return _entity_item(item, user)
+
+
+class LibraryChildrenView(APIView):
+    """Return direct or recursive mixed children of a Source."""
+
+    def get(self, request):
+        kind = request.query_params.get("source_type")
+        source_id = request.query_params.get("source_id")
+        if not kind or not source_id:
+            raise Http404("source_type and source_id are required.")
+
+        if kind.lower() == "project":
+            try:
+                parent = Project.objects.get(uid=source_id)
+            except (Project.DoesNotExist, ValueError):
+                parent = _resolve_source(kind, source_id)
+        else:
+            parent = _resolve_source(kind, source_id)
+
+        if isinstance(parent, Project) and get_role(request.user, parent) is None:
+            raise Http404("Source not found.")
+        if not isinstance(parent, Project) and effective_role(request.user, parent) is None:
+            raise Http404("Source not found.")
+
+        models = (
+            ("folder", Folder, visible_folders_q(request.user)),
+            ("entry", apps.get_model("eln", "NotebookEntry"), visible_rows_q(request.user)),
+            ("entity", apps.get_model("lims", "Entity"), visible_rows_q(request.user)),
+        )
+        recursive = request.query_params.get("recursive", "0").lower() in {"1", "true", "yes"}
+        search = request.query_params.get("search", "").strip().lower()
+        rows = []
+        queue = [(_children_qs(model, parent).filter(scope), 0) for _, model, scope in models]
+
+        if isinstance(parent, Project):
+            from mods.access.models import FolderShare
+
+            shared_ids = FolderShare.objects.filter(
+                target_project=parent,
+                source_folder__parent__isnull=True,
+            ).values_list("source_folder_id", flat=True)
+            queue[0] = (queue[0][0] | Folder.objects.filter(pk__in=shared_ids), 0)
+
+        pending = []
+        for query, depth in queue:
+            pending.extend((item, depth) for item in query)
+
+        visited = set()
+        while pending:
+            item, depth = pending.pop(0)
+            marker = (item.__class__, item.pk)
+            if marker in visited:
+                continue
+            visited.add(marker)
+            serialized = _serialize_source_item(
+                item,
+                request.user,
+                shared=isinstance(parent, Project)
+                and isinstance(item, Folder)
+                and item.project_id != parent.id,
+            )
+            if not search or search in serialized.get("name", serialized.get("title", "")).lower():
+                serialized["depth"] = depth
+                rows.append(serialized)
+            if recursive:
+                for _, model, scope in models:
+                    pending.extend((child, depth + 1) for child in _children_qs(model, item).filter(scope))
+
+        type_order = {"folder": 0, "entry": 1, "entity": 2}
+        rows.sort(key=lambda row: (row["depth"], type_order[row["type"]], row.get("name", row.get("title", "")).lower()))
+        paginator = MixedListPagination()
+        page_items = paginator.paginate_queryset(rows, request)
+        response = paginator.get_paginated_response(page_items)
+        if isinstance(parent, Project):
+            response.data.update({
+                "current_project_id": parent.id,
+                "project_uid": str(parent.uid),
+                "project_name": parent.name,
+                "project_is_archived": parent.is_archived,
+                "project_icon": parent.icon_key,
+                "project_color": parent.color_key,
+            })
         return response
 
 

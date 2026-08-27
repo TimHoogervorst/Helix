@@ -14,7 +14,7 @@ import {
 import type { LibraryItem, LibraryEntryItem, LibraryProjectItem, LibraryFolderPath } from "../types";
 import type { Project } from "../../access/types";
 import { usePaginatedData } from "../../../shell/src/shared/hooks/usePaginatedData";
-import { getLibraryContents, getAccessibleProjects, getFolders, deleteFolder, deleteEntry } from "../api";
+import { getLibraryChildren, getAccessibleProjects, getFolders, deleteFolder, deleteEntry, deleteEntity } from "../api";
 import type { BreadcrumbSegment } from "../../../shell/src/shared/components/Breadcrumbs";
 import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../shell/src/shared/components/BaseCard";
@@ -376,16 +376,20 @@ function LibraryHub() {
           current_project_id: null,
         };
       }
+      const folderPath = currentPath.replace(/^\//, "").split("/").filter(Boolean).join(" / ");
+      const currentFolder = folderPaths.find((folder) => folder.path === folderPath);
+      const sourceType = currentFolder ? "folder" : "project";
+      const sourceId = currentFolder?.id ?? projectUid;
       let response;
       if (url) {
         const urlObj = new URL(url, window.location.origin);
         const page = Number(urlObj.searchParams.get("page") || 2);
-        response = await getLibraryContents(projectUid, currentPath || undefined, page);
+        response = await getLibraryChildren(sourceType, sourceId, false, page);
       } else {
-        response = await getLibraryContents(projectUid, currentPath || undefined, undefined);
+        response = await getLibraryChildren(sourceType, sourceId, false, undefined);
       }
       if (requestVersion !== contentsRequestVersion.current) return response;
-      setCurrentFolderId(response.current_folder_id);
+      setCurrentFolderId(response.current_folder_id ?? null);
       setCurrentProjectId(response.current_project_id ?? null);
       if (response.project_name) {
         setProjectMeta({
@@ -397,7 +401,7 @@ function LibraryHub() {
       }
       return response;
     },
-    [projectUid, currentPath, refreshKey],
+    [projectUid, currentPath, folderPaths, refreshKey],
   );
 
   const data = usePaginatedData({
@@ -405,7 +409,7 @@ function LibraryHub() {
     filterKey: "path",
     getId: (item) => item.id,
     getDisplayId: (item) =>
-      item.type === "entry" ? item.display_id : `folder-${item.id}`,
+      item.type === "folder" ? `folder-${item.id}` : item.display_id,
   });
 
   useEffect(() => {
@@ -497,10 +501,14 @@ function LibraryHub() {
         }
         if (!window.confirm(message)) return;
         deleteFolder(item.id).then(() => setRefreshKey((k) => k + 1));
-      } else {
+      } else if (item.type === "entry") {
         const message = `Delete entry "${item.title}"? This cannot be undone.`;
         if (!window.confirm(message)) return;
         deleteEntry(item.display_id).then(() => setRefreshKey((k) => k + 1));
+      } else {
+        const message = `Delete entity "${item.title}"? This cannot be undone.`;
+        if (!window.confirm(message)) return;
+        deleteEntity(item.display_id).then(() => setRefreshKey((k) => k + 1));
       }
     },
     [],
@@ -588,13 +596,16 @@ function LibraryHub() {
     }
 
     const isSelected = data.selectedId === item.id;
-    const propertyFields = getPropertyFieldsForEntry(item);
+    const cardItem = item.type === "entity"
+      ? { ...item, type: "entry" as const }
+      : item;
+    const propertyFields = getPropertyFieldsForEntry(cardItem);
     const canDelete = isOrgAdmin || currentRole === "edit";
 
     return (
       <BaseCard
         key={`entry-${item.id}`}
-        item={item}
+        item={cardItem}
         viewMode={viewMode}
         isSelected={isSelected}
         iconKey={item.icon || "file-text"}

@@ -100,7 +100,8 @@ class Entity(AbstractEntity):
 
     source_entry = models.ForeignKey(
         "eln.NotebookEntry",
-        on_delete=models.SET_NULL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
         null=True,
         blank=True,
         related_name="lims_entities",

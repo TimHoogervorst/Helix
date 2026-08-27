@@ -1,9 +1,11 @@
 from django.http import JsonResponse
+from django.db import transaction
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
 from helix_core.actions.mixins import ActionLoggingMixin
+from helix_core.source_deletion import delete_source_descendants
 from mods.access.permissions import IsOrganizationAdminForWrites
 from mods.access.scoping import visible_folders_q
 
@@ -108,7 +110,9 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from rest_framework.exceptions import PermissionDenied
 
         if effective_role(self.request.user, instance) == "edit":
-            return super().perform_destroy(instance)
+            with transaction.atomic():
+                delete_source_descendants(instance)
+                return super().perform_destroy(instance)
 
         raise PermissionDenied(
             "You do not have permission to delete this folder."

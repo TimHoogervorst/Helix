@@ -1,5 +1,5 @@
 import { get, patch, del } from "../../shell/src/api/client";
-import type { LibraryContentsResponse, LibraryProjectItem, LibraryFolderPath, LibraryFolderItem } from "./types";
+import type { LibraryContentsResponse, LibraryFolderPath, LibraryFolderItem } from "./types";
 import type { Project } from "../access/types";
 
 /**
@@ -10,21 +10,26 @@ export function getAccessibleProjects(): Promise<Project[]> {
 }
 
 /**
- * Fetch mixed folder + entry contents scoped to a Project.
+ * Fetch mixed direct children of a Source.
  *
- * @param projectUid  The Project's immutable UID.
- * @param path        Folder path beneath the Project root (empty for root).
+ * @param sourceType  The Source kind.
+ * @param sourceId    The Source primary key, or Project UID.
+ * @param recursive   Whether to include the complete descendant subtree.
  * @param page        Page number (1-based).
  */
-export function getLibraryContents(
-  projectUid: string,
-  path?: string,
+export function getLibraryChildren(
+  sourceType: "project" | "folder" | "entry" | "entity",
+  sourceId: number | string,
+  recursive = false,
   page?: number,
 ): Promise<LibraryContentsResponse> {
-  const params = new URLSearchParams({ project: projectUid });
-  if (path) params.set("path", path);
+  const params = new URLSearchParams({
+    source_type: sourceType,
+    source_id: String(sourceId),
+  });
+  if (recursive) params.set("recursive", "1");
   if (page !== undefined) params.set("page", String(page));
-  return get(`/library/contents/?${params.toString()}`);
+  return get(`/library/children/?${params.toString()}`);
 }
 
 /**
@@ -56,4 +61,11 @@ export function deleteFolder(folderId: number): Promise<void> {
  */
 export function deleteEntry(displayId: string): Promise<void> {
   return del(`/eln/entries/${displayId}/`);
+}
+
+/**
+ * Delete an entity by its display ID.
+ */
+export function deleteEntity(displayId: string): Promise<void> {
+  return del(`/lims/entities/${displayId}/`);
 }

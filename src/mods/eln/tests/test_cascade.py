@@ -5,9 +5,11 @@ The signal (in ``eln/cascade.py``) fires on ``post_save`` for
 NotebookEntry and updates the status of all linked Entities to match.
 """
 from core.tests.base import BaseServiceTestCase
+from core.models import Folder
 from helix_core.models import SchemaType, Schema
 from mods.eln.models import NotebookEntry
 from mods.lims.models import Entity
+from helix_core.source_deletion import delete_source_descendants
 
 
 class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
@@ -240,3 +242,74 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
             sync_receivers or async_receivers,
             "No receiver connected to post_save for Entity",
         )
+
+
+class SourceDeletionTests(BaseServiceTestCase):
+    """Source deletion removes descendants without following references."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.eln_schema_type = SchemaType.objects.create(
+            display_name="ELN Entry", workspace_id="eln",
+            model="mods.eln.models.NotebookEntry",
+        )
+        cls.lims_schema_type = SchemaType.objects.create(
+            display_name="Entity", workspace_id="lims",
+            model="mods.lims.models.Entity",
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.eln_schema = Schema.objects.create(
+            name="Entry", prefix="E", schema_type=self.eln_schema_type,
+        )
+        self.lims_schema = Schema.objects.create(
+            name="Entity", prefix="S", schema_type=self.lims_schema_type,
+        )
+        self.entry = NotebookEntry.objects.create(
+            name="Entry", folder=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+        self.entity = Entity.objects.create(
+            name="Entity", schema=self.lims_schema, source=self.entry,
+            folder=self.folder, author=self.user,
+        )
+        self.result = Entity.objects.create(
+            name="Result", schema=self.lims_schema, source=self.entity,
+            folder=self.folder, author=self.user,
+        )
+
+    def test_entry_delete_cascades_transitive_source_descendants(self):
+        other_entry = NotebookEntry.objects.create(
+            name="Other", folder=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+        unrelated = Entity.objects.create(
+            name="Unrelated", schema=self.lims_schema, source=other_entry,
+            folder=self.folder, author=self.user,
+        )
+
+        delete_source_descendants(self.entry)
+        self.entry.delete()
+
+        self.assertFalse(Entity.objects.filter(pk=self.entity.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=self.result.pk).exists())
+        self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
+        self.assertTrue(NotebookEntry.objects.filter(pk=other_entry.pk).exists())
+
+    def test_folder_delete_does_not_follow_legacy_folder_reference(self):
+        other_folder = Folder.objects.create(
+            name="Other", project=self.project,
+        )
+        unrelated = Entity.objects.create(
+            name="Unrelated", schema=self.lims_schema, source=other_folder,
+            folder=self.folder, author=self.user,
+        )
+
+        delete_source_descendants(self.folder)
+        self.folder.delete()
+
+        self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
+        unrelated.refresh_from_db()
+        self.assertIsNone(unrelated.folder_id)

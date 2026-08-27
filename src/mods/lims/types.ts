@@ -1,3 +1,5 @@
+import type { Tag } from "../tags/types";
+
 /** A column definition within a schema. */
 export interface ColumnDef {
   id?: string;
@@ -39,6 +41,7 @@ export interface Schema {
   content_hash: string;
   icon: string;
   color: string;
+  enabled_components: string[];
 }
 
 /** Payload for creating/updating a Schema. */
@@ -50,6 +53,7 @@ export interface SchemaPayload {
   columns: ColumnDef[];
   icon?: string;
   color?: string;
+  enabled_components?: string[];
 }
 
 /** A SchemaType as returned by the list endpoint. */
@@ -62,7 +66,7 @@ export interface SchemaTypeItem {
   tags: string[];
 }
 
-/** An entity as returned by the list endpoint. */
+/** An entity as returned by the entity API. */
 export interface EntityListItem {
   id: number;
   display_id: string;
@@ -70,15 +74,25 @@ export interface EntityListItem {
   schema: number;
   schema_name: string;
   schema_prefix: string;
+  schema_columns: ColumnDef[];
+  schema_icon: string;
+  schema_color: string;
+  enabled_components: string[];
   properties: Record<string, unknown>;
   source_entry: number | null;
   source_entry_display_id: string | null;
   folder: number | null;
   author: number | null;
   author_username: string | null;
+  last_editor: number | null;
+  last_editor_username: string | null;
+  folder_path: string;
+  project_uid: string | null;
   status: string;
   updated_at: string;
   created_at: string;
+  tags: Tag[];
+  effective_role: "read" | "edit";
 }
 
 /** Paginated response wrapper. */
@@ -87,6 +101,28 @@ export interface PaginatedResponse<T> {
   next: string | null;
   previous: string | null;
   results: T[];
+}
+
+/** User summary embedded in a LIMS action response. */
+export interface LimsActionUser {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  color: string;
+}
+
+/** An action log entry returned by the LIMS actions endpoint. */
+export interface LimsAction {
+  id: number;
+  action: string;
+  action_type: string;
+  target_type: string;
+  target_id: number;
+  request_id?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  performed_by: LimsActionUser | null;
 }
 
 // ── Entities Hub ─────────────────────────────────────────────────────────

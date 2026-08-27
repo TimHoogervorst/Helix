@@ -2,11 +2,12 @@
 Tests for the LIMS API endpoints.
 """
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import User
+from core.models import Project, User
 from core.tests.base import BaseTestCase
 from helix_core.models import SchemaType, Schema
 from mods.lims.models import Action as LimsAction, Entity, LimsView, Metric
@@ -118,6 +119,158 @@ class EntityApiTests(BaseTestCase):
             folder=self.folder, author=self.user,
         )
         response = self.client.get(f"/api/lims/entities/{entity.pk}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_retrieve_entity_includes_workspace_fields(self):
+        self.dna_schema.icon = "dna"
+        self.dna_schema.color = "success"
+        self.dna_schema.save(update_fields=["icon", "color"])
+        entity = Entity.objects.create(
+            name="Workspace fields", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
+            properties={"concentration": 12},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["schema_icon"], "dna")
+        self.assertEqual(response.data["schema_color"], "success")
+        self.assertEqual(response.data["schema_columns"][0]["name"], "concentration")
+        self.assertEqual(response.data["folder_path"], self.folder.path)
+        self.assertEqual(response.data["project_uid"], str(self.project.uid))
+
+    def test_results_groups_linked_rows_and_hides_unlinked_rows(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+        )
+        result_schema = Schema.objects.create(
+            name="Assay result", prefix="RESULT", schema_type=result_type,
+            columns=[{"name": "Entity", "type": "text"}, {"name": "Value", "type": "number"}],
+        )
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+        linked = Entity.objects.create(
+            name="Linked result", schema=result_schema, folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id, "Value": 4},
+        )
+        Entity.objects.create(
+            name="Other result", schema=result_schema, folder=self.folder, author=self.user,
+            properties={"Entity": "OTHER-1", "Value": 9},
+        )
+        normal_schema = Schema.objects.create(
+            name="Not a result", prefix="NORMAL", schema_type=self.schema_type,
+        )
+        Entity.objects.create(
+            name="Unrelated schema row", schema=normal_schema,
+            folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["schema"]["name"], "Assay result")
+        self.assertEqual(response.data[0]["results"][0]["display_id"], linked.display_id)
+
+    def test_results_groups_by_schema_and_returns_schema_metadata(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+            columns=[{"name": "Entity", "type": "reference"}],
+        )
+        first_schema = Schema.objects.create(
+            name="Assay results", prefix="ASSAY", schema_type=result_type,
+            icon="chart", color="success",
+            columns=[{"name": "Value", "type": "number"}],
+        )
+        second_schema = Schema.objects.create(
+            name="QC results", prefix="QC", schema_type=result_type,
+            columns=[{"name": "Passed", "type": "boolean"}],
+        )
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+        first = Entity.objects.create(
+            name="Assay row", schema=first_schema, folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id, "Value": 4},
+        )
+        second = Entity.objects.create(
+            name="QC row", schema=second_schema, folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id, "Passed": True},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([group["schema"]["name"] for group in response.data], [
+            "Assay results", "QC results",
+        ])
+        self.assertEqual(response.data[0]["schema"]["id"], first_schema.id)
+        self.assertEqual(response.data[0]["schema"]["icon"], "chart")
+        self.assertEqual(response.data[0]["schema"]["color"], "success")
+        self.assertEqual(response.data[0]["schema"]["columns"][0]["name"], "Entity")
+        self.assertEqual(response.data[0]["results"][0]["name"], first.name)
+        self.assertIn("created_at", response.data[0]["results"][0])
+        self.assertEqual(response.data[0]["results"][0]["author_username"], self.user.username)
+        self.assertEqual(response.data[0]["results"][0]["properties"]["Value"], 4)
+        self.assertEqual(response.data[1]["results"][0]["display_id"], second.display_id)
+
+    def test_results_returns_empty_for_entity_without_results(self):
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_results_excludes_rows_in_inaccessible_projects(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+        )
+        result_schema = Schema.objects.create(
+            name="Assay result", prefix="RESULT", schema_type=result_type,
+        )
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+        inaccessible_project = Project.objects.create(name="Private project")
+        Entity.objects.create(
+            name="Private result", schema=result_schema, project=inaccessible_project,
+            author=self.user, properties={"Entity": entity.display_id},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_results_hides_inaccessible_source_entity(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+        )
+        result_schema = Schema.objects.create(
+            name="Assay result", prefix="RESULT", schema_type=result_type,
+        )
+        inaccessible_project = Project.objects.create(name="Private source project")
+        source = Entity.objects.create(
+            name="Private source", schema=self.dna_schema,
+            project=inaccessible_project, author=self.user,
+        )
+        Entity.objects.create(
+            name="Private result", schema=result_schema, project=inaccessible_project,
+            author=self.user, properties={"Entity": source.display_id},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{source.display_id}/results/")
+
         self.assertEqual(response.status_code, 404)
 
     def test_batch_resolve_entities(self):
@@ -370,6 +523,69 @@ class ActionViewSetRegressionTests(BaseTestCase):
         self.assertIsNotNone(action.pk)
         self.assertEqual(action.action_type, "created")
         self.assertEqual(action.entity, entity)
+
+    def test_generic_target_filters_return_unified_rows(self):
+        entity = Entity.objects.create(
+            name="Target Entity", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
+        )
+        matching = LimsAction.objects.create(
+            performed_by=self.user,
+            action="lims.entity.edited",
+            action_type="edited",
+            target_type="lims.entity",
+            target_id=entity.pk,
+            request_id=uuid4(),
+            entity=None,
+        )
+        LimsAction.objects.create(
+            performed_by=self.user,
+            action="lims.entity.created",
+            action_type="created",
+            target_type="lims.entity",
+            target_id=entity.pk + 100,
+        )
+
+        response = self.client.get(
+            "/api/lims/actions/",
+            {"target_type": "lims.entity", "target_id": entity.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.data["results"]], [matching.pk])
+        row = response.data["results"][0]
+        self.assertEqual(row["performed_by"]["id"], self.user.pk)
+        self.assertEqual(row["performed_by"]["username"], self.user.username)
+        self.assertEqual(row["request_id"], str(matching.request_id))
+        self.assertEqual(row["target_type"], "lims.entity")
+        self.assertEqual(row["target_id"], entity.pk)
+
+    def test_generic_target_visibility_is_preserved(self):
+        from core.models import Folder, Project
+
+        hidden_project = Project.objects.create(name="Hidden Project")
+        hidden_folder = Folder.objects.create(
+            name="Hidden", parent=None, project=hidden_project,
+        )
+        hidden_entity = Entity.objects.create(
+            name="Hidden Entity", schema=self.dna_schema,
+            folder=hidden_folder, author=self.user,
+        )
+        LimsAction.objects.create(
+            performed_by=self.user,
+            action="lims.entity.edited",
+            action_type="edited",
+            target_type="lims.entity",
+            target_id=hidden_entity.pk,
+        )
+
+        response = self.client.get(
+            "/api/lims/actions/",
+            {"target_type": "lims.entity", "target_id": hidden_entity.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
 
 
 # ═══════════════════════════════════════════════════════════════════════

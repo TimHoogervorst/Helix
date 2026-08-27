@@ -64,15 +64,23 @@ export async function fetchActions(
   displayId: string,
   actionType?: string,
   since?: string,
-): Promise<ElnAction[]> {
+  url?: string,
+): Promise<PaginatedResponse<ElnAction>> {
+  if (url) {
+    // DRF returns absolute next URLs, while the client expects an API-relative path.
+    const path = url
+      .replace(/^(?:https?:)?\/\/[^/]+/, "")
+      .replace(/^\/api(?=\/)/, "");
+    return get<PaginatedResponse<ElnAction>>(path);
+  }
+
   const params = new URLSearchParams();
   if (actionType) params.set("action_type", actionType);
   if (since) params.set("since", since);
 
   const qs = params.toString();
   const path = `/eln/entries/${displayId}/actions/${qs ? `?${qs}` : ""}`;
-  const data = await get<{ results: ElnAction[] }>(path);
-  return data.results ?? [];
+  return get<PaginatedResponse<ElnAction>>(path);
 }
 
 /**

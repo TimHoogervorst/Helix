@@ -7,6 +7,7 @@ import { registerBlock } from "../registerBlock";
 import { declareSlot } from "../declareSlot";
 import { registerButton } from "../registerButton";
 import { registerIntoSlot } from "../registerIntoSlot";
+import * as barrel from "../index";
 
 /** Reset the singleton between tests. */
 function resetRegistry(): ModRegistry {
@@ -122,18 +123,15 @@ describe("register functions", () => {
 
   // ── Removal tests: eliminated APIs are not importable ─────────────────
 
-  it("registerWorkspace is not exported from the barrel", async () => {
-    const barrel = await import("../index");
+  it("registerWorkspace is not exported from the barrel", () => {
     expect((barrel as Record<string, unknown>).registerWorkspace).toBeUndefined();
   });
 
-  it("registerLibraryItem is not exported from the barrel", async () => {
-    const barrel = await import("../index");
+  it("registerLibraryItem is not exported from the barrel", () => {
     expect((barrel as Record<string, unknown>).registerLibraryItem).toBeUndefined();
   });
 
-  it("registerSidebarAction is not exported from the barrel", async () => {
-    const barrel = await import("../index");
+  it("registerSidebarAction is not exported from the barrel", () => {
     expect((barrel as Record<string, unknown>).registerSidebarAction).toBeUndefined();
   });
 });

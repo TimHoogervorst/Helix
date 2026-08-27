@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { SlotRenderer } from "../SlotRenderer";
 import { ModRegistry } from "../../mod-system/ModRegistry";
 import { WorkspaceBus } from "../WorkspaceBus";
+import { PanelRenderer } from "../PanelRenderer";
 import type {
   SlotContext,
   BlockBinding,
@@ -17,6 +18,10 @@ import type {
 
 function DummyComponent() {
   return null;
+}
+
+function RenderedBlock() {
+  return <div data-testid="slot-rendered-block">Rendered</div>;
 }
 
 function resetRegistry(): ModRegistry {
@@ -224,6 +229,26 @@ describe("SlotRenderer", () => {
     );
 
     expect(getProps()!.bus).toBe(bus);
+  });
+
+  it("mounts a block through the configured renderer without a bus", () => {
+    registry.declareSlot(
+      makeSlotDeclaration({
+        renderer: PanelRenderer,
+      }),
+    );
+    registry.registerBlock(
+      makeBlockRegistration({ component: RenderedBlock }),
+    );
+    registry.registerIntoSlot("eln.editor", "eln.table");
+
+    expect(() =>
+      render(
+        <SlotRenderer slotId="eln.editor" context={defaultContext} />,
+      ),
+    ).not.toThrow();
+
+    expect(screen.getByTestId("slot-rendered-block")).toBeInTheDocument();
   });
 
   it("passes the context to the renderer", () => {

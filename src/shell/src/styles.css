@@ -446,7 +446,7 @@ label {
 
 /* ── ProseMirror (TipTap's inner editor) ── */
 
-.eln-workspace-center {
+.workspace-text-column {
   width: min(100%, var(--layout-text-column));
   margin-left: auto;
   margin-right: auto;

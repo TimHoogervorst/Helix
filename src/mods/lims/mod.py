@@ -68,6 +68,20 @@ def register():
     from mods.lims.services import cascade_entry_status
 
     registry.register_action_model("lims", Action)
+    registry.register_custom_action(
+        mod_id="lims",
+        action_id="lims.entity.tags_attached",
+        label="Tags Attached",
+        core="edited",
+        target_model="mods.lims.models.Entity",
+    )
+    registry.register_custom_action(
+        mod_id="lims",
+        action_id="lims.entity.tag_detached",
+        label="Tag Detached",
+        core="edited",
+        target_model="mods.lims.models.Entity",
+    )
     registry.register_urls(
         "lims", [path("api/lims/", include("mods.lims.urls"))]
     )

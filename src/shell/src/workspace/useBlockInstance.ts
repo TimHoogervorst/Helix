@@ -11,13 +11,13 @@ import type { BlockBinding, BlockInstance } from "../mod-system/types";
  *
  * @param binding  - The resolved block binding from the registry.
  * @param slotId   - The slot this block lives in.
- * @param bus      - The workspace-scoped event bus.
+ * @param bus      - The optional workspace-scoped event bus.
  * @returns The stable BlockInstance handle for the block component.
  */
 export function useBlockInstance(
   binding: BlockBinding,
   slotId: string,
-  bus: WorkspaceBus,
+  bus?: WorkspaceBus,
 ): BlockInstance {
   // Reactive attrs — setState triggers re-render so the returned instance
   // always reflects the latest committed state.  Previously this was a
@@ -66,6 +66,8 @@ export function useBlockInstance(
   // (synced during render).  Omitting `instance` avoids tearing down and
   // recreating subscriptions on every attrs change.
   useEffect(() => {
+    if (!bus) return;
+
     const unsubscribes: Array<() => void> = [];
 
     for (const event of binding.listensTo) {

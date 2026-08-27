@@ -44,24 +44,25 @@ export interface ActivityProps {
   error?: string | null;
   /** Called when the user clicks the retry button in the error state. */
   onRetry?: () => void;
+  /** Whether another server page is available. */
+  hasMore?: boolean;
+  /** Loads and appends the next server page. */
+  onLoadMore?: () => void;
+  /** True while the next page is being fetched. */
+  isLoadingMore?: boolean;
+  /** True while the current save cycle has actions waiting to be flushed. */
+  hasPending?: boolean;
 }
-
-/** Maximum items shown before the "Show all" toggle appears. */
-const PREVIEW_ITEM_COUNT = 10;
 
 /**
  * Cross-mod activity feed component.
  *
  * Renders a chronological list of action log entries with loading, empty,
- * and error states. Shows a 10-item preview with a "Show all (N)" toggle
- * when there are more than 10 items.
+ * and error states. Loaded pages are rendered in full and can be extended
+ * incrementally with the "Show 20 more" button.
  *
- * Supports three visual states per item:
- * - **confirmed** — returned from server with real ID, rendered normally.
- * - **pending**   — optimistically added from bus events, slightly dimmed
- *                   with a subtle pulse animation.
- * - **reconciled** — pending matched to confirmed server row; transitions
- *                    to confirmed state on next render.
+ * Items are persisted action log entries returned by the server. In-flight
+ * changes are represented by the feed-level pending indicator instead.
  *
  * Mod-agnostic — accepts generic `DisplayActionItem[]`. Each mod maps its
  * API response shape into this interface.
@@ -71,13 +72,25 @@ export function Activity({
   isLoading,
   error,
   onRetry,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
+  hasPending = false,
 }: ActivityProps) {
-  const [showAll, setShowAll] = useState(false);
+  const pendingIndicator = hasPending ? (
+    <p
+      className="mb-2 text-sm text-muted-foreground/60 italic"
+      data-testid="activity-unsaved"
+    >
+      Unsaved changes…
+    </p>
+  ) : null;
 
   // ── Loading state ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <section>
+        {pendingIndicator}
         <ul className="space-y-3 text-sm">
           {Array.from({ length: 4 }).map((_, i) => (
             <li key={i} className="flex items-start gap-2 animate-pulse">
@@ -100,6 +113,7 @@ export function Activity({
   if (error) {
     return (
       <section>
+        {pendingIndicator}
         <div data-testid="activity-error">
           <p className="text-sm text-muted-foreground">
             Could not load activity
@@ -122,6 +136,7 @@ export function Activity({
   if (actions.length === 0) {
     return (
       <section>
+        {pendingIndicator}
         <p
           className="text-sm text-muted-foreground/60 italic px-0.5"
           data-testid="activity-empty"
@@ -133,13 +148,11 @@ export function Activity({
   }
 
   // ── Normal state ───────────────────────────────────────────────────────
-  const visible = showAll ? actions : actions.slice(0, PREVIEW_ITEM_COUNT);
-  const hasMore = actions.length > PREVIEW_ITEM_COUNT;
-
   return (
     <section>
+      {pendingIndicator}
       <ul className="space-y-2 text-sm">
-        {visible.map((item) =>
+        {actions.map((item) =>
           isGroup(item) ? (
             <GroupedActivityItem key={item.id} group={item} />
           ) : (
@@ -147,15 +160,16 @@ export function Activity({
           ),
         )}
       </ul>
-      {hasMore && (
+      {hasMore && onLoadMore && (
         <Button
           variant="ghost"
           size="sm"
           className="mt-2"
-          onClick={() => setShowAll((prev) => !prev)}
-          data-testid="activity-show-all"
+          onClick={onLoadMore}
+          disabled={isLoadingMore}
+          data-testid="activity-load-more"
         >
-          {showAll ? "Show less" : `Show all (${actions.length})`}
+          {isLoadingMore ? "Loading..." : "Show 20 more"}
         </Button>
       )}
     </section>
@@ -220,25 +234,16 @@ interface ActivityItemProps {
 }
 
 function ActivityItem({ action, isGroupChild = false }: ActivityItemProps) {
-  const isPending = action.state === "pending";
-  const containerClass = [
-    "flex items-start gap-2",
-    isPending && "opacity-60 animate-pulse",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const dotClass = isPending
-    ? "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50"
-    : "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70";
-
   return (
     <li
-      className={containerClass}
+      className="flex items-start gap-2"
       data-testid={isGroupChild ? "activity-group-child" : "activity-item"}
       data-state={action.state}
     >
-      <span className={dotClass} aria-hidden="true" />
+      <span
+        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70"
+        aria-hidden="true"
+      />
       <span className="min-w-0 flex-1 text-muted-foreground">
         <span className="font-medium text-foreground">
           {actorName(action.performedBy)}

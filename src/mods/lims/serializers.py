@@ -4,6 +4,8 @@ from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Folder, Project
+from mods.tags.serializers import TagSerializer
+from mods.users.serializers import UserSerializer
 
 
 def validate_prefix(value):
@@ -117,6 +119,8 @@ def validate_reference_properties(properties, schema_instance):
 
 
 class EntitySerializer(serializers.ModelSerializer):
+    tags = TagSerializer(many=True, read_only=True)
+    effective_role = serializers.SerializerMethodField()
     schema = serializers.PrimaryKeyRelatedField(
         queryset=Schema.objects.all(),
         required=False,
@@ -135,6 +139,17 @@ class EntitySerializer(serializers.ModelSerializer):
         queryset=Project.objects.all(), required=False,
     )
     project_name = serializers.CharField(source="project.name", read_only=True)
+    schema_columns = serializers.SerializerMethodField()
+    schema_icon = serializers.CharField(source="schema.icon", read_only=True, default="")
+    schema_color = serializers.CharField(source="schema.color", read_only=True, default="")
+    enabled_components = serializers.ListField(
+        source="schema.enabled_components", read_only=True, default=list
+    )
+    folder_path = serializers.SerializerMethodField()
+    project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
+    last_editor_username = serializers.CharField(
+        source="last_editor.username", read_only=True, default=None
+    )
 
     class Meta:
         model = Entity
@@ -151,13 +166,45 @@ class EntitySerializer(serializers.ModelSerializer):
             "folder",
             "project",
             "project_name",
+            "project_uid",
             "author",
             "author_username",
+            "last_editor",
+            "last_editor_username",
             "status",
             "updated_at",
             "created_at",
+            "tags",
+            "effective_role",
+            "schema_columns",
+            "schema_icon",
+            "schema_color",
+            "enabled_components",
+            "folder_path",
         ]
-        read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
+        read_only_fields = [
+            "id",
+            "display_id",
+            "author",
+            "updated_at",
+            "created_at",
+            "tags",
+            "effective_role",
+            "last_editor",
+        ]
+
+    def get_effective_role(self, obj):
+        from mods.access.policies import effective_role
+
+        request = self.context.get("request")
+        return effective_role(request.user, obj) if request else "read"
+
+    def get_schema_columns(self, obj):
+        """Return the hydrated schema columns used to render metadata."""
+        return (obj.schema.schema_type.columns or []) + (obj.schema.columns or [])
+
+    def get_folder_path(self, obj):
+        return obj.folder.path if obj.folder else ""
 
     def validate(self, data):
         folder = data.get("folder")
@@ -295,6 +342,7 @@ class LimsViewSerializer(serializers.ModelSerializer):
 
 class ActionSerializer(serializers.ModelSerializer):
     entity_name = serializers.CharField(source="entity.name", read_only=True)
+    performed_by = UserSerializer(read_only=True)
     performed_by_username = serializers.CharField(
         source="performed_by.username", read_only=True
     )
@@ -310,6 +358,9 @@ class ActionSerializer(serializers.ModelSerializer):
             "performed_by",
             "performed_by_username",
             "source_entry",
+            "request_id",
+            "target_type",
+            "target_id",
             "metadata",
             "created_at",
         ]

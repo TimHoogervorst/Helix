@@ -11,6 +11,7 @@ import type {
   HubConfig,
   RouteConfig,
   SettingsSectionConfig,
+  SchemaComponentRegistration,
 } from "./types";
 
 /**
@@ -282,5 +283,14 @@ export class Mod {
       id: globalId,
       modId: this.manifest.name,
     });
+  }
+
+  /** Register an optional entity workspace tab for this mod. */
+  registerSchemaComponent(
+    name: string,
+    config: Omit<SchemaComponentRegistration, "id">,
+  ): void {
+    const globalId = `${this.manifest.name}.${name}`;
+    ModRegistry.getInstance().registerSchemaComponent({ ...config, id: globalId });
   }
 }

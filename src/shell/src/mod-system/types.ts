@@ -126,6 +126,25 @@ export interface SettingsSectionConfig {
   order: number;
 }
 
+// ── Schema Component ───────────────────────────────────────────────────────
+
+export interface SchemaComponentProps {
+  entity: Record<string, unknown>;
+}
+
+export interface SchemaComponentRegistration {
+  /** Globally unique identifier, e.g. "lims.results". */
+  id: string;
+  /** Human-readable label shown in schema settings and workspace tabs. */
+  label: string;
+  /** Icon displayed beside the component label. */
+  icon: ComponentType<any>;
+  /** Renderer for the component tab. */
+  component: ComponentType<SchemaComponentProps>;
+  /** Lower values are shown first after the Overview tab. */
+  order: number;
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────
 
 export interface RouteConfig {
@@ -475,8 +494,8 @@ export interface RendererProps<T extends BaseBinding = BaseBinding> {
   slotId: string;
   /** Resolved bindings — blocks or buttons, depending on the slot's `accepts`. */
   bindings: T[];
-  /** The workspace-scoped event bus. */
-  bus: WorkspaceBus;
+  /** The optional workspace-scoped event bus. */
+  bus?: WorkspaceBus;
   /** Flat bag of metadata available to all blocks and buttons. */
   context: SlotContext;
 }

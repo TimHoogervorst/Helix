@@ -273,6 +273,30 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(response.data["name"], "DNA Modified")
         self.assertEqual(len(response.data["columns"]), 1)
 
+    def test_schema_components_round_trip_without_registry_validation(self):
+        """Enabled component IDs are persisted as unrestricted strings."""
+        schema = Schema.objects.create(
+            name="DNA", prefix="DNA", schema_type=self.schema_type,
+        )
+        components = ["lims.results", "third-party.unknown"]
+        response = self.client.put(
+            f"/api/schemas/{schema.id}/",
+            {
+                "name": schema.name,
+                "prefix": schema.prefix,
+                "schema_type": self.schema_type.id,
+                "columns": [],
+                "enabled_components": components,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["enabled_components"], components)
+        self.assertEqual(
+            self.client.get(f"/api/schemas/{schema.id}/").data["enabled_components"],
+            components,
+        )
+
     def test_soft_delete_schema(self):
         """DELETE sets is_active=False instead of removing the row."""
         s = Schema.objects.create(

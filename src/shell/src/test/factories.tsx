@@ -67,15 +67,25 @@ const _entityListItemDefaults: EntityListItem = {
   schema: 1,
   schema_name: "Blood Sample",
   schema_prefix: "BLOOD",
+  schema_columns: [],
+  schema_icon: "",
+  schema_color: "",
+  enabled_components: [],
   properties: {},
   source_entry: null,
   source_entry_display_id: null,
   folder: null,
   author: null,
   author_username: null,
+  last_editor: null,
+  last_editor_username: null,
+  folder_path: "",
+  project_uid: null,
   status: "in_progress",
   updated_at: "2025-01-01T00:00:00Z",
   created_at: "2025-01-01T00:00:00Z",
+  tags: [],
+  effective_role: "edit",
 };
 
 /** A single EntityListItem with sensible defaults.
@@ -179,6 +189,7 @@ const _schemaDefaults: Schema = {
   content_hash: "",
   icon: "",
   color: "",
+  enabled_components: [],
 };
 
 /** A single Schema row. */

@@ -42,19 +42,15 @@ export function useTaggableItems({
   // Store baseline tags for cancel reset.
   const baselineRef = useRef<Tag[]>(initialTags);
 
-  // Derive a stable key from tag IDs so the effect only fires when
-  // the tag set actually changes, not on every re-render.
-  const initialTagIds = initialTags
-    .map((t) => t.id)
-    .sort((a, b) => a - b)
-    .join(",");
+  // Synchronize both membership and server-provided tag details.
+  const initialTagKey = JSON.stringify(initialTags);
   useEffect(() => {
     setTags(initialTags);
     baselineRef.current = initialTags;
     // Reset pending IDs when initial tags change (e.g., new entity load).
     setPendingTagIds([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTagIds]);
+  }, [initialTagKey]);
 
   // ── Reset to baseline ──
   const resetToBaseline = useCallback(() => {

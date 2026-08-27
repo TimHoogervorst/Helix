@@ -7,5 +7,5 @@ if (!Range.prototype.getBoundingClientRect) {
 }
 
 if (!Range.prototype.getClientRects) {
-  Range.prototype.getClientRects = () => [];
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
 }

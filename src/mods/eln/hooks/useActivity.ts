@@ -1,75 +1,91 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useActivity as useSharedActivity,
+  type ActivitySubject,
+  type UseActivityResult,
+} from "../../../shell/src/shared/hooks/useActivity";
+import type { DisplayActionItem, ActionUser } from "../../../shell/src/shared/types/actions";
 import { fetchActions } from "../api";
 import type { ElnAction } from "../types";
 
-export interface UseActivityResult {
-  /** All actions for the entry, most recent first. */
+function mapActionUser(u: ElnAction["performed_by"]): ActionUser {
+  return {
+    id: u.id,
+    username: u.username,
+    firstName: u.first_name,
+    lastName: u.last_name,
+    color: u.color,
+  };
+}
+
+export function mapElnAction(a: ElnAction): DisplayActionItem {
+  return {
+    id: a.id,
+    performedBy: mapActionUser(a.performed_by),
+    action: a.action,
+    actionType: a.action_type,
+    targetType: a.target_type,
+    targetId: a.target_id,
+    requestId: a.request_id ?? undefined,
+    metadata: a.metadata,
+    createdAt: a.created_at,
+    state: "confirmed",
+  };
+}
+
+/** Bind the shared activity core to the ELN entry actions endpoint. */
+export function useElnActivity(entryId: string | undefined): UseActivityResult {
+  const subject = useMemo<ActivitySubject<ElnAction>>(
+    () => ({
+      key: entryId,
+      fetchPage: (url) => fetchActions(entryId ?? "", undefined, undefined, url),
+      map: mapElnAction,
+    }),
+    [entryId],
+  );
+
+  return useSharedActivity(subject);
+}
+
+export interface LegacyActivityResult {
   actions: ElnAction[];
-  /** True while the initial fetch is in flight. */
   isLoading: boolean;
-  /** Non-null if the fetch failed. */
   error: string | null;
-  /** Manually re-fetch actions (e.g. for error retry). */
   refetch: () => void;
 }
 
-/**
- * Fetch all actions for an ELN entry.
- *
- * Consolidates what were previously two separate fetchEffects in ElnWorkspace
- * (avatar row + last-editor info) into a single API call.
- *
- * Stays idle when `entryId` is undefined — no network request is made.
- */
-export function useActivity(entryId: string | undefined): UseActivityResult {
+/** Raw action compatibility used by the ELN header's editor avatars. */
+export function useActivity(entryId: string | undefined): LegacyActivityResult {
   const [actions, setActions] = useState<ElnAction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
-  // Track the current entryId so we can suppress stale responses.
-  const [fetchKey, setFetchKey] = useState(0);
-
-  const doFetch = useCallback(() => {
+  useEffect(() => {
     if (!entryId) {
       setActions([]);
       setIsLoading(false);
       setError(null);
       return;
     }
-
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-
     fetchActions(entryId)
-      .then((result) => {
-        if (!cancelled) {
-          setActions(result);
-          setIsLoading(false);
-        }
+      .then((page) => {
+        if (!cancelled) setActions(page.results);
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          const message =
-            err instanceof Error ? err.message : "Failed to load activity";
-          setError(message);
-          setIsLoading(false);
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load activity");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
       });
-
     return () => {
       cancelled = true;
     };
-  }, [entryId, fetchKey]);
+  }, [entryId, version]);
 
-  useEffect(() => {
-    const cleanup = doFetch();
-    return cleanup;
-  }, [doFetch]);
-
-  const refetch = useCallback(() => {
-    setFetchKey((k) => k + 1);
-  }, []);
-
+  const refetch = useCallback(() => setVersion((current) => current + 1), []);
   return { actions, isLoading, error, refetch };
 }

@@ -20,8 +20,7 @@ import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
 import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
 import MoreActions from "../components/MoreActions";
 import ContentLoadingSkeleton from "../components/ContentLoadingSkeleton";
-import { TagPill } from "../../tags/ui";
-import { TagAutocomplete } from "../../tags/ui";
+import { TagSection } from "../../tags/ui";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import NotFound from "../../../shell/src/shared/components/NotFound";
@@ -375,7 +374,7 @@ function ElnChrome({
                   )}
 
                   {/* ── Content area ── */}
-                  <div className="eln-workspace-center">
+                  <div className="workspace-text-column">
 
                     {/* Metadata line */}
                     <div
@@ -439,24 +438,11 @@ function ElnChrome({
                     />
 
                     {/* Tags */}
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="tags-section">
-                      {tags.map((tag) => (
-                        <TagPill
-                          key={tag.id}
-                          tag={tag}
-                          onRemove={isLockedByOther ? undefined : onRemoveTag}
-                        />
-                      ))}
-
-                      {!isLockedByOther && (
-                        <TagAutocomplete
-                          attachedTagIds={tags.map((t) => t.id)}
-                          onTagSelect={onAddTag}
-                          allowCreate={false}
-                          placeholder="Search tags…"
-                        />
-                      )}
-                    </div>
+                    <TagSection
+                      tags={tags}
+                      onAddTag={isLockedByOther ? undefined : onAddTag}
+                      onRemoveTag={isLockedByOther ? undefined : onRemoveTag}
+                    />
 
                     {/* Hairline divider */}
                     <div className="my-6 h-px bg-hairline" data-testid="content-divider" />
@@ -483,7 +469,7 @@ function ElnChrome({
                   </div>
                   <button
                     type="button"
-                    className="eln-end-of-entry eln-workspace-center block w-full border-0 bg-transparent p-0 text-left"
+                    className="eln-end-of-entry workspace-text-column block w-full border-0 bg-transparent p-0 text-left"
                     data-testid="end-of-entry"
                     onClick={() => !isLockedByOther && onAppendParagraph()}
                   >

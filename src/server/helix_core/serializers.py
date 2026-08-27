@@ -130,6 +130,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
             "content_hash",
             "icon",
             "color",
+            "enabled_components",
         ]
         read_only_fields = ["id", "content_hash"]
 
@@ -138,6 +139,9 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
     """Serializer for Schema create/update — validates prefix and columns."""
     prefix = serializers.CharField(validators=[validate_prefix])
     columns = serializers.JSONField(validators=[validate_columns])
+    enabled_components = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
@@ -158,6 +162,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "content_hash",
             "icon",
             "color",
+            "enabled_components",
         ]
         read_only_fields = ["id", "is_default", "content_hash", "schema_type_display"]
 

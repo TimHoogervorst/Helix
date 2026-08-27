@@ -664,9 +664,13 @@ describe("TipTapRenderer", () => {
   it("emits {workspaceId}.action.performed on successful flush", async () => {
     const mockFlush = vi.fn().mockResolvedValue(undefined);
     const actionPerformedPayloads: unknown[] = [];
+    const pendingSignals: unknown[] = [];
+    const flushedSignals: unknown[] = [];
     bus.on("eln.action.performed", (payload) => {
       actionPerformedPayloads.push(payload);
     });
+    bus.on("eln.actions.pending", (payload) => pendingSignals.push(payload));
+    bus.on("eln.actions.flushed", (payload) => flushedSignals.push(payload));
 
     const capture = captureEditor();
     const bindings: BlockBinding[] = [
@@ -731,6 +735,8 @@ describe("TipTapRenderer", () => {
     await vi.waitFor(() => {
       expect(actionPerformedPayloads.length).toBeGreaterThanOrEqual(1);
     });
+    expect(pendingSignals).toHaveLength(1);
+    expect(flushedSignals).toHaveLength(1);
 
     const payload = actionPerformedPayloads[0] as Record<string, unknown>;
     expect(payload.action).toBe("eln.table.created");
@@ -751,9 +757,13 @@ describe("TipTapRenderer", () => {
       .mockImplementation(() => {});
     const mockFlush = vi.fn().mockRejectedValue(new Error("Network error"));
     const actionPerformedPayloads: unknown[] = [];
+    const pendingSignals: unknown[] = [];
+    const flushedSignals: unknown[] = [];
     bus.on("eln.action.performed", (payload) => {
       actionPerformedPayloads.push(payload);
     });
+    bus.on("eln.actions.pending", (payload) => pendingSignals.push(payload));
+    bus.on("eln.actions.flushed", (payload) => flushedSignals.push(payload));
 
     const capture = captureEditor();
     const bindings: BlockBinding[] = [
@@ -821,6 +831,8 @@ describe("TipTapRenderer", () => {
 
     // No action.performed events should have been emitted
     expect(actionPerformedPayloads.length).toBe(0);
+    expect(pendingSignals).toHaveLength(1);
+    expect(flushedSignals).toHaveLength(0);
     expect(consoleWarnSpy).toHaveBeenCalled();
 
     consoleWarnSpy.mockRestore();

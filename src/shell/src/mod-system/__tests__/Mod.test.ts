@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Mod } from "../Mod";
 import { BlockEvent } from "../BlockEvent";
 import { ModRegistry } from "../ModRegistry";
-import type { ModManifest, BlockRegistration } from "../types";
+import type {
+  ModManifest,
+  BlockRegistration,
+} from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -372,6 +375,23 @@ describe("Mod", () => {
       expect(section).toBeDefined();
       expect(section?.modId).toBe("tags");
       expect(section?.label).toBe("Labelling");
+    });
+  });
+
+  describe("registerSchemaComponent", () => {
+    it("derives a namespaced component ID", () => {
+      const mod = new Mod(makeTestManifest({ name: "lims" }));
+      mod.registerSchemaComponent("results", {
+        label: "Results",
+        icon: DummyComponent,
+        component: DummyComponent,
+        order: 10,
+      });
+
+      expect(registry.getSchemaComponents()[0]).toMatchObject({
+        id: "lims.results",
+        label: "Results",
+      });
     });
   });
 

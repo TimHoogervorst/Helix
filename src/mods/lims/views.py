@@ -8,11 +8,13 @@ from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
 from helix_core.actions.logger import log_action
-from helix_core.actions.mixins import ActionLoggingMixin
+from helix_core.actions.mixins import ActionLoggingMixin, logs_action
+from helix_core.models import SchemaType
 from mods.access.permissions import IsOrganizationAdmin
 from mods.access.scoping import visible_rows_q
 
 from .models import Entity, Action, LimsView, Metric
+from mods.tags.models import Tag
 from .serializers import (
     EntitySerializer,
     validate_reference_properties,
@@ -64,7 +66,12 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     delete_all: DELETE /api/lims/entities/delete_all/ — delete all entities
     """
 
-    queryset = Entity.objects.select_related("schema", "author", "folder")
+    queryset = (
+        Entity.objects.select_related(
+            "schema", "schema__schema_type", "author", "last_editor", "folder", "project",
+        )
+        .prefetch_related("tags")
+    )
     serializer_class = EntitySerializer
     lookup_field = "display_id"
     filterset_fields = ["schema"]
@@ -77,7 +84,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action in ("list", "retrieve"):
+        if self.action in ("list", "retrieve", "results"):
             queryset = queryset.filter(visible_rows_q(self.request.user))
         return queryset
 
@@ -185,6 +192,93 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             instance=serializer.instance,
             validated_data=serializer.validated_data,
         )
+
+    @logs_action(
+        "lims.entity.tags_attached",
+        get_metadata=lambda inst, data, req: {"tag_ids": req.data.get("tag_ids", [])},
+    )
+    @action(detail=True, methods=["post"], url_path="tags")
+    def attach_tags(self, request, display_id=None):
+        entity = self.get_object()
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        if effective_role(request.user, entity) != "edit":
+            raise PermissionDenied("You do not have permission to edit this entity.")
+        tag_ids = request.data.get("tag_ids", [])
+        if not isinstance(tag_ids, list):
+            return Response(
+                {"error": "tag_ids must be a list"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        entity.tags.add(*Tag.objects.filter(id__in=tag_ids))
+        return Response(self.get_serializer(entity).data)
+
+    @logs_action(
+        "lims.entity.tag_detached",
+        get_metadata=lambda inst, data, req: {
+            "tag_id": int(req.resolver_match.kwargs["tag_id"])
+        },
+    )
+    @action(detail=True, methods=["delete"], url_path="tags/(?P<tag_id>[^/.]+)")
+    def detach_tag(self, request, display_id=None, tag_id=None):
+        entity = self.get_object()
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        if effective_role(request.user, entity) != "edit":
+            raise PermissionDenied("You do not have permission to edit this entity.")
+        try:
+            tag = Tag.objects.get(id=tag_id)
+        except Tag.DoesNotExist:
+            return Response({"error": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
+        entity.tags.remove(tag)
+        return Response(self.get_serializer(entity).data)
+
+    @action(detail=True, methods=["get"], url_path="results")
+    def results(self, request, display_id=None):
+        """Return readable ResultTable rows linked to this entity."""
+        entity = self.get_object()
+        result_schema_type_ids = [
+            schema_type.pk
+            for schema_type in SchemaType.objects.only("pk", "tags")
+            if "ResultTable" in (schema_type.tags or [])
+        ]
+        result_entities = (
+            Entity.objects.filter(
+                schema__schema_type_id__in=result_schema_type_ids,
+                properties__Entity=entity.display_id,
+            )
+            .filter(visible_rows_q(request.user))
+            .select_related("schema", "schema__schema_type", "author")
+            .order_by("schema_id", "created_at")
+        )
+
+        groups = {}
+        for result in result_entities:
+            schema = result.schema
+            group = groups.setdefault(
+                schema.pk,
+                {
+                    "schema": {
+                        "id": schema.pk,
+                        "name": schema.name,
+                        "icon": schema.icon,
+                        "color": schema.color,
+                        "columns": (schema.schema_type.columns or []) + (schema.columns or []),
+                    },
+                    "results": [],
+                },
+            )
+            group["results"].append({
+                "display_id": result.display_id,
+                "name": result.name,
+                "created_at": result.created_at,
+                "author_username": result.author.username,
+                "properties": result.properties,
+            })
+
+        return Response(list(groups.values()))
 
     def filter_queryset(self, queryset):
         # Support ?type= as an alias for ?schema=
@@ -766,7 +860,7 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     """
 
     serializer_class = ActionSerializer
-    filterset_fields = ["entity", "action_type"]
+    filterset_fields = ["entity", "action_type", "target_type", "target_id"]
 
     def get_queryset(self):
         visible_entities = Entity.objects.filter(

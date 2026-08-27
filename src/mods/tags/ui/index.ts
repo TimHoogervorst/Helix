@@ -1,3 +1,4 @@
 export { TagPill } from "./TagPill";
 export { TagPicker } from "./TagPicker";
 export { TagAutocomplete } from "./TagAutocomplete";
+export { TagSection } from "./TagSection";

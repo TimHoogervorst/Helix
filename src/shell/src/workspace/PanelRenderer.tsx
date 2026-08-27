@@ -57,6 +57,8 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
     for (const e of binding.emits) {
       emits[e.id] = {
         fire: (payload: Record<string, unknown>) => {
+          if (!bus) return;
+
           bus.emit(`${binding.id}.${e.id}`, {
             blockInstanceId: instance.id,
             blockId: binding.id,
@@ -76,6 +78,8 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
     () => ({
       ...context,
       emitAction: (localId: string, payload?: Record<string, unknown>) => {
+        if (!bus) return;
+
         bus.emit(`${binding.id}.${localId}`, {
           blockInstanceId: instance.id,
           blockId: binding.id,

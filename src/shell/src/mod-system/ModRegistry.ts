@@ -1,6 +1,7 @@
 import type {
   HubConfig,
   SettingsSectionConfig,
+  SchemaComponentRegistration,
   RouteConfig,
   ServiceConfig,
   WorkspaceConfig,
@@ -128,6 +129,7 @@ export class ModRegistry {
 
   private hubs = new Map<string, HubConfig>();
   private settingsSections = new Map<string, SettingsSectionConfig>();
+  private schemaComponents = new Map<string, SchemaComponentRegistration>();
   private routes = new Map<string, RouteConfig>();
   private services = new Map<string, ServiceConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
@@ -181,6 +183,15 @@ export class ModRegistry {
       );
     }
     this.settingsSections.set(config.id, config);
+  }
+
+  registerSchemaComponent(config: SchemaComponentRegistration): void {
+    if (this.schemaComponents.has(config.id)) {
+      throw new Error(
+        `Duplicate Schema Component registration: '${config.id}' is already registered.`,
+      );
+    }
+    this.schemaComponents.set(config.id, config);
   }
 
   registerRoute(config: RouteConfig): void {
@@ -630,6 +641,11 @@ export class ModRegistry {
    */
   getColumnType(typeId: string): BackendColumnType | undefined {
     return this.columnTypes.get(typeId);
+  }
+
+  /** Returns all registered Schema Components sorted by order. */
+  getSchemaComponents(): SchemaComponentRegistration[] {
+    return [...this.schemaComponents.values()].sort((a, b) => a.order - b.order);
   }
 
   /** Return the complete backend formula catalog. */

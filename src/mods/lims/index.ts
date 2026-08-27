@@ -1,4 +1,4 @@
-import { Cog, Info, LayoutList, Microscope, Users } from "lucide-react";
+import { Cog, Database, Info, LayoutList, Microscope, Users } from "lucide-react";
 import { Mod } from "../../shell/src/mod-system/Mod";
 import type { ModManifest } from "../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
@@ -8,9 +8,18 @@ import EntitiesHub from "./hub/EntitiesHub";
 import { SelectionBlock } from "./blocks/SelectionBlock";
 import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
+import { ActivityFeedBlock } from "./blocks/ActivityFeedBlock";
 import manifest from "./modManifest.json";
+import ResultsTab from "./workspace/ResultsTab";
 
 const mod = new Mod(manifest as ModManifest);
+
+mod.registerSchemaComponent("results", {
+  label: "Results",
+  icon: Database,
+  component: ResultsTab,
+  order: 10,
+});
 
 // ── Standalone route: full entity workspace page ──────────────────────
 mod.registerRoute("entity-page", {
@@ -77,6 +86,19 @@ export const globalViewsBlock = mod.registerBlock("global-views", {
   label: "Global Views",
   icon: Users,
   component: GlobalViewsBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
+
+// ── Block: Entity Activity Feed ─────────────────────────────────────────
+export const activityFeedBlock = mod.registerBlock("activity-feed", {
+  label: "Activity Feed",
+  icon: History,
+  component: ActivityFeedBlock,
   listensTo: [],
   onEvent: {},
   emits: [],

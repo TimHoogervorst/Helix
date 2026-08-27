@@ -1,4 +1,5 @@
 import type { RendererProps, ButtonBinding } from "../mod-system/types";
+import type { WorkspaceBus } from "./WorkspaceBus";
 
 /**
  * Renders buttons horizontally sorted by order.
@@ -15,7 +16,7 @@ export function ButtonGroupRenderer({
   bindings,
   bus,
   context,
-}: RendererProps<ButtonBinding>) {
+}: Omit<RendererProps<ButtonBinding>, "bus"> & { bus: WorkspaceBus }) {
   // slotId is available but unused — buttons don't need slot identity
   if (bindings.length === 0) return null;
 

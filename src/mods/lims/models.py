@@ -105,6 +105,11 @@ class Entity(AbstractEntity):
         blank=True,
         related_name="lims_entities",
     )
+    tags = models.ManyToManyField(
+        "tags.Tag",
+        related_name="+",
+        db_table="lims_tag_entities",
+    )
 
     class Meta:
         db_table = "lims_entity"

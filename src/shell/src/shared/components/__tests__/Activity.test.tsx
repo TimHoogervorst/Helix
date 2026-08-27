@@ -1,8 +1,8 @@
 /**
  * Integration tests for the Activity component — rendering, grouping, expand/collapse,
- * group children, pending items, and "Show all" toggle.
+ * group children, pending items, and incremental pagination.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { Activity } from "../Activity";
 import type {
@@ -139,17 +139,15 @@ describe("Activity", () => {
     expect(screen.getByText("Created an entry")).toBeInTheDocument();
   });
 
-  it("renders a pending item with pulse styling", () => {
-    const item = makePendingItem({
-      metadata: { message: "Editing in progress" },
-    });
-    render(<Activity actions={[item]} />);
+  it("renders the unsaved changes indicator", () => {
+    const { rerender } = render(<Activity actions={[]} hasPending />);
 
-    const row = screen.getByTestId("activity-item");
-    expect(row.dataset.state).toBe("pending");
-    // Pending rows have opacity-60 and animate-pulse classes
-    expect(row.className).toContain("opacity-60");
-    expect(row.className).toContain("animate-pulse");
+    expect(screen.getByTestId("activity-unsaved")).toHaveTextContent(
+      "Unsaved changes…",
+    );
+
+    rerender(<Activity actions={[]} />);
+    expect(screen.queryByTestId("activity-unsaved")).not.toBeInTheDocument();
   });
 
   it("falls back to humanized action type when metadata.message is absent", () => {
@@ -316,13 +314,11 @@ describe("Activity", () => {
     const rows = screen.getAllByTestId("activity-item");
     expect(rows).toHaveLength(2);
 
-    // First row is pending with pulse
+    // Pending rows are rendered as ordinary persisted-style rows.
     expect(rows[0].dataset.state).toBe("pending");
-    expect(rows[0].className).toContain("animate-pulse");
 
-    // Second row is confirmed, no pulse
+    // Second row is confirmed.
     expect(rows[1].dataset.state).toBe("confirmed");
-    expect(rows[1].className).not.toContain("animate-pulse");
   });
 
   it("does not wrap a single pending item in a group toggle", () => {
@@ -359,115 +355,25 @@ describe("Activity", () => {
     expect(flatRows.length).toBeGreaterThanOrEqual(3);
   });
 
-  // ── "Show all / Show less" toggle ──────────────────────────────────────
+  // ── Incremental pagination ─────────────────────────────────────────────
 
-  it("shows the first 10 items by default and a 'Show all (N)' toggle", () => {
+  it("renders every loaded item and offers the next page when available", () => {
     const items: FeedItem[] = Array.from({ length: 15 }, (_, i) =>
-      makeItem({
-        id: i + 1,
-        requestId: `req-${i}`,
-        metadata: { message: `Action ${i + 1}` },
-      }),
+      makeItem({ id: i + 1, metadata: { message: `Action ${i + 1}` } }),
     );
-    render(<Activity actions={items} />);
+    const onLoadMore = vi.fn();
+    render(<Activity actions={items} hasMore onLoadMore={onLoadMore} />);
 
-    const toggle = screen.getByTestId("activity-show-all");
-    expect(toggle).toBeInTheDocument();
-    expect(toggle.textContent).toBe("Show all (15)");
-
-    // Only 10 items visible
-    const rows = screen.getAllByTestId("activity-item");
-    expect(rows).toHaveLength(10);
+    expect(screen.getAllByTestId("activity-item")).toHaveLength(15);
+    const button = screen.getByTestId("activity-load-more");
+    expect(button.textContent).toBe("Show 20 more");
+    fireEvent.click(button);
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
 
-  it("shows all items when 'Show all' is clicked", async () => {
-    const items: FeedItem[] = Array.from({ length: 15 }, (_, i) =>
-      makeItem({
-        id: i + 1,
-        requestId: `req-${i}`,
-        metadata: { message: `Action ${i + 1}` },
-      }),
-    );
-    render(<Activity actions={items} />);
-
-    const toggle = screen.getByTestId("activity-show-all");
-    fireEvent.click(toggle);
-
-    expect(toggle.textContent).toBe("Show less");
-    const rows = screen.getAllByTestId("activity-item");
-    expect(rows).toHaveLength(15);
-  });
-
-  it('collapses back to 10 items when "Show less" is clicked', async () => {
-    const items: FeedItem[] = Array.from({ length: 15 }, (_, i) =>
-      makeItem({
-        id: i + 1,
-        requestId: `req-${i}`,
-        metadata: { message: `Action ${i + 1}` },
-      }),
-    );
-    render(<Activity actions={items} />);
-
-    const toggle = screen.getByTestId("activity-show-all");
-    fireEvent.click(toggle); // Show all
-    fireEvent.click(toggle); // Show less
-
-    expect(toggle.textContent).toBe("Show all (15)");
-    const rows = screen.getAllByTestId("activity-item");
-    expect(rows).toHaveLength(10);
-  });
-
-  it("counts group items in the 'Show all' total", () => {
-    // 5 groups + 3 singles = 8 total feed items
-    const groups: FeedItem[] = [
-      makeGroup({ id: "group-1" }),
-      makeGroup({ id: "group-2" }),
-      makeGroup({ id: "group-3" }),
-      makeGroup({ id: "group-4" }),
-      makeGroup({ id: "group-5" }),
-      makeItem({ id: 10, requestId: "req-a", metadata: { message: "A" } }),
-      makeItem({ id: 11, requestId: "req-b", metadata: { message: "B" } }),
-      makeItem({ id: 12, requestId: "req-c", metadata: { message: "C" } }),
-    ];
-    render(<Activity actions={groups} />);
-
-    // 8 items ≤ 10, so no toggle needed
-    expect(
-      screen.queryByTestId("activity-show-all"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("counts group items in the 'Show all' total when there are many", () => {
-    // 9 groups + 3 singles = 12 feed items > 10, should see toggle
-    const groups: FeedItem[] = [
-      ...Array.from({ length: 9 }, (_, i) =>
-        makeGroup({ id: `group-${i}` }),
-      ),
-      makeItem({ id: 100, requestId: "req-a", metadata: { message: "A" } }),
-      makeItem({ id: 101, requestId: "req-b", metadata: { message: "B" } }),
-      makeItem({ id: 102, requestId: "req-c", metadata: { message: "C" } }),
-    ];
-    render(<Activity actions={groups} />);
-
-    const toggle = screen.getByTestId("activity-show-all");
-    expect(toggle.textContent).toBe("Show all (12)");
-  });
-
-  // ── No toggle when 10 or fewer items ────────────────────────────────────
-
-  it("does not show the toggle when there are 10 or fewer items", () => {
-    const items: FeedItem[] = Array.from({ length: 10 }, (_, i) =>
-      makeItem({
-        id: i + 1,
-        requestId: `req-${i}`,
-        metadata: { message: `Action ${i + 1}` },
-      }),
-    );
-    render(<Activity actions={items} />);
-
-    expect(
-      screen.queryByTestId("activity-show-all"),
-    ).not.toBeInTheDocument();
+  it("does not offer pagination when the last page is loaded", () => {
+    render(<Activity actions={[makeItem()]} hasMore={false} onLoadMore={vi.fn()} />);
+    expect(screen.queryByTestId("activity-load-more")).not.toBeInTheDocument();
   });
 
   // ── Multiple independent groups ─────────────────────────────────────────

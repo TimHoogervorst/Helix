@@ -48,6 +48,9 @@ export interface LibraryEntryItem {
   workspace_id: string;
   display_id: string;
   title: string;
+  source_type: number;
+  source_type_name: string;
+  source_id: number;
   author_username: string | null;
   author_info: AuthorInfo | null;
   status: string;

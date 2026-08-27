@@ -184,11 +184,15 @@ class LibraryContentsView(APIView):
             shared_items = []
 
         # ── Entries ──────────────────────────────────────────────────
-        entry_filters = {"folder": None, "project": project} if is_at_root else {"folder": folder}
+        source_type = ContentType.objects.get_for_model(folder)
+        source_id = folder.pk
+        if is_at_root:
+            source_type = ContentType.objects.get_for_model(project)
+            source_id = project.pk
         entries_qs = (
             apps.get_model("eln", "NotebookEntry")
-            .objects.filter(**entry_filters)
-            .select_related("author", "folder", "schema")
+            .objects.filter(source_type=source_type, source_id=source_id)
+            .select_related("author", "schema", "source_type")
             .prefetch_related("tags")
             .order_by("-created_at")
         )
@@ -254,8 +258,9 @@ class LibraryContentsView(APIView):
                     "workspace_id": "eln",
                     "display_id": e.display_id,
                     "title": e.name,
-                    "folder": e.folder_id,
-                    "folder_name": e.folder.name if e.folder else None,
+                    "source_type": e.source_type_id,
+                    "source_type_name": e.source_type.model,
+                    "source_id": e.source_id,
                     "author_username": e.author.username if e.author else None,
                     "author_info": (
                         UserSerializer(e.author).data if e.author else None
@@ -318,7 +323,18 @@ def _resolve_source(kind, source_id):
 
 def _children_qs(model, parent):
     content_type = ContentType.objects.get_for_model(parent, for_concrete_model=False)
-    return model.objects.filter(source_type=content_type, source_id=parent.pk)
+    return model.objects.filter(
+        source_type=content_type,
+        source_id=parent.pk,
+    ).select_related("source_type")
+
+
+def _source_fields(item):
+    return {
+        "source_type": item.source_type_id,
+        "source_type_name": item.source_type.model,
+        "source_id": item.source_id,
+    }
 
 
 def _children_count(item, user):
@@ -377,8 +393,7 @@ def _entry_item(entry, user):
         "workspace_id": "eln",
         "display_id": entry.display_id,
         "title": entry.name,
-        "folder": entry.folder_id,
-        "folder_name": entry.folder.name if entry.folder else None,
+        **_source_fields(entry),
         "author_username": entry.author.username if entry.author else None,
         "author_info": UserSerializer(entry.author).data if entry.author else None,
         "status": entry.status,
@@ -403,8 +418,7 @@ def _entity_item(entity, user):
         "workspace_id": "lims",
         "display_id": entity.display_id,
         "title": entity.name,
-        "folder": entity.folder_id,
-        "folder_name": entity.folder.name if entity.folder else None,
+        **_source_fields(entity),
         "author_username": entity.author.username if entity.author else None,
         "author_info": UserSerializer(entity.author).data if entity.author else None,
         "status": entity.status,

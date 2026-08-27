@@ -5,6 +5,7 @@ from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Folder, Project
 from mods.tags.serializers import TagSerializer
+from mods.users.serializers import UserSerializer
 
 
 def validate_prefix(value):
@@ -314,6 +315,7 @@ class LimsViewSerializer(serializers.ModelSerializer):
 
 class ActionSerializer(serializers.ModelSerializer):
     entity_name = serializers.CharField(source="entity.name", read_only=True)
+    performed_by = UserSerializer(read_only=True)
     performed_by_username = serializers.CharField(
         source="performed_by.username", read_only=True
     )
@@ -329,6 +331,9 @@ class ActionSerializer(serializers.ModelSerializer):
             "performed_by",
             "performed_by_username",
             "source_entry",
+            "request_id",
+            "target_type",
+            "target_id",
             "metadata",
             "created_at",
         ]

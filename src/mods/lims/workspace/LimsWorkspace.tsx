@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { EntityListItem } from "../types";
+import { ActivityFeedBlock } from "../blocks/ActivityFeedBlock";
 
 /** Tab configuration — canonical source for entity workspace tabs. */
 interface TabConfig {
@@ -29,7 +30,7 @@ interface LimsWorkspaceProps {
   children?: ReactNode;
 }
 
-function LimsWorkspace({ entity: _entity, isExiting, children }: LimsWorkspaceProps) {
+function LimsWorkspace({ entity, isExiting, children }: LimsWorkspaceProps) {
   const [activeTab, setActiveTab] = useState(ENTITY_TABS[0].id);
 
   const panelClass = `lims-workspace-panel${isExiting ? " is-exiting" : ""}`;
@@ -52,7 +53,28 @@ function LimsWorkspace({ entity: _entity, isExiting, children }: LimsWorkspacePr
         <div className="lims-tab-content">
           {ENTITY_TABS.map((tab) =>
             activeTab === tab.id ? (
-              <PlaceholderTab key={tab.id} label={tab.label} />
+              tab.id === "activity" ? (
+                <ActivityFeedBlock
+                  key={tab.id}
+                  context={{
+                    workspaceId: "lims",
+                    user: null,
+                    viewMode: "view",
+                    entityId: String(entity.id),
+                    displayId: entity.display_id,
+                  }}
+                  instance={{
+                    id: "lims.activity-feed::workspace",
+                    blockId: "lims.activity-feed",
+                    slotId: "lims.entity-workspace",
+                    attrs: {},
+                    updateAttrs: () => undefined,
+                  }}
+                  overrides={{}}
+                />
+              ) : (
+                <PlaceholderTab key={tab.id} label={tab.label} />
+              )
             ) : null,
           )}
         </div>

@@ -1,4 +1,4 @@
-import { Cog, Info, LayoutList, Microscope, Users } from "lucide-react";
+import { Cog, History, Info, LayoutList, Microscope, Users } from "lucide-react";
 import { Mod } from "../../shell/src/mod-system/Mod";
 import type { ModManifest } from "../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
@@ -8,6 +8,7 @@ import EntitiesHub from "./hub/EntitiesHub";
 import { SelectionBlock } from "./blocks/SelectionBlock";
 import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
+import { ActivityFeedBlock } from "./blocks/ActivityFeedBlock";
 import manifest from "./modManifest.json";
 
 const mod = new Mod(manifest as ModManifest);
@@ -77,6 +78,19 @@ export const globalViewsBlock = mod.registerBlock("global-views", {
   label: "Global Views",
   icon: Users,
   component: GlobalViewsBlock,
+  listensTo: [],
+  onEvent: {},
+  emits: [],
+  serialize: () => "{}",
+  deserialize: () => ({}),
+  defaultState: {},
+});
+
+// ── Block: Entity Activity Feed ─────────────────────────────────────────
+export const activityFeedBlock = mod.registerBlock("activity-feed", {
+  label: "Activity Feed",
+  icon: History,
+  component: ActivityFeedBlock,
   listensTo: [],
   onEvent: {},
   emits: [],

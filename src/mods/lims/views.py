@@ -812,7 +812,7 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     """
 
     serializer_class = ActionSerializer
-    filterset_fields = ["entity", "action_type"]
+    filterset_fields = ["entity", "action_type", "target_type", "target_id"]
 
     def get_queryset(self):
         visible_entities = Entity.objects.filter(

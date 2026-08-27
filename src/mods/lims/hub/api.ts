@@ -7,6 +7,8 @@ import type {
   LimsViewItem,
   LimsViewCreatePayload,
   LimsViewUpdatePayload,
+  LimsAction,
+  PaginatedResponse,
 } from "../types";
 
 // ── Query params accepted by GET /api/registry/entities/ ──────────────────
@@ -44,6 +46,25 @@ export function getEntities(filters?: EntityHubFilters): Promise<EntityHubRespon
   }
   const qs = params.toString();
   return get(`/registry/entities/${qs ? `?${qs}` : ""}`);
+}
+
+/** Fetch one page of actions for an entity, or follow a DRF next URL. */
+export function fetchEntityActions(
+  entityId: string,
+  url?: string,
+): Promise<PaginatedResponse<LimsAction>> {
+  if (url) {
+    const path = url
+      .replace(/^(?:https?:)?\/\/[^/]+/, "")
+      .replace(/^\/api(?=\/)/, "");
+    return get(path);
+  }
+
+  const params = new URLSearchParams({
+    target_type: "lims.entity",
+    target_id: entityId,
+  });
+  return get(`/lims/actions/?${params.toString()}`);
 }
 
 export function attachEntityTags(

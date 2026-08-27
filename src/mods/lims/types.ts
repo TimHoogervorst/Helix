@@ -93,6 +93,28 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+/** User summary embedded in a LIMS action response. */
+export interface LimsActionUser {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  color: string;
+}
+
+/** An action log entry returned by the LIMS actions endpoint. */
+export interface LimsAction {
+  id: number;
+  action: string;
+  action_type: string;
+  target_type: string;
+  target_id: number;
+  request_id?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  performed_by: LimsActionUser | null;
+}
+
 // ── Entities Hub ─────────────────────────────────────────────────────────
 
 /** A row from the entity_hub_view as returned by GET /api/registry/entities. */

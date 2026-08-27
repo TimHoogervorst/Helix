@@ -42,6 +42,13 @@ describe("lims mod registration", () => {
     expect(schemaSection!.label).toBe("Schemas");
   });
 
+  it("registers a fetch-only activity feed block", () => {
+    const block = registry.getBlocks().get("lims.activity-feed");
+
+    expect(block).toBeDefined();
+    expect(block!.listensTo).toEqual([]);
+  });
+
   it("passes validation", () => {
     expect(() => registry.validate()).not.toThrow();
   });

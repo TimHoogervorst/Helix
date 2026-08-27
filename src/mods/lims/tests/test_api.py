@@ -2,6 +2,7 @@
 Tests for the LIMS API endpoints.
 """
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -370,6 +371,69 @@ class ActionViewSetRegressionTests(BaseTestCase):
         self.assertIsNotNone(action.pk)
         self.assertEqual(action.action_type, "created")
         self.assertEqual(action.entity, entity)
+
+    def test_generic_target_filters_return_unified_rows(self):
+        entity = Entity.objects.create(
+            name="Target Entity", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
+        )
+        matching = LimsAction.objects.create(
+            performed_by=self.user,
+            action="lims.entity.edited",
+            action_type="edited",
+            target_type="lims.entity",
+            target_id=entity.pk,
+            request_id=uuid4(),
+            entity=None,
+        )
+        LimsAction.objects.create(
+            performed_by=self.user,
+            action="lims.entity.created",
+            action_type="created",
+            target_type="lims.entity",
+            target_id=entity.pk + 100,
+        )
+
+        response = self.client.get(
+            "/api/lims/actions/",
+            {"target_type": "lims.entity", "target_id": entity.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.data["results"]], [matching.pk])
+        row = response.data["results"][0]
+        self.assertEqual(row["performed_by"]["id"], self.user.pk)
+        self.assertEqual(row["performed_by"]["username"], self.user.username)
+        self.assertEqual(row["request_id"], str(matching.request_id))
+        self.assertEqual(row["target_type"], "lims.entity")
+        self.assertEqual(row["target_id"], entity.pk)
+
+    def test_generic_target_visibility_is_preserved(self):
+        from core.models import Folder, Project
+
+        hidden_project = Project.objects.create(name="Hidden Project")
+        hidden_folder = Folder.objects.create(
+            name="Hidden", parent=None, project=hidden_project,
+        )
+        hidden_entity = Entity.objects.create(
+            name="Hidden Entity", schema=self.dna_schema,
+            folder=hidden_folder, author=self.user,
+        )
+        LimsAction.objects.create(
+            performed_by=self.user,
+            action="lims.entity.edited",
+            action_type="edited",
+            target_type="lims.entity",
+            target_id=hidden_entity.pk,
+        )
+
+        response = self.client.get(
+            "/api/lims/actions/",
+            {"target_type": "lims.entity", "target_id": hidden_entity.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
 
 
 # ═══════════════════════════════════════════════════════════════════════

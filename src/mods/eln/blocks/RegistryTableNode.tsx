@@ -274,6 +274,8 @@ interface RegistryTableContentProps {
   projectId?: number | null;
   /** Folder containing the current ELN entry, used for new entities. */
   folderId?: number | null;
+  /** Entry containing this Registry Table, used as the entity Source. */
+  entryId?: number | null;
   updateAttrs: (attrs: Record<string, unknown>) => void;
   /** When true, inline editing and action buttons are hidden. */
   readOnly?: boolean;
@@ -309,6 +311,7 @@ export function RegistryTableContent({
   rows,
   projectId,
   folderId,
+  entryId,
   updateAttrs,
   readOnly = false,
   previewMode = false,
@@ -604,6 +607,7 @@ export function RegistryTableContent({
       try {
         const payload = {
           schema_id: schemaId,
+          entry_id: entryId ?? null,
           project_id: projectId ?? null,
           rows: nonGreenRows.map(({ row }) => ({
             entity_id: row.entityId,
@@ -1104,6 +1108,7 @@ export const RegistryTableBlockComponent = createBlockAdapter(
       rows: (attrs.rows as RegistryTableRow[]) ?? [],
        projectId,
        folderId,
+      entryId: entryContext?.entry?.id ?? null,
       updateAttrs: instance.updateAttrs,
       readOnly: context.viewMode === "view",
       previewMode: context.viewMode === "prototype",

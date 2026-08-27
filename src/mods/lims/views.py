@@ -361,6 +361,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         schema_id = input_serializer.validated_data["schema_id"]
         project_id = input_serializer.validated_data.get("project_id")
+        entry_id = input_serializer.validated_data.get("entry_id")
         rows = input_serializer.validated_data["rows"]
 
         # Validate schema exists
@@ -380,6 +381,23 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 return Response(
                     {"detail": f"Project with id {project_id} not found."},
                     status=status.HTTP_404_NOT_FOUND,
+                )
+
+        containing_entry = None
+        if entry_id is not None:
+            from mods.eln.models import NotebookEntry
+
+            try:
+                containing_entry = NotebookEntry.objects.get(pk=entry_id)
+            except NotebookEntry.DoesNotExist:
+                return Response(
+                    {"detail": f"Entry with id {entry_id} not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if project is not None and containing_entry.project_id != project.id:
+                return Response(
+                    {"entry_id": "The entry must belong to the project."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
         author = request.user if request.user.is_authenticated else None
@@ -489,6 +507,17 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "row_index": row_index,
                     "field": "project_id",
                     "message": "The folder must belong to the project.",
+                })
+                continue
+            if (
+                containing_entry is not None
+                and folder is not None
+                and containing_entry.project_id != folder.project_id
+            ):
+                errors.append({
+                    "row_index": row_index,
+                    "field": "entry_id",
+                    "message": "The entry and folder must belong to the same project.",
                 })
                 continue
 
@@ -688,6 +717,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         properties=persisted_values,
                         folder=folder,
                         project=folder.project,
+                        source_entry=containing_entry,
                         author=author,
                     )
                     results.append({

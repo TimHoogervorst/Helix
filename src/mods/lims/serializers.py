@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema, SchemaType
@@ -147,6 +148,11 @@ class EntitySerializer(serializers.ModelSerializer):
     )
     folder_path = serializers.SerializerMethodField()
     project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
+    source_path = serializers.JSONField(read_only=True)
+    source_type = serializers.PrimaryKeyRelatedField(
+        read_only=True
+    )
+    source_id = serializers.IntegerField(read_only=True)
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
@@ -163,6 +169,9 @@ class EntitySerializer(serializers.ModelSerializer):
             "properties",
             "source_entry",
             "source_entry_display_id",
+            "source_type",
+            "source_id",
+            "source_path",
             "folder",
             "project",
             "project_name",
@@ -220,6 +229,18 @@ class EntitySerializer(serializers.ModelSerializer):
                 )
             data["project"] = folder.project
         return data
+
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
 
     def validate_properties(self, properties):
         """Validate reference column values against their target schemas.
@@ -314,6 +335,7 @@ class EntityBatchRegisterSerializer(serializers.Serializer):
     """Serializer for the batch-register endpoint payload."""
     schema_id = serializers.IntegerField(required=True)
     project_id = serializers.IntegerField(required=False, allow_null=True)
+    entry_id = serializers.IntegerField(required=False, allow_null=True)
     rows = serializers.ListField(
         child=EntityBatchRegisterRowSerializer(),
         allow_empty=False,

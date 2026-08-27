@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from core.models import Folder, Project, User
 from mods.users.serializers import UserSerializer
@@ -75,6 +76,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source="project.name", read_only=True)
     mentions = MentionSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    source_path = serializers.JSONField(read_only=True)
 
     class Meta:
         model = NotebookEntry
@@ -84,6 +86,9 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "name",
             "content",
             "folder",
+            "source_type",
+            "source_id",
+            "source_path",
             "folder_name",
             "folder_path",
             "project",
@@ -100,7 +105,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "mentions",
             "tags",
         ]
-        read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema"]
+        read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema", "source_type", "source_id", "source_path"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
@@ -125,6 +130,10 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
     tag_ids = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=False, write_only=True
     )
+    source_type = serializers.PrimaryKeyRelatedField(
+        read_only=True
+    )
+    source_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = NotebookEntry
@@ -147,7 +156,10 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         tag_ids = validated_data.pop("tag_ids", [])
-        entry = super().create(validated_data)
+        try:
+            entry = super().create(validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
         if tag_ids:
             entry.tags.set(tag_ids)
         return entry

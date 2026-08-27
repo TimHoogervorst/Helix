@@ -73,6 +73,58 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         self.assertEqual(self.entity.status, "finished")
         self.assertEqual(entity2.status, "finished")
 
+    def test_status_change_cascades_transitively_over_source(self):
+        """Entry status updates reach entities sourced by descendant entities."""
+        result = Entity.objects.create(
+            name="Result",
+            schema=self.schema,
+            source=self.entity,
+            folder=self.folder,
+            author=self.user,
+        )
+
+        self.entry.status = "finished"
+        self.entry.save()
+
+        result.refresh_from_db()
+        self.assertEqual(result.status, "finished")
+
+    def test_entity_status_change_cascades_to_source_descendants(self):
+        """Entity status updates propagate to its descendants."""
+        result = Entity.objects.create(
+            name="Result",
+            schema=self.schema,
+            source=self.entity,
+            folder=self.folder,
+            author=self.user,
+        )
+
+        self.entity.status = "finished"
+        self.entity.save()
+
+        result.refresh_from_db()
+        self.assertEqual(result.status, "finished")
+
+    def test_upstream_status_change_overwrites_descendant_override(self):
+        """A later upstream save overwrites a manually changed descendant."""
+        result = Entity.objects.create(
+            name="Result",
+            schema=self.schema,
+            source=self.entity,
+            folder=self.folder,
+            author=self.user,
+        )
+        self.entry.status = "finished"
+        self.entry.save()
+        result.status = "in_progress"
+        result.save()
+
+        self.entry.name = "Updated Title"
+        self.entry.save(update_fields=["name"])
+
+        result.refresh_from_db()
+        self.assertEqual(result.status, "finished")
+
     # ── No cascade on create ───────────────────────────────────────────
 
     def test_creating_new_entry_does_not_cascade(self):
@@ -177,4 +229,14 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         self.assertTrue(
             sync_receivers or async_receivers,
             "No receiver connected to post_save for NotebookEntry",
+        )
+
+    def test_entity_signal_is_connected(self):
+        """The cascade receiver is connected to post_save for Entity."""
+        from django.db.models.signals import post_save
+
+        sync_receivers, async_receivers = post_save._live_receivers(sender=Entity)
+        self.assertTrue(
+            sync_receivers or async_receivers,
+            "No receiver connected to post_save for Entity",
         )

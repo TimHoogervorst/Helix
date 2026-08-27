@@ -49,8 +49,9 @@ def register():
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from django.db.models.signals import post_save
 
-    from mods.eln.cascade import update_entity_status_from_entry
+    from mods.eln.cascade import update_status_from_source
     from mods.eln.models import ElnAction, NotebookEntry
+    from mods.lims.models import Entity
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.
@@ -120,7 +121,10 @@ def register():
         color="flask",
     )
     registry.register_signal(
-        "eln", post_save, update_entity_status_from_entry, sender=NotebookEntry
+        "eln", post_save, update_status_from_source, sender=NotebookEntry
+    )
+    registry.register_signal(
+        "eln", post_save, update_status_from_source, sender=Entity
     )
     registry.register_urls(
         "eln", [path("api/eln/", include("mods.eln.urls"))]

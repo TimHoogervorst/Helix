@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
+from helix_core.models import SchemaType
 from mods.access.permissions import IsOrganizationAdmin
 from mods.access.scoping import visible_rows_q
 
@@ -238,9 +239,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     def results(self, request, display_id=None):
         """Return readable ResultTable rows linked to this entity."""
         entity = self.get_object()
+        result_schema_type_ids = [
+            schema_type.pk
+            for schema_type in SchemaType.objects.only("pk", "tags")
+            if "ResultTable" in (schema_type.tags or [])
+        ]
         result_entities = (
             Entity.objects.filter(
-                schema__schema_type__tags__contains=["ResultTable"],
+                schema__schema_type_id__in=result_schema_type_ids,
                 properties__Entity=entity.display_id,
             )
             .filter(visible_rows_q(request.user))

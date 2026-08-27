@@ -5,14 +5,14 @@ VIEW_SQL = """
     CREATE VIEW entity_hub_view AS
     SELECT
         id, name, display_id, author_id, last_editor_id, status,
-        folder_id, project_id, schema_id, properties, created_at, updated_at,
+        project_id, schema_id, properties, source_type_id, source_id, source_path, created_at, updated_at,
         'eln.notebookentry' AS schema_type_id,
         'eln' AS workspace_id
     FROM eln_entry
     UNION ALL
     SELECT
         id, name, display_id, author_id, last_editor_id, status,
-        folder_id, project_id, schema_id, properties, created_at, updated_at,
+        project_id, schema_id, properties, source_type_id, source_id, source_path, created_at, updated_at,
         'lims.entity' AS schema_type_id,
         'lims' AS workspace_id
     FROM lims_entity;

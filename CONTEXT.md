@@ -60,6 +60,12 @@ Live updates follow the save cycle. While a save cycle has pending actions, the 
 
 ## Core Concepts
 
+### Source
+
+The single containment reference of every Folder, Notebook Entry, and Entity — the item it belongs to. A Source may be a Project, a Folder, a Notebook Entry, or an Entity. Every item has exactly one Source; it is required and never null. "Lives at the Project root" means the Source *is* the Project. Every Source chain terminates at exactly one Project. Projects have no Source — they are always roots. Containment is expressed entirely through Source; there is no separate parent or folder reference. See [ADR 0026](docs/adr/0026-source-replaces-containment.md).
+
+_Avoid_: parent, container reference, location, home folder
+
 ### Folder
 
 A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs directly to a Project or to another Folder within that Project. Folders form a tree rooted at the Project. Entries and Entities may live directly at the Project root or inside a Folder. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.

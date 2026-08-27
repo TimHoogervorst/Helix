@@ -66,15 +66,21 @@ The single containment reference of every Folder, Notebook Entry, and Entity —
 
 _Avoid_: parent, container reference, location, home folder
 
+### Source Path
+
+The ordered Source chain of one item — from the Project down to its direct Source — stored as structured segments carrying kind and identity, ancestors only. Maintained silently and synchronously by the system on every create and move; never user-editable. The Source Path is a backend optimization: it answers "where does this item live" and "does this item sit inside that subtree" without walking Source references, and it hydrates Breadcrumbs. It is never surfaced as a column in any hub.
+
+_Avoid_: full path, breadcrumb data, location string
+
 ### Folder
 
-A hierarchical container that owns Notebook Entries, Entities, and child Folders. Every Folder belongs directly to a Project or to another Folder within that Project. Folders form a tree rooted at the Project. Entries and Entities may live directly at the Project root or inside a Folder. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
+A library-exclusive node in the Source graph. A Folder's Source is another Folder or its Project; Folders form a tree rooted at the Project. Folders do not own items — items point at a Folder as their Source, and a Folder's listing in the Library is exactly the set of items whose Source is that Folder. Folders carry no permissions of their own; access comes from the Project (see Grant) or from being a Shared Folder. Users navigate the folder tree through the Library console.
 
-The Project is the root container. There is no synthetic or hidden root Folder. Root-level paths and breadcrumb construction use the Project directly, while `Folder.root_relative_path` owns root-relative display paths. Frontend Project-root URL parsing and breadcrumb path construction likewise go through `mods/library/path.ts`.
+The Project is the root container. There is no synthetic or hidden root Folder.
 
-Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items live.
+Folders are **containers, not content.** They have no Detail panel, no Workspace, and no metadata beyond a name. Clicking a Folder in the Master table always navigates *into* it — there is no intermediate inspection step. Folders exist solely to provide a place where other Items can point. Folders carry no status and are skipped by the status cascade.
 
-Deleting a Folder permanently deletes everything inside it — child Folders, Entries, and Entities — under the pre-v1 lifecycle. There is no trash or recovery.
+Deleting a Folder permanently deletes its entire Source subtree — child Folders, Entries, Entities, and everything sourced beneath them — under the pre-v1 lifecycle. Deleting a Notebook Entry or Entity likewise deletes its entire Source subtree. There is no trash or recovery; a later archive feature replaces deletion with the same subtree semantics.
 
 **Synonyms:** directory
 
@@ -112,7 +118,7 @@ A named collection of Users within the Organization, with a Dynamic Icon and Col
 
 A first-class root container for its folder tree, Entries, and Entities. Has a unique, renameable name, an immutable generated ID, a Dynamic Icon, and a Color Token. The generated ID identifies the Project in Library URLs, so its name can change without breaking links. Projects are the access boundary of the system: permissions are expressed as Grants on Projects, while Organization Admins can perform every operation on every Project. Every User can discover every Project's identity from the Organization Page, but only Users with effective access can open its content. The Library root lists accessible Projects; opening a Project navigates directly to that Project root.
 
-**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project. Entries and Entities may belong directly to the Project or to exactly one Folder. Every non-root Folder has exactly one parent Folder. Folders, Entries, and Entities cannot move between Projects. Projects are created by Organization Admins only. Project-owned content is never exposed through Hubs, search, Mentions, Views, Metrics, Cards, or Tabs to a User without effective access.
+**Invariant:** Every Entry, Entity, and Folder belongs to exactly one Project, derived from its Source chain and stored on the item. Every Entry, Entity, and Folder has exactly one Source. Folders, Entries, and Entities cannot move between Projects — a Source must resolve within the same Project. Projects are the only items without a Source. Projects are created by Organization Admins only. Project-owned content is never exposed through Hubs, search, Mentions, Views, Metrics, Cards, or Tabs to a User without effective access.
 
 ### Project Role
 
@@ -160,7 +166,7 @@ The platform uses a **Hub → Workspace** navigation model. Hubs are free-form b
 |------|-----------|
 | **Hub** | A free-form browsing page at a route like `/library` or `/home`. Each hub has complete layout freedom — card grids, stat tiles, tree views. Its job is to help users find the right thing. Hubs link outward to Workspaces at dedicated URLs. |
 | **Hub Registration** | Hubs are registered via `registerHub({ id, label, icon, route, component, order })`. Automatically adds a sidebar nav item. |
-| **Library Hub** | The hub at `/library`, registered by the Library mod. Root lists Projects; inside a Project, a card-grid view over its Folder hierarchy showing Folders and Entries mixed (folders first). Three view modes: List, Grid, Compact. |
+| **Library Hub** | The hub at `/library`, registered by the Library mod. Root lists Projects; inside a Project, a card-grid view over its Folder hierarchy showing Folders, Entries, and Entities mixed (folders first), with expandable Source subtrees. Three view modes: List, Grid, Compact. |
 | **Home Hub** | The hub at `/home`, registered by the Home mod (`order: 0` — first in sidebar). Landing page. |
 | **Settings Hub** | The Organization Admin-only hub at `/settings`, registered by the Settings mod. Renders administrative settings sections from all mods, sorted by `order`. |
 
@@ -182,9 +188,9 @@ Sidebar (dynamic: registry.getHubs())
 
 The **hub** at `/library` that presents a unified, filesystem-like view over Projects and their Folder hierarchies. At the root, the Library lists only the Projects the user has access to — an effective Project Role through a direct Grant, a Team Grant, or the Organization Admin override. Archived Projects are hidden from the root but their content remains reachable by members through a direct URL. Inside a Project, both child Folders and Entries appear together in a single card grid at any folder level, sorted with folders first; Folders shared with the Project appear at its root. The Library is a *browsing surface* — it is not a data model, but a presentation model layered on top of Projects and the Folder tree.
 
-The Library renders two Item types: **Folders** (navigated into) and **Entries** (selected for navigation to workspace). When new content types are added, they appear in the same mixed grid with their own type icon and label.
+The Library renders three Item types: **Folders** (navigated into), **Entries**, and **Entities** — every item whose Source is the current Folder (or the Project, at root), sorted folders first, then entries, then entities. Rows whose item has children are expandable: expanding reveals the item's Source children in place as an indented subtree (VS Code-style indent guides, child rows slightly smaller), recursively — an Entry shows its registered Entities, an Entity shows its Results. Expansion state is session-local. When new content types are added, they appear in the same mixed grid with their own type icon and label.
 
-**Invariant:** Every Item surfaced in the Library belongs to exactly one Folder (or lives at root).
+**Invariant:** Every Item surfaced in the Library has exactly one Source.
 
 **Synonyms:** file explorer, library browser
 
@@ -196,7 +202,7 @@ The navigation bar at the top of the Library hub showing the current location as
 
 ### Row Menu
 
-The hover-revealed three-dot menu at the right end of every Library row (Folders and Entries, all three view modes). Always opens a menu — never a direct action — with **Properties** (always) and **Delete** (only when the viewer can modify the row: Edit access, Organization Admin override, or a Read + Write share for rows inside a shared subtree). Rows whose only action is Properties still show a menu — predictability beats shortcut. The button stays in the DOM; reveal is pure CSS, so keyboard focus reaches it. Library rows only — the Entities hub has no Row Menu.
+The hover-revealed three-dot menu at the right end of every Library row (Folders, Entries, and Entities, all three view modes). Always opens a menu — never a direct action — with **Properties** (always) and **Delete** (only when the viewer can modify the row: Edit access, Organization Admin override, or a Read + Write share for rows inside a shared subtree). Rows whose only action is Properties still show a menu — predictability beats shortcut. The button stays in the DOM; reveal is pure CSS, so keyboard focus reaches it. Library rows only — the Entities hub has no Row Menu.
 
 **Synonyms:** row actions, three-dot menu, kebab menu
 
@@ -204,7 +210,7 @@ The hover-revealed three-dot menu at the right end of every Library row (Folders
 
 The standard modal opened from a Row Menu's **Properties** action, built on the shared Modal primitive. Shows the metadata of one Folder or Entry; what is editable follows access — viewers without Edit see the same modal read-only. Changes **apply instantly** — no Save button, no dirty state.
 
-**Entry properties:** status (with a note that it cascades to entities created in the entry), move-to-folder (a searchable list of folder paths, excluding the current folder; constrained to the shared subtree when the entry is reached through a share), and read-only project, author, created, and updated dates. The header carries the display ID and title; the title is read-only — it is edited in the workspace, not here. Tags are absent — they are attached on the entry page and managed in Settings. Editable fields are disabled while the entry is locked by another user.
+**Entry properties:** status (with a note that it cascades to the entry's entire Source subtree), move (a searchable list of folder paths plus the Project root, excluding the current location — changing the entry's Source; constrained to the shared subtree when the entry is reached through a share), and read-only project, author, created, and updated dates. The header carries the display ID and title; the title is read-only — it is edited in the workspace, not here. Tags are absent — they are attached on the entry page and managed in Settings. Editable fields are disabled while the entry is locked by another user.
 
 **Folder properties:** rename and the read-only created date. Top-level Folders in their owning Project additionally carry the Sharing Panel (Organization Admins only); nested Folders show a hint that only top-level Folders can be shared. A shared Folder opened through a sharee Project is read-only — it cannot be renamed through the share.
 
@@ -232,11 +238,11 @@ The LIMS domain comprises Entity Types, Entities, and Actions. The LIMS mod regi
 
 ### Notebook Entry (or "ELN Entry")
 
-A single page of narrative lab documentation. Has a title, rich-text content (the Document), an author, a folder, timestamps, a status, and zero or more Tags. The primary unit of scientific narrative in the system.
+A single page of narrative lab documentation. Has a title, rich-text content (the Document), an author, a Source, timestamps, a status, and zero or more Tags. The primary unit of scientific narrative in the system.
 
 An entry is the *whole thing* — metadata + document content. It is not the document.
 
-**Invariant:** An entry belongs to exactly one Folder.
+**Invariant:** An entry has exactly one Source.
 
 **Synonyms:** entry, ELN page, notebook page
 
@@ -244,7 +250,7 @@ An entry is the *whole thing* — metadata + document content. It is not the doc
 
 A user-settable lifecycle marker on a Notebook Entry. Two states: **In Progress** (the entry is being actively authored) and **Finished** (the entry is complete). The status is displayed as a pill-shaped badge in the metadata panel and is changed via a dropdown — no separate workflow or approval step.
 
-When an entry's status changes, the new status **cascades** to every Entity whose `source_entry` is this entry — i.e., entities that were *created in* this entry. Entities merely *referenced* (via Mentions) are not affected. See [ADR 0005](docs/adr/0005-entry-status-cascade.md).
+Status cascades down the Source graph: when **any** item's status changes — an entry's or an entity's, manually or via an earlier cascade — the new status is written to every item in its Source subtree, transitively (entry → its registered entities → their results). The cascade is a synchronous write-through, strictly downward, and overwrites descendants' statuses; a manually overridden descendant is re-overwritten by the next upstream change. Items merely *referenced* (via Mentions) are never affected. Folders and Projects carry no status. See [ADR 0026](docs/adr/0026-source-replaces-containment.md), which supersedes [ADR 0005](docs/adr/0005-entry-status-cascade.md).
 
 **Synonyms:** state, lifecycle marker
 
@@ -270,9 +276,9 @@ The summary paragraph of a Notebook Entry — a short, human-readable overview o
 
 ### Breadcrumb
 
-*(In the ELN Workspace context.)* The navigation bar at the top of the ELN Workspace showing the entry's folder path as clickable segments. Each segment links to that folder level in the Library console. Derived from the entry's `folder.path` property. When the entry has no folder, only the entry display ID is shown.
+*(In the ELN Workspace context.)* The navigation bar at the top of the ELN Workspace showing the entry's Source Path as clickable segments, derived from the entry's hydrated Source Path. Project and Folder segments link to that level in the Library console; Entry and Entity segments link to their workspaces.
 
-**Distinction from Library Breadcrumb:** The Library breadcrumb shows the *current browsing location* in the folder tree. The ELN breadcrumb shows the *entry's home location* — where it lives. Both use the same visual pattern and link to the same Library URLs.
+**Distinction from Library Breadcrumb:** The Library breadcrumb shows the *current browsing location* in the folder tree. The ELN breadcrumb shows the *entry's home location* — where it lives. Both use the same visual pattern; Library-bound segments link to the same Library URLs.
 
 ### Shared URL
 
@@ -282,7 +288,7 @@ A read-only link to a Notebook Entry's Workspace. The current implementation is 
 
 An entity (from the LIMS domain) that is connected to a Notebook Entry through the Mention system. When a user references an entity in the TipTap content (via `@` or a `reference` node), a Mention row is created linking the entry to that entity. The Linked Entities section of the metadata panel renders these Mentions — showing the entity's type icon, name, and display ID. Each is clickable, navigating to the entity's Workspace in the LIMS console.
 
-**Distinction from entities created in the entry:** Entities whose `source_entry` is this entry (created via Registry Tables in the content) are connected through a direct FK, not through Mentions. They may or may not appear as Linked Entities. A future PRD will unify both connection types in the panel.
+**Distinction from entities created in the entry:** Entities whose Source is this entry (created via Registry Tables in the content) are connected through the Source reference, not through Mentions. They may or may not appear as Linked Entities. A future PRD will unify both connection types in the panel.
 
 ### ELN Workspace Layout
 
@@ -478,7 +484,7 @@ A point-in-time snapshot of an entry's rich-text document. When a user saves cha
 
 ### Entity
 
-A trackable physical or conceptual item in the lab. Has a name, a type (EntityType), a display ID, extensible JSON properties, and a folder. Examples: a DNA sample, a chemical reagent, a buffer solution, a piece of equipment.
+A trackable physical or conceptual item in the lab. Has a name, a type (EntityType), a display ID, extensible JSON properties, and a Source. Examples: a DNA sample, a chemical reagent, a buffer solution, a piece of equipment.
 
 An Entity is *structured data* — it has typed properties and a known schema (via its EntityType). This distinguishes it from a Notebook Entry, which is *unstructured narrative*.
 
@@ -540,7 +546,7 @@ The first Schema Component is **Results** — a read-only tab showing every Resu
 
 ### Entity Column
 
-The distinguishing column of a Result Schema: an entity-reference column constrained at design time to one Schema or one Schema Type. Each Result Table row inserts one matching Entity into this column, tying every Result Entity to a source Entity. It replaces the implicit Name Column on result schemas.
+The distinguishing column of a Result Schema: an entity-reference column constrained at design time to one Schema or one Schema Type. Each Result Table row inserts one matching Entity into this column, tying every Result Entity to a source Entity. It replaces the implicit Name Column on result schemas. The Entity Column is user-filled data; at registration the Result Table additionally sets the Result Entity's **Source** from it. The two are stored separately and are expected to agree in the UI — the column value is never derived from Source.
 
 **Synonyms:** source entity column, entity slot
 
@@ -552,7 +558,7 @@ A Schema belonging to a `ResultTable`-tagged Schema Type. Structured like an ent
 
 ### Result Entity
 
-An Entity created from a Result Table row. Entity-like in every respect — Display ID, typed properties, appears in the Entities Hub under its result type — except its identity comes from its Entity Column rather than a user-assigned Name, and it has no Workspace yet (a later PR gives results a place to live).
+An Entity created from a Result Table row. Entity-like in every respect — Display ID, typed properties, appears in the Entities Hub under its result type — except its identity comes from its Entity Column rather than a user-assigned Name, and it has no Workspace yet (a later PR gives results a place to live). A Result Entity's Source is the Entity in its Entity Column, set automatically at registration — results live under their source Entity in the Source graph.
 
 **Synonyms:** result, result record
 
@@ -800,15 +806,16 @@ Library Hub ──▶ Projects ──▶ Folder tree (the Library is the browsin
 Organization ──▶ Team (1:N — org has many teams)
 Organization ──▶ Project (1:N — org has many projects)
 Team ──▶ User (M:N — teams have many users; users can be in many teams)
-Project ──▶ Folder (1:N — first-level Folders live directly under the Project)
 Project ──▶ Grant ──▶ User | Team (Project Roles granted to users and teams)
 Folder ──▶ Shared Folder ──▶ Project (M:N — a folder shared into other projects' roots, per-share access level)
-NotebookEntry ──▶ Project (N:1 — entry belongs to exactly one project)
-Entity ──▶ Project (N:1 — entity belongs to exactly one project)
+NotebookEntry ──▶ Project (N:1 — denormalized owning project, derived from the Source chain)
+Entity ──▶ Project (N:1 — denormalized owning project, derived from the Source chain)
 
-Folder ──┬── Folder (parent/child, recursive)
-         ├── NotebookEntry (1:N — entry lives in one folder)
-         └── Entity (1:N — entity lives in one folder)
+Source graph (replaces folder ownership — see ADR 0026):
+Project            ──▶ no Source; root of every Source chain
+Folder ──▶ Source  ──▶ Folder | Project
+NotebookEntry ──▶ Source ──▶ Project | Folder | NotebookEntry | Entity
+Entity ──▶ Source  ──▶ Project | Folder | NotebookEntry | Entity
 
 NotebookEntry ──▶ Mention (1:N — entry can mention many things)
 NotebookEntry ──▶ Tag (M:N — entry can have many tags; tags belong to many entries)
@@ -820,7 +827,6 @@ Protocol Item ──▶ Step | Note (discriminated by type field)
 ProtocolBlock ──▶ Protocol (N:1 — block snapshots a protocol at insert time; no live link)
 
 Entity ──▶ Action (1:N — entity has many actions recorded)
-Entity ──▶ NotebookEntry (N:1 — source_entry, the entry where this entity was created)
 Action ──▶ NotebookEntry (N:1 — action optionally recorded in an entry)
 
 EntityType ──▶ Entity (1:N — type classifies many entities)
@@ -846,7 +852,7 @@ User ──▶ Recognition (1:N — user has honors and awards)
 
 User.profile (JSON blob on User record: title, position, pronouns, location, bio, orcid)
 
-NotebookEntry.status ──cascades to──▶ Entity.status (only via source_entry FK)
+Item.status ──cascades to──▶ status of every item in its Source subtree (downward, transitive, overwriting)
 
 ModLoader ──▶ ModRegistry (populated by register*() calls from mod index.ts / mod.py)
               ├── Registered Hubs → sidebar nav + routes
@@ -877,11 +883,11 @@ A **Slot** is a named placeholder inside a workspace for embedded UI extension. 
 
 ### Library vs Folder
 
-A **Folder** is a data-model concept — a node in the folder tree with a parent, a name, and contents. The **Library** is the console that lets users navigate, search, and open items within the folder hierarchy. The Library shows a mixed list of folders and entries at any path; folders are navigated *into*, entries are opened.
+A **Folder** is a data-model concept — a node in the folder tree with a Source and a name; it owns nothing, items point at it as their Source. The **Library** is the console that lets users navigate, search, and open items within the folder hierarchy. The Library shows a mixed list of folders, entries, and entities sourced at the current location; folders are navigated *into*, entries are opened, and rows with children expand into Source subtrees.
 
 ### Project vs Folder
 
-A **Project** is the access boundary: it carries a Dynamic Icon and Color Token, owns Grants, and appears at the Library root. Projects are few and curated — created by Organization Admins only. A **Folder** is a plain container inside a Project's tree: many, free-form, carrying no permissions of its own (a Folder only affects access when it becomes a Shared Folder).
+A **Project** is the access boundary: it carries a Dynamic Icon and Color Token, owns Grants, and appears at the Library root. Projects are few and curated — created by Organization Admins only. A **Folder** is a plain library node inside a Project's tree: many, free-form, carrying no permissions of its own (a Folder only affects access when it becomes a Shared Folder).
 
 ### Entry vs Entity
 

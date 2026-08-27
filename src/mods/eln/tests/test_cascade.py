@@ -7,6 +7,7 @@ NotebookEntry and updates the status of all linked Entities to match.
 from core.tests.base import BaseServiceTestCase
 from core.models import Folder
 from helix_core.models import SchemaType, Schema
+from core.mentions.models import Mention
 from mods.eln.models import NotebookEntry
 from mods.lims.models import Entity
 from helix_core.source_deletion import delete_source_descendants
@@ -313,3 +314,74 @@ class SourceDeletionTests(BaseServiceTestCase):
         self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
         unrelated.refresh_from_db()
         self.assertIsNone(unrelated.folder_id)
+
+    def test_folder_delete_cascades_source_subtree(self):
+        source_folder = Folder.objects.create(
+            name="Source Folder", project=self.project,
+        )
+        child_folder = Folder.objects.create(
+            name="Child Folder", project=self.project, parent=source_folder,
+        )
+        child_entry = NotebookEntry.objects.create(
+            name="Child Entry", source=child_folder, folder=child_folder,
+            author=self.user, schema=self.eln_schema,
+        )
+        child_entity = Entity.objects.create(
+            name="Child Entity", schema=self.lims_schema, source=child_entry,
+            folder=child_folder, author=self.user,
+        )
+        child_result = Entity.objects.create(
+            name="Child Result", schema=self.lims_schema, source=child_entity,
+            folder=child_folder, author=self.user,
+        )
+        child_result_result = Entity.objects.create(
+            name="Nested Child Result", schema=self.lims_schema,
+            source=child_result, folder=child_folder, author=self.user,
+        )
+        self.lims_schema.columns = [{"name": "linked_entity", "type": "reference"}]
+        self.lims_schema.save(update_fields=["columns"])
+        survivor = Entity.objects.create(
+            name="Referenced Survivor", schema=self.lims_schema,
+            source=self.entry, folder=self.folder, author=self.user,
+            properties={"linked_entity": child_entity.display_id},
+        )
+        mention = Mention.objects.create(source=survivor, target=child_entity)
+
+        delete_source_descendants(source_folder)
+        source_folder.delete()
+
+        self.assertFalse(Folder.objects.filter(pk=source_folder.pk).exists())
+        self.assertFalse(Folder.objects.filter(pk=child_folder.pk).exists())
+        self.assertFalse(NotebookEntry.objects.filter(pk=child_entry.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=child_entity.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=child_result.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=child_result_result.pk).exists())
+        self.assertTrue(Entity.objects.filter(pk=survivor.pk).exists())
+        self.assertTrue(
+            Mention.objects.filter(pk=mention.pk, target_id=child_entity.pk).exists()
+        )
+
+    def test_entity_delete_cascades_results_but_not_soft_references(self):
+        self.lims_schema.columns = [{"name": "linked_entity", "type": "reference"}]
+        self.lims_schema.save(update_fields=["columns"])
+        result = Entity.objects.create(
+            name="Nested Result", schema=self.lims_schema, source=self.entity,
+            folder=self.folder, author=self.user,
+        )
+        nested_result = Entity.objects.create(
+            name="Nested Result Result", schema=self.lims_schema, source=result,
+            folder=self.folder, author=self.user,
+        )
+        survivor = Entity.objects.create(
+            name="Referencing Entity", schema=self.lims_schema,
+            source=self.entry, folder=self.folder, author=self.user,
+            properties={"linked_entity": self.entity.display_id},
+        )
+
+        delete_source_descendants(self.entity)
+        self.entity.delete()
+
+        self.assertFalse(Entity.objects.filter(pk=self.entity.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=result.pk).exists())
+        self.assertFalse(Entity.objects.filter(pk=nested_result.pk).exists())
+        self.assertTrue(Entity.objects.filter(pk=survivor.pk).exists())

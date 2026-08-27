@@ -344,6 +344,7 @@ describe("ElnChrome", () => {
   describe("tags lock behavior", () => {
     it("renders TagAutocomplete when not locked", () => {
       renderChrome({ isLockedByOther: false, tags: [] });
+      expect(screen.getByTestId("tags-section")).toBeInTheDocument();
       expect(screen.getByPlaceholderText("Search tags…")).toBeDefined();
     });
 
@@ -353,6 +354,7 @@ describe("ElnChrome", () => {
         lockHeldBy: "bob",
         tags: [],
       });
+      expect(screen.queryByTestId("tags-section")).toBeNull();
       expect(screen.queryByPlaceholderText("Search tags…")).toBeNull();
     });
 
@@ -366,6 +368,7 @@ describe("ElnChrome", () => {
       });
       const pill = screen.getByTestId("tag-pill");
       expect(pill).toBeDefined();
+      expect(screen.getByTestId("tags-section")).toContainElement(pill);
       const removeBtn = pill.querySelector("button");
       expect(removeBtn).toBeNull();
     });

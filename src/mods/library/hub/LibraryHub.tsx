@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Search,
   ChevronDown,
+  ChevronRight,
   ArrowUpDown,
   LayoutList,
   LayoutGrid,
@@ -111,6 +112,83 @@ function columnsToPropertyFields(
     key: col.name.toLowerCase().replace(/\s+/g, "_"),
     label: col.name,
   }));
+}
+
+type LibraryTreeState = {
+  expanded: Set<string>;
+  children: Record<string, LibraryItem[]>;
+  loading: Set<string>;
+};
+
+function libraryItemKey(item: LibraryItem) {
+  return `${item.type}-${item.id}`;
+}
+
+interface LibraryTreeNodeProps {
+  item: LibraryItem;
+  depth: number;
+  state: LibraryTreeState;
+  onToggle: (item: LibraryItem) => void;
+  renderCard: (item: LibraryItem) => ReactNode;
+}
+
+function LibraryTreeNode({
+  item,
+  depth,
+  state,
+  onToggle,
+  renderCard,
+}: LibraryTreeNodeProps) {
+  const key = libraryItemKey(item);
+  const hasChildren = (item.children_count ?? 0) > 0;
+  const isExpanded = state.expanded.has(key);
+  const children = state.children[key] ?? [];
+
+  return (
+    <>
+      <div
+        className={`library-tree-row${depth > 0 ? " is-child" : ""}`}
+        style={{ "--tree-depth": depth } as CSSProperties}
+        data-testid="library-tree-row"
+        data-depth={depth}
+      >
+        <span className="library-tree-guides" aria-hidden="true" />
+        {hasChildren ? (
+          <IconButton
+            size="sm"
+            className="library-tree-toggle"
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.type} ${item.type === "folder" ? item.name : item.title}`}
+            aria-expanded={isExpanded}
+            onClick={() => onToggle(item)}
+          >
+            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </IconButton>
+        ) : (
+          <span className="library-tree-toggle-placeholder" aria-hidden="true" />
+        )}
+        {renderCard(item)}
+      </div>
+      {isExpanded && (
+        <>
+          {state.loading.has(key) && (
+            <p className="library-tree-loading" data-testid="library-tree-loading">
+              Loading…
+            </p>
+          )}
+          {children.map((child) => (
+            <LibraryTreeNode
+              key={libraryItemKey(child)}
+              item={child}
+              depth={depth + 1}
+              state={state}
+              onToggle={onToggle}
+              renderCard={renderCard}
+            />
+          ))}
+        </>
+      )}
+    </>
+  );
 }
 
 // ── Project-aware breadcrumbs ──────────────────────────────────────────────
@@ -275,6 +353,7 @@ function LibraryHub() {
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const contentsRequestVersion = useRef(0);
+  const treeRequestVersion = useRef(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Project metadata from contents response
@@ -303,6 +382,11 @@ function LibraryHub() {
 
   // Properties modal state
   const [propertiesItem, setPropertiesItem] = useState<LibraryItem | null>(null);
+  const [treeState, setTreeState] = useState<LibraryTreeState>({
+    expanded: new Set(),
+    children: {},
+    loading: new Set(),
+  });
 
   const isInProject = !!projectUid;
 
@@ -418,6 +502,60 @@ function LibraryHub() {
     setProjectMeta(null);
     data.clearSelection();
   }, [projectUid, currentPath, data.clearSelection]);
+
+  useEffect(() => {
+    setTreeState({ expanded: new Set(), children: {}, loading: new Set() });
+    treeRequestVersion.current += 1;
+  }, [projectUid, currentPath]);
+
+  const toggleTreeNode = useCallback((item: LibraryItem) => {
+    const key = libraryItemKey(item);
+    const shouldFetch = !treeState.expanded.has(key)
+      && !treeState.children[key]
+      && !treeState.loading.has(key);
+    setTreeState((previous) => {
+      const expanded = new Set(previous.expanded);
+      if (expanded.has(key)) {
+        expanded.delete(key);
+      } else {
+        expanded.add(key);
+      }
+      return { ...previous, expanded };
+    });
+
+    if (!shouldFetch) return;
+    const requestVersion = treeRequestVersion.current;
+    setTreeState((previous) => ({
+      ...previous,
+      loading: new Set(previous.loading).add(key),
+    }));
+    getLibraryChildren(item.type, item.id, false, undefined)
+      .then(async (response) => {
+        const results = [...response.results];
+        let next = response.next;
+        while (next) {
+          const page = Number(new URL(next, window.location.origin).searchParams.get("page"));
+          if (!page) break;
+          const nextResponse = await getLibraryChildren(item.type, item.id, false, page);
+          results.push(...nextResponse.results);
+          next = nextResponse.next;
+        }
+        if (requestVersion !== treeRequestVersion.current) return;
+        setTreeState((previous) => ({
+          ...previous,
+          children: { ...previous.children, [key]: results },
+          loading: new Set([...previous.loading].filter((value) => value !== key)),
+        }));
+      })
+      .catch(() => {
+        if (requestVersion !== treeRequestVersion.current) return;
+        setTreeState((previous) => ({
+          ...previous,
+          children: { ...previous.children, [key]: [] },
+          loading: new Set([...previous.loading].filter((value) => value !== key)),
+        }));
+      });
+  }, [treeState]);
 
   // ── Sidebar bus and context ─────────────────────────────────────────
 
@@ -876,7 +1014,16 @@ function LibraryHub() {
             </div>
           )}
 
-          {data.items.map(renderCard)}
+          {data.items.map((item) => (
+            <LibraryTreeNode
+              key={libraryItemKey(item)}
+              item={item}
+              depth={0}
+              state={treeState}
+              onToggle={toggleTreeNode}
+              renderCard={renderCard}
+            />
+          ))}
 
           {data.nextUrl && (
             <div className="hub-load-more">

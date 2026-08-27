@@ -907,6 +907,83 @@ describe("LibraryHub", () => {
       });
     });
 
+    it("renders sourced entities and only shows chevrons for rows with children", async () => {
+      const entity = makeLibraryEntry({
+        type: "entity",
+        id: 20,
+        display_id: "S-20",
+        title: "Registered sample",
+        children_count: 0,
+      });
+      mockGetLibraryContents.mockResolvedValue(
+        makeLibraryContents(
+          [makeLibraryFolder({ id: 1, name: "Data", children_count: 0 })],
+          [entity],
+          { project_uid: "proj-001", project_name: "Test Project" },
+        ),
+      );
+
+      renderLibrary("/library?project=proj-001");
+
+      await waitFor(() => {
+        expect(screen.getByText("Registered sample")).toBeInTheDocument();
+      });
+      expect(screen.getAllByTestId("library-tree-row")).toHaveLength(2);
+      expect(screen.queryByRole("button", { name: /Expand folder Data/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Expand entity Registered sample/i })).toBeNull();
+    });
+
+    it("lazily expands arbitrary entry and entity source descendants", async () => {
+      const entry = makeLibraryEntry({
+        id: 10,
+        title: "Parent entry",
+        display_id: "E-10",
+        children_count: 1,
+      });
+      const entity = makeLibraryEntry({
+        type: "entity",
+        id: 20,
+        title: "Registered sample",
+        display_id: "S-20",
+        children_count: 1,
+      });
+      const result = makeLibraryEntry({
+        type: "entity",
+        id: 30,
+        title: "Result entity",
+        display_id: "R-30",
+        children_count: 0,
+      });
+      mockGetLibraryContents.mockImplementation((sourceType: string, sourceId: number | string) => {
+        if (sourceType === "entry" && sourceId === 10) {
+          return Promise.resolve(makeLibraryContents([], [entity]));
+        }
+        if (sourceType === "entity" && sourceId === 20) {
+          return Promise.resolve(makeLibraryContents([], [result]));
+        }
+        return Promise.resolve(makeLibraryContents([], [entry], {
+          project_uid: "proj-001",
+          project_name: "Test Project",
+        }));
+      });
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() => expect(screen.getByText("Parent entry")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: /Expand entry Parent entry/i }));
+      await waitFor(() => expect(screen.getByText("Registered sample")).toBeInTheDocument());
+      expect(mockGetLibraryContents).toHaveBeenCalledWith("entry", 10, false, undefined);
+
+      const childRow = screen.getByText("Registered sample").closest(".library-tree-row");
+      expect(childRow).toHaveAttribute("data-depth", "1");
+      expect(childRow).toHaveClass("is-child");
+
+      fireEvent.click(screen.getByRole("button", { name: /Expand entity Registered sample/i }));
+      await waitFor(() => expect(screen.getByText("Result entity")).toBeInTheDocument());
+      expect(mockGetLibraryContents).toHaveBeenCalledWith("entity", 20, false, undefined);
+      expect(screen.getByText("Result entity").closest(".library-tree-row")).toHaveAttribute("data-depth", "2");
+    });
+
     it("does not open the row when the three-dot button is clicked", async () => {
       mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
       renderLibrary("/library?project=proj-001");

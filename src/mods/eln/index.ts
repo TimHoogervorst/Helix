@@ -243,7 +243,7 @@ export const activityFeedBlock = mod.registerBlock("activity-feed", {
   label: "Activity Feed",
   icon: History,
   component: ActivityFeedBlock,
-  listensTo: ["eln.action.performed", "eln.entry.saved"],
+  listensTo: ["eln.actions.pending", "eln.actions.flushed", "eln.entry.saved"],
   onEvent: activityFeedOnEvent,
   emits: [],
   getDisplayName: () => "Activity Feed",

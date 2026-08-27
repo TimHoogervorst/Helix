@@ -139,17 +139,15 @@ describe("Activity", () => {
     expect(screen.getByText("Created an entry")).toBeInTheDocument();
   });
 
-  it("renders a pending item with pulse styling", () => {
-    const item = makePendingItem({
-      metadata: { message: "Editing in progress" },
-    });
-    render(<Activity actions={[item]} />);
+  it("renders the unsaved changes indicator", () => {
+    const { rerender } = render(<Activity actions={[]} hasPending />);
 
-    const row = screen.getByTestId("activity-item");
-    expect(row.dataset.state).toBe("pending");
-    // Pending rows have opacity-60 and animate-pulse classes
-    expect(row.className).toContain("opacity-60");
-    expect(row.className).toContain("animate-pulse");
+    expect(screen.getByTestId("activity-unsaved")).toHaveTextContent(
+      "Unsaved changes…",
+    );
+
+    rerender(<Activity actions={[]} />);
+    expect(screen.queryByTestId("activity-unsaved")).not.toBeInTheDocument();
   });
 
   it("falls back to humanized action type when metadata.message is absent", () => {
@@ -316,13 +314,11 @@ describe("Activity", () => {
     const rows = screen.getAllByTestId("activity-item");
     expect(rows).toHaveLength(2);
 
-    // First row is pending with pulse
+    // Pending rows are rendered as ordinary persisted-style rows.
     expect(rows[0].dataset.state).toBe("pending");
-    expect(rows[0].className).toContain("animate-pulse");
 
-    // Second row is confirmed, no pulse
+    // Second row is confirmed.
     expect(rows[1].dataset.state).toBe("confirmed");
-    expect(rows[1].className).not.toContain("animate-pulse");
   });
 
   it("does not wrap a single pending item in a group toggle", () => {

@@ -6,10 +6,12 @@
  * now flow through internal callbacks from `BlockNodeView` instead of the
  * public bus. Accumulated actions are flushed when the `saveSignal` prop
  * transitions, and each resolved action is emitted as a separate
- * `{workspaceId}.action.performed` event on the bus after successful flush.
+ * `{workspaceId}.actions.pending` and `{workspaceId}.actions.flushed` events
+ * on the bus around each save cycle. The existing action.performed events are
+ * still emitted after a successful flush.
  *
  * Owns: accumulation Map, dedup by (blockInstanceId, verb), action catalog
- * label resolution, flush-on-save-signal, post-flush bus emission.
+ * label resolution, flush-on-save-signal, and save-cycle bus emission.
  * Does NOT own: save detection (the caller passes `saveSignal`), block
  * registration, or the action message format.
  */
@@ -72,9 +74,7 @@ export interface UseActionAccumulatorOptions {
    */
   bindings?: readonly BlockBinding[];
   /**
-   * Current user info. When provided, `performedBy` is included in the
-   * `{workspaceId}.action.performed` bus event payload so listeners
-   * (ActivityFeedBlock) can render optimistic items without an API refetch.
+   * Current user info included in the existing action.performed event payload.
    */
   user?: unknown;
 }
@@ -93,9 +93,8 @@ export interface LifecycleEventPayload {
  * catalog labels, and flush each action individually via `onFlushActions` →
  * `POST /api/actions/` when `saveSignal` transitions.
  *
- * On successful flush, emits `{workspaceId}.action.performed` on the bus for
- * each resolved action item so listeners (ActivityFeedBlock) can update
- * without a refetch + reconciliation round-trip.
+ * Emits save-cycle signals around a flush and keeps the existing
+ * action.performed events for other consumers.
  */
 export function useActionAccumulator({
   bus,
@@ -164,12 +163,14 @@ export function useActionAccumulator({
         pending.delete(`${blockInstanceId}:edited`);
       }
 
+      const wasEmpty = pending.size === 0;
       pending.set(key, {
         action,
         action_type: coreVerb,
         metadata: { message },
       });
       if (hasPendingRef) hasPendingRef.current = true;
+      if (wasEmpty) bus.emit(`${workspaceId}.actions.pending`);
     },
     // workspaceId is captured from the initial render; it's stable across
     // the component lifetime. hasPendingRef is a ref, stable by definition.
@@ -226,12 +227,14 @@ export function useActionAccumulator({
           const pending = pendingRef.current;
           const key = `${blockInstanceId}:${localId}`;
 
+          const wasEmpty = pending.size === 0;
           pending.set(key, {
             action,
             action_type: coreVerb,
             metadata: { message, ...(p.payload ?? {}) },
           });
           if (hasPendingRef) hasPendingRef.current = true;
+          if (wasEmpty) bus.emit(`${workspaceId}.actions.pending`);
         },
       );
       unsubscribes.push(unsub);
@@ -314,9 +317,9 @@ export function useActionAccumulator({
         }
         if (hasPendingRef) hasPendingRef.current = pending.size > 0;
 
-        // Emit each resolved action as a separate bus event so listeners
-        // (ActivityFeedBlock) can receive ready-to-render action items
-        // without a refetch + reconciliation round-trip.
+        bus.emit(`${workspaceId}.actions.flushed`);
+
+        // Keep emitting each resolved action for other bus consumers.
         const performedAt = new Date().toISOString();
         for (const [, action] of flushedEntries) {
           bus.emit(`${workspaceId}.action.performed`, {

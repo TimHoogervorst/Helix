@@ -3,11 +3,10 @@
  *
  * Verifies:
  * - mapElnAction mapping from ElnAction → DisplayActionItem
- * - activityFeedOnEvent handlers store payloads in instance attrs
+ * - activityFeedOnEvent handlers update pending/refetch attrs
  */
 import { describe, it, expect, vi } from "vitest";
 import { mapElnAction, activityFeedOnEvent } from "../components/ActivityFeedBlock";
-import type { BusActionPayload } from "../components/ActivityFeedBlock";
 import type { ElnAction } from "../types";
 import type { DisplayActionItem } from "../../../shell/src/shared/types/actions";
 import type { BlockInstance } from "../../../shell/src/mod-system/types";
@@ -58,23 +57,6 @@ function makeInstance(
   };
 }
 
-function makeBusPayload(
-  overrides: Partial<BusActionPayload> = {},
-): BusActionPayload {
-  return {
-    action: "eln.table.created",
-    actionType: "created",
-    label: "Table Created",
-    performedBy: { id: "u1", name: "Test User" },
-    createdAt: "2026-07-30T10:00:00Z",
-    targetId: 42,
-    targetType: "eln.entry",
-    metadata: { message: "Table Created" },
-    requestId: "req-123",
-    ...overrides,
-  };
-}
-
 // ── mapElnAction (existing) ──────────────────────────────────────────────
 
 describe("mapElnAction", () => {
@@ -116,40 +98,24 @@ describe("mapElnAction", () => {
 // ── activityFeedOnEvent handlers ─────────────────────────────────────────
 
 describe("activityFeedOnEvent", () => {
-  describe("eln.action.performed", () => {
-    it("appends a bus action payload to instance attrs", () => {
+  describe("eln.actions.pending", () => {
+    it("sets the pending indicator", () => {
       const instance = makeInstance({});
-      const payload = makeBusPayload();
 
-      activityFeedOnEvent["eln.action.performed"](instance, payload);
+      activityFeedOnEvent["eln.actions.pending"](instance, undefined);
 
-      expect(instance.updateAttrs).toHaveBeenCalledTimes(1);
-      const arg = (instance.updateAttrs as ReturnType<typeof vi.fn>).mock
-        .calls[0][0];
-      expect(arg.busActionPayloads).toEqual([payload]);
+      expect(instance.attrs.hasPendingActions).toBe(true);
     });
+  });
 
-    it("appends to existing busActionPayloads", () => {
-      const existing = makeBusPayload({ action: "existing.action" });
-      const instance = makeInstance({ busActionPayloads: [existing] });
-      const payload = makeBusPayload({ action: "new.action" });
+  describe("eln.actions.flushed", () => {
+    it("clears the indicator and requests a refetch", () => {
+      const instance = makeInstance({ hasPendingActions: true });
 
-      activityFeedOnEvent["eln.action.performed"](instance, payload);
+      activityFeedOnEvent["eln.actions.flushed"](instance, undefined);
 
-      const arg = (instance.updateAttrs as ReturnType<typeof vi.fn>).mock
-        .calls[0][0];
-      expect(arg.busActionPayloads).toEqual([existing, payload]);
-    });
-
-    it("initializes empty array when busActionPayloads is undefined", () => {
-      const instance = makeInstance({ otherKey: "value" });
-      const payload = makeBusPayload();
-
-      activityFeedOnEvent["eln.action.performed"](instance, payload);
-
-      const arg = (instance.updateAttrs as ReturnType<typeof vi.fn>).mock
-        .calls[0][0];
-      expect(arg.busActionPayloads).toEqual([payload]);
+      expect(instance.attrs.hasPendingActions).toBe(false);
+      expect(instance.attrs.refetchTrigger).toBe(1);
     });
   });
 

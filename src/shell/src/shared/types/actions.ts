@@ -32,7 +32,7 @@ export interface ActionItem {
 /** Visual state of an action item in the activity feed. */
 export type ActionItemState = "confirmed" | "pending" | "reconciled";
 
-/** An ActionItem annotated with its optimistic-update display state. */
+/** An ActionItem annotated with its display state. */
 export interface DisplayActionItem extends ActionItem {
   state: ActionItemState;
   /** Correlation ID tying together action rows from the same batch request. */

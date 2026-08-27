@@ -1,7 +1,9 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import LimsWorkspacePage from "./LimsWorkspacePage";
+import "../index";
 
 const mockGet = vi.fn();
 
@@ -90,5 +92,105 @@ describe("LimsWorkspacePage", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       `${window.location.origin}/lims/DNA-1`,
     );
+  });
+
+  it("renders grouped read-only results and skips unknown components", async () => {
+    mockGet
+      .mockResolvedValueOnce({
+        id: 1,
+        display_id: "DNA-1",
+        name: "Sample A",
+        schema: 1,
+        schema_name: "DNA",
+        schema_columns: [],
+        schema_icon: "dna",
+        schema_color: "muted",
+        enabled_components: ["lims.unknown", "lims.results"],
+        properties: {},
+        source_entry: null,
+        source_entry_display_id: null,
+        folder: null,
+        folder_path: "",
+        project_uid: "project-1",
+        author: 1,
+        author_username: "alice",
+        last_editor: null,
+        last_editor_username: null,
+        status: "finished",
+        updated_at: "2026-01-02T00:00:00Z",
+        created_at: "2026-01-01T00:00:00Z",
+        tags: [],
+        effective_role: "read",
+      })
+      .mockResolvedValueOnce([
+        {
+          schema: {
+            id: 2,
+            name: "Assay results",
+            icon: "chart-column",
+            color: "muted",
+            columns: [
+              { name: "Entity", type: "reference" },
+              { name: "Value", type: "number" },
+            ],
+          },
+          results: [{
+            display_id: "RESULT-1",
+            name: "Result one",
+            created_at: "2026-01-03T00:00:00Z",
+            author_username: "alice",
+            properties: { Entity: "DNA-1", Value: 42 },
+          }],
+        },
+      ]);
+
+    renderPage();
+
+    expect(await screen.findByRole("tab", { name: "Results" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Unknown" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Results" }));
+
+    expect(await screen.findByRole("heading", { name: "Assay results" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Value" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Entity" })).not.toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add|insert|new row/i })).not.toBeInTheDocument();
+  });
+
+  it("renders one tab-level empty state when there are no results", async () => {
+    mockGet
+      .mockResolvedValueOnce({
+        id: 1,
+        display_id: "DNA-1",
+        name: "Sample A",
+        schema: 1,
+        schema_name: "DNA",
+        schema_columns: [],
+        schema_icon: "dna",
+        schema_color: "muted",
+        enabled_components: ["lims.results"],
+        properties: {},
+        source_entry: null,
+        source_entry_display_id: null,
+        folder: null,
+        folder_path: "",
+        project_uid: "project-1",
+        author: 1,
+        author_username: "alice",
+        last_editor: null,
+        last_editor_username: null,
+        status: "finished",
+        updated_at: "2026-01-02T00:00:00Z",
+        created_at: "2026-01-01T00:00:00Z",
+        tags: [],
+        effective_role: "read",
+      })
+      .mockResolvedValueOnce([]);
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "Results" }));
+
+    expect(await screen.findByText("No results recorded for this entity.")).toBeInTheDocument();
+    expect(screen.queryAllByText("No results recorded for this entity.")).toHaveLength(1);
   });
 });

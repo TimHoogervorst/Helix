@@ -7,7 +7,7 @@ from uuid import uuid4
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import User
+from core.models import Project, User
 from core.tests.base import BaseTestCase
 from helix_core.models import SchemaType, Schema
 from mods.lims.models import Action as LimsAction, Entity, LimsView, Metric
@@ -160,6 +160,14 @@ class EntityApiTests(BaseTestCase):
             name="Other result", schema=result_schema, folder=self.folder, author=self.user,
             properties={"Entity": "OTHER-1", "Value": 9},
         )
+        normal_schema = Schema.objects.create(
+            name="Not a result", prefix="NORMAL", schema_type=self.schema_type,
+        )
+        Entity.objects.create(
+            name="Unrelated schema row", schema=normal_schema,
+            folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id},
+        )
 
         response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
 
@@ -167,6 +175,103 @@ class EntityApiTests(BaseTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["schema"]["name"], "Assay result")
         self.assertEqual(response.data[0]["results"][0]["display_id"], linked.display_id)
+
+    def test_results_groups_by_schema_and_returns_schema_metadata(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+            columns=[{"name": "Entity", "type": "reference"}],
+        )
+        first_schema = Schema.objects.create(
+            name="Assay results", prefix="ASSAY", schema_type=result_type,
+            icon="chart", color="success",
+            columns=[{"name": "Value", "type": "number"}],
+        )
+        second_schema = Schema.objects.create(
+            name="QC results", prefix="QC", schema_type=result_type,
+            columns=[{"name": "Passed", "type": "boolean"}],
+        )
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+        first = Entity.objects.create(
+            name="Assay row", schema=first_schema, folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id, "Value": 4},
+        )
+        second = Entity.objects.create(
+            name="QC row", schema=second_schema, folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id, "Passed": True},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([group["schema"]["name"] for group in response.data], [
+            "Assay results", "QC results",
+        ])
+        self.assertEqual(response.data[0]["schema"]["id"], first_schema.id)
+        self.assertEqual(response.data[0]["schema"]["icon"], "chart")
+        self.assertEqual(response.data[0]["schema"]["color"], "success")
+        self.assertEqual(response.data[0]["schema"]["columns"][0]["name"], "Entity")
+        self.assertEqual(response.data[0]["results"][0]["name"], first.name)
+        self.assertIn("created_at", response.data[0]["results"][0])
+        self.assertEqual(response.data[0]["results"][0]["author_username"], self.user.username)
+        self.assertEqual(response.data[0]["results"][0]["properties"]["Value"], 4)
+        self.assertEqual(response.data[1]["results"][0]["display_id"], second.display_id)
+
+    def test_results_returns_empty_for_entity_without_results(self):
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_results_excludes_rows_in_inaccessible_projects(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+        )
+        result_schema = Schema.objects.create(
+            name="Assay result", prefix="RESULT", schema_type=result_type,
+        )
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+        inaccessible_project = Project.objects.create(name="Private project")
+        Entity.objects.create(
+            name="Private result", schema=result_schema, project=inaccessible_project,
+            author=self.user, properties={"Entity": entity.display_id},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_results_hides_inaccessible_source_entity(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+        )
+        result_schema = Schema.objects.create(
+            name="Assay result", prefix="RESULT", schema_type=result_type,
+        )
+        inaccessible_project = Project.objects.create(name="Private source project")
+        source = Entity.objects.create(
+            name="Private source", schema=self.dna_schema,
+            project=inaccessible_project, author=self.user,
+        )
+        Entity.objects.create(
+            name="Private result", schema=result_schema, project=inaccessible_project,
+            author=self.user, properties={"Entity": source.display_id},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{source.display_id}/results/")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_batch_resolve_entities(self):
         """POST /api/lims/entities/batch/ resolves display IDs to properties."""

@@ -83,7 +83,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action in ("list", "retrieve"):
+        if self.action in ("list", "retrieve", "results"):
             queryset = queryset.filter(visible_rows_q(self.request.user))
         return queryset
 

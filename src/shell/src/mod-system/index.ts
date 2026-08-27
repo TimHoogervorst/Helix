@@ -10,6 +10,8 @@ export type {
   ButtonHandle,
   HubConfig,
   SettingsSectionConfig,
+  SchemaComponentProps,
+  SchemaComponentRegistration,
   RouteConfig,
   ServiceConfig,
   CurrentWorkspace,

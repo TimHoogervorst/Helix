@@ -181,6 +181,7 @@ const _schemaDefaults: Schema = {
   content_hash: "",
   icon: "",
   color: "",
+  enabled_components: [],
 };
 
 /** A single Schema row. */

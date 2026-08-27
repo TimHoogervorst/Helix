@@ -41,6 +41,7 @@ export interface Schema {
   content_hash: string;
   icon: string;
   color: string;
+  enabled_components: string[];
 }
 
 /** Payload for creating/updating a Schema. */
@@ -52,6 +53,7 @@ export interface SchemaPayload {
   columns: ColumnDef[];
   icon?: string;
   color?: string;
+  enabled_components?: string[];
 }
 
 /** A SchemaType as returned by the list endpoint. */

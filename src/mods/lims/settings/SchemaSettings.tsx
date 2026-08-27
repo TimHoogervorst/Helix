@@ -16,6 +16,7 @@ import {
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { IconPickerPopover } from "../../../shell/src/shared/components/IconPickerPopover";
 import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 
 type SchemaTab = "entity" | "result";
 
@@ -36,6 +37,7 @@ function SettingsPage() {
   const [filterValue, setFilterValue] = useState("");
   const [newIcon, setNewIcon] = useState("circle");
   const [newColor, setNewColor] = useState("muted");
+  const schemaComponents = ModRegistry.getInstance().getSchemaComponents();
 
   const resultSchemaTypes = schemaTypes.filter((type) =>
     type.tags?.includes("ResultTable"),
@@ -130,6 +132,9 @@ function SettingsPage() {
           ...schema,
           icon: activeTab === "result" ? "chart-column" : schema.icon,
           columns,
+          ...(schema.enabled_components !== undefined
+            ? { enabled_components: [...schema.enabled_components] }
+            : {}),
         });
         return next;
       });
@@ -229,6 +234,9 @@ function SettingsPage() {
           columns: s.columns,
           icon: s.tags?.includes("ResultTable") ? "chart-column" : s.icon,
           color: s.tags?.includes("ResultTable") ? "hazard" : s.color,
+          ...(s.enabled_components !== undefined
+            ? { enabled_components: s.enabled_components }
+            : {}),
         };
         await put(`/schemas/${s.id}/`, payload);
       } catch {
@@ -246,6 +254,20 @@ function SettingsPage() {
   // ── Discard all dirty edits ──
   const discardAllEdits = () => {
     setDirtyEdits(new Map());
+  };
+
+  const toggleSchemaComponent = (id: number, componentId: string) => {
+    setDirtyEdits((prev) => {
+      const next = new Map(prev);
+      const schema = next.get(id);
+      if (!schema) return prev;
+      const enabled = schema.enabled_components ?? [];
+      const enabledComponents = enabled.includes(componentId)
+        ? enabled.filter((value) => value !== componentId)
+        : [...enabled, componentId];
+      next.set(id, { ...schema, enabled_components: enabledComponents });
+      return next;
+    });
   };
 
   const visibleSchemas = (showArchived
@@ -550,6 +572,48 @@ function SettingsPage() {
                   </label>
                 </div>
               </SettingsSectionCard>
+
+              {activeTab === "entity" && (
+                <SettingsSectionCard
+                  title="Schema Components"
+                  subtitle="Choose the tabs available on entities using this schema."
+                >
+                  {schemaComponents.length === 0 ? (
+                    <p
+                      className="text-sm text-[var(--color-ink-muted-foreground)]"
+                      data-testid="schema-components-empty"
+                    >
+                      No Schema Components are registered.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-[var(--color-ink-hairline)]" data-testid="schema-components-list">
+                      {schemaComponents.map((component) => {
+                        const Icon = component.icon;
+                        const enabled = (editingSchema.enabled_components ?? []).includes(component.id);
+                        return (
+                          <label
+                            key={component.id}
+                            className="flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                          >
+                            <span className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+                              <Icon size={14} />
+                              {component.label}
+                            </span>
+                            <input
+                              type="checkbox"
+                              role="switch"
+                              aria-label={component.label}
+                              className="rounded focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)] focus:ring-offset-1"
+                              checked={enabled}
+                              onChange={() => toggleSchemaComponent(editingSchema.id, component.id)}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </SettingsSectionCard>
+              )}
 
               <SettingsSectionCard
                 flush

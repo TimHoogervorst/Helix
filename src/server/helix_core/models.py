@@ -216,6 +216,11 @@ class Schema(ContentHashedModel):
         default="",
         help_text="Open key string referencing a ColorToken key. Soft reference with render-time fallback.",
     )
+    enabled_components = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="IDs of enabled frontend Schema Components.",
+    )
 
     class Meta:
         db_table = "helix_schema"

@@ -5,6 +5,10 @@ import SchemaSettings from "../SchemaSettings";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
 
+function DummyIcon() {
+  return null;
+}
+
 const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockPut = vi.fn();
@@ -624,6 +628,64 @@ describe("SchemaSettings", () => {
         color: "muted",
       });
     });
+  });
+
+  it("renders and persists registered Schema Component toggles for entity schemas", async () => {
+    const registry = ModRegistry.getInstance();
+    registry.registerSchemaComponent({
+      id: "lims.results",
+      label: "Results",
+      icon: DummyIcon,
+      component: DummyIcon,
+      order: 10,
+    });
+    mockGet
+      .mockResolvedValueOnce([makeSchema({ enabled_components: [] })])
+      .mockResolvedValueOnce([
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
+      ]);
+    mockPut.mockResolvedValue({});
+    render(<SchemaSettings />);
+
+    await waitFor(() => expect(screen.getByText("Blood Sample")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Blood Sample"));
+    expect(await screen.findByText("Schema Components")).toBeInTheDocument();
+    const toggle = screen.getByRole("switch", { name: "Results" });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    fireEvent.click(screen.getByText("Save Changes (1)"));
+
+    await waitFor(() => {
+      expect(mockPut).toHaveBeenCalledWith("/schemas/1/", expect.objectContaining({
+        enabled_components: ["lims.results"],
+      }));
+    });
+  });
+
+  it("shows the Schema Components empty state when none are registered", async () => {
+    mockGet
+      .mockResolvedValueOnce([makeSchema()])
+      .mockResolvedValueOnce([]);
+    render(<SchemaSettings />);
+    await waitFor(() => expect(screen.getByText("Blood Sample")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Blood Sample"));
+    expect(await screen.findByTestId("schema-components-empty")).toBeInTheDocument();
+  });
+
+  it("does not show Schema Components for result schemas", async () => {
+    mockGet
+      .mockResolvedValueOnce([makeSchema({ tags: ["ResultTable"] })])
+      .mockResolvedValueOnce([
+        { id: 1, display_name: "Results", workspace_id: "lims", is_active: true, schema_type_id: "lims.result", tags: ["ResultTable"] },
+      ]);
+    render(<SchemaSettings />);
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Result Schemas" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+    await waitFor(() => expect(screen.getByText("Blood Sample")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Blood Sample"));
+    await waitFor(() => expect(screen.getByText("Schema definition")).toBeInTheDocument());
+    expect(screen.queryByText("Schema Components")).not.toBeInTheDocument();
   });
 
   it("edits Result Schemas without icon controls and preserves the Entity Column", async () => {

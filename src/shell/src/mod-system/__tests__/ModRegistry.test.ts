@@ -10,6 +10,7 @@ import type {
   ButtonRegistration,
   BlockRegistration,
   ModManifest,
+  SchemaComponentRegistration,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -47,6 +48,19 @@ function makeSettingsSection(
     id: "test.section",
     modId: "test-mod",
     label: "Test Section",
+    component: DummyComponent,
+    order: 10,
+    ...overrides,
+  };
+}
+
+function makeSchemaComponent(
+  overrides?: Partial<SchemaComponentRegistration>,
+): SchemaComponentRegistration {
+  return {
+    id: "test.component",
+    label: "Test Component",
+    icon: DummyComponent,
     component: DummyComponent,
     order: 10,
     ...overrides,
@@ -222,6 +236,30 @@ describe("ModRegistry", () => {
     const sections = registry.getSettingsSections();
     expect(sections[0].id).toBe("s1");
     expect(sections[1].id).toBe("s2");
+  });
+
+  // ── registerSchemaComponent ───────────────────────────────────────────
+
+  it("registerSchemaComponent stores a component and lists it", () => {
+    const config = makeSchemaComponent({ id: "lims.results" });
+    registry.registerSchemaComponent(config);
+    expect(registry.getSchemaComponents()).toEqual([config]);
+  });
+
+  it("getSchemaComponents returns components sorted by order", () => {
+    registry.registerSchemaComponent(makeSchemaComponent({ id: "b", order: 20 }));
+    registry.registerSchemaComponent(makeSchemaComponent({ id: "a", order: 10 }));
+    expect(registry.getSchemaComponents().map((component) => component.id)).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("registerSchemaComponent throws on duplicate ID", () => {
+    registry.registerSchemaComponent(makeSchemaComponent({ id: "same" }));
+    expect(() =>
+      registry.registerSchemaComponent(makeSchemaComponent({ id: "same" })),
+    ).toThrow("Duplicate Schema Component registration");
   });
 
   // ── registerRoute ────────────────────────────────────────────────────

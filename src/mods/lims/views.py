@@ -8,11 +8,12 @@ from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
 from helix_core.actions.logger import log_action
-from helix_core.actions.mixins import ActionLoggingMixin
+from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from mods.access.permissions import IsOrganizationAdmin
 from mods.access.scoping import visible_rows_q
 
 from .models import Entity, Action, LimsView, Metric
+from mods.tags.models import Tag
 from .serializers import (
     EntitySerializer,
     validate_reference_properties,
@@ -64,7 +65,10 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     delete_all: DELETE /api/lims/entities/delete_all/ — delete all entities
     """
 
-    queryset = Entity.objects.select_related("schema", "author", "folder")
+    queryset = (
+        Entity.objects.select_related("schema", "author", "folder")
+        .prefetch_related("tags")
+    )
     serializer_class = EntitySerializer
     lookup_field = "display_id"
     filterset_fields = ["schema"]
@@ -185,6 +189,48 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             instance=serializer.instance,
             validated_data=serializer.validated_data,
         )
+
+    @logs_action(
+        "lims.entity.tags_attached",
+        get_metadata=lambda inst, data, req: {"tag_ids": req.data.get("tag_ids", [])},
+    )
+    @action(detail=True, methods=["post"], url_path="tags")
+    def attach_tags(self, request, display_id=None):
+        entity = self.get_object()
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        if effective_role(request.user, entity) != "edit":
+            raise PermissionDenied("You do not have permission to edit this entity.")
+        tag_ids = request.data.get("tag_ids", [])
+        if not isinstance(tag_ids, list):
+            return Response(
+                {"error": "tag_ids must be a list"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        entity.tags.add(*Tag.objects.filter(id__in=tag_ids))
+        return Response(self.get_serializer(entity).data)
+
+    @logs_action(
+        "lims.entity.tag_detached",
+        get_metadata=lambda inst, data, req: {
+            "tag_id": int(req.resolver_match.kwargs["tag_id"])
+        },
+    )
+    @action(detail=True, methods=["delete"], url_path="tags/(?P<tag_id>[^/.]+)")
+    def detach_tag(self, request, display_id=None, tag_id=None):
+        entity = self.get_object()
+        from mods.access.policies import effective_role
+        from rest_framework.exceptions import PermissionDenied
+
+        if effective_role(request.user, entity) != "edit":
+            raise PermissionDenied("You do not have permission to edit this entity.")
+        try:
+            tag = Tag.objects.get(id=tag_id)
+        except Tag.DoesNotExist:
+            return Response({"error": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
+        entity.tags.remove(tag)
+        return Response(self.get_serializer(entity).data)
 
     def filter_queryset(self, queryset):
         # Support ?type= as an alias for ?schema=

@@ -76,6 +76,8 @@ const _entityListItemDefaults: EntityListItem = {
   status: "in_progress",
   updated_at: "2025-01-01T00:00:00Z",
   created_at: "2025-01-01T00:00:00Z",
+  tags: [],
+  effective_role: "edit",
 };
 
 /** A single EntityListItem with sensible defaults.

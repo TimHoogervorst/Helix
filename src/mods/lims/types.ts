@@ -1,3 +1,5 @@
+import type { Tag } from "../tags/types";
+
 /** A column definition within a schema. */
 export interface ColumnDef {
   id?: string;
@@ -62,7 +64,7 @@ export interface SchemaTypeItem {
   tags: string[];
 }
 
-/** An entity as returned by the list endpoint. */
+/** An entity as returned by the entity API. */
 export interface EntityListItem {
   id: number;
   display_id: string;
@@ -79,6 +81,8 @@ export interface EntityListItem {
   status: string;
   updated_at: string;
   created_at: string;
+  tags: Tag[];
+  effective_role: "read" | "edit";
 }
 
 /** Paginated response wrapper. */

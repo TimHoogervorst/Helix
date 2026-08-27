@@ -38,7 +38,7 @@ Workspaces declare named **slots** — placeholders that own how embedded UI is 
 | **Binding Override** | A per-binding configuration object (`overrides`) set on `registerIntoSlot()`. Merged with slot defaults; the binding wins per key. Used for presentation-level configuration that is specific to a slot binding; the block component receives overrides via `BlockComponentProps` and can conditionally render UI based on them. |
 | **Inline Block** | A block stored inside the ProseMirror/TipTap document JSON. Part of the document body — locked when the document is locked (e.g. during review). Created and edited through the editor. |
 | **Duplication Policy** | A declarative `preserve` list on a block registration governing what Duplicate carries over. Empty by default — Duplicate copies the block's full state. A policy names which parts survive (e.g. only a schema ID or a protocol ID); everything else is re-derived fresh, exactly as at a fresh insertion. Table row data and protocol step completion never travel on Duplicate. See [ADR 0024](docs/adr/0024-block-duplication-policy.md). |
-| **Event Bus** | A workspace-scoped pub/sub bus. Created by the workspace and passed to renderers; blocks never see it directly. Buttons emit events via `bus.emit()`; blocks listen declaratively via `listensTo` + `onEvent` handlers (wired by the renderer) and emit custom actions via their `emits` declaration. The bus carries cross-boundary events like `{workspaceId}.action.performed` (resolved, ready-to-render action items). Block lifecycle events (created/edited/deleted) are internal renderer callbacks — not on the public bus. Supports wildcard pattern matching for subscriptions. |
+| **Event Bus** | A workspace-scoped pub/sub bus. Created by the workspace and passed to renderers; blocks never see it directly. Buttons emit events via `bus.emit()`; blocks listen declaratively via `listensTo` + `onEvent` handlers (wired by the renderer) and emit custom actions via their `emits` declaration. The bus carries cross-boundary events like `{workspaceId}.action.performed` (resolved, ready-to-render action items) and `{workspaceId}.actions.pending` / `{workspaceId}.actions.flushed` (save-cycle signals consumed by the Activity Feed). Block lifecycle events (created/edited/deleted) are internal renderer callbacks — not on the public bus. Supports wildcard pattern matching for subscriptions. |
 
 ### Backend Mod System
 
@@ -47,6 +47,14 @@ The backend mirrors the frontend mod system. Mods are discovered from `modManife
 ### Action Logging
 
 All mutating operations are automatically logged for CFR Part 11 audit compliance. Mutating actions — whether from an HTTP endpoint or a block — flow through a single unified `POST /api/actions/` endpoint. The four Core Actions are `read`, `created`, `edited`, and `deleted`. `read` participates in access-policy evaluation but is never persisted as an Action Log Entry or shown in the Activity Feed; the three mutating Core Actions are logged. Custom domain actions must be explicitly registered and map to a Core Action. For the access foundation, policies for Core Actions are hardcoded; per-mod custom Action policies are deferred. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
+
+### Activity Feed
+
+The Activity Feed renders the framework-logged Action Log Entries of one **Subject** — the object the feed tracks (currently a Notebook Entry or an Entity). It is the presentation surface of the audit trail. The feed is subject-agnostic: a shared core owns fetching, ordering, grouping, and presentation, while each Subject contributes a thin binding supplying its action source and its live-update signals. The feed never renders anything unpersisted — there is no optimistic rendering.
+
+Live updates follow the save cycle. While a save cycle has pending actions, the feed shows a muted **Unsaved Changes** indicator; when the flush succeeds (all pending actions persisted), the indicator clears and the feed refreshes. A successful entry save likewise refreshes the feed. On a surface without an Event Bus the feed is static — it fetches once and shows no indicator.
+
+**Invariant:** Feeds of different Subjects are never merged — an entry's feed and an entity's feed remain separate.
 
 ---
 
@@ -208,7 +216,7 @@ The Organization Admin-only section of a top-level Folder's Properties Modal, sh
 
 ### LIMS
 
-The LIMS domain comprises Entity Types, Entities, and Actions. The LIMS mod registers the **Entities Hub** (`/entities`) — a flat, filterable, searchable table over every entity in the system, regardless of which mod owns the entity type. This is where saved Views are created and applied. Individual entities are accessed via their workspace URLs; the entity workspace provides a tabbed detail view (Activity, Insights, Storage). Entity types are managed through the Settings hub.
+The LIMS domain comprises Entity Types, Entities, and Actions. The LIMS mod registers the **Entities Hub** (`/entities`) — a flat, filterable, searchable table over every entity in the system, regardless of which mod owns the entity type. This is where saved Views are created and applied. Individual entities are accessed via their workspace URLs; the entity workspace is the default entity page — a hero header (icon, name, status, copyable display ID, Tags), a tabbed content area (always an Overview tab, plus one tab per enabled Schema Component), and a right-hand Activity panel. Entity types are managed through the Settings hub.
 
 **Synonyms:** entity management, sample database
 
@@ -236,13 +244,19 @@ When an entry's status changes, the new status **cascades** to every Entity whos
 
 ### Tag
 
-A label created by Organization Admins that can be attached to Notebook Entries. Each Tag has a **name** and a **color** (chosen from a preset palette of semantic design tokens). Tags are reusable across entries — a Tag is visible across the Organization and can be attached to any entry. Tags have no hierarchy and no independent lifecycle.
+A label created by Organization Admins that can be attached to taggable objects — currently **Notebook Entries** and **Entities**. Each Tag has a **name**, a **color** (chosen from a preset palette of semantic design tokens), and an **icon**. Tags are reusable — a Tag is visible across the Organization and can be attached to any taggable object. Tags have no hierarchy and no independent lifecycle. A Tag is not specific to one kind of object: the same Tag may label an Entry and an Entity.
 
-Tags are **managed by Organization Admins** in Settings — creation, renaming, recoloring, and deletion. Users work with existing Tags only: on the entry page they attach and detach Tags (which requires Edit access on the entry) but never create or modify Tags themselves.
+Tags are **managed by Organization Admins** in Settings — creation, renaming, recoloring, and deletion. Users work with existing Tags only: on an object's workspace page they attach and detach Tags (which requires Edit access on the object) but never create or modify Tags themselves.
 
 **Invariant:** A Tag's name is unique (case-insensitive). A Tag's color comes from the preset palette.
 
 **Synonyms:** label, chip, keyword
+
+### Taggable Object
+
+An object a Tag can be attached to. Taggability is granted per object kind — currently Notebook Entries and Entities — and each taggable kind carries its own set of Tags. Attaching and detaching Tags always happens on the object's own workspace page and always requires Edit access on that object. Read-only viewers see the object's Tags without any attach/detach affordance.
+
+_Avoid_: generic tag target
 
 ### Description
 
@@ -509,6 +523,14 @@ The canonical term for a workspace-registered category that Schemas belong to. D
 A capability label on a Schema Type (e.g. `RegistrationTable`, `ResultTable`) that controls which table blocks offer its Schemas and which schema-settings tabs list it. Registry Tables show only schemas of `RegistrationTable`-tagged types; Result Tables only `ResultTable`-tagged ones; untagged types (e.g. ELN Entries) appear in neither. Tags are declared by the owning mod at registration.
 
 **Synonyms:** type tag, capability tag
+
+### Schema Component
+
+A registered, optional tab on an entity's workspace that a Schema can enable. Mods register Schema Components on the frontend (label, icon, tab renderer); Organization Admins enable or disable them per Schema in the **Schema Components** section of schema settings, and the enabled set is persisted on the Schema. Every enabled Schema Component adds its tab to every entity of that Schema. Registration is frontend-owned — a Schema Component that needs backend capabilities relies on its mod's existing backend registrations (endpoints, services) rather than on a component-specific backend registry. Enabled IDs that resolve to no registered component are silently skipped. Currently offered for entity Schemas only; the concept is deliberately not limited to entities.
+
+The first Schema Component is **Results** — a read-only tab showing every Result Entity whose Entity Column points at the entity, grouped into one block per Result Schema.
+
+**Synonyms:** entity component (rejected — limits the concept to entities)
 
 ### Entity Column
 

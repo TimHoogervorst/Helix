@@ -4,6 +4,7 @@ from helix_core.column_types import registry as column_type_registry
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Folder, Project
+from mods.tags.serializers import TagSerializer
 
 
 def validate_prefix(value):
@@ -117,6 +118,8 @@ def validate_reference_properties(properties, schema_instance):
 
 
 class EntitySerializer(serializers.ModelSerializer):
+    tags = TagSerializer(many=True, read_only=True)
+    effective_role = serializers.SerializerMethodField()
     schema = serializers.PrimaryKeyRelatedField(
         queryset=Schema.objects.all(),
         required=False,
@@ -156,8 +159,24 @@ class EntitySerializer(serializers.ModelSerializer):
             "status",
             "updated_at",
             "created_at",
+            "tags",
+            "effective_role",
         ]
-        read_only_fields = ["id", "display_id", "author", "updated_at", "created_at"]
+        read_only_fields = [
+            "id",
+            "display_id",
+            "author",
+            "updated_at",
+            "created_at",
+            "tags",
+            "effective_role",
+        ]
+
+    def get_effective_role(self, obj):
+        from mods.access.policies import effective_role
+
+        request = self.context.get("request")
+        return effective_role(request.user, obj) if request else "read"
 
     def validate(self, data):
         folder = data.get("folder")

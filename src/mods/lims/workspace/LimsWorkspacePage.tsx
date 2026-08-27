@@ -7,6 +7,9 @@ import EntityDetailFields from "../components/EntityDetailFields";
 import LimsWorkspacePanel from "./LimsWorkspace";
 import NotFound from "../../../shell/src/shared/components/NotFound";
 import { isNotFoundError } from "../../../shell/src/api/client";
+import { TagSection } from "../../tags/ui";
+import { useTaggableItems } from "../../tags/hooks";
+import { attachEntityTags, detachEntityTag } from "../hub/api";
 
 /**
  * Full-page entity workspace (route: /lims/:displayId).
@@ -22,6 +25,21 @@ function LimsWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const taggableItems = useTaggableItems({
+    initialTags: entity?.tags ?? [],
+    attachFn: displayId
+      ? async (tagIds) => {
+          const updated = await attachEntityTags(displayId, tagIds);
+          setEntity(updated);
+        }
+      : undefined,
+    detachFn: displayId
+      ? async (tagId) => {
+          const updated = await detachEntityTag(displayId, tagId);
+          setEntity(updated);
+        }
+      : undefined,
+  });
 
   useEffect(() => {
     if (!displayId) return;
@@ -102,6 +120,15 @@ function LimsWorkspacePage() {
             {entity.name}
           </h2>
         </div>
+        <TagSection
+          tags={taggableItems.tags}
+          onAddTag={
+            entity.effective_role === "edit" ? taggableItems.addTag : undefined
+          }
+          onRemoveTag={
+            entity.effective_role === "edit" ? taggableItems.removeTag : undefined
+          }
+        />
         <EntityDetailFields entity={entity} showProperties />
       </div>
 

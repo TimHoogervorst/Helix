@@ -426,7 +426,7 @@ describe("ElnChrome", () => {
       expect(main).not.toBeNull();
       expect(main!.querySelector('[data-testid="tiptap-renderer"]')).toBeDefined();
       expect(screen.getByTestId("metadata-line").parentElement).toHaveClass(
-        "eln-workspace-center",
+        "workspace-text-column",
       );
     });
 

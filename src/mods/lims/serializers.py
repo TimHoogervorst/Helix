@@ -139,6 +139,17 @@ class EntitySerializer(serializers.ModelSerializer):
         queryset=Project.objects.all(), required=False,
     )
     project_name = serializers.CharField(source="project.name", read_only=True)
+    schema_columns = serializers.SerializerMethodField()
+    schema_icon = serializers.CharField(source="schema.icon", read_only=True, default="")
+    schema_color = serializers.CharField(source="schema.color", read_only=True, default="")
+    enabled_components = serializers.ListField(
+        source="schema.enabled_components", read_only=True, default=list
+    )
+    folder_path = serializers.SerializerMethodField()
+    project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
+    last_editor_username = serializers.CharField(
+        source="last_editor.username", read_only=True, default=None
+    )
 
     class Meta:
         model = Entity
@@ -155,13 +166,21 @@ class EntitySerializer(serializers.ModelSerializer):
             "folder",
             "project",
             "project_name",
+            "project_uid",
             "author",
             "author_username",
+            "last_editor",
+            "last_editor_username",
             "status",
             "updated_at",
             "created_at",
             "tags",
             "effective_role",
+            "schema_columns",
+            "schema_icon",
+            "schema_color",
+            "enabled_components",
+            "folder_path",
         ]
         read_only_fields = [
             "id",
@@ -171,6 +190,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "created_at",
             "tags",
             "effective_role",
+            "last_editor",
         ]
 
     def get_effective_role(self, obj):
@@ -178,6 +198,13 @@ class EntitySerializer(serializers.ModelSerializer):
 
         request = self.context.get("request")
         return effective_role(request.user, obj) if request else "read"
+
+    def get_schema_columns(self, obj):
+        """Return the hydrated schema columns used to render metadata."""
+        return (obj.schema.schema_type.columns or []) + (obj.schema.columns or [])
+
+    def get_folder_path(self, obj):
+        return obj.folder.path if obj.folder else ""
 
     def validate(self, data):
         folder = data.get("folder")

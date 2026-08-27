@@ -10,8 +10,16 @@ import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
 import { ActivityFeedBlock } from "./blocks/ActivityFeedBlock";
 import manifest from "./modManifest.json";
+import ResultsTab from "./workspace/ResultsTab";
 
 const mod = new Mod(manifest as ModManifest);
+
+mod.registerSchemaComponent("results", {
+  label: "Results",
+  icon: History,
+  component: ResultsTab,
+  order: 10,
+});
 
 // ── Standalone route: full entity workspace page ──────────────────────
 mod.registerRoute("entity-page", {

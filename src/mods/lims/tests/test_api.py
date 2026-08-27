@@ -121,6 +121,53 @@ class EntityApiTests(BaseTestCase):
         response = self.client.get(f"/api/lims/entities/{entity.pk}/")
         self.assertEqual(response.status_code, 404)
 
+    def test_retrieve_entity_includes_workspace_fields(self):
+        self.dna_schema.icon = "dna"
+        self.dna_schema.color = "success"
+        self.dna_schema.save(update_fields=["icon", "color"])
+        entity = Entity.objects.create(
+            name="Workspace fields", schema=self.dna_schema,
+            folder=self.folder, author=self.user,
+            properties={"concentration": 12},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["schema_icon"], "dna")
+        self.assertEqual(response.data["schema_color"], "success")
+        self.assertEqual(response.data["schema_columns"][0]["name"], "concentration")
+        self.assertEqual(response.data["folder_path"], self.folder.path)
+        self.assertEqual(response.data["project_uid"], str(self.project.uid))
+
+    def test_results_groups_linked_rows_and_hides_unlinked_rows(self):
+        result_type = SchemaType.objects.create(
+            display_name="Result", workspace_id="results",
+            model="mods.lims.models.Entity", tags=["ResultTable"],
+        )
+        result_schema = Schema.objects.create(
+            name="Assay result", prefix="RESULT", schema_type=result_type,
+            columns=[{"name": "Entity", "type": "text"}, {"name": "Value", "type": "number"}],
+        )
+        entity = Entity.objects.create(
+            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+        )
+        linked = Entity.objects.create(
+            name="Linked result", schema=result_schema, folder=self.folder, author=self.user,
+            properties={"Entity": entity.display_id, "Value": 4},
+        )
+        Entity.objects.create(
+            name="Other result", schema=result_schema, folder=self.folder, author=self.user,
+            properties={"Entity": "OTHER-1", "Value": 9},
+        )
+
+        response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["schema"]["name"], "Assay result")
+        self.assertEqual(response.data[0]["results"][0]["display_id"], linked.display_id)
+
     def test_batch_resolve_entities(self):
         """POST /api/lims/entities/batch/ resolves display IDs to properties."""
         e1 = Entity.objects.create(

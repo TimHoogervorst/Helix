@@ -420,7 +420,7 @@ describe("ElnWorkspacePage — five-zone layout", () => {
       expect(main!.querySelector('[data-testid="tiptap-renderer"]')).toBeDefined();
       expect(screen.getAllByText("Metadata").length).toBeGreaterThan(0);
       expect(screen.getByTestId("metadata-line").parentElement).toHaveClass(
-        "eln-workspace-center",
+        "workspace-text-column",
       );
     });
 

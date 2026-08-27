@@ -66,7 +66,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     """
 
     queryset = (
-        Entity.objects.select_related("schema", "author", "folder")
+        Entity.objects.select_related(
+            "schema", "schema__schema_type", "author", "last_editor", "folder", "project",
+        )
         .prefetch_related("tags")
     )
     serializer_class = EntitySerializer
@@ -231,6 +233,46 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             return Response({"error": "Tag not found"}, status=status.HTTP_404_NOT_FOUND)
         entity.tags.remove(tag)
         return Response(self.get_serializer(entity).data)
+
+    @action(detail=True, methods=["get"], url_path="results")
+    def results(self, request, display_id=None):
+        """Return readable ResultTable rows linked to this entity."""
+        entity = self.get_object()
+        result_entities = (
+            Entity.objects.filter(
+                schema__schema_type__tags__contains=["ResultTable"],
+                properties__Entity=entity.display_id,
+            )
+            .filter(visible_rows_q(request.user))
+            .select_related("schema", "schema__schema_type", "author")
+            .order_by("schema_id", "created_at")
+        )
+
+        groups = {}
+        for result in result_entities:
+            schema = result.schema
+            group = groups.setdefault(
+                schema.pk,
+                {
+                    "schema": {
+                        "id": schema.pk,
+                        "name": schema.name,
+                        "icon": schema.icon,
+                        "color": schema.color,
+                        "columns": (schema.schema_type.columns or []) + (schema.columns or []),
+                    },
+                    "results": [],
+                },
+            )
+            group["results"].append({
+                "display_id": result.display_id,
+                "name": result.name,
+                "created_at": result.created_at,
+                "author_username": result.author.username,
+                "properties": result.properties,
+            })
+
+        return Response(list(groups.values()))
 
     def filter_queryset(self, queryset):
         # Support ?type= as an alias for ?schema=

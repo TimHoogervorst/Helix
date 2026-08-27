@@ -25,7 +25,7 @@ import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import NotFound from "../../../shell/src/shared/components/NotFound";
 import { pathSegments, segmentPath } from "../../library/path";
-import type { EntryDetail, Tag, ElnAction } from "../types";
+import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
 function formatDateShort(iso: string): string {
@@ -42,6 +42,7 @@ export interface ElnChromeProps {
   entry: EntryDetail | null;
   projectUid?: string | null;
   folderPath: string;
+  sourcePath?: SourcePathSegment[];
 
   title: string;
   onTitleChange: (t: string) => void;
@@ -78,6 +79,7 @@ function ElnChrome({
   entry,
   projectUid,
   folderPath,
+  sourcePath,
   title,
   onTitleChange,
   description,
@@ -128,10 +130,13 @@ function ElnChrome({
     el.style.height = `${el.scrollHeight}px`;
   }, [description]);
 
-  const folderPathSegments = pathSegments(folderPath);
-  const libraryRoot = projectUid
-    ? `/library?project=${encodeURIComponent(projectUid)}`
+  const sourceSegments = sourcePath ?? entry?.source_path ?? [];
+  const projectSegment = sourceSegments.find((segment) => segment.kind === "project");
+  const resolvedProjectUid = projectSegment?.uid ?? projectUid;
+  const libraryRoot = resolvedProjectUid
+    ? `/library?project=${encodeURIComponent(resolvedProjectUid)}`
     : "/library";
+  const folderPathSegments = pathSegments(folderPath);
 
   if (!isReady && !error) {
     return (
@@ -183,7 +188,30 @@ function ElnChrome({
               className="h-3.5 w-3.5 text-muted-foreground"
               aria-hidden="true"
             />
-            {folderPathSegments.length > 0 ? (
+            {sourceSegments.length > 0 ? (
+              sourceSegments.map((segment, index) => {
+                const folders = sourceSegments
+                  .slice(0, index + 1)
+                  .filter((item) => item.kind === "folder")
+                  .map((item) => item.name);
+                let to = libraryRoot;
+                if (segment.kind === "folder") {
+                  to = `${libraryRoot}&path=${encodeURIComponent(`/${folders.join("/")}`)}`;
+                } else if (segment.kind === "entry") {
+                  to = `/eln/${segment.display_id}`;
+                } else if (segment.kind === "entity") {
+                  to = `/lims/${segment.display_id}`;
+                }
+                return (
+                  <span key={`${segment.kind}-${segment.id}`} className="flex items-center gap-1.5">
+                    <Link to={to} className="hover:text-foreground transition-colors">
+                      {segment.name}
+                    </Link>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" aria-hidden="true" />
+                  </span>
+                );
+              })
+            ) : folderPathSegments.length > 0 ? (
               folderPathSegments.map((segment, i) => {
                 const isLast = i === folderPathSegments.length - 1;
                 const path = segmentPath(folderPathSegments, i);

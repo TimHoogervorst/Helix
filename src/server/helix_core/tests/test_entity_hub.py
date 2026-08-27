@@ -259,6 +259,18 @@ class EntityHubAPITests(APITestCase):
             self.assertIn("status", row)
             self.assertIn("author_username", row)
 
+    def test_each_row_exposes_direct_source_identity(self):
+        response = self.client.get(self.url)
+        data = response.json()
+        sources = {row["source"]["kind"] for row in data["results"]}
+        self.assertIn("folder", sources)
+        for row in data["results"]:
+            self.assertIn("source", row)
+            self.assertIn("id", row["source"])
+            self.assertIn("kind", row["source"])
+            self.assertIn("source_type", row)
+            self.assertIn("source_id", row)
+
     def test_default_page_size_is_50(self):
         """The default page size is 50."""
         response = self.client.get(self.url)
@@ -305,7 +317,7 @@ class EntityHubAPITests(APITestCase):
         columns = data["available_columns"]
         keys = {c["key"] for c in columns}
         expected = {"display_id", "name", "schema_type_id", "project",
-                     "folder", "status", "author", "created_at", "updated_at"}
+                     "source", "status", "author", "created_at", "updated_at"}
         self.assertTrue(expected.issubset(keys))
 
     def test_available_columns_have_type_filterable_width(self):
@@ -542,7 +554,7 @@ class EntityHubAPITests(APITestCase):
                 self.assertEqual(row["schema_id"], lims_schema.id)
                 self.assertIn("LIMS", row["name"])
 
-    # ── Project and Folder fields on hub rows ─────────────────────────────
+    # ── Project and Source fields on hub rows ─────────────────────────────
 
     def test_hub_rows_include_project_and_folder_fields(self):
         """Hub rows carry project_id, project_uid, project_name and folder fields."""
@@ -570,6 +582,8 @@ class EntityHubAPITests(APITestCase):
             self.assertIn("folder_id", row)
             self.assertIn("folder_name", row)
             self.assertIn("folder_path", row)
+            self.assertIn("source", row)
+            self.assertEqual(row["source"]["kind"], "folder")
 
     def test_sort_by_project_name(self):
         """?sort=project__name sorts by project name."""

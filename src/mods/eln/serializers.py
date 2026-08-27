@@ -1,7 +1,9 @@
 from rest_framework import serializers
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from core.models import Folder, Project, User
+from helix_core.abstracts import hydrate_source_path
 from mods.users.serializers import UserSerializer
 
 from mods.tags.models import Tag
@@ -76,7 +78,11 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source="project.name", read_only=True)
     mentions = MentionSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
-    source_path = serializers.JSONField(read_only=True)
+    source_path = serializers.SerializerMethodField()
+    source_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContentType.objects.all(), required=False,
+    )
+    source_id = serializers.IntegerField(required=False)
 
     class Meta:
         model = NotebookEntry
@@ -105,7 +111,7 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "mentions",
             "tags",
         ]
-        read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema", "source_type", "source_id", "source_path"]
+        read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema", "source_path"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
@@ -114,6 +120,10 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
         if obj.folder:
             return obj.folder.path
         return ""
+
+    def get_source_path(self, obj):
+        cache = self.context.setdefault("source_path_cache", {})
+        return hydrate_source_path(obj.source_path, cache)
 
 
 class NotebookEntryCreateSerializer(serializers.ModelSerializer):
@@ -130,11 +140,6 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
     tag_ids = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=False, write_only=True
     )
-    source_type = serializers.PrimaryKeyRelatedField(
-        read_only=True
-    )
-    source_id = serializers.IntegerField(read_only=True)
-
     class Meta:
         model = NotebookEntry
         fields = ["name", "content", "folder", "project", "status", "tag_ids"]
@@ -166,7 +171,10 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         tag_ids = validated_data.pop("tag_ids", None)
-        instance = super().update(instance, validated_data)
+        try:
+            instance = super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
         if tag_ids is not None:
             instance.tags.set(tag_ids)
         return instance

@@ -1,5 +1,13 @@
 import type { Tag } from "../tags/types";
 
+export interface SourcePathSegment {
+  kind: "project" | "folder" | "entry" | "entity";
+  id: number;
+  name: string;
+  uid?: string;
+  display_id?: string;
+}
+
 /** A column definition within a schema. */
 export interface ColumnDef {
   id?: string;
@@ -87,6 +95,7 @@ export interface EntityListItem {
   last_editor: number | null;
   last_editor_username: string | null;
   folder_path: string;
+  source_path: SourcePathSegment[];
   project_uid: string | null;
   status: string;
   updated_at: string;
@@ -127,6 +136,17 @@ export interface LimsAction {
 
 // ── Entities Hub ─────────────────────────────────────────────────────────
 
+export interface EntityHubSource {
+  kind: "project" | "folder" | "entry" | "entity";
+  id: number;
+  name: string;
+  display_id?: string;
+  icon: string;
+  color: string;
+  uid?: string;
+  path?: string;
+}
+
 /** A row from the entity_hub_view as returned by GET /api/registry/entities. */
 export interface EntityHubItem {
   id: number;
@@ -153,6 +173,7 @@ export interface EntityHubItem {
   folder_id: number;
   folder_name: string;
   folder_path: string;
+  source: EntityHubSource | null;
   /** Schema properties columns extracted from the properties JSON.
    * Only populated when a specific Schema is selected. */
   _expanded: Record<string, unknown> | null;

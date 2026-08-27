@@ -1046,7 +1046,7 @@ function LibraryHub() {
       />
 
       {/* ── Properties Modals ─────────────────────────────────────────── */}
-      {propertiesItem?.type === "entry" && (
+      {(propertiesItem?.type === "entry" || propertiesItem?.type === "entity") && (
         <EntryPropertiesModal
           open={true}
           onClose={() => setPropertiesItem(null)}

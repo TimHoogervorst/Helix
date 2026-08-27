@@ -89,7 +89,7 @@ const DEFAULT_COLUMNS: EntityHubResponse["available_columns"] = [
   { key: "name", label: "Name", source: "common", type: "text", filterable: true, width: null },
   { key: "schema_type_id", label: "Schema Type", source: "common", type: "text", filterable: true, width: null },
   { key: "project", label: "Project", source: "common", type: "project", filterable: true, width: null },
-  { key: "folder", label: "Folder", source: "common", type: "folder", filterable: false, width: null },
+  { key: "source", label: "Source", source: "common", type: "source", filterable: false, width: null },
   { key: "status", label: "Status", source: "common", type: "dropdown", filterable: true, width: null },
   { key: "author", label: "Author", source: "common", type: "user", filterable: true, width: null },
   { key: "created_at", label: "Created", source: "common", type: "datetime", filterable: true, width: null },
@@ -171,6 +171,15 @@ function makeEntityHubItem(
     folder_id: 1,
     folder_name: "Experiments",
     folder_path: "/Experiments",
+    source: {
+      kind: "folder",
+      id: 1,
+      name: "Experiments",
+      icon: "folder",
+      color: "warn",
+      path: "/Experiments",
+      uid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    },
     ...overrides,
   };
 }
@@ -577,7 +586,7 @@ describe("EntitiesHub", () => {
     expect(mockGetEntities.mock.calls.length).toBe(callCount);
   });
 
-  // ── Project and Folder columns ──────────────────────────────────────
+  // ── Project and Source columns ──────────────────────────────────────
 
   it("renders Project column with icon and name", async () => {
     const items = [makeEntityHubItem({
@@ -593,7 +602,7 @@ describe("EntitiesHub", () => {
     });
   });
 
-  it("renders Folder column with folder name", async () => {
+  it("renders Source column with folder name", async () => {
     const items = [makeEntityHubItem({
       id: 1,
       folder_name: "Experiments",
@@ -605,10 +614,11 @@ describe("EntitiesHub", () => {
     });
   });
 
-  it("renders em dash in Folder column for root-level entities", async () => {
+  it("renders em dash in Source column when source is absent", async () => {
     const items = [makeEntityHubItem({
       id: 1,
       folder_name: "",
+      source: null,
     })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
@@ -617,26 +627,35 @@ describe("EntitiesHub", () => {
     });
   });
 
-  it("Folder cell navigates to project-scoped Library URL on click", async () => {
+  it("renders direct entry and entity Sources by display ID", async () => {
+    const items = [
+      makeEntityHubItem({ id: 1, source: { kind: "entry", id: 2, name: "Entry", display_id: "ENT-1", icon: "file-text", color: "muted" } }),
+      makeEntityHubItem({ id: 2, source: { kind: "entity", id: 3, name: "Entity", display_id: "SAMPLE-1", icon: "circle", color: "muted" } }),
+    ];
+    mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
+    renderHub();
+    await waitFor(() => {
+      expect(screen.getByText("ENT-1")).toBeInTheDocument();
+      expect(screen.getByText("SAMPLE-1")).toBeInTheDocument();
+    });
+  });
+
+  it("does not render the Source Path as the Source column", async () => {
     const items = [makeEntityHubItem({
       id: 1,
       project_uid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-      folder_name: "Experiments",
-      folder_path: "/Experiments",
+      folder_name: "Other Folder",
+      folder_path: "/Other Folder/Experiments",
     })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
     await waitFor(() => {
       expect(screen.getByText("Experiments")).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByText("Experiments"));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/library?project=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee&path=%2FExperiments",
-    );
+    expect(screen.queryByText("/Other Folder/Experiments")).not.toBeInTheDocument();
   });
 
-  it("Project and Folder columns are visible by default", async () => {
+  it("Project and Source columns are visible by default", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
@@ -646,10 +665,10 @@ describe("EntitiesHub", () => {
 
     // Both column headers should be visible
     expect(screen.getByText("Project")).toBeInTheDocument();
-    expect(screen.getByText("Folder")).toBeInTheDocument();
+    expect(screen.getByText("Source")).toBeInTheDocument();
   });
 
-  it("Project and Folder columns are hideable via column chooser", async () => {
+  it("Project and Source columns are hideable via column chooser", async () => {
     const items = [makeEntityHubItem({ id: 1 })];
     mockGetEntities.mockResolvedValue(makePopulatedResponse(items));
     renderHub();
@@ -661,16 +680,16 @@ describe("EntitiesHub", () => {
     fireEvent.click(screen.getByTitle("Column visibility"));
 
     await waitFor(() => {
-      // Look for checkboxes with label "Project" and "Folder"
+      // Look for checkboxes with label "Project" and "Source"
       const checkboxes = document.querySelectorAll(
         ".entities-column-chooser-row input[type='checkbox']",
       );
       const checkboxLabels = Array.from(checkboxes).map(
         (cb) => (cb.parentElement?.querySelector(".entities-column-chooser-name")?.textContent ?? ""),
       );
-      // Project and Folder labels should be in the popover
+      // Project and Source labels should be in the popover
       expect(checkboxLabels).toContain("Project");
-      expect(checkboxLabels).toContain("Folder");
+      expect(checkboxLabels).toContain("Source");
     });
   });
 

@@ -261,11 +261,35 @@ describe("ElnChrome", () => {
       expect(screen.getByText("EXP-0284")).toBeDefined();
     });
 
-    it("renders the entry at the Project root when folderPath is empty", () => {
+  it("renders the entry at the Project root when folderPath is empty", () => {
       renderChrome({ folderPath: "" });
       expect(screen.getByText("EXP-0284")).toBeInTheDocument();
       expect(screen.queryByText("—")).toBeNull();
     });
+  });
+
+  it("renders hydrated Source Path segments with kind-aware links", () => {
+    renderChrome({
+      sourcePath: [
+        { kind: "project", id: 1, name: "Project", uid: "project-1" },
+        { kind: "folder", id: 2, name: "Research" },
+        { kind: "entry", id: 3, name: "Parent entry", display_id: "EXP-1" },
+        { kind: "entity", id: 4, name: "Sample", display_id: "DNA-1" },
+      ],
+    });
+
+    expect(screen.getByText("Project").closest("a")?.getAttribute("href")).toBe(
+      "/library?project=project-1",
+    );
+    expect(screen.getByText("Research").closest("a")?.getAttribute("href")).toBe(
+      "/library?project=project-1&path=%2FResearch",
+    );
+    expect(screen.getByText("Parent entry").closest("a")?.getAttribute("href")).toBe(
+      "/eln/EXP-1",
+    );
+    expect(screen.getByText("Sample").closest("a")?.getAttribute("href")).toBe(
+      "/lims/DNA-1",
+    );
   });
 
   describe("title callbacks", () => {

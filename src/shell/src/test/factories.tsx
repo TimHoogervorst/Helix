@@ -80,6 +80,7 @@ const _entityListItemDefaults: EntityListItem = {
   last_editor: null,
   last_editor_username: null,
   folder_path: "",
+  source_path: [],
   project_uid: null,
   status: "in_progress",
   updated_at: "2025-01-01T00:00:00Z",

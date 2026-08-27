@@ -7,6 +7,7 @@ import { Select } from "../../../shell/src/shared/primitives/Input";
 import { listDropdowns } from "../../dropdowns/api";
 import type { LibraryEntryItem, LibraryFolderPath } from "../types";
 import { patchEntry, getLockStatus } from "../../eln/api";
+import { patchEntity } from "../../lims/hub/api";
 
 interface ProjectMeta {
   name: string;
@@ -58,6 +59,10 @@ export function EntryPropertiesModal({
   useEffect(() => {
     if (!open) return;
     setStatus(entry.status);
+    if (entry.type === "entity") {
+      setLockedByOther(false);
+      return;
+    }
     getLockStatus(entry.display_id)
       .then((lockStatus) => {
         if (lockStatus.locked && lockStatus.held_by_username) {
@@ -85,7 +90,11 @@ export function EntryPropertiesModal({
     setStatusError(null);
     setSaving(true);
     try {
-      await patchEntry(entry.display_id, { status: newStatus });
+      if (entry.type === "entity") {
+        await patchEntity(entry.display_id, { status: newStatus });
+      } else {
+        await patchEntry(entry.display_id, { status: newStatus });
+      }
       onMutated();
     } catch (err: unknown) {
       setStatus(entry.status);
@@ -97,12 +106,16 @@ export function EntryPropertiesModal({
     }
   };
 
-  const handleMove = async (folderId: number) => {
+  const handleMove = async (folderId: number | null) => {
     setMoveSearch("");
     setMoveError(null);
     setSaving(true);
     try {
-      await patchEntry(entry.display_id, { folder: folderId });
+      if (entry.type === "entity") {
+        await patchEntity(entry.display_id, { folder: folderId });
+      } else {
+        await patchEntry(entry.display_id, { folder: folderId });
+      }
       onMutated();
     } catch (err: unknown) {
       const msg =
@@ -201,12 +214,22 @@ export function EntryPropertiesModal({
                 <p className="text-xs text-red-500 mt-1">{moveError}</p>
               )}
               <div className="max-h-32 overflow-y-auto mt-1 border border-[var(--color-ink-hairline)] rounded-md">
+                {entry.folder !== null && (moveSearch === "" || "project root".includes(moveSearch.toLowerCase())) && (
+                  <button
+                    type="button"
+                    disabled={isDisabled}
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--color-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => handleMove(null)}
+                  >
+                    Project root
+                  </button>
+                )}
                 {filteredFolders.map((f) => (
                   <button
                     key={f.id}
                     type="button"
                     disabled={isDisabled}
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--color-ink-hairline)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--color-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => handleMove(f.id)}
                   >
                     {f.path}

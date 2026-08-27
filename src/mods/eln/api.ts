@@ -119,7 +119,9 @@ export function createEntry(payload: CreateEntryPayload): Promise<EntryDetail> {
 
 export interface PatchEntryPayload {
   status?: string;
-  folder?: number;
+  folder?: number | null;
+  source_type?: number;
+  source_id?: number;
 }
 
 export function patchEntry(

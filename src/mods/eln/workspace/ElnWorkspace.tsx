@@ -221,8 +221,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       isNew={isNew}
       entryDisplayId={entryDisplayId}
       entry={workspace.entry}
-      projectUid={searchParams.get("project")}
-      folderPath={folderPath}
+    projectUid={searchParams.get("project")}
+    folderPath={folderPath}
+    sourcePath={workspace.entry?.source_path}
       title={title}
       onTitleChange={setTitle}
       description={description}

@@ -98,7 +98,7 @@ export interface LibraryProjectItem {
 
 /** A flat folder entry for the move picker. */
 export interface LibraryFolderPath {
-  id: number;
+  id: number | null;
   name: string;
   path: string;
 }

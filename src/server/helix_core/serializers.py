@@ -218,6 +218,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
     folder_id = serializers.IntegerField(source="folder.id", read_only=True, default=None)
     folder_name = serializers.CharField(source="folder.name", read_only=True, default="")
     folder_path = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()
     schema_type_display = serializers.SerializerMethodField()
     _expanded = serializers.SerializerMethodField()
 
@@ -245,9 +246,12 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "project_name",
             "project_icon",
             "project_color",
+            "source_type",
+            "source_id",
             "folder_id",
             "folder_name",
             "folder_path",
+            "source",
             "_expanded",
         ]
         read_only_fields = fields
@@ -263,6 +267,46 @@ class EntityHubSerializer(serializers.ModelSerializer):
         if folder is None:
             return ""
         return folder.path
+
+    def get_source(self, obj):
+        source = obj.source
+        if source is None:
+            return None
+
+        from core.models import Folder, Project
+        from mods.eln.models import NotebookEntry
+        from mods.lims.models import Entity
+
+        if isinstance(source, Project):
+            return {
+                "kind": "project",
+                "id": source.pk,
+                "name": source.name,
+                "icon": source.icon_key or "folder",
+                "color": source.color_key or "muted",
+                "uid": str(source.uid),
+            }
+        if isinstance(source, Folder):
+            return {
+                "kind": "folder",
+                "id": source.pk,
+                "name": source.name,
+                "icon": "folder",
+                "color": "warn",
+                "path": source.path,
+                "uid": str(source.project.uid),
+            }
+        if isinstance(source, (NotebookEntry, Entity)):
+            schema = source.schema
+            return {
+                "kind": "entry" if isinstance(source, NotebookEntry) else "entity",
+                "id": source.pk,
+                "name": source.name,
+                "display_id": source.display_id,
+                "icon": (schema.icon if schema else None) or "file-text",
+                "color": (schema.color if schema else None) or "muted",
+            }
+        return None
 
     def get__expanded(self, obj):
         """Extract schema column values from properties JSON.

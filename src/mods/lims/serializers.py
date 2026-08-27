@@ -1,7 +1,9 @@
 from rest_framework import serializers
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from helix_core.column_types import registry as column_type_registry
+from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Folder, Project
@@ -148,11 +150,11 @@ class EntitySerializer(serializers.ModelSerializer):
     )
     folder_path = serializers.SerializerMethodField()
     project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
-    source_path = serializers.JSONField(read_only=True)
+    source_path = serializers.SerializerMethodField()
     source_type = serializers.PrimaryKeyRelatedField(
-        read_only=True
+        queryset=ContentType.objects.all(), required=False,
     )
-    source_id = serializers.IntegerField(read_only=True)
+    source_id = serializers.IntegerField(required=False)
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
@@ -200,6 +202,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "tags",
             "effective_role",
             "last_editor",
+            "source_path",
         ]
 
     def get_effective_role(self, obj):
@@ -214,6 +217,10 @@ class EntitySerializer(serializers.ModelSerializer):
 
     def get_folder_path(self, obj):
         return obj.folder.path if obj.folder else ""
+
+    def get_source_path(self, obj):
+        cache = self.context.setdefault("source_path_cache", {})
+        return hydrate_source_path(obj.source_path, cache)
 
     def validate(self, data):
         folder = data.get("folder")
@@ -298,6 +305,20 @@ class EntitySerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Resolve the default Schema when none is provided on create."""
+        folder = data.get("folder")
+        project = data.get("project")
+        if self.instance is not None and "folder" in data and folder is None:
+            data["project"] = self.instance.project
+        elif self.instance is None and folder is None and project is None:
+            raise serializers.ValidationError(
+                {"project": "Provide a project when folder is empty."}
+            )
+        elif folder is not None:
+            if project is not None and project.pk != folder.project_id:
+                raise serializers.ValidationError(
+                    {"folder": "The folder must belong to the project."}
+                )
+            data["project"] = folder.project
         if self.instance is None and ("schema" not in data or data["schema"] is None):
             from helix_core.models import SchemaType
             try:

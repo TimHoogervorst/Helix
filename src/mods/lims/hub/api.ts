@@ -76,6 +76,19 @@ export function attachEntityTags(
   });
 }
 
+/** Move an entity while retaining its legacy folder representation. */
+export function patchEntity(
+  displayId: string,
+  payload: {
+    status?: string;
+    folder?: number | null;
+    source_type?: number;
+    source_id?: number;
+  },
+): Promise<EntityListItem> {
+  return patch<EntityListItem>(`/lims/entities/${displayId}/`, payload);
+}
+
 export function detachEntityTag(
   displayId: string,
   tagId: number,

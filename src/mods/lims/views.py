@@ -1,5 +1,6 @@
 import logging
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
 from rest_framework import serializers, viewsets, status
@@ -135,7 +136,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
         if "folder" in serializer.validated_data:
             new_folder = serializer.validated_data["folder"]
-            if new_folder.project_id != instance.project_id:
+            if new_folder is not None and new_folder.project_id != instance.project_id:
                 raise ValidationError(
                     {"folder": "Entities cannot be moved to a different Project."}
                 )
@@ -145,6 +146,23 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {"folder": "Entities cannot be moved outside the shared subtree."}
                 )
+            instance.set_source(new_folder or instance.project)
+        elif "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
+            new_source = instance.resolve_source(
+                serializer.validated_data.get("source_type", instance.source_type),
+                serializer.validated_data.get("source_id", instance.source_id),
+            )
+            if new_source.__class__.__name__ == "Folder":
+                destination = new_source
+            else:
+                destination = getattr(new_source, "folder", None)
+            if not destination_within_shared_subtree(
+                instance.folder, destination, instance.project_id,
+            ):
+                raise ValidationError(
+                    {"source": "Entities cannot be moved outside the shared subtree."}
+                )
+            instance.set_source(new_source)
         serializer.save()
         self._maybe_log(
             self.action,
@@ -608,6 +626,33 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     })
                 continue
 
+            result_source = None
+            if is_result_schema:
+                source_display_id = input_values.get("Entity")
+                if not source_display_id:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "Entity",
+                        "message": "An Entity is required for a result.",
+                    })
+                    continue
+                try:
+                    result_source = Entity.objects.get(display_id=source_display_id)
+                except Entity.DoesNotExist:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "Entity",
+                        "message": f"Referenced entity '{source_display_id}' does not exist.",
+                    })
+                    continue
+                if folder is not None and result_source.project_id != folder.project_id:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "Entity",
+                        "message": "The source entity must belong to the same project.",
+                    })
+                    continue
+
             if entity_id is not None:
                 try:
                     entity = Entity.objects.get(pk=entity_id)
@@ -632,7 +677,22 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         update_fields = ["name", "properties"]
                     entity.name = name
                     entity.properties = persisted_values
-                    entity.save(update_fields=update_fields)
+                    if result_source is not None:
+                        try:
+                            entity.set_source(result_source)
+                            update_fields.extend([
+                                "source_type", "source_id", "source_path", "folder",
+                            ])
+                            entity.save(update_fields=update_fields)
+                        except DjangoValidationError as exc:
+                            errors.append({
+                                "row_index": row_index,
+                                "field": "Entity",
+                                "message": str(exc),
+                            })
+                            continue
+                    else:
+                        entity.save(update_fields=update_fields)
                     results.append({
                         "row_index": row_index,
                         "entity_id": entity.id,
@@ -677,7 +737,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "schema_content_hash": schema.content_hash,
                     })
                 else:
-                    entity = Entity.objects.create(
+                    entity = Entity(
                         name=name,
                         schema=schema,
                         properties=persisted_values,
@@ -686,6 +746,19 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         source_entry=containing_entry,
                         author=author,
                     )
+                    if result_source is not None:
+                        try:
+                            entity.set_source(result_source)
+                            entity.save()
+                        except DjangoValidationError as exc:
+                            errors.append({
+                                "row_index": row_index,
+                                "field": "Entity",
+                                "message": str(exc),
+                            })
+                            continue
+                    else:
+                        entity.save()
                     results.append({
                         "row_index": row_index,
                         "entity_id": entity.id,

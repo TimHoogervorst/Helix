@@ -102,6 +102,7 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {"parent": "Folders cannot be moved outside the shared subtree."}
                 )
+            instance.set_source(new_parent or instance.project)
 
         return super().perform_update(serializer)
 

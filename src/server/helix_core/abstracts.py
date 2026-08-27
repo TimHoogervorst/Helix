@@ -12,11 +12,50 @@ This is the canonical location — mods import from ``helix_core``.
 ``core/abstracts.py`` is a thin re-export for backward compatibility.
 """
 
+from django.apps import apps
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db import transaction
 from django.db.models.functions import Length
+
+
+def hydrate_source_path(source_path, cache=None):
+    """Resolve Source Path IDs to current display metadata for API responses."""
+    model_by_kind = {
+        "project": "core.Project",
+        "folder": "core.Folder",
+        "entry": "eln.NotebookEntry",
+        "entity": "lims.Entity",
+    }
+    hydrated = []
+    for segment in source_path or []:
+        model_label = model_by_kind.get(segment.get("kind"))
+        if not model_label:
+            hydrated.append(dict(segment))
+            continue
+        model = apps.get_model(model_label)
+        cache_key = (segment["kind"], segment["id"])
+        if cache is not None and cache_key in cache:
+            source = cache[cache_key]
+        else:
+            try:
+                source = model.objects.get(pk=segment["id"])
+            except model.DoesNotExist:
+                source = None
+            if cache is not None:
+                cache[cache_key] = source
+        if source is None:
+            hydrated.append(dict(segment))
+            continue
+        resolved = {**segment, "name": source.name}
+        if segment["kind"] == "project":
+            resolved["uid"] = str(source.uid)
+        elif hasattr(source, "display_id"):
+            resolved["display_id"] = source.display_id
+        hydrated.append(resolved)
+    return hydrated
 
 
 class Sourceable(models.Model):
@@ -57,13 +96,17 @@ class Sourceable(models.Model):
         from core.models import Project
 
         if self.__class__.__name__ == "Folder":
-            return self.parent if self.parent_id else self.project
+            return self.parent if self.parent_id else (
+                self.project if self.project_id else None
+            )
         legacy_entry_id = getattr(self, "source_entry_id", None)
         if legacy_entry_id:
             from mods.eln.models import NotebookEntry
 
             return NotebookEntry.objects.get(pk=legacy_entry_id)
-        return self.folder if self.folder_id else self.project
+        return self.folder if self.folder_id else (
+            self.project if self.project_id else None
+        )
 
     def _validate_source(self, source):
         from core.models import Folder, Project
@@ -87,6 +130,8 @@ class Sourceable(models.Model):
         node = source
         while not isinstance(node, Project):
             marker = (node.__class__, node.pk)
+            if marker == (self.__class__, self.pk):
+                raise ValidationError({"source": "Source cycles are not allowed."})
             if marker in seen:
                 raise ValidationError({"source": "Source cycles are not allowed."})
             seen.add(marker)
@@ -104,9 +149,94 @@ class Sourceable(models.Model):
             path = self._set_source_path(source.source)
         return path + [{"kind": self._source_kind(source), "id": source.pk}]
 
+    def set_source(self, source):
+        """Assign a Source and keep the legacy containment field in sync."""
+        from core.models import Folder
+
+        self.source_type = ContentType.objects.get_for_model(source)
+        self.source_id = source.pk
+        self._source_assignment_explicit = True
+        if self.__class__.__name__ == "Folder":
+            self.parent = source if isinstance(source, Folder) else None
+        elif hasattr(self, "folder_id"):
+            self.folder = source if isinstance(source, Folder) else None
+
+    @staticmethod
+    def resolve_source(source_type, source_id):
+        """Resolve a validated ContentType/id pair to its Source object."""
+        from rest_framework.exceptions import ValidationError as APIValidationError
+
+        if source_type is None or source_id is None:
+            raise APIValidationError({"source_id": "source_type and source_id are required."})
+        model = source_type.model_class()
+        if model is None:
+            raise APIValidationError({"source_type": "Source type is not supported."})
+        try:
+            return model.objects.get(pk=source_id)
+        except model.DoesNotExist:
+            raise APIValidationError({"source_id": "Source does not exist."})
+
+    def _sync_source_from_legacy_move(self, old_source):
+        """Translate direct legacy parent/folder assignments into Source."""
+        from core.models import Folder, Project
+
+        if self.__class__.__name__ == "Folder":
+            legacy_source = self.parent if self.parent_id else self.project
+        elif hasattr(self, "folder_id"):
+            current_source = old_source
+            current_folder_id = getattr(current_source, "folder_id", None)
+            if self.folder_id == current_folder_id:
+                return old_source
+            legacy_source = self.folder if self.folder_id else self.project
+        else:
+            return old_source
+
+        if isinstance(legacy_source, (Folder, Project)):
+            self.source_type = ContentType.objects.get_for_model(legacy_source)
+            self.source_id = legacy_source.pk
+            return legacy_source
+        return old_source
+
+    def _update_descendant_paths(self, old_path, old_source_marker, new_path):
+        """Replace this item's old path prefix on every descendant."""
+        if not old_path or old_source_marker is None:
+            return
+        old_prefix = list(old_path) + [old_source_marker]
+        new_prefix = list(new_path) + [{
+            "kind": self._source_kind(self),
+            "id": self.pk,
+        }]
+        for model in apps.get_models():
+            if not issubclass(model, Sourceable):
+                continue
+            queryset = model.objects.all()
+            changed = []
+            for descendant in queryset.iterator():
+                path = descendant.source_path or []
+                if path[:len(old_prefix)] != old_prefix:
+                    continue
+                descendant.source_path = new_prefix + path[len(old_prefix):]
+                changed.append(descendant)
+            if changed:
+                model.objects.bulk_update(changed, ["source_path"])
+
     def save(self, *args, **kwargs):
+        old_record = None
+        old_source = None
+        if self.pk is not None:
+            old_record = type(self).objects.filter(pk=self.pk).values(
+                "source_path", "source_type_id", "source_id"
+            ).first()
+            if old_record:
+                old_source = self.__class__.objects.get(pk=self.pk).source
+
+        if old_record and old_source is not None and not getattr(
+            self, "_source_assignment_explicit", False
+        ):
+            self._sync_source_from_legacy_move(old_source)
         if self.source_type_id is None or self.source_id is None:
             source = self._default_source()
+            self._validate_source(source)
             self.source_type = ContentType.objects.get_for_model(source)
             self.source_id = source.pk
         source = self.source
@@ -119,7 +249,19 @@ class Sourceable(models.Model):
             kwargs["update_fields"] = set(update_fields) | {
                 "source_type", "source_id", "source_path"
             }
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if old_record and (
+                old_record["source_type_id"], old_record["source_id"]
+            ) != (self.source_type_id, self.source_id):
+                old_source_marker = {
+                    "kind": self._source_kind(self),
+                    "id": self.pk,
+                }
+                self._update_descendant_paths(
+                    old_record["source_path"], old_source_marker, self.source_path
+                )
+        self._source_assignment_explicit = False
 
 
 class BrowsableItem(models.Model):

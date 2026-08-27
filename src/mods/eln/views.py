@@ -233,6 +233,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     {"folder": "Entries cannot be moved to a different Project."}
                 )
             self._reject_cross_subtree_move(instance, new_folder)
+            instance.set_source(new_folder or instance.project)
+        elif "source_type" in validated_data or "source_id" in validated_data:
+            new_source = instance.resolve_source(
+                validated_data.get("source_type", instance.source_type),
+                validated_data.get("source_id", instance.source_id),
+            )
+            self._reject_cross_subtree_move(
+                instance,
+                new_source if new_source.__class__.__name__ == "Folder"
+                else getattr(new_source, "folder", None),
+            )
+            instance.set_source(new_source)
 
         # Determine save_mode from request header.
         valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}

@@ -169,7 +169,6 @@ const populatedContentsResponse = makeLibraryContents(
       workspace_id: "eln",
       display_id: "EXP-0284",
       title: "PCR Results",
-      folder: 1,
       author_username: "testuser",
       author_info: {
         id: 2,

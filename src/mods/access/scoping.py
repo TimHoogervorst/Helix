@@ -48,7 +48,7 @@ def visible_folders_q(user):
     """Return a Q selecting folders *user* can read.
 
     Folder rows store their project directly, so shared-subtree coverage
-    needs a primary-key lookup rather than the ``folder_id`` lookup used for
+    needs a primary-key lookup rather than the Source Path lookup used for
     content rows.
     """
     project_ids = accessible_project_ids(user)
@@ -57,14 +57,18 @@ def visible_folders_q(user):
     if _is_org_admin(user):
         return Q(project_id__in=project_ids)
 
-    folder_q = _shared_subtree_folder_q(project_ids, lookup_field="pk")
+    folder_q = _shared_subtree_folder_q(project_ids, include_self=True)
     if folder_q is None:
         return Q(project_id__in=project_ids)
     return Q(project_id__in=project_ids) | folder_q
 
 
-def _shared_subtree_folder_q(project_ids, lookup_field="folder_id"):
-    """Return a Q matching rows whose Source Path crosses a shared Folder."""
+def _shared_subtree_folder_q(project_ids, include_self=False):
+    """Return a Q matching rows whose Source Path crosses a shared Folder.
+
+    When *include_self* is True, also match the shared Folders themselves
+    (used for Folder rows, which have no Source Path).
+    """
     from .models import FolderShare
 
     shared_folder_ids = list(
@@ -79,7 +83,7 @@ def _shared_subtree_folder_q(project_ids, lookup_field="folder_id"):
     for folder_id in shared_folder_ids:
         path_q |= Q(source_path__contains=[{"kind": "folder", "id": folder_id}])
 
-    if lookup_field == "pk":
+    if include_self:
         path_q |= Q(pk__in=shared_folder_ids)
 
     return path_q

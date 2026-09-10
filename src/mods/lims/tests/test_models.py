@@ -48,15 +48,15 @@ class EntityDisplayIdTests(BaseServiceTestCase):
 
         e1 = Entity.objects.create(
             name="DNA Sample 1", schema=dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         e2 = Entity.objects.create(
             name="Blood Sample 1", schema=blood_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         e3 = Entity.objects.create(
             name="DNA Sample 2", schema=dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
 
         self.assertEqual(e1.display_id, "DNA1")
@@ -68,12 +68,12 @@ class EntityDisplayIdTests(BaseServiceTestCase):
         dna_schema = self._make_schema()
         Entity.objects.create(
             name="Sample A", schema=dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         # Creating a second entity with same prefix should get next number
         e2 = Entity.objects.create(
             name="Sample B", schema=dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         self.assertEqual(e2.display_id, "DNA2")
 
@@ -83,7 +83,7 @@ class EntityDisplayIdTests(BaseServiceTestCase):
                 name="Duplicate",
                 schema=dna_schema,
                 display_id="DNA1",  # already taken
-                folder=self.folder,
+                source=self.folder,
                 author=self.user,
             )
 
@@ -123,8 +123,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entity = Entity.objects.create(
             name="Sample A",
             schema=self.dna_schema,
-            source_entry=entry,
-            folder=self.folder,
+            source=entry,
             author=self.user,
             status="in_progress",
         )
@@ -147,8 +146,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entity = Entity.objects.create(
             name="Sample A",
             schema=self.dna_schema,
-            source_entry=entry,
-            folder=self.folder,
+            source=entry,
             author=self.user,
             status="in_progress",
         )
@@ -185,16 +183,14 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entity1 = Entity.objects.create(
             name="Linked to Entry 1",
             schema=self.dna_schema,
-            source_entry=entry1,
-            folder=self.folder,
+            source=entry1,
             author=self.user,
             status="in_progress",
         )
         entity2 = Entity.objects.create(
             name="Linked to Entry 2",
             schema=self.dna_schema,
-            source_entry=entry2,
-            folder=self.folder,
+            source=entry2,
             author=self.user,
             status="in_progress",
         )
@@ -241,8 +237,7 @@ class EntitySourceTests(BaseServiceTestCase):
         entity = Entity.objects.create(
             name="Sample A",
             schema=self.dna_schema,
-            source_entry=entry,
-            folder=self.folder,
+            source=entry,
             author=self.user,
         )
         self.assertEqual(entity.source, entry)

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from core.models import Project, User
+from core.models import Folder, Project, User
 from helix_core.abstracts import hydrate_source_path
 from mods.users.serializers import UserSerializer
 
@@ -139,6 +139,9 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
         source_type = data.get("source_type")
         source_id = data.get("source_id")
         project = data.get("project")
+        if source_type is None and source_id is not None:
+            source_type = ContentType.objects.get_for_model(Folder)
+            data["source_type"] = source_type
         if source_type is None and project is None:
             raise serializers.ValidationError(
                 {"project": "Provide a project or source."}

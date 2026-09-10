@@ -4,6 +4,7 @@ Tests for the LIMS API endpoints.
 from unittest.mock import patch
 from uuid import uuid4
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -11,6 +12,14 @@ from core.models import Project, User
 from core.tests.base import BaseTestCase
 from helix_core.models import SchemaType, Schema
 from mods.lims.models import Action as LimsAction, Entity, LimsView, Metric
+
+
+def folder_source(folder):
+    """Return a Source payload pointing at *folder*."""
+    return {
+        "source_type": ContentType.objects.get_for_model(folder).id,
+        "source_id": folder.id,
+    }
 
 
 class LimsApiTests(BaseTestCase):
@@ -39,7 +48,7 @@ class LimsApiTests(BaseTestCase):
         dna_schema = Schema.objects.get(name="DNA")
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample A", "schema": dna_schema.id, "folder": self.folder.id},
+            {"name": "Sample A", "schema": dna_schema.id, **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -75,12 +84,12 @@ class EntityApiTests(BaseTestCase):
         """GET /api/lims/entities/ supports ?search= and ?type= filters."""
         e1 = Entity.objects.create(
             name="Sample Alpha", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"concentration": 42},
         )
         e2 = Entity.objects.create(
             name="Reagent Beta", schema=self.chem_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"purity": "High"},
         )
 
@@ -105,7 +114,7 @@ class EntityApiTests(BaseTestCase):
         """GET /api/lims/entities/{display_id}/ looks up by display_id, not pk."""
         entity = Entity.objects.create(
             name="Retrieve Me", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
         self.assertEqual(response.status_code, 200)
@@ -115,7 +124,7 @@ class EntityApiTests(BaseTestCase):
     def test_retrieve_entity_hydrates_source_path(self):
         entity = Entity.objects.create(
             name="Hydrated", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.get(f"/api/lims/entities/{entity.display_id}/")
         self.assertEqual(response.status_code, 200)
@@ -131,7 +140,7 @@ class EntityApiTests(BaseTestCase):
         """GET by numeric pk returns 404 (lookup is by display_id, not pk)."""
         entity = Entity.objects.create(
             name="By PK", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.get(f"/api/lims/entities/{entity.pk}/")
         self.assertEqual(response.status_code, 404)
@@ -142,7 +151,7 @@ class EntityApiTests(BaseTestCase):
         self.dna_schema.save(update_fields=["icon", "color"])
         entity = Entity.objects.create(
             name="Workspace fields", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"concentration": 12},
         )
 
@@ -165,14 +174,14 @@ class EntityApiTests(BaseTestCase):
             columns=[{"name": "Entity", "type": "text"}, {"name": "Value", "type": "number"}],
         )
         entity = Entity.objects.create(
-            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+            name="Source", schema=self.dna_schema, source=self.folder, author=self.user,
         )
         linked = Entity.objects.create(
-            name="Linked result", schema=result_schema, folder=self.folder, author=self.user,
+            name="Linked result", schema=result_schema, source=self.folder, author=self.user,
             properties={"Entity": entity.display_id, "Value": 4},
         )
         Entity.objects.create(
-            name="Other result", schema=result_schema, folder=self.folder, author=self.user,
+            name="Other result", schema=result_schema, source=self.folder, author=self.user,
             properties={"Entity": "OTHER-1", "Value": 9},
         )
         normal_schema = Schema.objects.create(
@@ -180,7 +189,7 @@ class EntityApiTests(BaseTestCase):
         )
         Entity.objects.create(
             name="Unrelated schema row", schema=normal_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"Entity": entity.display_id},
         )
 
@@ -207,14 +216,14 @@ class EntityApiTests(BaseTestCase):
             columns=[{"name": "Passed", "type": "boolean"}],
         )
         entity = Entity.objects.create(
-            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+            name="Source", schema=self.dna_schema, source=self.folder, author=self.user,
         )
         first = Entity.objects.create(
-            name="Assay row", schema=first_schema, folder=self.folder, author=self.user,
+            name="Assay row", schema=first_schema, source=self.folder, author=self.user,
             properties={"Entity": entity.display_id, "Value": 4},
         )
         second = Entity.objects.create(
-            name="QC row", schema=second_schema, folder=self.folder, author=self.user,
+            name="QC row", schema=second_schema, source=self.folder, author=self.user,
             properties={"Entity": entity.display_id, "Passed": True},
         )
 
@@ -236,7 +245,7 @@ class EntityApiTests(BaseTestCase):
 
     def test_results_returns_empty_for_entity_without_results(self):
         entity = Entity.objects.create(
-            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+            name="Source", schema=self.dna_schema, source=self.folder, author=self.user,
         )
 
         response = self.client.get(f"/api/lims/entities/{entity.display_id}/results/")
@@ -253,7 +262,7 @@ class EntityApiTests(BaseTestCase):
             name="Assay result", prefix="RESULT", schema_type=result_type,
         )
         entity = Entity.objects.create(
-            name="Source", schema=self.dna_schema, folder=self.folder, author=self.user,
+            name="Source", schema=self.dna_schema, source=self.folder, author=self.user,
         )
         inaccessible_project = Project.objects.create(name="Private project")
         Entity.objects.create(
@@ -292,12 +301,12 @@ class EntityApiTests(BaseTestCase):
         """POST /api/lims/entities/batch/ resolves display IDs to properties."""
         e1 = Entity.objects.create(
             name="Batch One", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"concentration": 99},
         )
         e2 = Entity.objects.create(
             name="Batch Two", schema=self.chem_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"purity": "Low"},
         )
 
@@ -354,7 +363,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_create_entity_logs_action(self):
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample A", "schema": self.dna_schema.id, "folder": self.folder.id},
+            {"name": "Sample A", "schema": self.dna_schema.id, **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -368,11 +377,11 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_update_entity_logs_action(self):
         entity = Entity.objects.create(
             name="Sample A", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
-            {"name": "Sample A Updated", "schema": self.dna_schema.id, "folder": self.folder.id},
+            {"name": "Sample A Updated", "schema": self.dna_schema.id, **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -385,7 +394,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_partial_update_entity_logs_action(self):
         entity = Entity.objects.create(
             name="Sample B", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.patch(
             f"/api/lims/entities/{entity.display_id}/",
@@ -401,7 +410,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_delete_entity_logs_action(self):
         entity = Entity.objects.create(
             name="Delete Me", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.delete(
             f"/api/lims/entities/{entity.display_id}/"
@@ -416,7 +425,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_create_entity_captures_request_id_and_client_ip(self):
         self.client.post(
             "/api/lims/entities/",
-            {"name": "Sample C", "schema": self.dna_schema.id, "folder": self.folder.id},
+            {"name": "Sample C", "schema": self.dna_schema.id, **folder_source(self.folder)},
             format="json",
         )
         kwargs = _log_kwargs(self.mock_log)
@@ -431,7 +440,7 @@ class EntityActionLoggingTests(BaseTestCase):
     def test_retrieve_entity_does_not_log(self):
         entity = Entity.objects.create(
             name="Read Only", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.get(
             f"/api/lims/entities/{entity.display_id}/"
@@ -475,7 +484,7 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.post(
                 "/api/lims/entities/",
-                {"name": "Survivor", "schema": self.dna_schema.id, "folder": self.folder.id},
+                {"name": "Survivor", "schema": self.dna_schema.id, **folder_source(self.folder)},
                 format="json",
             )
         self.assertEqual(response.status_code, 201)
@@ -484,7 +493,7 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
     def test_log_exception_does_not_break_entity_delete(self):
         entity = Entity.objects.create(
             name="Delete Me", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
             response = self.client.delete(
@@ -526,7 +535,7 @@ class ActionViewSetRegressionTests(BaseTestCase):
         """LimsAction.objects.create() still works directly."""
         entity = Entity.objects.create(
             name="Test Entity", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         action = LimsAction.objects.create(
             performed_by=self.user,
@@ -542,7 +551,7 @@ class ActionViewSetRegressionTests(BaseTestCase):
     def test_generic_target_filters_return_unified_rows(self):
         entity = Entity.objects.create(
             name="Target Entity", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         matching = LimsAction.objects.create(
             performed_by=self.user,
@@ -584,7 +593,7 @@ class ActionViewSetRegressionTests(BaseTestCase):
         )
         hidden_entity = Entity.objects.create(
             name="Hidden Entity", schema=self.dna_schema,
-            folder=hidden_folder, author=self.user,
+            source=hidden_folder, author=self.user,
         )
         LimsAction.objects.create(
             performed_by=self.user,
@@ -641,7 +650,7 @@ class BatchRegisterCreateTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -669,9 +678,9 @@ class BatchRegisterCreateTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "Sample B", "values": {}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "Sample C", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample A", "values": {}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "Sample B", "values": {}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "Sample C", "values": {}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -722,7 +731,7 @@ class BatchRegisterComputedFieldTests(BaseTestCase):
                 "rows": [{
                     "entity_id": None,
                     "name": "Sample A",
-                    "folder_id": self.folder.id,
+                    **folder_source(self.folder),
                     "values": {"A260": 4, "A280": 2, "Ratio": 999},
                 }],
             },
@@ -746,8 +755,8 @@ class BatchRegisterComputedFieldTests(BaseTestCase):
             {
                 "schema_id": self.result_schema.id,
                 "rows": [
-                    {"name": "Bad", "folder_id": self.folder.id, "values": {"A260": 4, "A280": 0}},
-                    {"name": "Good", "folder_id": self.folder.id, "values": {"A260": 4, "A280": 2}},
+                    {"name": "Bad", **folder_source(self.folder), "values": {"A260": 4, "A280": 0}},
+                    {"name": "Good", **folder_source(self.folder), "values": {"A260": 4, "A280": 2}},
                 ],
             },
             format="json",
@@ -778,7 +787,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
             name="Original Name",
             schema=self.dna_schema,
             properties={"concentration": 10},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
 
@@ -857,7 +866,7 @@ class BatchRegisterValidationTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "", "values": {}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -876,7 +885,7 @@ class BatchRegisterValidationTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "   ", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "   ", "values": {}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -911,10 +920,10 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Valid A", "values": {}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},         # missing name
-                    {"entity_id": None, "name": "Valid B", "values": {}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "   ", "values": {}, "folder_id": self.folder.id},      # whitespace name
+                    {"entity_id": None, "name": "Valid A", "values": {}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "", "values": {}, **folder_source(self.folder)},         # missing name
+                    {"entity_id": None, "name": "Valid B", "values": {}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "   ", "values": {}, **folder_source(self.folder)},      # whitespace name
                 ],
             },
             format="json",
@@ -940,7 +949,7 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         """Mix of updates and creates with an error in between."""
         existing = Entity.objects.create(
             name="Existing", schema=self.dna_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.post(
             BATCH_REGISTER_URL,
@@ -948,8 +957,8 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
                 "schema_id": self.dna_schema.id,
                 "rows": [
                     {"entity_id": existing.id, "name": "Existing Updated", "values": {}},
-                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},                      # error
-                    {"entity_id": None, "name": "New Entity", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "", "values": {}, **folder_source(self.folder)},                      # error
+                    {"entity_id": None, "name": "New Entity", "values": {}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -989,7 +998,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         payload = {
             "schema_id": self.dna_schema.id,
             "rows": [
-                {"entity_id": None, "name": "Idempotent Sample", "values": {"concentration": 42}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "Idempotent Sample", "values": {"concentration": 42}, **folder_source(self.folder)},
             ],
         }
 
@@ -1015,7 +1024,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         """Updating an entity with the same data twice produces the same result."""
         entity = Entity.objects.create(
             name="Update Me", schema=self.dna_schema,
-            properties={"concentration": 10}, folder=self.folder, author=self.user,
+            properties={"concentration": 10}, source=self.folder, author=self.user,
         )
         payload = {
             "schema_id": self.dna_schema.id,
@@ -1045,7 +1054,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
             name="Source", prefix="SRC", schema_type=self.schema_type,
         )
         source = Entity.objects.create(
-            name="Source", schema=source_schema, folder=self.folder,
+            name="Source", schema=source_schema, source=self.folder,
             author=self.user,
         )
         payload = {
@@ -1056,14 +1065,14 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
                     "result_row_id": "row-a",
                     "name": "BLOOD1 — Assay Result",
                     "values": {"concentration": 10, "Entity": source.display_id},
-                    "folder_id": self.folder.id,
+                    **folder_source(self.folder),
                 },
                 {
                     "entity_id": None,
                     "result_row_id": "row-b",
                     "name": "BLOOD1 — Assay Result",
                     "values": {"concentration": 20, "Entity": source.display_id},
-                    "folder_id": self.folder.id,
+                    **folder_source(self.folder),
                 },
             ],
         }
@@ -1124,13 +1133,13 @@ class BatchRegisterResultSourceTests(BaseTestCase):
         self.source_entity = Entity.objects.create(
             name="Source Sample",
             schema=self.source_schema,
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
         self.other_source_entity = Entity.objects.create(
             name="Other Source Sample",
             schema=self.source_schema,
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
 
@@ -1144,7 +1153,7 @@ class BatchRegisterResultSourceTests(BaseTestCase):
                     "result_row_id": "result-1",
                     "name": "Source Sample - Result",
                     "values": {"Entity": self.source_entity.display_id, "Value": 7},
-                    "folder_id": self.folder.id,
+                    **folder_source(self.folder),
                 }],
             },
             format="json",
@@ -1172,7 +1181,7 @@ class BatchRegisterResultSourceTests(BaseTestCase):
                     "result_row_id": "result-1",
                     "name": "Other Source Sample - Result",
                     "values": {"Entity": self.other_source_entity.display_id},
-                    "folder_id": self.folder.id,
+                    **folder_source(self.folder),
                 }],
             },
             format="json",
@@ -1214,8 +1223,8 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
             {
                 "schema_id": self.dna_schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "Sample B", "values": {}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample A", "values": {}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "Sample B", "values": {}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -1241,7 +1250,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {
                 "schema_id": self.dna_schema.id,
-                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id}],
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, **folder_source(self.folder)}],
             },
             format="json",
         )
@@ -1254,7 +1263,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {
                 "schema_id": self.dna_schema.id,
-                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id}],
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, **folder_source(self.folder)}],
             },
             format="json",
         )
@@ -1275,7 +1284,7 @@ class BatchRegisterSchemaNotFoundTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {
                 "schema_id": 99999,
-                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, "folder_id": self.folder.id}],
+                "rows": [{"entity_id": None, "name": "Sample A", "values": {}, **folder_source(self.folder)}],
             },
             format="json",
         )
@@ -1348,7 +1357,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
         """POST without 'schema' assigns the is_default Schema."""
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "No Schema Provided", "folder": self.folder.id},
+            {"name": "No Schema Provided", **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -1362,7 +1371,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
         dna_schema = Schema.objects.get(name="DNA")
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "Explicit Schema", "schema": dna_schema.id, "folder": self.folder.id},
+            {"name": "Explicit Schema", "schema": dna_schema.id, **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -1375,7 +1384,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
         self.default_schema.delete()
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "No Default Available", "folder": self.folder.id},
+            {"name": "No Default Available", **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
@@ -1408,7 +1417,7 @@ class EntityAuthRequiredTests(BaseTestCase):
         """POST without auth returns 403 — author is required and non-nullable."""
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "No Auth", "schema": self.schema.id, "folder": self.folder.id},
+            {"name": "No Auth", "schema": self.schema.id, **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -1417,7 +1426,7 @@ class EntityAuthRequiredTests(BaseTestCase):
         """POST batch-register without auth returns 403 — author is required."""
         response = self.client.post(
             "/api/lims/entities/batch-register/",
-            {"schema_id": self.schema.id, "rows": [{"entity_id": None, "name": "X", "values": {}, "folder_id": self.folder.id}]},
+            {"schema_id": self.schema.id, "rows": [{"entity_id": None, "name": "X", "values": {}, **folder_source(self.folder)}]},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -1451,7 +1460,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": 42}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"concentration": 42}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1464,7 +1473,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": "3.14"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"concentration": "3.14"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1477,7 +1486,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": "abc"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"concentration": "abc"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1493,7 +1502,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": ""}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"concentration": ""}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1506,7 +1515,7 @@ class BatchRegisterNumberValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": None}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"concentration": None}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1538,7 +1547,7 @@ class BatchRegisterDateValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"sample_date": "2025-01-15"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"sample_date": "2025-01-15"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1551,7 +1560,7 @@ class BatchRegisterDateValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"sample_date": "not-a-date"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"sample_date": "not-a-date"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1585,7 +1594,7 @@ class BatchRegisterDatetimeValidationTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
                 {"entity_id": None, "name": "A",
-                 "values": {"recorded_at": "2025-01-15T14:30:00"}, "folder_id": self.folder.id},
+                 "values": {"recorded_at": "2025-01-15T14:30:00"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1599,7 +1608,7 @@ class BatchRegisterDatetimeValidationTests(BaseTestCase):
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
                 {"entity_id": None, "name": "A",
-                 "values": {"recorded_at": "not-a-datetime"}, "folder_id": self.folder.id},
+                 "values": {"recorded_at": "not-a-datetime"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1632,7 +1641,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": True}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"is_active": True}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1645,7 +1654,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "True"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"is_active": "True"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1658,7 +1667,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "FALSE"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"is_active": "FALSE"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1671,7 +1680,7 @@ class BatchRegisterBooleanValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "yes"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"is_active": "yes"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1704,7 +1713,7 @@ class BatchRegisterSelectValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"status": "In Progress"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"status": "In Progress"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1717,7 +1726,7 @@ class BatchRegisterSelectValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"status": 42}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"status": 42}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1749,7 +1758,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": "DNA42"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"source": "DNA42"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1762,7 +1771,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": "ref-123"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"source": "ref-123"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1776,7 +1785,7 @@ class BatchRegisterReferenceValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": 42}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"source": 42}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1808,7 +1817,7 @@ class BatchRegisterTextValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"notes": "anything goes"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"notes": "anything goes"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1821,7 +1830,7 @@ class BatchRegisterTextValidationTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"notes": 123}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"notes": 123}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1858,9 +1867,9 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Valid", "values": {"concentration": 42}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "BadNumber", "values": {"concentration": "abc"}, "folder_id": self.folder.id},
-                    {"entity_id": None, "name": "AlsoValid", "values": {"sample_date": "2025-01-15"}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Valid", "values": {"concentration": 42}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "BadNumber", "values": {"concentration": "abc"}, **folder_source(self.folder)},
+                    {"entity_id": None, "name": "AlsoValid", "values": {"sample_date": "2025-01-15"}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -1884,7 +1893,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
                 "schema_id": self.schema.id,
                 "rows": [
                     {"entity_id": None, "name": "Bad",
-                     "values": {"concentration": "abc", "sample_date": "not-a-date"}, "folder_id": self.folder.id},
+                     "values": {"concentration": "abc", "sample_date": "not-a-date"}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -1899,7 +1908,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"unknown_prop": "whatever"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"unknown_prop": "whatever"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1914,9 +1923,9 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "", "values": {}, "folder_id": self.folder.id},               # name error
-                    {"entity_id": None, "name": "Bad", "values": {"concentration": "xyz"}, "folder_id": self.folder.id},  # type error
-                    {"entity_id": None, "name": "Good", "values": {"concentration": 10}, "folder_id": self.folder.id},    # ok
+                    {"entity_id": None, "name": "", "values": {}, **folder_source(self.folder)},               # name error
+                    {"entity_id": None, "name": "Bad", "values": {"concentration": "xyz"}, **folder_source(self.folder)},  # type error
+                    {"entity_id": None, "name": "Good", "values": {"concentration": 10}, **folder_source(self.folder)},    # ok
                 ],
             },
             format="json",
@@ -1935,7 +1944,7 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
             {
                 "schema_id": self.schema.id,
                 "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, "folder_id": self.folder.id},
+                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, **folder_source(self.folder)},
                 ],
             },
             format="json",
@@ -1972,7 +1981,7 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"count": 42}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"count": 42}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -1985,7 +1994,7 @@ class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
         response = self.client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"count": "abc"}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "A", "values": {"count": "abc"}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -2048,13 +2057,13 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         """Reference value pointing at an entity in the target schema passes."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.post(
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": target.display_id},
             },
@@ -2066,13 +2075,13 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         """Reference to an entity of a different schema returns a 400 error."""
         other_entity = Entity.objects.create(
             name="Other", schema=self.open_ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.post(
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": other_entity.display_id},
             },
@@ -2089,7 +2098,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": "NONEXIST42"},
             },
@@ -2102,13 +2111,13 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
     def test_create_reference_matching_schema_type_succeeds(self):
         target = Entity.objects.create(
             name="Type Target Entity", schema=self.type_target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.post(
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.type_ref_schema.id,
                 "properties": {"linked_entity": target.display_id},
             },
@@ -2119,13 +2128,13 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
     def test_create_reference_wrong_schema_type_rejected(self):
         other = Entity.objects.create(
             name="Wrong Type", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.post(
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.type_ref_schema.id,
                 "properties": {"linked_entity": other.display_id},
             },
@@ -2137,7 +2146,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
     def test_batch_register_reference_wrong_schema_type_rejected(self):
         other = Entity.objects.create(
             name="Wrong Type", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.post(
             BATCH_REGISTER_URL,
@@ -2146,7 +2155,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
                 "rows": [{
                     "entity_id": None,
                     "name": "Test Entity",
-                    "folder_id": self.folder.id,
+                    **folder_source(self.folder),
                     "values": {"linked_entity": other.display_id},
                 }],
             },
@@ -2162,7 +2171,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.open_ref_schema.id,
                 "properties": {"any_entity": "ANYTHING42"},
             },
@@ -2176,7 +2185,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": ""},
             },
@@ -2190,7 +2199,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": None},
             },
@@ -2204,7 +2213,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
             "/api/lims/entities/",
             {
                 "name": "Test Entity",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {},
             },
@@ -2262,22 +2271,22 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         """PUT entity with reference to a target-schema entity passes."""
         target = Entity.objects.create(
             name="Target", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         entity = Entity.objects.create(
             name="Test", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         target2 = Entity.objects.create(
             name="Target 2", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": target2.display_id},
             },
@@ -2289,22 +2298,22 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         """PUT entity with wrong-schema reference returns 400."""
         target = Entity.objects.create(
             name="Target", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         entity = Entity.objects.create(
             name="Test", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         other = Entity.objects.create(
             name="Other", schema=self.open_ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": other.display_id},
             },
@@ -2319,18 +2328,18 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         """PUT entity referencing a nonexistent display_id returns 400."""
         target = Entity.objects.create(
             name="Target", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         entity = Entity.objects.create(
             name="Test", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": "NONEXIST42"},
             },
@@ -2343,22 +2352,22 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
     def test_update_reference_wrong_schema_type_rejected(self):
         target = Entity.objects.create(
             name="Target", schema=self.type_target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         entity = Entity.objects.create(
             name="Test", schema=self.type_ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         other = Entity.objects.create(
             name="Wrong Type", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.type_ref_schema.id,
                 "properties": {"linked_entity": other.display_id},
             },
@@ -2371,14 +2380,14 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         """PUT entity with open reference accepts any valid display_id."""
         entity = Entity.objects.create(
             name="Test", schema=self.open_ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"any_entity": "OLD42"},
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (updated)",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.open_ref_schema.id,
                 "properties": {"any_entity": "NEW42"},
             },
@@ -2392,18 +2401,18 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         # the initial reference and the updated reference.
         target = Entity.objects.create(
             name="Only Target", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         entity = Entity.objects.create(
             name="Test", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         response = self.client.put(
             f"/api/lims/entities/{entity.display_id}/",
             {
                 "name": "Test (unchanged ref)",
-                "folder": self.folder.id,
+                **folder_source(self.folder),
                 "schema": self.ref_schema.id,
                 "properties": {"linked_entity": target.display_id},
             },
@@ -2450,7 +2459,7 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         """Entity with no incoming references deletes normally (204)."""
         entity = Entity.objects.create(
             name="Free Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         response = self.client.delete(f"/api/lims/entities/{entity.display_id}/")
         self.assertEqual(response.status_code, 204)
@@ -2460,11 +2469,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         """Referenced entities can be deleted, leaving a soft reference."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         Entity.objects.create(
             name="Referencing Entity", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
@@ -2475,11 +2484,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         """Open references remain after their target is deleted."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         Entity.objects.create(
             name="Open Referencer", schema=self.open_ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"any_entity": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
@@ -2490,16 +2499,16 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         """Multiple soft references do not block deletion."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         Entity.objects.create(
             name="Ref 1", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         Entity.objects.create(
             name="Ref 2", schema=self.other_ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"partner": target.display_id},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
@@ -2511,11 +2520,11 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         references."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         referencer = Entity.objects.create(
             name="Referencing Entity", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": target.display_id},
         )
         # Clear the reference
@@ -2531,12 +2540,12 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
         not block deletion."""
         target = Entity.objects.create(
             name="Target Entity", schema=self.target_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         # ref_schema has a linked_entity column, but no entity links to target
         Entity.objects.create(
             name="Other Referencer", schema=self.ref_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             properties={"linked_entity": "UNRELATED99"},
         )
         response = self.client.delete(f"/api/lims/entities/{target.display_id}/")
@@ -2821,11 +2830,11 @@ class MetricApiTests(BaseTestCase):
         """The value endpoint returns a row count for a count-without-column metric."""
         Entity.objects.create(
             name="Sample A", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         Entity.objects.create(
             name="Sample B", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         self.client.force_authenticate(user=self.user)
         metric = Metric.objects.create(
@@ -2840,12 +2849,12 @@ class MetricApiTests(BaseTestCase):
         """Count with a column counts non-null values."""
         Entity.objects.create(
             name="Sample A", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 42},
         )
         Entity.objects.create(
             name="Sample B", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={},  # no concentration
         )
         self.client.force_authenticate(user=self.user)
@@ -2869,12 +2878,12 @@ class MetricApiTests(BaseTestCase):
         """Sum over a numeric JSON property returns the correct total."""
         Entity.objects.create(
             name="Sample A", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 42},
         )
         Entity.objects.create(
             name="Sample B", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 58},
         )
         self.client.force_authenticate(user=self.user)
@@ -2899,12 +2908,12 @@ class MetricApiTests(BaseTestCase):
         """Avg over a numeric JSON property returns the correct average."""
         Entity.objects.create(
             name="Sample A", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 10},
         )
         Entity.objects.create(
             name="Sample B", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 30},
         )
         self.client.force_authenticate(user=self.user)
@@ -2928,12 +2937,12 @@ class MetricApiTests(BaseTestCase):
         """Min over a numeric JSON property returns the smallest value."""
         Entity.objects.create(
             name="Sample A", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 5},
         )
         Entity.objects.create(
             name="Sample B", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 95},
         )
         self.client.force_authenticate(user=self.user)
@@ -2957,12 +2966,12 @@ class MetricApiTests(BaseTestCase):
         """Max over a numeric JSON property returns the largest value."""
         Entity.objects.create(
             name="Sample A", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 5},
         )
         Entity.objects.create(
             name="Sample B", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
             properties={"concentration": 95},
         )
         self.client.force_authenticate(user=self.user)
@@ -2986,12 +2995,12 @@ class MetricApiTests(BaseTestCase):
         """is_me filter rewrites to exact match when identity is provided."""
         Entity.objects.create(
             name="By Alice", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         other = User.objects.create_user(username="bob", password="pass")
         Entity.objects.create(
             name="By Bob", schema=self.schema, author=other,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         self.client.force_authenticate(user=self.user)
         by_me_view = LimsView.objects.create(
@@ -3017,12 +3026,12 @@ class MetricApiTests(BaseTestCase):
         """is_me filter with no identity drops the filter (returns all rows)."""
         Entity.objects.create(
             name="By Alice", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         other = User.objects.create_user(username="bob", password="pass")
         Entity.objects.create(
             name="By Bob", schema=self.schema, author=other,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         self.client.force_authenticate(user=self.user)
         by_me_view = LimsView.objects.create(
@@ -3057,7 +3066,7 @@ class MetricApiTests(BaseTestCase):
         """The metric returns up-to-date results, not a cached snapshot."""
         Entity.objects.create(
             name="First", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         self.client.force_authenticate(user=self.user)
         metric = Metric.objects.create(
@@ -3068,7 +3077,7 @@ class MetricApiTests(BaseTestCase):
 
         Entity.objects.create(
             name="Second", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         r2 = self.client.get(f"/api/lims/metrics/{metric.id}/value/")
         self.assertEqual(r2.data["value"], 2)
@@ -3088,7 +3097,7 @@ class MetricApiTests(BaseTestCase):
         )
         Entity.objects.create(
             name="DNA Entry", schema=self.schema, author=self.user,
-            folder=self.folder, status="in_progress",
+            source=self.folder, status="in_progress",
         )
         chem_schema = Schema.objects.get(prefix="DNA")
         self.client.force_authenticate(user=self.user)

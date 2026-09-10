@@ -29,6 +29,14 @@ from mods.lims.models import Entity
 BATCH_REGISTER_URL = "/api/lims/entities/batch-register/"
 
 
+def folder_source(folder):
+    """Return a Source payload pointing at *folder*."""
+    return {
+        "source_type": ContentType.objects.get_for_model(folder).id,
+        "source_id": folder.id,
+    }
+
+
 class _LimsAccessMixin:
     """Shared schema + actor setup for LIMS access tests."""
 
@@ -93,11 +101,11 @@ class _LimsAccessMixin:
         )
         Grant.objects.create(project=self.source_project, user=self.editor, role=ProjectRole.EDIT)
 
-    def _make_entity(self, folder=None, author=None):
+    def _make_entity(self, source=None, author=None):
         return Entity.objects.create(
             name="Sample",
             schema=self.schema,
-            folder=folder or self.folder,
+            source=source or self.folder,
             author=author or self.editor,
             properties={},
         )
@@ -125,17 +133,13 @@ class EntityCreateAccessTests(_LimsAccessMixin, BaseTestCase):
         super().setUp()
         self.url = "/api/lims/entities/"
 
-    def _create(self, user, folder=None):
+    def _create(self, user, source=None):
         client = APIClient()
         client.force_authenticate(user=user)
-        source = folder or self.folder
+        source = source or self.folder
         return client.post(
             self.url,
-            {
-                "name": "New Sample", "schema": self.schema.id,
-                "source_type": ContentType.objects.get_for_model(source).id,
-                "source_id": source.id,
-            },
+            {"name": "New Sample", "schema": self.schema.id, **folder_source(source)},
             format="json",
         )
 
@@ -161,7 +165,7 @@ class EntityCreateAccessTests(_LimsAccessMixin, BaseTestCase):
         client = APIClient()
         response = client.post(
             self.url,
-            {"name": "Anon", "schema": self.schema.id, "folder": self.folder.id},
+            {"name": "Anon", "schema": self.schema.id, **folder_source(self.folder)},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -186,18 +190,12 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.entity = self._make_entity(folder=self.shared_child, author=self.sharee)
+        self.entity = self._make_entity(source=self.shared_child, author=self.sharee)
         self.url = f"/api/lims/entities/{self.entity.display_id}/"
 
     def _patch(self, user, data):
         client = APIClient()
         client.force_authenticate(user=user)
-        if "folder" in data:
-            source = Folder.objects.get(pk=data.pop("folder"))
-            data.update({
-                "source_type": ContentType.objects.get_for_model(source).id,
-                "source_id": source.id,
-            })
         return client.patch(self.url, data, format="json")
 
     def test_editor_can_update(self):
@@ -232,13 +230,13 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
         inner_folder = Folder.objects.create(
             name="Inner", parent=self.shared_child, project=self.source_project,
         )
-        response = self._patch(self.sharee, {"folder": inner_folder.id})
+        response = self._patch(self.sharee, folder_source(inner_folder))
         self.assertEqual(response.status_code, 200)
         self.entity.refresh_from_db()
         self.assertEqual(self.entity.source_id, inner_folder.id)
 
     def test_read_write_sharee_cannot_move_outside_subtree(self):
-        response = self._patch(self.sharee, {"folder": self.outside_folder.id})
+        response = self._patch(self.sharee, folder_source(self.outside_folder))
         self.assertEqual(response.status_code, 400)
         self.entity.refresh_from_db()
         self.assertEqual(self.entity.source_id, self.shared_child.id)
@@ -248,7 +246,7 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
         other_root = Folder.objects.create(name="root", parent=None, project=other_project)
         other_folder = Folder.objects.create(name="Other", parent=other_root, project=other_project)
         Grant.objects.create(project=other_project, user=self.editor, role=ProjectRole.EDIT)
-        response = self._patch(self.editor, {"folder": other_folder.id})
+        response = self._patch(self.editor, folder_source(other_folder))
         self.assertEqual(response.status_code, 400)
         self.entity.refresh_from_db()
         self.assertEqual(self.entity.source_id, self.shared_child.id)
@@ -262,7 +260,7 @@ class EntityDeleteAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.entity = self._make_entity(folder=self.folder)
+        self.entity = self._make_entity(source=self.folder)
         self.url = f"/api/lims/entities/{self.entity.display_id}/"
 
     def _delete(self, user):
@@ -294,7 +292,7 @@ class EntityDeleteAccessTests(_LimsAccessMixin, BaseTestCase):
         self.assertEqual(client.delete(self.url).status_code, 403)
 
     def test_read_write_sharee_can_delete_inside_subtree(self):
-        entity = self._make_entity(folder=self.shared_child, author=self.sharee)
+        entity = self._make_entity(source=self.shared_child, author=self.sharee)
         client = APIClient()
         client.force_authenticate(user=self.sharee)
         self.assertEqual(
@@ -317,7 +315,7 @@ class EntityBatchAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.entity = self._make_entity(folder=self.shared_child, author=self.sharee)
+        self.entity = self._make_entity(source=self.shared_child, author=self.sharee)
         self.url = "/api/lims/entities/batch/"
 
     def _batch(self, user, ids=None):
@@ -365,7 +363,7 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.entity = self._make_entity(folder=self.shared_child, author=self.sharee)
+        self.entity = self._make_entity(source=self.shared_child, author=self.sharee)
 
     def _register(self, user, rows):
         client = APIClient()
@@ -378,7 +376,7 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def test_editor_can_create_row(self):
         response = self._register(self.editor, [
-            {"entity_id": None, "name": "Batch A", "values": {}, "folder_id": self.folder.id},
+            {"entity_id": None, "name": "Batch A", "values": {}, **folder_source(self.folder)},
         ])
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
@@ -395,7 +393,7 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def test_org_admin_can_register(self):
         response = self._register(self.org_admin, [
-            {"entity_id": None, "name": "Batch B", "values": {}, "folder_id": self.folder.id},
+            {"entity_id": None, "name": "Batch B", "values": {}, **folder_source(self.folder)},
         ])
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
@@ -403,14 +401,14 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
     def test_team_derived_edit_can_register(self):
         team_user = self._make_team_editor("register_team", self.project)
         response = self._register(team_user, [
-            {"entity_id": None, "name": "Batch C", "values": {}, "folder_id": self.folder.id},
+            {"entity_id": None, "name": "Batch C", "values": {}, **folder_source(self.folder)},
         ])
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
 
     def test_read_user_create_row_rejected_403(self):
         response = self._register(self.reader, [
-            {"entity_id": None, "name": "Sneaky", "values": {}, "folder_id": self.folder.id},
+            {"entity_id": None, "name": "Sneaky", "values": {}, **folder_source(self.folder)},
         ])
         self.assertEqual(response.status_code, 403)
         self.assertEqual(Entity.objects.count(), 1)
@@ -425,7 +423,7 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def test_no_grant_user_rejected_403(self):
         response = self._register(self.no_grant, [
-            {"entity_id": None, "name": "Sneaky", "values": {}, "folder_id": self.folder.id},
+            {"entity_id": None, "name": "Sneaky", "values": {}, **folder_source(self.folder)},
         ])
         self.assertEqual(response.status_code, 403)
 
@@ -434,7 +432,7 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
         response = client.post(
             BATCH_REGISTER_URL,
             {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "Anon", "values": {}, "folder_id": self.folder.id},
+                {"entity_id": None, "name": "Anon", "values": {}, **folder_source(self.folder)},
             ]},
             format="json",
         )
@@ -442,21 +440,21 @@ class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
 
     def test_sharee_can_register_inside_subtree(self):
         response = self._register(self.sharee, [
-            {"entity_id": None, "name": "Shared Batch", "values": {}, "folder_id": self.shared_child.id},
+            {"entity_id": None, "name": "Shared Batch", "values": {}, **folder_source(self.shared_child)},
         ])
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
 
     def test_sharee_cannot_register_outside_subtree(self):
         response = self._register(self.sharee, [
-            {"entity_id": None, "name": "Outside Batch", "values": {}, "folder_id": self.outside_folder.id},
+            {"entity_id": None, "name": "Outside Batch", "values": {}, **folder_source(self.outside_folder)},
         ])
         self.assertEqual(response.status_code, 403)
 
     def test_request_with_any_uneditable_row_rejected(self):
         response = self._register(self.sharee, [
-            {"entity_id": None, "name": "Good Row", "values": {}, "folder_id": self.shared_child.id},
-            {"entity_id": None, "name": "Bad Row", "values": {}, "folder_id": self.outside_folder.id},
+            {"entity_id": None, "name": "Good Row", "values": {}, **folder_source(self.shared_child)},
+            {"entity_id": None, "name": "Bad Row", "values": {}, **folder_source(self.outside_folder)},
         ])
         self.assertEqual(response.status_code, 403)
         self.assertEqual(Entity.objects.count(), 1)

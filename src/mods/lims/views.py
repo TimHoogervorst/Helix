@@ -392,12 +392,6 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             target = containing_entry or project
             if row.get("source_type") is not None:
                 target = Entity.resolve_source(row["source_type"], row.get("source_id"))
-            elif row.get("folder_id") is not None:
-                from core.models import Folder
-                try:
-                    target = Folder.objects.get(pk=row["folder_id"])
-                except Folder.DoesNotExist:
-                    return None
             return effective_role(request.user, target) == "edit" if target else None
 
         for row in rows:
@@ -437,17 +431,6 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             row_source = containing_entry or project
             if row.get("source_type") is not None:
                 row_source = Entity.resolve_source(row["source_type"], row.get("source_id"))
-            elif row.get("folder_id") is not None:
-                from core.models import Folder
-                try:
-                    row_source = Folder.objects.get(pk=row["folder_id"])
-                except Folder.DoesNotExist:
-                    errors.append({
-                        "row_index": row_index,
-                        "field": "source_id",
-                        "message": "Source does not exist.",
-                    })
-                    continue
 
             if not name:
                 errors.append({

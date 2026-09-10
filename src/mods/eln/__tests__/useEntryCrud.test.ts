@@ -86,7 +86,6 @@ function makeEntry(overrides?: Record<string, unknown>) {
     display_id: "E1",
     name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] },
-    folder: null,
     author: null,
     author_username: null,
     created_at: "2025-01-01T00:00:00Z",

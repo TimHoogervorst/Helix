@@ -106,7 +106,6 @@ function makeEntry(overrides?: Record<string, unknown>) {
         bodyPara,
       ],
     },
-    folder: null,
     author: null,
     author_username: null,
     created_at: "2025-01-01T00:00:00Z",

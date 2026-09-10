@@ -36,7 +36,6 @@ function makeEntry(overrides: Partial<EntryDetail> = {}): EntryDetail {
     display_id: "EXP-0284",
     name: "Test Entry",
     content: { type: "doc", content: [{ type: "paragraph" }] },
-    folder: 1,
     author: 1,
     author_username: "mirak",
     author_info: null,

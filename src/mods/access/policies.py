@@ -538,8 +538,8 @@ def _resolve_folder_id(resource):
     """Return the closest folder ID for *resource*.
 
     When *resource* is a Folder, returns its ``id``.  When *resource*
-    is another model (Entry, Entity) with a ``folder_id`` FK, returns
-    that.  Returns ``None`` otherwise.
+    is another model (Entry, Entity), returns the folder segment of its
+    Source Path.  Returns ``None`` otherwise.
     """
     if resource is None:
         return None

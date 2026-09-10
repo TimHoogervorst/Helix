@@ -512,7 +512,6 @@ function EntitiesHub() {
     name: 0, // flex / auto — not used for sticky offset
     schema_type_id: 120,
     project: 160,
-    folder: 140,
     status: 130,
     author: 100,
     created_at: 90,

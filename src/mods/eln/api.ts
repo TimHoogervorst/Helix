@@ -105,7 +105,7 @@ export interface CreateEntryPayload {
   content: TipTapDoc;
   project?: number | null;
   source_type?: number;
-  source_id?: number;
+  source_id?: number | null;
   status?: string;
   tag_ids?: number[];
 }

@@ -7,7 +7,6 @@ from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Project
-from core.models import Folder
 from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 
@@ -149,9 +148,6 @@ class EntitySerializer(serializers.ModelSerializer):
         queryset=ContentType.objects.all(), required=False,
     )
     source_id = serializers.IntegerField(required=False, allow_null=True)
-    folder = serializers.PrimaryKeyRelatedField(
-        queryset=Folder.objects.all(), write_only=True, required=False,
-    )
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
@@ -168,7 +164,6 @@ class EntitySerializer(serializers.ModelSerializer):
             "properties",
             "source_type",
             "source_id",
-            "folder",
             "source_path",
             "project",
             "project_name",
@@ -281,10 +276,6 @@ class EntitySerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Resolve the default Schema when none is provided on create."""
-        folder = data.pop("folder", None)
-        if folder is not None and "source_type" not in data:
-            data["source_type"] = ContentType.objects.get_for_model(folder)
-            data["source_id"] = folder.pk
         project = data.get("project")
         source_type = data.get("source_type")
         source_id = data.get("source_id")
@@ -344,7 +335,6 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
         queryset=ContentType.objects.all(), required=False,
     )
     source_id = serializers.IntegerField(required=False, allow_null=True)
-    folder_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class EntityBatchRegisterSerializer(serializers.Serializer):

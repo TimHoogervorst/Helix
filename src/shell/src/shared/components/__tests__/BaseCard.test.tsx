@@ -96,35 +96,6 @@ describe("BaseCard", () => {
     );
   });
 
-  // ── Star button placeholder ──────────────────────────────────────────
-
-  it("renders a star button", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.getByTestId("star-button")).toBeInTheDocument();
-  });
-
-  it("star button is non-functional placeholder", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    // It renders but has no accessible role beyond being present
-    expect(screen.getByTestId("star-button")).toBeInTheDocument();
-  });
-
   // ── Icon ─────────────────────────────────────────────────────────────
 
   it("renders the icon component", () => {

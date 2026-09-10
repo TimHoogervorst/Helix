@@ -932,6 +932,34 @@ describe("LibraryHub", () => {
       expect(screen.queryByRole("button", { name: /Expand entity Registered sample/i })).toBeNull();
     });
 
+    it("stacks the star and collapse toggle together inside the row container", async () => {
+      const entry = makeLibraryEntry({
+        id: 10,
+        title: "Parent entry",
+        display_id: "E-10",
+        children_count: 1,
+      });
+      mockGetLibraryContents.mockResolvedValue(
+        makeLibraryContents([], [entry], {
+          project_uid: "proj-001",
+          project_name: "Test Project",
+        }),
+      );
+
+      renderLibrary("/library?project=proj-001");
+      await waitFor(() =>
+        expect(screen.getByText("Parent entry")).toBeInTheDocument(),
+      );
+
+      const row = screen.getByText("Parent entry").closest(".library-tree-row")!;
+      const gutter = row.querySelector(".library-tree-gutter");
+      expect(gutter).toBeInTheDocument();
+      expect(gutter?.querySelector("[data-testid='star-button']")).toBeInTheDocument();
+      expect(
+        gutter?.querySelector("[aria-label='Expand entry Parent entry']"),
+      ).toBeInTheDocument();
+    });
+
     it("lazily expands arbitrary entry and entity source descendants", async () => {
       const entry = makeLibraryEntry({
         id: 10,

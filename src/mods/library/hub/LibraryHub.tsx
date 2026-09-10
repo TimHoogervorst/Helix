@@ -4,6 +4,7 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  Star,
   ArrowUpDown,
   LayoutList,
   LayoutGrid,
@@ -151,19 +152,30 @@ function LibraryTreeNode({
         data-depth={depth}
       >
         <span className="library-tree-guides" aria-hidden="true" />
-        {hasChildren ? (
-          <IconButton
-            size="sm"
-            className="library-tree-toggle"
-            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.type} ${item.type === "folder" ? item.name : item.title}`}
-            aria-expanded={isExpanded}
-            onClick={() => onToggle(item)}
+        <div className="library-tree-gutter">
+          <button
+            className="star-button"
+            data-testid="star-button"
+            aria-label="Star this entry"
+            type="button"
+            onClick={(e) => e.stopPropagation()}
           >
-            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-          </IconButton>
-        ) : (
-          <span className="library-tree-toggle-placeholder" aria-hidden="true" />
-        )}
+            <Star size={16} />
+          </button>
+          {hasChildren ? (
+            <IconButton
+              size="sm"
+              className="library-tree-toggle"
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.type} ${item.type === "folder" ? item.name : item.title}`}
+              aria-expanded={isExpanded}
+              onClick={() => onToggle(item)}
+            >
+              {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            </IconButton>
+          ) : (
+            <span className="library-tree-toggle-placeholder" aria-hidden="true" />
+          )}
+        </div>
         {renderCard(item)}
       </div>
       {isExpanded && (

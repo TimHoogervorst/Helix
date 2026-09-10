@@ -4,6 +4,19 @@ from helix_core.abstracts import AbstractEntity
 from helix_core.actions.base import AbstractBaseAction
 
 
+class EntityManager(models.Manager):
+    """Normalize legacy factory kwargs while callers migrate to Source."""
+
+    def create(self, **kwargs):
+        folder = kwargs.pop("folder", None)
+        source_entry = kwargs.pop("source_entry", None)
+        if source_entry is not None:
+            kwargs["source"] = source_entry
+        elif folder is not None:
+            kwargs["source"] = folder
+        return super().create(**kwargs)
+
+
 class LimsView(models.Model):
     """A saved filter configuration for the Entities Hub.
 
@@ -103,6 +116,7 @@ class Entity(AbstractEntity):
         related_name="+",
         db_table="lims_tag_entities",
     )
+    objects = EntityManager()
 
     class Meta:
         db_table = "lims_entity"

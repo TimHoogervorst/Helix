@@ -696,28 +696,28 @@ class QueryBuilderIntegrationTests(TestCase):
             name="PCR Experiment",
             author=cls.user,
             schema=cls.eln_schema,
-            folder=cls.folder,
+            source=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="Blood Sample A",
             author=cls.user,
             schema=cls.lims_schema,
-            folder=cls.folder,
+            source=cls.folder,
             properties={"sample_type": "A", "concentration": 50},
         )
         Entity.objects.create(
             name="Blood Sample B",
             author=cls.user,
             schema=cls.lims_schema,
-            folder=cls.folder,
+            source=cls.folder,
             properties={"sample_type": "B", "concentration": 100},
         )
         Entity.objects.create(
             name="Blood Sample C",
             author=cls.user,
             schema=cls.lims_schema,
-            folder=cls.folder,
+            source=cls.folder,
             properties={"sample_type": "C", "concentration": 200},
         )
 
@@ -927,21 +927,21 @@ class ProjectFilterQueryTests(TestCase):
             name="Sample A1",
             author=cls.user,
             schema=cls.lims_schema,
-            folder=cls.folder_a,
+            source=cls.folder_a,
             properties={},
         )
         cls.entity_a2 = Entity.objects.create(
             name="Sample A2",
             author=cls.user,
             schema=cls.lims_schema,
-            folder=cls.folder_a,
+            source=cls.folder_a,
             properties={},
         )
         cls.entity_b1 = Entity.objects.create(
             name="Sample B1",
             author=cls.user,
             schema=cls.lims_schema,
-            folder=cls.folder_b,
+            source=cls.folder_b,
             properties={},
         )
 

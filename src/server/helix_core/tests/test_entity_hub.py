@@ -66,14 +66,14 @@ class EntityHubViewTests(TestCase):
             name="ELN Test Entry",
             author=cls.user,
             schema=eln_schema,
-            folder=cls.folder,
+            source=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="LIMS Test Entity",
             author=cls.user,
             schema=lims_schema,
-            folder=cls.folder,
+            source=cls.folder,
         )
 
     def test_view_returns_rows_from_both_tables(self):
@@ -140,7 +140,7 @@ class EntityHubViewTests(TestCase):
             name="Blood assay result",
             author=self.user,
             schema=result_schema,
-            folder=self.folder,
+            source=self.folder,
         )
 
         row = EntityHubView.objects.get(id=result.id, schema_id=result_schema.id)
@@ -205,14 +205,14 @@ class EntityHubAPITests(APITestCase):
             name="ELN Test Entry",
             author=cls.user,
             schema=eln_schema,
-            folder=cls.folder,
+            source=cls.folder,
             content={"type": "doc", "content": []},
         )
         cls.lims_entity = Entity.objects.create(
             name="LIMS Test Entity",
             author=cls.user,
             schema=lims_schema,
-            folder=cls.folder,
+            source=cls.folder,
         )
         cls.url = "/api/registry/entities/"
 
@@ -295,7 +295,7 @@ class EntityHubAPITests(APITestCase):
                 name=f"Extra {i}",
                 author=self.user,
                 schema=schema,
-                folder=self.folder,
+                source=self.folder,
             )
 
         # Page 1 at size=2
@@ -428,7 +428,7 @@ class EntityHubAPITests(APITestCase):
             name="Finished Entity",
             author=self.user,
             schema=lims_schema,
-            folder=self.folder,
+            source=self.folder,
             status="finished",
         )
         response = self.client.get(f"{self.url}?status=finished")
@@ -467,14 +467,14 @@ class EntityHubAPITests(APITestCase):
             name="Blood Sample A",
             author=self.user,
             schema=lims_schema,
-            folder=self.folder,
+            source=self.folder,
             properties={"sample_type": "A"},
         )
         Entity.objects.create(
             name="Blood Sample B",
             author=self.user,
             schema=lims_schema,
-            folder=self.folder,
+            source=self.folder,
             properties={"sample_type": "B"},
         )
         response = self.client.get(f"{self.url}?f=sample_type:B")
@@ -521,7 +521,7 @@ class EntityHubAPITests(APITestCase):
         Entity.objects.create(
             name="Unique Zebra Fish", schema=extra_schema,
             author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
 
         response = self.client.get(
@@ -556,10 +556,13 @@ class EntityHubAPITests(APITestCase):
 
     # ── Project and Source fields on hub rows ─────────────────────────────
 
-    def test_hub_rows_include_project_and_folder_fields(self):
-        """Hub rows carry project_id, project_uid, project_name and folder fields."""
+    def test_hub_rows_include_project_and_source_fields(self):
+        """Hub rows carry project metadata and source identity."""
         from core.models import Project
         proj = Project.objects.create(name="Test Project")
+        project_folder = Folder.objects.create(
+            name="Project Folder", parent=None, project=proj,
+        )
         from mods.lims.models import Entity
         from helix_core.models import Schema, SchemaType
         lims_type = SchemaType.objects.get(workspace_id="lims")
@@ -569,7 +572,7 @@ class EntityHubAPITests(APITestCase):
         )
         Entity.objects.create(
             name="Project Entity", author=self.user, schema=schema,
-            folder=self.folder, project=proj,
+            source=project_folder, project=proj,
         )
         response = self.client.get(self.url)
         data = response.json()
@@ -579,9 +582,9 @@ class EntityHubAPITests(APITestCase):
             self.assertIn("project_name", row)
             self.assertIn("project_icon", row)
             self.assertIn("project_color", row)
-            self.assertIn("folder_id", row)
-            self.assertIn("folder_name", row)
-            self.assertIn("folder_path", row)
+            self.assertIn("source_type", row)
+            self.assertIn("source_id", row)
+            self.assertIn("source_path", row)
             self.assertIn("source", row)
             self.assertEqual(row["source"]["kind"], "folder")
 
@@ -590,6 +593,8 @@ class EntityHubAPITests(APITestCase):
         from core.models import Project
         proj_a = Project.objects.create(name="Alpha Project")
         proj_b = Project.objects.create(name="Beta Project")
+        folder_a = Folder.objects.create(name="A Folder", parent=None, project=proj_a)
+        folder_b = Folder.objects.create(name="B Folder", parent=None, project=proj_b)
         from mods.lims.models import Entity
         from helix_core.models import Schema, SchemaType
         lims_type = SchemaType.objects.get(workspace_id="lims")
@@ -599,11 +604,11 @@ class EntityHubAPITests(APITestCase):
         )
         Entity.objects.create(
             name="Entity B", author=self.user, schema=schema,
-            folder=self.folder, project=proj_b,
+            source=folder_b, project=proj_b,
         )
         Entity.objects.create(
             name="Entity A", author=self.user, schema=schema,
-            folder=self.folder, project=proj_a,
+            source=folder_a, project=proj_a,
         )
         response = self.client.get(f"{self.url}?sort=project__name&schema_type=lims.entity")
         data = response.json()
@@ -671,7 +676,7 @@ class EntityHubAPITests(APITestCase):
             name="Blood Sample X",
             author=self.user,
             schema=schema,
-            folder=self.folder,
+            source=self.folder,
             properties={"sample_type": "Whole Blood", "concentration": 42},
         )
 
@@ -710,7 +715,7 @@ class EntityHubAPITests(APITestCase):
             name="Partial Entity",
             author=self.user,
             schema=schema,
-            folder=self.folder,
+            source=self.folder,
             properties={"known_field": "present"},
         )
 

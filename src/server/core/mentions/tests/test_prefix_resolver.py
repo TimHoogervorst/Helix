@@ -94,7 +94,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_resolves_entry_by_static_prefix(self):
         """``E1`` resolves to a NotebookEntry."""
-        entry = _make_entry(folder=self.folder, author=self.user)
+        entry = _make_entry(source=self.folder, author=self.user)
         result = resolve_display_id(entry.display_id)
         self.assertIsNotNone(result)
         instance, ct = result
@@ -110,7 +110,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
         entity = Entity.objects.create(
             name="Patient Blood #1",
             schema=blood_schema,
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
         # Invalidate cache so new prefix is picked up
@@ -133,7 +133,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_prefix_extraction_case_insensitive(self):
         """``e1`` resolves the same as ``E1`` (prefix uppercased)."""
-        entry = _make_entry(folder=self.folder, author=self.user)
+        entry = _make_entry(source=self.folder, author=self.user)
         self.assertIsNotNone(resolve_display_id(entry.display_id.lower()))
 
     def test_prefix_extraction_mixed_case(self):
@@ -143,7 +143,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
         blood_schema = _create_lims_schema(prefix="BLOOD")
         entity = Entity.objects.create(
             name="Sample", schema=blood_schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         from helix_core.models import Schema
         invalidate_prefix_cache(sender=Schema)
@@ -166,7 +166,7 @@ class GetIconTests(BaseServiceTestCase):
 
     def test_entry_icon_is_page(self):
         """ELN entries get the ``📄`` icon."""
-        entry = _make_entry(folder=self.folder, author=self.user)
+        entry = _make_entry(source=self.folder, author=self.user)
         self.assertEqual(get_icon(entry, "entry"), "📄")
 
     def test_entity_default_icon(self):
@@ -176,7 +176,7 @@ class GetIconTests(BaseServiceTestCase):
         schema = _create_lims_schema(prefix="TEST")
         entity = Entity.objects.create(
             name="Sample", schema=schema,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
         )
         self.assertEqual(get_icon(entity, "entity"), "🧪")
 

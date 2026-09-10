@@ -218,7 +218,7 @@ class EffectiveRoleShareTests(TestCase):
 
         schema = get_or_create_default_eln_schema()
         entry = NotebookEntry.objects.create(
-            name="Entry", content={"type": "doc"}, folder=self.descendant,
+            name="Entry", content={"type": "doc"}, source=self.descendant,
             author=self.reader, schema=schema,
         )
         Grant.objects.create(
@@ -237,7 +237,7 @@ class EffectiveRoleShareTests(TestCase):
             name="DNA", prefix="DNA", schema_type=schema_type,
         )
         entity = Entity.objects.create(
-            name="Sample", schema=schema, folder=self.descendant, author=self.reader,
+            name="Sample", schema=schema, source=self.descendant, author=self.reader,
         )
         Grant.objects.create(
             project=self.target_project, role=ProjectRole.EDIT, user=self.editor,

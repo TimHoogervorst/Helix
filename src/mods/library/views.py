@@ -503,7 +503,12 @@ class LibraryChildrenView(APIView):
                 and isinstance(item, Folder)
                 and item.project_id != parent.id,
             )
-            if not search or search in serialized.get("name", serialized.get("title", "")).lower():
+            searchable_name = serialized.get("name", serialized.get("title", ""))
+            searchable_display_id = serialized.get("display_id") or ""
+            if not search or (
+                search in searchable_name.lower()
+                or search in searchable_display_id.lower()
+            ):
                 serialized["depth"] = depth
                 rows.append(serialized)
             if recursive:

@@ -36,7 +36,7 @@ class EntityDisplayIdTests(BaseServiceTestCase):
         entity = Entity.objects.create(
             name="Sample A",
             schema=dna_schema,
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
         self.assertEqual(entity.display_id, "DNA1")
@@ -115,7 +115,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entry = NotebookEntry.objects.create(
             name="Test Entry",
             properties={"type": "doc", "content": [{"type": "paragraph"}]},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             status="in_progress",
@@ -139,7 +139,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entry = NotebookEntry.objects.create(
             name="Test Entry",
             properties={"type": "doc", "content": [{"type": "paragraph"}]},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             status="in_progress",
@@ -156,7 +156,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         NotebookEntry.objects.create(
             name="Another Entry",
             properties={"type": "doc", "content": [{"type": "paragraph"}]},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             status="finished",
@@ -169,7 +169,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entry1 = NotebookEntry.objects.create(
             name="Entry 1",
             properties={"type": "doc", "content": [{"type": "paragraph"}]},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             status="in_progress",
@@ -177,7 +177,7 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         entry2 = NotebookEntry.objects.create(
             name="Entry 2",
             properties={"type": "doc", "content": [{"type": "paragraph"}]},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             status="in_progress",
@@ -207,8 +207,8 @@ class EntityStatusCascadeFromEntryTests(BaseServiceTestCase):
         self.assertEqual(entity2.status, "in_progress")  # unchanged
 
 
-class EntitySourceEntryTests(BaseServiceTestCase):
-    """Entity.source_entry links to the owning NotebookEntry."""
+class EntitySourceTests(BaseServiceTestCase):
+    """Entity placement is represented by the polymorphic Source reference."""
 
     @classmethod
     def setUpTestData(cls):
@@ -223,12 +223,12 @@ class EntitySourceEntryTests(BaseServiceTestCase):
             name="DNA", prefix="DNA", schema_type=self.schema_type,
         )
 
-    def test_entity_can_have_source_entry(self):
-        """Entity.source_entry FK points to the ELN entry that owns it."""
+    def test_entity_can_source_from_entry(self):
+        """An entity can be sourced directly from an ELN entry."""
         entry = NotebookEntry.objects.create(
             name="My Entry",
             properties={"type": "doc", "content": [{"type": "paragraph"}]},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=Schema.objects.create(
                 name="ELN Default", prefix="E",
@@ -245,18 +245,18 @@ class EntitySourceEntryTests(BaseServiceTestCase):
             folder=self.folder,
             author=self.user,
         )
-        self.assertEqual(entity.source_entry, entry)
-        self.assertEqual(entity.source_entry_id, entry.id)
+        self.assertEqual(entity.source, entry)
+        self.assertEqual(entity.source_id, entry.id)
 
-    def test_entity_source_entry_nullable(self):
-        """source_entry can be null for entities not tied to an ELN entry."""
+    def test_entity_defaults_to_project_source(self):
+        """An entity without an explicit source is rooted at its project."""
         entity = Entity.objects.create(
             name="Standalone Sample",
             schema=self.dna_schema,
-            folder=self.folder,
+            project=self.project,
             author=self.user,
         )
-        self.assertIsNone(entity.source_entry)
+        self.assertEqual(entity.source, self.project)
 
 
 # ═══════════════════════════════════════════════════════════════════════

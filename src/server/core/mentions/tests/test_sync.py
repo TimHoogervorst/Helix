@@ -77,11 +77,11 @@ class SyncMentionsTests(BaseServiceTestCase):
             },
         )
         self.source = NotebookEntry.objects.create(
-            name="Source Entry", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="Source Entry", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
         self.target = NotebookEntry.objects.create(
-            name="Target Entry", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="Target Entry", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
         # We need the display_id to match what the reference node points to.
@@ -175,7 +175,7 @@ class SyncMentionsTests(BaseServiceTestCase):
         from core.mentions.sync import sync_mentions
 
         target2 = NotebookEntry.objects.create(
-            name="Second Target", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="Second Target", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
 

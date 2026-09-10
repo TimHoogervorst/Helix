@@ -152,7 +152,7 @@ class EntityApiTests(BaseTestCase):
         self.assertEqual(response.data["schema_icon"], "dna")
         self.assertEqual(response.data["schema_color"], "success")
         self.assertEqual(response.data["schema_columns"][0]["name"], "concentration")
-        self.assertEqual(response.data["folder_path"], self.folder.path)
+        self.assertEqual(response.data["source_path"][-1]["id"], self.folder.id)
         self.assertEqual(response.data["project_uid"], str(self.project.uid))
 
     def test_results_groups_linked_rows_and_hides_unlinked_rows(self):
@@ -1041,6 +1041,13 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
     def test_result_row_ids_allow_duplicate_source_results(self):
         self.schema_type.tags = ["ResultTable"]
         self.schema_type.save(update_fields=["tags"])
+        source_schema = Schema.objects.create(
+            name="Source", prefix="SRC", schema_type=self.schema_type,
+        )
+        source = Entity.objects.create(
+            name="Source", schema=source_schema, folder=self.folder,
+            author=self.user,
+        )
         payload = {
             "schema_id": self.dna_schema.id,
             "rows": [
@@ -1048,14 +1055,14 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
                     "entity_id": None,
                     "result_row_id": "row-a",
                     "name": "BLOOD1 — Assay Result",
-                    "values": {"concentration": 10, "Entity": "BLOOD1"},
+                    "values": {"concentration": 10, "Entity": source.display_id},
                     "folder_id": self.folder.id,
                 },
                 {
                     "entity_id": None,
                     "result_row_id": "row-b",
                     "name": "BLOOD1 — Assay Result",
-                    "values": {"concentration": 20, "Entity": "BLOOD1"},
+                    "values": {"concentration": 20, "Entity": source.display_id},
                     "folder_id": self.folder.id,
                 },
             ],

@@ -8,6 +8,7 @@ and batch registration.  Moves are clamped to the shared subtree and
 cross-Project moves stay rejected.
 """
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIClient
 
 from core.models import Folder, Project, User
@@ -127,9 +128,14 @@ class EntityCreateAccessTests(_LimsAccessMixin, BaseTestCase):
     def _create(self, user, folder=None):
         client = APIClient()
         client.force_authenticate(user=user)
+        source = folder or self.folder
         return client.post(
             self.url,
-            {"name": "New Sample", "schema": self.schema.id, "folder": (folder or self.folder).id},
+            {
+                "name": "New Sample", "schema": self.schema.id,
+                "source_type": ContentType.objects.get_for_model(source).id,
+                "source_id": source.id,
+            },
             format="json",
         )
 
@@ -186,6 +192,12 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
     def _patch(self, user, data):
         client = APIClient()
         client.force_authenticate(user=user)
+        if "folder" in data:
+            source = Folder.objects.get(pk=data.pop("folder"))
+            data.update({
+                "source_type": ContentType.objects.get_for_model(source).id,
+                "source_id": source.id,
+            })
         return client.patch(self.url, data, format="json")
 
     def test_editor_can_update(self):
@@ -223,13 +235,13 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
         response = self._patch(self.sharee, {"folder": inner_folder.id})
         self.assertEqual(response.status_code, 200)
         self.entity.refresh_from_db()
-        self.assertEqual(self.entity.folder_id, inner_folder.id)
+        self.assertEqual(self.entity.source_id, inner_folder.id)
 
     def test_read_write_sharee_cannot_move_outside_subtree(self):
         response = self._patch(self.sharee, {"folder": self.outside_folder.id})
         self.assertEqual(response.status_code, 400)
         self.entity.refresh_from_db()
-        self.assertEqual(self.entity.folder_id, self.shared_child.id)
+        self.assertEqual(self.entity.source_id, self.shared_child.id)
 
     def test_cross_project_move_rejected(self):
         other_project = Project.objects.create(name="Elsewhere")
@@ -239,7 +251,7 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
         response = self._patch(self.editor, {"folder": other_folder.id})
         self.assertEqual(response.status_code, 400)
         self.entity.refresh_from_db()
-        self.assertEqual(self.entity.folder_id, self.shared_child.id)
+        self.assertEqual(self.entity.source_id, self.shared_child.id)
 
 
 # ── Entity delete ─────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ These tests verify the sync pipeline — mention sync and conditional
 save — using real database-backed entries.
 """
 from unittest.mock import patch
+from django.contrib.contenttypes.models import ContentType
 
 from core.tests.base import BaseServiceTestCase
 from core.tests.factories import EMPTY_DOC, make_doc_with_ref
@@ -22,11 +23,11 @@ class SyncEntryContentTests(BaseServiceTestCase):
         self.schema = get_or_create_default_eln_schema()
         self.entry = NotebookEntry.objects.create(
             name="Test Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user, schema=self.schema,
+            source=self.folder, author=self.user, schema=self.schema,
         )
         self.target = NotebookEntry.objects.create(
             name="Target Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user, schema=self.schema,
+            source=self.folder, author=self.user, schema=self.schema,
         )
 
     # ── No-op ──────────────────────────────────────────────────────────
@@ -128,11 +129,11 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         self.schema = get_or_create_default_eln_schema()
         self.entry = NotebookEntry.objects.create(
             name="Test Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user, schema=self.schema,
+            source=self.folder, author=self.user, schema=self.schema,
         )
         self.target = NotebookEntry.objects.create(
             name="Target Entry", content=EMPTY_DOC,
-            folder=self.folder, author=self.user, schema=self.schema,
+            source=self.folder, author=self.user, schema=self.schema,
         )
 
     # ── Text-only edit → pipeline skipped ────────────────────────────────
@@ -297,7 +298,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         # Create entry
         resp = client.post(
             "/api/eln/entries/",
-            {"name": "E2E Test", "content": EMPTY_DOC, "folder": self.folder.id},
+            {"name": "E2E Test", "content": EMPTY_DOC, "source_type":  ContentType.objects.get_for_model(self.folder).pk, "source_id": self.folder.id},
             format="json",
         )
         self.assertEqual(resp.status_code, 201)
@@ -310,7 +311,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         }
         resp = client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "E2E Test", "content": text_doc, "folder": self.folder.id},
+            {"name": "E2E Test", "content": text_doc, "source_type": ContentType.objects.get_for_model(self.folder).pk, "source_id": self.folder.id},
             format="json",
         )
         self.assertEqual(resp.status_code, 200)
@@ -327,8 +328,8 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
             "mods.eln.sync.sync_mentions"
         ) as mock_mentions:
             resp = client.put(
-                f"/api/eln/entries/{display_id}/",
-                {"name": "E2E Test", "content": text_doc2, "folder": self.folder.id},
+                    f"/api/eln/entries/{display_id}/",
+                    {"name": "E2E Test", "content": text_doc2, "source_type": ContentType.objects.get_for_model(self.folder).pk, "source_id": self.folder.id},
                 format="json",
             )
             self.assertEqual(resp.status_code, 200)

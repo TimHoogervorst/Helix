@@ -57,11 +57,11 @@ class ResolveApiTests(BaseTestCase):
     def test_resolve_valid_ids(self):
         """Valid display IDs resolve to target details."""
         e1 = NotebookEntry.objects.create(
-            name="PCR Protocol", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
         e2 = NotebookEntry.objects.create(
-            name="Gel Results", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="Gel Results", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
 
@@ -96,7 +96,7 @@ class ResolveApiTests(BaseTestCase):
     def test_resolve_mixed_ids(self):
         """Mix of valid and invalid IDs — each gets its own result."""
         e1 = NotebookEntry.objects.create(
-            name="PCR Protocol", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
 
@@ -139,11 +139,11 @@ class SearchApiTests(BaseTestCase):
         eln_schema = _create_eln_schema()
 
         self.e1 = NotebookEntry.objects.create(
-            name="PCR Protocol", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=eln_schema,
         )
         self.e2 = NotebookEntry.objects.create(
-            name="Gel Results", properties=EMPTY_DOC, folder=self.folder, author=self.user,
+            name="Gel Results", properties=EMPTY_DOC, source=self.folder, author=self.user,
             schema=eln_schema,
         )
 
@@ -214,7 +214,7 @@ class EntityReferenceTests(BaseTestCase):
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
             schema=self.blood_schema,
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
 
@@ -238,7 +238,7 @@ class EntityReferenceTests(BaseTestCase):
         """Both entry (E#) and entity (prefix#) IDs resolve."""
         entry = NotebookEntry.objects.create(
             name="An Entry", properties=EMPTY_DOC,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
 
@@ -306,12 +306,12 @@ class IconInMentionsTests(BaseTestCase):
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
             schema=self.blood_schema,
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
         )
         self.entry = NotebookEntry.objects.create(
             name="A Note", properties=EMPTY_DOC,
-            folder=self.folder, author=self.user,
+            source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
 

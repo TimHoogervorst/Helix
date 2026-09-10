@@ -138,14 +138,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "You do not have permission to edit this entity."
             )
         if "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
-            if serializer.validated_data.get("source_type") is None:
-                from core.models import Folder
-                new_source = instance.project if serializer.validated_data.get("source_id") is None else Folder.objects.get(pk=serializer.validated_data["source_id"])
-            else:
-                new_source = instance.resolve_source(
-                    serializer.validated_data["source_type"],
-                    serializer.validated_data.get("source_id", instance.source_id),
-                )
+            source_type = serializer.validated_data.get("source_type", instance.source_type)
+            source_id = serializer.validated_data.get("source_id", instance.source_id)
+            new_source = instance.resolve_source(source_type, source_id)
+            if effective_role(self.request.user, new_source) != "edit":
+                raise ValidationError("You do not have permission to move the entity there.")
             instance.set_source(new_source)
         serializer.save()
         self._maybe_log(
@@ -393,6 +390,14 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     return None
                 return effective_role(request.user, target) == "edit"
             target = containing_entry or project
+            if row.get("source_type") is not None:
+                target = Entity.resolve_source(row["source_type"], row.get("source_id"))
+            elif row.get("folder_id") is not None:
+                from core.models import Folder
+                try:
+                    target = Folder.objects.get(pk=row["folder_id"])
+                except Folder.DoesNotExist:
+                    return None
             return effective_role(request.user, target) == "edit" if target else None
 
         for row in rows:
@@ -429,6 +434,20 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             result_row_id = row.get("result_row_id")
             name = (row.get("name") or "").strip()
             values = row.get("values", {})
+            row_source = containing_entry or project
+            if row.get("source_type") is not None:
+                row_source = Entity.resolve_source(row["source_type"], row.get("source_id"))
+            elif row.get("folder_id") is not None:
+                from core.models import Folder
+                try:
+                    row_source = Folder.objects.get(pk=row["folder_id"])
+                except Folder.DoesNotExist:
+                    errors.append({
+                        "row_index": row_index,
+                        "field": "source_id",
+                        "message": "Source does not exist.",
+                    })
+                    continue
 
             if not name:
                 errors.append({
@@ -438,7 +457,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 })
                 continue
 
-            if entity_id is None and containing_entry is None and project is None:
+            if entity_id is None and row_source is None:
                 errors.append({
                     "row_index": row_index,
                     "field": "project_id",
@@ -666,11 +685,11 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         name=name,
                         schema=schema,
                         properties=persisted_values,
-                        project=project or containing_entry.project,
+                        project=project or row_source.project,
                         author=author,
                     )
                     try:
-                        entity.set_source(result_source or containing_entry or project)
+                        entity.set_source(result_source or row_source)
                         entity.save()
                     except DjangoValidationError as exc:
                         errors.append({

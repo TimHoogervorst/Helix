@@ -33,7 +33,7 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         )
         self.entry = NotebookEntry.objects.create(
             name="Test Entry",
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
         )
@@ -43,8 +43,7 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         self.entity = Entity.objects.create(
             name="Sample A",
             schema=self.schema,
-            source_entry=self.entry,
-            folder=self.folder,
+            source=self.entry,
             author=self.user,
         )
 
@@ -63,8 +62,7 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         entity2 = Entity.objects.create(
             name="Sample B",
             schema=self.schema,
-            source_entry=self.entry,
-            folder=self.folder,
+            source=self.entry,
             author=self.user,
         )
 
@@ -82,7 +80,6 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
             name="Result",
             schema=self.schema,
             source=self.entity,
-            folder=self.folder,
             author=self.user,
         )
 
@@ -98,7 +95,6 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
             name="Result",
             schema=self.schema,
             source=self.entity,
-            folder=self.folder,
             author=self.user,
         )
 
@@ -114,7 +110,6 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
             name="Result",
             schema=self.schema,
             source=self.entity,
-            folder=self.folder,
             author=self.user,
         )
         self.entry.status = "finished"
@@ -141,7 +136,7 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         """
         entry2 = NotebookEntry.objects.create(
             name="Another Entry",
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             status="finished",
@@ -149,21 +144,19 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         entity2 = Entity.objects.create(
             name="Sample B",
             schema=self.schema,
-            source_entry=entry2,
-            folder=self.folder,
+            source=entry2,
             author=self.user,
         )
         self.assertEqual(entity2.status, "in_progress")
 
     # ── Unaffected entities ────────────────────────────────────────────
 
-    def test_entities_without_source_entry_unaffected(self):
-        """Entities without source_entry are not updated."""
+    def test_project_sourced_entities_unaffected(self):
+        """Entities sourced directly by the project are not updated."""
         orphan = Entity.objects.create(
             name="Orphan",
             schema=self.schema,
-            source_entry=None,
-            folder=self.folder,
+            source=self.project,
             author=self.user,
         )
 
@@ -177,15 +170,14 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
         """Entities linked to a different entry keep their status."""
         other_entry = NotebookEntry.objects.create(
             name="Other Entry",
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
         )
         other_entity = Entity.objects.create(
             name="Other Sample",
             schema=self.schema,
-            source_entry=other_entry,
-            folder=self.folder,
+            source=other_entry,
             author=self.user,
         )
 
@@ -269,26 +261,26 @@ class SourceDeletionTests(BaseServiceTestCase):
             name="Entity", prefix="S", schema_type=self.lims_schema_type,
         )
         self.entry = NotebookEntry.objects.create(
-            name="Entry", folder=self.folder, author=self.user,
+            name="Entry", source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
         self.entity = Entity.objects.create(
             name="Entity", schema=self.lims_schema, source=self.entry,
-            folder=self.folder, author=self.user,
+            author=self.user,
         )
         self.result = Entity.objects.create(
             name="Result", schema=self.lims_schema, source=self.entity,
-            folder=self.folder, author=self.user,
+            author=self.user,
         )
 
     def test_entry_delete_cascades_transitive_source_descendants(self):
         other_entry = NotebookEntry.objects.create(
-            name="Other", folder=self.folder, author=self.user,
+            name="Other", source=self.folder, author=self.user,
             schema=self.eln_schema,
         )
         unrelated = Entity.objects.create(
             name="Unrelated", schema=self.lims_schema, source=other_entry,
-            folder=self.folder, author=self.user,
+            author=self.user,
         )
 
         delete_source_descendants(self.entry)
@@ -299,21 +291,19 @@ class SourceDeletionTests(BaseServiceTestCase):
         self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
         self.assertTrue(NotebookEntry.objects.filter(pk=other_entry.pk).exists())
 
-    def test_folder_delete_does_not_follow_legacy_folder_reference(self):
+    def test_folder_delete_does_not_delete_unrelated_source_subtree(self):
         other_folder = Folder.objects.create(
             name="Other", project=self.project,
         )
         unrelated = Entity.objects.create(
             name="Unrelated", schema=self.lims_schema, source=other_folder,
-            folder=self.folder, author=self.user,
+            author=self.user,
         )
 
         delete_source_descendants(self.folder)
         self.folder.delete()
 
         self.assertTrue(Entity.objects.filter(pk=unrelated.pk).exists())
-        unrelated.refresh_from_db()
-        self.assertIsNone(unrelated.folder_id)
 
     def test_folder_delete_cascades_source_subtree(self):
         source_folder = Folder.objects.create(
@@ -323,26 +313,26 @@ class SourceDeletionTests(BaseServiceTestCase):
             name="Child Folder", project=self.project, parent=source_folder,
         )
         child_entry = NotebookEntry.objects.create(
-            name="Child Entry", source=child_folder, folder=child_folder,
+            name="Child Entry", source=child_folder,
             author=self.user, schema=self.eln_schema,
         )
         child_entity = Entity.objects.create(
             name="Child Entity", schema=self.lims_schema, source=child_entry,
-            folder=child_folder, author=self.user,
+            author=self.user,
         )
         child_result = Entity.objects.create(
             name="Child Result", schema=self.lims_schema, source=child_entity,
-            folder=child_folder, author=self.user,
+            author=self.user,
         )
         child_result_result = Entity.objects.create(
             name="Nested Child Result", schema=self.lims_schema,
-            source=child_result, folder=child_folder, author=self.user,
+            source=child_result, author=self.user,
         )
         self.lims_schema.columns = [{"name": "linked_entity", "type": "reference"}]
         self.lims_schema.save(update_fields=["columns"])
         survivor = Entity.objects.create(
             name="Referenced Survivor", schema=self.lims_schema,
-            source=self.entry, folder=self.folder, author=self.user,
+            source=self.entry, author=self.user,
             properties={"linked_entity": child_entity.display_id},
         )
         mention = Mention.objects.create(source=survivor, target=child_entity)
@@ -366,15 +356,15 @@ class SourceDeletionTests(BaseServiceTestCase):
         self.lims_schema.save(update_fields=["columns"])
         result = Entity.objects.create(
             name="Nested Result", schema=self.lims_schema, source=self.entity,
-            folder=self.folder, author=self.user,
+            author=self.user,
         )
         nested_result = Entity.objects.create(
             name="Nested Result Result", schema=self.lims_schema, source=result,
-            folder=self.folder, author=self.user,
+            author=self.user,
         )
         survivor = Entity.objects.create(
             name="Referencing Entity", schema=self.lims_schema,
-            source=self.entry, folder=self.folder, author=self.user,
+            source=self.entry, author=self.user,
             properties={"linked_entity": self.entity.display_id},
         )
 

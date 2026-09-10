@@ -35,7 +35,7 @@ def _build_result(instance, model_type: str, workspace_id: str | None, *, includ
 def _is_visible(instance, user) -> bool:
     """Check visibility without assuming a concrete mention target type."""
     field_names = {field.name for field in instance._meta.get_fields()}
-    if not {"project", "folder"}.issubset(field_names):
+    if not {"project", "source"}.issubset(field_names):
         return False
     return type(instance).objects.filter(
         pk=instance.pk,
@@ -95,7 +95,7 @@ def search_view(request):
     for prefix, model in pmap.items():
         qs = model.objects.filter(display_id__istartswith=query)
         if {field.name for field in model._meta.get_fields()}.issuperset(
-            {"project", "folder"}
+            {"project", "source"}
         ):
             qs = qs.filter(visible_rows_q(request.user))
         else:

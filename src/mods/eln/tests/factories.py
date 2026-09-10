@@ -7,6 +7,7 @@ across all ELN test modules.
 """
 
 from helix_core.models import Schema, SchemaType
+from django.contrib.contenttypes.models import ContentType
 
 TEXT_DOC = {
     "type": "doc",
@@ -62,12 +63,14 @@ class _CreateEntryMixin:
         get_or_create_default_eln_schema()
 
     def _create_entry(self, **kwargs):
+        source = kwargs.get("source", self.folder)
         response = self.client.post(
             "/api/eln/entries/",
             {
                 "name": kwargs.get("name", "Test Entry"),
                 "content": kwargs.get("content", TEXT_DOC),
-                "folder": self.folder.id,
+                "source_type": ContentType.objects.get_for_model(source).pk,
+                "source_id": source.id,
             },
             format="json",
         )

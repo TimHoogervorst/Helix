@@ -245,6 +245,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "project_color",
             "source_type",
             "source_id",
+            "source_path",
             "source",
             "_expanded",
         ]

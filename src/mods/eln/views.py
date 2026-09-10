@@ -4,12 +4,13 @@ import uuid
 import django.db.models
 from django.db import IntegrityError
 from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.utils.dateparse import parse_datetime
 from django.http import Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException, PermissionDenied
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError as DRFValidationError
 from rest_framework.response import Response
 
 from helix_core.actions.logger import bulk_log_actions, log_action
@@ -216,6 +217,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
+            from mods.access.policies import effective_role
+            from core.models import Project
+
             if validated_data.get("source_type") is None:
                 from core.models import Folder
                 new_source = instance.project if validated_data.get("source_id") is None else Folder.objects.get(pk=validated_data["source_id"])
@@ -223,6 +227,17 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 new_source = instance.resolve_source(
                     validated_data["source_type"],
                     validated_data.get("source_id", instance.source_id),
+                )
+            new_source_project_id = getattr(new_source, "project_id", new_source.pk)
+            if new_source_project_id != instance.project_id:
+                raise DRFValidationError(
+                    {"source": "Source must belong to the same Project."}
+                )
+            if not isinstance(new_source, Project) and effective_role(
+                self.request.user, new_source
+            ) != "edit":
+                raise DRFValidationError(
+                    {"source": "You do not have permission to move the entry here."}
                 )
             instance.set_source(new_source)
 
@@ -269,7 +284,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         # Capture pre-save content for fingerprint comparison.
         # serializer.instance is the DB object before save() mutates it.
         old_content = serializer.instance.content
-        instance = serializer.save()
+        try:
+            instance = serializer.save()
+        except DjangoValidationError as exc:
+            raise DRFValidationError(exc.message_dict) from exc
         sync_entry_content(instance, old_content=old_content)
 
         # ── Create ContentVersion (content changes only) ────────────────

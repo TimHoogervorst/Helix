@@ -7,6 +7,7 @@ from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
 from core.models import Project
+from core.models import Folder
 from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 
@@ -148,6 +149,9 @@ class EntitySerializer(serializers.ModelSerializer):
         queryset=ContentType.objects.all(), required=False,
     )
     source_id = serializers.IntegerField(required=False, allow_null=True)
+    folder = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.all(), write_only=True, required=False,
+    )
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
@@ -164,6 +168,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "properties",
             "source_type",
             "source_id",
+            "folder",
             "source_path",
             "project",
             "project_name",
@@ -207,14 +212,6 @@ class EntitySerializer(serializers.ModelSerializer):
     def get_source_path(self, obj):
         cache = self.context.setdefault("source_path_cache", {})
         return hydrate_source_path(obj.source_path, cache)
-
-    def validate(self, data):
-        project = data.get("project")
-        if project is None and self.instance is None:
-            raise serializers.ValidationError(
-                {"project": "Provide a project or source."}
-            )
-        return data
 
     def create(self, validated_data):
         try:
@@ -284,6 +281,10 @@ class EntitySerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Resolve the default Schema when none is provided on create."""
+        folder = data.pop("folder", None)
+        if folder is not None and "source_type" not in data:
+            data["source_type"] = ContentType.objects.get_for_model(folder)
+            data["source_id"] = folder.pk
         project = data.get("project")
         source_type = data.get("source_type")
         source_id = data.get("source_id")
@@ -291,9 +292,20 @@ class EntitySerializer(serializers.ModelSerializer):
             if source_id is None:
                 raise serializers.ValidationError({"source_id": "This field is required with source_type."})
             source = Entity.resolve_source(source_type, source_id)
-            if not hasattr(source, "project_id") and source.__class__.__name__ != "Project":
+            if source.__class__.__name__ == "Project":
+                source_project_id = source.pk
+            elif getattr(source, "project_id", None) is not None:
+                source_project_id = source.project_id
+            else:
                 raise serializers.ValidationError({"source_type": "Source type is not supported."})
-            data["project"] = source if source.__class__.__name__ == "Project" else Project.objects.get(pk=source.project_id)
+            if self.instance is not None:
+                if source_project_id != self.instance.project_id:
+                    raise serializers.ValidationError(
+                        {"source": "Source must belong to the same Project."}
+                    )
+            else:
+                data["project"] = Project.objects.get(pk=source_project_id)
+                project = data["project"]
         if self.instance is None and project is None:
             raise serializers.ValidationError(
                 {"project": "Provide a project or source."}
@@ -328,6 +340,11 @@ class EntityBatchRegisterRowSerializer(serializers.Serializer):
     result_row_id = serializers.CharField(required=False, allow_blank=False)
     name = serializers.CharField(required=True, allow_blank=True)
     values = serializers.DictField(default=dict)
+    source_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContentType.objects.all(), required=False,
+    )
+    source_id = serializers.IntegerField(required=False, allow_null=True)
+    folder_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class EntityBatchRegisterSerializer(serializers.Serializer):

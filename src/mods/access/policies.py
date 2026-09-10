@@ -543,9 +543,12 @@ def _resolve_folder_id(resource):
     """
     if resource is None:
         return None
-    if hasattr(resource, "id") and type(resource).__name__ == "Folder":
+    if type(resource).__name__ == "Folder":
         return resource.id
-    return getattr(resource, "folder_id", None)
+    for segment in reversed(getattr(resource, "source_path", None) or []):
+        if segment.get("kind") == "folder":
+            return segment.get("id")
+    return None
 
 
 def _find_folder_share(resource, via_project):

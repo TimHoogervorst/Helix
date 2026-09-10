@@ -87,7 +87,7 @@ function LibraryNewDropdown({
       const entry = await createEntry({
         name: "Untitled",
         content: EMPTY_DOC,
-        folder: currentFolderId,
+        source_id: currentFolderId,
         project: currentProjectId,
       });
       setOpen(false);

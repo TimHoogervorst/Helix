@@ -25,7 +25,6 @@ function Overview({ entity }: { entity: EntityListItem }) {
               ["Schema", entity.schema_name],
               ["Last editor", entity.last_editor_username],
               ["Created", formatDate(entity.created_at)],
-              ["Source entry", entity.source_entry_display_id],
             ].map(([label, value]) => (
               <TableRow key={label}>
                 <TableCell className="font-[var(--font-label)] text-sm text-muted-foreground">{label}</TableCell>

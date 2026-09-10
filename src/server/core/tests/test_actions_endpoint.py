@@ -116,7 +116,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         return NotebookEntry.objects.create(
             name="Action Target",
             content={"type": "doc", "content": []},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=schema,
         )
@@ -705,7 +705,7 @@ class TestActionTargetAccess(BaseTestCase):
         self.entry = NotebookEntry.objects.create(
             name="Logged Target",
             content={"type": "doc", "content": []},
-            folder=self.folder,
+            source=self.folder,
             author=self.editor,
             schema=self.schema,
         )
@@ -773,8 +773,8 @@ class TestActionTargetAccess(BaseTestCase):
         outside_entry = self.entry.__class__.objects.create(
             name="Outside",
             content={"type": "doc", "content": []},
-            folder=Folder.objects.create(
-                name="Outside Folder", parent=self.entry.folder.parent, project=self.project,
+            source=Folder.objects.create(
+                name="Outside Folder", parent=self.entry.source.parent, project=self.project,
             ),
             author=self.editor,
             schema=self.schema,

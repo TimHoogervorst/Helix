@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { EntityListItem } from "../types";
-import MentionBadge from "../../../shell/src/shared/components/MentionBadge";
 import {
   Table,
   TableHead,
@@ -41,15 +40,6 @@ function EntityDetailFields({
           <span className="detail-label">By</span>
           <span>{entity.author_username || "—"}</span>
         </div>
-        {entity.source_entry_display_id && (
-          <div className="detail-field">
-            <span className="detail-label">Source Entry</span>
-            <MentionBadge
-              displayId={entity.source_entry_display_id}
-              clickable
-            />
-          </div>
-        )}
       </div>
 
       {children}

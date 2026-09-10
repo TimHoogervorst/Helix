@@ -1,8 +1,8 @@
 from django.urls import path
 
-from .views import LibraryContentsView, LibraryFolderListView
+from .views import LibraryChildrenView, LibraryFolderListView
 
 urlpatterns = [
-    path("contents/", LibraryContentsView.as_view(), name="library-contents"),
+    path("children/", LibraryChildrenView.as_view(), name="library-children"),
     path("folders/", LibraryFolderListView.as_view(), name="library-folders"),
 ]

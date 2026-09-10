@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { Star, Folder } from "lucide-react";
+import { Folder } from "lucide-react";
 import type { LibraryEntryItem } from "../../../../mods/library/types";
 import { Avatar, getInitials } from "../Avatar";
 import { relativeTime } from "../format";
@@ -101,17 +101,6 @@ export function BaseCard({
           : undefined
       }
     >
-      {/* ── Star button (placeholder) ──────────────────────────────── */}
-      <button
-        className="star-button"
-        data-testid="star-button"
-        aria-label="Star this entry"
-        type="button"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Star size={16} />
-      </button>
-
       {/* ── Icon ──────────────────────────────────────────────────── */}
       <span className="card-icon" title={iconTitle}>
         {iconKey ? (

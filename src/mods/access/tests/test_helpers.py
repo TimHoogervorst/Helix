@@ -3,7 +3,7 @@
 from django.contrib.auth.models import Group
 from django.test import TestCase
 
-from core.models import User
+from core.models import Folder, User
 from helix_core.models import Schema, SchemaType
 from mods.access.models import (
     FolderShare,
@@ -183,6 +183,17 @@ class EffectiveRoleShareTests(TestCase):
         self._share(ShareLevel.READ)
         self.assertEqual(effective_role(self.reader, self.descendant), "read")
 
+    def test_subtree_coverage_uses_source_path(self):
+        Grant.objects.create(
+            project=self.target_project, role=ProjectRole.READ, user=self.reader,
+        )
+        self._share(ShareLevel.READ)
+        Folder.objects.filter(pk=self.descendant.pk).update(
+            parent=self.outside,
+        )
+        self.descendant.refresh_from_db()
+        self.assertEqual(effective_role(self.reader, self.descendant), "read")
+
     def test_resource_outside_subtree_not_accessible(self):
         Grant.objects.create(
             project=self.target_project, role=ProjectRole.EDIT, user=self.editor,
@@ -207,7 +218,7 @@ class EffectiveRoleShareTests(TestCase):
 
         schema = get_or_create_default_eln_schema()
         entry = NotebookEntry.objects.create(
-            name="Entry", content={"type": "doc"}, folder=self.descendant,
+            name="Entry", content={"type": "doc"}, source=self.descendant,
             author=self.reader, schema=schema,
         )
         Grant.objects.create(
@@ -226,7 +237,7 @@ class EffectiveRoleShareTests(TestCase):
             name="DNA", prefix="DNA", schema_type=schema_type,
         )
         entity = Entity.objects.create(
-            name="Sample", schema=schema, folder=self.descendant, author=self.reader,
+            name="Sample", schema=schema, source=self.descendant, author=self.reader,
         )
         Grant.objects.create(
             project=self.target_project, role=ProjectRole.EDIT, user=self.editor,

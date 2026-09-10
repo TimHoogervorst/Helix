@@ -1,18 +1,24 @@
 from rest_framework import serializers
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import CoreSetting, Folder, Project
 
 
 class FolderSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
+    source_type = serializers.PrimaryKeyRelatedField(
+        read_only=True
+    )
+    source_id = serializers.IntegerField(read_only=True)
+    source_path = serializers.JSONField(read_only=True)
     project = serializers.PrimaryKeyRelatedField(
         queryset=Project.objects.all(),
     )
 
     class Meta:
         model = Folder
-        fields = ["id", "name", "parent", "project", "children", "created_at"]
-        read_only_fields = ["id", "created_at"]
+        fields = ["id", "name", "parent", "project", "source_type", "source_id", "source_path", "children", "created_at"]
+        read_only_fields = ["id", "created_at", "source_path", "source_type", "source_id"]
 
     def get_children(self, obj):
         children = Folder.objects.filter(parent=obj)
@@ -50,6 +56,18 @@ class FolderSerializer(serializers.ModelSerializer):
                         {"name": "A shared folder with this name already exists."}
                     )
         return data
+
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
 
 
 # ── CoreSetting ────────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ class ContentVersionCreationTests(_CreateEntryMixin, BaseTestCase):
 
         response = self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Updated", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Updated", "content": ALT_DOC},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -62,7 +62,7 @@ class ContentVersionCreationTests(_CreateEntryMixin, BaseTestCase):
         for i, doc in enumerate(docs, start=1):
             response = self.client.put(
                 f"/api/eln/entries/{display_id}/",
-                {"name": f"Edit {i}", "content": doc, "folder": self.folder.id},
+                {"name": f"Edit {i}", "content": doc},
                 format="json",
             )
             self.assertEqual(response.status_code, 200)
@@ -81,13 +81,13 @@ class ContentVersionCreationTests(_CreateEntryMixin, BaseTestCase):
         # Edit entry 1
         self.client.put(
             f"/api/eln/entries/{e1['display_id']}/",
-            {"name": "E1 v1", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "E1 v1", "content": ALT_DOC},
             format="json",
         )
         # Edit entry 2 twice
         self.client.put(
             f"/api/eln/entries/{e2['display_id']}/",
-            {"name": "E2 v1", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "E2 v1", "content": ALT_DOC},
             format="json",
         )
         self.client.put(
@@ -95,7 +95,6 @@ class ContentVersionCreationTests(_CreateEntryMixin, BaseTestCase):
             {
                 "name": "E2 v2",
                 "content": TEXT_DOC,
-                "folder": self.folder.id,
             },
             format="json",
         )
@@ -121,7 +120,7 @@ class ContentVersionCreationTests(_CreateEntryMixin, BaseTestCase):
 
         response = self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Synced", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Synced", "content": TEXT_DOC},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -147,7 +146,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # First update creates ContentVersion #1.
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
         )
         self.assertEqual(ContentVersion.objects.count(), 1)
@@ -156,7 +155,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         action_count_before = ElnAction.objects.count()
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
         )
         # Still only 1 ContentVersion — second was a no-op.
@@ -172,7 +171,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # First update creates ContentVersion #1.
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "V1", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "V1", "content": ALT_DOC},
             format="json",
         )
         self.assertEqual(ContentVersion.objects.count(), 1)
@@ -180,7 +179,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # Same content, different title → saves but no new ContentVersion.
         response = self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "V1 renamed", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "V1 renamed", "content": ALT_DOC},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -202,7 +201,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # First-ever update → creates ContentVersion #1 regardless.
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "First Edit", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "First Edit", "content": ALT_DOC},
             format="json",
         )
         self.assertEqual(ContentVersion.objects.count(), 1)
@@ -224,7 +223,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
 
         response = self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Renamed", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Renamed", "content": TEXT_DOC},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -238,7 +237,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
         # Content hasn't changed since CV #1 → no new CV.
         response = self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Renamed Again", "content": TEXT_DOC, "folder": self.folder.id},
+            {"name": "Renamed Again", "content": TEXT_DOC},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -257,7 +256,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
         # First give it a content update so we have CV #1.
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
         )
         self.assertEqual(ContentVersion.objects.count(), 1)
@@ -269,7 +268,6 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
                 "name": "Test",
                 "content": ALT_DOC,
                 "status": "finished",
-                "folder": self.folder.id,
             },
             format="json",
         )
@@ -297,7 +295,7 @@ class SaveModeHeaderTests(_CreateEntryMixin, BaseTestCase):
 
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
         )
         cv = ContentVersion.objects.first()
@@ -310,7 +308,7 @@ class SaveModeHeaderTests(_CreateEntryMixin, BaseTestCase):
 
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
             HTTP_X_SAVE_MODE="autosave",
         )
@@ -324,7 +322,7 @@ class SaveModeHeaderTests(_CreateEntryMixin, BaseTestCase):
 
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
             HTTP_X_SAVE_MODE="manual",
         )
@@ -338,7 +336,7 @@ class SaveModeHeaderTests(_CreateEntryMixin, BaseTestCase):
 
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Test", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Test", "content": ALT_DOC},
             format="json",
             HTTP_X_SAVE_MODE="garbage",
         )
@@ -360,7 +358,7 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
 
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "Updated", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "Updated", "content": ALT_DOC},
             format="json",
         )
 
@@ -378,14 +376,14 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
         # First update with content to create CV #1.
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "V1", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "V1", "content": ALT_DOC},
             format="json",
         )
 
         # Title-only update (content unchanged from CV #1 → no-op for content).
         self.client.put(
             f"/api/eln/entries/{display_id}/",
-            {"name": "V1 Renamed", "content": ALT_DOC, "folder": self.folder.id},
+            {"name": "V1 Renamed", "content": ALT_DOC},
             format="json",
         )
 
@@ -415,7 +413,7 @@ class CascadeDeleteTests(_CreateEntryMixin, BaseTestCase):
         for i, doc in enumerate(docs):
             self.client.put(
                 f"/api/eln/entries/{display_id}/",
-                {"name": f"Edit {i}", "content": doc, "folder": self.folder.id},
+                {"name": f"Edit {i}", "content": doc},
                 format="json",
             )
 

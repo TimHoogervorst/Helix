@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 2026-07-02
+Accepted — 2026-07-02. **Superseded by [ADR 0026](0026-source-replaces-containment.md)** (2026-08-27): the cascade is generalized from `source_entry` to the entire Source subtree.
 
 ## Context
 

@@ -41,7 +41,7 @@ def _make_entity(folder, author, name):
         name="DNA", prefix="DNA", schema_type=schema_type, is_default=True,
     )
     return Entity.objects.create(
-        name=name, author=author, schema=schema, folder=folder,
+        name=name, author=author, schema=schema, source=folder,
     )
 
 
@@ -156,6 +156,24 @@ class EntityHubScopingTests(APITestCase):
         self.assertIn(self.descendant_row.display_id, display_ids)
         self.assertNotIn(self.source_plain_row.display_id, display_ids)
         self.assertNotIn(self.other_row.display_id, display_ids)
+
+    def test_shared_subtree_scoping_uses_source_path(self):
+        from mods.lims.models import Entity
+
+        Grant.objects.create(
+            project=self.target, role=ProjectRole.READ, user=self.sharee,
+        )
+        self._share(ShareLevel.READ)
+        from django.contrib.contenttypes.models import ContentType
+        Entity.objects.filter(pk=self.descendant_row.pk).update(
+            source_type=ContentType.objects.get_for_model(self.source_plain).pk,
+            source_id=self.source_plain.pk,
+        )
+        self.client.force_authenticate(user=self.sharee)
+        data = self.client.get(self.url).json()
+        display_ids = {r["display_id"] for r in data["results"]}
+        self.assertIn(self.descendant_row.display_id, display_ids)
+        self.assertNotIn(self.source_plain_row.display_id, display_ids)
 
     def test_share_derived_rows_disappear_when_target_role_revoked(self):
         grant = Grant.objects.create(

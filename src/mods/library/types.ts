@@ -36,18 +36,21 @@ export interface LibraryFolderItem {
   source_project_icon?: string;
   source_project_color?: string;
   share_summary?: ShareSummary;
+  children_count?: number;
+  depth?: number;
 }
 
 /** An entry row in the Library mixed table. */
 export interface LibraryEntryItem {
-  type: "entry";
+  type: "entry" | "entity";
   id: number;
   /** The workspace this entry belongs to, e.g. "eln". */
   workspace_id: string;
   display_id: string;
   title: string;
-  folder: number | null;
-  folder_name: string | null;
+  source_type: number;
+  source_type_name: string;
+  source_id: number;
   author_username: string | null;
   author_info: AuthorInfo | null;
   status: string;
@@ -61,6 +64,8 @@ export interface LibraryEntryItem {
   property_fields: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  children_count?: number;
+  depth?: number;
 }
 
 export type LibraryItem = LibraryFolderItem | LibraryEntryItem;
@@ -70,9 +75,7 @@ export interface LibraryContentsResponse {
   next: string | null;
   previous: string | null;
   results: LibraryItem[];
-  /** The ID of the folder at the current path, or null for root. */
-  current_folder_id: number | null;
-  current_project_id: number | null;
+  current_project_id?: number | null;
   project_uid?: string;
   project_name?: string;
   project_is_archived?: boolean;
@@ -95,7 +98,7 @@ export interface LibraryProjectItem {
 
 /** A flat folder entry for the move picker. */
 export interface LibraryFolderPath {
-  id: number;
+  id: number | null;
   name: string;
   path: string;
 }

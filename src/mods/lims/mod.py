@@ -65,7 +65,7 @@ def _seed_builtin_metrics():
 def register():
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from mods.lims.models import Action
-    from mods.lims.services import cascade_entry_status
+    from mods.lims.services import cascade_source_status
 
     registry.register_action_model("lims", Action)
     registry.register_custom_action(
@@ -86,7 +86,7 @@ def register():
         "lims", [path("api/lims/", include("mods.lims.urls"))]
     )
     registry.register_service(
-        "lims.cascadeEntryStatus", cascade_entry_status
+        "lims.cascadeSourceStatus", cascade_source_status
     )
 
     # Register LIMS schema type identity.

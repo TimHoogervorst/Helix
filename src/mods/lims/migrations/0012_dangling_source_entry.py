@@ -1,10 +1,7 @@
-"""Derive Entity Hub type identity from each row's SchemaType."""
-
-from django.db import migrations
+from django.db import migrations, models
 
 
 VIEW_SQL = """
-    DROP VIEW IF EXISTS entity_hub_view;
     CREATE VIEW entity_hub_view AS
     SELECT
         e.id,
@@ -61,12 +58,27 @@ VIEW_SQL = """
 
 
 class Migration(migrations.Migration):
-    dependencies = [
-        ("helix_core", "0011_schema_type_tags"),
-        ("eln", "0002_initial"),
-        ("lims", "0009_make_folder_nullable"),
-    ]
+    dependencies = [("lims", "0011_source_fields")]
 
     operations = [
-        migrations.RunSQL(sql=VIEW_SQL, reverse_sql=VIEW_SQL),
+        migrations.RunSQL(
+            sql="DROP VIEW IF EXISTS entity_hub_view;",
+            reverse_sql=VIEW_SQL,
+        ),
+        migrations.AlterField(
+            model_name="entity",
+            name="source_entry",
+            field=models.ForeignKey(
+                blank=True,
+                db_constraint=False,
+                null=True,
+                on_delete=models.DO_NOTHING,
+                related_name="lims_entities",
+                to="eln.notebookentry",
+            ),
+        ),
+        migrations.RunSQL(
+            sql=VIEW_SQL,
+            reverse_sql="DROP VIEW IF EXISTS entity_hub_view;",
+        ),
     ]

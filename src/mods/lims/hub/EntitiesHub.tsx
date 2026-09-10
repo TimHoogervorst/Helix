@@ -512,7 +512,6 @@ function EntitiesHub() {
     name: 0, // flex / auto — not used for sticky offset
     schema_type_id: 120,
     project: 160,
-    folder: 140,
     status: 130,
     author: 100,
     created_at: 90,
@@ -683,22 +682,19 @@ function EntitiesHub() {
             <span className="entities-project-name">{item.project_name}</span>
           </span>
         );
-      case "folder":
-        if (!item.folder_name) {
-          return <span className="entities-folder-dash">—</span>;
-        }
+      case "source": {
+        const source = item.source;
+        if (!source) return <span className="entities-source-dash">—</span>;
+        const label = source.kind === "entry" || source.kind === "entity"
+          ? source.display_id || source.name
+          : source.name;
         return (
-          <a
-            className="entities-folder-link"
-            href={`/library?project=${item.project_uid}&path=${encodeURIComponent(item.folder_path)}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/library?project=${item.project_uid}&path=${encodeURIComponent(item.folder_path)}`);
-            }}
-          >
-            {item.folder_name}
-          </a>
+          <span className={`entities-source-cell is-${source.kind}`}>
+            <IconBadge iconKey={source.icon} colorKey={source.color} size="sm" />
+            <span className="entities-source-name">{label}</span>
+          </span>
         );
+      }
       case "status":
         return <StatusBadge status={item.status} />;
       case "author":

@@ -71,13 +71,13 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Test Entity",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
             properties={"key": "value"},
         )
         self.assertEqual(entity.name, "Test Entity")
         self.assertEqual(entity.author, self.user)
         self.assertEqual(entity.schema, self.schema)
-        self.assertEqual(entity.folder, self.folder)
+        self.assertEqual(entity.source, self.folder)
         self.assertEqual(entity.properties, {"key": "value"})
         self.assertEqual(entity.status, "in_progress")  # default
         self.assertIsNotNone(entity.created_at)
@@ -89,7 +89,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Prefixed Entity",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(entity._get_display_id_prefix(), "TEST")
 
@@ -99,7 +99,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Auto-ID Entity",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(entity.display_id, "TEST1")
 
@@ -111,13 +111,13 @@ class AbstractEntityFieldTests(TransactionTestCase):
             schema_type=self.schema_type,
         )
         e1 = ConcreteTestEntity.objects.create(
-            name="First", author=self.user, schema=self.schema, folder=self.folder,
+            name="First", author=self.user, schema=self.schema, source=self.folder,
         )
         e2 = ConcreteTestEntity.objects.create(
-            name="Second", author=self.user, schema=schema2, folder=self.folder,
+            name="Second", author=self.user, schema=schema2, source=self.folder,
         )
         e3 = ConcreteTestEntity.objects.create(
-            name="Third", author=self.user, schema=self.schema, folder=self.folder,
+            name="Third", author=self.user, schema=self.schema, source=self.folder,
         )
         self.assertEqual(e1.display_id, "TEST1")
         self.assertEqual(e2.display_id, "OTHER1")
@@ -129,7 +129,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Status Test",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(entity.status, "in_progress")
 
@@ -139,7 +139,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Finished Entity",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
             status="finished",
         )
         self.assertEqual(entity.status, "finished")
@@ -150,7 +150,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="No Editor",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertIsNone(entity.last_editor)
 
@@ -162,17 +162,17 @@ class AbstractEntityFieldTests(TransactionTestCase):
             author=self.user,
             last_editor=editor,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(entity.last_editor, editor)
 
-    def test_project_derived_from_folder_save(self):
-        """project is auto-derived from folder on save when project_id is None."""
+    def test_project_derived_from_source_save(self):
+        """project is auto-derived from source on save when project_id is None."""
         entity = ConcreteTestEntity.objects.create(
             name="Saved Entity",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(entity.project, self.project)
 
@@ -182,7 +182,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="No Props",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(entity.properties, {})
 
@@ -194,7 +194,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Update Test",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         original_updated_at = entity.updated_at
 
@@ -214,7 +214,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name=long_name,
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(len(entity.name), 500)
 
@@ -228,7 +228,7 @@ class AbstractEntityFieldTests(TransactionTestCase):
             name="Protected Entity",
             author=self.user,
             schema=self.schema,
-            folder=self.folder,
+            source=self.folder,
         )
         from django.db.models.deletion import ProtectedError
 

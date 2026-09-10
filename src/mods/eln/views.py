@@ -3,16 +3,19 @@ import uuid
 
 import django.db.models
 from django.db import IntegrityError
+from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.utils.dateparse import parse_datetime
 from django.http import Http404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException, PermissionDenied
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError as DRFValidationError
 from rest_framework.response import Response
 
 from helix_core.actions.logger import bulk_log_actions, log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
+from helix_core.source_deletion import delete_source_descendants
 
 from mods.tags.models import Tag
 from mods.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
@@ -63,7 +66,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     release_lock: DELETE /api/eln/entries/{display_id}/lock/ — release lock
     """
 
-    queryset = NotebookEntry.objects.select_related("author", "folder").prefetch_related(
+    queryset = NotebookEntry.objects.select_related("author", "project").prefetch_related(
         "mentions"
     )
     serializer_class = NotebookEntrySerializer
@@ -137,9 +140,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from mods.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
-        folder = serializer.validated_data.get("folder")
         project = serializer.validated_data["project"]
-        permission = effective_role(self.request.user, folder) if folder else role(
+        source_type = serializer.validated_data.get("source_type")
+        source = (
+            NotebookEntry.resolve_source(
+                source_type,
+                serializer.validated_data.get("source_id"),
+            ) if source_type is not None else project
+        )
+        permission = effective_role(self.request.user, source) if source_type is not None else role(
             self.request.user, project,
         )
         if permission != "edit":
@@ -163,28 +172,14 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         return effective_role(self.request.user, instance) == "edit"
 
-    def _reject_cross_subtree_move(self, instance, new_folder):
-        """Raise ValidationError when *new_folder* is outside the shared subtree.
-
-        Called only when the entry's folder resides inside a shared source folder
-        and the user is not a direct Project editor.
-        """
-        from mods.access.policies import destination_within_shared_subtree
-        from rest_framework.exceptions import ValidationError
-
-        if not destination_within_shared_subtree(
-            instance.folder, new_folder, instance.project_id,
-        ):
-            raise ValidationError(
-                {"folder": "Entries cannot be moved outside the shared subtree."}
-            )
-
     def perform_destroy(self, instance):
         if not self._can_edit_entry(instance):
             raise PermissionDenied(
                 "You do not have permission to delete this entry."
             )
-        super().perform_destroy(instance)
+        with transaction.atomic():
+            delete_source_descendants(instance)
+            super().perform_destroy(instance)
 
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
@@ -221,14 +216,30 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
 
         # ── Cross-Project move rejection ───────────────────────────────────
-        if "folder" in validated_data:
-            new_folder = validated_data["folder"]
-            if new_folder is not None and new_folder.project_id != instance.project_id:
-                from rest_framework.exceptions import ValidationError
-                raise ValidationError(
-                    {"folder": "Entries cannot be moved to a different Project."}
+        if "source_type" in validated_data or "source_id" in validated_data:
+            from mods.access.policies import effective_role
+            from core.models import Project
+
+            if validated_data.get("source_type") is None:
+                from core.models import Folder
+                new_source = instance.project if validated_data.get("source_id") is None else Folder.objects.get(pk=validated_data["source_id"])
+            else:
+                new_source = instance.resolve_source(
+                    validated_data["source_type"],
+                    validated_data.get("source_id", instance.source_id),
                 )
-            self._reject_cross_subtree_move(instance, new_folder)
+            new_source_project_id = getattr(new_source, "project_id", new_source.pk)
+            if new_source_project_id != instance.project_id:
+                raise DRFValidationError(
+                    {"source": "Source must belong to the same Project."}
+                )
+            if not isinstance(new_source, Project) and effective_role(
+                self.request.user, new_source
+            ) != "edit":
+                raise DRFValidationError(
+                    {"source": "You do not have permission to move the entry here."}
+                )
+            instance.set_source(new_source)
 
         # Determine save_mode from request header.
         valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}
@@ -273,7 +284,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         # Capture pre-save content for fingerprint comparison.
         # serializer.instance is the DB object before save() mutates it.
         old_content = serializer.instance.content
-        instance = serializer.save()
+        try:
+            instance = serializer.save()
+        except DjangoValidationError as exc:
+            raise DRFValidationError(exc.message_dict) from exc
         sync_entry_content(instance, old_content=old_content)
 
         # ── Create ContentVersion (content changes only) ────────────────
@@ -317,7 +331,14 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=["delete"], url_path="delete_all")
     def delete_all(self, request):
         """Delete ALL notebook entries. Danger zone endpoint for testing."""
-        count, _ = NotebookEntry.objects.all().delete()
+        count = 0
+        with transaction.atomic():
+            for entry in list(NotebookEntry.objects.all()):
+                if not NotebookEntry.objects.filter(pk=entry.pk).exists():
+                    continue
+                delete_source_descendants(entry)
+                entry.delete()
+                count += 1
         return Response({"deleted": count})
 
     @logs_action(

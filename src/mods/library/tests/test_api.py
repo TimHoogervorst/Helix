@@ -29,7 +29,6 @@ class LibraryApiTests(BaseTestCase):
         self.root_entry = NotebookEntry.objects.create(
             name="Root Entry",
             content=EMPTY_DOC,
-            folder=None,
             project=self.project,
             author=self.user,
             schema=self.schema,
@@ -38,7 +37,7 @@ class LibraryApiTests(BaseTestCase):
         self.exp_entry = NotebookEntry.objects.create(
             name="PCR Results",
             content=EMPTY_DOC,
-            folder=self.experiments_folder,
+            source=self.experiments_folder,
             project=self.project,
             author=self.user,
             schema=self.schema,
@@ -47,7 +46,7 @@ class LibraryApiTests(BaseTestCase):
         self.nested_entry = NotebookEntry.objects.create(
             name="Q1 Analysis",
             content=EMPTY_DOC,
-            folder=self.nested_folder,
+            source=self.nested_folder,
             project=self.project,
             author=self.user,
             schema=self.schema,
@@ -61,7 +60,31 @@ class LibraryApiTests(BaseTestCase):
         return self._schema
 
     def _url(self):
-        return f"/api/library/contents/?project={self.project.uid}"
+        return self._children_url()
+
+    def _children_url(self, source_type="project", source_id=None, recursive=False):
+        source_id = source_id or self.project.uid
+        suffix = "&recursive=1" if recursive else ""
+        return f"/api/library/children/?source_type={source_type}&source_id={source_id}{suffix}"
+
+    def test_children_endpoint_returns_mixed_direct_children(self):
+        response = self.client.get(self._children_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["type"] for item in response.data["results"]],
+            ["folder", "folder", "folder", "entry"],
+        )
+        self.assertTrue(all("children_count" in item for item in response.data["results"]))
+
+    def test_children_endpoint_returns_flat_recursive_subtree_with_depth(self):
+        response = self.client.get(self._children_url(recursive=True))
+
+        self.assertEqual(response.status_code, 200)
+        rows = {item["id"]: item for item in response.data["results"]}
+        self.assertEqual(rows[self.experiments_folder.id]["depth"], 0)
+        self.assertEqual(rows[self.nested_folder.id]["depth"], 1)
+        self.assertEqual(rows[self.nested_entry.id]["depth"], 2)
 
     def test_folder_picker_paths_are_project_relative(self):
         response = self.client.get(
@@ -122,7 +145,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_nested_path_returns_correct_items(self):
         response = self.client.get(
-            f"{self._url()}&path=/Experiments"
+            self._children_url("folder", self.experiments_folder.id)
         )
         results = response.data["results"]
 
@@ -136,7 +159,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_empty_folder_returns_empty_list(self):
         response = self.client.get(
-            f"{self._url()}&path=/Protocols"
+            self._children_url("folder", Folder.objects.get(name="Protocols").id)
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
@@ -144,14 +167,14 @@ class LibraryApiTests(BaseTestCase):
 
     def test_nonexistent_path_returns_404(self):
         response = self.client.get(
-            f"{self._url()}&path=/Nope"
+            self._children_url("folder", 999999)
         )
         self.assertEqual(response.status_code, 404)
 
     def test_path_outside_project_returns_404(self):
         other_project = Project.objects.create(name="Other")
         response = self.client.get(
-            f"{self._url()}&path=/OtherFolder",
+            self._children_url("project", other_project.uid),
         )
         self.assertEqual(response.status_code, 404)
 
@@ -179,8 +202,11 @@ class LibraryApiTests(BaseTestCase):
         self.assertIn("workspace_id", e)
         self.assertIn("display_id", e)
         self.assertIn("title", e)
-        self.assertIn("folder", e)
-        self.assertIn("folder_name", e)
+        self.assertIn("source_type", e)
+        self.assertIn("source_type_name", e)
+        self.assertIn("source_id", e)
+        self.assertNotIn("folder", e)
+        self.assertNotIn("folder_name", e)
         self.assertIn("author_username", e)
         self.assertIn("author_info", e)
         self.assertIn("status", e)
@@ -263,7 +289,6 @@ class LibraryApiTests(BaseTestCase):
             NotebookEntry.objects.create(
                 name=f"Bulk Entry {i}",
                 content=EMPTY_DOC,
-                folder=None,
                 project=self.project,
                 author=self.user,
                 schema=self.schema,
@@ -282,7 +307,6 @@ class LibraryApiTests(BaseTestCase):
             NotebookEntry.objects.create(
                 name=f"Page Entry {i}",
                 content=EMPTY_DOC,
-                folder=None,
                 project=self.project,
                 author=self.user,
                 schema=self.schema,
@@ -305,7 +329,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_search_filters_entries(self):
         response = self.client.get(
-            f"{self._url()}&path=/Experiments&search=PCR"
+            f"{self._children_url('folder', self.experiments_folder.id)}&search=PCR"
         )
         results = response.data["results"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
@@ -315,7 +339,7 @@ class LibraryApiTests(BaseTestCase):
     def test_search_filters_entries_by_display_id(self):
         display_id = self.exp_entry.display_id
         response = self.client.get(
-            f"{self._url()}&path=/Experiments&search={display_id}"
+            f"{self._children_url('folder', self.experiments_folder.id)}&search={display_id}"
         )
         results = response.data["results"]
         entry_titles = [r["title"] for r in results if r["type"] == "entry"]
@@ -335,12 +359,12 @@ class LibraryApiTests(BaseTestCase):
     # ── Project scoping / 404 matrix ─────────────────────────────────
 
     def test_missing_project_param_returns_404(self):
-        response = self.client.get("/api/library/contents/")
+        response = self.client.get("/api/library/children/")
         self.assertEqual(response.status_code, 404)
 
     def test_unknown_project_returns_404(self):
         response = self.client.get(
-            "/api/library/contents/?project=00000000-0000-0000-0000-000000000000"
+            "/api/library/children/?source_type=project&source_id=00000000-0000-0000-0000-000000000000"
         )
         self.assertEqual(response.status_code, 404)
 
@@ -353,7 +377,7 @@ class LibraryApiTests(BaseTestCase):
             project=other_project, role=ProjectRole.READ, user=other_user,
         )
         response = self.client.get(
-            f"/api/library/contents/?project={other_project.uid}"
+            f"/api/library/children/?source_type=project&source_id={other_project.uid}"
         )
         self.assertEqual(response.status_code, 404)
 
@@ -412,7 +436,7 @@ class LibraryApiTests(BaseTestCase):
             project=source_project, role=ProjectRole.READ, user=self.user,
         )
         response = self.client.get(
-            f"{self._url()}&path=/Experiments",
+            self._children_url("folder", self.experiments_folder.id),
         )
         self.assertEqual(response.status_code, 200)
         shared = [r for r in response.data["results"] if r.get("is_shared")]
@@ -426,10 +450,10 @@ class LibraryApiTests(BaseTestCase):
         source_child = Folder.objects.create(
             name="Child", parent=source_folder, project=source_project,
         )
-        source_entry = NotebookEntry.objects.create(
+        shared_entry = NotebookEntry.objects.create(
             name="Shared Entry",
             content=EMPTY_DOC,
-            folder=source_child,
+            source=source_child,
             project=source_project,
             author=self.user,
             schema=self.schema,
@@ -443,7 +467,7 @@ class LibraryApiTests(BaseTestCase):
             project=source_project, role=ProjectRole.READ, user=self.user,
         )
         response = self.client.get(
-            f"{self._url()}&path=/SrcFolder",
+            self._children_url("folder", source_folder.id),
         )
         self.assertEqual(response.status_code, 200)
         folder_names = [r["name"] for r in response.data["results"] if r["type"] == "folder"]
@@ -457,10 +481,10 @@ class LibraryApiTests(BaseTestCase):
         source_child = Folder.objects.create(
             name="Child", parent=source_folder, project=source_project,
         )
-        source_entry = NotebookEntry.objects.create(
+        deep_entry = NotebookEntry.objects.create(
             name="Deep Entry",
             content=EMPTY_DOC,
-            folder=source_child,
+            source=source_child,
             project=source_project,
             author=self.user,
             schema=self.schema,
@@ -474,7 +498,7 @@ class LibraryApiTests(BaseTestCase):
             project=source_project, role=ProjectRole.READ, user=self.user,
         )
         response = self.client.get(
-            f"{self._url()}&path=/SrcFolder/Child",
+            self._children_url("folder", source_child.id),
         )
         self.assertEqual(response.status_code, 200)
         entry_titles = [r["title"] for r in response.data["results"] if r["type"] == "entry"]

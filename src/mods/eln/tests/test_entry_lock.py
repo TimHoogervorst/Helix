@@ -393,7 +393,7 @@ class LockEnforcementTests(_CreateEntryMixin, BaseTestCase):
     def _put_content(self, doc=None):
         return self.client.put(
             self.entry_url,
-            {"name": "Updated", "content": doc or ALT_DOC, "folder": self.folder.id},
+            {"name": "Updated", "content": doc or ALT_DOC},
             format="json",
         )
 

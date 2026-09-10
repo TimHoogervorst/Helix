@@ -9,6 +9,8 @@ import hashlib
 import json
 import uuid
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
@@ -266,13 +268,6 @@ class EntityHubView(models.Model):
         db_column="last_editor_id",
     )
     status = models.CharField(max_length=100)
-    folder = models.ForeignKey(
-        "core.Folder",
-        on_delete=models.DO_NOTHING,
-        null=True,
-        related_name="+",
-        db_column="folder_id",
-    )
     project = models.ForeignKey(
         "core.Project",
         on_delete=models.DO_NOTHING,
@@ -288,6 +283,15 @@ class EntityHubView(models.Model):
         db_column="schema_id",
     )
     properties = models.JSONField(default=dict)
+    source_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.DO_NOTHING,
+        db_column="source_type_id",
+        related_name="+",
+    )
+    source_id = models.PositiveIntegerField()
+    source = GenericForeignKey("source_type", "source_id")
+    source_path = models.JSONField(default=list)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
     # Computed columns from the VIEW's UNION ALL branches

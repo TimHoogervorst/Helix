@@ -28,15 +28,23 @@ export interface Mention {
   target_title: string | null;
 }
 
+export interface SourcePathSegment {
+  kind: "project" | "folder" | "entry" | "entity";
+  id: number;
+  name: string;
+  uid?: string;
+  display_id?: string;
+}
+
 /** A full entry returned by the detail endpoint. */
 export interface EntryDetail {
   id: number;
   display_id: string;
   name: string;
   content: TipTapDoc;
-  folder: number | null;
-  folder_name: string;
-  folder_path: string;
+  source_path: SourcePathSegment[];
+  source_type?: number;
+  source_id?: number;
   project?: number | null;
   project_name?: string | null;
   author: number | null;

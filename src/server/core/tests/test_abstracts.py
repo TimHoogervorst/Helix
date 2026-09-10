@@ -33,7 +33,7 @@ class BrowsableItemDisplayIdTests(TestCase):
         """First item gets prefix + 1."""
         e = Entity.objects.create(
             name="Sample A", schema=self.dna_schema, author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(e.display_id, "DNA1")
 
@@ -41,11 +41,11 @@ class BrowsableItemDisplayIdTests(TestCase):
         """Second entity with same prefix gets DNA2."""
         Entity.objects.create(
             name="Sample A", schema=self.dna_schema, author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         e2 = Entity.objects.create(
             name="Sample B", schema=self.dna_schema, author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(e2.display_id, "DNA2")
 
@@ -53,11 +53,11 @@ class BrowsableItemDisplayIdTests(TestCase):
         """Different prefixes have independent counters."""
         Entity.objects.create(
             name="Sample A", schema=self.dna_schema, author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         e2 = Entity.objects.create(
             name="Sample B", schema=self.rna_schema, author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(e2.display_id, "RNA1")
 
@@ -68,26 +68,26 @@ class BrowsableItemDisplayIdTests(TestCase):
             name="Gap test 1",
             schema=self.dna_schema,
             author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         Entity.objects.create(
             display_id="E2",
             name="Gap test 2",
             schema=self.dna_schema,
             author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         Entity.objects.create(
             display_id="E9",
             name="Gap test 3",
             schema=self.dna_schema,
             author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         # Next auto-generated E-series ID should be E10, not E3.
         e4 = Entity.objects.create(
             name="Next in series", schema=self.dna_schema, author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         # The prefix for this entity_type is "DNA", so the E-series test
         # doesn't directly apply — let's test the generate_display_id method.
@@ -101,7 +101,7 @@ class BrowsableItemDisplayIdTests(TestCase):
             name="Custom ID entity",
             schema=self.dna_schema,
             author=self.user,
-            folder=self.folder,
+            source=self.folder,
         )
         self.assertEqual(e.display_id, "CUSTOM1")
 
@@ -127,7 +127,7 @@ class NotebookEntryDisplayIdTests(TestCase):
         """First notebook entry gets E1."""
         entry = NotebookEntry.objects.create(
             name="First entry", properties={}, author=self.user,
-            schema=self.eln_schema, folder=self.folder,
+            schema=self.eln_schema, source=self.folder,
         )
         self.assertEqual(entry.display_id, "E1")
 
@@ -135,11 +135,11 @@ class NotebookEntryDisplayIdTests(TestCase):
         """Second entry gets E2."""
         NotebookEntry.objects.create(
             name="First", properties={}, author=self.user,
-            schema=self.eln_schema, folder=self.folder,
+            schema=self.eln_schema, source=self.folder,
         )
         entry2 = NotebookEntry.objects.create(
             name="Second", properties={}, author=self.user,
-            schema=self.eln_schema, folder=self.folder,
+            schema=self.eln_schema, source=self.folder,
         )
         self.assertEqual(entry2.display_id, "E2")
 
@@ -147,15 +147,15 @@ class NotebookEntryDisplayIdTests(TestCase):
         """Gapped entry IDs still produce the correct next ID."""
         NotebookEntry.objects.create(
             display_id="E1", name="One", properties={},
-            author=self.user, schema=self.eln_schema, folder=self.folder,
+            author=self.user, schema=self.eln_schema, source=self.folder,
         )
         NotebookEntry.objects.create(
             display_id="E5", name="Five", properties={},
-            author=self.user, schema=self.eln_schema, folder=self.folder,
+            author=self.user, schema=self.eln_schema, source=self.folder,
         )
         entry3 = NotebookEntry.objects.create(
             name="Should be E6", properties={},
-            author=self.user, schema=self.eln_schema, folder=self.folder,
+            author=self.user, schema=self.eln_schema, source=self.folder,
         )
         self.assertEqual(entry3.display_id, "E6")
 
@@ -186,7 +186,7 @@ class BrowsableItemAbstractTests(TestCase):
         """Concrete subclasses get display_id from the abstract base."""
         entry = NotebookEntry.objects.create(
             name="Test", properties={}, author=self.user,
-            schema=self.eln_schema, folder=self.folder,
+            schema=self.eln_schema, source=self.folder,
         )
         self.assertTrue(hasattr(entry, "display_id"))
         self.assertTrue(hasattr(entry, "created_at"))

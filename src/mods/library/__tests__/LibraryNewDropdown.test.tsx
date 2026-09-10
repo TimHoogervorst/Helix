@@ -137,7 +137,7 @@ describe("LibraryNewDropdown", () => {
       expect(mockCreateEntry).toHaveBeenCalledWith({
         name: "Untitled",
         content: { type: "doc", content: [{ type: "paragraph" }] },
-        folder: 7,
+        source_id: 7,
         project: 42,
       });
     });

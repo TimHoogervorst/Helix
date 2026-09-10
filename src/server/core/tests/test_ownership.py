@@ -4,7 +4,9 @@ Covers creation consistency, same-Project moves, mismatched ownership,
 top-level folders, and cross-Project move rejection paths.
 """
 from django.db import transaction
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from core.models import Folder, Project, User
@@ -62,8 +64,8 @@ class FolderOwnershipTests(TestCase):
         from django.db import IntegrityError
         try:
             Folder.objects.create(name="No Project", parent=None, project=None)
-            self.fail("Expected IntegrityError")
-        except IntegrityError:
+            self.fail("Expected a validation or database error")
+        except (IntegrityError, ValidationError):
             pass
 
     def test_project_root_content_is_parent_null_folder(self):
@@ -209,25 +211,25 @@ class EntryOwnershipTests(TestCase):
         entry = NotebookEntry.objects.create(
             name="Test Entry",
             content={"type": "doc", "content": []},
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.folder_a.project,
         )
         self.assertEqual(entry.project_id, self.project_a.id)
-        self.assertEqual(entry.folder_id, self.folder_a.id)
+        self.assertEqual(entry.source_id, self.folder_a.id)
 
     def test_create_entry_without_folder_uses_project(self):
         entry = NotebookEntry.objects.create(
             name="Root Entry",
             content={"type": "doc", "content": []},
-            folder=None,
+            source=self.project_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
         )
         self.assertEqual(entry.project_id, self.project_a.id)
-        self.assertIsNone(entry.folder_id)
+        self.assertEqual(entry.source, self.project_a)
 
     def test_create_entry_api_at_project_root(self):
         response = self.client.post(
@@ -236,19 +238,19 @@ class EntryOwnershipTests(TestCase):
                 "name": "Root API Entry",
                 "content": {"type": "doc", "content": []},
                 "project": self.project_a.id,
-                "folder": None,
             },
             format="json",
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["project"], self.project_a.id)
-        self.assertIsNone(response.data["folder"])
+        self.assertEqual(response.data["source_id"], self.project_a.id)
 
     def test_create_entry_api_derives_project(self):
         response = self.client.post(
             "/api/eln/entries/",
             {"name": "API Entry", "content": {"type": "doc", "content": []},
-             "folder": self.folder_a.id},
+             "source_type": ContentType.objects.get_for_model(self.folder_a).pk,
+             "source_id": self.folder_a.id},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -258,7 +260,7 @@ class EntryOwnershipTests(TestCase):
         entry = NotebookEntry.objects.create(
             name="Movable",
             content={"type": "doc", "content": []},
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
@@ -268,42 +270,45 @@ class EntryOwnershipTests(TestCase):
         )
         response = self.client.patch(
             f"/api/eln/entries/{entry.display_id}/",
-            {"folder": other_folder.id},
+            {"source_type": ContentType.objects.get_for_model(other_folder).pk,
+             "source_id": other_folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["folder"], other_folder.id)
+        self.assertEqual(response.data["source_id"], other_folder.id)
 
     def test_cross_project_move_rejected(self):
         entry = NotebookEntry.objects.create(
             name="Stuck",
             content={"type": "doc", "content": []},
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
         )
         response = self.client.patch(
             f"/api/eln/entries/{entry.display_id}/",
-            {"folder": self.folder_b.id},
+            {"source_type": ContentType.objects.get_for_model(self.folder_b).pk,
+             "source_id": self.folder_b.id},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("folder", response.data)
+        self.assertIn("source", response.data)
 
     def test_cross_project_move_rejected_for_orm(self):
         entry = NotebookEntry.objects.create(
             name="OrmStuck",
             content={"type": "doc", "content": []},
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
         )
-        entry.folder = self.folder_b
-        entry.save()
+        entry.set_source(self.folder_b)
+        with self.assertRaises(ValidationError):
+            entry.save()
         entry.refresh_from_db()
-        self.assertEqual(entry.folder_id, self.folder_b.id)
+        self.assertEqual(entry.source_id, self.folder_a.id)
         self.assertEqual(entry.project_id, self.project_a.id)
 
 
@@ -332,24 +337,24 @@ class EntityOwnershipTests(TestCase):
     def test_create_entity_derives_project_from_folder(self):
         entity = Entity.objects.create(
             name="Test Entity",
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.folder_a.project,
         )
         self.assertEqual(entity.project_id, self.project_a.id)
-        self.assertEqual(entity.folder_id, self.folder_a.id)
+        self.assertEqual(entity.source_id, self.folder_a.id)
 
     def test_create_entity_without_folder_uses_project(self):
         entity = Entity.objects.create(
             name="Root Entity",
-            folder=None,
+            source=self.project_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
         )
         self.assertEqual(entity.project_id, self.project_a.id)
-        self.assertIsNone(entity.folder_id)
+        self.assertEqual(entity.source, self.project_a)
 
     def test_create_entity_api_at_project_root(self):
         response = self.client.post(
@@ -357,19 +362,20 @@ class EntityOwnershipTests(TestCase):
             {
                 "name": "Root API Entity",
                 "project": self.project_a.id,
-                "folder": None,
                 "schema": self.schema.id,
             },
             format="json",
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["project"], self.project_a.id)
-        self.assertIsNone(response.data["folder"])
+        self.assertEqual(response.data["source_id"], self.project_a.id)
 
     def test_create_entity_api_derives_project(self):
         response = self.client.post(
             "/api/lims/entities/",
-            {"name": "API Entity", "folder": self.folder_a.id,
+            {"name": "API Entity",
+             "source_type": ContentType.objects.get_for_model(self.folder_a).pk,
+             "source_id": self.folder_a.id,
              "schema": self.schema.id},
             format="json",
         )
@@ -379,7 +385,7 @@ class EntityOwnershipTests(TestCase):
     def test_move_within_same_project_works(self):
         entity = Entity.objects.create(
             name="Movable",
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
@@ -389,40 +395,43 @@ class EntityOwnershipTests(TestCase):
         )
         response = self.client.patch(
             f"/api/lims/entities/{entity.display_id}/",
-            {"folder": other_folder.id},
+            {"source_type": ContentType.objects.get_for_model(other_folder).pk,
+             "source_id": other_folder.id},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["folder"], other_folder.id)
+        self.assertEqual(response.data["source_id"], other_folder.id)
 
     def test_cross_project_move_rejected(self):
         entity = Entity.objects.create(
             name="Stuck",
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
         )
         response = self.client.patch(
             f"/api/lims/entities/{entity.display_id}/",
-            {"folder": self.folder_b.id},
+            {"source_type": ContentType.objects.get_for_model(self.folder_b).pk,
+             "source_id": self.folder_b.id},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("folder", response.data)
+        self.assertIn("source", response.data)
 
     def test_cross_project_move_rejected_for_orm(self):
         entity = Entity.objects.create(
             name="OrmStuck",
-            folder=self.folder_a,
+            source=self.folder_a,
             author=self.user,
             schema=self.schema,
             project=self.project_a,
         )
-        entity.folder = self.folder_b
-        entity.save()
+        entity.set_source(self.folder_b)
+        with self.assertRaises(ValidationError):
+            entity.save()
         entity.refresh_from_db()
-        self.assertEqual(entity.folder_id, self.folder_b.id)
+        self.assertEqual(entity.source_id, self.folder_a.id)
         self.assertEqual(entity.project_id, self.project_a.id)
 
 
@@ -489,7 +498,7 @@ class ProjectDeletionCascadesTests(TestCase):
         NotebookEntry.objects.create(
             name="Entry",
             content={"type": "doc", "content": []},
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.eln_schema,
             project=self.project,
@@ -501,7 +510,7 @@ class ProjectDeletionCascadesTests(TestCase):
     def test_delete_project_cascades_to_entities(self):
         Entity.objects.create(
             name="Entity",
-            folder=self.folder,
+            source=self.folder,
             author=self.user,
             schema=self.lims_schema,
             project=self.project,

@@ -1,13 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { EntityListItem } from "../../types";
-import { makeEntityListItem, makeMockMentionBadge } from "../../../../shell/src/test/factories";
+import { makeEntityListItem } from "../../../../shell/src/test/factories";
 import EntityDetailFields from "../EntityDetailFields";
-
-// Mock MentionBadge
-vi.mock("../../../../shell/src/shared/components/MentionBadge", () => ({
-  default: makeMockMentionBadge(),
-}));
 
 const entity: EntityListItem = makeEntityListItem({
   properties: {
@@ -16,8 +11,6 @@ const entity: EntityListItem = makeEntityListItem({
     hemolyzed: false,
     notes: "test sample",
   },
-  source_entry: 10,
-  source_entry_display_id: "E42",
   author_username: "jdoe",
   created_at: "2025-06-01T12:00:00Z",
 });
@@ -47,23 +40,6 @@ describe("EntityDetailFields", () => {
     const noUser = { ...entity, author_username: null };
     render(<EntityDetailFields entity={noUser} />);
     expect(screen.getByText("—")).toBeInTheDocument();
-  });
-
-  it("renders Source Entry with MentionBadge when present", () => {
-    render(<EntityDetailFields entity={entity} />);
-    const badge = screen.getByTestId("ref-badge");
-    expect(badge).toBeInTheDocument();
-    expect(badge.getAttribute("data-display-id")).toBe("E42");
-  });
-
-  it("does not render Source Entry when missing", () => {
-    const noSource = {
-      ...entity,
-      source_entry_display_id: null,
-      source_entry: null,
-    };
-    render(<EntityDetailFields entity={noSource} />);
-    expect(screen.queryByText("Source Entry")).not.toBeInTheDocument();
   });
 
   it("hides properties table by default", () => {

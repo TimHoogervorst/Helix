@@ -6,6 +6,7 @@ from helix_core.views import (
     ColorTokenViewSet,
     IconLibraryViewSet,
     ModRegistryView,
+    ModLifecycleView,
     SchemaViewSet,
     SchemaTypeViewSet,
     EntityHubListView,
@@ -35,6 +36,7 @@ urlpatterns = [
         name="registry-entity-query",
     ),
     path("mod-registry/", ModRegistryView.as_view(), name="mod-registry"),
+    path("mod-lifecycle/", ModLifecycleView.as_view(), name="mod-lifecycle"),
     path(
         "mod-registry/sync-actions/",
         ModRegistryView.as_view(),

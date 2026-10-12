@@ -32,10 +32,13 @@ registration and loads dependencies before dependents.
 ## Installed and active
 
 Installation and activation are different concerns. An installed Mod is present
-and structurally valid; an active Mod contributes registrations. The current
-repository loader validates manifests and composes repository Mods at startup.
-Runtime activation administration is part of the broader External Mod contract,
-not an undocumented feature of this loader.
+and structurally valid; an inactive Mod keeps its backend app available for
+models and migrations but contributes no registrations; an active Mod
+contributes registrations. A removed Mod has no available artifact, but its
+manifest and durable provenance remain inspectable. Organization Admins change
+desired activation through `POST /api/mod-lifecycle/`. Changes are atomic,
+dependency-aware, audit logged, and take effect after a restart. Startup
+validates the persisted graph again before registration.
 
 ## Tutorial
 

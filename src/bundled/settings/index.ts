@@ -2,6 +2,7 @@ import { Cog } from "lucide-react";
 import type { Mod } from "@helix/mod-api";
 import SettingsPage from "./pages/SettingsPage";
 import DevToolsSettings from "./DevToolsSettings";
+import ModLifecycleSettings from "./ModLifecycleSettings";
 
 // ── Route: /settings shell with sidebar-nav layout ─────────────────────
 export function register(mod: Mod) {
@@ -15,6 +16,12 @@ export function register(mod: Mod) {
   icon: Cog,
   component: DevToolsSettings,
   order: 50,
+  });
+  mod.registerSettingsSection("external-mods", {
+    label: "External Mods",
+    icon: Cog,
+    component: ModLifecycleSettings,
+    order: 40,
   });
 }
 

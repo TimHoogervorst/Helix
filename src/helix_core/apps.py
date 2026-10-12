@@ -21,6 +21,12 @@ class HelixCoreConfig(AppConfig):
         from helix_core.mod_system.registry import registry
         from helix_core.public import ModelReference, ModRegistrar
         from helix_core.mod_system.validator import validate_activation
+        from helix_core.mod_system.lifecycle import (
+            apply_persisted_activation,
+            sync_mod_installations,
+        )
+        from helix_core.mod_system.bundled import BUNDLED_MODS
+        from django.db.utils import OperationalError, ProgrammingError
 
         # ── Register built-in column types ───────────────────────────────
         for ct in get_builtin_column_types():
@@ -49,6 +55,25 @@ class HelixCoreConfig(AppConfig):
         # and register_signal() can validate cross-mod dependencies.
         registry.set_mod_order(sorted_paths, manifests)
 
+        # Installation records are intentionally reconciled before Mod
+        # registration. New External Mods therefore remain dormant until an
+        # administrator requests activation and restarts the process.
+        try:
+            sync_mod_installations(
+                manifests,
+                id_to_path,
+                bundled_ids={
+                    manifests[mod_id].id
+                    for mod_id, path in id_to_path.items()
+                    if path in BUNDLED_MODS
+                },
+            )
+            apply_persisted_activation()
+        except (OperationalError, ProgrammingError):
+            # Migrations and makemigrations run before the lifecycle table
+            # exists; normal application startup always has it.
+            pass
+
         # Platform-owned Source Kinds are registered before Mods.  Persisted
         # values remain the short ``project``/``folder`` strings.
         from helix_core.core.models import Folder, Project
@@ -65,7 +90,25 @@ class HelixCoreConfig(AppConfig):
         # mod's apps.py — registration now happens here, after the
         # topological sort and before Django app ready.
         path_to_manifest = {path: manifests[mod_id] for mod_id, path in id_to_path.items()}
+        active_ids = set(manifests)
+        try:
+            from helix_core.models import ModInstallation
+
+            active_ids = set(
+                ModInstallation.objects.filter(
+                    state=ModInstallation.State.ACTIVE
+                ).values_list("mod_id", flat=True)
+            )
+        except (OperationalError, ProgrammingError):
+            pass
+
         for dotted_path in sorted_paths:
+            mod_id = next(
+                (candidate for candidate, path in id_to_path.items() if path == dotted_path),
+                None,
+            )
+            if mod_id not in active_ids:
+                continue
             try:
                 package = importlib.import_module(dotted_path)
                 register_fn = getattr(package, "register", None)

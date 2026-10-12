@@ -29,7 +29,7 @@ from helix_core.serializers import (
 )
 
 from helix_core.models import EntityHubView
-from bundled.access.access.permissions import IsOrganizationAdminForWrites
+from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
 from helix_core.formulas import evaluate_formula
@@ -809,6 +809,62 @@ class ModRegistryView(APIView):
             return Response(result, status=400)
 
         return Response(result)
+
+
+class ModLifecycleView(APIView):
+    """Org-admin API for persisted External Mod activation intent."""
+
+    permission_classes = [IsOrganizationAdmin]
+
+    def get(self, request):
+        from helix_core.models import ModInstallation
+
+        rows = ModInstallation.objects.filter(tier="External")
+        return Response(
+            {
+                "mods": [
+                    {
+                        "id": row.mod_id,
+                        "displayName": row.display_name,
+                        "version": row.version,
+                        "requiresHelix": row.requires_helix,
+                        "artifacts": row.artifacts,
+                        "dependsOn": row.dependencies,
+                        "state": row.state,
+                        "desiredState": row.desired_state,
+                        "restartRequired": row.state != row.desired_state,
+                        "available": row.state != ModInstallation.State.REMOVED,
+                    }
+                    for row in rows
+                ]
+            }
+        )
+
+    def post(self, request):
+        from helix_core.mod_system.lifecycle import activate_mod, deactivate_mod
+
+        mod_id = request.data.get("modId")
+        operation = request.data.get("operation")
+        if not isinstance(mod_id, str) or operation not in {"activate", "deactivate"}:
+            raise serializers.ValidationError(
+                {"detail": "modId and operation (activate or deactivate) are required."}
+            )
+        try:
+            if operation == "activate":
+                changed = activate_mod(
+                    mod_id,
+                    request.user,
+                    activate_dependencies=bool(request.data.get("activateDependencies", True)),
+                )
+            else:
+                changed = deactivate_mod(
+                    mod_id,
+                    request.user,
+                    cascade=bool(request.data.get("cascade", False)),
+                )
+        except ValueError as exc:
+            raise serializers.ValidationError({"detail": str(exc)}) from exc
+        return Response({"changed": sorted(changed), "restartRequired": True})
 
 
 class ColorTokenViewSet(viewsets.ModelViewSet):

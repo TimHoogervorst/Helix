@@ -154,6 +154,12 @@ All mutating operations are automatically logged for CFR Part 11 audit complianc
 - [docs/mod-system.md](docs/mod-system.md) — full mod system architecture, registration API reference, boot sequence
 - [docs/slot-system.md](docs/slot-system.md) — slot system design, renderers, event bus, block serialization
 - [docs/backend-mod-system.md](docs/backend-mod-system.md) — backend mod system, helix_core SDK, BackendModRegistry
+- [docs/mod-concepts.md](docs/mod-concepts.md) — External Mod concepts and lifecycle
+- [docs/mod-packaging.md](docs/mod-packaging.md) — External Mod package boundary and validation order
+- [docs/mod-manifest-1.0.0.md](docs/mod-manifest-1.0.0.md) — generated strict manifest field reference
+- [docs/generated/typescript-api.md](docs/generated/typescript-api.md) — generated frontend API reference
+- [docs/generated/python-api.md](docs/generated/python-api.md) — generated backend API reference
+- [docs/generated/validator-diagnostics.md](docs/generated/validator-diagnostics.md) — generated validator diagnostics reference
 - [docs/actions-system-design.md](docs/actions-system-design.md) — declarative action logging, AbstractBaseAction, CFR Part 11
 - [CONTEXT.md](CONTEXT.md) — domain glossary with definitions, relationships, and key distinctions
 - [UBIQUITOUS_LANGUAGE.md](UBIQUITOUS_LANGUAGE.md) — canonical terminology, deprecated term mappings, example dialogue

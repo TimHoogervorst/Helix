@@ -296,6 +296,8 @@ entity = registry.call("lims.resolve_entity", display_id="DNA34")
 
 **Import boundary:** External mods import from `helix_core` — never the other way around. `helix_core` has zero dependencies on any mod.
 
+Generated references for the current SDK are available in the [Python API reference](generated/python-api.md) and [validator diagnostics reference](generated/validator-diagnostics.md). Human packaging guidance is in [External Mod Packaging](mod-packaging.md). The hello-world repository described by [#615](https://github.com/TimHoogervorst/Helix/issues/615) is the canonical tutorial when published; no repository URL is fabricated here.
+
 ---
 
 ## URL Routing

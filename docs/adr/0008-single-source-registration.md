@@ -2,7 +2,7 @@
 
 > Date: 2026-07-24
 > Status: Accepted
-> Companion specs: [Spec 1 — Single-Source Registration](../../.claude/spec-1-single-source-registration.md), [Spec 2 — Refined Action Model](../../.claude/spec-2-refined-action-model.md)
+> Related: [ADR-0028 — Preserve the `core` app label](0028-core-app-label-preservation.md)
 
 ---
 
@@ -69,7 +69,7 @@ Loading screen ("Loading Helix…")
 ### Per-mod file contract
 
 ```
-src/mods/<id>/
+src/bundled/<section>/<id>/ or src/mods/<id>/
 ├── modManifest.json    # id, displayName, version, dependsOn — identity only
 ├── index.ts            # UI only: registerHub, registerRoute, registerBlock,
 │                       #   declareSlot, registerIntoSlot, registerSettingsSection

@@ -20,7 +20,7 @@ import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
 import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
 import MoreActions from "../components/MoreActions";
 import ContentLoadingSkeleton from "../components/ContentLoadingSkeleton";
-import { TagSection } from "../../tags/ui";
+import { TagSection } from "../../../bundled/labelling/tags/ui";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import NotFound from "../../../shell/src/shared/components/NotFound";

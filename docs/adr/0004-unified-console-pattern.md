@@ -27,7 +27,7 @@ Despite sharing this pattern, the two consoles are implemented as **near-duplica
 | More detail panel | `LimsMoreDetailPanel.tsx` | `LibraryMoreDetailPanel.tsx` | Tabbed placeholder vs embedded editor |
 | View state machine | Inline in `LimsList.tsx` | Inline in `LibraryView.tsx` | Identical state transitions + animation timings |
 
-The `ViewState` type (`"list" | "detail" | "expanded"`) lives in `frontend/src/types/lims.ts` and is **imported by library code** — making the Library formally dependent on the LIMS module for its core UI state type.
+The `ViewState` type (`"list" | "detail" | "expanded"`) lived in the former frontend runtime tree and was **imported by library code** — making the Library formally dependent on the LIMS module for its core UI state type.
 
 Adding a third console (e.g., a Protocol console, a Plate console) under the current structure would create a third copy of every component. Future plugin/modding support requires a single extension point, not N copies to integrate with.
 
@@ -67,7 +67,7 @@ These replace the current ad-hoc names: "three-step fold," "LIMS three-step fold
 Extract the following shared components from the duplicated pairs:
 
 ```
-frontend/src/console/core/
+the former frontend console runtime tree
 ├── ConsoleProvider.tsx        ← replaces LimsViewContext + LibraryViewContext
 ├── ConsoleMasterPanel.tsx     ← shared table wrapper with selection state
 ├── ConsoleDetailPanel.tsx     ← shared detail card shell (header, fields, actions)
@@ -89,7 +89,7 @@ The `ViewState` type moves from `types/lims.ts` to a new `types/console.ts`.
 Extract a shared abstract base class for resource-like models without merging Django apps:
 
 ```python
-# backend/core/abstracts.py
+# the former backend core abstracts module
 class BrowsableItem(models.Model):
     """Abstract base for any model that can appear as a row in a Console Master table."""
     display_id = models.CharField(max_length=50, unique=True, editable=False)

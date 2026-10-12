@@ -1,20 +1,21 @@
 # Mod System
 
-> See [docs/mod-system.md](../../../docs/mod-system.md) for the full architecture specification.
+> See [docs/mod-system.md](../../../../docs/mod-system.md) for the full architecture specification.
 
 ## What is a Mod?
 
-A **mod** is a self-contained unit of functionality that declares what it provides via `register*()` functions in its `index.ts`. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods.
+A **mod** is a self-contained unit of functionality that declares what it provides via `register*()` functions in its `index.ts`. Bundled and External Mods use the same registration contract.
 
-Every mod lives under `src/mods/<mod-name>/` and follows a standard directory contract.
+Bundled Mods live under `src/bundled/<section>/<mod-name>/` (or a flat section path such as `src/bundled/lims/`). External Mods live under `src/mods/<mod-name>/`. Both follow the same directory contract.
 
 ## Mod Metadata Contract
 
-Each mod must export from its `index.ts`:
+Each mod has a `modManifest.json` identity document and exports from its `index.ts`:
 
 ```ts
 export const meta = {
-  id: string;           // unique mod ID, e.g. 'lims'
+  vendor: string;       // author namespace, e.g. 'helix'
+  name: string;         // unique mod name, e.g. 'lims'
   displayName: string;  // human-readable, e.g. 'LIMS'
   dependsOn: string[];  // mod IDs that must load first
 };
@@ -63,12 +64,13 @@ export function register(): void {
 
 ```
 main.tsx → BrowserRouter → App.tsx → <ModLoader>
-  1. Auto-discover all mods from ``src/mods/*/index.ts`` via import.meta.glob
-  2. Import each, read metadata from ``modManifest.json`` (preferred) or ``meta`` export — validate no duplicate IDs
-  3. Topological sort by dependsOn — detect cycles, detect missing deps
-  4. Call each mod's register() in sorted order → populates ModRegistry
-  5. Validate registry — all cross-references resolve
-  6. Render children (existing app content)
+  1. Load Bundled Mods from explicit imports in ``src/shell/src/mod-system/bundled.ts``
+  2. Discover External Mods from ``src/mods/*/index.ts`` via import.meta.glob
+  3. Import each, read metadata from ``modManifest.json`` (preferred) or ``meta`` export — validate no duplicate IDs
+  4. Topological sort by dependsOn — detect cycles, detect missing deps
+  5. Call each mod's register() in sorted order → populates ModRegistry
+  6. Validate registry — all cross-references resolve
+  7. Render children (existing app content)
 ```
 
 All errors are terminal (fail-fast). No degraded mode.

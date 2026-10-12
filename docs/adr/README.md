@@ -22,8 +22,8 @@ and onboarding reference for contributors.
 | [0010](0010-column-type-registry.md) | Column Type Registry — backend-owned typed column definitions | 2026-07-24 | Accepted |
 | [0011](0011-declarative-bus-subscriptions.md) | Declarative Bus Subscriptions — `listensTo`/`onEvent` as canonical block API | 2026-07-30 | Accepted |
 | [0012](0012-tiptap-renderer-editor-host.md) | TipTapRenderer as Sole Editor Host — dissolving the host-component anti-pattern | 2026-07-30 | Accepted |
-| 0013 | Shell-Hosted Settings Layout Kit — composition primitives for coherent settings pages | 2026-08-03 | Accepted |
-| 0014 | Reference Columns Target a Schema — mirroring the dropdown precedent | 2026-08-03 | Accepted |
+| [0013](0013-shell-settings-layout-kit.md) | Shell-Hosted Settings Layout Kit — composition primitives for coherent settings pages | 2026-08-03 | Accepted |
+| [0014](0014-reference-columns-target-schema.md) | Reference Columns Target a Schema — mirroring the dropdown precedent | 2026-08-03 | Accepted |
 | [0015](0015-icon-color-library-ownership.md) | Icon and Color Library Ownership Split | 2026-08-04 | Accepted |
 | [0016](0016-design-system-foundation.md) | Design-System Foundation — Theme Seeds, Derived Shades, and the Label/Body Type System | 2026-08-06 | Superseded by [0018](0018-design-system-and-preferences.md) |
 | [0017](0017-preferences-window-localstorage-themes.md) | Preferences Window — Themes as Seed Bundles, Persisted in localStorage | 2026-08-06 | Superseded by [0018](0018-design-system-and-preferences.md) |
@@ -31,6 +31,9 @@ and onboarding reference for contributors.
 | [0022](0022-table-kit-deep-typed-grid.md) | Table Kit as a Deep Typed Grid Module | 2026-08-20 | Proposed |
 | [0023](0023-eln-workspace-bleed-layout.md) | ELN Workspace Bleed Layout | 2026-08-24 | Proposed |
 | [0024](0024-block-duplication-policy.md) | Block Duplication Is Policy-Driven — data and completion state never travel | 2026-08-25 | Proposed |
+| [0027](0027-repository-tiers-and-golden-rule.md) | Repository Tiers, Golden Rule, and Deferred Enforcement | 2026-10-12 | Accepted |
+| [0028](0028-core-app-label-preservation.md) | Preserve the `core` App Label | 2026-10-12 | Accepted |
+| [0029](0029-closed-bundled-open-external-discovery.md) | Closed Bundled and Open External Discovery | 2026-10-12 | Accepted |
 
 ## Creating a New ADR
 

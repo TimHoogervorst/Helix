@@ -35,7 +35,20 @@ A backend mod author had no single answer to "how do I register my mod, declare 
 
 ```
 src/
-├── mods/                              # Co-located mods (frontend + backend per mod)
+├── helix_core/                        # Platform package and Django apps
+│   ├── mod_system/                    # Loader, registry, manifest
+│   ├── core/                          # Preserved `core` app label
+│   └── mentions/                      # Preserved `mentions` app label
+│
+├── bundled/                           # Closed, explicitly enumerated Bundled Mods
+│   ├── shared/
+│   │   ├── home/
+│   │   ├── library/
+│   │   └── entities/
+│   ├── lims/
+│   └── ...
+│
+├── mods/                              # External-only Mods
 │   ├── eln/
 │   │   ├── modManifest.json           # Single identity source of truth
 │   │   ├── index.ts                   # Frontend register*() entry point
@@ -59,25 +72,19 @@ src/
 │
 ├── shell/                             # Frontend React project (Vite)
 │   └── src/
-│       ├── core/mod-system/           # Frontend mod loader + registry
+│       ├── mod-system/                # Frontend mod loader + registry
 │       └── ...
 │
-└── server/                            # Django project
+└── server/                            # Django project configuration only
     ├── config/                        # settings.py, wsgi.py, root urls.py
-    ├── core/                          # Auth, User, Folder, BrowsableItem, mentions
-    │   └── ...
-    └── helix_core/                    # Platform SDK — mod system loader
-        ├── loader.py                  # Auto-discovery + topological sort
-        ├── registry.py                # BackendModRegistry
-        ├── manifest.py                # ModManifest dataclass
-        └── ...
+    └── manage.py
 ```
 
 ---
 
 ## Mod Manifest
 
-`modManifest.json` is the single source of truth for mod identity, read by both frontend and backend loaders. It lives at the root of each mod folder under `src/mods/<id>/`.
+`modManifest.json` is the single source of truth for mod identity, read by both frontend and backend loaders. It lives at the root of each mod folder under `src/bundled/` or `src/mods/`.
 
 ### Schema
 
@@ -115,26 +122,26 @@ Capabilities are discovered at boot from registration calls — the manifest is 
 
 ## Mod Discovery & Loading
 
-### Backend Loader (`helix_core/loader.py`)
+### Backend Loader (`helix_core/mod_system/loader.py`)
 
-The backend loader auto-discovers mods, validates dependencies, and populates `INSTALLED_APPS` programmatically.
+The backend loader loads the closed Bundled Mod set from `BUNDLED_MODS`, discovers External Mods from `src/mods/` and `helix.mods.json`, validates dependencies, and populates `INSTALLED_APPS` programmatically.
 
 ```
 Django startup (AppConfig.ready)
   → ModLoader.discover()
-      1. Read HELIX_MODS setting → list of mod directories to scan
-      2. Glob each directory for modManifest.json
-      3. Parse each manifest → ModManifest dataclass
-      4. Topological sort by dependsOn
-      5. Validate:
+       1. Load explicit Bundled Mod paths from `helix_core.mod_system.bundled`
+       2. Discover External Mods from `src/mods/` and `helix.mods.json`
+       3. Parse each manifest → ModManifest dataclass
+       4. Topological sort by dependsOn
+       5. Validate:
          - No duplicate IDs
          - No circular dependencies
          - No missing dependencies
          - coreVersion constraints satisfied
-      6. Build INSTALLED_APPS list:
-         - helix_core (always first)
-         - core (auth, base models)
-         - Mods in dependency order
+       6. Build INSTALLED_APPS list:
+          - helix_core (always first)
+          - helix_core.core and helix_core.mentions (preserved app labels)
+          - Bundled and External Mods in dependency order
       7. Import each mod's mod.py → call register() function
          → Mod populates BackendModRegistry
       8. Validate registry: all references resolve
@@ -146,8 +153,8 @@ Django startup (AppConfig.ready)
 Every backend mod provides a `mod.py` at its root with a `register()` function. This is the **canonical registration entry point** — mods register all backend concerns here, not in `apps.py`:
 
 ```python
-# src/mods/lims/mod.py
-from helix_core.registry import registry
+# src/bundled/lims/mod.py
+from helix_core.mod_system.registry import registry
 
 def register():
     """Called by ModLoader after topological sort. Populates the backend registry."""
@@ -159,30 +166,26 @@ def register():
     registry.register_custom_action(
         mod_id="lims", action_id="lims.sample.registered",
         label="Sample Registered", core="edited",
-        target_model="mods.lims.models.Entity",
+        target_model="bundled.lims.models.Entity",
     )
-    registry.register_urls("lims", "mods.lims.urls")
+    registry.register_urls("lims", "bundled.lims.urls")
 ```
 
 The `register()` function is the backend equivalent of the frontend `index.ts` — it calls imperative registration functions to declare what the mod provides.
 
-### HELIX_MODS Setting
+### Bundled and External sources
 
 ```python
 # src/server/config/settings.py
-HELIX_MODS = [
-    "src/mods/lims",
-    "src/mods/eln",
-    "src/mods/library",
-    "src/mods/tabs",
-    "src/mods/tags",
-    "src/mods/home",
-    "src/mods/settings",
-    "src/mods/users",
-]
+HELIX_MODS = None
+# None loads the explicit `BUNDLED_MODS` list and then open External discovery.
+# A list of dotted paths is available for focused backend tests and overrides
+# the bundled list; external entries in helix.mods.json are still loaded.
 ```
 
-In the future, external mods installed via pip can be listed here as package names rather than filesystem paths.
+External Mods are currently discovered from the `mods/` package and optional
+`helix.mods.json` path entries. The pip-installable package contract is future
+work; the discovery asymmetry is intentional and documented in ADR-0029.
 
 ---
 
@@ -241,7 +244,7 @@ class BackendModRegistry:
 | `register_schema_type()` | Register a schema type (display name, prefix, columns, workspace identity) | `registry.register_schema_type("lims", display_name="Entity", ...)` |
 | `register_action_model()` | Register a mod's concrete action log model | `registry.register_action_model("eln", ElnAction)` |
 | `register_custom_action()` | Register a custom domain action that maps to a core action | `registry.register_custom_action("lims", "lims.sample.registered", ...)` |
-| `register_urls()` | Register URL patterns for root URL conf | `registry.register_urls("lims", "mods.lims.urls")` |
+| `register_urls()` | Register URL patterns for root URL conf | `registry.register_urls("lims", "bundled.lims.urls")` |
 | `register_settings()` | Declare settings keys the mod needs | `registry.register_settings("eln", ["ELN_MAX_TAGS"])` |
 | `register_signal()` | Wire cross-mod signal handlers | `registry.register_signal("eln", "entry_saved", handler)` |
 | `register_service()` | Register a callable cross-mod service | `registry.register_service("lims", "resolve_entity", handler)` |
@@ -258,13 +261,13 @@ Cross-mod communication goes through the service registry — mods never import 
 
 ```python
 # LIMS registers a service
-# In src/mods/lims/mod.py
+# In src/bundled/lims/mod.py
 def register():
     registry.register_service("lims", "resolve_entity", resolve_entity_handler)
 
 # ELN calls it
 # In src/mods/eln/views.py
-from helix_core.registry import registry
+from helix_core.mod_system.registry import registry
 entity = registry.call("lims.resolve_entity", display_id="DNA34")
 ```
 
@@ -279,13 +282,13 @@ entity = registry.call("lims.resolve_entity", display_id="DNA34")
 
 ## Platform SDK (`helix_core`)
 
-`helix_core` is the dedicated SDK package living at `src/server/helix_core/`. It provides:
+`helix_core` is the dedicated Platform SDK package living at `src/helix_core/`. It provides:
 
 | Module | Purpose |
 |--------|---------|
-| `loader.py` | Mod auto-discovery, topological sort, `INSTALLED_APPS` computation |
-| `registry.py` | `BackendModRegistry` singleton — all `register_*()` methods + `call()` |
-| `manifest.py` | `ModManifest` dataclass — parses `modManifest.json` |
+| `mod_system/loader.py` | Bundled enumeration, External discovery, topological sort, `INSTALLED_APPS` computation |
+| `mod_system/registry.py` | `BackendModRegistry` singleton — all `register_*()` methods + `call()` |
+| `mod_system/manifest.py` | `ModManifest` dataclass — parses `modManifest.json` |
 | `actions.py` | `AbstractBaseAction` model, `ActionLoggingMixin`, `@logs_action` decorator |
 | `exceptions.py` | `ModNotFoundError`, `CircularDependencyError`, `ServiceNotFoundError` |
 
@@ -299,10 +302,11 @@ Mods register URL patterns through the registry; the root URL conf aggregates th
 
 ```python
 # src/server/config/urls.py
-from helix_core.registry import registry
+from helix_core.mod_system.registry import registry
 
 urlpatterns = [
-    path("api/", include("core.urls")),          # Auth, mentions, core
+    path("api/core/", include("helix_core.core.urls")),
+    path("api/mentions/", include("helix_core.mentions.urls")),
     path("api/", include("helix_core.urls")),     # Actions API
     # Mod URLs auto-registered:
     *[path("api/", include(mod_url)) for mod_url in registry.get_url_modules()],
@@ -313,7 +317,7 @@ urlpatterns = [
 Each mod's `urls.py` defines its API endpoints under its namespace:
 
 ```python
-# src/mods/lims/urls.py
+# src/bundled/lims/urls.py
 urlpatterns = [
     path("lims/entities/", EntityViewSet.as_view({"get": "list", "post": "create"})),
     path("lims/entity-types/", EntityTypeViewSet.as_view({"get": "list", "post": "create"})),
@@ -325,30 +329,26 @@ urlpatterns = [
 
 ## External Mod Contract
 
-External mods use the same `modManifest.json` + `mod.py` + `register_*()` pattern as internal mods. The contract:
+External Mods use the same `modManifest.json` + `mod.py` + `register_*()` pattern as Bundled Mods. The contract:
 
-1. **Package:** External mods ship as pip-installable packages
-2. **Entry point:** Package declares a `helix_mod` entry point pointing to its `mod.py`
-3. **Manifest:** `modManifest.json` at package root — same schema as internal mods
+1. **Package:** External Mods are packages under `src/mods/` for repository dogfood
+2. **Entry point:** The repository discovery path loads each package's `mod.py`; packaged entry points remain future work
+3. **Manifest:** `modManifest.json` at package root — same schema as Bundled Mods
 4. **Registration:** `mod.py` `register()` function — same `register_*()` API
-5. **Dependencies:** `dependsOn` in manifest — can depend on core mods or other external mods
-6. **Settings:** Added to `HELIX_MODS` as a package name (not a filesystem path)
+5. **Dependencies:** `dependsOn` in manifest — can depend on Bundled Mods or other External Mods
+6. **Composition:** `helix.mods.json` can name an external `mod.py` path; `HELIX_MODS` remains a test/override seam
 
 ```python
-# setup.cfg (external mod package)
+# External Mod package (future distribution shape)
 [options.entry_points]
 helix_mod =
     molbio = molbio.mod
 ```
 
-```python
-# settings.py
-HELIX_MODS = [
-    "src/mods/lims",
-    "src/mods/eln",
-    # ...
-    "molbio",            # External mod — discovered via entry point
-]
+```json
+{
+  "mods": [{ "path": "./external_mods/molbio/mod.py" }]
+}
 ```
 
 ---
@@ -359,7 +359,7 @@ HELIX_MODS = [
 |----------|--------|-----------|
 | Identity source of truth | `modManifest.json` at mod root | Both frontend and backend loaders read the same file; no dual declaration |
 | Manifest scope | Identity only (not capabilities) | Capabilities are discovered at boot from registration calls, not declared statically |
-| Discovery | Auto-glob with explicit `HELIX_MODS` setting | Explicit list prevents surprises; glob automates what's tedious |
+| Discovery | Explicit Bundled list plus open External discovery | Bundled contents are closed; deployment composition remains open |
 | Loading order | Topological sort by `dependsOn` | Same algorithm as frontend; shared mental model |
 | Registration style | Imperative (`register_*()` in `mod.py`) | Same pattern as frontend; flexible and testable |
 | Error handling | Fail-fast | Broken dependency graph = no boot, error in terminal |
@@ -367,5 +367,5 @@ HELIX_MODS = [
 | Frontend discovery of backend data | `GET /api/mod-registry/` endpoint | Frontend hydrates workspace IDs, schema types, and action catalogs from backend at boot |
 | Registration entry point | `mod.py` `register()` function | Canonical single entry point for backend registration; replaces `apps.py` |
 | Custom actions | `register_custom_action()` with core mapping | Every custom action maps to a core CRUD action; audit trail always clear |
-| External mod discovery | Python entry points (`helix_mod`) | Standard packaging mechanism; no custom discovery protocol |
-| `INSTALLED_APPS` | Computed programmatically | No manual maintenance; reflects actual mod dependency order |
+| External mod discovery | `src/mods/` scan plus `helix.mods.json` | Open repository and deployment composition path; packaged entry points remain future work |
+| `INSTALLED_APPS` | Computed programmatically | No manual maintenance; reflects Platform, Bundled, and External dependency order |

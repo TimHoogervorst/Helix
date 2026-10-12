@@ -6,13 +6,14 @@
 
 ## The Mod System
 
-> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Tabs — is a mod. The Shell is the thin frame that loads mods and provides the services they render into. Both internal (core mods) and future external mods use the same `register*()` API. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend and backend code.
+> The platform is structured around a **mod system**. Everything — LIMS, ELN, Library, Settings, Tabs — is a mod. The Shell is the thin frame that loads mods and provides the services they render into. Mods come in two tiers — **Bundled Mods** ship inside the Helix artifact and are always loaded, while **External Mods** are composed in by a deployment at build time — and both use the same `register*()` API, so the external contract stays honest because first-party mods suffer its papercuts too. Each mod lives in a single co-located directory containing both frontend and backend code.
 
 | Term | Definition |
 |------|-----------|
-| **Mod** | A self-contained unit of functionality registered into the Shell. Owns hubs, workspaces, blocks, buttons, settings, routes, and library items. Lives under `src/mods/<id>/` — frontend and backend code together. |
-| **Shell** | The immutable app frame at `src/shell/` (frontend) and `src/server/` (backend): Layout, Router, Mod Loader, Mod Registry, mention resolution, API client, slot resolution. The shell provides the frame; mods provide the content. |
-| **Core Mod** | A built-in mod under `src/mods/` that ships with the repo. Always loaded. Uses the same API as future external mods. |
+| **Mod** | A self-contained unit of functionality registered into the Shell. Owns hubs, workspaces, blocks, buttons, settings, routes, and library items. Frontend and backend code co-located in a single directory. Every Mod is either a Bundled Mod or an External Mod. |
+| **Shell** | The immutable frontend app frame at `src/shell/`: Layout, Router, Mod Loader, Mod Registry, mention resolution, API client, and slot resolution. Django project configuration lives in `src/server/`; Platform backend code lives in `src/helix_core/`. The Shell provides the frame; Mods provide the content. |
+| **Bundled Mod** | A mod that ships inside the Helix artifact and is always loaded. First-party. Uses the same `register*()` API as an External Mod. |
+| **External Mod** | A mod composed into a deployment at build time, not shipped inside the Helix artifact. May depend on anything inside Helix; nothing inside Helix ever names an External Mod (the **golden rule**). Uses the same `register*()` API as a Bundled Mod. |
 | **Mod Registry** | Central data structure populated at boot. Has two populations: **registrations** (synchronous `register*()` calls during mod loading — hubs, routes, blocks, slots, settings sections) and **hydrated data** (fetched from `GET /api/mod-registry/` — icon library, color token palette, column types, workspaces, action catalogs). First render is gated until both populations are loaded; no component ever reads an empty registry. The registry is a non-reactive singleton — it must not trigger re-renders. |
 | **Hydration** | The async boot phase that fetches `GET /api/mod-registry/` and populates the registry's backend-sourced stores (icon library, color palette, column types, workspaces, action catalogs). Runs after action sync (per-mod `POST /api/mod-registry/sync-actions/`) so the action catalog is fresh when fetched. Gated — children do not render until hydration resolves or fails. |
 | **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
@@ -677,7 +678,7 @@ Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod
 
 ## Formulas
 
-> Computed Fields use the shared formula grammar, parser, and Function Catalog. See [ADR 0019](docs/adr/0019-formula-evaluation-ownership.md) and the [formula spec](docs/specs/formula-support-cell-formulas-and-computed-fields.md).
+> Computed Fields use the shared formula grammar, parser, and Function Catalog. See [ADR 0019](docs/adr/0019-formula-evaluation-ownership.md).
 
 ### Formula
 
@@ -906,7 +907,7 @@ An **Entry** is the database record (id, title, author, folder, dates). The **Do
 
 ### Mention System vs LIMS
 
-The **Mention system** (frontend: `src/shell/src/core/mentions/`, backend: `src/server/core/mentions/`) is the **consumer** — it resolves references and renders navigation badges. **LIMS** is the **registry** — it owns the entity type→workspace mapping. The mention system asks LIMS "where does this display ID belong?" and uses the answer to build a URL. Neither system hardcodes knowledge of the other's entity types or workspaces. A new mod registers with LIMS, and the mention system picks it up automatically through the standard resolution chain.
+The **Mention system** (frontend: `src/shell/src/mentions/`, backend: `src/helix_core/mentions/`) is the **consumer** — it resolves references and renders navigation badges. **LIMS** is the **registry** — it owns the entity type→workspace mapping. The mention system asks LIMS "where does this display ID belong?" and uses the answer to build a URL. Neither system hardcodes knowledge of the other's entity types or workspaces. A new mod registers with LIMS, and the mention system picks it up automatically through the standard resolution chain.
 
 ### Mention vs Action
 

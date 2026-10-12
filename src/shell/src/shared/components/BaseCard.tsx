@@ -1,10 +1,10 @@
 import type { ComponentType, ReactNode } from "react";
 import { Folder } from "lucide-react";
-import type { LibraryEntryItem } from "../../../../mods/library/types";
+import type { LibraryEntryItem } from "../../../../bundled/shared/library/types";
 import { Avatar, getInitials } from "../Avatar";
 import { relativeTime } from "../format";
 import { StatusBadge } from "./StatusBadge";
-import { TagPill } from "../../../../mods/tags/ui/TagPill";
+import { TagPill } from "../../../../bundled/labelling/tags/ui/TagPill";
 import { IconBadge } from "./IconBadge";
 
 // ── Types ──────────────────────────────────────────────────────────────────

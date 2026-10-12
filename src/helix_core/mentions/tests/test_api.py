@@ -1,0 +1,377 @@
+"""
+Tests for the mentions API endpoints.
+
+POST /api/mentions/resolve/   — batch-resolve display IDs
+GET  /api/mentions/search/    — search by display_id prefix
+"""
+from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.factories import EMPTY_DOC
+from mods.eln.models import NotebookEntry
+
+
+def _create_eln_schema():
+    """Create the ELN SchemaType + Schema (idempotent)."""
+    from helix_core.models import Schema, SchemaType
+    schema_type, _ = SchemaType.objects.get_or_create(
+        model="mods.eln.models.NotebookEntry",
+        defaults={
+            "display_name": "ELN Entry",
+            "workspace_id": "eln",
+            "columns": [],
+        },
+    )
+    schema, _ = Schema.objects.get_or_create(
+        schema_type=schema_type,
+        is_default=True,
+        defaults={
+            "name": "Default",
+            "prefix": "E",
+            "columns": [],
+        },
+    )
+    return schema
+
+
+def _create_lims_schema_type():
+    """Create the LIMS SchemaType (idempotent)."""
+    from helix_core.models import SchemaType
+    schema_type, _ = SchemaType.objects.get_or_create(
+        model="bundled.lims.models.Entity",
+        defaults={
+            "display_name": "Entity",
+            "workspace_id": "lims",
+            "columns": [],
+        },
+    )
+    return schema_type
+
+
+class ResolveApiTests(BaseTestCase):
+    """POST /api/mentions/resolve/"""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        self.eln_schema = _create_eln_schema()
+
+    def test_resolve_valid_ids(self):
+        """Valid display IDs resolve to target details."""
+        e1 = NotebookEntry.objects.create(
+            name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+        e2 = NotebookEntry.objects.create(
+            name="Gel Results", properties=EMPTY_DOC, source=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [e1.display_id, e2.display_id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(e1.display_id, response.data)
+        self.assertEqual(response.data[e1.display_id]["id"], e1.id)
+        self.assertEqual(response.data[e1.display_id]["display_id"], e1.display_id)
+        self.assertEqual(response.data[e1.display_id]["title"], "PCR Protocol")
+        self.assertEqual(response.data[e1.display_id]["type"], "entry")
+        self.assertEqual(response.data[e1.display_id]["workspaceId"], "eln")
+
+        self.assertIn(e2.display_id, response.data)
+        self.assertEqual(response.data[e2.display_id]["title"], "Gel Results")
+        self.assertEqual(response.data[e2.display_id]["workspaceId"], "eln")
+
+    def test_resolve_invalid_id_returns_null(self):
+        """An ID that doesn't match any entry returns null."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": ["E99999"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"E99999": None})
+
+    def test_resolve_mixed_ids(self):
+        """Mix of valid and invalid IDs — each gets its own result."""
+        e1 = NotebookEntry.objects.create(
+            name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [e1.display_id, "E99999"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.data[e1.display_id])
+        self.assertIsNone(response.data["E99999"])
+
+    def test_resolve_empty_ids(self):
+        """Empty list returns empty object."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {})
+
+    def test_resolve_unknown_prefix(self):
+        """IDs with unknown prefixes (like X1) resolve to null."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": ["X1"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"X1": None})
+
+
+class SearchApiTests(BaseTestCase):
+    """GET /api/mentions/search/?q=..."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+        eln_schema = _create_eln_schema()
+
+        self.e1 = NotebookEntry.objects.create(
+            name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
+            schema=eln_schema,
+        )
+        self.e2 = NotebookEntry.objects.create(
+            name="Gel Results", properties=EMPTY_DOC, source=self.folder, author=self.user,
+            schema=eln_schema,
+        )
+
+    def test_search_returns_matching_entries(self):
+        """Search by display_id prefix returns matching entries."""
+        response = self.client.get(f"/api/mentions/search/?q={self.e1.display_id}")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["display_id"], self.e1.display_id)
+        self.assertEqual(results[0]["title"], "PCR Protocol")
+        self.assertEqual(results[0]["type"], "entry")
+        self.assertEqual(results[0]["workspaceId"], "eln")
+
+    def test_search_no_matches(self):
+        """A query matching nothing returns empty results."""
+        response = self.client.get("/api/mentions/search/?q=Z999")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
+
+    def test_search_empty_query(self):
+        """Empty query returns empty results (not an error)."""
+        response = self.client.get("/api/mentions/search/?q=")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
+
+    def test_search_case_insensitive(self):
+        """Prefix matching is case-insensitive ('e1' matches 'E1')."""
+        response = self.client.get(f"/api/mentions/search/?q=e1")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["display_id"], self.e1.display_id)
+
+
+# ── Slice 1: Dynamic PREFIX_MAP — entity references ──
+
+class EntityReferenceTests(BaseTestCase):
+    """Entity display IDs resolve and search through the mentions endpoints."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+
+        from bundled.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+
+        schema_type, _ = SchemaType.objects.get_or_create(
+            model="bundled.lims.models.Entity",
+            defaults={
+                "display_name": "Entity",
+                "workspace_id": "lims",
+                "columns": [],
+            },
+        )
+        self.blood_schema = Schema.objects.create(
+            name="Default",
+            prefix="BLOOD",
+            schema_type=schema_type,
+            columns=[],
+            is_default=True,
+        )
+        self.eln_schema = _create_eln_schema()
+        self.entity = Entity.objects.create(
+            name="Patient Blood #1",
+            schema=self.blood_schema,
+            source=self.folder,
+            author=self.user,
+        )
+
+    def test_resolve_entity_display_id(self):
+        """Entity display IDs are resolved via PREFIX_MAP."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [self.entity.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.entity.display_id, response.data)
+        result = response.data[self.entity.display_id]
+        self.assertIsNotNone(result)
+        self.assertEqual(result["display_id"], self.entity.display_id)
+        self.assertEqual(result["title"], "Patient Blood #1")
+        self.assertEqual(result["type"], "entity")
+        self.assertEqual(result["workspaceId"], "lims")
+
+    def test_resolve_mixed_entry_and_entity_ids(self):
+        """Both entry (E#) and entity (prefix#) IDs resolve."""
+        entry = NotebookEntry.objects.create(
+            name="An Entry", properties=EMPTY_DOC,
+            source=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [entry.display_id, self.entity.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.data[entry.display_id])
+        self.assertIsNotNone(response.data[self.entity.display_id])
+        self.assertEqual(response.data[entry.display_id]["type"], "entry")
+        self.assertEqual(response.data[self.entity.display_id]["type"], "entity")
+        self.assertEqual(response.data[entry.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")
+
+    def test_search_finds_entities_by_prefix(self):
+        """GET /api/mentions/search/ includes entities when prefix matches."""
+        response = self.client.get(f"/api/mentions/search/?q={self.entity.display_id}")
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["display_id"], self.entity.display_id)
+        self.assertEqual(results[0]["type"], "entity")
+        self.assertEqual(results[0]["workspaceId"], "lims")
+
+    def test_search_finds_entities_by_partial_prefix(self):
+        """Search by partial prefix (e.g., 'BLO') returns matching entities."""
+        response = self.client.get("/api/mentions/search/?q=BLO")
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["display_id"], self.entity.display_id)
+        self.assertEqual(results[0]["workspaceId"], "lims")
+
+
+# ── Icon field in mentions API ───────────────────────────────────────
+
+class IconInMentionsTests(BaseTestCase):
+    """Verify that resolve and search endpoints include the icon field."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.user)
+
+        from bundled.lims.models import Entity
+        from helix_core.models import Schema, SchemaType
+
+        schema_type, _ = SchemaType.objects.get_or_create(
+            model="bundled.lims.models.Entity",
+            defaults={
+                "display_name": "Entity",
+                "workspace_id": "lims",
+                "columns": [],
+            },
+        )
+        self.blood_schema = Schema.objects.create(
+            name="Default",
+            prefix="BLOOD",
+            schema_type=schema_type,
+            columns=[],
+            is_default=True,
+        )
+        self.eln_schema = _create_eln_schema()
+        self.entity = Entity.objects.create(
+            name="Patient Blood #1",
+            schema=self.blood_schema,
+            source=self.folder,
+            author=self.user,
+        )
+        self.entry = NotebookEntry.objects.create(
+            name="A Note", properties=EMPTY_DOC,
+            source=self.folder, author=self.user,
+            schema=self.eln_schema,
+        )
+
+    def test_resolve_entry_includes_icon(self):
+        """Resolving an ELN entry returns icon: '📄'."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [self.entry.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        result = response.data[self.entry.display_id]
+        self.assertIsNotNone(result)
+        self.assertEqual(result["icon"], "📄")
+        self.assertEqual(result["workspaceId"], "eln")
+
+    def test_resolve_entity_includes_icon(self):
+        """Resolving an entity returns the default test-tube icon."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [self.entity.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        result = response.data[self.entity.display_id]
+        self.assertIsNotNone(result)
+        self.assertEqual(result["icon"], "🧪")
+        self.assertEqual(result["workspaceId"], "lims")
+
+    def test_search_entries_include_icon(self):
+        """Search results for entries include the icon field."""
+        response = self.client.get(
+            f"/api/mentions/search/?q={self.entry.display_id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["icon"], "📄")
+        self.assertEqual(results[0]["workspaceId"], "eln")
+
+    def test_search_entities_include_icon(self):
+        """Search results for entities include the icon field."""
+        response = self.client.get(
+            f"/api/mentions/search/?q={self.entity.display_id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["icon"], "🧪")
+        self.assertEqual(results[0]["workspaceId"], "lims")
+
+    def test_mixed_resolve_includes_icons(self):
+        """Mixed entry+entity resolve includes correct icons for each."""
+        response = self.client.post(
+            "/api/mentions/resolve/",
+            {"ids": [self.entry.display_id, self.entity.display_id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[self.entry.display_id]["icon"], "📄")
+        self.assertEqual(response.data[self.entry.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[self.entity.display_id]["icon"], "🧪")
+        self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")

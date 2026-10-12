@@ -19,9 +19,10 @@ ALLOWED_HOSTS = ["*"]
 
 # ── Helix Mod System ─────────────────────────────────────────────────────────
 
-# Override auto-discovery by setting HELIX_MODS to an explicit list of
-# dotted mod paths (e.g. ["mods.eln", "mods.lims"]).  When None
-# (the default), all mods/*/mod.py directories are auto-discovered.
+# Override external auto-discovery by setting HELIX_MODS to an explicit list of
+# dotted mod paths (e.g. ["mods.eln", "bundled.lims"]).  Bundled mods are listed
+# explicitly in helix_core.mod_system.bundled; external mods remain discovered
+# from mods/ when this setting is None.
 HELIX_MODS = None
 
 INSTALLED_APPS = [
@@ -39,12 +40,11 @@ INSTALLED_APPS = [
     "django_filters",
     # Helix platform
     "helix_core",
-    "core",
-    "users",
+    "helix_core.core",
     # Helix mods — auto-discovered from mods/*/mod.py (or overridden
     # via HELIX_MODS above).  Returned in dependency order.
     *get_helix_mods(base_dir=BASE_DIR, helix_mods_override=HELIX_MODS),
-    "core.mentions",
+    "helix_core.mentions",
 ]
 
 MIDDLEWARE = [

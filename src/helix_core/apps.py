@@ -19,6 +19,7 @@ class HelixCoreConfig(AppConfig):
             get_helix_mods,
         )
         from helix_core.mod_system.registry import registry
+        from helix_core.public import ModelReference, ModRegistrar
 
         # ── Register built-in column types ───────────────────────────────
         for ct in get_builtin_column_types():
@@ -31,7 +32,7 @@ class HelixCoreConfig(AppConfig):
                 registry.register_formula_function(**function)
 
         # Discover all manifests (core + external) for signal validation.
-        manifests, _ = _get_all_manifests(
+        manifests, id_to_path = _get_all_manifests(
             base_dir=settings.BASE_DIR,
             helix_mods_override=settings.HELIX_MODS,
         )
@@ -47,18 +48,37 @@ class HelixCoreConfig(AppConfig):
         # and register_signal() can validate cross-mod dependencies.
         registry.set_mod_order(sorted_paths, manifests)
 
+        # Platform-owned Source Kinds are registered before Mods.  Persisted
+        # values remain the short ``project``/``folder`` strings.
+        from helix_core.core.models import Folder, Project
+
+        for local_key, model in (("project", Project), ("folder", Folder)):
+            reference = ModelReference("helix.core", local_key)
+            if reference.id not in registry.get_registered_models():
+                registry.register_model_reference(reference.id, model)
+            if local_key not in registry.get_source_kinds():
+                registry.register_source_kind(local_key, reference)
+
         # Call each mod's mod.py.register() in topological order.
         # This replaces the individual AppConfig.ready() methods on each
         # mod's apps.py — registration now happens here, after the
         # topological sort and before Django app ready.
+        path_to_manifest = {path: manifests[mod_id] for mod_id, path in id_to_path.items()}
         for dotted_path in sorted_paths:
             try:
-                mod_module = importlib.import_module(
-                    f"{dotted_path}.mod"
-                )
-                register_fn = getattr(mod_module, "register", None)
+                package = importlib.import_module(dotted_path)
+                register_fn = getattr(package, "register", None)
+                if register_fn is None:
+                    # Repository Mods predate packaged entry points and keep
+                    # registration in ``mod.py``.
+                    register_fn = getattr(
+                        importlib.import_module(f"{dotted_path}.mod"),
+                        "register",
+                        None,
+                    )
                 if register_fn is not None:
-                    register_fn()
+                    registrar = ModRegistrar(path_to_manifest[dotted_path], registry)
+                    register_fn(registrar)
             except ModuleNotFoundError:
                 # Mod has no mod.py — skip (non-backend mods like home,
                 # settings).

@@ -67,6 +67,8 @@ class BackendModRegistry:
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
         self._services: dict[str, Callable[..., Any]] = {}
+        self._registered_models: dict[str, type | str] = {}
+        self._source_kinds: dict[str, Any] = {}
         self._formula_functions: dict[str, dict[str, Any]] = {}
 
         # Optional: topological mod order for build_urlpatterns().
@@ -87,6 +89,50 @@ class BackendModRegistry:
         # register_action_model() is called.
         # Each entry: {"created": {...}, "edited": {...}, "deleted": {...}}
         self._core_actions: dict[str, dict[str, dict[str, Any]]] = {}
+
+    # These methods are intentionally adapter-only.  Mod packages use the
+    # owner-bound facade in ``helix_core`` rather than this registry.
+    def register_model_reference(self, reference: str, model: type | str) -> None:
+        if reference in self._registered_models:
+            raise ValueError(f"Duplicate model reference '{reference}'")
+        self._registered_models[reference] = model
+
+    def get_registered_models(self) -> dict[str, type | str]:
+        return dict(self._registered_models)
+
+    def register_source_kind(self, kind: str, model_reference: Any) -> None:
+        if kind in self._source_kinds:
+            raise ValueError(f"Duplicate source kind '{kind}'")
+        self._source_kinds[kind] = model_reference
+
+    def get_source_kinds(self) -> dict[str, Any]:
+        return dict(self._source_kinds)
+
+    def register_public_signal(
+        self, mod_id: str, kind: Any, sender_ref: Any, sender: type, handler: Callable[..., Any]
+    ) -> None:
+        from django.db.models.signals import (
+            post_delete,
+            post_save,
+            pre_delete,
+            pre_save,
+        )
+
+        signal = {
+            "model.pre_save": pre_save,
+            "model.post_save": post_save,
+            "model.pre_delete": pre_delete,
+            "model.post_delete": post_delete,
+        }.get(str(kind))
+        if signal is not None:
+            signal.connect(handler, sender=sender)
+        self._signal_registrations.append({
+            "mod_id": mod_id,
+            "kind": kind,
+            "sender_ref": sender_ref,
+            "sender": sender,
+            "handler": handler,
+        })
 
     # ── mod order ────────────────────────────────────────────────────────
 

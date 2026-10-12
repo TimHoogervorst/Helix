@@ -1,10 +1,10 @@
 # TypeScript Mod API Reference
 
 <!-- This file is generated. Do not edit it directly. -->
-<!-- src/shell/src/mod-system/types.ts: 04819f53bdc3b29acccf31ba71d0f977885d804917cbe6d0a6c0f89e8128d293 -->
+<!-- src/shell/src/mod-system/types.ts: b996b97d15a133d80105e20c7ea14815f955ba6749b3c69627ac0d05bff96359 -->
 <!-- src/shell/src/mod-system/index.ts: b9cd935f762a39630b526c7ef001292459288abfc620f8e9f8796e77f344b281 -->
-<!-- src/shell/src/mod-system/Mod.ts: 4d4b093967851d73370a2dd26d49ac6ad9ad79f387918305dd7a2fd92e429997 -->
-<!-- src/shell/src/mod-system/ModLoader.tsx: 1d7869cb181966c0a3da03308d351c2fb7243dbdc13705ec839afa58c425218a -->
+<!-- src/shell/src/mod-system/Mod.ts: f2f7dbd8de8e2eaf9b080b4e66d8c506dec80b0c3846726fa089f72db8ec4c87 -->
+<!-- src/shell/src/mod-system/ModLoader.tsx: e1e9783d32dcf9c1bb9c1d39f7b432c8d06113330ad7c91d8f8094c67b83e695 -->
 
 The public Mod-system entry point is `src/shell/src/mod-system/index.ts`.
 

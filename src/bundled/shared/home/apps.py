@@ -1,6 +1,9 @@
-from django.apps import AppConfig
+from helix_core import make_app_config
+from helix_core.public import load_entry_point_manifest
 
 
-class HomeConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "bundled.shared.home"
+ModAppConfig = make_app_config(
+    __package__,
+    load_entry_point_manifest("helix.home", __package__),
+    "home",
+)

@@ -336,7 +336,7 @@ urlpatterns = [
 External Mods use the same `modManifest.json` + `mod.py` + `register_*()` pattern as Bundled Mods. The contract:
 
 1. **Package:** External Mods are packages under `src/mods/` for repository dogfood
-2. **Entry point:** The repository discovery path loads each package's `mod.py`; packaged entry points remain future work
+2. **Entry point:** Installed backend artifacts advertise `helix.mods` with the canonical Mod ID as the entry-point name and package root as its value; repository packages retain `mod.py` fallback discovery
 3. **Manifest:** `modManifest.json` at package root — same schema as Bundled Mods
 4. **Registration:** `mod.py` `register()` function — same `register_*()` API
 5. **Dependencies:** `dependsOn` in manifest — can depend on Bundled Mods or other External Mods

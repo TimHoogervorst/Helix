@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { resolveWorkspace } from "../api";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
+import { migrateWorkspaceHistoryItem } from "../identityMigration";
 
 const STORAGE_KEY = "helix-workspace-history";
 const MAX_HISTORY_ITEMS = 20;
@@ -11,6 +12,7 @@ export interface WorkspaceHistoryItem {
   name: string;
   url: string;
   icon: string;
+  workspaceReference?: string;
 }
 
 function readHistory(): WorkspaceHistoryItem[] {
@@ -27,7 +29,13 @@ function readHistory(): WorkspaceHistoryItem[] {
         typeof item.name === "string" &&
         typeof item.url === "string" &&
         typeof item.icon === "string",
-    ).slice(0, MAX_HISTORY_ITEMS);
+    ).map((item) => {
+      try {
+        return migrateWorkspaceHistoryItem(item);
+      } catch {
+        return null;
+      }
+    }).filter((item): item is WorkspaceHistoryItem => item !== null).slice(0, MAX_HISTORY_ITEMS);
   } catch {
     return [];
   }

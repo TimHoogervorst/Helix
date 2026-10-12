@@ -4,6 +4,7 @@ export interface PinnedWorkspace {
   display_id: string;
   label: string;
   url: string;
+  workspace_reference: string;
   icon: string;
   color: string;
   created_at: string;

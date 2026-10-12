@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from helix_core.identity_migration import migrate_workspace_url
+
 from .models import PinnedWorkspace, TabFolder
 
 
@@ -26,6 +28,7 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
             "display_id",
             "label",
             "url",
+            "workspace_reference",
             "created_at",
             "order",
             "folder",
@@ -34,12 +37,20 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
             "color",
         ]
         read_only_fields = [
-            "id", "created_at", "order", "folder", "folder_expanded", "icon", "color"
+            "id", "created_at", "order", "folder", "folder_expanded", "icon", "color",
+            "workspace_reference",
         ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._schema_cache: dict[str, object | None] = {}
+
+    def validate(self, attrs):
+        if "url" in attrs:
+            reference, canonical_url = migrate_workspace_url(attrs["url"])
+            attrs["workspace_reference"] = reference
+            attrs["url"] = canonical_url
+        return attrs
 
     def _get_schema(self, prefix: str):
         if prefix not in self._schema_cache:

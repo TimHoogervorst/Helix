@@ -154,6 +154,7 @@ class ModRegistrar:
         self._registry_id = registry_id or {
             "helix.users": "core",
         }.get(manifest.id, manifest.id.rsplit(".", 1)[-1])
+        self._registry.register_action_provider(self._registry_id, manifest.version)
 
     @property
     def id(self) -> str:
@@ -247,10 +248,6 @@ class ModRegistrar:
 
         registry.register_column_type(column_type)
 
-    def register_action_model(self, model: type) -> None:
-        """Register the legacy action table through the compatibility adapter."""
-        self._registry.register_action_model(self._registry_id, model)
-
     def register_custom_action(
         self,
         local_key: str,
@@ -259,15 +256,22 @@ class ModRegistrar:
         target: ModelReference,
     ) -> None:
         self._owned(target)
-        action_id = local_key if "." in local_key and local_key.startswith(self.id.split(".")[-1]) else f"{self.id}:{local_key}"
-        model_class = self._models.get(target.id)
-        target_path = (
-            f"{model_class.__module__}.{model_class.__qualname__}"
-            if model_class is not None
-            else str(target)
+        action_id = (
+            local_key
+            if ":" in local_key
+            or local_key.startswith(f"{self.id}.")
+            or local_key.startswith(f"{self._registry_id}.")
+            else f"{self.id}:{local_key}"
         )
+        target_reference = str(target)
         self._registry.register_custom_action(
-            self._registry_id, action_id, label, core, target_path
+            self._registry_id,
+            action_id,
+            label,
+            core,
+            target_reference,
+            provider_mod_id=self.id,
+            provider_mod_version=self.version,
         )
 
     def register_urls(self, patterns: list) -> None:

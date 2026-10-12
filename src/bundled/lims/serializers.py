@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from helix_core.column_types import registry as column_type_registry
 from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
-from .models import Entity, Action, LimsView, Metric
+from .models import Entity, LimsView, Metric
 from helix_core.core.models import Project
 from bundled.labelling.tags.serializers import TagSerializer
 from bundled.access.users.serializers import UserSerializer
@@ -369,14 +369,20 @@ class LimsViewSerializer(serializers.ModelSerializer):
 
 
 class ActionSerializer(serializers.ModelSerializer):
-    entity_name = serializers.CharField(source="entity.name", read_only=True)
+    entity = serializers.CharField(source="target_object_id", read_only=True)
+    entity_name = serializers.SerializerMethodField()
     performed_by = UserSerializer(read_only=True)
     performed_by_username = serializers.CharField(
         source="performed_by.username", read_only=True
     )
 
+    def get_entity_name(self, obj):
+        entity = Entity.objects.filter(pk=obj.target_object_id).first()
+        return entity.name if entity else None
+
     class Meta:
-        model = Action
+        from helix_core.models import ActionLogEntry
+        model = ActionLogEntry
         fields = [
             "id",
             "entity",

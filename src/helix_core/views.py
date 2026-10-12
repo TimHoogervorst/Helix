@@ -627,10 +627,8 @@ class ActionCreateView(APIView):
 
     def post(self, request):
         from helix_core.actions.serializers import ActionCreateSerializer
-        from helix_core.actions.registry import (
-            get_action_catalog,
-            get_action_model,
-        )
+        from helix_core.actions.registry import get_action_catalog
+        from helix_core.models import ActionLogEntry
 
         # ── validate input ──────────────────────────────────────────────
         serializer = ActionCreateSerializer(data=request.data)
@@ -657,8 +655,7 @@ class ActionCreateView(APIView):
         if not catalog:
             raise serializers.ValidationError(
                 f"No action model registered for workspace "
-                f"'{workspace_id}'. Did you forget to call "
-                f"register_action_model()?"
+                f"'{workspace_id}'. No Platform Action definitions are registered."
             )
 
         catalog_action_ids = {entry["id"] for entry in catalog}
@@ -674,13 +671,6 @@ class ActionCreateView(APIView):
             raise serializers.ValidationError(
                 f"Unknown action '{action}' for workspace "
                 f"'{workspace_id}'. Available action types: {available}"
-            )
-
-        # ── route to the correct mod action model ────────────────────────
-        model_class = get_action_model(workspace_id)
-        if model_class is None:
-            raise serializers.ValidationError(
-                f"No action model registered for workspace '{workspace_id}'."
             )
 
         # ── enforce Edit on content targets ───────────────────────────────
@@ -713,12 +703,20 @@ class ActionCreateView(APIView):
         request_id = validated.get("request_id", uuid.uuid4())
 
         # ── create the action row ────────────────────────────────────────
-        row = model_class.objects.create(
+        from helix_core.mod_system.registry import registry
+        manifest = registry._manifests.get(workspace_id)
+        row = ActionLogEntry.objects.create(
             performed_by=request.user,
             action=action,
             action_type=action_type,
-            target_type=target_type,
-            target_id=target_id,
+            target_model_reference=target_type,
+            target_object_id=str(target_id),
+            initiating_mod_id=workspace_id,
+        initiating_mod_version=(
+            manifest.version
+            if manifest
+            else registry._action_providers.get(workspace_id, (workspace_id, "unknown"))[1]
+        ),
             metadata=metadata,
             client_ip=client_ip,
             request_id=request_id,
@@ -779,37 +777,6 @@ class ModRegistryView(APIView):
 
         payload = registry.get_registry_payload()
         return Response(payload)
-
-    def post(self, request):
-        """Sync frontend block action IDs into the backend action catalog.
-
-        ``POST /api/mod-registry/sync-actions/`` accepts a mod ID and a
-        list of action objects (``{"id": str, "core": str}``), atomically
-        replaces all custom actions for the mod, derives human-readable
-        labels, and validates that every provided action ID exists in the
-        catalog after upsert.
-
-        Hard-fails (400) when any action IDs are missing from the catalog
-        after the sync — the frontend treats this as a boot error.
-        """
-        from helix_core.mod_system.registry import registry
-
-        mod_id = request.data.get("mod_id")
-        actions = request.data.get("actions", [])
-
-        if not mod_id:
-            return Response(
-                {"status": "error", "error": "mod_id is required"},
-                status=400,
-            )
-
-        result = registry.sync_actions(mod_id, actions)
-
-        if result["status"] == "error":
-            return Response(result, status=400)
-
-        return Response(result)
-
 
 class ColorTokenViewSet(viewsets.ModelViewSet):
     """API endpoint for managing ColorTokens.

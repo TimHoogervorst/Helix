@@ -63,13 +63,12 @@ def _seed_builtin_metrics():
 
 def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    from bundled.lims.models import Action, Entity
+    from bundled.lims.models import Entity
     from bundled.lims.services import cascade_source_status
 
     entity = mod.register_model("entity", Entity)
     result_entity = mod.register_model("result-entity", "bundled.lims.models.ResultEntity")
     mod.register_source_kind("entity", entity)
-    mod.register_action_model(Action)
     mod.register_custom_action("lims.entity.tags_attached", "Tags Attached", "edited", entity)
     mod.register_custom_action("lims.entity.tag_detached", "Tag Detached", "edited", entity)
     mod.register_urls([path("api/lims/", include("bundled.lims.urls"))])

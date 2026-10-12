@@ -48,7 +48,7 @@ class TiptapContentColumnType(ColumnType):
 def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from mods.eln.cascade import update_status_from_source
-    from mods.eln.models import ElnAction, NotebookEntry
+    from mods.eln.models import NotebookEntry
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.
@@ -56,7 +56,6 @@ def register(mod):
 
     entry = mod.register_model("entry", NotebookEntry)
     mod.register_source_kind("entry", entry)
-    mod.register_action_model(ElnAction)
 
     # ── Entry-level custom actions ───────────────────────────────────────
     # Actions used by @logs_action decorators in views.py.  Must be

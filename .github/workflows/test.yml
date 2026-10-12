@@ -32,6 +32,13 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r src/server/requirements.txt -r src/server/requirements-dev.txt
+      - name: Check migrations
+        working-directory: src/server
+        run: python manage.py makemigrations --check --dry-run
+        env:
+          DATABASE_URL: postgres://openscience:openscience@localhost:5432/openscience
+          SECRET_KEY: ci-secret-key
+          DEBUG: "true"
       - name: Run backend tests
         working-directory: src
         run: pytest -n auto

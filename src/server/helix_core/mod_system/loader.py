@@ -26,6 +26,7 @@ import re
 import sys
 from pathlib import Path
 
+from helix_core.mod_system.bundled import BUNDLED_MODS
 from helix_core.mod_system.manifest import ModManifest
 
 
@@ -86,13 +87,29 @@ def _get_all_manifests(
     """
     if helix_mods_override is not None:
         manifests = _load_manifests_from_paths(helix_mods_override)
+        id_to_path = {
+            mod_id: dotted_path
+            for dotted_path in helix_mods_override
+            for mod_id in [dotted_path.split(".")[-1]]
+        }
     else:
-        manifests = _auto_discover(base_dir)
+        manifests = _load_manifests_from_paths(BUNDLED_MODS)
+        id_to_path = {
+            mod_id: dotted_path
+            for dotted_path in BUNDLED_MODS
+            for mod_id in [dotted_path.split(".")[-1]]
+        }
 
-    # Build dotted-path mapping for core mods.
-    id_to_path: dict[str, str] = {
-        mod_id: f"mods.{mod_id}" for mod_id in manifests
-    }
+        # External mods remain open and are discovered from the mods/ folder.
+        discovered_mods = _auto_discover(base_dir)
+        for mod_id, manifest in discovered_mods.items():
+            if mod_id in manifests:
+                raise ValueError(
+                    f"Duplicate mod ID '{mod_id}': declared as a bundled mod "
+                    "and discovered in mods/."
+                )
+            manifests[mod_id] = manifest
+            id_to_path[mod_id] = f"mods.{mod_id}"
 
     # ── external mods (helix.mods.json) ──────────────────────────────────
     external_mods = _load_external_mods_from_json(base_dir)

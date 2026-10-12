@@ -8,6 +8,7 @@ import {
 } from "../ModLoader";
 import { ModRegistry } from "../ModRegistry";
 import type { ModManifest } from "../types";
+import { bundledModModules, bundledJsonManifestModules } from "../bundled";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -537,6 +538,13 @@ describe("ModLoader", () => {
     );
     const nested = await screen.findByTestId("nested");
     expect(nested).toBeInTheDocument();
+  });
+});
+
+describe("bundled mod enumeration", () => {
+  it("starts empty while remaining an explicit loading seam", () => {
+    expect(bundledModModules).toEqual({});
+    expect(bundledJsonManifestModules).toEqual({});
   });
 });
 

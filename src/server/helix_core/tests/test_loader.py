@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from helix_core.mod_system.loader import (
+    BUNDLED_MODS,
     _auto_discover,
     _get_all_manifests,
     _load_external_mods_from_json,
@@ -462,6 +463,9 @@ class TestGetHelixMods:
             "mods.users",
             "mods.eln",
         }
+
+    def test_bundled_mods_are_explicitly_empty_for_now(self):
+        assert BUNDLED_MODS == []
 
     def test_helix_mods_override(self, tmp_path):
         """When override is set, only listed mods are loaded."""

@@ -24,6 +24,7 @@ services:
     volumes:
       - ./src/server:/app
       - ./src/mods:/mods
+      - ./src/bundled:/bundled
     environment:
       DATABASE_URL: postgres://openscience:openscience@db:5432/openscience
       SECRET_KEY: dev-secret-key-change-in-production
@@ -44,6 +45,7 @@ services:
     volumes:
       - ./src/shell:/repo/src/shell
       - ./src/mods:/repo/src/mods
+      - ./src/bundled:/repo/src/bundled
       - /repo/node_modules
     environment:
       VITE_API_URL: http://backend:8000

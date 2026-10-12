@@ -44,7 +44,8 @@ function useSyncExternalStorePlugin() {
 
 /**
  * Vite plugin that redirects bare-specifier imports from mod files
- * (``src/mods/*``) to the shell's ``node_modules`` as a **last resort**.
+ * (``src/mods/*`` and ``src/bundled/*``) to the shell's ``node_modules`` as
+ * a **last resort**.
  *
  * Vite's built-in dependency resolution searches for ``node_modules``
  * starting from the importer's directory up to the filesystem root, and
@@ -64,7 +65,9 @@ function modResolutionPlugin() {
     resolveId(id: string, importer: string | undefined) {
       if (!importer) return null;
       const normalized = importer.replace(/\\/g, "/");
-      if (!normalized.includes("/mods/")) return null;
+      if (!normalized.includes("/mods/") && !normalized.includes("/bundled/")) {
+        return null;
+      }
       // Only redirect bare specifiers, not relative imports.
       if (id.startsWith(".") || id.startsWith("/") || id.startsWith("\0")) return null;
       try {
@@ -131,7 +134,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
     css: true,
-    include: ["src/**/*.{test,spec}.?(c|m)[jt]s?(x)", "../mods/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+    include: [
+      "src/**/*.{test,spec}.?(c|m)[jt]s?(x)",
+      "../mods/**/*.{test,spec}.?(c|m)[jt]s?(x)",
+      "../bundled/**/*.{test,spec}.?(c|m)[jt]s?(x)",
+    ],
     exclude: ["e2e/**", "node_modules/**"],
     coverage: {
       provider: "v8",

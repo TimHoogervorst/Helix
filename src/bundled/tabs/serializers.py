@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from helix_core.identity_migration import migrate_workspace_url
+
 from .models import PinnedWorkspace, TabFolder
 
 
@@ -27,6 +29,7 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
             "display_id",
             "label",
             "url",
+            "workspace_reference",
             "workspace",
             "created_at",
             "order",
@@ -36,12 +39,21 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
             "color",
         ]
         read_only_fields = [
-            "id", "created_at", "order", "folder", "folder_expanded", "icon", "color"
+            "id", "created_at", "order", "folder", "folder_expanded", "icon", "color",
+            "workspace_reference",
+            "workspace",
         ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._schema_cache: dict[str, object | None] = {}
+
+    def validate(self, attrs):
+        if "url" in attrs:
+            reference, canonical_url = migrate_workspace_url(attrs["url"])
+            attrs["workspace_reference"] = reference
+            attrs["url"] = canonical_url
+        return attrs
 
     def _get_schema(self, prefix: str):
         if prefix not in self._schema_cache:
@@ -73,17 +85,18 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
 
     def get_workspace(self, obj):
         """Expose typed identity; legacy stored URLs remain redirect-only."""
-        parts = [part for part in obj.url.split("?")[0].split("/") if part]
-        if len(parts) != 6 or parts[0] != "w":
+        if ":" not in obj.workspace_reference:
             return None
+        mod_id, workspace = obj.workspace_reference.split(":", 1)
+        vendor, mod = mod_id.split(".", 1)
         return {
-            "id": f"{parts[1]}.{parts[2]}:{parts[3]}",
+            "id": obj.workspace_reference,
             "kind": "workspace",
-            "modId": f"{parts[1]}.{parts[2]}",
-            "localKey": parts[3],
-            "vendor": parts[1],
-            "mod": parts[2],
-            "workspace": parts[3],
+            "modId": mod_id,
+            "localKey": workspace,
+            "vendor": vendor,
+            "mod": mod,
+            "workspace": workspace,
         }
 
 

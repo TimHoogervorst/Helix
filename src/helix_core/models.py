@@ -130,6 +130,12 @@ class SchemaType(ContentHashedModel):
 
     display_name = models.CharField(max_length=255)
     workspace_id = models.CharField(max_length=100)
+    identity = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text="Canonical Schema Type reference, e.g. 'helix.lims:entity'.",
+    )
     model = models.CharField(
         max_length=500,
         help_text="Dotted Python path to the model class, e.g. 'bundled.lims.models.Entity'.",

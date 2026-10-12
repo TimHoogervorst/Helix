@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { resolveWorkspace } from "../api";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
 import { WorkspaceReference } from "../../../shell/src/mod-system/references";
+import { migrateWorkspaceHistoryItem } from "../identityMigration";
 
 const STORAGE_KEY = "helix-workspace-history";
 const MAX_HISTORY_ITEMS = 20;
@@ -14,6 +15,7 @@ export interface WorkspaceHistoryItem {
   icon: string;
   /** Identity is retained independently of the navigable URL. */
   workspace?: WorkspaceReference;
+  workspaceReference?: string;
 }
 
 function readHistory(): WorkspaceHistoryItem[] {
@@ -31,11 +33,32 @@ function readHistory(): WorkspaceHistoryItem[] {
         typeof item.url === "string" &&
         typeof item.icon === "string",
     ).map((item) => {
-      const value = item as WorkspaceHistoryItem & { workspace?: { modId?: string; localKey?: string } };
-      return value.workspace?.modId && value.workspace.localKey
-        ? { ...item, workspace: new WorkspaceReference(value.workspace.modId, value.workspace.localKey) }
-        : item;
-    }).slice(0, MAX_HISTORY_ITEMS);
+      const value = item as WorkspaceHistoryItem & {
+        workspace?: { modId?: string; localKey?: string };
+      };
+      let migrated = value;
+      try {
+        if (!migrated.workspaceReference) {
+          migrated = migrateWorkspaceHistoryItem(migrated);
+        }
+        const [modId, localKey] = migrated.workspaceReference.split(":");
+        return {
+          ...migrated,
+          workspace: new WorkspaceReference(modId, localKey),
+        };
+      } catch {
+        if (value.workspace?.modId && value.workspace.localKey) {
+          return {
+            ...value,
+            workspace: new WorkspaceReference(
+              value.workspace.modId,
+              value.workspace.localKey,
+            ),
+          };
+        }
+        return null;
+      }
+    }).filter((item): item is WorkspaceHistoryItem => item !== null).slice(0, MAX_HISTORY_ITEMS);
   } catch {
     return [];
   }

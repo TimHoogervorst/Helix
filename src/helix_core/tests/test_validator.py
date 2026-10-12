@@ -12,6 +12,7 @@ from helix_core.mod_system.validator import (
     validate_deployment,
     ValidationFailure,
 )
+from helix_core.mod_system.validator import _satisfies
 
 
 def _manifest(**overrides):
@@ -228,6 +229,56 @@ def test_activation_scope_rejects_an_active_mod_without_its_active_dependency(tm
     assert result.exit_code == EXIT_CONTRACT_VIOLATION
     assert result.diagnostics[0].code == "DEPENDENCY_MISSING"
     assert not (tmp_path / "catalog.json").exists()
+
+
+def test_active_dependency_versions_are_checked_against_the_installed_catalog(tmp_path):
+    base = tmp_path / "base"
+    app = tmp_path / "app"
+    for package in (base, app):
+        package.mkdir()
+        (package / "__init__.py").write_text("")
+        (package / "mod.py").write_text("")
+    (base / "modManifest.json").write_text(json.dumps(_manifest(id="acme.base", version="1.5.0")))
+    (app / "modManifest.json").write_text(
+        json.dumps(
+            _manifest(
+                id="acme.app",
+                dependsOn=[{"id": "acme.base", "version": "^2.0.0"}],
+            )
+        )
+    )
+    entry_points = [
+        SimpleNamespace(name="acme.base", value="base", dist=SimpleNamespace(name="base", version="1.5.0")),
+        SimpleNamespace(name="acme.app", value="app", dist=SimpleNamespace(name="app", version="1.0.0")),
+    ]
+
+    import sys
+
+    sys.path.insert(0, str(tmp_path))
+    try:
+        result = validate_deployment(
+            tmp_path / "catalog.json",
+            bundled_paths=[],
+            external_entry_points=entry_points,
+            active_mods=["acme.app", "acme.base"],
+        )
+    finally:
+        sys.path.remove(str(tmp_path))
+
+    assert result.exit_code == EXIT_CONTRACT_VIOLATION
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "DEPENDENCY_INCOMPATIBLE"
+    ]
+
+
+def test_satisfies_uses_npm_caret_and_tilde_bounds():
+    assert _satisfies("1.9.9", "^1.2.3")
+    assert not _satisfies("2.0.0", "^1.2.3")
+    assert _satisfies("0.2.9", "^0.2.3")
+    assert not _satisfies("0.3.0", "^0.2.3")
+    assert _satisfies("0.0.4", "^0.0.3") is False
+    assert _satisfies("1.2.9", "~1.2.3")
+    assert not _satisfies("1.3.0", "~1.2.3")
 
 
 def test_activation_boundary_turns_unresolved_references_into_stable_failure():

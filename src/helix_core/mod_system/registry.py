@@ -479,69 +479,6 @@ class BackendModRegistry:
             # Registration also runs during migration discovery, before tables exist.
             pass
 
-    def sync_actions(
-        self, mod_id: str, actions: list[dict[str, str]]
-    ) -> dict[str, Any]:
-        """Atomically replace all custom actions for *mod_id*.
-
-        Receives action IDs from the frontend (derived from block emits
-        and lifecycle verbs), derives human-readable labels, and upserts
-        them into the custom actions catalog.  All existing custom actions
-        for *mod_id* are cleared first, so the catalog exactly matches
-        what the frontend sends.
-
-        Labels are auto-derived from the action ID segments (see
-        :meth:`_derive_label`).
-
-        After upsert, validates that every provided action ID exists in
-        the catalog and returns an error listing any that are missing.
-
-        Parameters:
-            mod_id: The mod that owns these actions.
-            actions: List of ``{"id": str, "core": str}`` objects.
-                ``id`` is the fully-qualified action type
-                (e.g. ``"eln.table.created"``).  ``core`` is the base
-                CRUD verb (``"created"``, ``"edited"``, or ``"deleted"``).
-
-        Returns:
-            ``{"status": "ok"}`` on success, or
-            ``{"status": "error", "missing": [...]}`` when some action
-            IDs are not found in the catalog after upsert.
-        """
-        self._custom_actions[mod_id] = {}
-
-        target_model = None
-        if mod_id in self._action_models:
-            target_model = self._derive_target_model_path(
-                self._action_models[mod_id]
-            )
-
-        for action in actions:
-            action_id = action["id"]
-            core = action.get("core", "edited")
-
-            if core not in CORE_ACTION_VERBS:
-                core = "edited"
-
-            label = self._derive_label(action_id)
-
-        self._custom_actions[mod_id][action_id] = {
-                "id": action_id,
-                "label": label,
-                "action_type": core,
-                "target_model": target_model,
-            }
-
-        # Validate: every provided action must exist in the catalog.
-        catalog = self.get_action_catalog(mod_id)
-        catalog_ids = {entry["id"] for entry in catalog}
-        missing = [a["id"] for a in actions if a["id"] not in catalog_ids]
-
-        if missing:
-            return {"status": "error", "missing": missing}
-
-        return {"status": "ok"}
-
     @staticmethod
     def _derive_label(action_id: str) -> str:
         """Derive a human-readable label from an action ID.
@@ -1037,16 +974,6 @@ class BackendModRegistry:
         known_order: dict[str, int] = {
             mod_id: i for i, mod_id in enumerate(self._mod_order)
         }
-        self._persist_action_definition(
-            mod_id,
-            action_id,
-            label,
-            core,
-            target_model,
-            provider_mod_id or mod_id,
-            provider_mod_version or "unknown",
-        )
-
         def _sort_key(item: tuple[str, list]) -> tuple[int, int, str]:
             mod_id = item[0]
             if mod_id in known_order:

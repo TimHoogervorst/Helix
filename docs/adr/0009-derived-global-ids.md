@@ -116,7 +116,7 @@ Same `BlockEvent` shape on the bus. The block never sees them.
 
 ### 5. Action catalog sync
 
-Frontend sends `POST /api/mod-registry/sync-actions/` at boot with all block `emits` entries. Backend upserts the catalog using the shared derivation rule (`mod.name + "." + blockName + "." + eventId`). No hand-written action catalog in `mod.py`. Boot validation hard-fails on mismatches.
+The backend owns the action catalog through Mod registration. Frontend block action IDs are resolved against the hydrated backend catalog; there is no runtime frontend-to-backend catalog synchronization.
 
 ### 6. Bus events use `BlockEvent` as the payload shape
 
@@ -171,7 +171,7 @@ Becomes internal infrastructure. `Mod` delegates storage to it internally. Mods 
 ModLoader globs modManifest.json → topological sort by dependsOn
   → Import index.ts in order (module-scope registrations fire)
   → Call register() for lazy-loaded routes/settings sections
-  → POST /api/mod-registry/sync-actions/ → backend hydrates action catalog
+  → backend hydrates the authoritative action catalog
   → Boot validation: frontend action IDs checked against catalog → hard-fail on mismatch
   → App renders
 ```
@@ -218,7 +218,7 @@ Declaration and emission share the same shape. The class owns id, category, core
 
 ### Constraints
 
-- **Boot sequence depends on backend.** The `POST /api/mod-registry/sync-actions/` endpoint must be available before the frontend completes boot. This is already the case in the Docker startup flow.
+- **Boot sequence depends on backend.** The backend action catalog must be available before the frontend completes boot.
 - **Cross-mod coupling is runtime, not compile-time.** `mod.resolveSlot("helix.eln", "editor")` returns `SlotHandle | undefined` — callers must null-check. This is the same trade-off VS Code made.
 - **Migration is all-at-once.** ~15 files change in one PR. No legacy path, no dual-path transition window.
 
@@ -227,4 +227,4 @@ Declaration and emission share the same shape. The class owns id, category, core
 - **External mod SDK.** The `Mod` class and `BlockEvent` are the foundation. External mods get them via `import { Mod, BlockEvent } from "@helix/sdk"`.
 - **`tags` on `BlockEvent`.** Reserved for listen-by-tag: `bus.onTag("audit", handler)`.
 - **Backend auto-generation of lifecycle entries.** Currently the backend catalog must still list `created|edited|deleted` for each block. A future improvement: the backend auto-generates lifecycle entries for every block it receives in the sync payload.
-- **Non-block action sources.** `mod.py` `register_action_model()` still exists for backend-originated actions (e.g., `"eln.entry.created"` from Django model operations). Block-originated actions flow through `emits` → sync-actions.
+- **Non-block action sources.** `mod.py` `register_action_model()` remains the backend-owned source for action definitions, including model-originated and block-related actions.

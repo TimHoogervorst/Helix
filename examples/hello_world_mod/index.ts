@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
-import type { Mod } from "@helix/mod-api";
+import { Button, type Mod } from "@helix/mod-api";
 
 const HelloWorkspace: ComponentType = () => <main><h1>Hello World Workspace</h1></main>;
 
@@ -39,7 +39,7 @@ const HelloBlock: ComponentType<any> = () => {
     setCreated(entity.id);
   }
 
-  return <article><p>{greeting}</p><button onClick={createEntity}>Create Hello World Entity</button>{created && <p>Created {created}</p>}</article>;
+  return <article><p>{greeting}</p><Button variant="primary" size="sm" onClick={createEntity}>Create Hello World Entity</Button>{created && <p>Created {created}</p>}</article>;
 };
 
 export function register(mod: Mod) {

@@ -253,6 +253,13 @@ class TestURLRegistration:
         result = reg.get_url_patterns()
         assert list(result.keys()) == ["tags", "core", "mentions"]
 
+    def test_get_url_patterns_does_not_persist_action_definitions(self):
+        reg = _fresh_registry()
+        patterns = [path("api/test/", _dummy_view)]
+        reg.register_urls("test", patterns)
+
+        assert reg.get_url_patterns() == {"test": patterns}
+
 
 
 
@@ -1597,7 +1604,9 @@ class TestDeriveLabel:
         )
 
 
-# ── sync_actions ────────────────────────────────────────────────────────────
+'''
+Removed: frontend action catalogs are backend-owned and are not synchronized
+at runtime.
 
 
 class TestSyncActions:
@@ -1839,3 +1848,4 @@ class TestSyncActions:
             if a["id"] not in ("read", "created", "edited", "deleted")
         ]
         assert sorted(custom_ids) == ["eln.table.created", "eln.table.edited"]
+'''

@@ -39,9 +39,4 @@ urlpatterns = [
     path("mod-registry/", ModRegistryView.as_view(), name="mod-registry"),
     path("mod-boot/", ModBootView.as_view(), name="mod-boot"),
     path("mod-lifecycle/", ModLifecycleView.as_view(), name="mod-lifecycle"),
-    path(
-        "mod-registry/sync-actions/",
-        ModRegistryView.as_view(),
-        name="mod-registry-sync-actions",
-    ),
 ]

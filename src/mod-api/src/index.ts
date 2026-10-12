@@ -6,6 +6,7 @@
  * registrar to each mod's `register(mod)` function during boot.
  */
 export type { Mod } from "../../shell/src/mod-system/Mod";
+export { Button } from "../../shell/src/shared/primitives/Button";
 export {
   registrationId,
   ModelReference,

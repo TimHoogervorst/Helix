@@ -91,3 +91,30 @@ def test_catalog_rejects_a_catalog_for_another_installation():
 
     with pytest.raises(ValueError, match="fingerprint"):
         validate_catalog(catalog, expected_fingerprint="different")
+
+
+def test_catalog_discovers_frontend_only_package_metadata_without_importing_it(tmp_path):
+    package = tmp_path / "frontend_mod"
+    package.mkdir()
+    (package / "modManifest.json").write_text(
+        json.dumps(
+            {
+                "id": "acme.frontend",
+                "displayName": "Frontend",
+                "version": "1.0.0",
+                "requiresHelix": ">=1.0.0",
+                "artifacts": ["frontend"],
+                "dependsOn": [],
+            }
+        )
+    )
+    (package / "package.json").write_text(
+        json.dumps({"name": "@acme/frontend", "version": "1.0.0", "helix": {"importSpecifier": "@acme/frontend"}})
+    )
+    (package / "index.ts").write_text("throw new Error('must not execute')")
+
+    catalog = build_catalog(bundled_paths=[], external_entry_points=[], frontend_package_paths=[package])
+
+    record = catalog["mods"][0]
+    assert record["manifest"]["id"] == "acme.frontend"
+    assert record["artifacts"]["frontend"]["frontendImportSpecifier"] == "@acme/frontend"

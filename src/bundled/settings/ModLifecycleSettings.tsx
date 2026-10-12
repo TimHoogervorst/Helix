@@ -66,22 +66,22 @@ function ModLifecycleSettings() {
         />
       }
     >
-      {error && <p className="mb-4 text-sm text-[var(--color-destructive)]">{error}</p>}
+      {error && <p className="mb-4 text-sm text-[var(--color-destructive-foreground)]">{error}</p>}
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading installed Mods…</p>
+        <p className="text-sm text-[var(--color-ink-muted-foreground)]">Loading installed Mods…</p>
       ) : mods.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No External Mods are installed.</p>
+        <p className="text-sm text-[var(--color-ink-muted-foreground)]">No External Mods are installed.</p>
       ) : (
         <div className="space-y-4">
           {mods.map((mod) => (
             <SettingsSectionCard key={mod.id} title={mod.displayName} subtitle={mod.id}>
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="space-y-1 text-xs text-muted-foreground">
+                <div className="space-y-1 text-xs text-[var(--color-ink-muted-foreground)]">
                   <p>Version {mod.version} · Helix {mod.requiresHelix}</p>
                   <p>Artifacts: {mod.artifacts.join(", ")}</p>
                   <p>Dependencies: {mod.dependsOn.map((dependency) => dependency.id).join(", ") || "none"}</p>
                   <p>Current: {mod.state} · Desired: {mod.desiredState}</p>
-                  {mod.restartRequired && <p className="text-[var(--color-warning)]">Restart required</p>}
+                  {mod.restartRequired && <p className="text-[var(--color-warning-foreground)]">Restart required</p>}
                 </div>
                 <Button
                   variant={mod.desiredState === "active" ? "ghost" : "primary"}

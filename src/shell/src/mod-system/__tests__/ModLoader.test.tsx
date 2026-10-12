@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseJsonManifest, topologicalSort, type ModModule } from "../ModLoader";
+import { manifestForModule, parseJsonManifest, topologicalSort, type ModModule } from "../ModLoader";
 
 const manifest = (id: string, dependsOn: { id: string; version: string }[] = []) => ({
   id,
@@ -27,5 +27,14 @@ describe("strict Mod manifest loading", () => {
     const a: ModModule = { meta: manifest("acme.a", [{ id: "acme.b", version: "^1.0.0" }]), register: () => {} };
     const b: ModModule = { meta: manifest("acme.b"), register: () => {} };
     expect(topologicalSort([a, b]).map((mod) => mod.meta!.id)).toEqual(["acme.b", "acme.a"]);
+  });
+
+  it("maps compiled package entrypoints to their package manifest", () => {
+    const entry = { manifest: manifest("acme.frontend"), path: "pkg/modManifest.json" };
+    const manifests = new Map([[entry.path, entry]]);
+
+    expect(manifestForModule("pkg/dist/index.js", manifests)?.manifest.id).toBe(
+      "acme.frontend",
+    );
   });
 });

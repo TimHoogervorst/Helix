@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { BlockEvent } from "../BlockEvent";
 import { ModRegistry } from "../ModRegistry";
 import type {
   HubConfig,
@@ -1408,7 +1407,8 @@ describe("ModRegistry", () => {
     });
   });
 
-  // ── syncActions ──────────────────────────────────────────────────────
+  /* Removed: frontend action catalogs are backend-owned. The catalog is
+     hydrated from ModRegistry API data and is never synchronized at runtime.
 
   describe("syncActions", () => {
     let registry: ModRegistry;
@@ -1782,5 +1782,5 @@ describe("ModRegistry", () => {
 
       await syncPromise;
     });
+  */
   });
-});

@@ -27,7 +27,6 @@ The public backend SDK is rooted at `helix_core`. The entries below are derived 
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_schema_type(self, *, display_name: str, workspace_id: str, model: str, columns: list[dict[str, Any]] | None=None, tags: list[str] | None=None, prefix: str, schema_name: str='Default', icon: str='', color: str='')`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_action_model(self, mod_id: str, model_class: type)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_custom_action(self, mod_id: str, action_id: str, label: str, core: str, target_model: str)`
-- `src/helix_core/mod_system/registry.py`: `BackendModRegistry.sync_actions(self, mod_id: str, actions: list[dict[str, str]])`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.get_action_catalog(self, mod_id: str)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.validate_action(self, action: str)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_urls(self, mod_id: str, url_patterns: list)`

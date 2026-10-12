@@ -27,6 +27,7 @@ def build_catalog(
     *,
     bundled_paths: Iterable[str],
     external_entry_points: Iterable[Any] | None = None,
+    frontend_package_paths: Iterable[str | Path] | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic catalog for bundled and installed Mods.
 
@@ -37,6 +38,7 @@ def build_catalog(
     """
     records: list[dict[str, Any]] = []
     seen: set[str] = set()
+    discover_installed_frontend = external_entry_points is None
 
     for dotted_path in sorted(bundled_paths):
         record = _record_from_package(
@@ -57,6 +59,22 @@ def build_catalog(
             tier="External",
             distribution=getattr(entry_point, "dist", None),
             expected_id=entry_point.name,
+        )
+        _add_record(records, seen, record)
+
+    if frontend_package_paths is None:
+        frontend_package_paths = (
+            _discover_frontend_package_paths()
+            if discover_installed_frontend
+            else []
+        )
+    for package_path in sorted((Path(path) for path in frontend_package_paths), key=str):
+        record = _record_from_directory(
+            package_dir=package_path,
+            package_name=_package_metadata(package_path).get("name", package_path.name),
+            locator=_package_metadata(package_path).get("name", package_path.name),
+            tier="External",
+            distribution=None,
         )
         _add_record(records, seen, record)
 
@@ -165,6 +183,25 @@ def _record_from_package(
     expected_id: str | None = None,
 ) -> dict[str, Any]:
     package_dir = _package_directory(package_name, distribution)
+    return _record_from_directory(
+        package_dir=package_dir,
+        package_name=package_name,
+        locator=locator,
+        tier=tier,
+        distribution=distribution,
+        expected_id=expected_id,
+    )
+
+
+def _record_from_directory(
+    *,
+    package_dir: Path,
+    package_name: str,
+    locator: str,
+    tier: str,
+    distribution: Any | None,
+    expected_id: str | None = None,
+) -> dict[str, Any]:
     manifest_path = package_dir / "modManifest.json"
     if not manifest_path.is_file():
         raise ValueError(f"Mod package '{package_name}' has no modManifest.json.")
@@ -233,6 +270,23 @@ def _package_directory(package_name: str, distribution: Any | None) -> Path:
                 if candidate.is_dir():
                     return candidate
     raise ImportError(f"Could not locate installed Mod package '{package_name}'.")
+
+
+def _discover_frontend_package_paths() -> list[Path]:
+    roots = [Path.cwd() / "node_modules"]
+    configured = os.environ.get("HELIX_NODE_MODULES")
+    if configured:
+        roots.insert(0, Path(configured))
+    packages: list[Path] = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for manifest in root.rglob("modManifest.json"):
+            package_dir = manifest.parent
+            metadata = _package_metadata(package_dir)
+            if isinstance(metadata.get("helix"), dict) and metadata["helix"].get("importSpecifier"):
+                packages.append(package_dir)
+    return packages
 
 
 def _package_metadata(package_dir: Path) -> dict[str, Any]:
@@ -308,7 +362,13 @@ def _fingerprint(payload: dict[str, Any]) -> str:
 def _add_record(records: list[dict[str, Any]], seen: set[str], record: dict[str, Any]) -> None:
     mod_id = record["manifest"]["id"]
     if mod_id in seen:
-        raise ValueError(f"Duplicate Mod ID '{mod_id}' in installation.")
+        existing = next(item for item in records if item["manifest"]["id"] == mod_id)
+        overlap = set(existing["artifacts"]) & set(record["artifacts"])
+        if overlap:
+            raise ValueError(f"Duplicate Mod ID '{mod_id}' in installation.")
+        existing["artifacts"].update(record["artifacts"])
+        existing["manifest"]["artifacts"] = sorted(existing["artifacts"])
+        return
     seen.add(mod_id)
     records.append(record)
     records.sort(key=lambda item: item["manifest"]["id"])

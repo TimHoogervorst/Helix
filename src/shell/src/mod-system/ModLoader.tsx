@@ -139,7 +139,7 @@ async function loadActiveModModules(
   const activeSet = new Set(activeIds);
   for (const [specifier, load] of Object.entries(externalModLoaders)) {
     const modId = manifestForModule(specifier, manifests)?.manifest.id;
-    if (modId && activeSet.has(modId)) {
+    if (modId && activeSet.has(modId) && manifestForModule(specifier, manifests)?.manifest.artifacts.includes("frontend")) {
       modules[specifier] = await load();
     }
   }
@@ -251,12 +251,17 @@ async function hydrateRegistryFromApi(
   ModRegistry.getInstance().hydrateFromBackend(bootData.registry, manifests);
 }
 
-function manifestForModule(
+export function manifestForModule(
   modulePath: string,
   manifests: Map<string, { manifest: ModManifest; path: string }>,
 ): { manifest: ModManifest; path: string } | undefined {
+  const packageRoot = modulePath.replace(
+    /\/(?:dist\/)?index\.(?:js|jsx|ts|tsx)$/,
+    "",
+  );
   return manifests.get(modulePath)
     ?? manifests.get(modulePath.replace(/\/index\.ts$/, "/modManifest.json"))
+    ?? manifests.get(`${packageRoot}/modManifest.json`)
     ?? manifests.get(`${modulePath}/manifest`);
 }
 

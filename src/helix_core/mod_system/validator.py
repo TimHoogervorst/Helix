@@ -152,6 +152,7 @@ def validate_deployment(
         diagnostics = _validate_catalog_dependencies(catalog)
         diagnostics.extend(_validate_catalog_imports(catalog))
         diagnostics.extend(_validate_active_mods(catalog, active_mods))
+        diagnostics = list({(diagnostic.code, diagnostic.message): diagnostic for diagnostic in diagnostics}.values())
         if diagnostics:
             return ValidationResult(tuple(diagnostics))
         write_catalog(output, catalog)
@@ -269,16 +270,27 @@ def _validate_active_mods(
                         f"Active Mod '{mod_id}' requires active Mod '{dependency['id']}'.",
                     )
                 )
+            elif not _satisfies(
+                by_id[dependency["id"]]["version"], dependency["version"]
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        "DEPENDENCY_INCOMPATIBLE",
+                        "error",
+                        f"Mod '{mod_id}' requires '{dependency['id']}' "
+                        f"{dependency['version']}, found {by_id[dependency['id']]['version']}.",
+                    )
+                )
     return diagnostics
 
 
 def _satisfies(version: str, requirement: str) -> bool:
-    """Cover the npm range forms accepted by the existing manifest grammar."""
+    """Evaluate the npm range forms accepted by the manifest contract."""
     from .manifest import _compare, _version
 
     actual = _version(version)
     for alternative in requirement.split("||"):
-        matched = True
+        comparators: list[tuple[str, tuple[int, int, int, tuple[str, ...]]]] = []
         for token in alternative.strip().split():
             if token in {"*", "x", "X"}:
                 continue
@@ -288,24 +300,53 @@ def _satisfies(version: str, requirement: str) -> bool:
                     operator, token = candidate, token[len(candidate):]
                     break
             parts = token.split(".")
-            if any(part.lower() in {"x", "*"} for part in parts):
-                expected = _version(".".join((parts + ["0", "0"])[:3]))
-                matched = matched and actual[: len(parts)] == expected[: len(parts)]
-                continue
-            expected = _version(token if len(parts) == 3 else ".".join((parts + ["0", "0"])[:3]))
-            comparison = _compare(actual, expected)
-            matched = matched and {
-                "=": comparison == 0,
-                ">=": comparison >= 0,
-                "<=": comparison <= 0,
-                ">": comparison > 0,
-                "<": comparison < 0,
-                "^": actual[0] == expected[0] and comparison >= 0,
-                "~": actual[:2] == expected[:2] and comparison >= 0,
-            }[operator]
-        if matched:
+            numeric_parts = [part for part in parts if part.lower() not in {"x", "*"}]
+            if not numeric_parts or len(numeric_parts) > 3:
+                return False
+            expected = _version(".".join((numeric_parts + ["0", "0"])[:3]))
+            if operator == "^":
+                upper = _caret_upper_bound(expected, len(numeric_parts))
+                comparators.extend(((">=", expected), ("<", upper)))
+            elif operator == "~":
+                upper = (expected[0], expected[1] + 1, 0, ())
+                comparators.extend(((">=", expected), ("<", upper)))
+            elif operator == "=" and len(numeric_parts) < 3:
+                upper = _partial_upper_bound(expected, len(numeric_parts))
+                comparators.extend(((">=", expected), ("<", upper)))
+            else:
+                comparators.append((operator, expected))
+        if _range_matches(actual, comparators, _compare):
             return True
     return False
+
+
+def _caret_upper_bound(version: tuple[int, int, int, tuple[str, ...]], parts: int):
+    major, minor, patch, _ = version
+    if major > 0:
+        return major + 1, 0, 0, ()
+    if parts == 1:
+        return 1, 0, 0, ()
+    if minor > 0 or parts == 2:
+        return 0, minor + 1, 0, ()
+    return 0, 0, patch + 1, ()
+
+
+def _partial_upper_bound(version, parts: int):
+    if parts == 1:
+        return version[0] + 1, 0, 0, ()
+    return version[0], version[1] + 1, 0, ()
+
+
+def _range_matches(actual, comparators, compare) -> bool:
+    if actual[3] and not any(expected[3] and actual[:3] == expected[:3] for _, expected in comparators):
+        return False
+    return all({
+        ">=": compare(actual, expected) >= 0,
+        "<=": compare(actual, expected) <= 0,
+        ">": compare(actual, expected) > 0,
+        "<": compare(actual, expected) < 0,
+        "=": compare(actual, expected) == 0,
+    }[operator] for operator, expected in comparators)
 
 
 def _manifest_code(message: str, raw: Any | None = None) -> str:

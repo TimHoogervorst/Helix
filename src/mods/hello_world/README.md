@@ -14,7 +14,7 @@ python -m build
 ```
 
 The backend distribution advertises the `helix.mods` entry point
-`example.helloworld = hello_world_mod`. The frontend distribution exports the
+`example.helloworld = mods.hello_world`. The frontend distribution exports the
 compiled `register(mod)` entry point as `@example/hello-world-mod`.
 
 The example demonstrates a workspace, Slot, Block, namespaced route, Service,

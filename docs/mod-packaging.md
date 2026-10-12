@@ -57,5 +57,5 @@ are derived from the source files currently present. Run the documentation check
 after changing the schema, public exports, loader, registry, or validator.
 
 The permanent hello-world golden fixture lives at
-[`examples/hello_world_mod`](../examples/hello_world_mod). It is the canonical
+[`src/mods/hello_world`](../src/mods/hello_world). It is the canonical
 tutorial and the smallest dual-artifact package used by the contract tests.

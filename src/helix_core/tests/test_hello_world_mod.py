@@ -7,7 +7,7 @@ from helix_core.mod_system.catalog import build_catalog
 from helix_core.mod_system.validator import validate_author, validate_deployment
 
 
-FIXTURE = Path(__file__).parents[3] / "examples" / "hello_world_mod"
+FIXTURE = Path(__file__).parents[3] / "src" / "mods" / "hello_world"
 
 
 def test_hello_world_mod_is_a_valid_dual_artifact_source_repository():
@@ -39,18 +39,18 @@ def test_hello_world_mod_catalog_is_discovered_from_its_backend_entry_point(
         (),
         {
             "name": "example.helloworld",
-            "value": "hello_world_mod",
+            "value": "mods.hello_world",
             "dist": Distribution(),
         },
     )()
-    monkeypatch.syspath_prepend(str(FIXTURE.parent))
+    monkeypatch.syspath_prepend(str(FIXTURE.parents[1]))
 
     catalog = build_catalog(bundled_paths=[], external_entry_points=[entry_point])
 
     record = catalog["mods"][0]
     assert record["tier"] == "External"
     assert record["manifest"]["id"] == "example.helloworld"
-    assert record["artifacts"]["backend"]["locator"] == "hello_world_mod"
+    assert record["artifacts"]["backend"]["locator"] == "mods.hello_world"
     assert (
         record["artifacts"]["frontend"]["frontendImportSpecifier"]
         == "@example/hello-world-mod"

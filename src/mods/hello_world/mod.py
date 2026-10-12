@@ -35,7 +35,7 @@ def register(mod: ModRegistrar) -> None:
         [
             path(
                 "api/mods/example/helloworld/",
-                include("hello_world_mod.urls"),
+                include("mods.hello_world.urls"),
             ),
             path("api/mods/example/helloworld/greeting/", service_greeting),
         ]

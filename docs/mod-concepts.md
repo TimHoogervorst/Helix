@@ -44,4 +44,4 @@ validates the persisted graph again before registration.
 
 The **hello-world repository** described in [External Mod Contract #615](https://github.com/TimHoogervorst/Helix/issues/615)
 is the canonical tutorial and golden integration example at
-[`examples/hello_world_mod`](../examples/hello_world_mod).
+[`src/mods/hello_world`](../src/mods/hello_world).

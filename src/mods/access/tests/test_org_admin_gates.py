@@ -1,8 +1,8 @@
 """HTTP authorization tests for organization-admin-only operations."""
 
-from core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BaseTestCase
 from mods.access.models import Organization, OrganizationMembership, OrganizationRole
-from core.models import User
+from helix_core.core.models import User
 
 
 class OrganizationAdminGateTests(BaseTestCase):

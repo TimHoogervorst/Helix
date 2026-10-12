@@ -2,8 +2,8 @@
 
 from rest_framework.test import APIClient
 
-from core.models import User
-from core.tests.base import BaseTestCase
+from helix_core.core.models import User
+from helix_core.core.tests.base import BaseTestCase
 from mods.access.models import (
     Organization,
     OrganizationMembership,

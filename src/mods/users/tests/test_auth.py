@@ -4,7 +4,7 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import CoreSetting, User
+from helix_core.core.models import CoreSetting, User
 
 
 class LoginRateLimitTests(TestCase):

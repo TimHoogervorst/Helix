@@ -1,7 +1,7 @@
 """Tests for profile API endpoints and registration with email."""
 
-from core.models import CoreSetting, User
-from core.tests.base import BaseTestCase
+from helix_core.core.models import CoreSetting, User
+from helix_core.core.tests.base import BaseTestCase
 from mods.access.models import (
     Organization,
     OrganizationMembership,

@@ -1,9 +1,9 @@
 """
 Tests for the Library API endpoints — project-scoped contents.
 """
-from core.models import Folder, Project
-from core.tests.base import BaseTestCase
-from core.tests.factories import EMPTY_DOC
+from helix_core.core.models import Folder, Project
+from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.factories import EMPTY_DOC
 from mods.eln.models import NotebookEntry
 from mods.tags.models import Tag
 from mods.access.models import Grant, ProjectRole, Organization, OrganizationMembership, OrganizationRole, FolderShare, ShareLevel

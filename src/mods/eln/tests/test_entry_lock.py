@@ -9,8 +9,8 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project, User
-from core.tests.base import BaseTestCase
+from helix_core.core.models import Folder, Project, User
+from helix_core.core.tests.base import BaseTestCase
 from mods.access.models import (
     FolderShare,
     Grant,
@@ -133,7 +133,7 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
 
     @staticmethod
     def _create_second_user():
-        from core.models import User
+        from helix_core.core.models import User
 
         return User.objects.create_user(
             username="other_user",

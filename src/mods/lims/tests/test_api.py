@@ -8,8 +8,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import Project, User
-from core.tests.base import BaseTestCase
+from helix_core.core.models import Project, User
+from helix_core.core.tests.base import BaseTestCase
 from helix_core.models import SchemaType, Schema
 from mods.lims.models import Action as LimsAction, Entity, LimsView, Metric
 
@@ -585,7 +585,7 @@ class ActionViewSetRegressionTests(BaseTestCase):
         self.assertEqual(row["target_id"], entity.pk)
 
     def test_generic_target_visibility_is_preserved(self):
-        from core.models import Folder, Project
+        from helix_core.core.models import Folder, Project
 
         hidden_project = Project.objects.create(name="Hidden Project")
         hidden_folder = Folder.objects.create(

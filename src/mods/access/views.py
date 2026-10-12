@@ -7,7 +7,7 @@ from rest_framework import status, views
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.models import Folder, Project
+from helix_core.core.models import Folder, Project
 from helix_core.actions.logger import log_action
 
 from .models import FolderShare, Grant, Organization, OrganizationMembership, Team
@@ -273,7 +273,7 @@ class TeamMemberAddView(views.APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user_id = serializer.validated_data["user_id"]
         try:
-            from core.models import User
+            from helix_core.core.models import User
             user = User.objects.get(pk=user_id, is_active=True)
         except User.DoesNotExist:
             return Response(

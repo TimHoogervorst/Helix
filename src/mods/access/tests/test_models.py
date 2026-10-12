@@ -4,7 +4,7 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from core.models import User
+from helix_core.core.models import User
 from mods.access.models import (
     Organization,
     OrganizationMembership,

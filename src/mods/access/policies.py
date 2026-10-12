@@ -294,7 +294,7 @@ def accessible_project_ids(user):
     """
     from django.db.models import Q
 
-    from core.models import Project
+    from helix_core.core.models import Project
     from .models import Grant, OrganizationMembership, OrganizationRole
 
     if user is None or not user.is_authenticated:
@@ -527,7 +527,7 @@ def _effective_project_role(user, resource=None, via_project=None):
 
 def _is_resource_the_shared_folder(resource, share) -> bool:
     """Return True if *resource* is the shared source Folder itself."""
-    from core.models import Folder
+    from helix_core.core.models import Folder
 
     if not isinstance(resource, Folder):
         return False
@@ -580,7 +580,7 @@ def _find_folder_share(resource, via_project):
 
 def _source_path_contains_folder(resource, folder_id):
     """Return whether *resource* is the folder or lies in its source subtree."""
-    from core.models import Folder
+    from helix_core.core.models import Folder
 
     if isinstance(resource, Folder) and resource.id == folder_id:
         return True

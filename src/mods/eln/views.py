@@ -218,10 +218,10 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
             from mods.access.policies import effective_role
-            from core.models import Project
+            from helix_core.core.models import Project
 
             if validated_data.get("source_type") is None:
-                from core.models import Folder
+                from helix_core.core.models import Folder
                 new_source = instance.project if validated_data.get("source_id") is None else Folder.objects.get(pk=validated_data["source_id"])
             else:
                 new_source = instance.resolve_source(

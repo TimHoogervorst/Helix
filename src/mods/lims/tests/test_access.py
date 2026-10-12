@@ -11,8 +11,8 @@ from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project, User
-from core.tests.base import BaseTestCase
+from helix_core.core.models import Folder, Project, User
+from helix_core.core.tests.base import BaseTestCase
 from helix_core.models import Schema, SchemaType
 from mods.access.models import (
     FolderShare,

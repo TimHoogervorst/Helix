@@ -5,7 +5,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from unittest.mock import patch
 
-from core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BaseTestCase
 from mods.dropdowns.models import Dropdown
 from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 

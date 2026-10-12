@@ -6,7 +6,7 @@ from helix_core.column_types import registry as column_type_registry
 from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
 from .models import Entity, Action, LimsView, Metric
-from core.models import Project
+from helix_core.core.models import Project
 from mods.tags.serializers import TagSerializer
 from mods.users.serializers import UserSerializer
 

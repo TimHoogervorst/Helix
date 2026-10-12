@@ -40,7 +40,7 @@ def _seed_global_cards():
     the seeded View name) rather than hardcoding IDs.  Idempotent via
     get_or_create.
     """
-    from core.models import User
+    from helix_core.core.models import User
     from mods.lims.models import LimsView, Metric
     from .models import Card
 

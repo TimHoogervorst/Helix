@@ -5,7 +5,7 @@ Exercises full CRUD, validation, soft-delete, and is_active filtering.
 """
 from unittest.mock import patch
 
-from core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BaseTestCase
 from mods.eln.models import Protocol
 from mods.access.models import Organization, OrganizationMembership, OrganizationRole
 

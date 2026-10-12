@@ -3,7 +3,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.models import Folder, Project
+from helix_core.core.models import Folder, Project
 from mods.access.tests.factories import make_org, make_user
 
 

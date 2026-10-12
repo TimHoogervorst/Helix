@@ -10,7 +10,7 @@ must never call ``OrganizationMembership.objects.create()`` directly (that
 collides on the OneToOne UNIQUE). ``update_or_create`` converges instead.
 """
 
-from core.models import Folder, Project, User
+from helix_core.core.models import Folder, Project, User
 from mods.access.models import (
     Organization,
     OrganizationMembership,

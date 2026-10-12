@@ -6,7 +6,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from core.models import User
+from helix_core.core.models import User
 
 from mods.access.models import OrganizationMembership
 from .models import Affiliation, Publication, Recognition

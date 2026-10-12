@@ -8,10 +8,10 @@ from django.contrib.contenttypes.models import ContentType
 
 from rest_framework.test import APIClient
 
-from core.tests.base import BaseTestCase
-from core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from core.mentions.models import Mention
-from core.models import Folder, Project, User
+from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.factories import EMPTY_DOC, make_doc_with_ref
+from helix_core.mentions.models import Mention
+from helix_core.core.models import Folder, Project, User
 from mods.eln.models import NotebookEntry, ElnAction, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 
@@ -228,7 +228,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
                 schema=self.schema
         )
         # Manually sync since the creation through ORM doesn't go through the view.
-        from core.mentions.sync import sync_mentions
+        from helix_core.mentions.sync import sync_mentions
         sync_mentions(entry, doc_with_ref)
         self.assertEqual(Mention.objects.count(), 1)
 

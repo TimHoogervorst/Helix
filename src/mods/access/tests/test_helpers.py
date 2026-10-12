@@ -3,7 +3,7 @@
 from django.contrib.auth.models import Group
 from django.test import TestCase
 
-from core.models import Folder, User
+from helix_core.core.models import Folder, User
 from helix_core.models import Schema, SchemaType
 from mods.access.models import (
     FolderShare,

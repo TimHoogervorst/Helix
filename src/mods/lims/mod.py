@@ -11,7 +11,7 @@ def _seed_builtin_metrics():
     with status ``in_progress``, plus a ``Count`` Metric on each.  Uses
     ``get_or_create`` so repeated calls on boot are safe.
     """
-    from core.models import User
+    from helix_core.core.models import User
     from mods.lims.models import LimsView, Metric
 
     admin = User.objects.filter(is_superuser=True, is_active=True).first()

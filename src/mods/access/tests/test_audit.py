@@ -14,7 +14,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Project
+from helix_core.core.models import Project
 from mods.access.models import (
     FolderShare,
     Grant,

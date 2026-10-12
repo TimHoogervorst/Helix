@@ -6,7 +6,7 @@ Tracer bullet: Entity auto-generates display_id from its Schema prefix.
 from django.test import TestCase
 from django.db.utils import IntegrityError
 
-from core.tests.base import BaseServiceTestCase
+from helix_core.core.tests.base import BaseServiceTestCase
 from helix_core.models import SchemaType, Schema
 from mods.eln.models import NotebookEntry
 from mods.lims.models import Entity

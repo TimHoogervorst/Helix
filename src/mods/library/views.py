@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
-from core.models import Folder, Project
+from helix_core.core.models import Folder, Project
 from mods.access.policies import role as get_role
 from mods.access.policies import effective_role
 from mods.access.scoping import visible_folders_q, visible_rows_q

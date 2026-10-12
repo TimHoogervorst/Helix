@@ -23,6 +23,7 @@ services:
       - "8000:8000"
     volumes:
       - ./src/server:/app
+      - ./src/helix_core:/app/helix_core
       - ./src/mods:/mods
       - ./src/bundled:/bundled
     environment:

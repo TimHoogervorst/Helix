@@ -40,12 +40,11 @@ INSTALLED_APPS = [
     "django_filters",
     # Helix platform
     "helix_core",
-    "core",
-    "users",
+    "helix_core.core",
     # Helix mods — auto-discovered from mods/*/mod.py (or overridden
     # via HELIX_MODS above).  Returned in dependency order.
     *get_helix_mods(base_dir=BASE_DIR, helix_mods_override=HELIX_MODS),
-    "core.mentions",
+    "helix_core.mentions",
 ]
 
 MIDDLEWARE = [

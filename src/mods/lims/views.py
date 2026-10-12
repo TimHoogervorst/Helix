@@ -25,7 +25,7 @@ from .serializers import (
     LimsViewSerializer,
     MetricSerializer,
 )
-from core.models import Project
+from helix_core.core.models import Project
 
 logger = logging.getLogger(__name__)
 

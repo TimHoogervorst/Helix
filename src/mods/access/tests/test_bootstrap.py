@@ -8,7 +8,7 @@ from mods.access.models import (
     OrganizationRole,
     Team,
 )
-from core.models import Project, User
+from helix_core.core.models import Project, User
 from mods.access.tests.factories import ensure_membership
 
 

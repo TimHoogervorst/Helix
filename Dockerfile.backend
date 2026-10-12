@@ -11,6 +11,7 @@ COPY src/server/requirements.txt src/server/requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
 COPY src/server/ .
+COPY src/helix_core/ /app/helix_core/
 COPY src/mods/ /mods/
 COPY src/bundled/ /bundled/
 

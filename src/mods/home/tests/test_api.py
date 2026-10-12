@@ -1,7 +1,7 @@
 """Tests for the Metric Card API endpoints in the home mod."""
 
-from core.models import User
-from core.tests.base import BaseTestCase
+from helix_core.core.models import User
+from helix_core.core.tests.base import BaseTestCase
 from mods.home.models import Card
 from mods.lims.models import LimsView, Metric
 
@@ -470,7 +470,7 @@ class CardSeedTests(BaseTestCase):
 
     def test_seed_safe_when_no_admin(self):
         """Seed does not raise when no admin user exists (DB-unavailable-safe)."""
-        from core.models import User
+        from helix_core.core.models import User
         from mods.home.mod import _seed_global_cards
 
         User.objects.filter(is_superuser=True).update(is_active=False)

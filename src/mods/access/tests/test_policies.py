@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Folder, User
+from helix_core.core.models import Folder, User
 from mods.access.models import (
     Grant,
     OrganizationMembership,

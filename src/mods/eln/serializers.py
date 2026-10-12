@@ -2,13 +2,13 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from core.models import Folder, Project, User
+from helix_core.core.models import Folder, Project, User
 from helix_core.abstracts import hydrate_source_path
 from mods.users.serializers import UserSerializer
 
 from mods.tags.models import Tag
 
-from core.mentions.models import Mention
+from helix_core.mentions.models import Mention
 
 from .models import NotebookEntry, ElnAction, Protocol
 

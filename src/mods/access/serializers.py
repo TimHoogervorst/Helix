@@ -3,7 +3,7 @@ from django.db import transaction
 
 from rest_framework import serializers
 
-from core.models import Folder, Project, User
+from helix_core.core.models import Folder, Project, User
 
 from .models import FolderShare, Grant, Organization, OrganizationMembership, Team
 

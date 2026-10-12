@@ -3,7 +3,7 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from core.models import Folder
+from helix_core.core.models import Folder
 from helix_core.actions.base import AbstractBaseAction
 
 

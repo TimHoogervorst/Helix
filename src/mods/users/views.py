@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
 from helix_core.actions.logger import log_action
-from core.models import CoreSetting, User
+from helix_core.core.models import CoreSetting, User
 from mods.access.policies import can as can_access
 
 from .models import Affiliation, Publication, Recognition

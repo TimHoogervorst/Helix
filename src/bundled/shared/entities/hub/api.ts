@@ -1,4 +1,4 @@
-import { get, post, patch, del } from "../../../shell/src/api/client";
+import { get, post, patch, del } from "../../../../shell/src/api/client";
 import type {
   EntityHubResponse,
   EntityListItem,
@@ -9,7 +9,7 @@ import type {
   LimsViewUpdatePayload,
   LimsAction,
   PaginatedResponse,
-} from "../types";
+} from "../../../lims/types";
 
 // ── Query params accepted by GET /api/registry/entities/ ──────────────────
 

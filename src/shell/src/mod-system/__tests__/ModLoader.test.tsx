@@ -543,8 +543,8 @@ describe("ModLoader", () => {
 
 describe("bundled mod enumeration", () => {
   it("starts empty while remaining an explicit loading seam", () => {
-    expect(Object.keys(bundledModModules)).toHaveLength(9);
-    expect(Object.keys(bundledJsonManifestModules)).toHaveLength(9);
+    expect(Object.keys(bundledModModules)).toHaveLength(10);
+    expect(Object.keys(bundledJsonManifestModules)).toHaveLength(10);
     expect(
       Object.values(bundledJsonManifestModules).map(({ default: manifest }) =>
         `${manifest.vendor}.${manifest.name}`,
@@ -560,8 +560,14 @@ describe("bundled mod enumeration", () => {
         "helix.users",
         "helix.settings",
         "helix.tabs",
+        "helix.entities",
       ]),
     );
+    expect(
+      Object.values(bundledJsonManifestModules).map(({ default: manifest }) =>
+        manifest.name,
+      ),
+    ).not.toContain("core");
   });
 });
 

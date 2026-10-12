@@ -12,6 +12,8 @@ import * as limsModule from "../../../bundled/lims";
 import limsManifest from "../../../bundled/lims/modManifest.json";
 import * as settingsModule from "../../../bundled/settings";
 import settingsManifest from "../../../bundled/settings/modManifest.json";
+import * as entitiesModule from "../../../bundled/shared/entities";
+import entitiesManifest from "../../../bundled/shared/entities/modManifest.json";
 import * as homeModule from "../../../bundled/shared/home";
 import homeManifest from "../../../bundled/shared/home/modManifest.json";
 import * as libraryModule from "../../../bundled/shared/library";
@@ -28,6 +30,7 @@ export const bundledModModules: Record<string, ModModule> = {
   "../../../bundled/labelling/tags/index.ts": tagsModule as ModModule,
   "../../../bundled/lims/index.ts": limsModule as ModModule,
   "../../../bundled/settings/index.ts": settingsModule as ModModule,
+  "../../../bundled/shared/entities/index.ts": entitiesModule as ModModule,
   "../../../bundled/shared/home/index.ts": homeModule as ModModule,
   "../../../bundled/shared/library/index.ts": libraryModule as ModModule,
   "../../../bundled/tabs/index.ts": tabsModule as ModModule,
@@ -44,6 +47,7 @@ export const bundledJsonManifestModules: Record<
   "../../../bundled/labelling/tags/modManifest.json": { default: tagsManifest },
   "../../../bundled/lims/modManifest.json": { default: limsManifest },
   "../../../bundled/settings/modManifest.json": { default: settingsManifest },
+  "../../../bundled/shared/entities/modManifest.json": { default: entitiesManifest },
   "../../../bundled/shared/home/modManifest.json": { default: homeManifest },
   "../../../bundled/shared/library/modManifest.json": {
     default: libraryManifest,

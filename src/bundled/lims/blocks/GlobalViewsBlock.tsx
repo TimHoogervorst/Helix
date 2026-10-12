@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Globe } from "lucide-react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import type { LimsViewItem } from "../types";
-import { getPublicViews } from "../hub/api";
+import { getPublicViews } from "../../shared/entities/hub/api";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
 import { resolveColorHex } from "../../../../shell/src/shared/components/IconBadge";
 
-vi.mock("../../hub/api", () => ({
+vi.mock("../../../shared/entities/hub/api", () => ({
   getSchemas: vi.fn().mockResolvedValue([
     { id: 7, name: "Sample", prefix: "SAMPLE", schema_type: 1 },
   ]),

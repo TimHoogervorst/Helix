@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Wrench, AlertTriangle } from "lucide-react";
-import { del } from "../../../shell/src/api/client";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
-import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
-import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
+import { del } from "../../shell/src/api/client";
+import { Button } from "../../shell/src/shared/primitives/Button";
+import { SettingsPageLayout } from "../../shell/src/shared/components/SettingsPageLayout";
+import { SettingsHeroHeader } from "../../shell/src/shared/components/SettingsHeroHeader";
+import { SettingsSectionCard } from "../../shell/src/shared/components/SettingsSectionCard";
 
 type ActionKey = "entities" | "entries" | "schemas" | "everything";
 

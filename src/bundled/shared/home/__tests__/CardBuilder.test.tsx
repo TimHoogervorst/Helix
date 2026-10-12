@@ -29,7 +29,7 @@ vi.mock("../../../../shell/src/shared/components/MetricCards/api", () => ({
 
 import * as cardApi from "../../../../shell/src/shared/components/MetricCards/api";
 
-vi.mock("../../lims/hub/api", () => ({
+vi.mock("../../entities/hub/api", () => ({
   getMyViews: vi.fn(),
   getPublicViews: vi.fn(),
 }));

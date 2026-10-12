@@ -42,6 +42,10 @@ describe("lims mod registration", () => {
     expect(schemaSection!.label).toBe("Schemas");
   });
 
+  it("does not own the cross-workspace Entities hub", () => {
+    expect(registry.getHubs().has("lims.entities")).toBe(false);
+  });
+
   it("registers a fetch-only activity feed block", () => {
     const block = registry.getBlocks().get("lims.activity-feed");
 

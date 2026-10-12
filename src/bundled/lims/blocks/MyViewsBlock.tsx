@@ -9,7 +9,7 @@ import {
   createView,
   updateView,
   deleteView,
-} from "../hub/api";
+} from "../../shared/entities/hub/api";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

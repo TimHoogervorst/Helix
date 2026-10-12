@@ -8,7 +8,7 @@ import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import NotFound from "../../../shell/src/shared/components/NotFound";
 import { TagSection } from "../../labelling/tags/ui";
 import { useTaggableItems } from "../../labelling/tags/hooks";
-import { attachEntityTags, detachEntityTag } from "../hub/api";
+import { attachEntityTags, detachEntityTag } from "../../shared/entities/hub/api";
 import { ActivityFeedBlock } from "../blocks/ActivityFeedBlock";
 import { CollapsibleSidebar } from "../../../shell/src/shared/components/Sidebar/CollapsibleSidebar";
 import { SidebarSection } from "../../../shell/src/shared/components/Sidebar/SidebarSection";

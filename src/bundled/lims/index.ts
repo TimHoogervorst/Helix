@@ -1,10 +1,9 @@
-import { Cog, Database, Info, LayoutList, Microscope, Users } from "lucide-react";
+import { Cog, Database, Info, LayoutList, Users } from "lucide-react";
 import { Mod } from "../../shell/src/mod-system/Mod";
 import type { ModManifest } from "../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import LimsWorkspacePage from "./workspace/LimsWorkspacePage";
 import SchemaSettings from "./settings/SchemaSettings";
-import EntitiesHub from "./hub/EntitiesHub";
 import { SelectionBlock } from "./blocks/SelectionBlock";
 import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
@@ -33,17 +32,6 @@ mod.registerSettingsSection("schema-settings", {
   icon: Cog,
   component: SchemaSettings,
   order: 10,
-});
-
-// ── Hub: Entities Hub — cross-mod entity browsing surface ─────────────
-mod.registerHub("entities", {
-  label: "Entities",
-  icon: Microscope,
-  route: "/entities",
-  component: EntitiesHub,
-  order: 20,
-  description:
-    "Browse, search, and filter all entities across every workspace.",
 });
 
 // ── Slot: Entities Hub Sidebar ────────────────────────────────────────

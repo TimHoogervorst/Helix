@@ -4,7 +4,7 @@ import type { ColumnDef } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { listDropdowns } from "../../datatypes/dropdowns/api";
 import type { Dropdown } from "../../datatypes/dropdowns/types";
-import { getSchemas, getSchemaTypes } from "../hub/api";
+import { getSchemas, getSchemaTypes } from "../../shared/entities/hub/api";
 import type { Schema, SchemaTypeItem } from "../types";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";

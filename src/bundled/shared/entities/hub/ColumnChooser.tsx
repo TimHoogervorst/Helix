@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Columns2, Lock, LockOpen } from "lucide-react";
-import type { AvailableColumn } from "../types";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import type { AvailableColumn } from "../../../lims/types";
+import { IconButton } from "../../../../shell/src/shared/primitives/IconButton";
 
 // ── Column definition with visibility & lock metadata ───────────────────
 

@@ -4,7 +4,7 @@ import DevToolsSettings from "../DevToolsSettings";
 
 const mockDel = vi.fn();
 
-vi.mock("../../../../shell/src/api/client", () => ({
+vi.mock("../../../shell/src/api/client", () => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),

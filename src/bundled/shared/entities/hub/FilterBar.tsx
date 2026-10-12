@@ -13,12 +13,12 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Plus, X } from "lucide-react";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { BackendOperator } from "../../../shell/src/mod-system/ModRegistry";
-import type { AvailableColumn } from "../types";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import type { BackendOperator } from "../../../../shell/src/mod-system/ModRegistry";
+import type { AvailableColumn } from "../../../lims/types";
 import { ValueInput } from "./ValueInput";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Button } from "../../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../../shell/src/shared/primitives/IconButton";
 
 // ── Filter row state ────────────────────────────────────────────────────────
 

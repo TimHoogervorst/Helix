@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EntityHubResponse, EntityHubItem, SchemaTypeItem, Schema } from "../types";
+import type { EntityHubResponse, EntityHubItem, SchemaTypeItem, Schema } from "../../../lims/types";
 import EntitiesHub from "../hub/EntitiesHub";
 
 // ── Mocks ────────────────────────────────────────────────────────────
@@ -25,12 +25,12 @@ vi.mock("../hub/api", () => ({
 }));
 
 const mockListDropdowns = vi.fn();
-vi.mock("../../datatypes/dropdowns/api", () => ({
+vi.mock("../../../datatypes/dropdowns/api", () => ({
   listDropdowns: (...args: unknown[]) => mockListDropdowns(...args),
 }));
 
 const mockFetchProjects = vi.fn();
-vi.mock("../../access/access/api", () => ({
+vi.mock("../../../access/access/api", () => ({
   fetchProjects: (...args: unknown[]) => mockFetchProjects(...args),
 }));
 
@@ -49,7 +49,7 @@ Object.defineProperty(window, "localStorage", {
 
 // Mock SlotSidebar
 vi.mock(
-  "../../../shell/src/shared/components/Sidebar/SlotSidebar",
+  "../../../../shell/src/shared/components/Sidebar/SlotSidebar",
   () => ({
     SlotSidebar: function MockSlotSidebar(_props: { slotId: string }) {
       return (

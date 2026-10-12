@@ -17,8 +17,8 @@
  */
 
 import { useState, useCallback, useRef, type InputHTMLAttributes } from "react";
-import { Select } from "../../../shell/src/shared/primitives/Input";
-import { EntityPickerPopover } from "../../../shell/src/shared/components/EntityPickerPopover";
+import { Select } from "../../../../shell/src/shared/primitives/Input";
+import { EntityPickerPopover } from "../../../../shell/src/shared/components/EntityPickerPopover";
 
 // ── Auto-sizing input ───────────────────────────────────────────────────────
 // Uses a hidden <span> in the same CSS grid cell to measure text width.

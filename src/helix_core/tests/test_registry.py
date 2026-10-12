@@ -902,7 +902,6 @@ class TestBuildURLPatterns:
             "mods.eln",
             "bundled.shared.library",
             "bundled.tabs",
-            "mods.core",
         ])
 
         eln_p = path("api/eln/", _dummy_view)

@@ -7,7 +7,7 @@ import { Select } from "../../../../shell/src/shared/primitives/Input";
 import { listDropdowns } from "../../../datatypes/dropdowns/api";
 import type { LibraryEntryItem, LibraryFolderPath } from "../types";
 import { patchEntry, getLockStatus } from "../../../../mods/eln/api";
-import { patchEntity } from "../../../lims/hub/api";
+import { patchEntity } from "../../entities/hub/api";
 
 interface ProjectMeta {
   name: string;

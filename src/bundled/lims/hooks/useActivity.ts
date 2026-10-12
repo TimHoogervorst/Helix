@@ -5,7 +5,7 @@ import {
   type UseActivityResult,
 } from "../../../shell/src/shared/hooks/useActivity";
 import type { ActionUser, DisplayActionItem } from "../../../shell/src/shared/types/actions";
-import { fetchEntityActions } from "../hub/api";
+import { fetchEntityActions } from "../../shared/entities/hub/api";
 import type { LimsAction } from "../types";
 
 function mapActionUser(user: LimsAction["performed_by"]): ActionUser {

@@ -1,7 +1,7 @@
 {
   "vendor": "helix",
-  "name": "core",
-  "displayName": "Core",
+  "name": "entities",
+  "displayName": "Entities",
   "version": "0.1.0",
   "dependsOn": []
 }

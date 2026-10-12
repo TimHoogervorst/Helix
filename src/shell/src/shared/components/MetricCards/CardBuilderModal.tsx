@@ -4,7 +4,7 @@ import { ModRegistry } from "../../../mod-system/ModRegistry";
 import {
   getMyViews,
   getPublicViews,
-} from "../../../../../bundled/lims/hub/api";
+} from "../../../../../bundled/shared/entities/hub/api";
 import { get } from "../../../api/client";
 import {
   getMetrics,

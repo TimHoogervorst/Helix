@@ -13,11 +13,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { BackendColumnType } from "../../../shell/src/mod-system/ModRegistry";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import type { BackendColumnType } from "../../../../shell/src/mod-system/ModRegistry";
 import { FilterBar, serializeFilter, deserializeFilter } from "../hub/FilterBar";
 import type { FilterRow, FilterBarProps } from "../hub/FilterBar";
-import type { AvailableColumn } from "../types";
+import type { AvailableColumn } from "../../../lims/types";
 
 // ── Reset ModRegistry singleton before each test ──────────────────────────
 

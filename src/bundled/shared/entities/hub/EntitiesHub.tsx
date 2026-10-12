@@ -17,16 +17,16 @@ import {
   AlignJustify,
   Lock,
 } from "lucide-react";
-import type { SlotContext } from "../../../shell/src/mod-system/types";
-import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
-import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
-import { StatusBadge } from "../../../shell/src/shared/components/StatusBadge";
-import { relativeTime, formatDate } from "../../../shell/src/shared/format";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import { IconBadge, resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
-import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
-import { deriveDropdownColor } from "../../datatypes/dropdowns/colourUtils";
-import { listDropdowns } from "../../datatypes/dropdowns/api";
+import type { SlotContext } from "../../../../shell/src/mod-system/types";
+import { SlotSidebar } from "../../../../shell/src/shared/components/Sidebar/SlotSidebar";
+import { WorkspaceBus } from "../../../../shell/src/workspace/WorkspaceBus";
+import { StatusBadge } from "../../../../shell/src/shared/components/StatusBadge";
+import { relativeTime, formatDate } from "../../../../shell/src/shared/format";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import { IconBadge, resolveColorHex, deriveForeground } from "../../../../shell/src/shared/components/IconBadge";
+import { getColumnTypeIcon } from "../../../../shell/src/shared/components/CellEditors";
+import { deriveDropdownColor } from "../../../datatypes/dropdowns/colourUtils";
+import { listDropdowns } from "../../../datatypes/dropdowns/api";
 import { getEntities, getSchemaTypes, getSchemas } from "./api";
 import type { EntityHubFilters } from "./api";
 import type {
@@ -35,8 +35,8 @@ import type {
   SchemaTypeItem,
   Schema,
   AvailableColumn,
-} from "../types";
-import { fetchProjects } from "../../access/access/api";
+} from "../../../lims/types";
+import { fetchProjects } from "../../../access/access/api";
 import {
   ColumnChooser,
   buildColumns,
@@ -54,11 +54,11 @@ import {
   deserializeFilter,
   type FilterRow,
 } from "./FilterBar";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { Input } from "../../../shell/src/shared/primitives/Input";
-import { Select } from "../../../shell/src/shared/primitives/Input";
-import { TableHead } from "../../../shell/src/shared/primitives/Table";
+import { Button } from "../../../../shell/src/shared/primitives/Button";
+import { IconButton } from "../../../../shell/src/shared/primitives/IconButton";
+import { Input } from "../../../../shell/src/shared/primitives/Input";
+import { Select } from "../../../../shell/src/shared/primitives/Input";
+import { TableHead } from "../../../../shell/src/shared/primitives/Table";
 
 // ── View mode ──────────────────────────────────────────────────────────────
 

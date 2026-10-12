@@ -545,16 +545,18 @@ class BackendModRegistry:
         if sender_mod_id is not None and sender_mod_id != mod_id:
             manifest = self._manifests.get(mod_id)
             sender_manifest = self._manifests.get(sender_mod_id)
-            if manifest is not None and sender_mod_id not in manifest.dependency_ids:
+            manifest_dependencies = [dependency.rsplit(".", 1)[-1] for dependency in (manifest.dependency_ids if manifest else [])]
+            sender_dependencies = [dependency.rsplit(".", 1)[-1] for dependency in (sender_manifest.dependency_ids if sender_manifest else [])]
+            if manifest is not None and sender_mod_id not in manifest_dependencies:
                 # Check reverse: is mod_id a dependency of the sender?
-                if sender_manifest is not None and mod_id not in sender_manifest.dependency_ids:
+                if sender_manifest is not None and mod_id not in sender_dependencies:
                     raise ValueError(
                         f"Mod '{mod_id}' cannot register a signal on "
                         f"'{sender.__name__}' from mod '{sender_mod_id}' — "
                         f"'{sender_mod_id}' is neither in '{mod_id}' depends_on "
-                        f"({manifest.dependency_ids}) nor does '{sender_mod_id}' "
+                        f"({manifest_dependencies}) nor does '{sender_mod_id}' "
                         f"depend on '{mod_id}' "
-                        f"({sender_manifest.dependency_ids})."
+                        f"({sender_dependencies})."
                     )
 
         # Wrap the handler to check dependency readiness at call time.
@@ -564,6 +566,7 @@ class BackendModRegistry:
             # Check that all declared dependencies are ready.
             if mod_id in self._manifests:
                 for dep_id in self._manifests[mod_id].dependency_ids:
+                    dep_id = dep_id.rsplit(".", 1)[-1]
                     # Try label first (e.g. "lims"), then dotted name
                     # (e.g. "bundled.lims") — Django app_configs keys
                     # are app labels, which for mods are the last

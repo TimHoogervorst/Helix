@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import type { WorkspaceBus } from "../workspace/WorkspaceBus";
 import type { BlockEvent } from "./BlockEvent";
 
-// ── Mod Manifest ──────────────────────────────────────────────────────────
+// ── Mod Manifest 1.0.0 ────────────────────────────────────────────────────
 
 /**
  * What each mod's index.ts exports as ``meta``.
@@ -13,35 +13,20 @@ import type { BlockEvent } from "./BlockEvent";
  * uniqueness anchor used across the entire mod system.  ``name`` alone is
  * the mod's local identifier within its vendor namespace.
  */
+export interface ModDependency {
+  id: string;
+  version: string;
+}
+
 export interface ModManifest {
-  /**
-   * Vendor namespace.  Core platform mods use ``"helix"``.
-   * Combined with ``name`` to form the globally-unique ``vendor.name`` key.
-   */
-  vendor: string;
-  /**
-   * Local mod name within the vendor namespace, e.g. ``"eln"``, ``"lims"``.
-   * The compound key ``vendor.name`` (e.g. ``"helix.eln"``) is used as the
-   * unique mod identity everywhere in the system.
-   */
-  name: string;
+  /** Canonical lowercase ASCII vendor.name identity. */
+  id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
-  /** Semver version string. Optional — core mods inherit the platform version when omitted. */
-  version?: string;
-  /**
-   * Fully-qualified ``vendor.name`` strings identifying mods that must load
-   * before this mod.  Each entry can be either a bare ``"vendor.name"``
-   * string or an object with an ``id`` (also ``vendor.name``) and optional
-   * ``version`` constraint.
-   *
-   * Example: ``["helix.lims", { id: "helix.tags", version: ">=2.0" }]``
-   */
-  dependsOn: (string | { id: string; version?: string })[];
-  /** Minimum platform version required by this mod. */
-  coreVersion?: string;
-  /** Legacy Lucide icon name. Temporary; kept for compatibility. */
-  icon?: string;
+  version: string;
+  requiresHelix: string;
+  artifacts: ("frontend" | "backend")[];
+  dependsOn: ModDependency[];
   /** Short description for settings and mod listing screens. */
   description?: string;
 }

@@ -1,7 +1,8 @@
 {
-  "vendor": "helix",
-  "name": "tags",
+  "id": "helix.tags",
   "displayName": "Labelling",
   "version": "0.1.0",
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["frontend", "backend"],
   "dependsOn": []
 }

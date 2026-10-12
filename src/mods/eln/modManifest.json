@@ -1,7 +1,11 @@
 {
-  "vendor": "helix",
-  "name": "eln",
+  "id": "helix.eln",
   "displayName": "Electronic Lab Notebook",
   "version": "0.1.0",
-  "dependsOn": ["helix.lims", "helix.tags"]
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["frontend", "backend"],
+  "dependsOn": [
+    {"id": "helix.lims", "version": "^0.1.0"},
+    {"id": "helix.tags", "version": "^0.1.0"}
+  ]
 }

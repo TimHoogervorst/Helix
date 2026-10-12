@@ -129,7 +129,7 @@ function collectMods(
 
     // Prefer JSON manifest for metadata when present.
     const jsonEntry = jsonManifestMap.get(dirName);
-    const meta: ModManifest = jsonEntry
+    const meta = jsonEntry
       ? jsonEntry.manifest
       : mod.meta;
 
@@ -165,7 +165,7 @@ function bootModSystem(
   // Step 2: Validate no duplicate vendor.name identities
   const seenIds = new Set<string>();
   for (const mod of mods) {
-    const id = vendorName(mod.meta);
+    const id = mod.meta.id;
     if (seenIds.has(id)) {
       throw new Error(`Duplicate mod ID: '${id}'.`);
     }
@@ -180,8 +180,7 @@ function bootModSystem(
   // compat — existing routes/settings sections still reference modId by
   // short name, e.g. "lims", "eln").
   for (const mod of sortedMods) {
-    registry.registerMod(vendorName(mod.meta));
-    registry.registerMod(mod.meta.name);
+    registry.registerMod(mod.meta.id);
     mod.register();
   }
 
@@ -215,7 +214,7 @@ async function hydrateRegistryFromApi(
 
   // Key by short name for backward compatibility with the backend API
   // which returns workspace data keyed by mod name (e.g. "lims", "eln").
-  const manifests = new Map(mods.map((m) => [m.meta.name, m.meta]));
+  const manifests = new Map(mods.map((m) => [m.meta.id, m.meta]));
 
   const registry = ModRegistry.getInstance();
 
@@ -312,76 +311,62 @@ export function parseJsonManifest(
   data: Record<string, unknown>,
   path: string,
 ): ModManifest {
-  if (typeof data.name !== "string" || !data.name) {
-    throw new Error(
-      `modManifest.json at '${path}' is missing required field 'name'.`,
-    );
+  const allowed = new Set([
+    "id", "displayName", "version", "requiresHelix", "artifacts", "dependsOn", "description",
+  ]);
+  const unknown = Object.keys(data).find((key) => !allowed.has(key));
+  if (unknown) throw new Error(`modManifest.json at '${path}' has unknown property '${unknown}'.`);
+  if (typeof data.id !== "string" || !/^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(data.id)) {
+    throw new Error(`modManifest.json at '${path}' has an invalid 'id'.`);
   }
-  if (typeof data.vendor !== "string" || !data.vendor) {
-    throw new Error(
-      `modManifest.json at '${path}' is missing required field 'vendor'.`,
-    );
-  }
-  if (typeof data.displayName !== "string" || !data.displayName) {
+  if (typeof data.displayName !== "string" || !data.displayName || typeof data.version !== "string" || typeof data.requiresHelix !== "string") {
     throw new Error(
       `modManifest.json at '${path}' is missing required field 'displayName'.`,
     );
   }
+  const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+  const range = (value: string) => value.split("||").every((alternative) => alternative.trim().split(/\s+/).every((token) => token === "*" || /^(\^|~|<=|>=|<|>|=)?\d+(?:\.\d+|\.x|\.X|\.\*)?(?:\.\d+|\.x|\.X|\.\*)?(?:-[0-9A-Za-z.-]+)?$/.test(token)));
+  if (!semver.test(data.version) || !range(data.requiresHelix)) throw new Error(`modManifest.json at '${path}' has invalid version constraints.`);
 
-  const dependsOn = data.dependsOn ?? [];
+  if (!Array.isArray(data.artifacts) || data.artifacts.length === 0 || data.artifacts.some((artifact) => artifact !== "frontend" && artifact !== "backend") || new Set(data.artifacts).size !== data.artifacts.length) {
+    throw new Error(`modManifest.json at '${path}' has invalid 'artifacts'.`);
+  }
+  const dependsOn = data.dependsOn;
   if (!Array.isArray(dependsOn)) {
     throw new Error(
       `modManifest.json at '${path}': 'dependsOn' must be an array.`,
     );
   }
+  const dependencyIds = new Set<string>();
 
   // Validate each dependsOn entry is a string or an {id, version?} object.
   // String entries must contain a '.' (vendor.name format).
   for (let i = 0; i < dependsOn.length; i++) {
     const entry = dependsOn[i];
-    if (typeof entry === "string") {
-      if (!entry.includes(".")) {
-        throw new Error(
-          `modManifest.json at '${path}': dependsOn[${i}] "${entry}" ` +
-            `must be a fully-qualified "vendor.name" string.`,
-        );
-      }
-      continue;
-    }
     if (typeof entry === "object" && entry !== null) {
       const obj = entry as Record<string, unknown>;
-      if (typeof obj.id !== "string" || !obj.id) {
+      if (typeof obj.id !== "string" || !/^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(obj.id) || typeof obj.version !== "string" || !obj.version) {
         throw new Error(
-          `modManifest.json at '${path}': dependsOn[${i}] object must have a non-empty 'id' string.`,
+          `modManifest.json at '${path}': dependsOn[${i}] must have id and version.`,
         );
       }
-      if (!obj.id.includes(".")) {
-        throw new Error(
-          `modManifest.json at '${path}': dependsOn[${i}].id "${obj.id}" ` +
-            `must be a fully-qualified "vendor.name" string.`,
-        );
-      }
-      if (obj.version !== undefined && typeof obj.version !== "string") {
-        throw new Error(
-          `modManifest.json at '${path}': dependsOn[${i}].version must be a string.`,
-        );
-      }
+      if (!range(obj.version) && !semver.test(obj.version)) throw new Error(`modManifest.json at '${path}': invalid dependency version.`);
+      if (dependencyIds.has(obj.id)) throw new Error(`modManifest.json at '${path}': duplicate dependency '${obj.id}'.`);
+      dependencyIds.add(obj.id);
       continue;
     }
     throw new Error(
-      `modManifest.json at '${path}': dependsOn[${i}] must be a string or an {id, version?} object.`,
+      `modManifest.json at '${path}': dependsOn[${i}] must be an {id, version} object.`,
     );
   }
 
   return {
-    vendor: data.vendor as string,
-    name: data.name as string,
+    id: data.id as string,
     displayName: data.displayName as string,
-    version: typeof data.version === "string" ? data.version : undefined,
-    dependsOn: dependsOn as (string | { id: string; version?: string })[],
-    coreVersion:
-      typeof data.coreVersion === "string" ? data.coreVersion : undefined,
-    icon: typeof data.icon === "string" ? data.icon : undefined,
+    version: data.version as string,
+    requiresHelix: data.requiresHelix as string,
+    artifacts: data.artifacts as ("frontend" | "backend")[],
+    dependsOn: dependsOn as { id: string; version: string }[],
     description:
       typeof data.description === "string" ? data.description : undefined,
   };
@@ -395,9 +380,7 @@ export function parseJsonManifest(
  * ``vendor + "." + name`` is the uniqueness anchor used for duplicate
  * detection, topological sort, and ``registerMod`` identity.
  */
-function vendorName(m: ModManifest): string {
-  return `${m.vendor}.${m.name}`;
-}
+function vendorName(m: ModManifest): string { return m.id; }
 
 // ── Topological Sort (Kahn's algorithm) ─────────────────────────────────
 
@@ -405,8 +388,8 @@ function vendorName(m: ModManifest): string {
  * Extract the dependency mod ID from a dependsOn entry,
  * which can be a bare string or an object with an `id` field.
  */
-function depId(entry: string | { id: string; version?: string }): string {
-  return typeof entry === "string" ? entry : entry.id;
+function depId(entry: { id: string; version: string }): string {
+  return entry.id;
 }
 
 /**

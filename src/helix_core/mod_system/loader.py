@@ -88,28 +88,26 @@ def _get_all_manifests(
     if helix_mods_override is not None:
         manifests = _load_manifests_from_paths(helix_mods_override)
         id_to_path = {
-            mod_id: dotted_path
-            for dotted_path in helix_mods_override
-            for mod_id in [dotted_path.split(".")[-1]]
+            manifest.id: dotted_path
+            for dotted_path, manifest in zip(helix_mods_override, manifests.values(), strict=True)
         }
     else:
         manifests = _load_manifests_from_paths(BUNDLED_MODS)
         id_to_path = {
-            mod_id: dotted_path
-            for dotted_path in BUNDLED_MODS
-            for mod_id in [dotted_path.split(".")[-1]]
+            manifest.id: dotted_path
+            for dotted_path, manifest in zip(BUNDLED_MODS, manifests.values(), strict=True)
         }
 
         # External mods remain open and are discovered from the mods/ folder.
         discovered_mods = _auto_discover(base_dir)
         for mod_id, manifest in discovered_mods.items():
-            if mod_id in manifests:
+            if manifest.id in manifests:
                 raise ValueError(
                     f"Duplicate mod ID '{mod_id}': declared as a bundled mod "
                     "and discovered in mods/."
                 )
-            manifests[mod_id] = manifest
-            id_to_path[mod_id] = f"mods.{mod_id}"
+            manifests[manifest.id] = manifest
+            id_to_path[manifest.id] = f"mods.{mod_id}"
 
     # ── external mods (helix.mods.json) ──────────────────────────────────
     external_mods = _load_external_mods_from_json(base_dir)
@@ -122,8 +120,8 @@ def _get_all_manifests(
                 f"helix.mods.json but a mod with that id already "
                 f"exists in mods/."
             )
-        manifests[ext_id] = ext_manifest
-        id_to_path[ext_id] = ext_path
+        manifests[ext_manifest.id] = ext_manifest
+        id_to_path[ext_manifest.id] = ext_path
 
     return manifests, id_to_path
 
@@ -278,7 +276,7 @@ def _load_manifests_from_paths(
                 f"neither 'modManifest.json' nor 'mod.py' "
                 f"exist in '{mod_dir}'."
             )
-        manifests[mod_id] = manifest
+        manifests[manifest.id] = manifest
 
     return manifests
 
@@ -420,21 +418,14 @@ def _read_json_manifest(mod_dir: Path, mod_id: str) -> ModManifest:
 
     The JSON format uses camelCase keys matching the frontend schema::
 
-        {
-          "id": "eln",
-          "displayName": "Electronic Lab Notebook",
-          "version": "0.1.0",
-          "dependsOn": ["lims", "tags"]
-        }
-
-    Object-form dependencies are also supported::
-
-        {
-          "dependsOn": [
-            "lims",
-            {"id": "tags", "version": ">=2.0"}
-          ]
-        }
+         {
+           "id": "acme.eln",
+           "displayName": "Electronic Lab Notebook",
+           "version": "1.0.0",
+           "requiresHelix": ">=1.0.0",
+           "artifacts": ["backend"],
+           "dependsOn": [{"id": "helix.lims", "version": "^1.0.0"}]
+         }
 
     Args:
         mod_dir: Absolute path to the mod directory.
@@ -470,60 +461,12 @@ def _read_json_manifest(mod_dir: Path, mod_id: str) -> ModManifest:
             f"got {type(data).__name__}"
         )
 
-    # Validate required fields before constructing ModManifest.
-    # The frontend manifest format uses "vendor" + "name" (e.g.
-    # "helix.eln") instead of a single "id" field.  When "id" is
-    # missing, use "name" as the id (the short directory-scoped name).
-    if "id" not in data:
-        if "name" in data:
-            data["id"] = data["name"]
-        else:
-            raise ValueError(
-                f"modManifest.json at {json_path} is missing required "
-                f"field 'id' (or 'name')"
-            )
-    if "displayName" not in data:
-        raise ValueError(
-            f"modManifest.json at {json_path} is missing required "
-            f"field 'displayName'"
-        )
+    manifest = ModManifest.from_dict(data)
 
-    # Normalize dependsOn entries: the frontend format uses fully-qualified
-    # "vendor.name" strings (e.g. "helix.lims"), but the backend resolves
-    # dependencies by the short mod ID (the directory name).  Strip the
-    # vendor prefix so validation passes against the mod directory keys.
-    raw_depends_on = data.get("dependsOn", [])
-    if isinstance(raw_depends_on, list):
-        normalized_depends_on: list[str | dict[str, str]] = []
-        for dep in raw_depends_on:
-            if isinstance(dep, str):
-                # "helix.lims" → "lims"
-                normalized_depends_on.append(dep.rsplit(".", 1)[-1])
-            elif isinstance(dep, dict):
-                dep_copy = dict(dep)
-                if "id" in dep_copy:
-                    dep_copy["id"] = dep_copy["id"].rsplit(".", 1)[-1]
-                normalized_depends_on.append(dep_copy)
-            else:
-                normalized_depends_on.append(dep)
-    else:
-        normalized_depends_on = raw_depends_on
-
-    # Map camelCase JSON keys to snake_case ModManifest kwargs.
-    manifest = ModManifest(
-        id=data["id"],
-        display_name=data["displayName"],
-        version=data.get("version"),
-        depends_on=normalized_depends_on,
-        core_version=data.get("coreVersion"),
-        icon=data.get("icon"),
-        description=data.get("description"),
-    )
-
-    if manifest.id != mod_id:
+    if manifest.id.rsplit(".", 1)[-1] != mod_id:
         raise ValueError(
             f"modManifest.json at '{json_path}' declares id "
-            f"'{manifest.id}' but expected id '{mod_id}' "
+            f"'{manifest.id}' but expected local name '{mod_id}' "
             f"(must match directory name)."
         )
 

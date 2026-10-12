@@ -22,8 +22,12 @@ export interface ModModule {
 // discovered automatically with zero config changes.
 const modModules: Record<string, ModModule> = {
   ...bundledModModules,
-  ...import.meta.glob<ModModule>("../../../mods/*/index.ts", { eager: true }),
 };
+
+const externalModLoaders = import.meta.glob<ModModule>(
+  "../../../mods/*/index.ts",
+  { eager: false },
+);
 
 // JSON manifest glob — eagerly imports all mods/*/modManifest.json
 // files at build time. When a directory has both index.ts and
@@ -89,14 +93,13 @@ export function ModLoader({ children }: ModLoaderProps) {
     if (didBoot.current) return;
     didBoot.current = true;
 
-    // Phase 1: Sync boot — manifests, sort, register, validate.
-    bootModSystem(modModules, jsonManifestModules);
-
-    // Phase 2: Async hydration — gate on it so consumers never see
-    // fallback icons or colors on first paint.
-    hydrateRegistryFromApi(modModules, jsonManifestModules).finally(() => {
-      setReady(true);
-    });
+    void loadActiveModModules(jsonManifestModules).then((activeModules) => {
+      // Phase 1: Sync boot — manifests, sort, register, validate.
+      bootModSystem(activeModules, jsonManifestModules);
+      // Phase 2: Async hydration — gate on it so consumers never see
+      // fallback icons or colors on first paint.
+      return hydrateRegistryFromApi(activeModules, jsonManifestModules);
+    }).finally(() => setReady(true));
   }, []);
 
   const hasMods = Object.keys(modModules).length > 0;
@@ -107,6 +110,38 @@ export function ModLoader({ children }: ModLoaderProps) {
   if (hasMods && !ready) return <LoadingScreen />;
 
   return <>{children}</>;
+}
+
+async function loadActiveModModules(
+  jsonModules: Record<string, { default: Record<string, unknown> }>,
+): Promise<Record<string, ModModule>> {
+  const modules = { ...modModules };
+  const manifests = buildJsonManifestMap(jsonModules);
+  let activeIds: Set<string> | null = null;
+  try {
+    const response = await fetch("/api/mod-lifecycle/");
+    if (response.ok) {
+      const payload = (await response.json()) as { mods?: { id: string; desiredState: string }[] };
+      activeIds = new Set(
+        (payload.mods ?? [])
+          .filter((mod) => mod.desiredState === "active")
+          .map((mod) => mod.id),
+      );
+    } else {
+      activeIds = new Set();
+    }
+  } catch {
+    // Keep Bundled Mods available, but never import an External Mod without
+    // an affirmative activation response from the Platform.
+    activeIds = new Set();
+  }
+  for (const [path, loader] of Object.entries(externalModLoaders)) {
+    const modId = manifests.get(extractModDir(path))?.manifest.id;
+    if (modId && activeIds.has(modId)) {
+      Object.assign(modules, await loader());
+    }
+  }
+  return modules;
 }
 
 // ── Boot logic (extracted for testability) ──────────────────────────────

@@ -13,6 +13,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
+from helix_core.actions.base import AbstractBaseAction
 
 # ── Shared column-ID + content-hash pipeline ──────────────────────────────
 
@@ -421,3 +422,48 @@ class IconLibraryEntry(models.Model):
 
     def __str__(self):
         return f"{self.label} ({self.key})"
+
+
+class ModInstallation(models.Model):
+    """Durable installation and activation state for a discovered Mod."""
+
+    class State(models.TextChoices):
+        INSTALLED = "installed", "Installed"
+        INACTIVE = "inactive", "Inactive"
+        ACTIVE = "active", "Active"
+        REMOVED = "removed", "Removed"
+
+    class DesiredState(models.TextChoices):
+        INACTIVE = "inactive", "Inactive"
+        ACTIVE = "active", "Active"
+
+    mod_id = models.CharField(max_length=255, unique=True)
+    display_name = models.CharField(max_length=255)
+    version = models.CharField(max_length=64)
+    requires_helix = models.CharField(max_length=255)
+    artifacts = models.JSONField(default=list)
+    dependencies = models.JSONField(default=list)
+    tier = models.CharField(max_length=20)
+    locator = models.CharField(max_length=500, blank=True, default="")
+    state = models.CharField(max_length=20, choices=State.choices)
+    desired_state = models.CharField(
+        max_length=20,
+        choices=DesiredState.choices,
+        default=DesiredState.INACTIVE,
+    )
+    manifest = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "helix_mod_installation"
+        ordering = ["mod_id"]
+
+    def __str__(self):
+        return f"{self.display_name} ({self.mod_id})"
+
+
+class ModLifecycleAction(AbstractBaseAction):
+    """Platform-owned action log for Mod lifecycle administration."""
+
+    class Meta:
+        db_table = "helix_mod_lifecycle_action"

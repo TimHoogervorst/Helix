@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .manifest import ModManifest
+from .imports import scan_forbidden_imports
 
 _CATALOG_VERSION = 1
 
@@ -206,6 +207,10 @@ def _record_from_package(
     return {
         "manifest": _normalized_manifest(raw_manifest, tier=tier),
         "tier": tier,
+        "importViolations": [
+            finding.to_dict()
+            for finding in scan_forbidden_imports(package_dir, package_name=package_name)
+        ],
         "artifacts": artifacts,
     }
 

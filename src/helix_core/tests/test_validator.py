@@ -59,6 +59,97 @@ def test_author_validation_rejects_incomplete_declared_artifacts(tmp_path):
     assert result.diagnostics[0].location.path.endswith("index.ts")
 
 
+def test_external_author_validation_rejects_private_helix_import(tmp_path):
+    mod_dir = tmp_path / "hello_world"
+    mod_dir.mkdir()
+    (mod_dir / "modManifest.json").write_text(json.dumps(_manifest()))
+    (mod_dir / "mod.py").write_text("from helix_core.models import Schema\n")
+
+    result = validate_author(mod_dir)
+
+    assert result.exit_code == EXIT_CONTRACT_VIOLATION
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "FORBIDDEN_PRIVATE_HELIX_IMPORT"
+    ]
+    assert result.diagnostics[0].location.line == 1
+
+
+def test_external_author_validation_rejects_cross_mod_import_even_when_declared(tmp_path):
+    mod_dir = tmp_path / "hello_world"
+    mod_dir.mkdir()
+    (mod_dir / "modManifest.json").write_text(
+        json.dumps(_manifest(dependsOn=[{"id": "helix.lims", "version": "^1.0.0"}]))
+    )
+    (mod_dir / "mod.py").write_text("from bundled.lims.models import Entity\n")
+
+    result = validate_author(mod_dir)
+
+    assert result.exit_code == EXIT_CONTRACT_VIOLATION
+    assert [diagnostic.code for diagnostic in result.diagnostics] == [
+        "FORBIDDEN_CROSS_MOD_IMPORT"
+    ]
+    assert "dependsOn" not in result.diagnostics[0].message
+
+
+def test_external_author_validation_allows_framework_and_self_imports(tmp_path):
+    mod_dir = tmp_path / "hello_world"
+    mod_dir.mkdir()
+    (mod_dir / "modManifest.json").write_text(json.dumps(_manifest()))
+    (mod_dir / "mod.py").write_text(
+        "from helix_core import Mod\n"
+        "from helix_core.public import load_entry_point_manifest\n"
+        "from hello_world.models import Thing\n"
+    )
+
+    result = validate_author(mod_dir)
+
+    assert result.exit_code == EXIT_OK
+    assert result.diagnostics == ()
+
+
+def test_external_author_validation_rejects_cross_mod_frontend_import(tmp_path):
+    mod_dir = tmp_path / "hello_world"
+    mod_dir.mkdir()
+    (mod_dir / "modManifest.json").write_text(
+        json.dumps(_manifest(artifacts=["frontend"]))
+    )
+    (mod_dir / "index.ts").write_text(
+        'import type { Mod } from "@helix/mod-api";\n'
+        'import { register } from "@helix/lims";\n'
+    )
+
+    result = validate_author(mod_dir)
+
+    assert result.exit_code == EXIT_CONTRACT_VIOLATION
+    assert result.diagnostics[0].code == "FORBIDDEN_CROSS_MOD_IMPORT"
+    assert result.diagnostics[0].location.path.endswith("index.ts")
+
+
+def test_bundled_import_baseline_rejects_new_violation(tmp_path):
+    package = tmp_path / "bundled_sample"
+    package.mkdir()
+    (package / "modManifest.json").write_text(
+        json.dumps(_manifest(id="helix.sample", artifacts=["backend"]))
+    )
+    (package / "mod.py").write_text("from bundled.other.models import Thing\n")
+    (package / "__init__.py").write_text("")
+
+    import sys
+
+    sys.path.insert(0, str(tmp_path))
+    try:
+        result = validate_deployment(
+            tmp_path / "catalog.json",
+            bundled_paths=["bundled_sample"],
+            external_entry_points=[],
+        )
+    finally:
+        sys.path.remove(str(tmp_path))
+
+    assert result.exit_code == EXIT_CONTRACT_VIOLATION
+    assert result.diagnostics[0].code == "FORBIDDEN_CROSS_MOD_IMPORT"
+
+
 def test_diagnostic_json_is_stable_and_machine_readable():
     diagnostic = Diagnostic(
         code="REFERENCE_UNRESOLVED",

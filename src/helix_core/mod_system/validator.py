@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from importlib import resources
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -10,6 +11,7 @@ from typing import Any, Iterable
 from .bundled import BUNDLED_MODS
 from .catalog import build_catalog, write_catalog
 from .manifest import validate_manifest
+from .imports import scan_forbidden_imports
 
 EXIT_OK = 0
 EXIT_CONTRACT_VIOLATION = 1
@@ -121,6 +123,16 @@ def validate_author(source_dir: str | Path) -> ValidationResult:
                 )
             )
 
+    for finding in scan_forbidden_imports(root, package_name=root.name):
+        diagnostics.append(
+            Diagnostic(
+                finding.code,
+                "error",
+                f"Import '{finding.imported}' is not allowed for an External Mod.",
+                SourceLocation(str(root / finding.path), finding.line, 1),
+            )
+        )
+
     return ValidationResult(tuple(diagnostics))
 
 
@@ -138,6 +150,7 @@ def validate_deployment(
             external_entry_points=external_entry_points,
         )
         diagnostics = _validate_catalog_dependencies(catalog)
+        diagnostics.extend(_validate_catalog_imports(catalog))
         diagnostics.extend(_validate_active_mods(catalog, active_mods))
         if diagnostics:
             return ValidationResult(tuple(diagnostics))
@@ -198,6 +211,39 @@ def _validate_catalog_dependencies(catalog: dict[str, Any]) -> list[Diagnostic]:
                     )
                 )
     return diagnostics
+
+
+def _validate_catalog_imports(catalog: dict[str, Any]) -> list[Diagnostic]:
+    baseline = _bundled_import_baseline()
+    diagnostics: list[Diagnostic] = []
+    for record in catalog.get("mods", []):
+        manifest = record["manifest"]
+        for finding in record.get("importViolations", []):
+            key = _import_key(record, finding)
+            if record["tier"] == "Bundled" and key in baseline:
+                continue
+            diagnostics.append(
+                Diagnostic(
+                    finding["code"],
+                    "error",
+                    f"Import '{finding['import']}' is forbidden for "
+                    f"{record['tier']} Mod '{manifest['id']}'.",
+                    SourceLocation(finding["path"], finding["line"], 1),
+                )
+            )
+    return diagnostics
+
+
+def _bundled_import_baseline() -> set[str]:
+    data = resources.files("helix_core.mod_system").joinpath("forbidden_import_baseline.json")
+    return set(json.loads(data.read_text(encoding="utf-8")))
+
+
+def _import_key(record: dict[str, Any], finding: dict[str, Any]) -> str:
+    locator = next(iter(record["artifacts"].values()))["locator"]
+    return ":".join(
+        (locator, finding["code"], finding["path"], str(finding["line"]), finding["import"])
+    )
 
 
 def _validate_active_mods(

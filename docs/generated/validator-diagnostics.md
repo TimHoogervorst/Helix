@@ -14,5 +14,7 @@ The validator currently exposes `ValueError` messages rather than a machine-read
 | `VERSION_INVALID` | Invalid manifest SemVer | `version must be a valid SemVer` |
 | `HELIX_RANGE_INVALID` | Invalid requiresHelix range | `requiresHelix must be a valid npm range` |
 | `DEPENDENCY_RANGE_INVALID` | Invalid dependency range | `has an invalid npm range` |
+| `FORBIDDEN_PRIVATE_HELIX_IMPORT` | External Mod imports a private `helix_core` module | Static Python import scan |
+| `FORBIDDEN_CROSS_MOD_IMPORT` | Mod imports another Bundled or External Mod directly | Static Python/TypeScript import scan |
 
 Schema failures use the JSON Schema validator's message and path. Loader failures are documented with the loader API and are not duplicated here.

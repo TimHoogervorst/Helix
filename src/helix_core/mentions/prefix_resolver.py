@@ -71,7 +71,7 @@ def _build_model_type_map() -> dict[type[Model], str]:
     """Build the model→type-string map including entity (no caching)."""
     from mods.eln.models import NotebookEntry
 
-    from mods.lims.models import Entity
+    from bundled.lims.models import Entity
 
     #: Map model class to the short type string used in API responses.
     mmap: dict[type[Model], str] = {

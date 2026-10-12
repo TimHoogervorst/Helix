@@ -37,7 +37,7 @@ def get_helix_mods(
     """Discover, validate, and topologically sort mod manifests.
 
     Returns dotted-path strings suitable for ``INSTALLED_APPS``
-    (e.g. ``["mods.tags", "mods.eln"]``).
+    (e.g. ``["bundled.labelling.tags", "mods.eln"]``).
 
     If *helix_mods_override* is provided, only those dotted paths are loaded
     and auto-discovery is skipped.  When it is ``None`` (the default),
@@ -47,7 +47,7 @@ def get_helix_mods(
         base_dir: The project root directory (e.g. ``settings.BASE_DIR``).
             Auto-discovery looks in ``base_dir.parent / "mods"``.
         helix_mods_override: Explicit list of dotted mod paths (e.g.
-            ``["mods.eln", "mods.lims"]``).  When set, only
+            ``["mods.eln", "bundled.lims"]``).  When set, only
             these mods are loaded — auto-discovery is bypassed.
 
     Returns:

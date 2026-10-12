@@ -22,14 +22,14 @@ import type {
   ColumnDef,
   Schema,
   SchemaTypeItem,
-} from "../../../mods/lims/types";
+} from "../../../bundled/lims/types";
 import type {
   LibraryEntryItem,
   LibraryFolderItem,
   LibraryContentsResponse,
-} from "../../../mods/library/types";
-import type { Project } from "../../../mods/access/types";
-import type { FolderShare } from "../../../mods/access/types";
+} from "../../../bundled/shared/library/types";
+import type { Project } from "../../../bundled/access/access/types";
+import type { FolderShare } from "../../../bundled/access/access/types";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 

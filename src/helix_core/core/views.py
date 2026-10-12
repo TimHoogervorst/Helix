@@ -6,8 +6,8 @@ from rest_framework.response import Response
 
 from helix_core.actions.mixins import ActionLoggingMixin
 from helix_core.source_deletion import delete_source_descendants
-from mods.access.permissions import IsOrganizationAdminForWrites
-from mods.access.scoping import visible_folders_q
+from bundled.access.access.permissions import IsOrganizationAdminForWrites
+from bundled.access.access.scoping import visible_folders_q
 
 from .models import CoreSetting, Folder
 from .serializers import (
@@ -62,7 +62,7 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return qs.order_by("name")
 
     def perform_create(self, serializer):
-        from mods.access.policies import effective_role, role
+        from bundled.access.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
         parent = serializer.validated_data.get("parent")
@@ -80,7 +80,7 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         super().perform_create(serializer)
 
     def perform_update(self, serializer):
-        from mods.access.policies import destination_within_shared_subtree, effective_role
+        from bundled.access.access.policies import destination_within_shared_subtree, effective_role
         from rest_framework.exceptions import PermissionDenied, ValidationError
 
         instance = serializer.instance
@@ -107,7 +107,7 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return super().perform_update(serializer)
 
     def perform_destroy(self, instance):
-        from mods.access.policies import effective_role
+        from bundled.access.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         if effective_role(self.request.user, instance) == "edit":

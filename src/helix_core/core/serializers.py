@@ -24,7 +24,7 @@ class FolderSerializer(serializers.ModelSerializer):
         children = Folder.objects.filter(parent=obj)
         request = self.context.get("request")
         if request is not None:
-            from mods.access.scoping import visible_folders_q
+            from bundled.access.access.scoping import visible_folders_q
 
             children = children.filter(visible_folders_q(request.user))
         return FolderSerializer(children, many=True, context=self.context).data
@@ -46,7 +46,7 @@ class FolderSerializer(serializers.ModelSerializer):
             if parent is not None and project is None:
                 data["project"] = parent.project
             if "name" in data and (parent is None or self.instance.parent_id is None):
-                from mods.access.models import FolderShare
+                from bundled.access.access.models import FolderShare
 
                 if FolderShare.objects.filter(
                     target_project=self.instance.project,

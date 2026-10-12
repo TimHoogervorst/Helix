@@ -19,7 +19,7 @@ from rest_framework.test import APIClient
 from helix_core.actions.registry import register_action_model, register_custom_action
 from helix_core.core.models import Folder, Project, User
 from helix_core.core.tests.base import BaseTestCase
-from mods.access.models import ProjectRole
+from bundled.access.access.models import ProjectRole
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -124,7 +124,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
     def _setup_action_models(self) -> None:
         """Register ELN and Tags action models with their core actions."""
         from mods.eln.models import ElnAction
-        from mods.tags.models import TagsAction
+        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
         register_action_model("tags", TagsAction)
@@ -305,7 +305,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
     def test_custom_action_with_different_core_mapping(self):
         """Custom actions can map to different core verbs; only custom row stored."""
-        from mods.tags.models import TagsAction
+        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("tags", TagsAction)
         register_custom_action(
@@ -313,7 +313,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             action_id="tags.tag.attached",
             label="Tag Attached",
             core="created",
-            target_model="mods.tags.models.Tag",
+            target_model="bundled.labelling.tags.models.Tag",
         )
 
         response = self.client.post(
@@ -378,7 +378,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
     def test_actions_route_to_correct_mod_table(self):
         """Actions for different mods land in the correct concrete tables."""
         from mods.eln.models import ElnAction
-        from mods.tags.models import TagsAction
+        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
         register_action_model("tags", TagsAction)
@@ -659,7 +659,7 @@ class TestActionTargetAccess(BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        from mods.access.models import (
+        from bundled.access.access.models import (
             FolderShare,
             Grant,
             Organization,
@@ -738,7 +738,7 @@ class TestActionTargetAccess(BaseTestCase):
 
     def test_team_derived_edit_can_log(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import (
+        from bundled.access.access.models import (
             Grant,
             OrganizationMembership,
             OrganizationRole,
@@ -783,7 +783,7 @@ class TestActionTargetAccess(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_non_content_target_skips_edit_check(self):
-        from mods.tags.models import TagsAction
+        from bundled.labelling.tags.models import TagsAction
         from helix_core.actions.registry import register_action_model
 
         register_action_model("tags", TagsAction)

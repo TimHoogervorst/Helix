@@ -6,7 +6,7 @@ from helix_core.abstracts import BrowsableItem
 from helix_core.models import SchemaType, Schema
 from helix_core.core.models import Folder, Project, User
 from mods.eln.models import NotebookEntry
-from mods.lims.models import Entity
+from bundled.lims.models import Entity
 
 
 class BrowsableItemDisplayIdTests(TestCase):
@@ -20,7 +20,7 @@ class BrowsableItemDisplayIdTests(TestCase):
             name="Test Folder", parent=None, project=cls.project
         )
         cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="mods.lims.models.Entity",
+            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
         )
         cls.dna_schema = Schema.objects.create(
             name="DNA", prefix="DNA", schema_type=cls.schema_type,

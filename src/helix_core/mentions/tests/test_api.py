@@ -36,7 +36,7 @@ def _create_lims_schema_type():
     """Create the LIMS SchemaType (idempotent)."""
     from helix_core.models import SchemaType
     schema_type, _ = SchemaType.objects.get_or_create(
-        model="mods.lims.models.Entity",
+        model="bundled.lims.models.Entity",
         defaults={
             "display_name": "Entity",
             "workspace_id": "lims",
@@ -192,11 +192,11 @@ class EntityReferenceTests(BaseTestCase):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema, SchemaType
 
         schema_type, _ = SchemaType.objects.get_or_create(
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             defaults={
                 "display_name": "Entity",
                 "workspace_id": "lims",
@@ -284,11 +284,11 @@ class IconInMentionsTests(BaseTestCase):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema, SchemaType
 
         schema_type, _ = SchemaType.objects.get_or_create(
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             defaults={
                 "display_name": "Entity",
                 "workspace_id": "lims",

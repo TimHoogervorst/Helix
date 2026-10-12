@@ -47,7 +47,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
 
         # Create a pin for another user
         other_user = User.objects.create_user(username="other", password="testpass123")
-        from mods.tabs.models import PinnedWorkspace
+        from bundled.tabs.models import PinnedWorkspace
 
         PinnedWorkspace.objects.create(
             user=other_user,
@@ -127,7 +127,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
     def test_delete_other_user_pin_returns_404(self):
         """DELETE /api/core/tabs/{id}/ for another user's tab returns 404."""
         from helix_core.core.models import User
-        from mods.tabs.models import PinnedWorkspace
+        from bundled.tabs.models import PinnedWorkspace
 
         other_user = User.objects.create_user(username="other", password="testpass123")
         other_pin = PinnedWorkspace.objects.create(
@@ -267,7 +267,7 @@ class TabFoldersAndLayoutApiTests(BaseTestCase):
         folder_id = folder_response.data["id"]
         tab = self._create_tab("A1")
 
-        from mods.tabs.models import PinnedWorkspace
+        from bundled.tabs.models import PinnedWorkspace
 
         PinnedWorkspace.objects.filter(pk=tab["id"]).update(folder_id=folder_id)
         response = self.client.delete(f"/api/core/tabs/folders/{folder_id}/")
@@ -277,7 +277,7 @@ class TabFoldersAndLayoutApiTests(BaseTestCase):
 
     def test_folder_isolation(self):
         from helix_core.core.models import User
-        from mods.tabs.models import TabFolder
+        from bundled.tabs.models import TabFolder
 
         other_user = User.objects.create_user(username="other", password="testpass123")
         folder = TabFolder.objects.create(user=other_user, name="Other")

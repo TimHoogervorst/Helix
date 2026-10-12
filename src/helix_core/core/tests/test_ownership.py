@@ -11,9 +11,9 @@ from rest_framework.test import APIClient
 
 from helix_core.core.models import Folder, Project, User
 from helix_core.models import SchemaType, Schema
-from mods.access.models import Grant, ProjectRole
+from bundled.access.access.models import Grant, ProjectRole
 from mods.eln.models import NotebookEntry
-from mods.lims.models import Entity
+from bundled.lims.models import Entity
 
 
 def _create_project(name="Test Project"):
@@ -39,7 +39,7 @@ def _create_eln_schema():
 
 def _create_lims_schema():
     schema_type, _ = SchemaType.objects.get_or_create(
-        model="mods.lims.models.Entity",
+        model="bundled.lims.models.Entity",
         defaults={"display_name": "Entity", "workspace_id": "lims"},
     )
     schema, _ = Schema.objects.get_or_create(

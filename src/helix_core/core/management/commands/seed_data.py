@@ -12,7 +12,7 @@ import os
 from django.core.management.base import BaseCommand
 
 from helix_core.core.models import CoreSetting, Folder, Project, User
-from mods.users.models import Affiliation, Publication, Recognition
+from bundled.access.users.models import Affiliation, Publication, Recognition
 
 
 class Command(BaseCommand):
@@ -67,7 +67,7 @@ class Command(BaseCommand):
         user's membership role is Admin (the post_save signal creates a plain
         USER membership first).
         """
-        from mods.access.models import Organization, OrganizationMembership, OrganizationRole
+        from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 
         org, org_created = Organization.objects.get_or_create(
             id=1,

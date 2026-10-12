@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+import helix_core.mod_system.loader as loader_module
 from helix_core.mod_system.loader import (
     BUNDLED_MODS,
     _auto_discover,
@@ -25,6 +26,12 @@ from helix_core.mod_system.loader import (
     get_helix_mods,
 )
 from helix_core.mod_system.manifest import ModManifest
+
+
+@pytest.fixture(autouse=True)
+def isolate_temp_discovery_from_bundled_mods(monkeypatch):
+    """Keep temp-directory discovery tests independent of real bundled mods."""
+    monkeypatch.setattr(loader_module, "BUNDLED_MODS", [])
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -365,15 +372,15 @@ class TestLoadManifestsFromPaths:
     """Loading manifests from explicit dotted paths."""
 
     def test_loads_from_dotted_path(self):
-        # Uses the actual installed mods.tags package.
-        result = _load_manifests_from_paths(["mods.tags"])
+        # Uses the actual installed bundled.labelling.tags package.
+        result = _load_manifests_from_paths(["bundled.labelling.tags"])
         assert "tags" in result
         assert isinstance(result["tags"], ModManifest)
         assert result["tags"].id == "tags"
 
     def test_loads_multiple_paths(self):
         result = _load_manifests_from_paths(
-            ["mods.tags", "mods.users"]
+            ["bundled.labelling.tags", "bundled.access.users"]
         )
         assert set(result.keys()) == {"tags", "users"}
 
@@ -464,8 +471,18 @@ class TestGetHelixMods:
             "mods.eln",
         }
 
-    def test_bundled_mods_are_explicitly_empty_for_now(self):
-        assert BUNDLED_MODS == []
+    def test_bundled_mods_are_explicitly_enumerated(self):
+        assert BUNDLED_MODS == [
+            "bundled.access.access",
+            "bundled.access.users",
+            "bundled.datatypes.dropdowns",
+            "bundled.labelling.tags",
+            "bundled.lims",
+            "bundled.settings",
+            "bundled.shared.home",
+            "bundled.shared.library",
+            "bundled.tabs",
+        ]
 
     def test_helix_mods_override(self, tmp_path):
         """When override is set, only listed mods are loaded."""
@@ -526,8 +543,8 @@ class TestGetHelixMods:
         with pytest.raises(ValueError, match="Duplicate mod ID"):
             get_helix_mods(
                 helix_mods_override=[
-                    "mods.tags",
-                    "mods.tags",
+                    "bundled.labelling.tags",
+                    "bundled.labelling.tags",
                 ],
             )
 
@@ -1379,7 +1396,7 @@ class TestGetHelixModsWithExternal:
 
         json_path = server_dir / "helix.mods.json"
         json_path.write_text(json.dumps({
-            "mods": [{"path": "./external_mods/tags/mod.py"}],
+            "mods": [{"path": "./external_bundled/labelling/tags/mod.py"}],
         }))
 
         with pytest.raises(ValueError, match="Duplicate mod ID"):

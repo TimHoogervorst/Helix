@@ -10,7 +10,7 @@ from helix_core.formulas import (
 from helix_core.mod_system.registry import registry
 
 
-FIXTURES = json.loads((Path(__file__).resolve().parents[4] / "src/shell/src/shared/formulas/parity.json").read_text())
+FIXTURES = json.loads((Path(__file__).resolve().parents[3] / "src/shell/src/shared/formulas/parity.json").read_text())
 
 
 def test_parity_fixtures():

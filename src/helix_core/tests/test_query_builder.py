@@ -674,7 +674,7 @@ class QueryBuilderIntegrationTests(TestCase):
         lims_type = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
         cls.eln_schema = Schema.objects.create(
             name="Default",
@@ -690,7 +690,7 @@ class QueryBuilderIntegrationTests(TestCase):
         )
 
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         cls.eln_entry = NotebookEntry.objects.create(
             name="PCR Experiment",
@@ -894,7 +894,7 @@ class ProjectFilterQueryTests(TestCase):
     def setUpTestData(cls):
         from helix_core.core.models import Folder, Project, User
         from helix_core.models import Schema, SchemaType
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         cls.user = User.objects.create_user(
             username="projfilter", password="pass"
@@ -903,7 +903,7 @@ class ProjectFilterQueryTests(TestCase):
         lims_type = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
         cls.lims_schema = Schema.objects.create(
             name="Default",

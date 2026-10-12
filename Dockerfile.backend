@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Bundled mods are copied to /bundled and imported through the bundled.*
+# namespace, so the filesystem root must be importable in the backend image.
+ENV PYTHONPATH="/:/app"
+
 # Install system dependencies for psycopg2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc && \

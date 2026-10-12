@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from helix_core.core.models import Folder, Project, User
-from mods.access.models import Grant, ProjectRole
+from bundled.access.access.models import Grant, ProjectRole
 
 
 class BaseTestCase(TestCase):

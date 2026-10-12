@@ -29,7 +29,7 @@ from helix_core.serializers import (
 )
 
 from helix_core.models import EntityHubView
-from mods.access.permissions import IsOrganizationAdminForWrites
+from bundled.access.access.permissions import IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
 from helix_core.formulas import evaluate_formula
@@ -38,7 +38,7 @@ from helix_core.query_builder import (
     build_entity_hub_filters,
     parse_filter_params,
 )
-from mods.access.scoping import visible_rows_q
+from bundled.access.access.scoping import visible_rows_q
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _resolve_content_target_model(target_type):
     """
     from helix_core.core.models import Folder
     from mods.eln.models import NotebookEntry
-    from mods.lims.models import Entity
+    from bundled.lims.models import Entity
 
     return {
         "core.folder": Folder,
@@ -540,7 +540,7 @@ class SchemaViewSet(viewsets.ModelViewSet):
         """
         from django.db.utils import OperationalError
 
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from mods.eln.models import NotebookEntry
 
         # Delete entities first (they have FK to Schema)
@@ -690,7 +690,7 @@ class ActionCreateView(APIView):
         # cannot be written against arbitrary content.  Non-content targets
         # (organization records, tags, and so on) are not project resources
         # and skip the check.
-        from mods.access.policies import effective_role
+        from bundled.access.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         target_model = _resolve_content_target_model(target_type)
@@ -832,7 +832,7 @@ class ColorTokenViewSet(viewsets.ModelViewSet):
         reference the key.  The response carries a ``usage_count`` so
         the caller can warn the user before confirming the delete.
         """
-        from mods.tags.models import Tag
+        from bundled.labelling.tags.models import Tag
 
         instance = self.get_object()
         key = instance.key
@@ -872,8 +872,8 @@ class IconLibraryViewSet(viewsets.ModelViewSet):
         the key.  The response carries a ``usage_count`` so the caller
         can warn the user before confirming the delete.
         """
-        from mods.tags.models import Tag
-        from mods.home.models import Card
+        from bundled.labelling.tags.models import Tag
+        from bundled.shared.home.models import Card
 
         instance = self.get_object()
         key = instance.key

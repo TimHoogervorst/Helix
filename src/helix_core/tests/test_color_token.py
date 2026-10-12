@@ -3,9 +3,9 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from helix_core.core.models import User
-from mods.access.models import Organization, OrganizationMembership, OrganizationRole
+from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 from helix_core.models import ColorToken
-from mods.tags.models import Tag
+from bundled.labelling.tags.models import Tag
 
 
 # ── Model tests ────────────────────────────────────────────────────────

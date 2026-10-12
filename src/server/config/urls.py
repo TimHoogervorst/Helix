@@ -9,7 +9,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.permissions import IsAuthenticated
 
 from helix_core.mod_system.registry import registry
-from mods.access.permissions import IsOrganizationAdmin
+from bundled.access.access.permissions import IsOrganizationAdmin
 
 
 @api_view(["DELETE"])
@@ -33,12 +33,12 @@ def delete_everything(request):
     counts["eln_entries"] = c
 
     # 3. LIMS actions (depend on entities)
-    from mods.lims.models import Action
+    from bundled.lims.models import Action
     c, _ = Action.objects.all().delete()
     counts["actions"] = c
 
     # 4. LIMS entities (depend on entity types)
-    from mods.lims.models import Entity
+    from bundled.lims.models import Entity
     c, _ = Entity.objects.all().delete()
     counts["entities"] = c
 

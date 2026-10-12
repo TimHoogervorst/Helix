@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 
 from helix_core.core.models import CoreSetting, Folder, Project, User
 from helix_core.core.tests.base import BaseTestCase
-from mods.access.models import Organization, OrganizationMembership, OrganizationRole
+from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
@@ -210,7 +210,7 @@ class FolderRenameValidationTests(BaseTestCase):
         self.assertTrue(response.data)
 
     def test_reject_top_level_name_collision_with_incoming_share(self):
-        from mods.access.models import FolderShare, Organization, OrganizationMembership, OrganizationRole, ShareLevel
+        from bundled.access.access.models import FolderShare, Organization, OrganizationMembership, OrganizationRole, ShareLevel
 
         org = Organization.objects.create(name="Test Org")
         other_user = User.objects.create_user(username="other", password="pass")
@@ -290,7 +290,7 @@ class FolderRenameAccessTests(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import (
+        from bundled.access.access.models import (
             FolderShare,
             Grant,
             Organization,
@@ -386,7 +386,7 @@ class FolderRenameAccessTests(TestCase):
         self._assert_200(self.admin, self.folder, "RenamedByAdmin")
 
     def test_team_derived_edit_can_rename(self):
-        from mods.access.models import Grant, ProjectRole, Team
+        from bundled.access.access.models import Grant, ProjectRole, Team
         from django.contrib.auth.models import Group
 
         group = Group.objects.create(name="editor_team")
@@ -435,7 +435,7 @@ class FolderDeleteAccessTests(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import (
+        from bundled.access.access.models import (
             FolderShare,
             Grant,
             Organization,
@@ -526,7 +526,7 @@ class FolderDeleteAccessTests(TestCase):
         self._assert_204(self.admin, self.folder)
 
     def test_team_derived_edit_can_delete(self):
-        from mods.access.models import Grant, OrganizationMembership, OrganizationRole, ProjectRole, Team
+        from bundled.access.access.models import Grant, OrganizationMembership, OrganizationRole, ProjectRole, Team
         from django.contrib.auth.models import Group
 
         team_user = User.objects.create_user(username="team_del", password="pass")
@@ -606,7 +606,7 @@ class FolderCreateAccessTests(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import (
+        from bundled.access.access.models import (
             FolderShare,
             Grant,
             Organization,
@@ -678,7 +678,7 @@ class FolderCreateAccessTests(TestCase):
 
     def test_team_derived_edit_can_create(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import (
+        from bundled.access.access.models import (
             Grant,
             OrganizationMembership,
             OrganizationRole,
@@ -733,7 +733,7 @@ class FolderMoveAccessTests(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import (
+        from bundled.access.access.models import (
             FolderShare,
             Grant,
             Organization,

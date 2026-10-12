@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 
 from helix_core.core.models import User
 from helix_core.models import SchemaType, Schema
-from mods.access.models import Organization, OrganizationMembership, OrganizationRole
+from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 
 
 def make_admin(user):
@@ -102,7 +102,7 @@ class SchemaTypeApiTests(TestCase):
         self.client.force_authenticate(user=self.user)
         SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             tags=["RegistrationTable"],
         )
         SchemaType.objects.create(
@@ -126,7 +126,7 @@ class SchemaTypeApiTests(TestCase):
         lims = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
         eln = SchemaType.objects.create(
             display_name="ELN Entry",
@@ -162,7 +162,7 @@ class SchemaCrudTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             tags=["RegistrationTable"],
         )
 
@@ -368,7 +368,7 @@ class SchemaColumnValidationTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
 
     def test_rejects_invalid_column_type(self):
@@ -442,7 +442,7 @@ class SchemaDefaultDeactivationTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
 
     def test_can_deactivate_default_schema(self):
@@ -483,7 +483,7 @@ class SchemaDeleteAllTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
 
     def test_delete_all_hard_deletes_all_schemas(self):

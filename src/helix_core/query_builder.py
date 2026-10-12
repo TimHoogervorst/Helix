@@ -539,7 +539,7 @@ def build_metric_aggregation(
 
     qs = EntityHubView.objects.all()
     if user is not None:
-        from mods.access.scoping import visible_rows_q
+        from bundled.access.access.scoping import visible_rows_q
 
         qs = qs.filter(visible_rows_q(user))
 

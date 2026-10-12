@@ -11,7 +11,7 @@ def delete_source_descendants(root: models.Model) -> None:
     """
     from helix_core.core.models import Folder
     from mods.eln.models import NotebookEntry
-    from mods.lims.models import Entity
+    from bundled.lims.models import Entity
 
     source_models = (Folder, NotebookEntry, Entity)
     source_types = {

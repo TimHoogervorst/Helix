@@ -98,7 +98,7 @@ class BackendModRegistry:
         """Set the topological mod order from the loader's sorted output.
 
         Each entry in *dotted_paths* is a string like
-        ``"mods.tags"`` (for core mods) or ``"my_plugin"`` (for
+        ``"bundled.labelling.tags"`` (for core mods) or ``"my_plugin"`` (for
         external mods).  For core mods the final dot-separated segment
         is extracted as the mod ID.  For external mods the manifest
         keys are used directly to recover the original mod ID (which
@@ -114,7 +114,7 @@ class BackendModRegistry:
         if manifests is not None:
             self._manifests = dict(manifests)
             # Build a reverse mapping: dotted path → manifest ID.
-            # For core mods: "mods.tags" section → "tags"
+            # For core mods: "bundled.labelling.tags" section → "tags"
             # For external mods: "my_plugin" → "my-plugin"
             path_to_id: dict[str, str] = {}
             for mod_id in manifests:
@@ -207,7 +207,7 @@ class BackendModRegistry:
             workspace_id: The workspace that owns this schema type
                           (e.g. ``"lims"``).
             model: Dotted Python path to the model class
-                   (e.g. ``"mods.lims.models.Entity"``).
+                   (e.g. ``"bundled.lims.models.Entity"``).
             columns: Optional list of column definition dicts.
             tags: Optional capability tags declared by the owning mod.
             prefix: Uppercase prefix for the default Schema's display-ID
@@ -316,7 +316,7 @@ class BackendModRegistry:
             core: The core action verb this action maps to — must be one of
                 ``"read"``, ``"created"``, ``"edited"``, ``"deleted"``.
             target_model: Dotted Python path to the target model class
-                (e.g. ``"mods.lims.models.Entity"``).
+                (e.g. ``"bundled.lims.models.Entity"``).
 
         Raises:
             ValueError: If *mod_id* has not called
@@ -565,7 +565,7 @@ class BackendModRegistry:
             if mod_id in self._manifests:
                 for dep_id in self._manifests[mod_id].dependency_ids:
                     # Try label first (e.g. "lims"), then dotted name
-                    # (e.g. "mods.lims") — Django app_configs keys
+                    # (e.g. "bundled.lims") — Django app_configs keys
                     # are app labels, which for mods are the last
                     # component of the dotted name.
                     dep_config = apps.app_configs.get(dep_id)

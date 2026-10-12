@@ -11,7 +11,7 @@ import { useSendAction } from "../../../shell/src/workspace/useSendAction";
 import { TipTapRenderer } from "../../../shell/src/workspace/TipTapRenderer";
 import { elnExtensions } from "../editor/extensions/elnExtensions";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
-import { useTaggableItems } from "../../tags/hooks";
+import { useTaggableItems } from "../../../bundled/labelling/tags/hooks";
 import { attachTags, detachTag } from "../api";
 import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
 import { useActivity } from "../hooks/useActivity";

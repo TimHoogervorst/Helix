@@ -94,7 +94,7 @@ class SchemaTypeListSerializer(serializers.ModelSerializer):
         """Derive the schema_type_id used by the entity_hub_view VIEW.
 
         Convention: ``{mod_name}.{model_name_lower}`` parsed from the
-        dotted Python model path (e.g. ``mods.lims.models.Entity`` →
+        dotted Python model path (e.g. ``bundled.lims.models.Entity`` →
         ``lims.entity``).
         """
         # Results share the LIMS Entity persistence model, so their registry
@@ -264,7 +264,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
 
         from helix_core.core.models import Folder, Project
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         if isinstance(source, Project):
             return {

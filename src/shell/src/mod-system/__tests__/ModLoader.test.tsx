@@ -219,7 +219,7 @@ describe("topologicalSort", () => {
 
     it("extracts directory name from modManifest.json path", () => {
       expect(
-        extractModDir("../../../mods/tags/modManifest.json"),
+        extractModDir("../../../bundled/labelling/tags/modManifest.json"),
       ).toBe("tags");
     });
 
@@ -231,7 +231,7 @@ describe("topologicalSort", () => {
 
     it("handles deeply nested paths", () => {
       expect(
-        extractModDir("/home/user/project/src/mods/lims/index.ts"),
+        extractModDir("/home/user/project/src/bundled/lims/index.ts"),
       ).toBe("lims");
     });
   });
@@ -543,8 +543,25 @@ describe("ModLoader", () => {
 
 describe("bundled mod enumeration", () => {
   it("starts empty while remaining an explicit loading seam", () => {
-    expect(bundledModModules).toEqual({});
-    expect(bundledJsonManifestModules).toEqual({});
+    expect(Object.keys(bundledModModules)).toHaveLength(9);
+    expect(Object.keys(bundledJsonManifestModules)).toHaveLength(9);
+    expect(
+      Object.values(bundledJsonManifestModules).map(({ default: manifest }) =>
+        `${manifest.vendor}.${manifest.name}`,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        "helix.home",
+        "helix.library",
+        "helix.lims",
+        "helix.dropdowns",
+        "helix.tags",
+        "helix.access",
+        "helix.users",
+        "helix.settings",
+        "helix.tabs",
+      ]),
+    );
   });
 });
 

@@ -65,7 +65,7 @@ class ModRegistryContractTests(TestCase):
         self.lims_st = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             columns=[{"name": "volume", "type": "number"}],
             tags=["RegistrationTable"],
         )

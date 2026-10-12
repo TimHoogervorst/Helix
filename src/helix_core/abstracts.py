@@ -76,7 +76,7 @@ class Sourceable(models.Model):
     def _source_project_id(self, source):
         from helix_core.core.models import Folder, Project
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         if isinstance(source, Project):
             return source.pk
@@ -104,7 +104,7 @@ class Sourceable(models.Model):
     def _validate_source(self, source):
         from helix_core.core.models import Folder, Project
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         if source is None:
             raise ValidationError({"source": "Source is required."})

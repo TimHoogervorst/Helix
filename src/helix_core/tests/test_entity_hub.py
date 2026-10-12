@@ -24,7 +24,7 @@ def _setup_schema_types():
     lims_type = SchemaType.objects.create(
         display_name="Entity",
         workspace_id="lims",
-        model="mods.lims.models.Entity",
+        model="bundled.lims.models.Entity",
     )
     eln_schema = Schema.objects.create(
         name="Default",
@@ -60,7 +60,7 @@ class EntityHubViewTests(TestCase):
         )
 
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         cls.eln_entry = NotebookEntry.objects.create(
             name="ELN Test Entry",
@@ -123,12 +123,12 @@ class EntityHubViewTests(TestCase):
     def test_view_uses_schema_type_for_result_entities(self):
         """Result entities retain their registered schema type in the view."""
         from helix_core.models import EntityHubView
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         result_type = SchemaType.objects.create(
             display_name="Results",
             workspace_id="results",
-            model="mods.lims.models.ResultEntity",
+            model="bundled.lims.models.ResultEntity",
         )
         result_schema = Schema.objects.create(
             name="Assay Result",
@@ -176,7 +176,7 @@ class EntityHubAPITests(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
-        from mods.access.models import (
+        from bundled.access.access.models import (
             Organization,
             OrganizationMembership,
             OrganizationRole,
@@ -199,7 +199,7 @@ class EntityHubAPITests(APITestCase):
         )
 
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         cls.eln_entry = NotebookEntry.objects.create(
             name="ELN Test Entry",
@@ -286,7 +286,7 @@ class EntityHubAPITests(APITestCase):
     def test_page_param_selects_page(self):
         """The page query parameter selects a specific page."""
         # Create enough entities to span multiple pages at size=1
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema
 
         schema = Schema.objects.get(prefix="LIMS")
@@ -348,7 +348,7 @@ class EntityHubAPITests(APITestCase):
     def test_empty_database_returns_empty_results(self):
         """When no entities exist, results is empty (not an error)."""
         from mods.eln.models import NotebookEntry
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         NotebookEntry.objects.all().delete()
         Entity.objects.all().delete()
 
@@ -421,7 +421,7 @@ class EntityHubAPITests(APITestCase):
     def test_filter_by_status_finished(self):
         """?status=finished returns only finished entities."""
         # Create a finished entity
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema
         lims_schema = Schema.objects.get(prefix="LIMS")
         Entity.objects.create(
@@ -460,7 +460,7 @@ class EntityHubAPITests(APITestCase):
 
     def test_field_filter(self):
         """?f=key:value filters on properties JSON column."""
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema
         lims_schema = Schema.objects.get(prefix="LIMS")
         Entity.objects.create(
@@ -510,7 +510,7 @@ class EntityHubAPITests(APITestCase):
 
     def test_combined_search_and_schema_scopes_results(self):
         """?search= + ?schema= scopes search results to that schema."""
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema, SchemaType
 
         lims_type = SchemaType.objects.get(workspace_id="lims")
@@ -563,7 +563,7 @@ class EntityHubAPITests(APITestCase):
         project_folder = Folder.objects.create(
             name="Project Folder", parent=None, project=proj,
         )
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema, SchemaType
         lims_type = SchemaType.objects.get(workspace_id="lims")
         schema = Schema.objects.create(
@@ -595,7 +595,7 @@ class EntityHubAPITests(APITestCase):
         proj_b = Project.objects.create(name="Beta Project")
         folder_a = Folder.objects.create(name="A Folder", parent=None, project=proj_a)
         folder_b = Folder.objects.create(name="B Folder", parent=None, project=proj_b)
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         from helix_core.models import Schema, SchemaType
         lims_type = SchemaType.objects.get(workspace_id="lims")
         schema = Schema.objects.create(
@@ -659,7 +659,7 @@ class EntityHubAPITests(APITestCase):
     def test_expanded_populated_when_schema_selected(self):
         """_expanded is populated with column values when ?schema= is set."""
         from helix_core.models import Schema, SchemaType
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         lims_type = SchemaType.objects.get(workspace_id="lims")
         schema = Schema.objects.create(
@@ -698,7 +698,7 @@ class EntityHubAPITests(APITestCase):
     def test_expanded_partial_when_some_properties_missing(self):
         """_expanded only includes keys present in properties."""
         from helix_core.models import Schema, SchemaType
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         lims_type = SchemaType.objects.get(workspace_id="lims")
         schema = Schema.objects.create(

@@ -10,7 +10,7 @@ from django.contrib.auth.models import Group
 from rest_framework.test import APITestCase
 
 from helix_core.models import Schema, SchemaType
-from mods.access.models import (
+from bundled.access.access.models import (
     FolderShare,
     Grant,
     OrganizationRole,
@@ -18,7 +18,7 @@ from mods.access.models import (
     ShareLevel,
     Team,
 )
-from mods.access.tests.factories import (
+from bundled.access.access.tests.factories import (
     add_child_folder,
     add_grandchild_folder,
     make_org,
@@ -30,12 +30,12 @@ from mods.access.tests.factories import (
 
 def _make_entity(folder, author, name):
     """Create a LIMS Entity in *folder* (project derived from the folder)."""
-    from mods.lims.models import Entity
+    from bundled.lims.models import Entity
 
     schema_type, _ = SchemaType.objects.get_or_create(
         display_name="Entity",
         workspace_id="lims",
-        model="mods.lims.models.Entity",
+        model="bundled.lims.models.Entity",
     )
     schema, _ = Schema.objects.get_or_create(
         name="DNA", prefix="DNA", schema_type=schema_type, is_default=True,
@@ -158,7 +158,7 @@ class EntityHubScopingTests(APITestCase):
         self.assertNotIn(self.other_row.display_id, display_ids)
 
     def test_shared_subtree_scoping_uses_source_path(self):
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         Grant.objects.create(
             project=self.target, role=ProjectRole.READ, user=self.sharee,

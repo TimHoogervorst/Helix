@@ -51,7 +51,7 @@ def _create_lims_schema(*, prefix: str = "BLOOD", name: str = "Default"):
     """Create a SchemaType + Schema pair for LIMS tests."""
     from helix_core.models import Schema, SchemaType
     schema_type, _ = SchemaType.objects.get_or_create(
-        model="mods.lims.models.Entity",
+        model="bundled.lims.models.Entity",
         defaults={
             "display_name": "Entity",
             "workspace_id": "lims",
@@ -104,7 +104,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_resolves_entity_by_dynamic_prefix(self):
         """``BLOOD1`` resolves to an Entity after creating the Schema."""
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         blood_schema = _create_lims_schema(prefix="BLOOD")
         entity = Entity.objects.create(
@@ -138,7 +138,7 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def test_prefix_extraction_mixed_case(self):
         """``Blood1`` → prefix extracted as ``BLOOD``."""
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         blood_schema = _create_lims_schema(prefix="BLOOD")
         entity = Entity.objects.create(
@@ -171,7 +171,7 @@ class GetIconTests(BaseServiceTestCase):
 
     def test_entity_default_icon(self):
         """Entities get the default ``🧪`` icon (Schema has no icon field)."""
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
 
         schema = _create_lims_schema(prefix="TEST")
         entity = Entity.objects.create(
@@ -273,7 +273,7 @@ class PrefixCacheTests(BaseServiceTestCase):
         self.assertIn(NotebookEntry, mmap)
         self.assertEqual(mmap[NotebookEntry], "entry")
 
-        from mods.lims.models import Entity
+        from bundled.lims.models import Entity
         self.assertIn(Entity, mmap)
         self.assertEqual(mmap[Entity], "entity")
 

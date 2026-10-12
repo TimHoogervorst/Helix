@@ -14,7 +14,7 @@ import { useState, useEffect } from "react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
 import type { ElnSidebarData } from "./sidebarData";
 import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
-import { listDropdowns } from "../../dropdowns/api";
+import { listDropdowns } from "../../../bundled/datatypes/dropdowns/api";
 import { Select } from "../../../shell/src/shared/primitives/Input";
 
 /** Format a snake_case status value for display (e.g. "in_progress" → "In Progress"). */

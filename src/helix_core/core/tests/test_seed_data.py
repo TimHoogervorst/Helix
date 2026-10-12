@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from helix_core.core.models import CoreSetting, User
-from mods.users.models import Affiliation, Publication, Recognition
+from bundled.access.users.models import Affiliation, Publication, Recognition
 
 
 class SeedDataTests(TestCase):
@@ -63,7 +63,7 @@ class SeedDataTests(TestCase):
 
     def test_creates_admin_organization_membership(self):
         """Seeding a superuser also creates an Admin Organization Membership."""
-        from mods.access.models import OrganizationMembership, OrganizationRole
+        from bundled.access.access.models import OrganizationMembership, OrganizationRole
 
         self.call_seed({
             "SEED_USERNAME": "admin_member",
@@ -76,7 +76,7 @@ class SeedDataTests(TestCase):
 
     def test_promotes_existing_membership_to_admin(self):
         """A superuser whose membership was auto-created as USER is promoted."""
-        from mods.access.models import (
+        from bundled.access.access.models import (
             Organization,
             OrganizationMembership,
             OrganizationRole,

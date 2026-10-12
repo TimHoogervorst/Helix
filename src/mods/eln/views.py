@@ -17,9 +17,9 @@ from helix_core.actions.logger import bulk_log_actions, log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from helix_core.source_deletion import delete_source_descendants
 
-from mods.tags.models import Tag
-from mods.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
-from mods.access.scoping import visible_rows_q
+from bundled.labelling.tags.models import Tag
+from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
+from bundled.access.access.scoping import visible_rows_q
 
 from helix_core.models import Schema
 
@@ -137,7 +137,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return schema
 
     def perform_create(self, serializer):
-        from mods.access.policies import effective_role, role
+        from bundled.access.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
         project = serializer.validated_data["project"]
@@ -168,7 +168,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Organization Admin override, or a Read + Write share evaluated via the
         target Project.
         """
-        from mods.access.policies import effective_role
+        from bundled.access.access.policies import effective_role
 
         return effective_role(self.request.user, instance) == "edit"
 
@@ -217,7 +217,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
-            from mods.access.policies import effective_role
+            from bundled.access.access.policies import effective_role
             from helix_core.core.models import Project
 
             if validated_data.get("source_type") is None:
@@ -557,7 +557,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             423 — another user holds an active lock.
             403 — the requester cannot Edit this entry.
         """
-        from mods.access.policies import effective_role
+        from bundled.access.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         entry = self.get_object()
@@ -651,7 +651,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             204 — lock released, didn't exist, or held by another user.
             403 — the requester cannot Edit this entry.
         """
-        from mods.access.policies import effective_role
+        from bundled.access.access.policies import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         entry = self.get_object()
@@ -685,7 +685,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             acquired_at: str | None  (ISO 8601)
             last_activity_at: str | None  (ISO 8601)
         """
-        from mods.access.policies import effective_role
+        from bundled.access.access.policies import effective_role
 
         entry = self.get_object()
 

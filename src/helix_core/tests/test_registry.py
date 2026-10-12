@@ -217,7 +217,7 @@ class TestURLRegistration:
     def test_get_url_patterns_in_dependency_order(self):
         """get_url_patterns returns mods in dependency order."""
         reg = _fresh_registry()
-        reg.set_mod_order(["mods.tags", "mods.eln"])
+        reg.set_mod_order(["bundled.labelling.tags", "mods.eln"])
 
         eln_p = path("api/eln/", _dummy_view)
         tags_p = path("api/tags/", _dummy_view)
@@ -231,7 +231,7 @@ class TestURLRegistration:
     def test_get_url_patterns_unknown_mods_last(self):
         """Unknown mods appear alphabetically after known mods."""
         reg = _fresh_registry()
-        reg.set_mod_order(["mods.tags"])
+        reg.set_mod_order(["bundled.labelling.tags"])
 
         tags_p = path("api/tags/", _dummy_view)
         core_p = path("api/core/", _dummy_view)
@@ -354,7 +354,7 @@ class TestSignalRegistration:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.lims", "mods.eln"], manifests
+            ["bundled.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -379,7 +379,7 @@ class TestSignalRegistration:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.lims", "mods.eln"], manifests
+            ["bundled.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -399,7 +399,7 @@ class TestSignalRegistration:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.tags", "mods.lims", "mods.eln"], manifests
+            ["bundled.labelling.tags", "bundled.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -469,7 +469,7 @@ class TestSignalDependencyGating:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.lims", "mods.eln"], manifests
+            ["bundled.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -496,7 +496,7 @@ class TestSignalDependencyGating:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.lims", "mods.eln"], manifests
+            ["bundled.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -521,7 +521,7 @@ class TestSignalDependencyGating:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.lims", "mods.eln"], manifests
+            ["bundled.lims", "mods.eln"], manifests
         )
 
         signal = MagicMock()
@@ -865,7 +865,7 @@ class TestBuildURLPatterns:
     def test_returns_patterns_in_dependency_order(self):
         """Dependencies should appear before dependents."""
         reg = _fresh_registry()
-        reg.set_mod_order(["mods.tags", "mods.eln"])
+        reg.set_mod_order(["bundled.labelling.tags", "mods.eln"])
 
         tags_pattern = path("api/tags/", _dummy_view, name="tags")
         eln_pattern = path("api/eln/", _dummy_view, name="eln")
@@ -879,7 +879,7 @@ class TestBuildURLPatterns:
     def test_unknown_mods_appended_alphabetically(self):
         """Mods not in the mod order go last, sorted alphabetically."""
         reg = _fresh_registry()
-        reg.set_mod_order(["mods.tags"])
+        reg.set_mod_order(["bundled.labelling.tags"])
 
         tags_pattern = path("api/tags/", _dummy_view)
         core_pattern = path("api/core/", _dummy_view)
@@ -896,12 +896,12 @@ class TestBuildURLPatterns:
         """Match the dependency table from the mod-system spec."""
         reg = _fresh_registry()
         reg.set_mod_order([
-            "mods.tags",
-            "mods.users",
-            "mods.lims",
+            "bundled.labelling.tags",
+            "bundled.access.users",
+            "bundled.lims",
             "mods.eln",
-            "mods.library",
-            "mods.tabs",
+            "bundled.shared.library",
+            "bundled.tabs",
             "mods.core",
         ])
 
@@ -957,8 +957,8 @@ class TestSetModOrder:
     def test_extracts_mod_ids_from_dotted_paths(self):
         reg = _fresh_registry()
         reg.set_mod_order([
-            "mods.tags",
-            "mods.lims",
+            "bundled.labelling.tags",
+            "bundled.lims",
             "mods.eln",
         ])
         tags_p = path("api/tags/", _dummy_view)
@@ -985,7 +985,7 @@ class TestSetModOrder:
             "lims": _make_manifest("lims"),
         }
         reg.set_mod_order(
-            ["mods.lims", "mods.eln"], manifests
+            ["bundled.lims", "mods.eln"], manifests
         )
         assert reg._manifests == manifests
 
@@ -1013,11 +1013,11 @@ class TestRegisterSchemaType:
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             prefix="E",
         )
 
-        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        st = SchemaType.objects.get(model="bundled.lims.models.Entity")
         assert st.display_name == "Entity"
         assert st.workspace_id == "lims"
         assert st.is_active is True
@@ -1034,19 +1034,19 @@ class TestRegisterSchemaType:
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             prefix="E",
         )
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             prefix="E",
         )
 
         # Only one SchemaType and one Schema should exist.
-        assert SchemaType.objects.filter(model="mods.lims.models.Entity").count() == 1
-        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        assert SchemaType.objects.filter(model="bundled.lims.models.Entity").count() == 1
+        st = SchemaType.objects.get(model="bundled.lims.models.Entity")
         assert Schema.objects.filter(schema_type=st, is_default=True).count() == 1
 
     def test_updates_existing_schema_type_on_repeat_call(self):
@@ -1057,7 +1057,7 @@ class TestRegisterSchemaType:
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             prefix="E",
         )
 
@@ -1065,12 +1065,12 @@ class TestRegisterSchemaType:
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             columns=[{"name": "volume", "type": "number"}],
             prefix="E",
         )
 
-        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        st = SchemaType.objects.get(model="bundled.lims.models.Entity")
         assert st.display_name == "Entity"
         assert len(st.columns) == 1
         assert st.columns[0]["name"] == "volume"
@@ -1083,19 +1083,19 @@ class TestRegisterSchemaType:
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             tags=["RegistrationTable"],
             prefix="E",
         )
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             tags=["ResultTable"],
             prefix="E",
         )
 
-        st = SchemaType.objects.get(model="mods.lims.models.Entity")
+        st = SchemaType.objects.get(model="bundled.lims.models.Entity")
         assert st.tags == ["ResultTable"]
 
     def test_custom_schema_name(self):
@@ -1138,7 +1138,7 @@ class TestRegisterSchemaType:
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             prefix="E",
         )
         reg.register_schema_type(
@@ -1149,7 +1149,7 @@ class TestRegisterSchemaType:
         )
 
         assert SchemaType.objects.count() == 2
-        assert SchemaType.objects.filter(model="mods.lims.models.Entity").exists()
+        assert SchemaType.objects.filter(model="bundled.lims.models.Entity").exists()
         assert SchemaType.objects.filter(model="mods.eln.models.NotebookEntry").exists()
 
 
@@ -1213,7 +1213,7 @@ class TestRegisterCustomAction:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         catalog = reg.get_action_catalog("lims")
@@ -1225,7 +1225,7 @@ class TestRegisterCustomAction:
         assert action["id"] == "lims.sample.registered"
         assert action["label"] == "Sample Registered"
         assert action["action_type"] == "edited"
-        assert action["target_model"] == "mods.lims.models.Entity"
+        assert action["target_model"] == "bundled.lims.models.Entity"
 
     def test_register_custom_action_multiple_actions(self):
         """Multiple custom actions for the same mod are all stored."""
@@ -1237,14 +1237,14 @@ class TestRegisterCustomAction:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
         reg.register_custom_action(
             mod_id="lims",
             action_id="lims.sample.aliquoted",
             label="Sample Aliquoted",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         catalog = reg.get_action_catalog("lims")
@@ -1270,7 +1270,7 @@ class TestRegisterCustomAction:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         eln_catalog = reg.get_action_catalog("eln")
@@ -1361,7 +1361,7 @@ class TestGetActionCatalog:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         catalog = reg.get_action_catalog("lims")
@@ -1383,7 +1383,7 @@ class TestGetActionCatalog:
             action_id="lims.sample.aliquoted",
             label="Sample Aliquoted",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         catalog = reg.get_action_catalog("lims")
@@ -1429,7 +1429,7 @@ class TestValidateAction:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         assert reg.validate_action("lims.sample.registered") is True
@@ -1458,7 +1458,7 @@ class TestValidateAction:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         # Partial/substring match should not count
@@ -1476,7 +1476,7 @@ class TestValidateAction:
             action_id="lims.sample.registered",
             label="Sample Registered",
             core="edited",
-            target_model="mods.lims.models.Entity",
+            target_model="bundled.lims.models.Entity",
         )
 
         # eln has core actions but not the custom lims action

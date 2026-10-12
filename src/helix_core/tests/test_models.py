@@ -21,14 +21,14 @@ class SchemaTypeCRUDTests(TestCase):
         st = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
             columns=[
                 {"name": "volume", "type": "number", "required": True},
             ],
         )
         self.assertEqual(st.display_name, "Entity")
         self.assertEqual(st.workspace_id, "lims")
-        self.assertEqual(st.model, "mods.lims.models.Entity")
+        self.assertEqual(st.model, "bundled.lims.models.Entity")
         self.assertEqual(len(st.columns), 1)
         self.assertTrue(st.is_active)
         self.assertTrue(st.content_hash)
@@ -81,7 +81,7 @@ class SchemaCRUDTests(TestCase):
         self.schema_type = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
 
     def test_create_schema(self):
@@ -243,7 +243,7 @@ class SchemaColumnIdTests(TestCase):
         self.schema_type = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
 
     def test_schema_columns_receive_ids_on_create(self):
@@ -379,7 +379,7 @@ class SchemaContentHashTests(TestCase):
         self.schema_type = SchemaType.objects.create(
             display_name="Entity",
             workspace_id="lims",
-            model="mods.lims.models.Entity",
+            model="bundled.lims.models.Entity",
         )
 
     def test_schema_content_hash_is_set(self):

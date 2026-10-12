@@ -286,7 +286,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         """End-to-end: text-only PUT passes old_content through the view."""
         from rest_framework.test import APIClient
 
-        from mods.access.models import Grant, ProjectRole
+        from bundled.access.access.models import Grant, ProjectRole
 
         Grant.objects.create(
             project=self.project, user=self.user, role=ProjectRole.EDIT,

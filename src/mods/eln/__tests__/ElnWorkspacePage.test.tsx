@@ -86,7 +86,7 @@ vi.mock("../hooks/useAutoSave", () => ({
 }));
 
 /** Mock useTaggableItems — returns empty tags. */
-vi.mock("../../tags/hooks", () => ({
+vi.mock("../../../bundled/labelling/tags/hooks", () => ({
   useTaggableItems: () => ({
     tags: [],
     pendingTagIds: [],

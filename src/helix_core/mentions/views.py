@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from mods.access.scoping import visible_rows_q
+from bundled.access.access.scoping import visible_rows_q
 
 from .prefix_resolver import (
     get_color,

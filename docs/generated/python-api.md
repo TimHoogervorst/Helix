@@ -2,8 +2,8 @@
 
 <!-- This file is generated. Do not edit it directly. -->
 <!-- src/helix_core/mod_system/manifest.py: aefb417c5909e346966a4d0207d497d2d889a367aff562f9c9b8355922bea36b -->
-<!-- src/helix_core/mod_system/loader.py: 1849961db6def8719f5cac4ec9de9427e7b9108b9a21e24c71718d86e51ce60f -->
-<!-- src/helix_core/mod_system/registry.py: de7d7b5e13c8ceab1aa0e6b757285e9fd3ffa59b227d6022f88aae8b48c647f2 -->
+<!-- src/helix_core/mod_system/loader.py: 3da79fbecd711f7126b758da370c2f675f5c1e34892f2c51680bf62b5ae52a9a -->
+<!-- src/helix_core/mod_system/registry.py: 443da0efe3d117db465a0aa897930041df27a8966b19d97a90b501ece614174a -->
 
 The public backend SDK is rooted at `helix_core`. The entries below are derived from the manifest, loader, and registry modules.
 
@@ -20,13 +20,15 @@ The public backend SDK is rooted at `helix_core`. The entries below are derived 
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_source_kind(self, kind: str, model_reference: Any)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.get_source_kinds(self)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_public_signal(self, mod_id: str, kind: Any, sender_ref: Any, sender: type, handler: Callable[..., Any])`
+- `src/helix_core/mod_system/registry.py`: `BackendModRegistry.resolve_references(self)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.set_mod_order(self, dotted_paths: list[str], manifests: dict[str, ModManifest] | None=None)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_formula_function(self, function_id: str, *, argument_kinds: list[str], result_kind: str, description: str, implementation: Callable[..., Any], client_implemented: bool=False)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.get_formula_function(self, function_id: str)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.get_formula_catalog(self)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_schema_type(self, *, display_name: str, workspace_id: str, model: str, columns: list[dict[str, Any]] | None=None, tags: list[str] | None=None, prefix: str, schema_name: str='Default', icon: str='', color: str='')`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_action_model(self, mod_id: str, model_class: type)`
-- `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_custom_action(self, mod_id: str, action_id: str, label: str, core: str, target_model: str)`
+- `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_custom_action(self, mod_id: str, action_id: str, label: str, core: str, target_model: str, *, provider_mod_id: str | None=None, provider_mod_version: str | None=None)`
+- `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_action_provider(self, mod_id: str, version: str)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.get_action_catalog(self, mod_id: str)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.validate_action(self, action: str)`
 - `src/helix_core/mod_system/registry.py`: `BackendModRegistry.register_urls(self, mod_id: str, url_patterns: list)`

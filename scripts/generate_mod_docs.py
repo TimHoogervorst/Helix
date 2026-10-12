@@ -87,7 +87,10 @@ def exported_typescript_symbols() -> list[str]:
     result = []
     for group in symbols:
         for symbol in group.split(","):
-            name = symbol.strip().split()[0]
+            parts = symbol.strip().split()
+            if not parts:
+                continue
+            name = parts[0]
             if name:
                 result.append(name)
     return result

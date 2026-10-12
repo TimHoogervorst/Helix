@@ -1,18 +1,29 @@
 # TypeScript Mod API Reference
 
 <!-- This file is generated. Do not edit it directly. -->
-<!-- src/shell/src/mod-system/types.ts: b996b97d15a133d80105e20c7ea14815f955ba6749b3c69627ac0d05bff96359 -->
-<!-- src/shell/src/mod-system/index.ts: b9cd935f762a39630b526c7ef001292459288abfc620f8e9f8796e77f344b281 -->
-<!-- src/shell/src/mod-system/Mod.ts: f2f7dbd8de8e2eaf9b080b4e66d8c506dec80b0c3846726fa089f72db8ec4c87 -->
-<!-- src/shell/src/mod-system/ModLoader.tsx: e1e9783d32dcf9c1bb9c1d39f7b432c8d06113330ad7c91d8f8094c67b83e695 -->
+<!-- src/shell/src/mod-system/types.ts: 5a6fcec2bafbd1fe3c30ccaf646aa1bce7029627a1a8aa30356e990de880f05d -->
+<!-- src/shell/src/mod-system/index.ts: fca85fe04d0d88752173214f8e73d8c976ece088930f61ca68e28ed1a2b42c70 -->
+<!-- src/shell/src/mod-system/Mod.ts: 28bb1b5f2fb9073d7a6a7a67dade744efe0ce0df680d9c15819e4336bf1546fc -->
+<!-- src/shell/src/mod-system/ModLoader.tsx: 4a500a586a126bfa406be1962b610f1da998965433e099f981d71b8f221f84de -->
 
 The public Mod-system entry point is `src/shell/src/mod-system/index.ts`.
 
 The following symbols are exported or implemented by that entry point:
 
 - `ModLoader`
+- `runFrontendBoot`
 - `Mod`
 - `BlockEvent`
+- `registrationId`
+- `ModelReference`
+- `ObjectReference`
+- `WorkspaceReference`
+- `SlotReference`
+- `ServiceReference`
+- `ActionReference`
+- `workspaceUrl`
+- `legacyWorkspaceUrl`
+- `externalRoutePath`
 - `resolveCurrentWorkspace`
 - `extractWorkspaceId`
 - `createBlockAdapter`
@@ -31,6 +42,7 @@ The following symbols are exported or implemented by that entry point:
 - `SchemaTypeConfig`
 - `WorkspaceConfig`
 - `CurrentWorkspace`
+- `WorkspaceEventPayload`
 - `ActionCatalogEntry`
 - `SlotContext`
 - `BlockInstance`
@@ -52,9 +64,10 @@ The following symbols are exported or implemented by that entry point:
 - `Mod.declareSlot`
 - `Mod.registerButton`
 - `Mod.registerIntoSlot`
-- `Mod.resolveSlot`
 - `Mod.registerHub`
 - `Mod.registerRoute`
+- `Mod.registerExternalRoute`
+- `Mod.registerWorkspace`
 - `Mod.registerSettingsSection`
 - `Mod.registerSchemaComponent`
 

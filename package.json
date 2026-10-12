@@ -2,6 +2,10 @@
   "name": "openscience",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "src/mod-api",
+    "src/mods/eln"
+  ],
   "scripts": {
     "dev": "cd src/shell && vite",
     "build": "cd src/shell && tsc && vite build",

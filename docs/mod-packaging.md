@@ -10,7 +10,9 @@ before registration code runs. It must contain the required fields shown in the
 [generated manifest reference](mod-manifest-1.0.0.md), and unknown properties
 are rejected.
 
-Repository Mod folders currently provide the dogfood shape:
+The in-repository ELN is the dogfood package and is linked through the root npm
+workspace. Its backend uses the same editable Python distribution entry-point
+contract as separately installed Mods.
 
 ```text
 my-mod/
@@ -38,8 +40,9 @@ canonical Mod ID and whose value is the package root. That root embeds
 `modManifest.json`, exports a side-effect-free `register(mod)` entry point,
 exposes one explicit `ModAppConfig`, and carries its migrations. External
 backend code imports the public `helix_core` package rather than private
-Platform or other Mod modules. Repository `mod.py` packages remain supported
-as a dogfood fallback.
+Platform or other Mod modules. Package roots are resolved from entry point
+metadata; filesystem globs and `helix.mods.json` path declarations are not
+supported.
 
 ## Validation order
 

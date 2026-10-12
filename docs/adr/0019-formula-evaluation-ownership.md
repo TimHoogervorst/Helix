@@ -2,7 +2,7 @@
 
 > Date: 2026-08-19
 > Status: Accepted
-> Origin: grilling session on [Brainstorm: Formula support #511](https://github.com/TimHoogervorst/Helix/issues/511); spec at [docs/specs/formula-support-cell-formulas-and-computed-fields.md](../specs/formula-support-cell-formulas-and-computed-fields.md)
+> Origin: grilling session on [Brainstorm: Formula support #511](https://github.com/TimHoogervorst/Helix/issues/511)
 
 **Computed Fields** are schema-authored columns and backend-authoritative: the backend validates expressions and computes stored values at registration, while optional client implementations provide display-only previews. Every formula function is defined once in the backend catalog with one authoritative backend implementation and at most one optional client implementation; frontend-only functions do not exist.
 

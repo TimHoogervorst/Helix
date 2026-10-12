@@ -98,8 +98,8 @@ class BackendModRegistry:
         """Set the topological mod order from the loader's sorted output.
 
         Each entry in *dotted_paths* is a string like
-        ``"bundled.labelling.tags"`` (for core mods) or ``"my_plugin"`` (for
-        external mods).  For core mods the final dot-separated segment
+            ``"bundled.labelling.tags"`` (for Bundled Mods) or ``"my_plugin"`` (for
+            External Mods).  For Bundled Mods the final dot-separated segment
         is extracted as the mod ID.  For external mods the manifest
         keys are used directly to recover the original mod ID (which
         may differ from the sanitized dotted path, e.g. ``"my-plugin"``
@@ -114,7 +114,7 @@ class BackendModRegistry:
         if manifests is not None:
             self._manifests = dict(manifests)
             # Build a reverse mapping: dotted path → manifest ID.
-            # For core mods: "bundled.labelling.tags" section → "tags"
+            # For Bundled Mods: "bundled.labelling.tags" section → "tags"
             # For external mods: "my_plugin" → "my-plugin"
             path_to_id: dict[str, str] = {}
             for mod_id in manifests:

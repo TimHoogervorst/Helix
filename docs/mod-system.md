@@ -30,10 +30,11 @@
 
 | Term | Definition |
 |------|-----------|
-| **Mod** | A self-contained unit of functionality — owns its own hub, workspace pages, blocks, buttons, settings, and routes. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods. Each mod lives in a single co-located directory under `src/mods/<id>/` containing both frontend (TypeScript) and backend (Python) code. |
-| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The **single source of truth** for mod identity — both frontend and backend loaders read this file. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
-| **Core / Shell** | The immutable app shell — Layout, routing, mod loader, mention resolution, API client. Lives at `src/shell/` (frontend) and `src/server/` (backend). The shell provides the frame; mods provide the content. |
-| **Core Mod** | A mod that ships with the repository under `src/mods/`. Always loaded. First-party. Uses the same registration API that external mods will use. |
+| **Mod** | A self-contained unit of functionality — owns its own hub, workspace pages, blocks, buttons, settings, and routes. A Bundled Mod lives under `src/bundled/`; an External Mod lives under `src/mods/`. Both use the same frontend and backend registration contract. |
+| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `vendor`, `name`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion`, and `description`. The single source of truth for mod identity — both loaders read this file. |
+| **Platform / Shell** | The Platform lives at `src/helix_core/` and owns the backend SDK, registries, schema, actions, mentions, and preserved `core` app. The immutable frontend Shell lives at `src/shell/`; `src/server/` contains Django project configuration only. |
+| **Bundled Mod** | A first-party mod shipped in the Helix artifact under `src/bundled/`. Bundled Mods form a closed set loaded through explicit frontend imports and backend dotted paths. |
+| **External Mod** | A mod composed into a deployment at build time and discovered through the open External Mod path under `src/mods/`. ELN is first-party External Mod dogfood. |
 | **Mod API** | The registration surface (`register*()` functions) that every mod calls to declare what it provides. Internal mods and future external mods use the same API. |
 | **Mod Registry** | Central data structure populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, settings panels, slash command menus, and slot content. |
 | **Hub** | A free-form browsing page that links to Workspaces. Each hub is registered by a mod and appears in the sidebar nav. Hubs are minimal — they own no defaults, no `accepts` filter, and no workspace type registry. The Library hub is generic: it renders entities from their LIMS schema column definitions rather than via per-mod card registrations. |
@@ -49,7 +50,12 @@
 
 ```
 src/
-├── mods/                               # Co-located mods — each owns full stack
+├── bundled/                            # Closed, explicitly enumerated Bundled Mods
+│   ├── shared/                         # Home, Library, Entities
+│   ├── lims/                           # LIMS
+│   └── ...
+│
+├── mods/                               # External-only Mods
 │   ├── eln/                            # Electronic Lab Notebook
 │   │   ├── modManifest.json            # Identity source of truth (frontend + backend)
 │   │   ├── package.json                # @helix/eln
@@ -170,19 +176,14 @@ src/
 │
 ├── shell/                              # Frontend — immutable app shell (Vite/React)
 │   └── src/
-│       ├── core/
-│       │   ├── shell/                  # Layout, AppShell, Router
-│       │   ├── mod-system/             # ModLoader, ModRegistry, register*() functions
-│       │   ├── workspace/              # WorkspaceBus, SlotRenderer
-│       │   ├── mentions/               # Cross-cutting mention resolution
-│       │   └── api/                    # Core API client
+│       ├── mod-system/                 # ModLoader, ModRegistry, register*() functions
+│       ├── workspace/                  # WorkspaceBus, SlotRenderer
+│       ├── mentions/                   # Cross-cutting mention resolution
+│       └── api/                        # Core API client
 │       └── shared/                     # Platform SDK — BaseCard, StatusBadge, etc.
 │
-└── server/                             # Backend — Django project
-    ├── config/                         # settings.py, wsgi.py, root urls.py
-    ├── core/                           # Auth, User, Folder, BrowsableItem, mentions
-    ├── helix_core/                     # Platform SDK — mod loader, registry, actions
-    └── manage.py
+└── server/                             # Backend — Django project configuration only
+    └── config/                         # settings.py, wsgi.py, root urls.py
 ```
 
 ---
@@ -348,9 +349,9 @@ main.tsx
   → BrowserRouter
     → App.tsx
       → <ModLoader> (shows "Loading Helix…" loading screen)
-          1. Read modManifest.json from each src/mods/*/ directory
-             → Parse id, displayName, version, dependsOn, coreVersion
-          2. Glob all src/mods/*/index.ts files → collect register() functions
+          1. Load Bundled Mods from explicit imports in bundled.ts
+             → Read manifests and collect register() functions
+          2. Glob src/mods/*/index.ts → discover External Mod register() functions
           3. Topological sort mods by dependsOn graph
           4. Validate: no circular deps, no missing deps, no duplicate IDs,
              coreVersion constraints satisfied
@@ -429,12 +430,12 @@ The slot system extends the mod API for embedded UI extension. Workspaces declar
 
 ## Settings System
 
-The Settings mod (`src/mods/settings/`) provides the shell at `/settings`. It reads `registry.getSettingsSections()`, sorts by `order`, and renders a nav layout. Each section is lazy-loaded when selected.
+The Settings Bundled Mod (`src/bundled/settings/`) provides the shell at `/settings`. It reads `registry.getSettingsSections()`, sorts by `order`, and renders a nav layout. Each section is lazy-loaded when selected.
 
 Other mods register sections into it:
 
 ```ts
-// In src/mods/lims/index.ts
+// In src/bundled/lims/index.ts
 registerSettingsSection({
   id: 'lims.schemas',
   modId: 'lims',
@@ -472,31 +473,16 @@ const entity = await registry.call('lims.resolveEntity', displayId);
 
 The backend mod system mirrors the frontend — mods are discovered from `modManifest.json`, loaded in topological order, and register their contributions through a unified `BackendModRegistry`. See [backend-mod-system.md](backend-mod-system.md) for the full design.
 
-### Server Structure
+### Platform and Server Structure
 
 ```
+src/helix_core/
+├── mod_system/                # Loader, registry, manifest
+├── core/                       # Preserved `core` app label
+└── mentions/                   # Preserved `mentions` app label
+
 src/server/
-├── config/                    # Django project config (immutable shell)
-│   ├── settings.py            # HELIX_MODS setting, computed INSTALLED_APPS
-│   ├── urls.py                # Root URL conf — aggregates mod URLs
-│   └── wsgi.py
-│
-├── core/                      # Core Django app — auth, base models
-│   ├── models.py              # User, BrowsableItem (abstract base)
-│   ├── urls.py                # /api/core/...
-│   └── mentions/              # Cross-cutting mention resolution
-│       ├── models.py          # Mention model
-│       ├── urls.py            # /api/mentions/resolve/
-│       ├── views.py
-│       ├── serializers.py
-│       └── sync.py            # Mention sync pipeline
-│
-└── helix_core/                # Platform SDK — mod system, actions, registry
-    ├── loader.py              # Auto-discovery, topological sort, INSTALLED_APPS
-    ├── registry.py            # BackendModRegistry — register_*() + call()
-    ├── manifest.py            # ModManifest dataclass (parses modManifest.json)
-    ├── actions.py             # AbstractBaseAction, ActionLoggingMixin, @logs_action
-    └── exceptions.py          # ModNotFoundError, CircularDependencyError
+└── config/                    # Django project configuration only
 ```
 
 ### Backend mod.py Contract
@@ -504,13 +490,13 @@ src/server/
 Every backend mod provides a `mod.py` at its root with a `register()` function:
 
 ```python
-# src/mods/lims/mod.py
-from helix_core.registry import registry
+# src/bundled/lims/mod.py
+from helix_core.mod_system.registry import registry
 
 def register():
     """Called by ModLoader after topological sort."""
-    registry.register_entity_type("lims", "sample", prefix="SAMP")
-    registry.register_urls("lims", "mods.lims.urls")
+    registry.register_schema_type("lims", display_name="Entity", workspace_id="lims", prefix="SAMP")
+    registry.register_urls("lims", "bundled.lims.urls")
 ```
 
 ### BackendModRegistry Methods
@@ -518,7 +504,7 @@ def register():
 | Method | Purpose |
 |--------|---------|
 | `register_action_model()` | Register a concrete action log model |
-| `register_entity_type()` | Register an entity type prefix for mention resolution |
+| `register_schema_type()` | Register a schema type and workspace identity for mention resolution |
 | `register_urls()` | Register URL patterns for root URL conf |
 | `register_settings()` | Declare settings keys the mod needs |
 | `register_signal()` | Wire cross-mod signal handlers |
@@ -526,13 +512,13 @@ def register():
 
 ---
 
-## Internal Mod Directory Contract
+## Mod Directory Contract
 
 Every mod follows this structure:
 
 | Entry | Purpose | Required? |
 |-------|---------|-----------|
-| `modManifest.json` | Mod identity (id, displayName, version, dependsOn) — single source of truth | ✅ Required |
+| `modManifest.json` | Mod identity (vendor, name, displayName, version, dependsOn) — single source of truth | ✅ Required |
 | `index.ts` | Frontend `register*()` calls — the entry point loaded during boot | ✅ Required |
 | `types.ts` | Mod's TypeScript interfaces | ✅ Required |
 | `package.json` | npm package identity (`@helix/<id>`) | ✅ Required |
@@ -556,12 +542,12 @@ Every mod follows this structure:
 
 ## Future: External Mod API
 
-External mods will live in separate repositories and be installed via npm (frontend) and pip (backend). They will use the same `register*()` API and `modManifest.json` schema as internal mods.
+External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN.
 
 **Future concerns (not yet designed):**
 
-- **Discovery**: External mods will be listed in a JSON config file that the UI can read/write
-- **Loading**: External mods are loaded after core mods, respecting the same dependency graph
+- **Discovery**: `src/mods/` is scanned and `helix.mods.json` can add explicit paths
+- **Loading**: External Mods are loaded with Bundled Mods, respecting the same dependency graph
 - **`@helix/core` npm package**: External mods will depend on `@helix/core`, which exports all registration functions and shared components
 - **`helix_core` Python package**: External backend mods will depend on `helix_core` (pip-installable), which provides `ModManifest`, `BackendModRegistry`, `AbstractBaseAction`
 - **Python entry points**: External mods declare a `helix_mod` entry point pointing to their `mod.py`
@@ -575,9 +561,9 @@ External mods will live in separate repositories and be installed via npm (front
 | Internal + external same API | ✅ | Battle-test the API on first-party code before third parties touch it |
 | Registration style | Imperative (`register*()` in `index.ts` / `mod.py`) | Flexible, testable, explicit control over order |
 | Identity source of truth | `modManifest.json` at mod root | Both loaders read the same file; no dual declaration |
-| Mod co-location | `src/mods/<id>/` — frontend + backend together | One folder per mod; no cross-directory drift |
-| Discovery (internal) | Auto-glob `src/mods/*/modManifest.json` | No config file needed for always-loaded core mods |
-| Discovery (backend) | `HELIX_MODS` setting + `modManifest.json` glob | Explicit list prevents surprises; glob automates loading |
+| Mod co-location | `src/bundled/` or `src/mods/` — frontend + backend together | One folder per mod; no cross-directory drift |
+| Discovery (Bundled) | Explicit frontend imports + `BUNDLED_MODS` | Closed set cannot be extended by stray files |
+| Discovery (External) | `src/mods/` scan + `helix.mods.json` | Open composition path for deployment-selected mods |
 | Dependency model | Explicit `dependsOn` with topological sort | Detect circular deps and missing deps at boot |
 | Error handling | Fail-fast for deps; warn-and-skip for slot bindings | Broken dep graph = no boot; misconfigured slot = graceful degradation |
 | Hub config | Minimal (`id`, `label`, `icon`, `route`, `component`, `order`) | No shared panel layout to constrain design |

@@ -1,12 +1,13 @@
 # Core
 
-Shared base classes and utilities used by all workspace and console apps.
+Shared platform app containing the preserved `core` Django label.
 
 ## Architecture
 
-`core` is the foundation layer — it provides the abstract models, walker utilities,
-and shared infrastructure that every other app depends on. It has zero dependencies
-on other OpenScience apps.
+`core` is part of the Platform (`helix_core`). It provides the User, Project,
+Folder, CoreSetting, abstract models, walker utilities, and shared infrastructure
+that Bundled and External Mods consume. Its app label remains `core` so existing
+auth configuration, foreign keys, and migrations remain valid.
 
 ## Key Abstractions
 
@@ -21,7 +22,7 @@ on other OpenScience apps.
 ## Dependencies
 
 - **Depends on:** Django, DRF
-- **Consumed by:** `core_mods.eln`, `core_mods.lims`, `core_mods.library`, `references`
+- **Consumed by:** `bundled.*`, `mods.*`, `helix_core.mentions`
 
 ## Files
 

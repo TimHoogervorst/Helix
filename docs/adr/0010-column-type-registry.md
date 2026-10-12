@@ -2,7 +2,7 @@
 
 > Date: 2026-07-24
 > Status: Accepted
-> Companion specs: [Spec 3 — Column Type Registry](../../.claude/spec-3-column-type-registry.md), [Spec 1 — Single-Source Registration](../../.claude/spec-1-single-source-registration.md)
+> Related: [ADR-0008 — Single Source Registration](0008-single-source-registration.md)
 
 ---
 

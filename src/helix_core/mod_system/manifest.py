@@ -38,7 +38,7 @@ class ModManifest:
         id: Unique mod identifier (e.g. ``"eln"``).  Must be a non-empty
             string.
         display_name: Human-readable name shown in settings and admin.
-        version: Semver string (e.g. ``"0.1.0"``).  Optional — core mods
+        version: Semver string (e.g. ``"0.1.0"``).  Optional — Bundled Mods
             inherit the platform version when omitted.
         depends_on: Direct dependencies of this mod.  Non-transitive — a
             mod only declares what it directly uses.  Entries can be bare

@@ -4,10 +4,11 @@ How to run this repo's tests. Backend tests use **pytest**; frontend tests use V
 
 ## Backend — full suite
 
-Backend tests live in two trees:
+Backend tests live in the Platform and mod trees:
 
-- `src/server/` — `helix_core`, `core`, `users`, `core/mentions`
-- `src/mods/<id>/tests/` — every mod (`eln`, `lims`, `library`, `access`, `tags`, `home`, `dropdowns`, `users`, `tabs`)
+- `src/helix_core/tests/` — Platform, `core`, and mentions tests
+- `src/bundled/<section>/<id>/tests/` — Bundled Mod tests
+- `src/mods/<id>/tests/` — External Mod tests (currently ELN)
 
 `pytest` is configured (in `src/pytest.ini`) to collect **both** trees. During implementation, prefer a focused run from the target tree, mod, file, class, or keyword below. After implementing a change, always run the full suite as a final check.
 
@@ -31,7 +32,7 @@ export PYTEST_XDIST_AUTO_NUM_WORKERS=4
 $env:PYTEST_XDIST_AUTO_NUM_WORKERS = "4"
 ```
 
-Run it from `src/` (not `src/server/`): the `testpaths` in `src/pytest.ini` only take effect when pytest is invoked from the directory that holds the config, so `pytest` from `src/server/` would silently collect just the server tree.
+Run it from `src/` (not `src/server/`): the `testpaths` in `src/pytest.ini` only take effect when pytest is invoked from the directory that holds the config.
 
 Do **not** use `python manage.py test` — the Django runner needs pytest installed anyway (several `helix_core` tests import it) and it is not the canonical path.
 
@@ -41,14 +42,14 @@ The full suite is the slow path. When you're iterating on one area, target just 
 
 ```bash
 # Local (no Docker) — run from src/; paths are relative to src/
-pytest server                                           # just the server tree (~850 tests)
-pytest mods/eln/tests                                   # one mod
-pytest mods/lims/tests/test_api.py::LimsApiTests        # one class
+pytest helix_core/tests                                 # Platform tree
+pytest mods/eln/tests                                   # External Mod
+pytest bundled/lims/tests/test_api.py::LimsApiTests    # Bundled Mod class
 pytest -k "mention"                                     # keyword match
 
-# Docker — mod trees are mounted at /mods
-docker-compose exec backend pytest /mods/eln/tests      # one mod
-docker-compose exec backend pytest /mods/lims/tests/test_api.py::LimsApiTests  # one class
+# Docker — External Mods are mounted at /mods; Bundled Mods at /bundled
+docker-compose exec backend pytest /mods/eln/tests      # External Mod
+docker-compose exec backend pytest /bundled/lims/tests/test_api.py::LimsApiTests  # Bundled Mod
 docker-compose exec backend pytest -k "mention"         # keyword match
 ```
 

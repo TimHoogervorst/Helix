@@ -35,7 +35,7 @@ Each display ID follows the pattern `<PREFIX><N>` where:
 
 The prefix→model map has two layers:
 
-1. **Static map** in `references/services.py` — hardcoded for core models (`E` → `NotebookEntry`)
+1. **Static map** in the former references service — hardcoded for platform models (`E` → `NotebookEntry`)
 2. **Dynamic map** loaded at call time — queries `EntityType.objects.values_list("prefix", flat=True)` and maps each prefix to the `Entity` model
 
 ```python

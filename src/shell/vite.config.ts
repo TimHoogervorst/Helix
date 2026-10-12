@@ -43,8 +43,8 @@ function useSyncExternalStorePlugin() {
 }
 
 /**
- * Vite plugin that redirects bare-specifier imports from mod files
- * (``src/mods/*`` and ``src/bundled/*``) to the shell's ``node_modules`` as
+ * Vite plugin that redirects bare-specifier imports from External and Bundled
+ * Mod files (``src/mods/*`` and ``src/bundled/*``) to the shell's ``node_modules`` as
  * a **last resort**.
  *
  * Vite's built-in dependency resolution searches for ``node_modules``

@@ -22,7 +22,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # Django project configuration only
       - ./src/server:/app
+      # Platform, External Mod, and Bundled Mod package tiers
       - ./src/helix_core:/app/helix_core
       - ./src/mods:/mods
       - ./src/bundled:/bundled

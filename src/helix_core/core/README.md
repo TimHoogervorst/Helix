@@ -15,7 +15,7 @@ auth configuration, foreign keys, and migrations remain valid.
 |--------|---------|
 | `abstracts.py` | `BrowsableItem` abstract base model — common fields (display_id, name, created/updated timestamps), used by both ELN `NotebookEntry` and LIMS `Entity` |
 | `walker.py` | `walk_tiptap_tree()` — recursive TipTap document tree walker. Finds all mentions and limsTable nodes by type, used by sync pipelines |
-| `models.py` | `User` (custom user model), `Folder` (hierarchical folder tree for the Library Console) |
+| `models.py` | `User` (custom user model), `Folder` (hierarchical folder tree for the Library Hub) |
 | `serializers.py` | Shared serializers for User and Folder |
 | `views.py` | Folder CRUD API endpoints |
 

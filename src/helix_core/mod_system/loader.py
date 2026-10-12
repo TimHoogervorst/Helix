@@ -206,6 +206,13 @@ def _auto_discover(
             continue
         if entry.name.startswith("_"):
             continue
+        # Bundled mods are closed: only their explicit dotted paths may load
+        # them.  A same-named package placed under mods/ remains external-only
+        # and must not enter the open discovery path.
+        if entry.name in {
+            bundled_path.rsplit(".", 1)[-1] for bundled_path in BUNDLED_MODS
+        }:
+            continue
         if not (entry / "__init__.py").is_file():
             continue
         manifest = _load_manifest_from_dir(entry, entry.name)

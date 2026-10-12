@@ -7,6 +7,7 @@ internal helper functions directly for edge-case coverage.
 from __future__ import annotations
 
 import json
+import re
 import textwrap
 from pathlib import Path
 
@@ -322,6 +323,25 @@ class TestAutoDiscover:
         assert isinstance(result["tags"], ModManifest)
         assert result["tags"].id == "tags"
 
+    def test_bundled_mod_is_not_discovered_from_mods_directory(
+        self, tmp_path, monkeypatch
+    ):
+        """The open ``mods/`` scan must never load a closed bundled mod."""
+        monkeypatch.setattr(
+            loader_module,
+            "BUNDLED_MODS",
+            ["bundled.lims"],
+        )
+        mods_dir = tmp_path / "mods"
+        mods_dir.mkdir()
+        server_dir = tmp_path / "server"
+        server_dir.mkdir()
+        _make_mod_dir(mods_dir, "lims")
+
+        result = _auto_discover(server_dir)
+
+        assert result == {}
+
     def test_multiple_mods_discovered(self, tmp_path):
         mods_dir = tmp_path / "mods"
         mods_dir.mkdir()
@@ -484,6 +504,34 @@ class TestGetHelixMods:
             "bundled.shared.library",
             "bundled.tabs",
         ]
+
+    def test_bundled_set_matches_every_bundled_manifest(self):
+        bundled_root = Path(__file__).parents[2] / "bundled"
+        manifest_paths = sorted(bundled_root.glob("**/modManifest.json"))
+        expected_paths = sorted(
+            ".".join(("bundled", *path.parent.relative_to(bundled_root).parts))
+            for path in manifest_paths
+        )
+
+        assert BUNDLED_MODS == expected_paths
+
+    def test_backend_and_frontend_bundled_sets_match(self):
+        frontend_source = (
+            Path(__file__).parents[2]
+            / "shell"
+            / "src"
+            / "mod-system"
+            / "bundled.ts"
+        ).read_text(encoding="utf-8")
+        frontend_paths = sorted(
+            path.replace("/", ".")
+            for path in re.findall(
+                r'import \* as \w+Module from "\.\.\/\.\.\/\.\.\/(bundled/[^\"]+)";',
+                frontend_source,
+            )
+        )
+
+        assert frontend_paths == BUNDLED_MODS
 
     def test_helix_mods_override(self, tmp_path):
         """When override is set, only listed mods are loaded."""
@@ -993,6 +1041,10 @@ class TestGetHelixModsWithJsonManifests:
         # tags and lims must come before eln
         assert result.index("mods.tags") < result.index("mods.eln")
         assert result.index("mods.lims") < result.index("mods.eln")
+        assert _auto_discover(server_dir)["eln"].depends_on == [
+            "tags",
+            "lims",
+        ]
 
     def test_mixed_json_and_py_manifests(self, tmp_path):
         mods_dir = tmp_path / "mods"
@@ -1397,7 +1449,7 @@ class TestGetHelixModsWithExternal:
 
         json_path = server_dir / "helix.mods.json"
         json_path.write_text(json.dumps({
-            "mods": [{"path": "./external_bundled/labelling/tags/mod.py"}],
+            "mods": [{"path": "./external_mods/tags/mod.py"}],
         }))
 
         with pytest.raises(ValueError, match="Duplicate mod ID"):

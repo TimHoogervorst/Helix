@@ -542,32 +542,41 @@ describe("ModLoader", () => {
 });
 
 describe("bundled mod enumeration", () => {
-  it("starts empty while remaining an explicit loading seam", () => {
-    expect(Object.keys(bundledModModules)).toHaveLength(10);
-    expect(Object.keys(bundledJsonManifestModules)).toHaveLength(10);
-    expect(
-      Object.values(bundledJsonManifestModules).map(({ default: manifest }) =>
-        `${manifest.vendor}.${manifest.name}`,
-      ),
-    ).toEqual(
-      expect.arrayContaining([
-        "helix.home",
-        "helix.library",
-        "helix.lims",
-        "helix.dropdowns",
-        "helix.tags",
-        "helix.access",
-        "helix.users",
-        "helix.settings",
-        "helix.tabs",
-        "helix.entities",
-      ]),
+  it("enumerates exactly the closed bundled set", () => {
+    const expectedPaths = [
+      "../../../bundled/access/access/index.ts",
+      "../../../bundled/access/users/index.ts",
+      "../../../bundled/datatypes/dropdowns/index.ts",
+      "../../../bundled/labelling/tags/index.ts",
+      "../../../bundled/lims/index.ts",
+      "../../../bundled/settings/index.ts",
+      "../../../bundled/shared/entities/index.ts",
+      "../../../bundled/shared/home/index.ts",
+      "../../../bundled/shared/library/index.ts",
+      "../../../bundled/tabs/index.ts",
+    ];
+    const expectedIds = [
+      "helix.access",
+      "helix.dropdowns",
+      "helix.entities",
+      "helix.home",
+      "helix.library",
+      "helix.lims",
+      "helix.settings",
+      "helix.tabs",
+      "helix.tags",
+      "helix.users",
+    ];
+
+    expect(Object.keys(bundledModModules).sort()).toEqual(expectedPaths);
+    expect(Object.keys(bundledJsonManifestModules).sort()).toEqual(
+      expectedPaths.map((path) => path.replace("index.ts", "modManifest.json")),
     );
     expect(
-      Object.values(bundledJsonManifestModules).map(({ default: manifest }) =>
-        manifest.name,
-      ),
-    ).not.toContain("core");
+      Object.values(bundledJsonManifestModules)
+        .map(({ default: manifest }) => `${manifest.vendor}.${manifest.name}`)
+        .sort(),
+    ).toEqual(expectedIds);
   });
 });
 

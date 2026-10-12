@@ -1,6 +1,6 @@
 """URL configuration for the users core-mod.
 
-All routes are mounted under /api/core/ by core.urls.
+All routes are mounted under /api/core/ by helix_core.core.urls.
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter

@@ -22,6 +22,7 @@ dev = [
 
 [project.scripts]
 helix-mod-catalog = "helix_core.mod_system.catalog_cli:main"
+helix-mod-validate = "helix_core.mod_system.validator_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

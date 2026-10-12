@@ -43,7 +43,5 @@ validates the persisted graph again before registration.
 ## Tutorial
 
 The **hello-world repository** described in [External Mod Contract #615](https://github.com/TimHoogervorst/Helix/issues/615)
-is the canonical tutorial and golden integration example. It is intentionally not
-linked to a repository URL here because that repository is not present in this
-workspace yet. This guide must be updated when the canonical repository is
-published; until then, #615 is the authoritative reference.
+is the canonical tutorial and golden integration example at
+[`examples/hello_world_mod`](../examples/hello_world_mod).

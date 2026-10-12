@@ -1,0 +1,9 @@
+{
+  "id": "example.helloworld",
+  "displayName": "Hello World",
+  "version": "1.0.0",
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["frontend", "backend"],
+  "dependsOn": [],
+  "description": "A small dual-artifact Mod template."
+}

@@ -53,6 +53,6 @@ API reference](generated/python-api.md), and [validator diagnostic reference](ge
 are derived from the source files currently present. Run the documentation check
 after changing the schema, public exports, loader, registry, or validator.
 
-The hello-world repository from #615 is the canonical tutorial once published;
-this repository deliberately does not create a substitute fixture or invent its
-generated inputs.
+The permanent hello-world golden fixture lives at
+[`examples/hello_world_mod`](../examples/hello_world_mod). It is the canonical
+tutorial and the smallest dual-artifact package used by the contract tests.

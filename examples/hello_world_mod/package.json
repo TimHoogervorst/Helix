@@ -1,0 +1,28 @@
+{
+  "name": "@example/hello-world-mod",
+  "version": "1.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "modManifest.json"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest": "./modManifest.json",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@helix/mod-api": "^1.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  },
+  "helix": {
+    "importSpecifier": "@example/hello-world-mod"
+  }
+}

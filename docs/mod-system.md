@@ -552,7 +552,7 @@ External Mods may eventually live in separate repositories and be installed via 
 - **`helix_core` Python package**: External backend mods will depend on `helix_core` (pip-installable), which provides `ModManifest`, `BackendModRegistry`, `AbstractBaseAction`
 - **Python entry points**: External mods declare a `helix_mod` entry point pointing to their `mod.py`
 
-The hello-world repository from [#615](https://github.com/TimHoogervorst/Helix/issues/615) is the canonical tutorial once published. This repository does not invent a local replacement or an unpublished repository URL.
+The hello-world repository from [#615](https://github.com/TimHoogervorst/Helix/issues/615) is the canonical tutorial at [`examples/hello_world_mod`](../examples/hello_world_mod).
 
 ---
 

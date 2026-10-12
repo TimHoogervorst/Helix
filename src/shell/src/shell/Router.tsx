@@ -1,9 +1,11 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { Suspense } from "react";
 import Layout from "./Layout";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { ErrorBoundary } from "../shared/components/ErrorBoundary";
 import NotFound from "../shared/components/NotFound";
+import type { WorkspaceReference } from "../mod-system/references";
+import { legacyWorkspaceUrl } from "../mod-system/references";
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -30,6 +32,13 @@ function wrapRoute(Comp: React.ComponentType<any>) {
       </Suspense>
     </ErrorBoundary>
   );
+}
+
+function LegacyWorkspaceRedirect({ workspace }: { workspace: WorkspaceReference }) {
+  const { displayId = "" } = useParams<{ displayId: string }>();
+  const location = useLocation();
+  const query = `${location.search}${location.hash}`;
+  return <Navigate to={`${workspace.urlFor(displayId)}${query}`} replace />;
 }
 
 /**
@@ -77,6 +86,14 @@ function Router() {
     );
   });
 
+  const legacyWorkspaceRoutes = [...registry.getWorkspaces().values()].map((workspace) => (
+    <Route
+      key={`legacy-${workspace.reference.id}`}
+      path={legacyWorkspaceUrl(workspace.reference, ":displayId")}
+      element={<LegacyWorkspaceRedirect workspace={workspace.reference} />}
+    />
+  ));
+
   return (
     <Routes>
       {/* Public routes — no sidebar, full-page (login, register, etc.) */}
@@ -89,6 +106,7 @@ function Router() {
         <Route path="/eln" element={<Navigate to="/library" replace />} />
         {hubRoutes}
         {layoutRoutes}
+        {legacyWorkspaceRoutes}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

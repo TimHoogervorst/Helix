@@ -9,6 +9,9 @@ export {
   SlotReference,
   ServiceReference,
   ActionReference,
+  workspaceUrl,
+  legacyWorkspaceUrl,
+  externalRoutePath,
 } from "./references";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
 export { createBlockAdapter } from "./createBlockAdapter";
@@ -25,6 +28,8 @@ export type {
   RouteConfig,
   ServiceConfig,
   CurrentWorkspace,
+  WorkspaceConfig,
+  WorkspaceEventPayload,
   BlockRegistration,
   ButtonRegistration,
   SlotDeclaration,

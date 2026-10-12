@@ -44,6 +44,49 @@ export class ObjectReference extends TypedReference {
 
 export class WorkspaceReference extends TypedReference {
   readonly kind = "workspace" as const;
+
+  constructor(modId: string, workspace: string) {
+    super(modId, workspace);
+  }
+
+  get vendor(): string {
+    return this.modId.split(".")[0];
+  }
+
+  get mod(): string {
+    return this.modId.split(".").slice(1).join(".");
+  }
+
+  get workspace(): string {
+    return this.localKey;
+  }
+
+  /** The collision-safe URL for an item owned by this workspace. */
+  urlFor(displayId: string): string {
+    return workspaceUrl(this, displayId);
+  }
+}
+
+/** Canonical workspace URLs are independent of a mod's legacy route name. */
+export function workspaceUrl(reference: WorkspaceReference, displayId: string): string {
+  const segment = (value: string) => value.startsWith(":") ? value : encodeURIComponent(value);
+  return ["", "w", reference.vendor, reference.mod, reference.workspace, displayId]
+    .map(segment)
+    .join("/");
+}
+
+/** The pre-638 first-party URL, retained only for bookmark redirects. */
+export function legacyWorkspaceUrl(reference: WorkspaceReference, displayId: string): string {
+  const segment = (value: string) => value.startsWith(":") ? value : encodeURIComponent(value);
+  return `/${segment(reference.workspace)}/${segment(displayId)}`;
+}
+
+/** External standalone routes must not occupy the global first path segment. */
+export function externalRoutePath(modId: string, path: string): string {
+  const [vendor, ...modParts] = modId.split(".");
+  const mod = modParts.join(".");
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `/mods/${vendor}/${mod}${suffix}`;
 }
 
 export class SlotReference extends TypedReference {

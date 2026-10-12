@@ -14,6 +14,9 @@ export {
   SlotReference,
   ServiceReference,
   ActionReference,
+  workspaceUrl,
+  legacyWorkspaceUrl,
+  externalRoutePath,
 } from "../../shell/src/mod-system/references";
 export { BlockEvent } from "../../shell/src/mod-system/BlockEvent";
 export {
@@ -60,6 +63,8 @@ export type {
   RouteConfig,
   ServiceConfig,
   CurrentWorkspace,
+  WorkspaceConfig,
+  WorkspaceEventPayload,
   BlockRegistration,
   ButtonRegistration,
   SlotDeclaration,

@@ -72,7 +72,10 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
       .then((resolved) => {
         if (cancelled || !resolved) return;
         const label = resolved.title || "";
-        const matching = pinsRef.current.find((pin) => pin.url === current.url);
+        const matching = pinsRef.current.find((pin) =>
+          (pin.workspace?.id === current.reference.id || pin.url === current.url) &&
+          pin.display_id === current.displayId,
+        );
         if (!matching || matching.label === label) return;
 
         return updateTabLabel(matching.id, label).then((updated) => {
@@ -97,7 +100,10 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
     if (!current) return;
 
     // Check if already pinned (belt-and-suspenders)
-    const alreadyPinned = pins.some((p) => p.url === current.url);
+    const alreadyPinned = pins.some((p) =>
+      (p.workspace?.id === current.reference.id || p.url === current.url) &&
+      p.display_id === current.displayId,
+    );
     if (alreadyPinned) return;
 
     // No label available from the URL alone — the user can edit the label
@@ -110,6 +116,7 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
       display_id: current.displayId,
       label,
       url: current.url,
+      workspace: current.reference,
       icon: "",
       color: "",
       created_at: new Date().toISOString(),
@@ -124,7 +131,7 @@ export function usePinnedWorkspaces(): UsePinnedWorkspacesReturn {
         url: current.url,
       });
       // Replace optimistic pin with server response
-      setPins((prev) => prev.map((p) => (p.id === optimistic.id ? created : p)));
+      setPins((prev) => prev.map((p) => (p.id === optimistic.id ? { ...created, workspace: current.reference } : p)));
     } catch {
       // Rollback on error
       setPins((prev) => prev.filter((p) => p.id !== optimistic.id));

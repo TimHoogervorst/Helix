@@ -1,4 +1,5 @@
 import { ModRegistry } from "./ModRegistry";
+import type { ComponentType } from "react";
 import type { FormulaFunctionImplementation } from "../shared/formulas/formulaEngine";
 import type {
   ModManifest,
@@ -12,8 +13,9 @@ import type {
   RouteConfig,
   SettingsSectionConfig,
   SchemaComponentRegistration,
+  WorkspaceConfig,
 } from "./types";
-import { registrationId } from "./references";
+import { externalRoutePath, registrationId, WorkspaceReference } from "./references";
 
 /**
  * Public registration API for a mod.
@@ -268,6 +270,42 @@ export class Mod {
       modId: this.id,
       provider: this.id,
     });
+  }
+
+  /** Register a non-workspace route in the mod-owned external namespace. */
+  registerExternalRoute(
+    name: string,
+    config: Omit<RouteConfig, "id" | "modId" | "provider" | "path"> & { path: string },
+  ): void {
+    this.registerRoute(name, {
+      ...config,
+      path: externalRoutePath(this.id, config.path),
+    });
+  }
+
+  /** Register a workspace and its canonical collision-safe route. */
+  registerWorkspace(
+    name: string,
+    config: {
+      component: ComponentType<any>;
+      icon?: WorkspaceConfig["icon"];
+      displayName?: string;
+    },
+  ): WorkspaceReference {
+    const reference = new WorkspaceReference(this.id, name);
+    const displayName = config.displayName ?? this.manifest.displayName;
+    ModRegistry.getInstance().registerWorkspace({
+      id: name,
+      displayName,
+      icon: config.icon,
+      reference,
+    });
+    this.registerRoute(`${name}-workspace`, {
+      path: reference.urlFor(":displayId"),
+      component: config.component,
+      workspace: reference,
+    });
+    return reference;
   }
 
   // ── Settings section ──────────────────────────────────────────────────

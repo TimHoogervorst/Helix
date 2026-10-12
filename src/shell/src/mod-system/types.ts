@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { WorkspaceBus } from "../workspace/WorkspaceBus";
 import type { BlockEvent } from "./BlockEvent";
+import type { WorkspaceReference } from "./references";
 
 // ── Mod Manifest 1.0.0 ────────────────────────────────────────────────────
 
@@ -144,6 +145,8 @@ export interface RouteConfig {
   component: ComponentType<any>;
   /** When true, the route renders outside the Layout shell (no sidebar). */
   public?: boolean;
+  /** Workspace route metadata used to generate legacy redirects. */
+  workspace?: WorkspaceReference;
 }
 
 // ── Block ──────────────────────────────────────────────────────────────────
@@ -198,6 +201,8 @@ export interface SchemaTypeConfig {
 export interface WorkspaceConfig {
   /** Unique workspace identifier, also used as the URL namespace. */
   id: string;
+  /** Typed vendor/mod/workspace identity. */
+  reference: WorkspaceReference;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
   /** Optional Lucide icon. Falls back to a generic default when absent. */
@@ -220,10 +225,17 @@ export interface WorkspaceConfig {
  * creating an inverted dependency (core importing from a mods package).
  */
 export interface CurrentWorkspace {
+  reference: WorkspaceReference;
   displayId: string;
   url: string;
   /** Workspace ID — used to look up the workspace config for an icon. */
   icon: string;
+}
+
+/** Payload envelope required when an event crosses workspace boundaries. */
+export interface WorkspaceEventPayload<T = unknown> {
+  workspace: WorkspaceReference;
+  payload: T;
 }
 
 // ── Slot System — Forward-Declaring Interfaces ────────────────────────────────

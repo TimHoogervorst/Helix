@@ -6,6 +6,7 @@ import { EMPTY_DOC } from "../../../../mods/eln/types";
 import { createEntry } from "../../../../mods/eln/api";
 import { useClickOutside } from "../../../../shell/src/shared/hooks/useClickOutside";
 import { Button } from "../../../../shell/src/shared/primitives/Button";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 
 interface LibraryNewDropdownProps {
   currentPath: string;
@@ -95,7 +96,9 @@ function LibraryNewDropdown({
       if (projectUid) params.set("project", projectUid);
       if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
       if (currentPath) params.set("path", currentPath);
-      navigate(`/eln/${entry.display_id}?${params.toString()}`);
+      const workspace = ModRegistry.getInstance().getWorkspaces().get("eln");
+      if (!workspace) return;
+      navigate(`${workspace.reference.urlFor(entry.display_id)}?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create entry");
       setCreatingEntry(false);

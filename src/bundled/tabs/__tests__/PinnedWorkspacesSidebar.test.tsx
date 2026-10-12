@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { PinnedWorkspace, CurrentWorkspace } from "../types";
+import { WorkspaceReference } from "../../../shell/src/mod-system/references";
 import { TabRow } from "../components/TabRow";
 import { normalizeWorkspaceUrl } from "../navigation";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
@@ -87,6 +88,7 @@ function makeCurrent(
   overrides?: Partial<CurrentWorkspace>,
 ): CurrentWorkspace {
   return {
+    reference: new WorkspaceReference("helix.lims", "lims"),
     displayId: "BLOOD1",
     url: "/lims/BLOOD1",
     icon: "lims",

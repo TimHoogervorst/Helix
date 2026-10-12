@@ -212,6 +212,9 @@ class ModRegistryContractTests(TestCase):
             if ws_id in TOP_LEVEL_NON_WORKSPACE:
                 continue
             self.assertEqual(entry["workspaceId"], ws_id)
+            self.assertIn("vendor", entry)
+            self.assertIn("mod", entry)
+            self.assertEqual(entry["workspace"], ws_id)
 
 
 class ModRegistryEmptyTests(TestCase):

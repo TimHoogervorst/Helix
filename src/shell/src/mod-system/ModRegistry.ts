@@ -17,6 +17,7 @@ import type {
   IconLibraryEntry,
   ColorToken,
 } from "./types";
+import { WorkspaceReference } from "./references";
 import {
   getClientFormulaFunctionIds,
   hydrateFormulaCatalog,
@@ -73,6 +74,9 @@ export interface BackendFormulaFunction {
 /** Single workspace entry in the backend mod-registry response. */
 interface BackendModRegistryEntry {
   workspaceId: string;
+  vendor?: string;
+  mod?: string;
+  workspace?: string;
   schemaTypes: BackendSchemaType[];
   actions: Array<{ id: string; label: string; action_type: string }>;
 }
@@ -231,6 +235,13 @@ export class ModRegistry {
     this.routes.set(config.id, config);
   }
 
+  registerWorkspace(config: WorkspaceConfig): void {
+    if (this.workspaces.has(config.id)) {
+      throw new Error(`Duplicate workspace registration: '${config.id}' is already registered.`);
+    }
+    this.workspaces.set(config.id, config);
+  }
+
   registerService(config: ServiceConfig): void {
     if (this.services.has(config.id)) {
       throw new Error(
@@ -318,11 +329,19 @@ export class ModRegistry {
       }
 
       const wsEntry = value;
-      const manifest = manifests.get(key);
+      const manifest = manifests.get(key) ?? [...manifests.values()].find((candidate) =>
+        candidate.id.endsWith(`.${key}`),
+      );
+      const candidateModId = wsEntry.vendor && wsEntry.mod
+        ? `${wsEntry.vendor}.${wsEntry.mod}`
+        : manifest?.id ?? `helix.${key}`;
+      const modId = candidateModId.includes(".") ? candidateModId : `helix.${candidateModId}`;
+      const reference = new WorkspaceReference(modId, wsEntry.workspace ?? key);
       const schemaType = wsEntry.schemaTypes?.[0];
 
       this.workspaces.set(key, {
         id: key,
+        reference,
         displayName: manifest?.displayName ?? key,
         icon: undefined,
         schemaType: schemaType

@@ -5,6 +5,7 @@ import { usePinnedWorkspaces } from "../hooks/usePinnedWorkspaces";
 import type { PinnedWorkspace } from "../types";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { ModManifest } from "../../../shell/src/mod-system/types";
+import { WorkspaceReference } from "../../../shell/src/mod-system/references";
 
 // ── Mock API module ──────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ describe("usePinnedWorkspaces", () => {
     });
 
     expect(result.current.current).toEqual({
+      reference: new WorkspaceReference("helix.lims", "lims"),
       displayId: "BLOOD1",
       url: "/lims/BLOOD1",
       icon: "lims",
@@ -142,6 +144,7 @@ describe("usePinnedWorkspaces", () => {
     });
 
     expect(result.current.current).toEqual({
+      reference: new WorkspaceReference("helix.eln", "eln"),
       displayId: "E1",
       url: "/eln/E1",
       icon: "eln",

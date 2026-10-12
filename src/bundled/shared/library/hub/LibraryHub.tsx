@@ -22,6 +22,7 @@ import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../../shell/src/shared/components/BaseCard";
 import type { PropertyField } from "../../../../shell/src/shared/components/BaseCard";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import { workspaceUrl } from "../../../../shell/src/mod-system/references";
 import type { SlotContext, SchemaColumnDef } from "../../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { WorkspaceBus } from "../../../../shell/src/workspace/WorkspaceBus";
@@ -679,7 +680,9 @@ function LibraryHub() {
       }
       const params = new URLSearchParams({ project: projectUid ?? "" });
       if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
-      navigate(`/${item.workspace_id}/${item.display_id}?${params.toString()}`);
+       const workspace = ModRegistry.getInstance().getWorkspaces().get(item.workspace_id);
+       if (!workspace) return;
+       navigate(`${workspaceUrl(workspace.reference, item.display_id)}?${params.toString()}`);
     },
     [navigateToFolder, navigate, projectUid, currentProjectId],
   );

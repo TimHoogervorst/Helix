@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { resolveWorkspace } from "../api";
 import { resolveCurrentWorkspace } from "../../../shell/src/mod-system/resolveCurrentWorkspace";
+import { WorkspaceReference } from "../../../shell/src/mod-system/references";
 
 const STORAGE_KEY = "helix-workspace-history";
 const MAX_HISTORY_ITEMS = 20;
@@ -11,6 +12,8 @@ export interface WorkspaceHistoryItem {
   name: string;
   url: string;
   icon: string;
+  /** Identity is retained independently of the navigable URL. */
+  workspace?: WorkspaceReference;
 }
 
 function readHistory(): WorkspaceHistoryItem[] {
@@ -27,7 +30,12 @@ function readHistory(): WorkspaceHistoryItem[] {
         typeof item.name === "string" &&
         typeof item.url === "string" &&
         typeof item.icon === "string",
-    ).slice(0, MAX_HISTORY_ITEMS);
+    ).map((item) => {
+      const value = item as WorkspaceHistoryItem & { workspace?: { modId?: string; localKey?: string } };
+      return value.workspace?.modId && value.workspace.localKey
+        ? { ...item, workspace: new WorkspaceReference(value.workspace.modId, value.workspace.localKey) }
+        : item;
+    }).slice(0, MAX_HISTORY_ITEMS);
   } catch {
     return [];
   }
@@ -67,6 +75,7 @@ export function useWorkspaceHistory() {
         name: existing?.name || current.displayId,
         url,
         icon: existing?.icon || current.icon,
+        workspace: current.reference,
       };
       const next = addToHistory(previous, fallback);
       writeHistory(next);

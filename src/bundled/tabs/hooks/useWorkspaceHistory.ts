@@ -32,16 +32,18 @@ function readHistory(): WorkspaceHistoryItem[] {
         typeof item.name === "string" &&
         typeof item.url === "string" &&
         typeof item.icon === "string",
-    ).map((item) => {
+    ).map((item): WorkspaceHistoryItem | null => {
       const value = item as WorkspaceHistoryItem & {
         workspace?: { modId?: string; localKey?: string };
       };
-      let migrated = value;
       try {
-        if (!migrated.workspaceReference) {
-          migrated = migrateWorkspaceHistoryItem(migrated);
-        }
-        const [modId, localKey] = migrated.workspaceReference.split(":");
+        const migrated = value.workspaceReference
+          ? value
+          : migrateWorkspaceHistoryItem(value);
+        const workspaceReference = migrated.workspaceReference;
+        if (!workspaceReference) throw new Error("Missing workspace reference");
+        const [modId, localKey] = workspaceReference.split(":");
+        if (!modId || !localKey) throw new Error("Invalid workspace reference");
         return {
           ...migrated,
           workspace: new WorkspaceReference(modId, localKey),

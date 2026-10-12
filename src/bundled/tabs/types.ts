@@ -12,7 +12,7 @@ export interface PinnedWorkspace {
   display_id: string;
   label: string;
   url: string;
-  workspace_reference: string;
+  workspace_reference?: string;
   /** Typed identity used for comparisons; URL is navigation only. */
   workspace?: WorkspaceIdentity;
   icon: string;

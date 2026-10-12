@@ -20,6 +20,7 @@ file whose parent directory is a Python package (contains ``__init__.py``).
 
 from __future__ import annotations
 
+import importlib.metadata
 import importlib.util
 import json
 import re
@@ -98,8 +99,9 @@ def _get_all_manifests(
             for dotted_path, manifest in zip(BUNDLED_MODS, manifests.values(), strict=True)
         }
 
-        # External mods remain open and are discovered from the mods/ folder.
-        discovered_mods = _auto_discover(base_dir)
+        # External mods are installed distributions discovered through the
+        # standard entry-point group, not repository folders.
+        discovered_mods, discovered_paths = _auto_discover_with_paths()
         for mod_id, manifest in discovered_mods.items():
             if manifest.id in manifests:
                 raise ValueError(
@@ -107,7 +109,7 @@ def _get_all_manifests(
                     "and discovered in mods/."
                 )
             manifests[manifest.id] = manifest
-            id_to_path[manifest.id] = f"mods.{mod_id}"
+            id_to_path[manifest.id] = discovered_paths[mod_id]
 
     # ── external mods (helix.mods.json) ──────────────────────────────────
     external_mods = _load_external_mods_from_json(base_dir)
@@ -160,58 +162,65 @@ def _load_manifest_from_dir(mod_dir: Path, mod_id: str) -> ModManifest | None:
 def _auto_discover(
     base_dir: str | Path | None,
 ) -> dict[str, ModManifest]:
-    """Find all ``mods/*/mod.py`` files and load their manifests.
+    """Discover installed External Mods from ``helix.mods`` entry points.
 
     Args:
-        base_dir: The project root directory (e.g. ``settings.BASE_DIR``).
-            Auto-discovery looks in ``base_dir.parent / "mods"``.
+        base_dir: Retained for callers of the old helper; ignored.
 
     Returns:
-        Dict mapping mod IDs to their manifests.  Returns an empty dict
-        if the ``mods/`` directory does not exist.
+        Dict mapping canonical entry-point IDs to their manifests.
 
     Raises:
         ImportError: If a ``mod.py`` cannot be imported.
         TypeError: If a ``mod.py`` has a ``manifest`` that is not a
             ``ModManifest`` instance.
-        ValueError: If a manifest's ``id`` does not match its directory name.
+        ValueError: If a manifest's ID does not match its entry-point name.
     """
-    if base_dir is None:
-        raise ValueError(
-            "base_dir is required for auto-discovery. "
-            "Pass settings.BASE_DIR."
-        )
-
-    mod_dir = Path(base_dir).parent / "mods"
-
-    manifests: dict[str, ModManifest] = {}
-
-    if not mod_dir.is_dir():
-        return manifests
-
-    # Ensure the mods package is importable by adding its parent directory
-    # to sys.path.  Mirrors the same insertion in
-    # _load_external_mods_from_json so that core mods and external mods
-    # follow the same import-resolution rule.  Resolved paths are compared
-    # to avoid duplicate entries that would confuse Django's app loader.
-    mods_parent = str(mod_dir.parent.resolve())
-    existing_resolved = {str(Path(p).resolve()) for p in sys.path if p}
-    if mods_parent not in existing_resolved:
-        sys.path.insert(0, mods_parent)
-
-    for entry in sorted(mod_dir.iterdir()):
-        if not entry.is_dir():
-            continue
-        if entry.name.startswith("_"):
-            continue
-        if not (entry / "__init__.py").is_file():
-            continue
-        manifest = _load_manifest_from_dir(entry, entry.name)
-        if manifest is None:
-            continue
-        manifests[entry.name] = manifest
-
+    manifests, _ = _auto_discover_with_paths()
     return manifests
+
+
+def _auto_discover_with_paths() -> tuple[dict[str, ModManifest], dict[str, str]]:
+    """Return entry-point manifests and their importable package paths."""
+    manifests: dict[str, ModManifest] = {}
+    paths: dict[str, str] = {}
+    for entry_point in sorted(
+        importlib.metadata.entry_points(group="helix.mods"),
+        key=lambda item: item.name,
+    ):
+        package_name = entry_point.value.split(":", 1)[0]
+        mod_dir = _find_package_directory(package_name)
+        manifest = _load_manifest_from_dir(mod_dir, entry_point.name)
+        if manifest is None:
+            raise ImportError(
+                f"External Mod entry point '{entry_point.name}' has no "
+                "modManifest.json or mod.py."
+            )
+        if manifest.id != entry_point.name:
+            raise ValueError(
+                f"Entry point '{entry_point.name}' declares manifest id "
+                f"'{manifest.id}'."
+            )
+        if manifest.id in manifests:
+            raise ValueError(f"Duplicate mod ID '{manifest.id}' in entry points.")
+        manifests[manifest.id] = manifest
+        paths[manifest.id] = package_name
+    return manifests, paths
+
+
+def _find_package_directory(package_name: str) -> Path:
+    """Resolve an installed package path without importing its code."""
+    parts = package_name.split(".")
+    for sys_path in sys.path:
+        if not sys_path:
+            continue
+        for end in range(len(parts), 0, -1):
+            candidate = Path(sys_path).joinpath(*parts[:end])
+            if candidate.is_dir():
+                return candidate
+    raise ImportError(
+        f"External Mod package '{package_name}' could not be found on sys.path."
+    )
 
 
 def _load_manifests_from_paths(
@@ -463,11 +472,15 @@ def _read_json_manifest(mod_dir: Path, mod_id: str) -> ModManifest:
 
     manifest = ModManifest.from_dict(data)
 
-    if manifest.id.rsplit(".", 1)[-1] != mod_id:
+    matches_id = (
+        manifest.id == mod_id
+        if "." in mod_id
+        else manifest.id.rsplit(".", 1)[-1] == mod_id
+    )
+    if not matches_id:
         raise ValueError(
             f"modManifest.json at '{json_path}' declares id "
-            f"'{manifest.id}' but expected local name '{mod_id}' "
-            f"(must match directory name)."
+            f"'{manifest.id}' but expected '{mod_id}'."
         )
 
     return manifest
@@ -510,10 +523,15 @@ def _import_manifest(mod_py_path: Path, mod_id: str) -> ModManifest:
             f"{mod_py_path} has a 'manifest' that is not a ModManifest "
             f"instance (got {type(manifest).__name__})."
         )
-    if manifest.id != mod_id:
+    matches_id = (
+        manifest.id == mod_id
+        if "." in mod_id
+        else manifest.id.rsplit(".", 1)[-1] == mod_id
+    )
+    if not matches_id:
         raise ValueError(
             f"Mod at '{mod_py_path}' declares id '{manifest.id}' but "
-            f"expected id '{mod_id}' (must match directory name)."
+            f"expected id '{mod_id}'."
         )
 
     return manifest

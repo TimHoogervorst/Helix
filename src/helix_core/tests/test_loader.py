@@ -1,9 +1,11 @@
 """Loader tests for canonical 1.0.0 manifests."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
+from helix_core.mod_system import loader
 from helix_core.mod_system.loader import _read_json_manifest, _validate_manifest_set
 
 
@@ -54,3 +56,21 @@ def test_dependency_graph_uses_canonical_ids(tmp_path):
         "acme.second": _read_json_manifest(second, "second"),
     }
     _validate_manifest_set(manifests)
+
+
+def test_entry_point_discovery_uses_installed_package_manifest(tmp_path, monkeypatch):
+    package = tmp_path / "sample"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    _write_manifest(package, id="acme.sample")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    entry_point = SimpleNamespace(name="acme.sample", value="sample")
+    monkeypatch.setattr(
+        loader.importlib.metadata,
+        "entry_points",
+        lambda **_: [entry_point],
+    )
+
+    manifests = loader._auto_discover(None)
+
+    assert list(manifests) == ["acme.sample"]

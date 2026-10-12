@@ -25,6 +25,24 @@ ALLOWED_HOSTS = ["*"]
 # from mods/ when this setting is None.
 HELIX_MODS = None
 
+# A deployment may provide the build-time catalog.  Validate it against a
+# fresh discovery pass before Django starts so package changes cannot boot
+# against stale application metadata.
+HELIX_MOD_CATALOG = os.environ.get("HELIX_MOD_CATALOG")
+HELIX_INSTALLATION_FINGERPRINT = os.environ.get("HELIX_INSTALLATION_FINGERPRINT")
+if HELIX_MOD_CATALOG:
+    from helix_core.mod_system.bundled import BUNDLED_MODS
+    from helix_core.mod_system.catalog import build_catalog, read_catalog
+
+    _current_catalog = build_catalog(bundled_paths=BUNDLED_MODS)
+    read_catalog(
+        HELIX_MOD_CATALOG,
+        expected_fingerprint=(
+            HELIX_INSTALLATION_FINGERPRINT
+            or _current_catalog["installationFingerprint"]
+        ),
+    )
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

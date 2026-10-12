@@ -69,16 +69,16 @@ class Command(BaseCommand):
         """
         from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 
-        org, org_created = Organization.objects.get_or_create(
-            id=1,
-            defaults={
-                "name": "Helix Lab",
-                "short_description": "A collaborative open-science research environment.",
-                "address": "",
-                "icon_key": "building-2",
-                "color_key": "primary",
-            },
-        )
+        org = Organization.objects.first()
+        org_created = org is None
+        if org_created:
+            org = Organization.objects.create(
+                name="Helix Lab",
+                short_description="A collaborative open-science research environment.",
+                address="",
+                icon_key="building-2",
+                color_key="primary",
+            )
         if org_created:
             self.stdout.write(self.style.SUCCESS("Created Organization: Helix Lab"))
         else:

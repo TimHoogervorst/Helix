@@ -131,7 +131,7 @@ class SchemaType(ContentHashedModel):
     workspace_id = models.CharField(max_length=100)
     model = models.CharField(
         max_length=500,
-        help_text="Dotted Python path to the model class, e.g. 'mods.lims.models.Entity'.",
+        help_text="Dotted Python path to the model class, e.g. 'bundled.lims.models.Entity'.",
     )
     columns = models.JSONField(
         default=list,

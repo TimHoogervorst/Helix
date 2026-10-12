@@ -1,5 +1,7 @@
 """Tests for profile API endpoints and registration with email."""
 
+from django.core.cache import cache
+
 from helix_core.core.models import CoreSetting, User
 from helix_core.core.tests.base import BaseTestCase
 from bundled.access.access.models import (
@@ -327,6 +329,7 @@ class RegisterWithEmailTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         CoreSetting.objects.create(key="allow_self_registration", value=True)
 
     def test_register_with_email_succeeds(self):

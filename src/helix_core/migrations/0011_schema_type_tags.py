@@ -6,7 +6,9 @@ from django.db import migrations, models
 def seed_schema_type_tags(apps, schema_editor):
     SchemaType = apps.get_model("helix_core", "SchemaType")
 
-    SchemaType.objects.filter(model="mods.lims.models.Entity").update(
+    SchemaType.objects.filter(
+        model__in=("mods.lims.models.Entity", "bundled.lims.models.Entity")
+    ).update(
         tags=["RegistrationTable"]
     )
     SchemaType.objects.filter(model="mods.eln.models.NotebookEntry").update(

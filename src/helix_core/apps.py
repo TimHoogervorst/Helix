@@ -20,6 +20,7 @@ class HelixCoreConfig(AppConfig):
         )
         from helix_core.mod_system.registry import registry
         from helix_core.public import ModelReference, ModRegistrar
+        from helix_core.mod_system.validator import validate_activation
 
         # ── Register built-in column types ───────────────────────────────
         for ct in get_builtin_column_types():
@@ -86,4 +87,4 @@ class HelixCoreConfig(AppConfig):
 
         # All mods have now declared their contributions.  Only now resolve
         # cross-mod references, so registration order cannot affect outcomes.
-        registry.resolve_references()
+        validate_activation(registry)

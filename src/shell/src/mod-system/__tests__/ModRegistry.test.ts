@@ -452,6 +452,14 @@ describe("ModRegistry", () => {
     expect(() => registry.validate()).not.toThrow();
   });
 
+  it("validate strict mode fails on an unresolved slot binding", () => {
+    registry.registerIntoSlot("eln.editor", "eln.missing");
+
+    expect(() => registry.validate({ strict: true })).toThrow(
+      "Mod activation validation failed",
+    );
+  });
+
   it("validate warns and removes binding when slot is not declared", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));

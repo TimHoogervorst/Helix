@@ -535,9 +535,12 @@ export class ModRegistry {
 
   /**
    * Validate cross-references across all registrations.
-   * Throws on the first error found.
+   * Throws on the first error found for required references. Slot binding
+   * issues remain warn-and-skip by default for callers that resolve lazily.
+   * Boot uses ``strict: true`` so activation cannot start partially.
    */
-  validate(): void {
+  validate(options: { strict?: boolean } = {}): void {
+    const errors: string[] = [];
     // Validate route modIds resolve to registered mods
     for (const route of this.routes.values()) {
       if (!this.modIds.has(route.modId)) {
@@ -562,6 +565,7 @@ export class ModRegistry {
 
       // Check 1: slot must be declared before bindings target it
       if (!slot) {
+        errors.push(`Slot binding references undeclared slot '${slotId}'.`);
         console.warn(
           `Slot binding skipped: slot '${slotId}' is not declared. ` +
             `Declare the slot with declareSlot() before calling registerIntoSlot().`,
@@ -577,6 +581,9 @@ export class ModRegistry {
         const targetInButtons = this.buttons.has(binding.targetId);
 
         if (!targetInBlocks && !targetInButtons) {
+          errors.push(
+            `Slot '${slotId}' references unknown target '${binding.targetId}'.`,
+          );
           console.warn(
             `Slot binding skipped: target '${binding.targetId}' is not a registered ` +
               `block or button. Register the target before calling registerIntoSlot().`,
@@ -586,6 +593,9 @@ export class ModRegistry {
 
         // Check target type matches slot's accepts
         if (slot.accepts === "block" && !targetInBlocks) {
+          errors.push(
+            `Slot '${slotId}' requires a block but '${binding.targetId}' is not one.`,
+          );
           console.warn(
             `Slot binding skipped: slot '${slotId}' accepts 'block' but target ` +
               `'${binding.targetId}' is a button.`,
@@ -594,6 +604,9 @@ export class ModRegistry {
         }
 
         if (slot.accepts === "button" && !targetInButtons) {
+          errors.push(
+            `Slot '${slotId}' requires a button but '${binding.targetId}' is not one.`,
+          );
           console.warn(
             `Slot binding skipped: slot '${slotId}' accepts 'button' but target ` +
               `'${binding.targetId}' is a block.`,
@@ -610,6 +623,10 @@ export class ModRegistry {
       } else {
         this.bindings.delete(slotId);
       }
+    }
+
+    if (options.strict && errors.length > 0) {
+      throw new Error(`Mod activation validation failed:\n${errors.join("\n")}`);
     }
   }
 

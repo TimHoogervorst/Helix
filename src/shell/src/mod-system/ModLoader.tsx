@@ -184,7 +184,7 @@ function bootModSystem(
   }
 
   // Step 5: Validate the populated registry
-  registry.validate();
+  registry.validate({ strict: true });
 }
 
 // ── Async hydration ────────────────────────────────────────────────────

@@ -1,6 +1,9 @@
-from django.apps import AppConfig
+from helix_core import make_app_config
+from helix_core.public import load_entry_point_manifest
 
 
-class LimsConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "bundled.lims"
+ModAppConfig = make_app_config(
+    __package__,
+    load_entry_point_manifest("helix.lims", __package__),
+    "lims",
+)

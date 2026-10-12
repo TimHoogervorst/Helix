@@ -1,6 +1,5 @@
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
 from helix_core.schema_tags import RegistrationTable, ResultTable
 
 
@@ -62,38 +61,25 @@ def _seed_builtin_metrics():
         )
 
 
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    from bundled.lims.models import Action
+    from bundled.lims.models import Action, Entity
     from bundled.lims.services import cascade_source_status
 
-    registry.register_action_model("lims", Action)
-    registry.register_custom_action(
-        mod_id="lims",
-        action_id="lims.entity.tags_attached",
-        label="Tags Attached",
-        core="edited",
-        target_model="bundled.lims.models.Entity",
-    )
-    registry.register_custom_action(
-        mod_id="lims",
-        action_id="lims.entity.tag_detached",
-        label="Tag Detached",
-        core="edited",
-        target_model="bundled.lims.models.Entity",
-    )
-    registry.register_urls(
-        "lims", [path("api/lims/", include("bundled.lims.urls"))]
-    )
-    registry.register_service(
-        "lims.cascadeSourceStatus", cascade_source_status
-    )
+    entity = mod.register_model("entity", Entity)
+    result_entity = mod.register_model("result-entity", "bundled.lims.models.ResultEntity")
+    mod.register_source_kind("entity", entity)
+    mod.register_action_model(Action)
+    mod.register_custom_action("lims.entity.tags_attached", "Tags Attached", "edited", entity)
+    mod.register_custom_action("lims.entity.tag_detached", "Tag Detached", "edited", entity)
+    mod.register_urls([path("api/lims/", include("bundled.lims.urls"))])
+    mod.register_service("lims.cascadeSourceStatus", cascade_source_status)
 
     # Register LIMS schema type identity.
-    registry.register_schema_type(
+    mod.register_schema_type(
         display_name="Entity",
         workspace_id="lims",
-        model="bundled.lims.models.Entity",
+        model=entity,
         tags=[RegistrationTable],
         prefix="BLOOD",
         icon="flask-conical",
@@ -102,13 +88,13 @@ def register():
 
     # Result schemas use the shared Entity persistence path but have their own
     # schema-type identity and table capability.
-    registry.register_schema_type(
+    mod.register_schema_type(
         display_name="Results",
         workspace_id="results",
         # Result entities share the Entity table but have their own schema
         # type identity.  Keep this registration key stable because it is
         # already persisted in SchemaType rows.
-        model="bundled.lims.models.ResultEntity",
+        model=result_entity,
         tags=[ResultTable],
         prefix="RESULT",
         icon="chart-column",

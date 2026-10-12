@@ -1,10 +1,5 @@
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
-
-
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    registry.register_urls(
-        "library", [path("api/library/", include("bundled.shared.library.urls"))]
-    )
+    mod.register_urls([path("api/library/", include("bundled.shared.library.urls"))])

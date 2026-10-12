@@ -25,9 +25,27 @@ import json
 import re
 import sys
 from pathlib import Path
+from importlib import metadata
 
 from helix_core.mod_system.bundled import BUNDLED_MODS
 from helix_core.mod_system.manifest import ModManifest
+from helix_core.public import load_entry_point_manifest
+
+
+def discover_python_mod_entry_points() -> dict[str, str]:
+    """Return installed ``helix.mods`` entry points without importing them.
+
+    Entry-point metadata is sufficient for catalog construction and keeps
+    validation side-effect-free.  The value is the packaged import root.
+    """
+    entries = metadata.entry_points()
+    selected = entries.select(group="helix.mods") if hasattr(entries, "select") else entries.get("helix.mods", [])
+    result: dict[str, str] = {}
+    for entry in selected:
+        if entry.name in result:
+            raise ValueError(f"Duplicate helix.mods entry point '{entry.name}'")
+        result[entry.name] = entry.value.split(":", 1)[0]
+    return result
 
 
 def get_helix_mods(
@@ -108,6 +126,22 @@ def _get_all_manifests(
                 )
             manifests[manifest.id] = manifest
             id_to_path[manifest.id] = f"mods.{mod_id}"
+
+        # Installed backend artifacts are addressed by their package root.
+        # Read only package metadata here; registration is deferred until
+        # Django has populated the app registry.
+        for mod_id, package in discover_python_mod_entry_points().items():
+            if mod_id in manifests:
+                if id_to_path[mod_id] == package:
+                    # A repository package may also be installed in editable
+                    # mode while developing the packaged artifact.
+                    continue
+                raise ValueError(
+                    f"Duplicate mod ID '{mod_id}' discovered in Python entry points."
+                )
+            manifest = load_entry_point_manifest(mod_id, package)
+            manifests[manifest.id] = manifest
+            id_to_path[manifest.id] = package
 
     # ── external mods (helix.mods.json) ──────────────────────────────────
     external_mods = _load_external_mods_from_json(base_dir)

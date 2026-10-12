@@ -1,7 +1,7 @@
 # External Mod Packaging
 
-This document describes the packaging boundary that the current repository can
-document without pretending that package discovery is already implemented.
+This document describes the packaging boundary used by installed backend Mod
+artifacts.
 
 ## Package root
 
@@ -20,10 +20,8 @@ my-mod/
   migrations/    # when the backend owns database state
 ```
 
-The exact npm distribution metadata and Python entry-point metadata for a
-separately published package are not implemented in this workspace. Do not add
-metadata examples that imply they are accepted by the current loader. The
-planned packaged shape is captured by the parent [External Mod Contract #615](https://github.com/TimHoogervorst/Helix/issues/615).
+Separately published backend packages use standard Python entry-point metadata
+and are discovered without importing registration code.
 
 ## Frontend artifact
 
@@ -35,11 +33,13 @@ future work.
 
 ## Backend artifact
 
-A backend artifact should expose a side-effect-free registration entry point and
-carry its migrations. External backend code imports the public `helix_core`
-package rather than private Platform or other Mod modules. The current repository
-loader supports `mod.py` packages and `helix.mods.json` path composition; Python
-entry-point discovery is future work.
+A backend artifact publishes a `helix.mods` entry point whose name is the
+canonical Mod ID and whose value is the package root. That root embeds
+`modManifest.json`, exports a side-effect-free `register(mod)` entry point,
+exposes one explicit `ModAppConfig`, and carries its migrations. External
+backend code imports the public `helix_core` package rather than private
+Platform or other Mod modules. Repository `mod.py` packages remain supported
+as a dogfood fallback.
 
 ## Validation order
 

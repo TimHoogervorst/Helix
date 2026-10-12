@@ -1,13 +1,8 @@
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
-
-
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from .models import TagsAction
 
-    registry.register_action_model("tags", TagsAction)
-    registry.register_urls(
-        "tags", [path("api/tags/", include("bundled.labelling.tags.urls"))]
-    )
+    mod.register_action_model(TagsAction)
+    mod.register_urls([path("api/tags/", include("bundled.labelling.tags.urls"))])

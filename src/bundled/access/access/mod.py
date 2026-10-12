@@ -1,13 +1,7 @@
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
-
-
-def register():
+def register(mod):
     from .models import AccessAction
 
-    registry.register_action_model("access", AccessAction)
-
-    registry.register_urls(
-        "access", [path("api/access/", include("bundled.access.access.urls"))]
-    )
+    mod.register_action_model(AccessAction)
+    mod.register_urls([path("api/access/", include("bundled.access.access.urls"))])

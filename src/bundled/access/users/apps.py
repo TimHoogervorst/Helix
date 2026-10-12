@@ -1,7 +1,9 @@
-from django.apps import AppConfig
+from helix_core import make_app_config
+from helix_core.public import load_entry_point_manifest
 
 
-class UsersConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "bundled.access.users"
-    label = "core_mods_users"
+ModAppConfig = make_app_config(
+    __package__,
+    load_entry_point_manifest("helix.users", __package__),
+    "core_mods_users",
+)

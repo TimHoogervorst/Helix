@@ -11,6 +11,7 @@ import {
   externalJsonManifestModules,
   externalModLoaders,
 } from "./external";
+import { runFrontendBoot } from "./boot";
 
 // ── Mod module shape ────────────────────────────────────────────────────
 
@@ -36,35 +37,25 @@ interface ModLoaderProps {
   children: ReactNode;
 }
 
+interface ModBootData {
+  activeMods: string[];
+  registry: Record<string, unknown>;
+}
+
 // ── Component ───────────────────────────────────────────────────────────
 
 /**
  * App entry point component.
  *
  * Boot sequence:
- *   1. Compose bundled imports and installed external packages
- *   2. Import each, read meta — validate no duplicate IDs
- *   3. Topological sort by dependsOn — detect cycles, detect missing deps
- *   4. Call each mod's register() in sorted order (mods call register*())
- *   5. Validate registry — all cross-references resolve
- *   6. Sync action catalog to backend (per-mod POSTs, parallelized),
- *      then fetch GET /api/mod-registry/ to hydrate icon library,
- *      color palette, column types, workspaces, and action catalogs
- *   7. Render children — every icon, color, and column type is correct
- *      on first paint
+ *   1. Read validated backend boot/catalog data and desired activation
+ *   2. Import only Active frontend artifacts
+ *   3. Call each Active mod's register() in dependency order
+ *   4. Hydrate authoritative backend catalog data
+ *   5. Resolve the frontend registry and render children
  *
- * Hydration is fail-soft: if action sync fails, the registry fetch is
- * still attempted (icons/colors/column types don't depend on sync); if
- * the fetch fails, boot proceeds into documented fallbacks (circle
- * glyph, muted grey).  Failures are logged as warnings and never escape
- * as unhandled promise rejections.
- *
- * While boot is gated (steps 2–6), the branded LoadingScreen is shown
- * so startup is one continuous branded loading state through session
- * check, sync boot, and hydration.
- *
- * Sync-boot errors are terminal (fail-fast) and propagate to React's
- * error boundary.  No degraded mode.
+ * All boot failures are terminal.  The user-facing application remains
+ * gated and a boot error is rendered instead of a partially initialized app.
  *
  * Manifest precedence: when a mod directory contains both ``index.ts``
  * (with inline ``meta``) and ``modManifest.json``, the JSON file wins
@@ -75,60 +66,89 @@ export function ModLoader({ children }: ModLoaderProps) {
   // registration when React StrictMode double-invokes the effect body.
   const didBoot = useRef(false);
   const [ready, setReady] = useState(false);
+  const [bootError, setBootError] = useState<unknown>(null);
 
   useEffect(() => {
     if (didBoot.current) return;
     didBoot.current = true;
 
-    void loadActiveModModules(jsonManifestModules).then((activeModules) => {
-      // Phase 1: Sync boot — manifests, sort, register, validate.
-      bootModSystem(activeModules, jsonManifestModules);
-      // Phase 2: Async hydration — gate on it so consumers never see
-      // fallback icons or colors on first paint.
-      return hydrateRegistryFromApi(activeModules, jsonManifestModules);
-    }).finally(() => setReady(true));
+    void runFrontendBoot<ModBootData, Record<string, ModModule>>({
+      readBootData: fetchBootData,
+      importActive: (bootData) =>
+        loadActiveModModules(bootData.activeMods, jsonManifestModules),
+      registerActive: (activeModules) =>
+        bootModSystem(activeModules, jsonManifestModules),
+      hydrate: (activeModules, bootData) =>
+        hydrateRegistryFromApi(
+          activeModules,
+          jsonManifestModules,
+          bootData,
+        ),
+      resolveFrontend: () => ModRegistry.getInstance().validate({ strict: true }),
+    })
+      .then(() => setReady(true))
+      .catch((cause: unknown) => setBootError(cause));
   }, []);
 
   const hasMods = Object.keys(modModules).length > 0;
-  // When mods exist, gate children until both sync boot and hydration
-  // (action sync + backend fetch) complete.  Show the branded loading
+  // When mods exist, gate children until backend boot data, registration,
+  // and authoritative hydration complete. Show the branded loading
   // screen — same one CurrentUserProvider uses during session check —
   // so startup is one continuous branded loading state.
-  if (hasMods && !ready) return <LoadingScreen />;
+  if (hasMods && !ready) {
+    if (bootError) {
+      return (
+        <div role="alert">
+          Helix could not start. {bootError instanceof Error ? bootError.message : "Unknown boot failure."}
+        </div>
+      );
+    }
+    return <LoadingScreen />;
+  }
 
   return <>{children}</>;
 }
 
+async function fetchBootData(): Promise<ModBootData> {
+  const response = await fetch("/api/mod-boot/");
+  if (!response.ok) {
+    throw new Error(`Backend boot data failed (HTTP ${response.status}).`);
+  }
+  const payload = (await response.json()) as {
+    activeMods?: unknown;
+    registry?: unknown;
+  };
+  if (!Array.isArray(payload.activeMods) || payload.activeMods.some((id) => typeof id !== "string")) {
+    throw new Error("Backend boot data has no valid active Mod set.");
+  }
+  if (!payload.registry || typeof payload.registry !== "object") {
+    throw new Error("Backend boot data has no valid registry payload.");
+  }
+  return {
+    activeMods: payload.activeMods,
+    registry: payload.registry as Record<string, unknown>,
+  };
+}
+
 async function loadActiveModModules(
+  activeIds: string[],
   jsonModules: Record<string, { default: Record<string, unknown> }>,
 ): Promise<Record<string, ModModule>> {
   const modules = { ...modModules };
   const manifests = buildJsonManifestMap(jsonModules);
-  let activeIds: Set<string> | null = null;
-  try {
-    const response = await fetch("/api/mod-lifecycle/");
-    if (response.ok) {
-      const payload = (await response.json()) as { mods?: { id: string; desiredState: string }[] };
-      activeIds = new Set(
-        (payload.mods ?? [])
-          .filter((mod) => mod.desiredState === "active")
-          .map((mod) => mod.id),
-      );
-    } else {
-      activeIds = new Set();
-    }
-  } catch {
-    // Keep Bundled Mods available, but never import an External Mod without
-    // an affirmative activation response from the Platform.
-    activeIds = new Set();
-  }
+  const activeSet = new Set(activeIds);
   for (const [specifier, load] of Object.entries(externalModLoaders)) {
-    const modId = manifests.get(specifier)?.manifest.id;
-    if (modId && activeIds.has(modId)) {
+    const modId = manifestForModule(specifier, manifests)?.manifest.id;
+    if (modId && activeSet.has(modId)) {
       modules[specifier] = await load();
     }
   }
-  return modules;
+  return Object.fromEntries(
+    Object.entries(modules).filter(([specifier]) => {
+      const modId = manifestForModule(specifier, manifests)?.manifest.id;
+      return modId ? activeSet.has(modId) : false;
+    }),
+  );
 }
 
 // ── Boot logic (extracted for testability) ──────────────────────────────
@@ -149,7 +169,7 @@ function collectMods(
   const mods: ModModule[] = [];
   for (const [path, mod] of Object.entries(modules)) {
     // Prefer JSON manifest for metadata when present.
-    const jsonEntry = jsonManifestMap.get(path);
+    const jsonEntry = manifestForModule(path, jsonManifestMap);
     const meta = jsonEntry ? jsonEntry.manifest : mod.meta;
 
     if (!meta) {
@@ -210,21 +230,14 @@ function bootModSystem(
 // ── Async hydration ────────────────────────────────────────────────────
 
 /**
- * Fetch ``GET /api/mod-registry/`` and hydrate workspace, icon library,
- * color palette, column type, and action catalog data into the registry.
- *
- * Syncs per-mod action IDs to the backend first (POSTs parallelized via
- * ``Promise.all``) so the action catalog is fresh when fetched, then
- * fetches GET /api/mod-registry/ to hydrate all backend-populated stores.
- *
- * Fail-soft: if action sync fails, the registry fetch is still attempted
- * (icons, colors, column types don't depend on action sync).  If the
- * fetch fails, boot proceeds into documented fallbacks.  Failures are
- * logged as warnings and never escape as unhandled rejections.
+ * Hydrate backend-owned data from the payload served by the boot barrier.
+ * Action definitions are backend-owned and are never synchronized from the
+ * client during boot.
  */
 async function hydrateRegistryFromApi(
   modules: Record<string, ModModule>,
   jsonModules: Record<string, { default: Record<string, unknown> }>,
+  bootData: ModBootData,
 ): Promise<void> {
   const jsonManifestMap = buildJsonManifestMap(jsonModules);
   const mods = collectMods(modules, jsonManifestMap);
@@ -235,11 +248,16 @@ async function hydrateRegistryFromApi(
   // which returns workspace data keyed by mod name (e.g. "lims", "eln").
   const manifests = new Map(mods.map((m) => [m.meta.id, m.meta]));
 
-  // Fetch GET /api/mod-registry/ and hydrate workspace +
-  // icon library + color palette + column type + action catalog data
-  // from the backend response.  Fail-soft — boot proceeds with
-  // documented fallback rendering.
-  await ModRegistry.loadFromBackend(manifests);
+  ModRegistry.getInstance().hydrateFromBackend(bootData.registry, manifests);
+}
+
+function manifestForModule(
+  modulePath: string,
+  manifests: Map<string, { manifest: ModManifest; path: string }>,
+): { manifest: ModManifest; path: string } | undefined {
+  return manifests.get(modulePath)
+    ?? manifests.get(modulePath.replace(/\/index\.ts$/, "/modManifest.json"))
+    ?? manifests.get(`${modulePath}/manifest`);
 }
 
 // ── JSON manifest helpers ───────────────────────────────────────────────

@@ -90,7 +90,7 @@ class HelixCoreConfig(AppConfig):
         # mod's apps.py — registration now happens here, after the
         # topological sort and before Django app ready.
         path_to_manifest = {path: manifests[mod_id] for mod_id, path in id_to_path.items()}
-        active_ids = set(manifests)
+        active_ids = set()
         try:
             from helix_core.models import ModInstallation
 

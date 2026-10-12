@@ -809,6 +809,38 @@ class ModRegistryView(APIView):
         return Response(result)
 
 
+class ModBootView(APIView):
+    """Serve the completed backend boot barrier to the frontend.
+
+    This endpoint is intentionally separate from the organization-admin
+    lifecycle surface: normal users need the active graph, but must not be
+    able to change it.
+    """
+
+    def get(self, request):
+        from django.conf import settings
+        from helix_core.models import ModInstallation
+        from helix_core.mod_system.registry import registry
+
+        catalog = None
+        catalog_path = getattr(settings, "HELIX_MOD_CATALOG", None)
+        if catalog_path:
+            from helix_core.mod_system.catalog import read_catalog
+
+            catalog = read_catalog(catalog_path)
+
+        active = ModInstallation.objects.filter(
+            state=ModInstallation.State.ACTIVE,
+        ).values_list("mod_id", flat=True)
+        return Response(
+            {
+                "activeMods": sorted(active),
+                "catalog": catalog,
+                "registry": registry.get_registry_payload(),
+            }
+        )
+
+
 class ModLifecycleView(APIView):
     """Org-admin API for persisted External Mod activation intent."""
 

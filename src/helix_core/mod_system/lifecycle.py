@@ -187,6 +187,8 @@ def _dependent_closure(installations, mod_id):
 
 
 def _validate_active_graph(installations, activating):
+    from .validator import _satisfies
+
     active = {
         mod_id
         for mod_id, installation in installations.items()
@@ -194,14 +196,26 @@ def _validate_active_graph(installations, activating):
     } | activating
     for mod_id in active:
         installation = _require_available(installations, mod_id)
-        missing = [
-            dependency["id"]
-            for dependency in installation.dependencies
-            if dependency["id"] not in active
-        ]
+        missing = []
+        incompatible = []
+        for dependency in installation.dependencies:
+            dependency_id = dependency["id"]
+            if dependency_id not in active:
+                missing.append(dependency_id)
+                continue
+            dependency_installation = installations.get(dependency_id)
+            if dependency_installation is None or not _satisfies(
+                dependency_installation.version, dependency["version"]
+            ):
+                incompatible.append(dependency_id)
         if missing:
             raise ModLifecycleError(
                 f"Activating '{mod_id}' requires inactive dependencies: {', '.join(missing)}"
+            )
+        if incompatible:
+            raise ModLifecycleError(
+                f"Activating '{mod_id}' requires incompatible dependencies: "
+                f"{', '.join(incompatible)}"
             )
 
 

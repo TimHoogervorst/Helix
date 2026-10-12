@@ -12,6 +12,11 @@ from helix_core.mod_system.manifest import ModManifest
 from helix_core.public import load_entry_point_manifest
 
 
+def _sanitize_module_name(mod_id: str) -> str:
+    """Return the import-safe package name used by an External Mod."""
+    return mod_id.replace("-", "_").replace(".", "_")
+
+
 def discover_python_mod_entry_points() -> dict[str, str]:
     """Return ``helix.mods`` entry points without importing registration code."""
     entries = metadata.entry_points()
@@ -25,6 +30,9 @@ def discover_python_mod_entry_points() -> dict[str, str]:
     result: dict[str, str] = {}
     for entry in selected:
         if entry.name in result:
+            package = entry.value.split(":", 1)[0]
+            if result[entry.name] == package:
+                continue
             raise ValueError(f"Duplicate helix.mods entry point '{entry.name}'")
         result[entry.name] = entry.value.split(":", 1)[0]
     return result

@@ -1370,9 +1370,7 @@ describe("ModRegistry", () => {
       }
     });
 
-    it("handles non-ok response gracefully", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    it("rejects a non-ok response so the boot gate remains closed", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -1381,38 +1379,31 @@ describe("ModRegistry", () => {
 
       try {
         const manifests = new Map([["lims", makeManifest()]]);
-        await ModRegistry.loadFromBackend(manifests);
+        await expect(ModRegistry.loadFromBackend(manifests)).rejects.toThrow(
+          "HTTP 500",
+        );
 
         // Workspaces are NOT hydrated on failure.
         expect(registry.getWorkspaces().size).toBe(0);
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("Failed to fetch /api/mod-registry/"),
-        );
       } finally {
         globalThis.fetch = originalFetch;
-        warnSpy.mockRestore();
       }
     });
 
-    it("handles network error gracefully", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    it("rejects a network error so the boot gate remains closed", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
       try {
         const manifests = new Map([["lims", makeManifest()]]);
-        await ModRegistry.loadFromBackend(manifests);
+        await expect(ModRegistry.loadFromBackend(manifests)).rejects.toThrow(
+          "Network error",
+        );
 
         // Workspaces are NOT hydrated on error.
         expect(registry.getWorkspaces().size).toBe(0);
-        expect(warnSpy).toHaveBeenCalledWith(
-          "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
-          expect.any(Error),
-        );
       } finally {
         globalThis.fetch = originalFetch;
-        warnSpy.mockRestore();
       }
     });
   });

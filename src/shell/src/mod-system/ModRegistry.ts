@@ -864,9 +864,7 @@ export class ModRegistry {
    *
    * @param manifests - Mod manifests already collected from JSON globs.
    *   Used to supply ``displayName`` for each workspace.
-   * @returns A promise that resolves when hydration completes (even on
-   *   failure — errors are caught and logged as warnings, keeping the
-   *   promise resolved so boot is never permanently blocked).
+   * @returns A promise that rejects when backend boot data cannot be loaded.
    */
   static async loadFromBackend(
     manifests: ReadonlyMap<string, ModManifest>,
@@ -880,16 +878,14 @@ export class ModRegistry {
         const payload = (await response.json()) as any;
         registry.hydrateFromBackend(payload, manifests);
       } else {
-        console.warn(
-          `Failed to fetch /api/mod-registry/ (status ${response.status}). ` +
-            `Workspaces won't be hydrated from backend.`,
+        throw new Error(
+          `Failed to fetch /api/mod-registry/ (HTTP ${response.status}).`,
         );
       }
     } catch (err) {
-      console.warn(
-        "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
-        err,
-      );
+      throw err instanceof Error
+        ? err
+        : new Error("Failed to fetch /api/mod-registry/.");
     }
   }
 }

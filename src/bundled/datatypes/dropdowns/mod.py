@@ -33,7 +33,6 @@ def register(mod):
     """Called by ModLoader after topological sort."""
     from .models import DropdownsAction
 
-    mod.register_action_model(DropdownsAction)
     mod.register_urls([path("api/dropdowns/", include("bundled.datatypes.dropdowns.urls"))])
 
     # Pre-seed built-in dropdowns.

@@ -10,11 +10,11 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from helix_core.source_deletion import delete_source_descendants
-from helix_core.models import SchemaType
+from helix_core.models import ActionLogEntry, SchemaType
 from bundled.access.access.permissions import IsOrganizationAdmin
 from bundled.access.access.scoping import visible_rows_q
 
-from .models import Entity, Action, LimsView, Metric
+from .models import Entity, LimsView, Metric
 from bundled.labelling.tags.models import Tag
 from .serializers import (
     EntitySerializer,
@@ -856,29 +856,23 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         visible_entities = Entity.objects.filter(
             visible_rows_q(self.request.user)
-        ).values("pk")
+        ).values_list("pk", flat=True)
         from mods.eln.models import NotebookEntry
 
         visible_entries = NotebookEntry.objects.filter(
             visible_rows_q(self.request.user)
-        ).values("pk")
+        ).values_list("pk", flat=True)
 
-        visible_related_targets = (
-            Q(entity_id__in=visible_entities)
-        )
-        visible_generic_targets = (
-            Q(entity__isnull=True)
-            & (
-                Q(
-                    target_type__in=("lims.entity", "lims.entities"),
-                    target_id__in=visible_entities,
-                )
-                | Q(target_type="eln.entry", target_id__in=visible_entries)
+        return ActionLogEntry.objects.filter(
+            Q(
+                target_model_reference__in=("lims.entity", "lims.entities"),
+                target_object_id__in=[str(pk) for pk in visible_entities],
             )
-        )
-        return Action.objects.filter(
-            visible_related_targets | visible_generic_targets
-        ).select_related("entity", "performed_by")
+            | Q(
+                target_model_reference="eln.entry",
+                target_object_id__in=[str(pk) for pk in visible_entries],
+            )
+        ).select_related("performed_by")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):

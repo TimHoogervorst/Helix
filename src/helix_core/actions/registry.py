@@ -12,28 +12,14 @@ from typing import Any, Optional
 
 
 def register_action_model(mod_id: str, model_class: type) -> None:
-    """Register a concrete action model for *mod_id*.
-
-    Called from each mod's ``AppConfig.ready()``.  If *mod_id* is
-    already registered the previous registration is silently replaced.
-
-    Also auto-derives the three core CRUD actions (``created``,
-    ``edited``, ``deleted``) for *mod_id*.
-
-    Delegates to the unified ``BackendModRegistry`` singleton.
-    """
+    """Legacy test/migration adapter; Mods must use the Platform store."""
     from helix_core.mod_system.registry import registry
 
     registry.register_action_model(mod_id, model_class)
 
 
 def get_action_model(mod_id: str) -> Optional[type]:
-    """Return the registered action model class for *mod_id*.
-
-    Returns ``None`` when no model has been registered for *mod_id*.
-
-    Delegates to the unified ``BackendModRegistry`` singleton.
-    """
+    """Legacy adapter for migrations; runtime writers use ActionLogEntry."""
     from helix_core.mod_system.registry import registry
 
     return registry.get_action_model(mod_id)

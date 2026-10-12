@@ -237,6 +237,66 @@ class Schema(ContentHashedModel):
         return [*(self.schema_type.columns or []), *(self.columns or [])]
 
 
+# ── Platform-owned Action records ─────────────────────────────────────────
+
+
+class ActionDefinition(models.Model):
+    """Platform-owned declaration of an action a Mod can initiate."""
+
+    identity = models.CharField(max_length=255, unique=True)
+    label = models.CharField(max_length=255)
+    core_action = models.CharField(max_length=16)
+    target_model_reference = models.CharField(max_length=255)
+    provider_mod_id = models.CharField(max_length=255)
+    provider_mod_version = models.CharField(max_length=64)
+
+    class Meta:
+        db_table = "helix_action_definition"
+        ordering = ["identity"]
+
+
+class ActionLogEntry(models.Model):
+    """The single durable, Mod-independent Action Log Entry store."""
+
+    performed_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="action_log_entries",
+    )
+    action = models.CharField(max_length=255)
+    action_type = models.CharField(max_length=16)
+    target_model_reference = models.CharField(max_length=255)
+    target_object_id = models.CharField(max_length=255)
+    target_version_reference = models.CharField(max_length=255, null=True, blank=True)
+    target_version_object_id = models.CharField(max_length=255, null=True, blank=True)
+    target_version_label = models.CharField(max_length=255, null=True, blank=True)
+    target_version_hash = models.CharField(max_length=128, null=True, blank=True)
+    initiating_mod_id = models.CharField(max_length=255, default="unknown")
+    initiating_mod_version = models.CharField(max_length=64, default="unknown")
+    request_id = models.UUIDField(null=True, blank=True)
+    client_ip = models.GenericIPAddressField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    legacy_table = models.CharField(max_length=255, null=True, blank=True)
+    legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "helix_action_log_entry"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["target_model_reference", "target_object_id"], name="helix_action_target_75f3c0_idx"),
+            models.Index(fields=["action", "created_at"], name="helix_action_action_0d1d0d_idx"),
+            models.Index(fields=["initiating_mod_id", "created_at"], name="helix_action_initia_4b48a1_idx"),
+        ]
+
+    @property
+    def target_type(self):
+        return self.target_model_reference
+
+    @property
+    def target_id(self):
+        return self.target_object_id
+
+
 # ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────
 
 

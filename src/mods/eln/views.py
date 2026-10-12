@@ -21,9 +21,9 @@ from bundled.labelling.tags.models import Tag
 from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
 from bundled.access.access.scoping import visible_rows_q
 
-from helix_core.models import Schema
+from helix_core.models import ActionLogEntry, Schema
 
-from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock, Protocol
+from .models import NotebookEntry, ContentVersion, EntryLock, Protocol
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -408,9 +408,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     def _list_actions(self, request, display_id):
         entry = self.get_object()
-        qs = ElnAction.objects.filter(
-            target_type="eln.entry",
-            target_id=entry.id,
+        qs = ActionLogEntry.objects.filter(
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.id),
         ).select_related("performed_by").order_by("-created_at")
 
         # Filter by action_type (e.g. "edited", "created")

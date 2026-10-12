@@ -18,7 +18,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from .registry import get_action_model
+from helix_core.models import ActionLogEntry
 
 User = get_user_model()
 
@@ -43,7 +43,7 @@ def resolve_action_type(action: str) -> str:
         return verb
 
     # Custom action — consult the catalog.
-    mod_id = action.split(".")[0]
+    mod_id = action.split(":", 1)[0] if ":" in action else action.split(".")[0]
     from .registry import get_action_catalog
 
     catalog = get_action_catalog(mod_id)
@@ -105,19 +105,11 @@ def bulk_log_actions(
     grouped: dict[str, list[dict]] = defaultdict(list)
     for entry in actions:
         action = entry["action"]
-        mod_id = action.split(".")[0]
+        mod_id = action.split(":", 1)[0] if ":" in action else action.split(".")[0]
         grouped[mod_id].append(entry)
 
     results: list = []
     for mod_id, entries in grouped.items():
-        model_class = get_action_model(mod_id)
-        if model_class is None:
-            raise ValueError(
-                f"No action model registered for mod '{mod_id}'. "
-                f"Did you forget to call register_action_model() "
-                f"in the mod's AppConfig.ready()?"
-            )
-
         instances = []
         for entry in entries:
             action = entry["action"]
@@ -133,19 +125,21 @@ def bulk_log_actions(
                 )
 
             instances.append(
-                model_class(
+                ActionLogEntry(
                     performed_by=user,
                     action=action,
                     action_type=action_type,
-                    target_type=target_type,
-                    target_id=target_id,
+                    target_model_reference=target_type,
+                    target_object_id=str(target_id),
+                    initiating_mod_id=mod_id,
+                    initiating_mod_version=_initiator_version(mod_id),
                     metadata=entry.get("metadata", {}),
                     request_id=request_id,
                     client_ip=client_ip,
                 )
             )
 
-        model_class.objects.bulk_create(instances)  # type: ignore[attr-defined]
+        ActionLogEntry.objects.bulk_create(instances)
         results.extend(instances)
 
     return results
@@ -208,26 +202,34 @@ def log_action(
             "an Action Log Entry."
         )
 
-    mod_id = target_type.split(".")[0]
-    model_class = get_action_model(mod_id)
-    if model_class is None:
-        raise ValueError(
-            f"No action model registered for mod '{mod_id}'. "
-            f"Did you forget to call register_action_model() "
-            f"in the mod's AppConfig.ready()?"
-        )
+    mod_id = action.split(":", 1)[0] if ":" in action else action.split(".")[0]
     kwargs: dict[str, Any] = dict(
         performed_by=user,
         action=action,
         action_type=action_type,
-        target_type=target_type,
-        target_id=target_id,
+        target_model_reference=target_type,
+        target_object_id=str(target_id),
+        initiating_mod_id=mod_id,
+        initiating_mod_version=_initiator_version(mod_id),
         metadata=metadata or {},
     )
     if version is not None:
-        kwargs["version"] = version
+        kwargs["target_version_reference"] = "eln:content-version"
+        kwargs["target_version_object_id"] = str(version.pk)
+        kwargs["target_version_label"] = str(getattr(version, "version_number", version.pk))
+        kwargs["target_version_hash"] = getattr(version, "content_hash", None)
     if request_id is not None:
         kwargs["request_id"] = request_id
     if client_ip is not None:
         kwargs["client_ip"] = client_ip
-    return model_class.objects.create(**kwargs)  # type: ignore[attr-defined]
+    return ActionLogEntry.objects.create(**kwargs)
+
+
+def _initiator_version(mod_id: str) -> str:
+    from helix_core.mod_system.registry import registry
+
+    manifest = registry._manifests.get(mod_id)
+    if manifest is not None:
+        return manifest.version
+    provider = registry._action_providers.get(mod_id)
+    return provider[1] if provider is not None else "unknown"

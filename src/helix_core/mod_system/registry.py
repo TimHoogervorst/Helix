@@ -63,6 +63,7 @@ class BackendModRegistry:
     def __init__(self) -> None:
         # ── storage ──────────────────────────────────────────────────────
         self._action_models: dict[str, type] = {}
+        self._action_providers: dict[str, tuple[str, str]] = {}
         self._url_patterns: dict[str, list] = defaultdict(list)
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
@@ -391,6 +392,9 @@ class BackendModRegistry:
         label: str,
         core: str,
         target_model: str,
+        *,
+        provider_mod_id: str | None = None,
+        provider_mod_version: str | None = None,
     ) -> None:
         """Register a custom action for *mod_id*.
 
@@ -420,19 +424,60 @@ class BackendModRegistry:
                 f"{', '.join(CORE_ACTION_VERBS)}."
             )
 
-        if mod_id not in self._action_models:
-            raise ValueError(
-                f"Cannot register custom action '{action_id}' for mod "
-                f"'{mod_id}' — no action model registered. Call "
-                f"register_action_model() before register_custom_action()."
-            )
-
         self._custom_actions[mod_id][action_id] = {
             "id": action_id,
             "label": label,
             "action_type": core,
             "target_model": target_model,
+            "provider_mod_id": provider_mod_id or mod_id,
+            "provider_mod_version": provider_mod_version or "unknown",
         }
+
+    def register_action_provider(self, mod_id: str, version: str) -> None:
+        """Record a Mod as a provider of Platform-owned core Actions."""
+        self._action_providers[mod_id] = (mod_id, version)
+        self._core_actions.setdefault(
+            mod_id,
+            {
+                verb: {
+                    "id": verb,
+                    "label": CORE_ACTION_LABELS[verb],
+                    "action_type": verb,
+                    "target_model": None,
+                }
+                for verb in CORE_ACTION_VERBS
+            },
+        )
+        self._persist_action_definition(mod_id, "created", "Created", "created", None, mod_id, version)
+        self._persist_action_definition(mod_id, "edited", "Edited", "edited", None, mod_id, version)
+        self._persist_action_definition(mod_id, "deleted", "Deleted", "deleted", None, mod_id, version)
+
+    @staticmethod
+    def _persist_action_definition(
+        identity_prefix: str,
+        identity: str,
+        label: str,
+        core_action: str,
+        target_model_reference: str | None,
+        provider_mod_id: str,
+        provider_mod_version: str,
+    ) -> None:
+        try:
+            from helix_core.models import ActionDefinition
+
+            ActionDefinition.objects.update_or_create(
+                identity=f"{identity_prefix}:{identity}",
+                defaults={
+                    "label": label,
+                    "core_action": core_action,
+                    "target_model_reference": target_model_reference or "unknown",
+                    "provider_mod_id": provider_mod_id,
+                    "provider_mod_version": provider_mod_version,
+                },
+            )
+        except Exception:
+            # Registration also runs during migration discovery, before tables exist.
+            pass
 
     def sync_actions(
         self, mod_id: str, actions: list[dict[str, str]]
@@ -480,7 +525,7 @@ class BackendModRegistry:
 
             label = self._derive_label(action_id)
 
-            self._custom_actions[mod_id][action_id] = {
+        self._custom_actions[mod_id][action_id] = {
                 "id": action_id,
                 "label": label,
                 "action_type": core,
@@ -543,9 +588,6 @@ class BackendModRegistry:
         Returns an empty list when no action model has been registered
         for *mod_id*.
         """
-        if mod_id not in self._action_models:
-            return []
-
         result: list[dict[str, Any]] = []
 
         # Core actions first.
@@ -570,7 +612,7 @@ class BackendModRegistry:
         """
         # Core verbs: valid if any mod has registered an action model.
         if action in CORE_ACTION_VERBS:
-            return len(self._action_models) > 0
+            return bool(self._action_models or self._action_providers)
 
         # Custom actions: check exact match across all mods.
         for mod_actions in self._custom_actions.values():
@@ -857,10 +899,10 @@ class BackendModRegistry:
             # ── action catalog ──────────────────────────────────────────
             actions: list[dict[str, Any]] = []
             action_model = self._action_models.get(workspace_id)
-            if action_model is not None:
+            if action_model is not None or workspace_id in self._action_providers:
                 seen_ids: set[str] = set()
 
-                # 1. Core actions auto-derived by register_action_model().
+                # 1. Core actions contributed by the Platform provider.
                 core = self._core_actions.get(workspace_id, {})
                 for entry in core.values():
                     actions.append({
@@ -872,9 +914,7 @@ class BackendModRegistry:
 
                 # 2. ACTION_CHOICES from the model class (backward compat).
                 # Entries already covered by core actions are skipped.
-                action_choices = getattr(
-                    action_model, "ACTION_CHOICES", None
-                )
+                action_choices = getattr(action_model, "ACTION_CHOICES", None)
                 if action_choices:
                     for choice_id, choice_label in action_choices:
                         if choice_id not in seen_ids:
@@ -959,7 +999,7 @@ class BackendModRegistry:
 
     def has_action_model(self, mod_id: str) -> bool:
         """Return ``True`` if *mod_id* has registered an action model."""
-        return mod_id in self._action_models
+        return mod_id in self._action_models or mod_id in self._action_providers
 
     def is_mod_known(self, mod_id: str) -> bool:
         """Return ``True`` if *mod_id* is in the known mod order.
@@ -980,6 +1020,15 @@ class BackendModRegistry:
         known_order: dict[str, int] = {
             mod_id: i for i, mod_id in enumerate(self._mod_order)
         }
+        self._persist_action_definition(
+            mod_id,
+            action_id,
+            label,
+            core,
+            target_model,
+            provider_mod_id or mod_id,
+            provider_mod_version or "unknown",
+        )
 
         def _sort_key(item: tuple[str, list]) -> tuple[int, int, str]:
             mod_id = item[0]

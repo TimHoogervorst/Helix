@@ -10,7 +10,8 @@ from bundled.labelling.tags.models import Tag
 
 from helix_core.mentions.models import Mention
 
-from .models import NotebookEntry, ElnAction, Protocol
+from .models import NotebookEntry, Protocol
+from helix_core.models import ActionLogEntry
 
 
 def validate_tiptap_json(value):
@@ -186,7 +187,7 @@ class ElnActionSerializer(serializers.ModelSerializer):
     performed_by = UserSerializer(read_only=True)
 
     class Meta:
-        model = ElnAction
+        model = ActionLogEntry
         fields = [
             "id",
             "action",
@@ -205,7 +206,7 @@ class ElnActionCreateSerializer(serializers.ModelSerializer):
     """Write-only serializer for logging a custom action against an entry."""
 
     class Meta:
-        model = ElnAction
+        model = ActionLogEntry
         fields = ["action", "action_type", "metadata"]
         # target_type, target_id, and performed_by are set by the view
 

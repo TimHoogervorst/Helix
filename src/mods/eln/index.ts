@@ -1,8 +1,7 @@
 import { lazy } from "react";
 import { FlaskConical, ListChecks, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
-import { Mod } from "../../shell/src/mod-system/Mod";
-import { BlockEvent } from "../../shell/src/mod-system/BlockEvent";
-import type { ModManifest } from "../../shell/src/mod-system/types";
+import { BlockEvent } from "@helix/mod-api";
+import type { Mod } from "@helix/mod-api";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
@@ -15,9 +14,7 @@ import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFee
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
-import manifest from "./modManifest.json";
-
-const mod = new Mod(manifest as ModManifest);
+export function register(mod: Mod) {
 
 // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
 mod.declareSlot("header-actions", {
@@ -35,7 +32,7 @@ mod.registerRoute("entry-page", {
 });
 
 // ── Slot: ELN Editor ────────────────────────────────────
-export const editorSlot = mod.declareSlot("editor", {
+const editorSlot = mod.declareSlot("editor", {
   accepts: "block",
   renderer: TipTapRenderer,
   layout: "vertical",
@@ -44,7 +41,7 @@ export const editorSlot = mod.declareSlot("editor", {
 });
 
 // ── Block: Table ───────────────────────────────────────────────────────
-export const tableBlock = mod.registerBlock("table", {
+const tableBlock = mod.registerBlock("table", {
   label: "Table",
   layout: "dynamic-bleed",
   icon: Table,
@@ -72,7 +69,7 @@ export const tableBlock = mod.registerBlock("table", {
 });
 
 // ── Block: Comment ─────────────────────────────────────────────────────
-export const commentBlock = mod.registerBlock("comment", {
+const commentBlock = mod.registerBlock("comment", {
   label: "Comment",
   icon: MessageSquare,
   component: CommentBlockComponent,
@@ -95,7 +92,7 @@ export const commentBlock = mod.registerBlock("comment", {
 });
 
 // ── Block: Protocol ────────────────────────────────────────────────────
-export const protocolBlock = mod.registerBlock("protocol", {
+const protocolBlock = mod.registerBlock("protocol", {
   label: "Protocol",
   icon: FlaskConical,
   component: ProtocolBlockComponent,
@@ -119,7 +116,7 @@ export const protocolBlock = mod.registerBlock("protocol", {
 });
 
 // ── Block: Registry Table ──────────────────────────────────────────────
-export const registryTableBlock = mod.registerBlock("registry-table", {
+const registryTableBlock = mod.registerBlock("registry-table", {
   label: "Registry Table",
   layout: "dynamic-bleed",
   icon: Database,
@@ -150,7 +147,7 @@ export const registryTableBlock = mod.registerBlock("registry-table", {
 });
 
 // ── Block: Result Table ───────────────────────────────────────────────────
-export const resultTableBlock = mod.registerBlock("result-table", {
+const resultTableBlock = mod.registerBlock("result-table", {
   label: "Result Table",
   layout: "dynamic-bleed",
   icon: Database,
@@ -183,7 +180,7 @@ mod.registerIntoSlot(editorSlot, registryTableBlock, {}, 3);
 mod.registerIntoSlot(editorSlot, resultTableBlock, {}, 4);
 
 // ── Slot: ELN Sidebar (dogfood #233) ────────────────────────────────────
-export const sidebarSlot = mod.declareSlot("sidebar", {
+const sidebarSlot = mod.declareSlot("sidebar", {
   accepts: "block",
   renderer: SlotSidebar,
   layout: "vertical",
@@ -192,7 +189,7 @@ export const sidebarSlot = mod.declareSlot("sidebar", {
 });
 
 // ── Block: Metadata ─────────────────────────────────────────────────────
-export const metadataBlock = mod.registerBlock("metadata", {
+const metadataBlock = mod.registerBlock("metadata", {
   label: "Metadata",
   icon: Info,
   component: MetadataBlock,
@@ -206,7 +203,7 @@ export const metadataBlock = mod.registerBlock("metadata", {
 });
 
 // ── Block: Linked Entities ──────────────────────────────────────────────
-export const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
+const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
   label: "Linked Entities",
   icon: Link,
   component: LinkedEntitiesBlock,
@@ -220,7 +217,7 @@ export const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
 });
 
 // ── Block: Attachments ──────────────────────────────────────────────────
-export const attachmentsBlock = mod.registerBlock("attachments", {
+const attachmentsBlock = mod.registerBlock("attachments", {
   label: "Attachments",
   icon: Paperclip,
   component: AttachmentsBlock,
@@ -239,7 +236,7 @@ mod.registerIntoSlot(sidebarSlot, linkedEntitiesBlock, {}, 1);
 mod.registerIntoSlot(sidebarSlot, attachmentsBlock, {}, 2);
 
 // ── Block: Activity Feed ────────────────────────────────────────────────
-export const activityFeedBlock = mod.registerBlock("activity-feed", {
+const activityFeedBlock = mod.registerBlock("activity-feed", {
   label: "Activity Feed",
   icon: History,
   component: ActivityFeedBlock,
@@ -263,5 +260,4 @@ mod.registerSettingsSection("protocol-settings", {
   order: 20,
 });
 
-/** No-op — all registrations happen at module scope via the Mod class. */
-export function register() {}
+}

@@ -376,8 +376,9 @@ export class ModRegistry {
     targetId: string,
     overrides: Record<string, unknown> = {},
     order = 0,
+    provider?: string,
   ): void {
-    const binding: SlotBinding = { slotId, targetId, overrides, order };
+    const binding: SlotBinding = { slotId, targetId, overrides, order, provider };
     const existing = this.bindings.get(slotId);
     if (existing) {
       existing.push(binding);

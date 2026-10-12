@@ -87,10 +87,10 @@ export class Mod {
    */
   registerBlock(
     name: string,
-    config: Omit<BlockRegistration, "id">,
+    config: Omit<BlockRegistration, "id" | "provider">,
   ): BlockHandle {
     const globalId = `${this.localName}.${name}`;
-    ModRegistry.getInstance().registerBlock({ ...config, id: globalId });
+    ModRegistry.getInstance().registerBlock({ ...config, id: globalId, provider: this.id });
 
     // Build typed emitters from the emits array.
     // Not wired to the bus yet — fire() constructs the payload shape only.
@@ -125,10 +125,10 @@ export class Mod {
    */
   declareSlot(
     name: string,
-    config: Omit<SlotDeclaration, "id">,
+    config: Omit<SlotDeclaration, "id" | "provider">,
   ): SlotHandle {
     const globalId = `${this.localName}.${name}`;
-    ModRegistry.getInstance().declareSlot({ ...config, id: globalId });
+    ModRegistry.getInstance().declareSlot({ ...config, id: globalId, provider: this.id });
 
     return {
       __brand: "SlotHandle" as const,
@@ -149,10 +149,10 @@ export class Mod {
    */
   registerButton(
     name: string,
-    config: Omit<ButtonRegistration, "id">,
+    config: Omit<ButtonRegistration, "id" | "provider">,
   ): ButtonHandle {
     const globalId = `${this.localName}.${name}`;
-    ModRegistry.getInstance().registerButton({ ...config, id: globalId });
+    ModRegistry.getInstance().registerButton({ ...config, id: globalId, provider: this.id });
 
     return {
       __brand: "ButtonHandle" as const,
@@ -180,11 +180,15 @@ export class Mod {
     overrides?: Record<string, unknown>,
     order?: number,
   ): void {
+    if (target.modId !== this.id) {
+      throw new Error(`Mod '${this.id}' cannot register a handle owned by another mod.`);
+    }
     ModRegistry.getInstance().registerIntoSlot(
       slot.globalId,
       target.globalId,
       overrides,
       order,
+      this.id,
     );
   }
 
@@ -244,10 +248,10 @@ export class Mod {
    */
   registerHub(
     name: string,
-    config: Omit<HubConfig, "id">,
+    config: Omit<HubConfig, "id" | "provider">,
   ): void {
     const globalId = `${this.localName}.${name}`;
-    ModRegistry.getInstance().registerHub({ ...config, id: globalId });
+    ModRegistry.getInstance().registerHub({ ...config, id: globalId, provider: this.id });
   }
 
   // ── Route ─────────────────────────────────────────────────────────────
@@ -260,13 +264,14 @@ export class Mod {
    */
   registerRoute(
     name: string,
-    config: Omit<RouteConfig, "id" | "modId">,
+    config: Omit<RouteConfig, "id" | "modId" | "provider">,
   ): void {
     const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerRoute({
       ...config,
       id: globalId,
       modId: this.id,
+      provider: this.id,
     });
   }
 
@@ -280,22 +285,23 @@ export class Mod {
    */
   registerSettingsSection(
     name: string,
-    config: Omit<SettingsSectionConfig, "id" | "modId">,
+    config: Omit<SettingsSectionConfig, "id" | "modId" | "provider">,
   ): void {
     const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerSettingsSection({
       ...config,
       id: globalId,
       modId: this.id,
+      provider: this.id,
     });
   }
 
   /** Register an optional entity workspace tab for this mod. */
   registerSchemaComponent(
     name: string,
-    config: Omit<SchemaComponentRegistration, "id">,
+    config: Omit<SchemaComponentRegistration, "id" | "provider">,
   ): void {
     const globalId = `${this.localName}.${name}`;
-    ModRegistry.getInstance().registerSchemaComponent({ ...config, id: globalId });
+    ModRegistry.getInstance().registerSchemaComponent({ ...config, id: globalId, provider: this.id });
   }
 }

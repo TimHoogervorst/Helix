@@ -92,6 +92,11 @@ function modResolutionPlugin() {
 export default defineConfig({
   plugins: [tailwindcss(), react(), useSyncExternalStorePlugin(), modResolutionPlugin()],
   resolve: {
+    alias: {
+      "@helix/mod-api": path.resolve(repoRoot, "src/mod-api/src/index.ts"),
+      "@helix/mod-api/Mod": path.resolve(repoRoot, "src/mod-api/src/Mod.ts"),
+      "@helix/mod-api/style.css": path.resolve(repoRoot, "src/mod-api/style.css"),
+    },
     // Prevent duplicate instances when modules are resolved via
     // different paths.  React dedupe avoids double React trees;
     // prosemirror dedupe prevents multiple copies of DecorationSet /

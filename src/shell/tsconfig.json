@@ -16,7 +16,12 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@helix/mod-api": ["../mod-api/src/index.ts"],
+      "@helix/mod-api/*": ["../mod-api/src/*"]
+    }
   },
   "include": ["src"],
   "exclude": ["src/**/__tests__/**"]

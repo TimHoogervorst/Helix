@@ -91,6 +91,8 @@ export interface ButtonHandle {
 
 export interface HubConfig {
   id: string;
+  /** Internal provenance stamp written by the owner-bound registrar. */
+  provider?: string;
   label: string;
   icon: ComponentType<any>;
   route: string;
@@ -104,6 +106,7 @@ export interface HubConfig {
 
 export interface SettingsSectionConfig {
   id: string;
+  provider?: string;
   modId: string;
   label: string;
   icon?: ComponentType<any>;
@@ -120,6 +123,7 @@ export interface SchemaComponentProps {
 export interface SchemaComponentRegistration {
   /** Globally unique identifier, e.g. "lims.results". */
   id: string;
+  provider?: string;
   /** Human-readable label shown in schema settings and workspace tabs. */
   label: string;
   /** Icon displayed beside the component label. */
@@ -134,6 +138,7 @@ export interface SchemaComponentRegistration {
 
 export interface RouteConfig {
   id: string;
+  provider?: string;
   modId: string;
   path: string;
   component: ComponentType<any>;
@@ -315,6 +320,7 @@ export interface BlockComponentProps {
 export interface BlockRegistration {
   /** Globally unique identifier, e.g. "eln.table". */
   id: string;
+  provider?: string;
   /** Human-readable label, e.g. "Table". */
   label: string;
   /** Lucide icon component. */
@@ -351,6 +357,7 @@ export interface BlockRegistration {
 export interface ButtonRegistration {
   /** Globally unique identifier, e.g. "eln.export". */
   id: string;
+  provider?: string;
   /** Human-readable label, e.g. "Export". */
   label: string;
   /** Optional Lucide icon component. */
@@ -368,6 +375,7 @@ export interface ButtonRegistration {
 export interface SlotDeclaration {
   /** Unique slot identifier, e.g. "eln.editor" ({workspaceId}.{region}.{name}). */
   id: string;
+  provider?: string;
   /** What can be bound into this slot. */
   accepts: "block" | "button";
   /** The rendering strategy component. Determines how bound content is presented. */
@@ -389,6 +397,7 @@ export interface SlotDeclaration {
 export interface SlotBinding {
   /** The slot this binding targets, e.g. "eln.editor". */
   slotId: string;
+  provider?: string;
   /** The block or button ID to bind, e.g. "eln.table". */
   targetId: string;
   /** Per-binding overrides merged with slot defaults. */

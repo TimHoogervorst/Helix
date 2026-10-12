@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ModRegistry } from "./ModRegistry";
 import { LoadingScreen } from "../user/LoadingScreen";
 import type { ModManifest } from "./types";
+import { Mod } from "./Mod";
 import {
   bundledJsonManifestModules,
   bundledModModules,
@@ -11,7 +12,7 @@ import {
 
 export interface ModModule {
   meta: ModManifest;
-  register: () => void;
+  register: (mod: Mod) => void;
 }
 
 // ── Glob: auto-discover all mods ─────────────────────────────────────────
@@ -129,9 +130,7 @@ function collectMods(
 
     // Prefer JSON manifest for metadata when present.
     const jsonEntry = jsonManifestMap.get(dirName);
-    const meta = jsonEntry
-      ? jsonEntry.manifest
-      : mod.meta;
+    const meta = jsonEntry ? jsonEntry.manifest : mod.meta;
 
     if (!meta) {
       throw new Error(
@@ -181,7 +180,7 @@ function bootModSystem(
   // short name, e.g. "lims", "eln").
   for (const mod of sortedMods) {
     registry.registerMod(mod.meta.id);
-    mod.register();
+    mod.register(new Mod(mod.meta));
   }
 
   // Step 5: Validate the populated registry

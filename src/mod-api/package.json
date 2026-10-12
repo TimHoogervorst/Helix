@@ -1,0 +1,27 @@
+{
+  "name": "@helix/mod-api",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": ["./style.css"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./Mod": {
+      "types": "./dist/Mod.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest": "./modManifest.json",
+    "./style.css": "./style.css"
+  },
+  "peerDependencies": {
+    "@tiptap/react": "^3.28.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "files": ["dist", "modManifest.json", "style.css"]
+}

@@ -6,7 +6,8 @@ from typing import Any
 
 from django.db import transaction
 
-from helix_core.models import ModInstallation, ModLifecycleAction
+from helix_core.actions.logger import log_action
+from helix_core.models import ModInstallation
 from helix_core.mod_system.manifest import ModManifest
 
 
@@ -212,8 +213,8 @@ def _set_desired(installations, mod_ids, desired_state):
 
 
 def _log_change(target, performed_by, verb, changed):
-    ModLifecycleAction.objects.create(
-        performed_by=performed_by,
+    log_action(
+        user=performed_by,
         action=f"helix.platform.mod.{verb}",
         action_type="edited",
         target_type="helix.mod",

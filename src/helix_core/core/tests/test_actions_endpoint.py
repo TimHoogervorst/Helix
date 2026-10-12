@@ -3,8 +3,8 @@
 Exercises all acceptance criteria from issue #325:
 - 201 for valid action types (core and custom)
 - 400 for unregistered action types
-- Dual-row creation for custom actions
-- Correct table routing per mod
+- Single-row creation for custom actions
+- Central-store routing across mods
 - Deterministic response shape
 """
 
@@ -19,6 +19,7 @@ from rest_framework.test import APIClient
 from helix_core.actions.registry import register_action_model, register_custom_action
 from helix_core.core.models import Folder, Project, User
 from helix_core.core.tests.base import BaseTestCase
+from helix_core.models import ActionLogEntry
 from bundled.access.access.models import ProjectRole
 
 
@@ -162,8 +163,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         # Row actually landed in the database.
         from mods.eln.models import ElnAction
 
-        self.assertEqual(ElnAction.objects.count(), 1)
-        row = ElnAction.objects.first()
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        row = ActionLogEntry.objects.first()
         self.assertEqual(row.action_type, "created")
         self.assertEqual(row.performed_by, self.user)
 
@@ -244,9 +245,9 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
-        row = ElnAction.objects.first()
+        row = ActionLogEntry.objects.first()
         self.assertEqual(row.client_ip, "10.0.0.42")
 
     # ── valid action types (custom → dual-row) ───────────────────────────
@@ -294,9 +295,9 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         self.assertEqual(data[0]["action"], "eln.entry.registered")
 
         # Exactly one row in the database.
-        self.assertEqual(ElnAction.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
-        row = ElnAction.objects.first()
+        row = ActionLogEntry.objects.first()
         self.assertEqual(row.action, "eln.entry.registered")
         self.assertEqual(row.performed_by, self.user)
         self.assertEqual(row.target_type, "eln.entry")
@@ -333,8 +334,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
         self.assertEqual(response.data[0]["action"], "tags.tag.attached")
 
-        self.assertEqual(TagsAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.first().action, "tags.tag.attached")
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.first().action, "tags.tag.attached")
 
     # ── unregistered action types → 400 ─────────────────────────────────
 
@@ -396,8 +397,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             format="json",
         )
         self.assertEqual(resp_eln.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
         # Log a Tags action.
         resp_tags = self.client.post(
@@ -412,8 +412,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
             format="json",
         )
         self.assertEqual(resp_tags.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
 
     # ── deterministic response shape ─────────────────────────────────────
 
@@ -565,9 +564,9 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
-        row = ElnAction.objects.first()
+        row = ActionLogEntry.objects.first()
         self.assertIsNotNone(row.request_id)
         self.assertEqual(len(str(row.request_id)), 36)  # UUID format
 
@@ -591,9 +590,9 @@ class TestUnifiedActionEndpoint(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
-        row = ElnAction.objects.first()
+        row = ActionLogEntry.objects.first()
         self.assertEqual(
             str(row.request_id),
             "550e8400-e29b-41d4-a716-446655440000",
@@ -621,7 +620,7 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("read", str(response.data).lower())
-        self.assertEqual(ElnAction.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
 
     def test_read_action_is_discoverable_in_catalog(self):
         """The 'read' core action verb appears in the action catalog."""

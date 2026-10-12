@@ -12,7 +12,8 @@ from helix_core.core.tests.base import BaseTestCase
 from helix_core.core.tests.factories import EMPTY_DOC, make_doc_with_ref
 from helix_core.mentions.models import Mention
 from helix_core.core.models import Folder, Project, User
-from mods.eln.models import NotebookEntry, ElnAction, EntryLock
+from helix_core.models import ActionLogEntry
+from mods.eln.models import NotebookEntry, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 
 
@@ -467,7 +468,7 @@ class EntryActionsEndpointTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(ElnAction.objects.count(), 3)
+        self.assertEqual(ActionLogEntry.objects.count(), 3)
         self.assertEqual(response.data["action"], "eln.entry.commented")
         self.assertEqual(response.data["action_type"], "commented")
         self.assertEqual(response.data["metadata"], {"text": "Great work!"})

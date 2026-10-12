@@ -2,42 +2,10 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
-def consolidate_legacy_actions(apps, schema_editor):
-    ActionLogEntry = apps.get_model("helix_core", "ActionLogEntry")
-    legacy_models = (
-        ("eln", "ElnAction"),
-        ("lims", "Action"),
-        ("tags", "TagsAction"),
-        ("core_mods_users", "CoreAction"),
-        ("access", "AccessAction"),
-    )
-    for label, model_name in legacy_models:
-        try:
-            model = apps.get_model(label, model_name)
-        except LookupError:
-            continue
-        for row in model.objects.all().iterator():
-            action = row.action
-            ActionLogEntry.objects.create(
-                performed_by_id=row.performed_by_id,
-                action=action,
-                action_type=row.action_type,
-                target_model_reference=row.target_type,
-                target_object_id=str(row.target_id),
-                initiating_mod_id="unknown",
-                initiating_mod_version="unknown",
-                request_id=getattr(row, "request_id", None),
-                client_ip=getattr(row, "client_ip", None),
-                metadata=row.metadata or {},
-                created_at=row.created_at,
-                legacy_table=row._meta.db_table,
-                legacy_id=row.pk,
-            )
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("helix_core", "0018_rewrite_bundled_model_paths"),
+        ("helix_core", "0019_mod_lifecycle"),
         ("eln", "0009_remove_notebookentry_folder"),
         ("lims", "0013_remove_action_source_entry_remove_entity_folder_and_more"),
         ("tags", "0003_alter_tagsaction_action_alter_tagsaction_action_type"),
@@ -86,5 +54,4 @@ class Migration(migrations.Migration):
         migrations.AddIndex(model_name="actionlogentry", index=models.Index(fields=["target_model_reference", "target_object_id"], name="helix_action_target_75f3c0_idx")),
         migrations.AddIndex(model_name="actionlogentry", index=models.Index(fields=["action", "created_at"], name="helix_action_action_0d1d0d_idx")),
         migrations.AddIndex(model_name="actionlogentry", index=models.Index(fields=["initiating_mod_id", "created_at"], name="helix_action_initia_4b48a1_idx")),
-        migrations.RunPython(consolidate_legacy_actions, migrations.RunPython.noop),
     ]

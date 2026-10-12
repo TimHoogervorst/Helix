@@ -12,6 +12,7 @@ import uuid
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.utils import timezone
 
 from helix_core.actions.base import AbstractBaseAction
 
@@ -281,7 +282,7 @@ class ActionLogEntry(models.Model):
     request_id = models.UUIDField(null=True, blank=True)
     client_ip = models.GenericIPAddressField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     legacy_table = models.CharField(max_length=255, null=True, blank=True)
     legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
 
@@ -293,6 +294,12 @@ class ActionLogEntry(models.Model):
             models.Index(fields=["action", "created_at"], name="helix_action_action_0d1d0d_idx"),
             models.Index(fields=["initiating_mod_id", "created_at"], name="helix_action_initia_4b48a1_idx"),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["legacy_table", "legacy_id"],
+                name="helix_action_legacy_source_uniq",
+            ),
+        ]
 
     @property
     def target_type(self):
@@ -300,7 +307,10 @@ class ActionLogEntry(models.Model):
 
     @property
     def target_id(self):
-        return self.target_object_id
+        try:
+            return int(self.target_object_id)
+        except (TypeError, ValueError):
+            return self.target_object_id
 
 
 # ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────

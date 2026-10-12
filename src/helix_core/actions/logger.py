@@ -1,11 +1,10 @@
 """Synchronous action logger.
 
-``log_action()`` derives the mod from ``target_type`` (the part before
-the first dot) and dispatches to the correct concrete action table via
-the registry.
+``log_action()`` writes directly to the Platform-owned Action Log Entry
+store and records the initiating Mod derived from the action reference.
 
-``bulk_log_actions()`` batch-creates action rows grouped by mod table
-using ``bulk_create`` for efficiency.  One INSERT per mod table.
+``bulk_log_actions()`` batch-creates central action rows using
+``bulk_create`` for efficiency.
 """
 
 from __future__ import annotations
@@ -17,8 +16,6 @@ from uuid import UUID
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-
-from helix_core.models import ActionLogEntry
 
 User = get_user_model()
 
@@ -71,7 +68,7 @@ def bulk_log_actions(
     request_id: Optional[UUID] = None,
     client_ip: Optional[str] = None,
 ) -> list:
-    """Batch-create action rows grouped by mod table.
+    """Batch-create action rows in the central Platform store.
 
     Groups *actions* by their derived mod (first segment of
     ``action``), then does one ``bulk_create`` per mod table.
@@ -96,6 +93,8 @@ def bulk_log_actions(
     """
     if not actions:
         return []
+
+    from helix_core.models import ActionLogEntry
 
     # Group by mod_id derived from action (not target_type).
     # We derive the mod from action rather than target_type
@@ -156,7 +155,7 @@ def log_action(
     request_id: Optional[UUID] = None,
     client_ip: Optional[str] = None,
 ):
-    """Create an action row in the correct mod-specific table.
+    """Create an action row in the Platform-owned central store.
 
     Derives the mod identifier from *target_type* (the segment before
     the first dot).  For example ``"eln.entry"`` dispatches to
@@ -193,6 +192,8 @@ def log_action(
     """
     if action_type is None:
         action_type = resolve_action_type(action)
+
+    from helix_core.models import ActionLogEntry
 
     # Read is authorization-only — never persist.
     if action_type == "read":

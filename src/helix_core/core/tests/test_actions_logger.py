@@ -7,6 +7,7 @@ from django.test import TestCase
 from helix_core.actions.logger import log_action, bulk_log_actions
 from helix_core.actions.registry import register_action_model
 from helix_core.core.models import User
+from helix_core.models import ActionLogEntry
 
 
 class LoggerDispatchTests(TestCase):
@@ -40,8 +41,8 @@ class LoggerDispatchTests(TestCase):
         backend_registry._action_models.clear()
         backend_registry._action_models.update(self._saved_method_action_models)
 
-    def test_log_action_dispatches_to_registered_mod(self):
-        """log_action creates a row in the model registered for the target_type prefix."""
+    def test_log_action_writes_to_platform_store(self):
+        """log_action creates a row in the Platform-owned action store."""
         from mods.eln.models import ElnAction
 
         register_action_model("eln", ElnAction)
@@ -54,7 +55,7 @@ class LoggerDispatchTests(TestCase):
             metadata={"key": "val"},
         )
 
-        self.assertIsInstance(action, ElnAction)
+        self.assertIsInstance(action, ActionLogEntry)
         self.assertEqual(action.performed_by, self.user)
         self.assertEqual(action.action_type, "created")
         self.assertEqual(action.target_type, "eln.entry")
@@ -62,8 +63,8 @@ class LoggerDispatchTests(TestCase):
         self.assertEqual(action.metadata, {"key": "val"})
         self.assertIsNotNone(action.created_at)
 
-        # Row actually landed in the database.
-        self.assertEqual(ElnAction.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertEqual(ElnAction.objects.count(), 0)
 
     def test_log_action_metadata_defaults_to_empty_dict(self):
         """metadata is optional and defaults to {}."""
@@ -79,16 +80,15 @@ class LoggerDispatchTests(TestCase):
         )
         self.assertEqual(action.metadata, {})
 
-    def test_log_action_raises_for_unregistered_mod(self):
-        """Calling log_action with an unregistered mod raises ValueError."""
-        with self.assertRaises(ValueError) as ctx:
-            log_action(
-                user=self.user,
-                action="unknownmod.thing.created",
-                target_type="unknownmod.thing",
-                target_id=1,
-            )
-        self.assertIn("unknownmod", str(ctx.exception))
+    def test_log_action_does_not_require_a_legacy_mod_model(self):
+        """The central writer does not dispatch through a legacy table."""
+        action = log_action(
+            user=self.user,
+            action="unknownmod.thing.created",
+            target_type="unknownmod.thing",
+            target_id=1,
+        )
+        self.assertEqual(action.initiating_mod_id, "unknownmod")
 
     def test_log_action_derives_mod_from_first_segment(self):
         """log_action extracts the mod id from the part before the first dot."""
@@ -103,7 +103,7 @@ class LoggerDispatchTests(TestCase):
             target_type="eln.entry.foo",
             target_id=99,
         )
-        self.assertIsInstance(action, ElnAction)
+        self.assertIsInstance(action, ActionLogEntry)
         self.assertEqual(action.target_type, "eln.entry.foo")
 
 
@@ -161,10 +161,10 @@ class BulkLogActionsTests(TestCase):
         )
 
         self.assertEqual(len(results), 3)
-        self.assertEqual(ElnAction.objects.count(), 3)
+        self.assertEqual(ActionLogEntry.objects.count(), 3)
 
         # Verify first row
-        row = ElnAction.objects.get(action="eln.table.edited")
+        row = ActionLogEntry.objects.get(action="eln.table.edited")
         self.assertEqual(row.performed_by, self.user)
         self.assertEqual(row.target_type, "eln.entry")
         self.assertEqual(row.target_id, 42)
@@ -190,7 +190,7 @@ class BulkLogActionsTests(TestCase):
             request_id=request_id,
         )
 
-        rows = ElnAction.objects.all()
+        rows = ActionLogEntry.objects.all()
         self.assertEqual(rows.count(), 2)
         for row in rows:
             self.assertEqual(row.request_id, request_id)
@@ -211,7 +211,7 @@ class BulkLogActionsTests(TestCase):
             client_ip="10.0.0.1",
         )
 
-        row = ElnAction.objects.first()
+        row = ActionLogEntry.objects.first()
         self.assertEqual(row.client_ip, "10.0.0.1")
 
     def test_bulk_log_actions_metadata_defaults_to_empty_dict(self):
@@ -230,7 +230,7 @@ class BulkLogActionsTests(TestCase):
         )
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(ElnAction.objects.first().metadata, {})
+        self.assertEqual(ActionLogEntry.objects.first().metadata, {})
 
     def test_bulk_log_actions_empty_list(self):
         """An empty action list creates no rows and returns empty list."""
@@ -246,20 +246,20 @@ class BulkLogActionsTests(TestCase):
         )
 
         self.assertEqual(results, [])
-        self.assertEqual(ElnAction.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
 
-    def test_bulk_log_actions_raises_for_unregistered_mod(self):
-        """bulk_log_actions raises ValueError for an unregistered mod."""
+    def test_bulk_log_actions_does_not_require_legacy_mod_models(self):
+        """bulk_log_actions writes every action to the central store."""
         actions = [{"action": "unknownmod.widget.edited", "metadata": {}}]
 
-        with self.assertRaises(ValueError) as ctx:
-            bulk_log_actions(
-                user=self.user,
-                actions=actions,
-                target_type="unknownmod.entry",
-                target_id=1,
-            )
-        self.assertIn("unknownmod", str(ctx.exception))
+        results = bulk_log_actions(
+            user=self.user,
+            actions=actions,
+            target_type="unknownmod.entry",
+            target_id=1,
+        )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
     def test_bulk_log_actions_cross_mod_routing(self):
         """Actions from different mods route to different concrete tables."""
@@ -281,17 +281,14 @@ class BulkLogActionsTests(TestCase):
             target_id=42,
         )
 
-        # Both action rows created
+        # Both action rows created in the central store.
         self.assertEqual(len(results), 2)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
 
-        # Each landed in the correct table
-        self.assertEqual(ElnAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.count(), 1)
-
-        eln_row = ElnAction.objects.first()
+        eln_row = ActionLogEntry.objects.get(action="eln.table.edited")
         self.assertEqual(eln_row.action, "eln.table.edited")
 
-        tags_row = TagsAction.objects.first()
+        tags_row = ActionLogEntry.objects.get(action="tags.tag.created")
         self.assertEqual(tags_row.action, "tags.tag.created")
 
     # ── read action rejection ──────────────────────────────────────────────
@@ -310,7 +307,7 @@ class BulkLogActionsTests(TestCase):
                 target_id=42,
             )
         self.assertIn("read", str(ctx.exception).lower())
-        self.assertEqual(ElnAction.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
 
     def test_bulk_log_actions_rejects_read(self):
         """bulk_log_actions raises ValueError when any entry resolves to 'read'."""

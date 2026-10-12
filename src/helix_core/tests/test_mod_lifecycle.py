@@ -8,7 +8,7 @@ from helix_core.mod_system.lifecycle import (
     deactivate_mod,
     sync_mod_installations,
 )
-from helix_core.models import ModInstallation, ModLifecycleAction
+from helix_core.models import ActionLogEntry, ModInstallation
 from helix_core.core.models import User
 from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 
@@ -65,8 +65,8 @@ class ModLifecycleServiceTests(TestCase):
             ).count()
             == 2
         )
-        self.assertEqual(ModLifecycleAction.objects.count(), 1)
-        self.assertEqual(ModLifecycleAction.objects.get().action_type, "edited")
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.get().action_type, "edited")
 
     def test_deactivation_cascades_to_dependents_atomically(self):
         sync_mod_installations(
@@ -95,7 +95,7 @@ class ModLifecycleServiceTests(TestCase):
 
         installation = ModInstallation.objects.get(mod_id="acme.app")
         self.assertEqual(installation.desired_state, ModLifecycleState.INACTIVE)
-        self.assertEqual(ModLifecycleAction.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
 
 
 class ModLifecycleApiTests(TestCase):

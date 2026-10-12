@@ -78,7 +78,7 @@ The newer code in the repo (ELN workspace, sidebar, hub toggles) already uses Ta
 
 ### Why the prototype's omissions
 
-The prototype's breadcrumbs, tip card, stat cards, registry-table preview, and Duplicate/Delete buttons are deliberately omitted. Breadcrumbs and tip cards are transient help mechanisms not needed in the initial kit. Stat cards and registry-table preview require Metrics infrastructure (deferred). Duplicate/Delete are test utilities that move to the core mod's dev-tools settings section.
+The prototype's breadcrumbs, tip card, stat cards, registry-table preview, and Duplicate/Delete buttons are deliberately omitted. Breadcrumbs and tip cards are transient help mechanisms not needed in the initial kit. Stat cards and registry-table preview require Metrics infrastructure (deferred). Duplicate/Delete are test utilities that live in the Settings Bundled Mod's dev-tools settings section.
 
 ---
 

@@ -83,7 +83,7 @@ For lightweight local runs without Docker, the backend tests work against SQLite
 
 ## Architecture
 
-The platform is built on a **Mod System**. Everything — LIMS, ELN, Library, Settings, Pins — is a **Core Mod**: a self-contained directory under `src/mods/<id>/` containing both frontend (TypeScript) and backend (Python) code. Each mod declares what it provides by calling `register*()` functions in its `index.ts` (frontend) and `mod.py` (backend). The **Shell** (`src/shell/` and `src/server/`) is the thin immutable frame that loads mods, resolves their dependency graph (topological sort), reads their `modManifest.json` for identity, and provides the services they render into.
+The platform is built on a **Mod System**. The repository has three visible tiers: **Platform** (`src/helix_core/`), **Bundled Mods** (`src/bundled/`), and **External Mods** (`src/mods/`). Bundled Mods ship in the Helix artifact and are explicitly enumerated; External Mods are discovered from `src/mods/` and composed in at build time. Each mod declares what it provides by calling `register*()` functions in its `index.ts` (frontend) and `mod.py` (backend). The **Shell** (`src/shell/`) is the thin immutable frontend frame; `src/server/` contains Django project configuration.
 
 ### The Mod API
 
@@ -113,35 +113,35 @@ Workspaces declare named **slots** (placeholders that own rendering), and mods r
 
 ```
 src/
-├── mods/                           # Co-located mods — each owns full stack (frontend + backend)
-│   ├── eln/                        # Electronic Lab Notebook (entries, blocks, TipTap editor)
-│   ├── lims/                       # LIMS (entities, entity types, actions)
-│   ├── library/                    # Library hub (card-based folder browsing)
-│   ├── home/                       # Home landing page
-│   ├── settings/                   # Settings shell
-│   ├── pins/                       # Pinned workspaces sidebar
-│   ├── tags/                       # Tagging system
-│   └── users/                      # User management
+├── helix_core/                     # Platform SDK, core app, registry, schema, actions
+│   ├── core/                       # Django app with the preserved `core` label
+│   └── mentions/                   # Platform mention app
+├── bundled/                        # Closed, explicitly enumerated Bundled Mods
+│   ├── shared/                     # Entities, Home, and Library
+│   ├── lims/                       # LIMS
+│   ├── datatypes/                  # Dropdowns
+│   ├── labelling/                  # Tags
+│   ├── access/                     # Access and Users
+│   ├── settings/                   # Settings and dev tools
+│   └── tabs/                       # Pinned workspace tabs
+├── mods/                           # External-only Mods; ELN is first-party dogfood
+│   └── eln/                        # Electronic Lab Notebook
 │
 ├── shell/                          # Frontend — immutable app shell (Vite/React)
 │   └── src/
-│       ├── core/
-│       │   ├── shell/              # Layout, AppShell, Router
-│       │   ├── mod-system/         # ModLoader, ModRegistry, register*() API
-│       │   ├── workspace/          # WorkspaceBus, SlotRenderer
-│       │   ├── mentions/           # Cross-cutting mention resolution
-│       │   └── api/                # Core API client
+│       ├── mod-system/             # ModLoader, ModRegistry, register*() API
+│       ├── workspace/              # WorkspaceBus, SlotRenderer
+│       ├── mentions/               # Cross-cutting mention resolution
+│       ├── api/                    # Core API client
 │       └── shared/                 # Platform SDK — BaseCard, StatusBadge, hooks
 │
-└── server/                         # Backend — Django project
-    ├── config/                     # settings.py, root urls.py
-    ├── core/                       # Auth, User, Folder, BrowsableItem, mentions
-    └── helix_core/                 # Platform SDK — ModLoader, BackendModRegistry, actions
+└── server/                         # Django project configuration only
+    └── config/                     # settings.py, root urls.py, wsgi.py
 ```
 
 ### Backend Mod System
 
-The backend mirrors the frontend mod system. Mods are discovered from `modManifest.json`, loaded in topological order by `ModLoader` in `helix_core`, and register contributions through `BackendModRegistry` (`register_entity_type()`, `register_urls()`, `register_service()`, etc.). Each mod provides a `mod.py` with a `register()` function. `INSTALLED_APPS` is populated programmatically — no manual maintenance. Cross-mod communication goes through `registry.call()`. External mods will use the same API via a pip-installable `helix_core` package. See [docs/backend-mod-system.md](docs/backend-mod-system.md).
+The backend mirrors the frontend mod system. Bundled Mods are loaded from the explicit list in `helix_core.mod_system.bundled`; External Mods are discovered from `src/mods/` and `helix.mods.json`, then loaded in topological order by `ModLoader` in `helix_core`. Mods register contributions through `BackendModRegistry` (`register_schema_type()`, `register_urls()`, `register_service()`, etc.). Each backend mod provides a `mod.py` with a `register()` function. `INSTALLED_APPS` is populated programmatically — no manual maintenance. Cross-mod communication goes through `registry.call()`. See [docs/backend-mod-system.md](docs/backend-mod-system.md).
 
 ### Action Logging
 

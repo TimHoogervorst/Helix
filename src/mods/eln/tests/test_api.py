@@ -8,10 +8,10 @@ from django.contrib.contenttypes.models import ContentType
 
 from rest_framework.test import APIClient
 
-from core.tests.base import BaseTestCase
-from core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from core.mentions.models import Mention
-from core.models import Folder, Project, User
+from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.factories import EMPTY_DOC, make_doc_with_ref
+from helix_core.mentions.models import Mention
+from helix_core.core.models import Folder, Project, User
 from mods.eln.models import NotebookEntry, ElnAction, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 
@@ -21,7 +21,7 @@ def folder_source(folder):
         "source_type": ContentType.objects.get_for_model(folder).pk,
         "source_id": folder.id,
     }
-from mods.access.models import (
+from bundled.access.access.models import (
     FolderShare,
     Grant,
     Organization,
@@ -228,7 +228,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
                 schema=self.schema
         )
         # Manually sync since the creation through ORM doesn't go through the view.
-        from core.mentions.sync import sync_mentions
+        from helix_core.mentions.sync import sync_mentions
         sync_mentions(entry, doc_with_ref)
         self.assertEqual(Mention.objects.count(), 1)
 
@@ -510,7 +510,7 @@ class EntryTagActionsLoggingTests(BaseTestCase):
             name="Tag Test Entry", content=TEXT_DOC, source=self.folder, author=self.user,
                 schema=self.schema
         )
-        from mods.tags.models import Tag
+        from bundled.labelling.tags.models import Tag
         self.tag1 = Tag.objects.create(name="Important", color="enzyme", icon="dna")
         self.tag2 = Tag.objects.create(name="Urgent", color="warn", icon="circle")
         self._patcher = patch(MIXIN_LOG_ACTION_PATH)
@@ -583,7 +583,7 @@ class EntryTagActionsLoggingTests(BaseTestCase):
 
     def test_team_derived_editor_can_attach_tags(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import Team
+        from bundled.access.access.models import Team
 
         team_user = User.objects.create_user(username="tag-team-user", password="pass")
         organization = Organization.objects.create(name="Tag Team Organization")
@@ -733,7 +733,7 @@ class EntryCreateAccessTests(BaseTestCase):
 
     def test_team_derived_edit_can_create(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import Team
+        from bundled.access.access.models import Team
 
         team_user = User.objects.create_user(username="create_team", password="pass")
         OrganizationMembership.objects.update_or_create(
@@ -913,7 +913,7 @@ class EntryPatchAccessTests(BaseTestCase):
 
     def test_team_derived_edit_can_patch(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import Team
+        from bundled.access.access.models import Team
 
         team_user = User.objects.create_user(username="team_editor", password="pass")
         group = Group.objects.create(name="Test Team")
@@ -1070,7 +1070,7 @@ class EntryDeleteAccessTests(BaseTestCase):
 
     def test_team_derived_edit_can_delete(self):
         from django.contrib.auth.models import Group
-        from mods.access.models import Team
+        from bundled.access.access.models import Team
 
         team_user = User.objects.create_user(username="team_del_e", password="pass")
         OrganizationMembership.objects.update_or_create(user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER})

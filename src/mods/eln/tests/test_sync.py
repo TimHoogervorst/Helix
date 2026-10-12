@@ -7,9 +7,9 @@ save — using real database-backed entries.
 from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 
-from core.tests.base import BaseServiceTestCase
-from core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from core.mentions.models import Mention
+from helix_core.core.tests.base import BaseServiceTestCase
+from helix_core.core.tests.factories import EMPTY_DOC, make_doc_with_ref
+from helix_core.mentions.models import Mention
 from mods.eln.models import NotebookEntry
 from mods.eln.sync import sync_entry_content
 from mods.eln.tests.factories import get_or_create_default_eln_schema
@@ -90,7 +90,7 @@ class SyncEntryContentTests(BaseServiceTestCase):
         This verifies that the signal dispatch is the extension point for
         future mods that want to hook into the sync pipeline.
         """
-        from core.signals import entry_content_sync
+        from helix_core.core.signals import entry_content_sync
 
         def adding_receiver(sender, entry, content, **kwargs):
             """Receiver that adds 'EXTENSION_RAN' marker to the content."""
@@ -286,7 +286,7 @@ class FingerprintPreCheckTests(BaseServiceTestCase):
         """End-to-end: text-only PUT passes old_content through the view."""
         from rest_framework.test import APIClient
 
-        from mods.access.models import Grant, ProjectRole
+        from bundled.access.access.models import Grant, ProjectRole
 
         Grant.objects.create(
             project=self.project, user=self.user, role=ProjectRole.EDIT,

@@ -8,8 +8,8 @@ from django.db import models
 from helix_core.abstracts import AbstractEntity
 from helix_core.actions.base import AbstractBaseAction
 
-# Re-export for backward compatibility — these are canonical in mods.tags.
-from mods.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
+# Re-export for backward compatibility — these are canonical in bundled.labelling.tags.
+from bundled.labelling.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
 
 
 class NotebookEntry(AbstractEntity):

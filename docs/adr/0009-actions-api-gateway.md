@@ -2,7 +2,7 @@
 
 > Date: 2026-07-24
 > Status: Accepted
-> Companion specs: [Spec 2 — Refined Action Model](../../.claude/spec-2-refined-action-model.md), [Spec 1 — Single-Source Registration](../../.claude/spec-1-single-source-registration.md)
+> Related: [ADR-0008 — Single Source Registration](0008-single-source-registration.md)
 
 ---
 
@@ -81,7 +81,7 @@ def register():
         action_id="lims.sample.registered",
         label="Sample Registered",
         core="edited",
-        target_model="mods.lims.models.Entity",
+        target_model="bundled.lims.models.Entity",
     )
 ```
 

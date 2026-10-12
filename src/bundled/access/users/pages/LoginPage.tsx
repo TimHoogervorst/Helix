@@ -1,0 +1,100 @@
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { Dna } from "lucide-react";
+import { login } from "../../../../shell/src/user/api";
+import { Button, Input } from "../../../../shell/src/shared/primitives";
+
+export default function LoginPage() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await login(username, password);
+      // Hard redirect so CurrentUserProvider re-mounts and fetches the user
+      window.location.href = "/library";
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        "status" in err &&
+        (err as { status: number }).status === 400
+      ) {
+        setError("Invalid username or password.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="w-full max-w-sm rounded-lg border border-hairline bg-panel p-8">
+        {/* Brand */}
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <div className="grid h-10 w-10 place-items-center rounded-md bg-primary text-primary-foreground">
+            <Dna className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h1 className="font-[--font-label] text-xl font-semibold tracking-tight">
+            Helix
+          </h1>
+          <p className="text-base text-muted-foreground">
+            Sign in to your account
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-base text-destructive">
+              {error}
+            </div>
+          )}
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-base font-medium">Username</span>
+            <Input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              required
+              autoFocus
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-base font-medium">Password</span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Signing in…" : "Sign in"}
+          </Button>
+
+          <p className="text-center text-base text-muted-foreground">
+            Don't have an account?{" "}
+            <Link to="/register" className="text-primary hover:underline">
+              Register
+            </Link>
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}

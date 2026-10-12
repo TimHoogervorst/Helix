@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.mentions.models import Mention
+from helix_core.mentions.models import Mention
 
 from .models import NotebookEntry
 

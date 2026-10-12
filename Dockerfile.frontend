@@ -7,6 +7,7 @@ RUN npm install
 
 COPY src/shell/ src/shell/
 COPY src/mods/ src/mods/
+COPY src/bundled/ src/bundled/
 
 EXPOSE 5173
 

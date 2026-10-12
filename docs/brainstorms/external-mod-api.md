@@ -13,7 +13,7 @@
 
 **Readiness for a first external mod:** backend ~80% (missing: pip-installable packages, identity normalization, `requiresHelix`), frontend ~0% (Vite glob welded to monorepo layout, no shared-dependency story), agent materials ~30% (docs exist, types not importable from outside — an external author could only *copy an internal mod*).
 
-**Conclusion:** the *conceptual* structure was enough; the *physical* structure was not. Two structural blockers: monorepo-welded frontend discovery, and core carrying ELN/LIMS knowledge (`abstracts.py` hardcoding, ELN's direct `mods.lims` imports). Everything else was protocol/doc work.
+**Conclusion:** the *conceptual* structure was enough; the *physical* structure was not. Two structural blockers: monorepo-welded frontend discovery, and the Platform carrying ELN/LIMS knowledge (abstract-model hardcoding and ELN's direct LIMS imports). Everything else was protocol/doc work.
 
 ## Why lean-now / robust-later is safe
 

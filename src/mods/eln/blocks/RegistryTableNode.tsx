@@ -27,7 +27,7 @@ import MoreActions, { type MoreActionsItem } from "../components/MoreActions";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
 import { resolveColorHex, deriveForeground } from "../../../shell/src/shared/components/IconBadge";
-import { listDropdowns } from "../../dropdowns/api";
+import { listDropdowns } from "../../../bundled/datatypes/dropdowns/api";
 import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import { TableChrome } from "../../../shell/src/shared/table/TableChrome";

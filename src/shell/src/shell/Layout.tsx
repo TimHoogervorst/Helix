@@ -11,8 +11,8 @@ import { SidebarSection } from "../shared/components/Sidebar/SidebarSection";
 import { FolderPlus } from "lucide-react";
 import type { IconStripGroup } from "../shared/components/Sidebar/IconStrip";
 import { IconButton } from "../shared/primitives/IconButton";
-import PinnedWorkspacesSidebar from "../../../mods/tabs/components/PinnedWorkspacesSidebar";
-import WorkspaceHistorySidebar from "../../../mods/tabs/components/WorkspaceHistorySidebar";
+import PinnedWorkspacesSidebar from "../../../bundled/tabs/components/PinnedWorkspacesSidebar";
+import WorkspaceHistorySidebar from "../../../bundled/tabs/components/WorkspaceHistorySidebar";
 
 /**
  * Brand header with logo, "Helix Alpha" text, and a collapse toggle.

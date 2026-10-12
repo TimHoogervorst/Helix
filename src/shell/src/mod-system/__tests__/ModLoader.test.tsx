@@ -8,6 +8,7 @@ import {
 } from "../ModLoader";
 import { ModRegistry } from "../ModRegistry";
 import type { ModManifest } from "../types";
+import { bundledModModules, bundledJsonManifestModules } from "../bundled";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -218,7 +219,7 @@ describe("topologicalSort", () => {
 
     it("extracts directory name from modManifest.json path", () => {
       expect(
-        extractModDir("../../../mods/tags/modManifest.json"),
+        extractModDir("../../../bundled/labelling/tags/modManifest.json"),
       ).toBe("tags");
     });
 
@@ -230,7 +231,7 @@ describe("topologicalSort", () => {
 
     it("handles deeply nested paths", () => {
       expect(
-        extractModDir("/home/user/project/src/mods/lims/index.ts"),
+        extractModDir("/home/user/project/src/bundled/lims/index.ts"),
       ).toBe("lims");
     });
   });
@@ -537,6 +538,45 @@ describe("ModLoader", () => {
     );
     const nested = await screen.findByTestId("nested");
     expect(nested).toBeInTheDocument();
+  });
+});
+
+describe("bundled mod enumeration", () => {
+  it("enumerates exactly the closed bundled set", () => {
+    const expectedPaths = [
+      "../../../bundled/access/access/index.ts",
+      "../../../bundled/access/users/index.ts",
+      "../../../bundled/datatypes/dropdowns/index.ts",
+      "../../../bundled/labelling/tags/index.ts",
+      "../../../bundled/lims/index.ts",
+      "../../../bundled/settings/index.ts",
+      "../../../bundled/shared/entities/index.ts",
+      "../../../bundled/shared/home/index.ts",
+      "../../../bundled/shared/library/index.ts",
+      "../../../bundled/tabs/index.ts",
+    ];
+    const expectedIds = [
+      "helix.access",
+      "helix.dropdowns",
+      "helix.entities",
+      "helix.home",
+      "helix.library",
+      "helix.lims",
+      "helix.settings",
+      "helix.tabs",
+      "helix.tags",
+      "helix.users",
+    ];
+
+    expect(Object.keys(bundledModModules).sort()).toEqual(expectedPaths);
+    expect(Object.keys(bundledJsonManifestModules).sort()).toEqual(
+      expectedPaths.map((path) => path.replace("index.ts", "modManifest.json")),
+    );
+    expect(
+      Object.values(bundledJsonManifestModules)
+        .map(({ default: manifest }) => `${manifest.vendor}.${manifest.name}`)
+        .sort(),
+    ).toEqual(expectedIds);
   });
 });
 

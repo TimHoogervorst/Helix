@@ -8,7 +8,7 @@
 
 ## Context
 
-Registration IDs are hand-constructed, repeated across multiple call sites, and easy to get wrong. The same fully-qualified dotted string appears in 5+ places per registration. The `-block` suffix is redundant (`registerBlock` already says it's a block). The `eln.` prefix is redundant inside `src/mods/eln/index.ts`. camelCase/kebab-case inconsistency (`registryTable` vs `registry-table`) is easy to miss.
+Registration IDs are hand-constructed, repeated across multiple call sites, and easy to get wrong. The same fully-qualified dotted string appears in 5+ places per registration. The `-block` suffix is redundant (`registerBlock` already says it's a block). The `eln.` prefix is redundant inside `src/mods/eln/index.ts`, the External Mod dogfood path. camelCase/kebab-case inconsistency (`registryTable` vs `registry-table`) is easy to miss.
 
 Issue: [#344](https://github.com/TimHoogervorst/Helix/issues/344)
 
@@ -213,7 +213,7 @@ Declaration and emission share the same shape. The class owns id, category, core
 - **No hand-constructed IDs.** Every global ID is derived from the manifest + a local name. Typos are structurally impossible.
 - **Single source of truth.** Block actions are declared once (`emits`), synced to the backend at boot, validated on mismatch.
 - **Compile-time safety.** Typed handles catch slot/block mismatches at registration. Typed emitters (`blockHandle.emits.entitiesRegistered`) catch action ID typos at the call site.
-- **Same contract for external mods.** The `Mod` class, `BlockEvent`, and runtime lookup API are the SDK surface. External mods use the same API as core mods.
+- **Same contract for External Mods.** The `Mod` class, `BlockEvent`, and runtime lookup API are the SDK surface. External Mods use the same API as Bundled Mods.
 - **Cleaner IDs.** No `-block` suffix. No redundant `eln.` prefix. Consistent kebab-case. The Activity Feed shows "Table" not "Table-block".
 
 ### Constraints

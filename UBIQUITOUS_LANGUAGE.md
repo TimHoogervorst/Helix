@@ -11,14 +11,16 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Mod** | A self-contained unit of functionality — owns its own hub, workspace, blocks, buttons, settings, routes, and sidebar actions. Lives in a single co-located directory under `src/mods/<id>/` containing both frontend and backend code. Both built-in functionality (LIMS, ELN, Library) and future external plugins are mods | plugin, extension, module |
-| **Core / Shell** | The immutable app frame at `src/shell/` (frontend) and `src/server/` (backend) — Layout, routing, hub pages, mod loader, slot resolution, mention resolution, API client. The shell provides the frame; mods provide the content | shell, platform, host |
-| **Core Mod** | A mod that ships with the repository under `src/mods/`. Always loaded at boot. Uses the same registration API that external mods will use. Current core mods: LIMS, ELN, Library, Home, Settings, Pins, Tags, Users | built-in mod, first-party mod, internal mod |
-| **Mod API** | The registration surface (`register*()` functions in `core/mod-system/`) that every mod calls to declare what it provides. The contract between core and mods | plugin API, extension API |
-| **Mod Registry** | Central data structure in `core/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by Core to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
-| **Mod Loader** | Boot component (`ModLoader.tsx`) that globs all core mods, resolves their dependency graph (topological sort), calls each mod's registration, and then renders the app. Fail-fast — any error halts boot | plugin loader, bootstrap |
-| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerBlock()`, `registerButton()`, `declareSlot()`, `registerIntoSlot()`, `registerSettingsSection()`, `registerRoute()`, `registerPublicRoute()`. The contract between core and mods. Former functions `registerLibraryItem()`, `registerSidebarAction()`, and `registerWorkspace()` have been eliminated — library cards are now generic schema-driven, sidebar actions use event-driven tabs, and workspaces are hydrated from the backend API | register, declare, contribute |
-| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn`, `coreVersion`, and `description`. The single source of truth read by both frontend and backend loaders. Does NOT describe capabilities — those are discovered from `register*()` calls at boot. The `description` field provides a human-readable summary shown on hub cards in the Jump Back In section | mod.json, manifest, mod identity |
+| **Mod** | A self-contained unit of functionality — owns its own hub, workspace, blocks, buttons, settings, routes, and sidebar actions. A Bundled Mod lives under `src/bundled/`; an External Mod lives under `src/mods/`. Both use the same frontend and backend registration contract | plugin, extension, module |
+| **Platform** | The Helix-owned foundation under `src/helix_core/`: mod system, registries, schema, shared actions, mentions, and the preserved `core` Django app. The frontend Shell under `src/shell/` provides the immutable app frame | core, backend core |
+| **Bundled Mod** | A first-party mod shipped in the Helix artifact under `src/bundled/`. Bundled Mods are a closed set loaded by explicit frontend imports and backend dotted paths | built-in mod, internal mod |
+| **External Mod** | A mod composed into a deployment at build time and kept under `src/mods/` in this repository. External discovery is open; ELN is first-party External Mod dogfood | plugin, third-party mod |
+| **Golden Rule** | Nothing inside Helix names an External Mod. Bundled-to-External dependencies are current Phase 1 debt recorded for Phase 2b; enforcement is deferred | dependency rule |
+| **Mod API** | The registration surface (`register*()` functions) that every mod calls to declare what it provides. The contract between Platform and Mods | plugin API, extension API |
+| **Mod Registry** | Central data structure in `src/shell/src/mod-system/ModRegistry.ts` populated by all `register*()` calls during boot. Read by the Shell to build routes, sidebar nav, hub behavior, settings panels | registry, plugin registry |
+| **Mod Loader** | Boot component (`ModLoader.tsx`) that loads the explicit Bundled Mod set, discovers External Mods, resolves their dependency graph, calls each mod's registration, and then renders the app | plugin loader, bootstrap |
+| **`register*()`** | The imperative functions mods call in their `index.ts`: `registerHub()`, `registerBlock()`, `registerButton()`, `declareSlot()`, `registerIntoSlot()`, `registerSettingsSection()`, `registerRoute()`, `registerPublicRoute()`. Former functions `registerLibraryItem()`, `registerSidebarAction()`, and `registerWorkspace()` have been eliminated | register, declare, contribute |
+| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `vendor`, `name`, `displayName`, `version`, `dependsOn`, `coreVersion`, and `description`. The single source of truth read by both loaders. Does NOT describe capabilities — those are discovered from `register*()` calls at boot. The `description` field provides a human-readable summary shown on hub cards in the Jump Back In section | mod.json, manifest, mod identity |
 | **`dependsOn`** | Field in `modManifest.json` declaring which other mods must load first. Supports bare mod ID strings and objects with optional `version` constraints. Used for topological sort during boot. Circular dependencies cause boot failure | requires, dependency |
 
 ## Slot System
@@ -36,7 +38,7 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **helix_core** | The backend platform SDK at `src/server/helix_core/`. Provides `ModLoader`, `BackendModRegistry`, `ModManifest` dataclass, `AbstractBaseAction`, `ActionLoggingMixin`, and `@logs_action`. Importable by external mods as a pip package | backend core, platform SDK |
+| **helix_core** | The Platform package at `src/helix_core/`. Provides `ModLoader`, `BackendModRegistry`, `ModManifest` dataclass, `AbstractBaseAction`, `ActionLoggingMixin`, and `@logs_action`. Importable by External Mods as a pip package | backend core, platform SDK |
 | **BackendModRegistry** | Singleton populated by mod `mod.py` `register()` calls. Provides `register_*()` methods for action models, entity types, URLs, settings, signals, and services. Read by Core to wire up the application | backend registry |
 | **mod.py** | The backend entry point for a mod. Exports a `register()` function called by `ModLoader` after topological sort. The backend equivalent of frontend `index.ts` | mod entry point, backend mod file |
 | **Service Registry** | Cross-mod communication layer. Mods call `registry.call("mod.service_name", ...args)` instead of importing directly. Backend equivalent of the frontend service registry | backend service registry |
@@ -63,12 +65,12 @@
 
 ## Concrete Hubs
 
-> Each hub is registered by a core mod via `registerHub()` and auto-appears in the sidebar, sorted by `order`.
+> Each hub is registered by a Bundled or External Mod via `registerHub()` and auto-appears in the sidebar, sorted by `order`.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Home** | The hub at `/home`, registered by the Home core mod (`order: 0` — first in sidebar). Serves as the lab landing page with a personalised greeting, **Jump Back In** hub cards for quick navigation to other hubs, and placeholders for stats, recent activity, and daily schedule. The greeting uses the current user's first name from `useCurrentUser()` | landing page, dashboard |
-| **Library** | The hub at `/library`, registered by the Library core mod (`order: 10`). Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Cards are rendered generically from workspace schema column definitions — no per-mod card registration needed | Library Hub, ELN browser |
+| **Home** | The hub at `/home`, registered by the bundled Home mod (`order: 0` — first in sidebar). Serves as the lab landing page with a personalised greeting, **Jump Back In** hub cards for quick navigation to other hubs, and placeholders for stats, recent activity, and daily schedule. The greeting uses the current user's first name from `useCurrentUser()` | landing page, dashboard |
+| **Library** | The hub at `/library`, registered by the bundled Library mod (`order: 10`). Card-grid view over the Folder hierarchy, showing Folders and Entries mixed (folders first). Cards are rendered generically from workspace schema column definitions — no per-mod card registration needed | Library Hub, ELN browser |
 
 ## Items
 
@@ -152,7 +154,7 @@
 | **BaseCard** | Shared card wrapper component providing view modes (list/grid/compact), selection state, star button, and owner display. Used by hubs to render items consistently | card, list item, library card |
 | **Breadcrumbs** | Navigational path bar rendering `BreadcrumbSegment[]` — callers build segments, component renders. Moved from the old console system into `shared/components/` | path bar, nav trail |
 | **StatusBadge** | Colored pill for entry/entity status (e.g., "In Progress", "Completed"). Extracted from BaseCard into `shared/components/` | status chip, status label |
-| **TagPill** | Tag display component used on cards and in detail views. Lives in `src/mods/tags/ui/` — the single shared tag display for the entire platform | tags, labels |
+| **TagPill** | Tag display component used on cards and in detail views. Lives in `src/bundled/labelling/tags/ui/` — the single shared tag display for the entire platform | tags, labels |
 | **ReferenceBadge** | Clickable UI badge showing a display ID (e.g., `E12`). Clicking navigates to the target's dedicated URL | badge, ref chip, #-badge |
 | **Activity** | Placeholder timeline component showing actions performed on an item (user + action + timestamp). Future: reads from platform-level standardized action log with CFR Part 11 traceability | action log, audit trail, history |
 | **OwnerStack** | Placeholder for stacked user avatars. Currently renders a single avatar; future: overlapping avatar circles for multiple owners | avatar stack, owner list |
@@ -285,8 +287,8 @@ A **Folder** is a data-model concept — a node in the folder tree. The **Librar
 | "project" | Folder |
 | registerSlashCommand() | registerBlock() (renderer-agnostic blocks, discoverable via slash menu) |
 | TipTapBlockPayload / type: "tiptap-node" | BlockRegistration (renderer-agnostic component, serialize, deserialize) |
-| frontend/src/core-mods/ | src/mods/ (co-located frontend + backend) |
-| backend/core_mods/ | src/mods/<id>/ (backend code co-located with frontend) |
+| Former runtime-split frontend mods | src/bundled/ or src/mods/ (co-located frontend + backend) |
+| Former runtime-split backend mods | src/bundled/<section>/<id>/ or src/mods/<id>/ |
 | inline meta export in index.ts | modManifest.json (single identity source of truth) |
 | manual log_action() calls | ActionLoggingMixin + @logs_action (declarative) |
 | registerService() (unexported) | registry.call() (internal ModRegistry method) |

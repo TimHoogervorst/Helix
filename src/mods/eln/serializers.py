@@ -2,13 +2,13 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from core.models import Folder, Project, User
+from helix_core.core.models import Folder, Project, User
 from helix_core.abstracts import hydrate_source_path
-from mods.users.serializers import UserSerializer
+from bundled.access.users.serializers import UserSerializer
 
-from mods.tags.models import Tag
+from bundled.labelling.tags.models import Tag
 
-from core.mentions.models import Mention
+from helix_core.mentions.models import Mention
 
 from .models import NotebookEntry, ElnAction, Protocol
 
@@ -64,8 +64,8 @@ class MentionSerializer(serializers.ModelSerializer):
         return None
 
 
-# Re-export for backward compatibility — canonical in mods.tags.serializers.
-from mods.tags.serializers import TagSerializer  # noqa: F401, E402
+# Re-export for backward compatibility — canonical in bundled.labelling.tags.serializers.
+from bundled.labelling.tags.serializers import TagSerializer  # noqa: F401, E402
 
 
 class NotebookEntrySerializer(serializers.ModelSerializer):

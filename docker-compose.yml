@@ -22,8 +22,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # Django project configuration only
       - ./src/server:/app
+      # Platform, External Mod, and Bundled Mod package tiers
+      - ./src/helix_core:/app/helix_core
       - ./src/mods:/mods
+      - ./src/bundled:/bundled
     environment:
       DATABASE_URL: postgres://openscience:openscience@db:5432/openscience
       SECRET_KEY: dev-secret-key-change-in-production
@@ -44,6 +48,7 @@ services:
     volumes:
       - ./src/shell:/repo/src/shell
       - ./src/mods:/repo/src/mods
+      - ./src/bundled:/repo/src/bundled
       - /repo/node_modules
     environment:
       VITE_API_URL: http://backend:8000

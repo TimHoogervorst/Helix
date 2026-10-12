@@ -4,7 +4,7 @@ import { ModRegistry } from "../../../mod-system/ModRegistry";
 import {
   getMyViews,
   getPublicViews,
-} from "../../../../../mods/lims/hub/api";
+} from "../../../../../bundled/shared/entities/hub/api";
 import { get } from "../../../api/client";
 import {
   getMetrics,
@@ -26,7 +26,7 @@ import {
   type FormattingStyle,
 } from "./formatting";
 import type { CardData, MetricData, MetricCreatePayload } from "./types";
-import type { LimsViewItem, AvailableColumn } from "../../../../../mods/lims/types";
+import type { LimsViewItem, AvailableColumn } from "../../../../../bundled/lims/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

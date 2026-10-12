@@ -51,7 +51,7 @@ def register():
 
     from mods.eln.cascade import update_status_from_source
     from mods.eln.models import ElnAction, NotebookEntry
-    from mods.lims.models import Entity
+    from bundled.lims.models import Entity
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.

@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Bundled mods are copied to /bundled and imported through the bundled.*
+# namespace, so the filesystem root must be importable in the backend image.
+ENV PYTHONPATH="/:/app"
+
 # Install system dependencies for psycopg2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc && \
@@ -10,8 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY src/server/requirements.txt src/server/requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
+# Only Django project configuration is copied into /app. Platform and mod
+# packages are copied separately so their repository tiers remain visible.
 COPY src/server/ .
+COPY src/helix_core/ /app/helix_core/
 COPY src/mods/ /mods/
+COPY src/bundled/ /bundled/
 
 RUN chmod +x /app/entrypoint.sh
 

@@ -2,10 +2,14 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ModRegistry } from "./ModRegistry";
 import { LoadingScreen } from "../user/LoadingScreen";
 import type { ModManifest } from "./types";
+import {
+  bundledJsonManifestModules,
+  bundledModModules,
+} from "./bundled";
 
 // ── Mod module shape ────────────────────────────────────────────────────
 
-interface ModModule {
+export interface ModModule {
   meta: ModManifest;
   register: () => void;
 }
@@ -15,17 +19,24 @@ interface ModModule {
 // Vite's static-analysis glob -- eagerly imports all mods/*/index.ts
 // modules at build time. When child issues create them, new mods are
 // discovered automatically with zero config changes.
-const modModules = import.meta.glob<ModModule>(
-  "../../../mods/*/index.ts",
-  { eager: true },
-);
+const modModules: Record<string, ModModule> = {
+  ...bundledModModules,
+  ...import.meta.glob<ModModule>("../../../mods/*/index.ts", { eager: true }),
+};
 
 // JSON manifest glob — eagerly imports all mods/*/modManifest.json
 // files at build time. When a directory has both index.ts and
 // modManifest.json, the JSON manifest takes precedence for metadata.
-const jsonManifestModules = import.meta.glob<{
-  default: Record<string, unknown>;
-}>("../../../mods/*/modManifest.json", { eager: true });
+const jsonManifestModules: Record<
+  string,
+  { default: Record<string, unknown> }
+> = {
+  ...bundledJsonManifestModules,
+  ...import.meta.glob<{ default: Record<string, unknown> }>(
+    "../../../mods/*/modManifest.json",
+    { eager: true },
+  ),
+};
 
 // ── Props ───────────────────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
     icon = serializers.SerializerMethodField()
     color = serializers.SerializerMethodField()
     folder_expanded = serializers.SerializerMethodField()
+    workspace = serializers.SerializerMethodField()
 
     class Meta:
         model = PinnedWorkspace
@@ -26,6 +27,7 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
             "display_id",
             "label",
             "url",
+            "workspace",
             "created_at",
             "order",
             "folder",
@@ -68,6 +70,21 @@ class PinnedWorkspaceSerializer(serializers.ModelSerializer):
 
     def get_folder_expanded(self, obj):
         return obj.folder.expanded if obj.folder_id else None
+
+    def get_workspace(self, obj):
+        """Expose typed identity; legacy stored URLs remain redirect-only."""
+        parts = [part for part in obj.url.split("?")[0].split("/") if part]
+        if len(parts) != 6 or parts[0] != "w":
+            return None
+        return {
+            "id": f"{parts[1]}.{parts[2]}:{parts[3]}",
+            "kind": "workspace",
+            "modId": f"{parts[1]}.{parts[2]}",
+            "localKey": parts[3],
+            "vendor": parts[1],
+            "mod": parts[2],
+            "workspace": parts[3],
+        }
 
 
 class TabFolderSerializer(serializers.ModelSerializer):

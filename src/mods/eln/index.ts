@@ -26,8 +26,7 @@ mod.declareSlot("header-actions", {
 });
 
 // ── Standalone route: entry detail page (full workspace) ──────────────
-mod.registerRoute("entry-page", {
-  path: "/eln/:id",
+mod.registerWorkspace("eln", {
   component: lazy(() => import("./workspace/ElnWorkspacePage")),
 });
 

@@ -866,6 +866,20 @@ class BackendModRegistry:
         for workspace_id, st_list in sorted(grouped.items()):
             schema_type_entries: list[dict[str, Any]] = []
 
+            # Workspace identity is explicit in the wire payload.  The
+            # registration model path is the stable fallback for older rows
+            # that predate typed workspace metadata.
+            owner_mod = workspace_id
+            first_model = st_list[0].model.split(".") if st_list else []
+            if len(first_model) > 1:
+                candidate = first_model[1]
+                owner_mod = candidate
+                for manifest_id in self._manifests:
+                    if manifest_id.endswith(f".{candidate}"):
+                        owner_mod = manifest_id
+                        break
+            vendor, mod = (owner_mod.split(".", 1) if "." in owner_mod else ("helix", owner_mod))
+
             for st in st_list:
                 # Derive schema_type_id using the same convention as the
                 # SchemaTypeListSerializer: {mod}.{model_name_lower}.
@@ -948,6 +962,9 @@ class BackendModRegistry:
 
             payload[workspace_id] = {
                 "workspaceId": workspace_id,
+                "vendor": vendor,
+                "mod": mod,
+                "workspace": workspace_id,
                 "schemaTypes": schema_type_entries,
                 "actions": actions,
             }

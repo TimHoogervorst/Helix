@@ -18,8 +18,7 @@ mod.registerSchemaComponent("results", {
 });
 
 // ── Standalone route: full entity workspace page ──────────────────────
-mod.registerRoute("entity-page", {
-  path: "/lims/:displayId",
+mod.registerWorkspace("lims", {
   component: LimsWorkspacePage,
 });
 

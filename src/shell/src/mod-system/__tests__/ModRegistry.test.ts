@@ -783,6 +783,8 @@ describe("ModRegistry", () => {
 
       const ws = workspaces.get("lims")!;
       expect(ws.id).toBe("lims");
+      expect(ws.reference.id).toBe("helix.lims:lims");
+      expect(ws.reference.urlFor("BLOOD1")).toBe("/w/helix/lims/lims/BLOOD1");
       expect(ws.displayName).toBe("LIMS");
       expect(ws.icon).toBeUndefined();
       expect(ws.schemaType).toEqual({

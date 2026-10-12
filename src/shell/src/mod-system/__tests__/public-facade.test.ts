@@ -4,11 +4,14 @@ import { ModRegistry } from "../ModRegistry";
 import type { ModManifest } from "../types";
 import {
   ActionReference,
+  externalRoutePath,
+  legacyWorkspaceUrl,
   ModelReference,
   ObjectReference,
   ServiceReference,
   SlotReference,
   WorkspaceReference,
+  workspaceUrl,
 } from "../references";
 
 const manifest = (id: string): ModManifest => ({
@@ -67,5 +70,21 @@ describe("frontend public mod facade", () => {
     expect(new SlotReference("acme.samples", "toolbar").id).toBe("acme.samples:toolbar");
     expect(new ServiceReference("acme.samples", "lookup").id).toBe("acme.samples:lookup");
     expect(new ActionReference("acme.samples", "updated").id).toBe("acme.samples:updated");
+  });
+
+  it("derives collision-safe canonical workspace URLs", () => {
+    const workspace = new WorkspaceReference("acme.samples", "detail");
+
+    expect(workspaceUrl(workspace, "SAMPLE1")).toBe(
+      "/w/acme/samples/detail/SAMPLE1",
+    );
+    expect(workspace.urlFor("SAMPLE1")).toBe("/w/acme/samples/detail/SAMPLE1");
+    expect(legacyWorkspaceUrl(workspace, "SAMPLE1")).toBe("/detail/SAMPLE1");
+  });
+
+  it("namespaces external standalone routes by vendor and mod", () => {
+    expect(externalRoutePath("acme.samples", "/reports/:id")).toBe(
+      "/mods/acme/samples/reports/:id",
+    );
   });
 });

@@ -156,6 +156,15 @@ export class WorkspaceBus {
     }
   }
 
+  /** Emit an explicitly addressed payload for cross-workspace consumers. */
+  emitWorkspace<T>(
+    event: string,
+    workspace: WorkspaceReference,
+    payload: T,
+  ): void {
+    this.emit(event, { workspace, payload } satisfies WorkspaceEventPayload<T>);
+  }
+
   /**
    * Fire and collect. Awaits all matching handlers (sync or async) and
    * returns an array of their return values in registration order.
@@ -224,3 +233,5 @@ export class WorkspaceBus {
 export function createTestBus(): WorkspaceBus {
   return new WorkspaceBus();
 }
+import type { WorkspaceReference } from "../mod-system/references";
+import type { WorkspaceEventPayload } from "../mod-system/types";

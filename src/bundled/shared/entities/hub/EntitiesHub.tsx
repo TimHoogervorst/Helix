@@ -23,6 +23,7 @@ import { WorkspaceBus } from "../../../../shell/src/workspace/WorkspaceBus";
 import { StatusBadge } from "../../../../shell/src/shared/components/StatusBadge";
 import { relativeTime, formatDate } from "../../../../shell/src/shared/format";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import { workspaceUrl } from "../../../../shell/src/mod-system/references";
 import { IconBadge, resolveColorHex, deriveForeground } from "../../../../shell/src/shared/components/IconBadge";
 import { getColumnTypeIcon } from "../../../../shell/src/shared/components/CellEditors";
 import { deriveDropdownColor } from "../../../datatypes/dropdowns/colourUtils";
@@ -415,7 +416,8 @@ function EntitiesHub() {
   const handleRowClick = useCallback(
     (item: EntityHubItem) => {
       if (ROUTELESS_WORKSPACE_IDS.has(item.workspace_id)) return;
-      navigate(`/${item.workspace_id}/${item.display_id}`);
+      const workspace = ModRegistry.getInstance().getWorkspaces().get(item.workspace_id);
+      if (workspace) navigate(workspaceUrl(workspace.reference, item.display_id));
     },
     [navigate],
   );
@@ -625,13 +627,16 @@ function EntitiesHub() {
         return renderSelectBadge(String(value));
       case "reference":
         if (ROUTELESS_WORKSPACE_IDS.has(item.workspace_id)) return String(value);
+        const workspace = ModRegistry.getInstance().getWorkspaces().get(item.workspace_id);
+        if (!workspace) return String(value);
+        const url = workspaceUrl(workspace.reference, String(value));
         return (
           <a
             className="entities-ref-link"
-            href={`/${item.workspace_id}/${String(value)}`}
+            href={url}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/${item.workspace_id}/${String(value)}`);
+              navigate(url);
             }}
           >
             {String(value)}

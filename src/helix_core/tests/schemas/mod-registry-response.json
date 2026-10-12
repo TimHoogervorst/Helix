@@ -116,6 +116,9 @@
           "type": "string",
           "description": "The workspace identifier, e.g. 'lims' or 'eln'."
         },
+        "vendor": { "type": "string" },
+        "mod": { "type": "string" },
+        "workspace": { "type": "string" },
         "schemaTypes": {
           "type": "array",
           "items": {
@@ -167,7 +170,7 @@
           }
         }
       },
-      "required": ["workspaceId", "schemaTypes", "actions"]
+      "required": ["workspaceId", "vendor", "mod", "workspace", "schemaTypes", "actions"]
     }
   },
   "additionalProperties": false

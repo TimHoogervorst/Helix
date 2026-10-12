@@ -323,15 +323,9 @@ class TestAutoDiscover:
         assert isinstance(result["tags"], ModManifest)
         assert result["tags"].id == "tags"
 
-    def test_bundled_mod_is_not_discovered_from_mods_directory(
-        self, tmp_path, monkeypatch
-    ):
-        """The open ``mods/`` scan must never load a closed bundled mod."""
-        monkeypatch.setattr(
-            loader_module,
-            "BUNDLED_MODS",
-            ["bundled.lims"],
-        )
+    def test_same_named_external_mod_is_discovered(self, tmp_path, monkeypatch):
+        """The external scan remains open even when names overlap."""
+        monkeypatch.setattr(loader_module, "BUNDLED_MODS", ["bundled.lims"])
         mods_dir = tmp_path / "mods"
         mods_dir.mkdir()
         server_dir = tmp_path / "server"
@@ -340,7 +334,7 @@ class TestAutoDiscover:
 
         result = _auto_discover(server_dir)
 
-        assert result == {}
+        assert "lims" in result
 
     def test_multiple_mods_discovered(self, tmp_path):
         mods_dir = tmp_path / "mods"

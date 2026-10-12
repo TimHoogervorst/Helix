@@ -53,7 +53,7 @@ docker-compose exec backend pytest /bundled/lims/tests/test_api.py::LimsApiTests
 docker-compose exec backend pytest -k "mention"         # keyword match
 ```
 
-`pytest server` and `pytest mods/<id>/tests` match the two `testpaths` entries, so they're the fastest way to scope a run. Drop `-n auto` for targeted runs — a single file or keyword doesn't benefit from parallel workers and starts faster without them.
+The focused paths above target the current Platform, Bundled, and External Mod trees directly. Drop `-n auto` for targeted runs — a single file or keyword doesn't benefit from parallel workers and starts faster without them.
 
 ### Database: SQLite vs Postgres
 

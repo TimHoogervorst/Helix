@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Mod } from "../Mod";
 import { ModRegistry } from "../ModRegistry";
 import type { ModManifest } from "../types";
+import {
+  ActionReference,
+  ModelReference,
+  ObjectReference,
+  ServiceReference,
+  SlotReference,
+  WorkspaceReference,
+} from "../references";
 
 const manifest = (id: string): ModManifest => ({
   id,
@@ -42,5 +50,22 @@ describe("frontend public mod facade", () => {
     expect(() => owner.registerIntoSlot(slot, button)).toThrow(
       "cannot register a handle owned by another mod",
     );
+  });
+
+  it("uses canonical ownership IDs for public registrations", () => {
+    const mod = new Mod(manifest("acme.samples"));
+    const button = mod.registerButton("export", { label: "Export", onClick: () => {} });
+
+    expect(button.globalId).toBe("acme.samples:export");
+    expect(ModRegistry.getInstance().getButtons().has("acme.samples:export")).toBe(true);
+  });
+
+  it("keeps typed reference namespaces distinct", () => {
+    const model = new ModelReference("acme.samples", "sample");
+    expect(new ObjectReference(model, "42").objectReferenceId).toBe("acme.samples:sample:42");
+    expect(new WorkspaceReference("acme.samples", "detail").id).toBe("acme.samples:detail");
+    expect(new SlotReference("acme.samples", "toolbar").id).toBe("acme.samples:toolbar");
+    expect(new ServiceReference("acme.samples", "lookup").id).toBe("acme.samples:lookup");
+    expect(new ActionReference("acme.samples", "updated").id).toBe("acme.samples:updated");
   });
 });

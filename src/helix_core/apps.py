@@ -83,3 +83,7 @@ class HelixCoreConfig(AppConfig):
                 # Mod has no mod.py — skip (non-backend mods like home,
                 # settings).
                 pass
+
+        # All mods have now declared their contributions.  Only now resolve
+        # cross-mod references, so registration order cannot affect outcomes.
+        registry.resolve_references()

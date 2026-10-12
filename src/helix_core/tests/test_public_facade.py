@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from helix_core import ModelReference, ModRegistrar, SignalKind, ServiceReference
+from helix_core import (
+    ActionReference,
+    ModelReference,
+    ModRegistrar,
+    ObjectReference,
+    SignalKind,
+    ServiceReference,
+    SlotReference,
+    WorkspaceReference,
+)
 from helix_core.mod_system.manifest import Dependency, ModManifest
 from helix_core.mod_system.registry import BackendModRegistry
 
@@ -86,6 +95,49 @@ def test_service_reference_can_be_called_through_public_registrar():
     reference = mod.register_service("add", lambda left, right: left + right)
 
     assert mod.call(reference, 2, 3) == 5
+
+
+def test_reference_namespaces_are_distinct_and_object_ids_are_durable():
+    model = ModelReference("acme.widgets", "widget")
+    assert str(model) == "acme.widgets:widget"
+    assert ObjectReference(model, "missing-42").id == "acme.widgets:widget:missing-42"
+    assert WorkspaceReference("acme.widgets", "detail").id == "acme.widgets:detail"
+    assert SlotReference("acme.widgets", "toolbar").id == "acme.widgets:toolbar"
+    assert ServiceReference("acme.widgets", "lookup").id == "acme.widgets:lookup"
+    assert ActionReference("acme.widgets", "updated").id == "acme.widgets:updated"
+
+
+def test_deferred_model_reference_resolution_is_order_independent():
+    raw = BackendModRegistry()
+    consumer = ModRegistrar(manifest("acme.consumer"), raw)
+    provider = ModRegistrar(manifest("acme.provider"), raw)
+    target = consumer.model_reference("acme.provider", "widget")
+
+    consumer.register_schema_type("Widget", workspace_id="widgets", model=target, prefix="W")
+    provider.register_model("widget", object)
+
+    raw.resolve_references()
+    assert raw.get_registered_models()["acme.provider:widget"] is object
+
+
+def test_unresolved_references_have_deterministic_actionable_diagnostics():
+    raw = BackendModRegistry()
+    consumer = ModRegistrar(manifest("acme.consumer"), raw)
+    consumer.register_schema_type(
+        "Widget", workspace_id="widgets", model=consumer.model_reference("acme.provider", "widget"), prefix="W"
+    )
+
+    with pytest.raises(ValueError, match="acme.provider:widget.*unresolved"):
+        raw.resolve_references()
+
+
+def test_reference_ids_reject_noncanonical_ownership_and_cross_namespace_values():
+    with pytest.raises(ValueError, match="lowercase vendor.name"):
+        ModelReference("Acme.widgets", "widget")
+
+    mod = ModRegistrar(manifest(), BackendModRegistry())
+    with pytest.raises(TypeError, match="Expected ModelReference"):
+        mod.register_source_kind("sample", ServiceReference("acme.widgets", "lookup"))
 
 
 def test_entry_point_discovery_reads_metadata_without_loading_mod_code(monkeypatch):

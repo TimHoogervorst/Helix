@@ -6,6 +6,15 @@
  * registrar to each mod's `register(mod)` function during boot.
  */
 export type { Mod } from "../../shell/src/mod-system/Mod";
+export {
+  registrationId,
+  ModelReference,
+  ObjectReference,
+  WorkspaceReference,
+  SlotReference,
+  ServiceReference,
+  ActionReference,
+} from "../../shell/src/mod-system/references";
 export { BlockEvent } from "../../shell/src/mod-system/BlockEvent";
 export {
   parseFormula,

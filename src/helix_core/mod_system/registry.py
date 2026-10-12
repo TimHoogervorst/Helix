@@ -89,6 +89,10 @@ class BackendModRegistry:
         # register_action_model() is called.
         # Each entry: {"created": {...}, "edited": {...}, "deleted": {...}}
         self._core_actions: dict[str, dict[str, dict[str, Any]]] = {}
+        # Registrations may refer to contributions from a mod that has not
+        # run yet.  Keep intent here and resolve it only at the boot barrier.
+        self._pending_schema_types: list[dict[str, Any]] = []
+        self._pending_public_signals: list[dict[str, Any]] = []
 
     # These methods are intentionally adapter-only.  Mod packages use the
     # owner-bound facade in ``helix_core`` rather than this registry.
@@ -133,6 +137,46 @@ class BackendModRegistry:
             "sender": sender,
             "handler": handler,
         })
+
+    def resolve_references(self) -> None:
+        """Resolve all deferred cross-registration references together.
+
+        Sorting by stable reference ID makes diagnostics independent of mod
+        discovery order and prevents a partially populated registry from
+        changing the result.
+        """
+        pending_schema = sorted(self._pending_schema_types, key=lambda item: str(item["model_ref"]))
+        pending_signals = sorted(self._pending_public_signals, key=lambda item: (str(item["sender_ref"]), item["mod_id"]))
+        self._pending_schema_types.clear()
+        self._pending_public_signals.clear()
+        errors: list[str] = []
+
+        for item in pending_schema:
+            model = self._registered_models.get(item["model_ref"].id)
+            if model is None:
+                errors.append(
+                    f"Model reference '{item['model_ref']}' required by schema "
+                    f"'{item['display_name']}' is unresolved. Register the model first."
+                )
+                continue
+            model_path = model if isinstance(model, str) else f"{model.__module__}.{model.__qualname__}"
+            schema_item = {key: value for key, value in item.items() if key != "model_ref"}
+            self.register_schema_type(**{**schema_item, "model": model_path})
+
+        for item in pending_signals:
+            model = self._registered_models.get(item["sender_ref"].id)
+            if model is None:
+                errors.append(
+                    f"Model reference '{item['sender_ref']}' required by signal "
+                    f"for mod '{item['mod_id']}' is unresolved."
+                )
+                continue
+            self.register_public_signal(
+                item["mod_id"], item["kind"], item["sender_ref"], model, item["handler"]
+            )
+
+        if errors:
+            raise ValueError("Unresolved registrations:\n" + "\n".join(errors))
 
     # ── mod order ────────────────────────────────────────────────────────
 

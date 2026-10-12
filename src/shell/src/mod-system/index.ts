@@ -1,6 +1,15 @@
 export { ModLoader } from "./ModLoader";
 export { Mod } from "./Mod";
 export { BlockEvent } from "./BlockEvent";
+export {
+  registrationId,
+  ModelReference,
+  ObjectReference,
+  WorkspaceReference,
+  SlotReference,
+  ServiceReference,
+  ActionReference,
+} from "./references";
 export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWorkspace";
 export { createBlockAdapter } from "./createBlockAdapter";
 export type {

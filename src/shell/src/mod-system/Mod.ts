@@ -13,6 +13,7 @@ import type {
   SettingsSectionConfig,
   SchemaComponentRegistration,
 } from "./types";
+import { registrationId } from "./references";
 
 /**
  * Public registration API for a mod.
@@ -65,6 +66,10 @@ export class Mod {
     return segments[segments.length - 1];
   }
 
+  private idFor(name: string): string {
+    return registrationId(this.id, name);
+  }
+
   /** Register a client implementation for a namespaced formula function. */
   registerFormulaFunction(
     name: string,
@@ -89,7 +94,7 @@ export class Mod {
     name: string,
     config: Omit<BlockRegistration, "id" | "provider">,
   ): BlockHandle {
-    const globalId = `${this.localName}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerBlock({ ...config, id: globalId, provider: this.id });
 
     // Build typed emitters from the emits array.
@@ -127,7 +132,7 @@ export class Mod {
     name: string,
     config: Omit<SlotDeclaration, "id" | "provider">,
   ): SlotHandle {
-    const globalId = `${this.localName}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().declareSlot({ ...config, id: globalId, provider: this.id });
 
     return {
@@ -151,7 +156,7 @@ export class Mod {
     name: string,
     config: Omit<ButtonRegistration, "id" | "provider">,
   ): ButtonHandle {
-    const globalId = `${this.localName}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerButton({ ...config, id: globalId, provider: this.id });
 
     return {
@@ -200,14 +205,11 @@ export class Mod {
    * The ``qualifiedModId`` is the fully-qualified ``vendor.name`` identity
    * (e.g. ``"helix.eln"``).  The ``slotName`` is the local slot name within
    * that mod (e.g. ``"editor"``).  Together they resolve to the global slot
-   * ID ``"eln.editor"``.
+    * ID ``"helix.eln:editor"``.
    *
-   * Returns a {@link SlotHandle} when the slot exists so the caller can pass
-   * it to {@link registerIntoSlot}.  Returns ``undefined`` when the target
-   * mod or slot is not found, or when the slot hasn't been declared yet.
-   *
-   * The ``dependsOn`` manifest field guarantees the target mod loads first,
-   * so the slot is always registered before the consumer queries it.
+   * Returns a {@link SlotHandle} even when the target has not registered yet.
+   * The registry resolves the binding after all mods have declared their
+   * contributions, making this lookup independent of registration order.
    *
    * **Example:**
    *
@@ -218,23 +220,16 @@ export class Mod {
    *      mod.registerIntoSlot(editorSlot, myBlock);
    *    }
    */
-  resolveSlot(qualifiedModId: string, slotName: string): SlotHandle | undefined {
-    // Derive the target mod's manifest name from the qualified ID.
-    // Qualified mod ID is "vendor.name" (e.g. "helix.eln"); the manifest
-    // name is everything after the first dot (e.g. "eln").
-    const targetModName = qualifiedModId.substring(
-      qualifiedModId.indexOf(".") + 1,
-    );
-    const globalSlotId = `${targetModName}.${slotName}`;
+   resolveSlot(qualifiedModId: string, slotName: string): SlotHandle {
+     const globalSlotId = registrationId(qualifiedModId, slotName);
 
-    const slot = ModRegistry.getInstance().getSlots().get(globalSlotId);
-    if (!slot) return undefined;
+     const slot = ModRegistry.getInstance().getSlots().get(globalSlotId);
 
-    return {
+     return {
       __brand: "SlotHandle" as const,
-      globalId: slot.id,
-      modId: qualifiedModId,
-      accepts: slot.accepts,
+       globalId: slot?.id ?? globalSlotId,
+       modId: qualifiedModId,
+       accepts: slot?.accepts ?? "block",
     };
   }
 
@@ -250,7 +245,7 @@ export class Mod {
     name: string,
     config: Omit<HubConfig, "id" | "provider">,
   ): void {
-    const globalId = `${this.localName}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerHub({ ...config, id: globalId, provider: this.id });
   }
 
@@ -266,7 +261,7 @@ export class Mod {
     name: string,
     config: Omit<RouteConfig, "id" | "modId" | "provider">,
   ): void {
-    const globalId = `${this.localName}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerRoute({
       ...config,
       id: globalId,
@@ -287,7 +282,7 @@ export class Mod {
     name: string,
     config: Omit<SettingsSectionConfig, "id" | "modId" | "provider">,
   ): void {
-    const globalId = `${this.localName}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerSettingsSection({
       ...config,
       id: globalId,

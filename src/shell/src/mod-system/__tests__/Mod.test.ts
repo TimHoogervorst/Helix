@@ -84,7 +84,7 @@ describe("Mod", () => {
       const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.registerBlock("table", makeBlockConfig());
 
-      expect(handle.globalId).toBe("eln.table");
+      expect(handle.globalId).toBe("helix.eln:table");
       expect(handle.modId).toBe("helix.eln");
       expect(handle.__brand).toBe("BlockHandle");
     });
@@ -94,8 +94,8 @@ describe("Mod", () => {
       mod.registerBlock("table", makeBlockConfig());
 
       const blocks = registry.getBlocks();
-      expect(blocks.has("eln.table")).toBe(true);
-      expect(blocks.get("eln.table")?.label).toBe("Test Block");
+      expect(blocks.has("helix.eln:table")).toBe(true);
+      expect(blocks.get("helix.eln:table")?.label).toBe("Test Block");
     });
 
     it("returns a BlockHandle with empty emits when no emits in config", () => {
@@ -139,7 +139,7 @@ describe("Mod", () => {
         }),
       );
 
-      const block = registry.getBlocks().get("eln.chart");
+      const block = registry.getBlocks().get("helix.eln:chart");
       expect(block).toBeDefined();
       expect(block?.label).toBe("Chart");
       expect(block?.tags).toEqual(["data", "visualization"]);
@@ -150,7 +150,7 @@ describe("Mod", () => {
       const mod = new Mod(makeTestManifest({ id: "acme.lims" }));
       const handle = mod.registerBlock("sample-viewer", makeBlockConfig());
 
-      expect(handle.globalId).toBe("lims.sample-viewer");
+      expect(handle.globalId).toBe("acme.lims:sample-viewer");
       expect(handle.modId).toBe("acme.lims");
     });
   });
@@ -169,7 +169,7 @@ describe("Mod", () => {
       });
 
       expect(handle.__brand).toBe("SlotHandle");
-      expect(handle.globalId).toBe("eln.editor");
+      expect(handle.globalId).toBe("helix.eln:editor");
       expect(handle.modId).toBe("helix.eln");
       expect(handle.accepts).toBe("block");
     });
@@ -184,7 +184,7 @@ describe("Mod", () => {
         defaults: {},
       });
 
-      const slot = registry.getSlots().get("eln.editor");
+      const slot = registry.getSlots().get("helix.eln:editor");
       expect(slot).toBeDefined();
       expect(slot?.accepts).toBe("block");
     });
@@ -214,7 +214,7 @@ describe("Mod", () => {
       });
 
       expect(handle.__brand).toBe("ButtonHandle");
-      expect(handle.globalId).toBe("eln.export");
+      expect(handle.globalId).toBe("helix.eln:export");
       expect(handle.modId).toBe("helix.eln");
     });
 
@@ -226,7 +226,7 @@ describe("Mod", () => {
         onClick: () => {},
       });
 
-      const button = registry.getButtons().get("eln.export");
+      const button = registry.getButtons().get("helix.eln:export");
       expect(button).toBeDefined();
       expect(button?.label).toBe("Export");
     });
@@ -250,10 +250,10 @@ describe("Mod", () => {
 
       mod.registerIntoSlot(slot, block);
 
-      const bindings = registry.getBindings().get("eln.editor");
+      const bindings = registry.getBindings().get("helix.eln:editor");
       expect(bindings).toBeDefined();
       expect(bindings).toHaveLength(1);
-      expect(bindings![0].targetId).toBe("eln.table");
+      expect(bindings![0].targetId).toBe("helix.eln:table");
     });
 
     it("binds a button into a button slot using handles", () => {
@@ -274,9 +274,9 @@ describe("Mod", () => {
 
       mod.registerIntoSlot(slot, button);
 
-      const bindings = registry.getBindings().get("eln.header-actions");
+      const bindings = registry.getBindings().get("helix.eln:header-actions");
       expect(bindings).toBeDefined();
-      expect(bindings![0].targetId).toBe("eln.export");
+      expect(bindings![0].targetId).toBe("helix.eln:export");
     });
 
     it("passes overrides and order through to ModRegistry", () => {
@@ -294,7 +294,7 @@ describe("Mod", () => {
 
       mod.registerIntoSlot(slot, block, { nodeType: "inline" }, 5);
 
-      const binding = registry.getBindings().get("eln.editor")![0];
+      const binding = registry.getBindings().get("helix.eln:editor")![0];
       expect(binding.overrides).toEqual({ nodeType: "inline" });
       expect(binding.order).toBe(5);
     });
@@ -316,7 +316,7 @@ describe("Mod", () => {
       mod.registerIntoSlot(slot, table, {}, 0);
       mod.registerIntoSlot(slot, chart, {}, 1);
 
-      const bindings = registry.getBindings().get("eln.editor");
+      const bindings = registry.getBindings().get("helix.eln:editor");
       expect(bindings).toHaveLength(2);
     });
   });
@@ -334,7 +334,7 @@ describe("Mod", () => {
         order: 20,
       });
 
-      const hub = registry.getHubs().get("lims.entities");
+      const hub = registry.getHubs().get("helix.lims:entities");
       expect(hub).toBeDefined();
       expect(hub?.label).toBe("Entities");
       expect(hub?.route).toBe("/entities");
@@ -351,7 +351,7 @@ describe("Mod", () => {
         component: DummyComponent,
       });
 
-      const route = registry.getRoutes().get("eln.entry-page");
+      const route = registry.getRoutes().get("helix.eln:entry-page");
       expect(route).toBeDefined();
       expect(route?.modId).toBe("helix.eln");
       expect(route?.path).toBe("/eln/:id");
@@ -370,7 +370,7 @@ describe("Mod", () => {
       });
 
       const sections = registry.getSettingsSections();
-      const section = sections.find((s) => s.id === "tags.manage");
+      const section = sections.find((s) => s.id === "helix.tags:manage");
       expect(section).toBeDefined();
       expect(section?.modId).toBe("helix.tags");
       expect(section?.label).toBe("Labelling");
@@ -404,8 +404,8 @@ describe("Mod", () => {
       const elnBlock = elnMod.registerBlock("table", makeBlockConfig());
       const limsBlock = limsMod.registerBlock("table", makeBlockConfig());
 
-      expect(elnBlock.globalId).toBe("eln.table");
-      expect(limsBlock.globalId).toBe("lims.table");
+      expect(elnBlock.globalId).toBe("helix.eln:table");
+      expect(limsBlock.globalId).toBe("helix.lims:table");
       expect(elnBlock.modId).toBe("helix.eln");
       expect(limsBlock.modId).toBe("helix.lims");
 

@@ -18,13 +18,19 @@ from typing import Any, Callable, Generic, TypeVar
 from helix_core.column_types import ColumnType
 from helix_core.mod_system.manifest import ModManifest
 
+_MOD_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$")
 _LOCAL_KEY = re.compile(r"^[a-z][a-z0-9]*(?:[-.]?[a-z0-9]+)*$")
 _PLATFORM_TAGS = {"RegistrationTable", "ResultTable"}
 
 
 def _reference(mod_id: str, local_key: str) -> str:
+    if not _MOD_ID.fullmatch(mod_id):
+        raise ValueError(f"Invalid mod ID '{mod_id}'; expected lowercase vendor.name")
     if not _LOCAL_KEY.fullmatch(local_key):
-        raise ValueError(f"Invalid registration key '{local_key}'")
+        raise ValueError(
+            f"Invalid registration key '{local_key}'; expected lowercase ASCII "
+            "words separated by hyphens or dots"
+        )
     return f"{mod_id}:{local_key}"
 
 
@@ -42,6 +48,55 @@ class ModelReference:
 
     def __str__(self) -> str:
         return self.id
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectReference:
+    """A durable reference to one object owned by a registered model."""
+
+    model: ModelReference
+    object_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.model, ModelReference):
+            raise TypeError(
+                f"Expected ModelReference, got {type(self.model).__name__}"
+            )
+        if not isinstance(self.object_id, str) or not self.object_id:
+            raise ValueError("Object reference IDs must be non-empty strings")
+
+    @property
+    def id(self) -> str:
+        return f"{self.model.id}:{self.object_id}"
+
+    def __str__(self) -> str:
+        return self.id
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceReference:
+    mod_id: str
+    local_key: str
+
+    def __post_init__(self) -> None:
+        _reference(self.mod_id, self.local_key)
+
+    @property
+    def id(self) -> str:
+        return _reference(self.mod_id, self.local_key)
+
+    def __str__(self) -> str:
+        return self.id
+
+
+@dataclass(frozen=True, slots=True)
+class SlotReference(WorkspaceReference):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class ActionReference(WorkspaceReference):
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +164,10 @@ class ModRegistrar:
         return self.manifest.version
 
     def _owned(self, reference: ModelReference) -> None:
+        if not isinstance(reference, ModelReference):
+            raise TypeError(
+                f"Expected ModelReference, got {type(reference).__name__}"
+            )
         if reference.mod_id != self.id:
             raise ValueError(
                 f"Reference '{reference}' is owned by '{reference.mod_id}', "
@@ -148,14 +207,28 @@ class ModRegistrar:
         icon: str = "",
         color: str = "",
     ) -> None:
-        self._owned(model)
+        if not isinstance(model, ModelReference):
+            raise TypeError(
+                f"Expected ModelReference, got {type(model).__name__}"
+            )
         tags = list(tags or [])
         for tag in tags:
             if tag not in _PLATFORM_TAGS and not tag.startswith(f"{self.id}:"):
                 raise ValueError(f"unknown schema tag '{tag}'")
         model_class = self._models.get(model.id) or self._registry.get_registered_models().get(model.id)
         if model_class is None:
-            raise ValueError(f"Model reference '{model}' is not registered")
+            self._registry._pending_schema_types.append({
+                "display_name": display_name,
+                "workspace_id": workspace_id,
+                "model_ref": model,
+                "prefix": prefix,
+                "columns": columns,
+                "tags": tags,
+                "schema_name": schema_name,
+                "icon": icon,
+                "color": color,
+            })
+            return
         model_path = model_class if isinstance(model_class, str) else f"{model_class.__module__}.{model_class.__qualname__}"
         self._registry.register_schema_type(
             display_name=display_name,
@@ -216,7 +289,13 @@ class ModRegistrar:
             )
         model = self._models.get(sender.id) or self._registry.get_registered_models().get(sender.id)
         if model is None:
-            raise ValueError(f"Model reference '{sender}' is not registered")
+            self._registry._pending_public_signals.append({
+                "mod_id": self.id,
+                "kind": kind,
+                "sender_ref": sender,
+                "handler": handler,
+            })
+            return
         self._registry.register_public_signal(
             self.id, kind, sender, model, handler
         )
@@ -234,19 +313,16 @@ class ModRegistrar:
             if "." in local_key and local_key.startswith(self.id.split(".")[-1])
             else None
         )
-        reference = ServiceReference(
-            self.id, "legacy-service" if legacy_id is not None else local_key
-        )
-        service_id = (
-            legacy_id
-            if legacy_id is not None
-            else reference.id
-        )
+        canonical_key = local_key if legacy_id is None else re.sub(
+            r"(?<!^)([A-Z])", r"-\1", local_key.split(".")[-1]
+        ).lower()
+        reference = ServiceReference(self.id, canonical_key)
+        service_id = reference.id
         self._registry.register_service(reference.id, handler)
-        if service_id != reference.id:
+        if legacy_id is not None and service_id != legacy_id:
             # Preserve the old internal alias while public callers use the
             # canonical typed reference.
-            self._registry.register_service(service_id, handler)
+            self._registry.register_service(legacy_id, handler)
         if request_type is not None or response_type is not None:
             return TypedService(reference, request_type, response_type)
         return reference

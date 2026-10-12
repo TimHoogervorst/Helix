@@ -89,6 +89,34 @@ function isWorkspaceEntry(
   );
 }
 
+function legacyCompatibleMap<T extends { id: string }>(
+  values: Map<string, T>,
+): ReadonlyMap<string, T> {
+  const legacyId = (id: string) => {
+    const [modId, localKey] = id.split(":", 2);
+    return modId && localKey ? `${modId.split(".").pop()}.${localKey}` : id;
+  };
+  return {
+    get: (key: string) => {
+      const exact = values.get(key);
+      if (exact) return exact;
+      return [...values.values()].find((value) => legacyId(value.id) === key);
+    },
+    has: (key: string) => values.has(key) || [...values.values()].some((value) => legacyId(value.id) === key),
+    get size() { return values.size; },
+    keys: () => values.keys(),
+    values: () => values.values(),
+    entries: () => values.entries(),
+    forEach: (callbackfn) => values.forEach(callbackfn),
+    [Symbol.iterator]: () => values[Symbol.iterator](),
+  };
+}
+
+function legacyIdFor(id: string): string {
+  const [modId, localKey] = id.split(":", 2);
+  return modId && localKey ? `${modId.split(".").pop()}.${localKey}` : id;
+}
+
 /**
  * Central registry for all mod registrations.
  *
@@ -389,6 +417,19 @@ export class ModRegistry {
 
   // ── Resolution methods ────────────────────────────────────────────────
 
+  /** Resolve a canonical ID while accepting pre-632 short IDs at read time. */
+  private static findById<T extends { id: string }>(
+    store: ReadonlyMap<string, T>,
+    id: string,
+  ): T | undefined {
+    const exact = store.get(id);
+    if (exact) return exact;
+    for (const value of store.values()) {
+      if (legacyIdFor(value.id) === id) return value;
+    }
+    return undefined;
+  }
+
   /**
    * Resolve a slot into its renderer-ready bindings.
    *
@@ -404,17 +445,20 @@ export class ModRegistry {
   resolveSlot(
     slotId: string,
   ): { renderer: SlotDeclaration["renderer"]; bindings: (BlockBinding | ButtonBinding)[] } | null {
-    const slot = this.slots.get(slotId);
+    const slot = ModRegistry.findById(this.slots, slotId);
     if (!slot) return null;
 
-    const rawBindings = this.bindings.get(slotId);
+    const bindingKey = this.bindings.has(slotId)
+      ? slotId
+      : [...this.bindings.keys()].find((key) => legacyIdFor(key) === slotId);
+    const rawBindings = bindingKey ? this.bindings.get(bindingKey) : undefined;
     if (!rawBindings || rawBindings.length === 0) return null;
 
     const resolved: (BlockBinding | ButtonBinding)[] = [];
 
     for (const binding of rawBindings) {
       if (slot.accepts === "block") {
-        const block = this.blocks.get(binding.targetId);
+        const block = ModRegistry.findById(this.blocks, binding.targetId);
         if (!block) continue;
 
         // Merge slot defaults with binding overrides (binding wins per-key)
@@ -443,7 +487,7 @@ export class ModRegistry {
           order: binding.order,
         });
       } else {
-        const button = this.buttons.get(binding.targetId);
+        const button = ModRegistry.findById(this.buttons, binding.targetId);
         if (!button) continue;
 
         resolved.push({
@@ -573,7 +617,7 @@ export class ModRegistry {
 
   /** Returns a read-only view of all registered hubs. */
   getHubs(): ReadonlyMap<string, HubConfig> {
-    return this.hubs;
+    return legacyCompatibleMap(this.hubs);
   }
 
   /** Returns a read-only view of all registered settings sections, sorted by order. */
@@ -585,7 +629,7 @@ export class ModRegistry {
 
   /** Returns a read-only view of all registered routes. */
   getRoutes(): ReadonlyMap<string, RouteConfig> {
-    return this.routes;
+    return legacyCompatibleMap(this.routes);
   }
 
   /** Returns only routes registered with ``public: true`` (outside Layout). */
@@ -605,17 +649,17 @@ export class ModRegistry {
 
   /** Returns a read-only view of all registered blocks. */
   getBlocks(): ReadonlyMap<string, BlockRegistration> {
-    return this.blocks;
+    return legacyCompatibleMap(this.blocks);
   }
 
   /** Returns a read-only view of all declared slots. */
   getSlots(): ReadonlyMap<string, SlotDeclaration> {
-    return this.slots;
+    return legacyCompatibleMap(this.slots);
   }
 
   /** Returns a read-only view of all registered buttons. */
   getButtons(): ReadonlyMap<string, ButtonRegistration> {
-    return this.buttons;
+    return legacyCompatibleMap(this.buttons);
   }
 
   /** Returns a read-only view of all slot bindings, keyed by slotId. */

@@ -2,9 +2,13 @@
 
 from .public import (
     ModelReference,
+    ObjectReference,
     Mod,
     ModRegistrar,
     ServiceReference,
+    WorkspaceReference,
+    SlotReference,
+    ActionReference,
     SignalKind,
     TypedService,
     make_app_config,
@@ -12,9 +16,13 @@ from .public import (
 
 __all__ = [
     "ModelReference",
+    "ObjectReference",
     "Mod",
     "ModRegistrar",
     "ServiceReference",
+    "WorkspaceReference",
+    "SlotReference",
+    "ActionReference",
     "SignalKind",
     "TypedService",
     "make_app_config",

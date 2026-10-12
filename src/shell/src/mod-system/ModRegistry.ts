@@ -784,6 +784,71 @@ export class ModRegistry {
     return catalog.find((a) => a.id === actionType)?.label ?? actionType;
   }
 
+  // ── Action sync ──────────────────────────────────────────────────────
+
+  /** Sync registered block actions to the backend action catalog. */
+  async syncActions(): Promise<void> {
+    const editorBlockIds = new Set<string>();
+
+    for (const [slotId, slotBindings] of this.bindings) {
+      const slot = this.slots.get(slotId);
+      if (!slot || slot.renderer.name !== "TipTapRenderer") continue;
+      for (const binding of slotBindings) {
+        editorBlockIds.add(binding.targetId);
+      }
+    }
+
+    const actionsByMod = new Map<string, Array<{ id: string; core: string }>>();
+    const addAction = (modId: string, actionId: string, core: string) => {
+      if (!actionsByMod.has(modId)) actionsByMod.set(modId, []);
+      actionsByMod.get(modId)!.push({ id: actionId, core });
+    };
+
+    for (const [blockId, block] of this.blocks) {
+      const modId = blockId.split(".")[0];
+      if (editorBlockIds.has(blockId)) {
+        addAction(modId, `${blockId}.created`, "created");
+        addAction(modId, `${blockId}.edited`, "edited");
+        addAction(modId, `${blockId}.deleted`, "deleted");
+      }
+      if (block.emits) {
+        for (const emit of block.emits) {
+          if (emit.category === "action") {
+            addAction(modId, `${blockId}.${emit.id}`, emit.core);
+          }
+        }
+      }
+    }
+
+    await Promise.all(
+      Array.from(actionsByMod.entries()).map(async ([modId, actions]) => {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        const csrfToken = getCsrfCookie();
+        if (csrfToken) headers["X-CSRFToken"] = csrfToken;
+        const response = await fetch("/api/mod-registry/sync-actions/", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ mod_id: modId, actions }),
+        });
+
+        if (!response.ok) {
+          const result = (await response.json()) as {
+            missing?: string[];
+            error?: string;
+          };
+          throw new Error(
+            `Action sync failed for mod '${modId}': ` +
+              (result.missing
+                ? `Missing actions: ${result.missing.join(", ")}`
+                : result.error || `HTTP ${response.status}`),
+          );
+        }
+      }),
+    );
+  }
+
   // ── Backend hydration ─────────────────────────────────────────────────
 
   /**

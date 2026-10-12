@@ -5,6 +5,7 @@ export { resolveCurrentWorkspace, extractWorkspaceId } from "./resolveCurrentWor
 export { createBlockAdapter } from "./createBlockAdapter";
 export type {
   ModManifest,
+  ModDependency,
   BlockHandle,
   SlotHandle,
   ButtonHandle,

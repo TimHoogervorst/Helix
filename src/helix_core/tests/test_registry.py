@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.urls import include, path
 
-from helix_core.mod_system.manifest import ModManifest
+from helix_core.mod_system.manifest import Dependency, ModManifest
 from helix_core.mod_system.registry import BackendModRegistry
 
 
@@ -32,14 +32,24 @@ def _dummy_view():
 def _make_manifest(
     mod_id: str,
     depends_on: list[str | dict[str, str]] | None = None,
-    version: str | None = "0.1.0",
+    version: str = "0.1.0",
 ) -> ModManifest:
     """Create a ModManifest for testing."""
     return ModManifest(
-        id=mod_id,
+        id=f"test.{mod_id}",
         display_name=mod_id.title(),
         version=version,
-        depends_on=depends_on if depends_on is not None else [],
+        requires_helix=">=1.0.0",
+        artifacts=("backend",),
+        depends_on=tuple(
+            Dependency(
+                dep if isinstance(dep, str) and "." in dep else f"test.{dep}",
+                "^0.1.0",
+            )
+            if isinstance(dep, str)
+            else Dependency(dep["id"], dep.get("version", "^0.1.0"))
+            for dep in (depends_on if depends_on is not None else [])
+        ),
     )
 
 

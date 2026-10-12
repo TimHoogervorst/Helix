@@ -93,8 +93,9 @@ src/
   "id": "eln",
   "displayName": "Electronic Lab Notebook",
   "version": "0.1.0",
-  "dependsOn": ["lims", "tags"],
-  "coreVersion": "0.1.0",
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["backend"],
+  "dependsOn": [{"id": "helix.lims", "version": "^1.0.0"}],
   "description": "Rich-text electronic lab notebook with TipTap editor"
 }
 ```
@@ -104,8 +105,9 @@ src/
 | `id` | ✅ | Globally unique mod identifier. Used for directory name, URL namespace, and dependency references. Convention: lowercase, single word or hyphenated. |
 | `displayName` | ✅ | Human-readable name shown in mod listing screens. |
 | `version` | ✅ | Semver version string. |
-| `dependsOn` | ✅ | Array of mod IDs that must load before this mod. Each entry can be a bare string (`"lims"`) or an object with optional `version` constraint (`{"id": "lims", "version": ">=0.1.0"}`). |
-| `coreVersion` | No | Minimum platform version required. If the running platform is older, the mod is skipped with a warning. |
+| `requiresHelix` | ✅ | npm-compatible SemVer range for the Helix platform. |
+| `artifacts` | ✅ | Non-empty unique subset of `frontend` and `backend`. |
+| `dependsOn` | ✅ | Array of `{id, version}` objects; string shorthand is invalid. |
 | `description` | No | Short description for settings and mod listing screens. |
 
 ### What the manifest does NOT describe

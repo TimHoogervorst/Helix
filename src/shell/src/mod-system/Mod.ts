@@ -19,7 +19,7 @@ import type {
  *
  * Each mod creates one ``Mod`` instance at module scope from its own
  * ``modManifest.json``.  All ``register*()`` methods derive global IDs
- * automatically from ``manifest.name + "." + localName`` and delegate
+ * automatically from the canonical manifest ID and localName and delegate
  * storage to the internal {@link ModRegistry}.
  *
  * Mods import ``Mod`` directly; ``ModRegistry`` and the standalone
@@ -31,7 +31,7 @@ import type {
  * .. code-block:: ts
  *
  *    import modManifest from "./modManifest.json";
- *    const mod = new Mod(modManifest as ModManifest);
+   *    const mod = new Mod(modManifest);
  *
  *    const tableBlock = mod.registerBlock("table", {
  *      label: "Table",
@@ -57,7 +57,12 @@ export class Mod {
    * duplicate detection, topological sort, and cross-mod references.
    */
   get id(): string {
-    return `${this.manifest.vendor}.${this.manifest.name}`;
+    return this.manifest.id;
+  }
+
+  private get localName(): string {
+    const segments = this.manifest.id.split(".");
+    return segments[segments.length - 1];
   }
 
   /** Register a client implementation for a namespaced formula function. */
@@ -66,7 +71,7 @@ export class Mod {
     implementation: FormulaFunctionImplementation,
   ): void {
     ModRegistry.getInstance().registerFormulaFunction(
-      `${this.manifest.name}.${name}`,
+      `${this.localName}.${name}`,
       implementation,
     );
   }
@@ -84,7 +89,7 @@ export class Mod {
     name: string,
     config: Omit<BlockRegistration, "id">,
   ): BlockHandle {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerBlock({ ...config, id: globalId });
 
     // Build typed emitters from the emits array.
@@ -122,7 +127,7 @@ export class Mod {
     name: string,
     config: Omit<SlotDeclaration, "id">,
   ): SlotHandle {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().declareSlot({ ...config, id: globalId });
 
     return {
@@ -146,7 +151,7 @@ export class Mod {
     name: string,
     config: Omit<ButtonRegistration, "id">,
   ): ButtonHandle {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerButton({ ...config, id: globalId });
 
     return {
@@ -241,7 +246,7 @@ export class Mod {
     name: string,
     config: Omit<HubConfig, "id">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerHub({ ...config, id: globalId });
   }
 
@@ -257,11 +262,11 @@ export class Mod {
     name: string,
     config: Omit<RouteConfig, "id" | "modId">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerRoute({
       ...config,
       id: globalId,
-      modId: this.manifest.name,
+      modId: this.id,
     });
   }
 
@@ -277,11 +282,11 @@ export class Mod {
     name: string,
     config: Omit<SettingsSectionConfig, "id" | "modId">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerSettingsSection({
       ...config,
       id: globalId,
-      modId: this.manifest.name,
+      modId: this.id,
     });
   }
 
@@ -290,7 +295,7 @@ export class Mod {
     name: string,
     config: Omit<SchemaComponentRegistration, "id">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = `${this.localName}.${name}`;
     ModRegistry.getInstance().registerSchemaComponent({ ...config, id: globalId });
   }
 }

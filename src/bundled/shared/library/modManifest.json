@@ -1,8 +1,13 @@
 {
-  "vendor": "helix",
-  "name": "library",
+  "id": "helix.library",
   "displayName": "Library",
   "version": "0.1.0",
-  "dependsOn": ["helix.access", "helix.tags", "helix.eln"],
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["frontend", "backend"],
+  "dependsOn": [
+    {"id": "helix.access", "version": "^0.1.0"},
+    {"id": "helix.tags", "version": "^0.1.0"},
+    {"id": "helix.eln", "version": "^0.1.0"}
+  ],
   "description": "Browse, search, and organize your lab's entries, protocols, and folder structure."
 }

@@ -19,10 +19,9 @@ ALLOWED_HOSTS = ["*"]
 
 # ── Helix Mod System ─────────────────────────────────────────────────────────
 
-# Override external auto-discovery by setting HELIX_MODS to an explicit list of
-# dotted mod paths (e.g. ["mods.eln", "bundled.lims"]).  Bundled mods are listed
-# explicitly in helix_core.mod_system.bundled; external mods remain discovered
-# from mods/ when this setting is None.
+# Override discovery for focused tests with an explicit list of importable
+# package roots (e.g. ["bundled.lims"]). Normal startup uses the closed bundled
+# list plus installed ``helix.mods`` entry points.
 HELIX_MODS = None
 
 # A deployment may provide the build-time catalog.  Validate it against a
@@ -59,8 +58,7 @@ INSTALLED_APPS = [
     # Helix platform
     "helix_core",
     "helix_core.core",
-    # Helix mods — auto-discovered from mods/*/mod.py (or overridden
-    # via HELIX_MODS above).  Returned in dependency order.
+    # Helix mods — loaded from package metadata (or overridden via HELIX_MODS).
     *get_helix_mods(base_dir=BASE_DIR, helix_mods_override=HELIX_MODS),
     "helix_core.mentions",
 ]

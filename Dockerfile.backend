@@ -17,9 +17,14 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 # Only Django project configuration is copied into /app. Platform and mod
 # packages are copied separately so their repository tiers remain visible.
 COPY src/server/ .
+COPY src/pyproject.toml /app/pyproject.toml
 COPY src/helix_core/ /app/helix_core/
 COPY src/mods/ /mods/
 COPY src/bundled/ /bundled/
+
+# The ELN is consumed exactly like an installed External Mod during dogfood.
+RUN pip install --no-cache-dir --no-deps -e /app && \
+    pip install --no-cache-dir --no-deps -e /mods/eln
 
 RUN chmod +x /app/entrypoint.sh
 

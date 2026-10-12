@@ -7,6 +7,10 @@ import {
   bundledJsonManifestModules,
   bundledModModules,
 } from "./bundled";
+import {
+  externalJsonManifestModules,
+  externalModLoaders,
+} from "./external";
 
 // ── Mod module shape ────────────────────────────────────────────────────
 
@@ -15,32 +19,15 @@ export interface ModModule {
   register: (mod: Mod) => void;
 }
 
-// ── Glob: auto-discover all mods ─────────────────────────────────────────
-
-// Vite's static-analysis glob -- eagerly imports all mods/*/index.ts
-// modules at build time. When child issues create them, new mods are
-// discovered automatically with zero config changes.
-const modModules: Record<string, ModModule> = {
-  ...bundledModModules,
-};
-
-const externalModLoaders = import.meta.glob<ModModule>(
-  "../../../mods/*/index.ts",
-  { eager: false },
-);
-
-// JSON manifest glob — eagerly imports all mods/*/modManifest.json
-// files at build time. When a directory has both index.ts and
-// modManifest.json, the JSON manifest takes precedence for metadata.
+// Bundled modules are closed and explicit. External modules are linked npm
+// workspaces (or installed packages) composed in external.ts.
+const modModules: Record<string, ModModule> = { ...bundledModModules };
 const jsonManifestModules: Record<
   string,
   { default: Record<string, unknown> }
 > = {
   ...bundledJsonManifestModules,
-  ...import.meta.glob<{ default: Record<string, unknown> }>(
-    "../../../mods/*/modManifest.json",
-    { eager: true },
-  ),
+  ...externalJsonManifestModules,
 };
 
 // ── Props ───────────────────────────────────────────────────────────────
@@ -55,7 +42,7 @@ interface ModLoaderProps {
  * App entry point component.
  *
  * Boot sequence:
- *   1. Auto-discover all mods via glob
+ *   1. Compose bundled imports and installed external packages
  *   2. Import each, read meta — validate no duplicate IDs
  *   3. Topological sort by dependsOn — detect cycles, detect missing deps
  *   4. Call each mod's register() in sorted order (mods call register*())
@@ -135,10 +122,10 @@ async function loadActiveModModules(
     // an affirmative activation response from the Platform.
     activeIds = new Set();
   }
-  for (const [path, loader] of Object.entries(externalModLoaders)) {
-    const modId = manifests.get(extractModDir(path))?.manifest.id;
+  for (const [specifier, load] of Object.entries(externalModLoaders)) {
+    const modId = manifests.get(specifier)?.manifest.id;
     if (modId && activeIds.has(modId)) {
-      Object.assign(modules, await loader());
+      modules[specifier] = await load();
     }
   }
   return modules;
@@ -161,10 +148,8 @@ function collectMods(
 ): ModModule[] {
   const mods: ModModule[] = [];
   for (const [path, mod] of Object.entries(modules)) {
-    const dirName = extractModDir(path);
-
     // Prefer JSON manifest for metadata when present.
-    const jsonEntry = jsonManifestMap.get(dirName);
+    const jsonEntry = jsonManifestMap.get(path);
     const meta = jsonEntry ? jsonEntry.manifest : mod.meta;
 
     if (!meta) {
@@ -260,20 +245,8 @@ async function hydrateRegistryFromApi(
 // ── JSON manifest helpers ───────────────────────────────────────────────
 
 /**
- * Extract the mod directory name from a glob path.
- *
- * ``"../../../mods/eln/index.ts"`` → ``"eln"``
- * ``"../../../mods/eln/modManifest.json"`` → ``"eln"``
- *
- * @internal Exported for direct unit testing.
- */
-export function extractModDir(path: string): string {
-  const parts = path.split("/");
-  return parts[parts.length - 2];
-}
-
 /**
- * Build a map of mod directory name → parsed JSON manifest.
+ * Build a map of module specifier → parsed JSON manifest.
  *
  * Validates each ``modManifest.json`` entry.  Errors are thrown
  * immediately (fail-fast) so bad manifests are caught at boot.
@@ -285,10 +258,9 @@ function buildJsonManifestMap(
 ): Map<string, { manifest: ModManifest; path: string }> {
   const map = new Map<string, { manifest: ModManifest; path: string }>();
   for (const [path, jsonModule] of Object.entries(jsonModules)) {
-    const dirName = extractModDir(path);
     const data = jsonModule.default;
     const manifest = parseJsonManifest(data, path);
-    map.set(dirName, { manifest, path });
+    map.set(path, { manifest, path });
   }
   return map;
 }

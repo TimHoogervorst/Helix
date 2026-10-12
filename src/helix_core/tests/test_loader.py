@@ -74,3 +74,24 @@ def test_entry_point_discovery_uses_installed_package_manifest(tmp_path, monkeyp
     manifests = loader._auto_discover(None)
 
     assert list(manifests) == ["acme.sample"]
+
+
+def test_entry_point_discovery_ignores_legacy_filesystem_configuration(tmp_path, monkeypatch):
+    package = tmp_path / "sample"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    _write_manifest(package, id="acme.sample")
+    (tmp_path / "helix.mods.json").write_text(
+        '{"mods": [{"path": "./legacy/mod.py"}]}'
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setattr(
+        loader.importlib.metadata,
+        "entry_points",
+        lambda **_: [SimpleNamespace(name="acme.sample", value="sample")],
+    )
+
+    manifests, paths = loader._auto_discover_with_paths()
+
+    assert list(manifests) == ["acme.sample"]
+    assert paths == {"acme.sample": "sample"}

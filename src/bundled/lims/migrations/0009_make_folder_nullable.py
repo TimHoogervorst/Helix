@@ -32,7 +32,6 @@ def _make_folder_required(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("lims", "0008_make_folder_project_non_null"),
-        ("eln", "0007_make_folder_nullable"),
     ]
 
     operations = [

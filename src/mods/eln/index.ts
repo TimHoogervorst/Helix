@@ -14,7 +14,27 @@ import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFee
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
+import { createEntry, patchEntry, getLockStatus } from "./api";
+
+const emptyEntryContent = { type: "doc", content: [{ type: "paragraph" }] } as const;
+
 export function register(mod: Mod) {
+
+mod.registerContentSource("entry", {
+  label: "ELN Entry",
+  create: async ({ sourceId, projectId }) => createEntry({
+    name: "Untitled entry",
+    content: emptyEntryContent,
+    source_id: sourceId ?? undefined,
+    project: projectId,
+  }),
+  edit: (displayId, changes) => patchEntry(displayId, changes),
+  lock: getLockStatus,
+  navigate: (displayId, params) => {
+    const query = params.toString();
+    return `/eln/${displayId}${query ? `?${query}` : ""}`;
+  },
+});
 
 // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
 mod.declareSlot("header-actions", {

@@ -19,6 +19,12 @@ export function migrateWorkspaceHistoryItem(
   item: StoredWorkspaceHistory,
 ): StoredWorkspaceHistory {
   const parts = item.url.split("?")[0].split("#")[0].split("/").filter(Boolean);
+  if (parts[0] === "w" && parts.length === 5) {
+    return {
+      ...item,
+      workspaceReference: `${parts[1]}.${parts[2]}:${parts[3]}`,
+    };
+  }
   const reference = WORKSPACES[parts[0]];
   if (parts.length !== 2 || !reference) {
     throw new UnknownPersistedIdentity(`Unknown persisted workspace URL: ${item.url}`);

@@ -16,7 +16,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
-import "../index";
+import { Mod } from "../../../shell/src/mod-system/Mod";
+import manifest from "../modManifest.json";
+import { register } from "../index";
+
+const registryMod = new Mod(manifest);
+register(registryMod);
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 

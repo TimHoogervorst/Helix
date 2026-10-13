@@ -6,9 +6,8 @@ artifacts.
 ## Package root
 
 Each Mod package has one root `modManifest.json`. The manifest is read as data,
-before registration code runs. It must contain the required fields shown in the
-[generated manifest reference](mod-manifest-1.0.0.md), and unknown properties
-are rejected.
+before registration code runs. It must contain the required fields defined by the
+manifest schema, and unknown properties are rejected.
 
 The in-repository ELN is the dogfood package and is linked through the root npm
 workspace. Its backend uses the same editable Python distribution entry-point
@@ -50,11 +49,6 @@ supported.
 2. Confirm artifact declarations and dependency graph consistency.
 3. Load registrations in dependency order.
 4. Resolve the resulting registrations before serving the application.
-
-The generated [TypeScript API reference](generated/typescript-api.md), [Python
-API reference](generated/python-api.md), and [validator diagnostic reference](generated/validator-diagnostics.md)
-are derived from the source files currently present. Run the documentation check
-after changing the schema, public exports, loader, registry, or validator.
 
 The permanent hello-world golden fixture lives at
 [`src/mods/hello_world`](../src/mods/hello_world). It is the canonical

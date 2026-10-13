@@ -81,6 +81,11 @@ export function legacyWorkspaceUrl(reference: WorkspaceReference, displayId: str
   return `/${segment(reference.workspace)}/${segment(displayId)}`;
 }
 
+/** Build a legacy workspace URL when backend hydration has not completed yet. */
+export function legacyWorkspaceUrlForId(workspaceId: string, displayId: string): string {
+  return `/${encodeURIComponent(workspaceId)}/${encodeURIComponent(displayId)}`;
+}
+
 /** External standalone routes must not occupy the global first path segment. */
 export function externalRoutePath(modId: string, path: string): string {
   const [vendor, ...modParts] = modId.split(".");

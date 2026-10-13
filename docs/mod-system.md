@@ -542,7 +542,7 @@ Every mod follows this structure:
 
 ## Future: External Mod API
 
-External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and strict `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN. See [External Mod Concepts](mod-concepts.md), [External Mod Packaging](mod-packaging.md), and the [canonical generated manifest reference](mod-manifest-1.0.0.md).
+External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and strict `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN. See [External Mod Concepts](mod-concepts.md) and [External Mod Packaging](mod-packaging.md).
 
 **Future concerns (not yet implemented in this repository):**
 

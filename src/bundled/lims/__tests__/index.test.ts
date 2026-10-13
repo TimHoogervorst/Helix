@@ -1,17 +1,16 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { Mod } from "../../../shell/src/mod-system/Mod";
+import manifest from "../modManifest.json";
 
 describe("lims mod registration", () => {
   let registry: ModRegistry;
 
   beforeAll(async () => {
-    await import("../index");
+    const mod = await import("../index");
     registry = ModRegistry.getInstance();
-    try {
-      registry.registerMod("lims");
-    } catch {
-      // already registered from another test file
-    }
+    registry.registerMod(manifest.id);
+    mod.register(new Mod(manifest));
   });
 
   it("does not export inline meta", async () => {
@@ -21,24 +20,24 @@ describe("lims mod registration", () => {
 
   it("registers route for /lims/:displayId", () => {
     const routes = registry.getRoutes();
-    const route = routes.get("lims.entity-page");
+    const route = routes.get("helix.lims:lims-workspace");
 
     expect(route).toBeDefined();
-    expect(route!.modId).toBe("lims");
-    expect(route!.path).toBe("/lims/:displayId");
+    expect(route!.modId).toBe("helix.lims");
+    expect(route!.path).toBe("/w/helix/lims/lims/:displayId");
   });
 
   it("does not populate workspaces during register()", () => {
     const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("lims")).toBe(false);
+    expect(workspaces.get("lims")?.reference.modId).toBe("helix.lims");
   });
 
   it("registers schema settings section", () => {
     const sections = registry.getSettingsSections();
-    const schemaSection = sections.find((s) => s.id === "lims.schema-settings");
+    const schemaSection = sections.find((s) => s.id === "helix.lims:schema-settings");
 
     expect(schemaSection).toBeDefined();
-    expect(schemaSection!.modId).toBe("lims");
+    expect(schemaSection!.modId).toBe("helix.lims");
     expect(schemaSection!.label).toBe("Schemas");
   });
 
@@ -47,7 +46,7 @@ describe("lims mod registration", () => {
   });
 
   it("registers a fetch-only activity feed block", () => {
-    const block = registry.getBlocks().get("lims.activity-feed");
+    const block = registry.getBlocks().get("helix.lims:activity-feed");
 
     expect(block).toBeDefined();
     expect(block!.listensTo).toEqual([]);

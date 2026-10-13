@@ -862,7 +862,15 @@ class ModLifecycleView(APIView):
                     cascade=bool(request.data.get("cascade", False)),
                 )
         except ValueError as exc:
-            raise serializers.ValidationError({"detail": str(exc)}) from exc
+            logger.warning(
+                "Mod lifecycle operation failed for mod_id=%r operation=%r",
+                mod_id,
+                operation,
+                exc_info=True,
+            )
+            raise serializers.ValidationError(
+                {"detail": "Invalid mod lifecycle request."}
+            ) from exc
         return Response({"changed": sorted(changed), "restartRequired": True})
 
 

@@ -4,6 +4,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import CoreSetting, Folder, Project
 
 
+class ProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Project
+        fields = ["id", "uid", "name", "icon_key", "color_key", "is_archived", "created_at"]
+        read_only_fields = ["id", "uid", "created_at"]
+
+
 class FolderSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
     source_type = serializers.PrimaryKeyRelatedField(

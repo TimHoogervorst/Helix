@@ -17,6 +17,7 @@ from typing import Any, Callable, Generic, TypeVar
 
 from helix_core.column_types import ColumnType
 from helix_core.mod_system.manifest import ModManifest
+from helix_core.mod_system.registry import ContentSourceProvider
 
 _MOD_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$")
 _LOCAL_KEY = re.compile(r"^[a-z][a-z0-9]*(?:[-.]?[a-z0-9]+)*$")
@@ -188,11 +189,31 @@ class ModRegistrar:
         return ModelReference(mod_id, local_key)
 
     def register_source_kind(
-        self, local_key: str, model: ModelReference
+        self, local_key: str, model: ModelReference, **kwargs: Any
+    ) -> str:
+        """Register a source kind (legacy name retained for Mod compatibility)."""
+        return self.register_content_source(local_key, model, **kwargs)
+
+    def register_content_source(
+        self,
+        local_key: str,
+        model: ModelReference,
+        *,
+        visibility_query: Callable[..., Any] | None = None,
+        serializer: Any = None,
+        display_metadata: dict[str, Any] | None = None,
+        mutation_handlers: dict[str, Callable[..., Any]] | None = None,
     ) -> str:
         self._owned(model)
         kind = _reference(self.id, local_key)
-        self._registry.register_source_kind(kind, model)
+        self._registry.register_content_source(
+            kind,
+            model,
+            visibility_query=visibility_query,
+            serializer=serializer,
+            display_metadata=display_metadata,
+            mutation_handlers=mutation_handlers,
+        )
         return kind
 
     def register_schema_type(

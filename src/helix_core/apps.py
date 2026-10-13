@@ -77,13 +77,31 @@ class HelixCoreConfig(AppConfig):
         # Platform-owned Source Kinds are registered before Mods.  Persisted
         # values remain the short ``project``/``folder`` strings.
         from helix_core.core.models import Folder, Project
+        from helix_core.core.serializers import FolderSerializer, ProjectSerializer
+        from bundled.access.access.scoping import visible_folders_q
 
-        for local_key, model in (("project", Project), ("folder", Folder)):
+        def visible_projects(request, queryset):
+            # Project visibility is enforced by the access layer when a
+            # project queryset is consumed; this hook keeps the provider
+            # contract uniform with folder and external content providers.
+            return queryset
+
+        providers = (
+            ("project", Project, visible_projects, ProjectSerializer, {"label": "Project", "icon": "folder-kanban"}),
+            ("folder", Folder, lambda request, queryset: queryset.filter(visible_folders_q(request.user)), FolderSerializer, {"label": "Folder", "icon": "folder"}),
+        )
+        for local_key, model, visibility_query, serializer, display_metadata in providers:
             reference = ModelReference("helix.core", local_key)
             if reference.id not in registry.get_registered_models():
                 registry.register_model_reference(reference.id, model)
             if local_key not in registry.get_source_kinds():
-                registry.register_source_kind(local_key, reference)
+                registry.register_content_source(
+                    local_key,
+                    reference,
+                    visibility_query=visibility_query,
+                    serializer=serializer,
+                    display_metadata=display_metadata,
+                )
 
         # Call each mod's mod.py.register() in topological order.
         # This replaces the individual AppConfig.ready() methods on each

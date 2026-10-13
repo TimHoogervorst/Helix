@@ -5,13 +5,10 @@ Tag has no awareness of what it tags. Each consuming mod defines its own
 M2M to Tag (e.g. NotebookEntry.tags, Entity.tags).  Tag never holds
 an FK or M2M of its own.
 
-``TagsAction`` is the concrete action-log table for tag CRUD and tag
-attach/detach operations.
+Tag actions are written to the Platform action log.
 """
 
 from django.db import models
-
-from helix_core.actions.base import AbstractBaseAction
 
 TAG_COLOR_CHOICES = [
     ("enzyme", "Enzyme"),
@@ -53,12 +50,3 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class TagsAction(AbstractBaseAction):
-    """Concrete action table for tag CRUD and tag attach/detach operations."""
-
-    class Meta:
-        db_table = "tags_action"
-        verbose_name = "Tags action"
-        verbose_name_plural = "Tags actions"

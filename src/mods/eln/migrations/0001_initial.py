@@ -59,7 +59,6 @@ class Migration(migrations.Migration):
                 ('metadata', models.JSONField(blank=True, default=dict)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('performed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_actions', to=settings.AUTH_USER_MODEL)),
-                ('version', models.ForeignKey(blank=True, help_text='Content version produced by this action. Null for non-versioned targets.', null=True, on_delete=django.db.models.deletion.SET_NULL, to='eln.contentversion')),
             ],
             options={
                 'db_table': 'eln_action',

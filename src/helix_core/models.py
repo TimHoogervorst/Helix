@@ -14,7 +14,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
-from helix_core.actions.base import AbstractBaseAction
 
 # ── Shared column-ID + content-hash pipeline ──────────────────────────────
 
@@ -545,10 +544,3 @@ class ModInstallation(models.Model):
 
     def __str__(self):
         return f"{self.display_name} ({self.mod_id})"
-
-
-class ModLifecycleAction(AbstractBaseAction):
-    """Platform-owned action log for Mod lifecycle administration."""
-
-    class Meta:
-        db_table = "helix_mod_lifecycle_action"

@@ -282,10 +282,8 @@ class BulkLogActionsTests(TestCase):
     def test_bulk_log_actions_cross_mod_routing(self):
         """Actions from different mods route to different concrete tables."""
         from mods.eln.models import ElnAction
-        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
-        register_action_model("tags", TagsAction)
 
         actions = [
             {"action": "eln.table.edited", "metadata": {"name": "Samples"}},

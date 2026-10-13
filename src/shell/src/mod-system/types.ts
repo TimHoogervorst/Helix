@@ -158,6 +158,18 @@ export interface ServiceConfig {
   handler: (...args: unknown[]) => Promise<unknown>;
 }
 
+/** Frontend capabilities contributed by a Library content source. */
+export interface ContentSourceConfig {
+  kind: string;
+  label: string;
+  create?: (input: { sourceId: number | null; projectId: number | null }) => Promise<{
+    display_id: string;
+  }>;
+  edit?: (displayId: string, changes: Record<string, unknown>) => Promise<unknown>;
+  lock?: (displayId: string) => Promise<{ locked: boolean; held_by_username?: string | null }>;
+  navigate?: (displayId: string, params: URLSearchParams) => string;
+}
+
 // ── Workspace ──────────────────────────────────────────────────────────────
 
 /** A column definition within a schema type. */

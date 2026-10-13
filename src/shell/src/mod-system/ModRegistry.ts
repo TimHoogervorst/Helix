@@ -14,6 +14,7 @@ import type {
   SchemaColumnDef,
   ModManifest,
   ActionCatalogEntry,
+  ContentSourceConfig,
   IconLibraryEntry,
   ColorToken,
 } from "./types";
@@ -157,6 +158,7 @@ export class ModRegistry {
   private schemaComponents = new Map<string, SchemaComponentRegistration>();
   private routes = new Map<string, RouteConfig>();
   private services = new Map<string, ServiceConfig>();
+  private contentSources = new Map<string, ContentSourceConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private blocks = new Map<string, BlockRegistration>();
   private slots = new Map<string, SlotDeclaration>();
@@ -199,6 +201,17 @@ export class ModRegistry {
       );
     }
     this.hubs.set(config.id, config);
+  }
+
+  registerContentSource(config: ContentSourceConfig): void {
+    if (this.contentSources.has(config.kind)) {
+      throw new Error(`Duplicate content source registration: '${config.kind}'`);
+    }
+    this.contentSources.set(config.kind, config);
+  }
+
+  getContentSources(): ReadonlyMap<string, ContentSourceConfig> {
+    return this.contentSources;
   }
 
   registerSettingsSection(config: SettingsSectionConfig): void {

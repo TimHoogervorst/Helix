@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql="DROP VIEW IF EXISTS entity_hub_view;",
-            reverse_sql=VIEW_SQL,
+            reverse_sql="DROP VIEW IF EXISTS entity_hub_view;",
         ),
         migrations.AddField(
             model_name="entity",

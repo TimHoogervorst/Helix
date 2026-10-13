@@ -328,7 +328,7 @@ class EntityHubView(models.Model):
     """Unmanaged model mapping to the ``entity_hub_view`` PostgreSQL VIEW.
 
     Provides a read-only UNION ALL across all AbstractEntity tables
-    (eln_entry, lims_entity, and any future entity tables).  Each row
+    (provider-owned, LIMS, and any future entity tables).  Each row
     includes ``schema_type_id`` and ``workspace_id`` computed columns
     populated by the VIEW definition.
 

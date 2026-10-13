@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('action_type', models.CharField(max_length=100)),
-                ('target_type', models.CharField(help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.", max_length=100)),
+                ('target_type', models.CharField(help_text="Namespaced target type, e.g. 'lims.entity'.", max_length=100)),
                 ('target_id', models.IntegerField(help_text='PK of the target record.')),
                 ('request_id', models.UUIDField(blank=True, help_text='Correlation ID tying together action rows from the same HTTP request.', null=True)),
                 ('client_ip', models.GenericIPAddressField(blank=True, help_text='Client IP auto-captured from the request.', null=True)),

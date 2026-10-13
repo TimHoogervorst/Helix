@@ -93,6 +93,7 @@ function LibraryNewDropdown({
       if (currentPath) params.set("path", currentPath);
       const destination = source.navigate?.(entry.display_id, params);
       if (destination) navigate(destination);
+      setCreatingSource(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create entry");
       setCreatingSource(null);
@@ -127,20 +128,20 @@ function LibraryNewDropdown({
             </div>
           ) : (
             <>
-              <button className="library-new-menu-item" onClick={handleNewFolder}>
+              <Button variant="ghost" className="library-new-menu-item" onClick={handleNewFolder}>
                 <FolderPlus size={18} /> New Folder
-              </button>
+              </Button>
               {[...ModRegistry.getInstance().getContentSources().values()]
                 .filter((source) => source.create)
                 .map((source) => (
-                  <button
+                  <Button
                     key={source.kind}
                     className="library-new-menu-item"
                     onClick={() => handleNewSource(source.kind)}
                     disabled={creatingSource !== null}
                   >
                     {creatingSource === source.kind ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />} {source.label}
-                  </button>
+                  </Button>
                 ))}
               {error && <div className="library-new-error">{error}</div>}
             </>

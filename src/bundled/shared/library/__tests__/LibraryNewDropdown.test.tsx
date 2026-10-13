@@ -150,6 +150,9 @@ describe("LibraryNewDropdown", () => {
       });
     });
 
+    fireEvent.click(screen.getByTitle("New folder or entry"));
+    expect(screen.getByText("New ELN Entry").closest("button")).not.toBeDisabled();
+
     // Should navigate to the new entry with ?new=true
     // (useNavigate is not mocked, but the component navigates to
     // /eln/E-0042?new=true — just verify createEntry was called correctly)

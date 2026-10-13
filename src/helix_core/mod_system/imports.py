@@ -58,7 +58,7 @@ def scan_forbidden_eln_references(
     """
     root = Path(source_dir)
     findings: list[ForbiddenImport] = []
-    dependency = re.compile(r"\(\s*[\"']eln[\"']\s*,")
+    dependency = re.compile(r"(?:\(\s*[\"']eln[\"']\s*,|\beln[_\.])")
     model_lookup = re.compile(r"(?:get_model|to)\s*\(?(?:\s*[\"'])eln(?:[\"']|\.)")
     for path in sorted(_source_files_including_migrations(root), key=lambda item: item.as_posix()):
         relative = path.relative_to(root).as_posix()
@@ -78,8 +78,8 @@ def scan_forbidden_eln_references(
                         findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "eln"))
         else:
             for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if re.search(r"[\"']@helix/eln[\"']", line):
-                    findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "@helix/eln"))
+                if re.search(r"(?:[\"']@helix/eln[\"']|[\"']helix\.eln:[^\"']+[\"'])", line):
+                    findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "helix.eln"))
     return sorted(findings, key=lambda finding: (finding.path, finding.line, finding.imported))
 
 

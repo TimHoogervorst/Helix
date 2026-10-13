@@ -69,10 +69,10 @@ class LoggerDispatchTests(TestCase):
             action="eln.entry.edited",
             target_type="eln.entry",
             target_id=42,
-            version_target=VersionTarget("provider:revision", "v-9", "9", "hash"),
+            version_target=VersionTarget("helix.eln:content-version", "v-9", "9", "hash"),
         )
 
-        self.assertEqual(action.target_version_reference, "provider:revision")
+        self.assertEqual(action.target_version_reference, "helix.eln:content-version")
         self.assertEqual(action.target_version_object_id, "v-9")
         self.assertEqual(action.target_version_label, "9")
         self.assertEqual(action.target_version_hash, "hash")

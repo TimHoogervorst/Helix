@@ -6,8 +6,8 @@ from helix_core.schema_tags import RegistrationTable, ResultTable
 def _seed_builtin_metrics():
     """Pre-seed two public ``is_me`` Views and their count Metrics.
 
-    Creates one View per workspace (eln / lims) filtered to ``author:is_me``
-    with status ``in_progress``, plus a ``Count`` Metric on each.  Uses
+    Creates a View for the LIMS workspace filtered to ``author:is_me``
+    with status ``in_progress``, plus a ``Count`` Metric.  Uses
     ``get_or_create`` so repeated calls on boot are safe.
     """
     from helix_core.core.models import User
@@ -17,18 +17,11 @@ def _seed_builtin_metrics():
     if not admin:
         return
 
-    _VIEW_DEFS = [
-        {
-            "workspace": "eln",
-            "schema_type": "eln.notebookentry",
-            "name": "Entries in progress, by me",
-        },
-        {
+    _VIEW_DEFS = [{
             "workspace": "lims",
             "schema_type": "lims.entity",
             "name": "Entities created, by me",
-        },
-    ]
+        }]
 
     for vdef in _VIEW_DEFS:
         view, _ = LimsView.objects.get_or_create(

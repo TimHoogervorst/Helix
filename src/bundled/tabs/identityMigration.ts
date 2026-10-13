@@ -1,7 +1,6 @@
 export class UnknownPersistedIdentity extends Error {}
 
 const WORKSPACES: Record<string, string> = {
-  eln: "helix.eln:workspace",
   lims: "helix.lims:workspace",
   results: "helix.lims:results-workspace",
 };

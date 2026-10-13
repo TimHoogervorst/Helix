@@ -877,9 +877,9 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
             visible_entries = entry_model.objects.filter(
                 visible_rows_q(self.request.user)
             ).values_list("pk", flat=True)
-            entry_ref = str(entry_provider.kind)
+            entry_ref = getattr(entry_provider.model_reference, "id", entry_provider.model_reference)
             query |= Q(
-                target_model_reference=entry_ref,
+                target_model_reference__in=(entry_ref, "eln.entry"),
                 target_object_id__in=[str(pk) for pk in visible_entries],
             )
         return ActionLogEntry.objects.filter(query).select_related("performed_by")

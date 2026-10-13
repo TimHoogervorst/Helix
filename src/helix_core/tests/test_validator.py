@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -148,6 +149,22 @@ def test_startup_scan_rejects_eln_imports_and_migration_dependencies(tmp_path):
     ]
 
 
+def test_startup_scan_rejects_eln_sql_and_frontend_identifiers(tmp_path):
+    package = tmp_path / "bundled_sample"
+    (package / "migrations").mkdir(parents=True)
+    (package / "migrations" / "0002_view.py").write_text(
+        'migrations.RunSQL("SELECT * FROM eln_entry")\n'
+    )
+    (package / "index.ts").write_text('const route = "helix.eln:entry";\n')
+
+    findings = scan_forbidden_eln_references(package, package_name="bundled.sample")
+
+    assert [(finding.path, finding.imported) for finding in findings] == [
+        ("index.ts", "helix.eln"),
+        ("migrations/0002_view.py", "eln"),
+    ]
+
+
 def test_startup_validation_fails_fast_on_a_bundled_eln_reference(tmp_path):
     platform = tmp_path / "platform"
     bundled = tmp_path / "bundled"
@@ -157,6 +174,12 @@ def test_startup_validation_fails_fast_on_a_bundled_eln_reference(tmp_path):
 
     with pytest.raises(ValidationFailure, match="references ELN"):
         validate_no_eln_references(platform_path=platform, bundled_paths=[bundled])
+
+
+def test_bundled_lims_source_and_migrations_are_provider_independent():
+    root = Path(__file__).resolve().parents[2] / "bundled" / "lims"
+
+    assert scan_forbidden_eln_references(root, package_name="bundled.lims") == []
 
 
 def test_bundled_import_baseline_rejects_new_violation(tmp_path):

@@ -4,16 +4,16 @@ import { migrateWorkspaceHistoryItem, UnknownPersistedIdentity } from "../identi
 describe("persisted workspace history migration", () => {
   it("adds an explicit workspace reference and canonical URL", () => {
     expect(migrateWorkspaceHistoryItem({
-      displayId: "E7",
-      name: "Entry",
-      url: "/eln/E7?tab=history",
-      icon: "eln",
+      displayId: "B7",
+      name: "Entity",
+      url: "/lims/B7?tab=history",
+      icon: "lims",
     })).toEqual({
-      displayId: "E7",
-      name: "Entry",
-      url: "/w/helix/eln/workspace/E7?tab=history",
-      icon: "eln",
-      workspaceReference: "helix.eln:workspace",
+      displayId: "B7",
+      name: "Entity",
+      url: "/w/helix/lims/workspace/B7?tab=history",
+      icon: "lims",
+      workspaceReference: "helix.lims:workspace",
     });
   });
 

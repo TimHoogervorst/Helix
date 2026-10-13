@@ -8,8 +8,18 @@ import { MyViewsBlock } from "./blocks/MyViewsBlock";
 import { GlobalViewsBlock } from "./blocks/GlobalViewsBlock";
 import { ActivityFeedBlock } from "./blocks/ActivityFeedBlock";
 import ResultsTab from "./workspace/ResultsTab";
+import { patch } from "../../shell/src/api/client";
 
 export function register(mod: Mod) {
+mod.registerContentSource("entity", {
+  label: "Entity",
+  edit: (displayId, changes) => patch(`/lims/entities/${displayId}/`, changes),
+  navigate: (displayId, params) => {
+    const query = params.toString();
+    return `/lims/${displayId}${query ? `?${query}` : ""}`;
+  },
+});
+
 mod.registerSchemaComponent("results", {
   label: "Results",
   icon: Database,

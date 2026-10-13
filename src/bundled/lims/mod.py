@@ -64,11 +64,31 @@ def _seed_builtin_metrics():
 def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from bundled.lims.models import Entity
+    from bundled.lims.serializers import EntitySerializer
+    from bundled.lims.views import EntityViewSet
     from bundled.lims.services import cascade_source_status
+    from bundled.access.access.scoping import visible_rows_q
 
     entity = mod.register_model("entity", Entity)
     result_entity = mod.register_model("result-entity", "bundled.lims.models.ResultEntity")
-    mod.register_source_kind("entity", entity)
+    mod.register_source_kind(
+        "entity",
+        entity,
+        visibility_query=lambda request, queryset: queryset.filter(
+            visible_rows_q(request.user)
+        ),
+        serializer=EntitySerializer,
+        display_metadata={
+            "label": "Entity",
+            "workspace_id": "lims",
+            "icon": "flask-conical",
+            "color": "success",
+        },
+        mutation_handlers={
+            "create": EntityViewSet.perform_create,
+            "edit": EntityViewSet.perform_update,
+        },
+    )
     mod.register_custom_action("lims.entity.tags_attached", "Tags Attached", "edited", entity)
     mod.register_custom_action("lims.entity.tag_detached", "Tag Detached", "edited", entity)
     mod.register_urls([path("api/lims/", include("bundled.lims.urls"))])

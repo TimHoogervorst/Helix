@@ -49,13 +49,34 @@ def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from mods.eln.cascade import update_status_from_source
     from mods.eln.models import NotebookEntry
+    from mods.eln.serializers import NotebookEntrySerializer
+    from mods.eln.views import NotebookEntryViewSet
+    from bundled.access.access.scoping import visible_rows_q
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.
     mod.register_column_type(TiptapContentColumnType())
 
     entry = mod.register_model("entry", NotebookEntry)
-    mod.register_source_kind("entry", entry)
+    mod.register_source_kind(
+        "entry",
+        entry,
+        visibility_query=lambda request, queryset: queryset.filter(
+            visible_rows_q(request.user)
+        ),
+        serializer=NotebookEntrySerializer,
+        display_metadata={
+            "label": "ELN Entry",
+            "workspace_id": "eln",
+            "icon": "notebook",
+            "color": "flask",
+        },
+        mutation_handlers={
+            "create": NotebookEntryViewSet.perform_create,
+            "edit": NotebookEntryViewSet.perform_update,
+            "lock": NotebookEntryViewSet._acquire_lock,
+        },
+    )
 
     # ── Entry-level custom actions ───────────────────────────────────────
     # Actions used by @logs_action decorators in views.py.  Must be

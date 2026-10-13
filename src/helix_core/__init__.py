@@ -11,6 +11,7 @@ from .public import (
     ActionReference,
     SignalKind,
     TypedService,
+    ContentSourceProvider,
     make_app_config,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "ActionReference",
     "SignalKind",
     "TypedService",
+    "ContentSourceProvider",
     "make_app_config",
     "AbstractBaseAction",
     "ActionLoggingMixin",

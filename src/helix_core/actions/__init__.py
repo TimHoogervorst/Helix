@@ -24,3 +24,6 @@ __all__ = [
     "register_custom_action",
     "validate_action",
 ]
+from .version_target import VersionTarget
+
+__all__ = ["VersionTarget"]

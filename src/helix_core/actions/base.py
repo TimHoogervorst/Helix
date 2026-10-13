@@ -1,8 +1,8 @@
 """Abstract base model for action logging.
 
-Each mod creates its own concrete table that inherits from
-``AbstractBaseAction``.  The static columns are shared across all
-action tables.
+Concrete domain action models inherit the shared, provider-neutral columns
+from ``AbstractBaseAction``.  Durable audit records are kept in the Platform
+action log.
 """
 
 import uuid
@@ -14,7 +14,7 @@ from django.db import models
 class AbstractBaseAction(models.Model):
     """Abstract base for audit / activity log entries.
 
-    Concrete subclasses (e.g. ``ElnAction``, ``LimsAction``) each get
+    Concrete subclasses (e.g. ``ElnAction``, ``LimsAction``) may get
     their own physical table.  ``managed = False`` on the abstract base
     is intentional — Django should never create a table for this model
     itself.
@@ -29,7 +29,7 @@ class AbstractBaseAction(models.Model):
     )
     action = models.CharField(
         max_length=128,
-        help_text="Triple-dotted action identifier, e.g. 'eln.entry.created'.",
+        help_text="Triple-dotted action identifier, e.g. 'provider.entity.created'.",
     )
     action_type = models.CharField(
         max_length=16,
@@ -37,17 +37,10 @@ class AbstractBaseAction(models.Model):
     )
     target_type = models.CharField(
         max_length=100,
-        help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.",
+        help_text="Namespaced target type, e.g. 'provider.entity' or 'lims.entity'.",
     )
     target_id = models.IntegerField(
         help_text="PK of the target record.",
-    )
-    version = models.ForeignKey(
-        "eln.ContentVersion",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="Content version produced by this action. Null for non-versioned targets.",
     )
     request_id = models.UUIDField(
         null=True,

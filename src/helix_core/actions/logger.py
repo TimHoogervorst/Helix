@@ -17,6 +17,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from .version_target import VersionTarget
+
 User = get_user_model()
 
 # ── Action type resolution ────────────────────────────────────────────────
@@ -137,6 +139,12 @@ def bulk_log_actions(
                     client_ip=client_ip,
                 )
             )
+            target = entry.get("version_target")
+            if target is not None:
+                instances[-1].target_version_reference = target.reference
+                instances[-1].target_version_object_id = str(target.object_id)
+                instances[-1].target_version_label = target.label
+                instances[-1].target_version_hash = target.content_hash
 
         ActionLogEntry.objects.bulk_create(instances)
         results.extend(instances)
@@ -152,6 +160,7 @@ def log_action(
     action_type: Optional[str] = None,
     metadata: Optional[dict] = None,
     version: Optional[models.Model] = None,
+    version_target: Optional[VersionTarget] = None,
     request_id: Optional[UUID] = None,
     client_ip: Optional[str] = None,
 ):
@@ -214,11 +223,18 @@ def log_action(
         initiating_mod_version=_initiator_version(mod_id),
         metadata=metadata or {},
     )
-    if version is not None:
-        kwargs["target_version_reference"] = "eln:content-version"
-        kwargs["target_version_object_id"] = str(version.pk)
-        kwargs["target_version_label"] = str(getattr(version, "version_number", version.pk))
-        kwargs["target_version_hash"] = getattr(version, "content_hash", None)
+    if version_target is None and version is not None:
+        version_target = VersionTarget(
+            reference=getattr(version, "version_reference", "unknown:version"),
+            object_id=str(version.pk),
+            label=str(getattr(version, "version_number", version.pk)),
+            content_hash=getattr(version, "content_hash", None),
+        )
+    if version_target is not None:
+        kwargs["target_version_reference"] = version_target.reference
+        kwargs["target_version_object_id"] = str(version_target.object_id)
+        kwargs["target_version_label"] = version_target.label
+        kwargs["target_version_hash"] = version_target.content_hash
     if request_id is not None:
         kwargs["request_id"] = request_id
     if client_ip is not None:

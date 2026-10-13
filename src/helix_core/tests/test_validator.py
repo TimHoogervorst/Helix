@@ -1,5 +1,8 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from helix_core.mod_system.validator import (
     EXIT_CONTRACT_VIOLATION,
@@ -10,9 +13,11 @@ from helix_core.mod_system.validator import (
     validate_author,
     validate_activation,
     validate_deployment,
+    validate_no_eln_references,
     ValidationFailure,
 )
 from helix_core.mod_system.validator import _satisfies
+from helix_core.mod_system.validator import scan_forbidden_eln_references
 
 
 def _manifest(**overrides):
@@ -124,6 +129,57 @@ def test_external_author_validation_rejects_cross_mod_frontend_import(tmp_path):
     assert result.exit_code == EXIT_CONTRACT_VIOLATION
     assert result.diagnostics[0].code == "FORBIDDEN_CROSS_MOD_IMPORT"
     assert result.diagnostics[0].location.path.endswith("index.ts")
+
+
+def test_startup_scan_rejects_eln_imports_and_migration_dependencies(tmp_path):
+    package = tmp_path / "bundled_sample"
+    (package / "migrations").mkdir(parents=True)
+    (package / "index.ts").write_text('import { create } from "@helix/eln";\n')
+    (package / "migrations" / "0001_initial.py").write_text(
+        'dependencies = [("eln", "0001_initial")]\n'
+        'Model = apps.get_model("eln", "NotebookEntry")\n'
+    )
+
+    findings = scan_forbidden_eln_references(package, package_name="bundled.sample")
+
+    assert [(finding.path, finding.imported) for finding in findings] == [
+        ("index.ts", "@helix/eln"),
+        ("migrations/0001_initial.py", "eln"),
+        ("migrations/0001_initial.py", "eln"),
+    ]
+
+
+def test_startup_scan_rejects_eln_sql_and_frontend_identifiers(tmp_path):
+    package = tmp_path / "bundled_sample"
+    (package / "migrations").mkdir(parents=True)
+    (package / "migrations" / "0002_view.py").write_text(
+        'migrations.RunSQL("SELECT * FROM eln_entry")\n'
+    )
+    (package / "index.ts").write_text('const route = "helix.eln:entry";\n')
+
+    findings = scan_forbidden_eln_references(package, package_name="bundled.sample")
+
+    assert [(finding.path, finding.imported) for finding in findings] == [
+        ("index.ts", "helix.eln"),
+        ("migrations/0002_view.py", "eln"),
+    ]
+
+
+def test_startup_validation_fails_fast_on_a_bundled_eln_reference(tmp_path):
+    platform = tmp_path / "platform"
+    bundled = tmp_path / "bundled"
+    platform.mkdir()
+    bundled.mkdir()
+    (bundled / "mod.py").write_text('from mods.eln.models import NotebookEntry\n')
+
+    with pytest.raises(ValidationFailure, match="references ELN"):
+        validate_no_eln_references(platform_path=platform, bundled_paths=[bundled])
+
+
+def test_bundled_lims_source_and_migrations_are_provider_independent():
+    root = Path(__file__).resolve().parents[2] / "bundled" / "lims"
+
+    assert scan_forbidden_eln_references(root, package_name="bundled.lims") == []
 
 
 def test_bundled_import_baseline_rejects_new_violation(tmp_path):

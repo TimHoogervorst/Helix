@@ -299,6 +299,10 @@ class ActionLoggingMixin:
         if get_version is not None:
             version = get_version(instance)
 
+        version_target = config.get("version_target")
+        if version_target is None:
+            version_target = getattr(instance, "_version_target", None)
+
         log_action(
             user=user,
             action=action,
@@ -306,6 +310,7 @@ class ActionLoggingMixin:
             target_id=target_id,
             metadata=metadata,
             version=version,
+            version_target=version_target,
             request_id=self._request_id,
             client_ip=self._client_ip or None,
         )

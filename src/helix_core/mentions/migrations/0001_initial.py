@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('target_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
             ],
             options={
-                'db_table': 'eln_mention',
+                'db_table': 'helix_mention',
             },
         ),
     ]

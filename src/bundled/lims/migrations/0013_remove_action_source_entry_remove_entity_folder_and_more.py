@@ -11,10 +11,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RemoveField(
-            model_name='action',
-            name='source_entry',
-        ),
-        migrations.RemoveField(
             model_name='entity',
             name='folder',
         ),

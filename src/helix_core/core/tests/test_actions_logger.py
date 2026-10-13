@@ -5,6 +5,7 @@ import uuid
 from django.test import TestCase
 
 from helix_core.actions.logger import log_action, bulk_log_actions
+from helix_core.actions import VersionTarget
 from helix_core.actions.registry import register_action_model
 from helix_core.core.models import User
 from helix_core.models import ActionLogEntry
@@ -58,6 +59,23 @@ class LoggerDispatchTests(TestCase):
         self.assertIsInstance(action, ActionLogEntry)
         self.assertEqual(action.performed_by, self.user)
         self.assertEqual(action.action_type, "created")
+
+    def test_log_action_persists_provider_supplied_version_target(self):
+        from mods.eln.models import ElnAction
+
+        register_action_model("eln", ElnAction)
+        action = log_action(
+            user=self.user,
+            action="eln.entry.edited",
+            target_type="eln.entry",
+            target_id=42,
+            version_target=VersionTarget("helix.eln:content-version", "v-9", "9", "hash"),
+        )
+
+        self.assertEqual(action.target_version_reference, "helix.eln:content-version")
+        self.assertEqual(action.target_version_object_id, "v-9")
+        self.assertEqual(action.target_version_label, "9")
+        self.assertEqual(action.target_version_hash, "hash")
         self.assertEqual(action.target_type, "eln.entry")
         self.assertEqual(action.target_id, 42)
         self.assertEqual(action.metadata, {"key": "val"})
@@ -264,10 +282,8 @@ class BulkLogActionsTests(TestCase):
     def test_bulk_log_actions_cross_mod_routing(self):
         """Actions from different mods route to different concrete tables."""
         from mods.eln.models import ElnAction
-        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
-        register_action_model("tags", TagsAction)
 
         actions = [
             {"action": "eln.table.edited", "metadata": {"name": "Samples"}},

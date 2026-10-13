@@ -14,7 +14,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 
-from helix_core.actions.base import AbstractBaseAction
 
 # ── Shared column-ID + content-hash pipeline ──────────────────────────────
 
@@ -301,6 +300,15 @@ class ActionLogEntry(models.Model):
             ),
         ]
 
+    def save(self, *args, **kwargs):
+        """Keep the audit ledger append-only after its initial insert."""
+        if self.pk is not None:
+            raise ValueError("ActionLogEntry is append-only")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ActionLogEntry is append-only")
+
     @property
     def target_type(self):
         return self.target_model_reference
@@ -320,7 +328,7 @@ class EntityHubView(models.Model):
     """Unmanaged model mapping to the ``entity_hub_view`` PostgreSQL VIEW.
 
     Provides a read-only UNION ALL across all AbstractEntity tables
-    (eln_entry, lims_entity, and any future entity tables).  Each row
+    (provider-owned, LIMS, and any future entity tables).  Each row
     includes ``schema_type_id`` and ``workspace_id`` computed columns
     populated by the VIEW definition.
 
@@ -536,10 +544,3 @@ class ModInstallation(models.Model):
 
     def __str__(self):
         return f"{self.display_name} ({self.mod_id})"
-
-
-class ModLifecycleAction(AbstractBaseAction):
-    """Platform-owned action log for Mod lifecycle administration."""
-
-    class Meta:
-        db_table = "helix_mod_lifecycle_action"

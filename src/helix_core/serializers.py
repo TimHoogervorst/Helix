@@ -263,8 +263,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
             return None
 
         from helix_core.core.models import Folder, Project
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
+        from helix_core.mod_system.registry import registry
 
         if isinstance(source, Project):
             return {
@@ -285,10 +284,16 @@ class EntityHubSerializer(serializers.ModelSerializer):
                 "path": source.path,
                 "uid": str(source.project.uid),
             }
-        if isinstance(source, (NotebookEntry, Entity)):
+        source_provider = next(
+            ((provider, model) for provider, model in registry.content_source_models()
+             if isinstance(source, model)),
+            None,
+        )
+        if source_provider is not None:
+            provider, _model = source_provider
             schema = source.schema
             return {
-                "kind": "entry" if isinstance(source, NotebookEntry) else "entity",
+                "kind": provider.kind.rsplit(":", 1)[-1],
                 "id": source.pk,
                 "name": source.name,
                 "display_id": source.display_id,

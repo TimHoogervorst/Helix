@@ -23,19 +23,18 @@ from django.db.models.functions import Length
 
 def hydrate_source_path(source_path, cache=None):
     """Resolve Source Path IDs to current display metadata for API responses."""
-    model_by_kind = {
-        "project": "core.Project",
-        "folder": "core.Folder",
-        "entry": "eln.NotebookEntry",
-        "entity": "lims.Entity",
-    }
+    from helix_core.mod_system.registry import registry
+    model_by_kind = {provider.kind.rsplit(":", 1)[-1]: model
+                     for provider, model in registry.content_source_models()}
+    from helix_core.core.models import Project, Folder
+    model_by_kind.update({"project": Project, "folder": Folder})
     hydrated = []
     for segment in source_path or []:
         model_label = model_by_kind.get(segment.get("kind"))
         if not model_label:
             hydrated.append(dict(segment))
             continue
-        model = apps.get_model(model_label)
+        model = model_label
         cache_key = (segment["kind"], segment["id"])
         if cache is not None and cache_key in cache:
             source = cache[cache_key]
@@ -75,22 +74,23 @@ class Sourceable(models.Model):
 
     def _source_project_id(self, source):
         from helix_core.core.models import Folder, Project
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
+        from helix_core.mod_system.registry import registry
 
         if isinstance(source, Project):
             return source.pk
-        if not isinstance(source, (Folder, NotebookEntry, Entity)):
+        source_models = tuple(model for _provider, model in registry.content_source_models())
+        if not isinstance(source, (Folder, *source_models)):
             raise ValidationError({"source": "Source type is not supported."})
         return source.project_id
 
     def _source_kind(self, source):
-        return {
-            "project": "project",
-            "folder": "folder",
-            "notebookentry": "entry",
-            "entity": "entity",
-        }.get(source.__class__.__name__.lower(), source.__class__.__name__.lower())
+        from helix_core.mod_system.registry import registry
+        for provider, model in registry.content_source_models():
+            if isinstance(source, model):
+                return provider.kind.rsplit(":", 1)[-1]
+        return {"project": "project", "folder": "folder"}.get(
+            source.__class__.__name__.lower(), source.__class__.__name__.lower()
+        )
 
     def _default_source(self):
         from helix_core.core.models import Project
@@ -103,12 +103,12 @@ class Sourceable(models.Model):
 
     def _validate_source(self, source):
         from helix_core.core.models import Folder, Project
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
+        from helix_core.mod_system.registry import registry
 
         if source is None:
             raise ValidationError({"source": "Source is required."})
-        if not isinstance(source, (Project, Folder, NotebookEntry, Entity)):
+        source_models = tuple(model for _provider, model in registry.content_source_models())
+        if not isinstance(source, (Project, Folder, *source_models)):
             raise ValidationError({"source": "Source type is not supported."})
         if source is self or (
             source.__class__ is self.__class__ and source.pk == self.pk

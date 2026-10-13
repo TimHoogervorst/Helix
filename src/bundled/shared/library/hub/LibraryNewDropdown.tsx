@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, FolderPlus, FileText, Loader2 } from "lucide-react";
 import { post } from "../../../../shell/src/api/client";
-import { EMPTY_DOC } from "../../../../mods/eln/types";
-import { createEntry } from "../../../../mods/eln/api";
 import { useClickOutside } from "../../../../shell/src/shared/hooks/useClickOutside";
 import { Button } from "../../../../shell/src/shared/primitives/Button";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
@@ -26,7 +24,7 @@ function LibraryNewDropdown({
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
-  const [creatingEntry, setCreatingEntry] = useState(false);
+  const [creatingSource, setCreatingSource] = useState<string | null>(null);
   const [folderName, setFolderName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,27 +79,24 @@ function LibraryNewDropdown({
     }
   };
 
-  const handleNewEntry = async () => {
-    setCreatingEntry(true);
+  const handleNewSource = async (kind: string) => {
+    const source = ModRegistry.getInstance().getContentSources().get(kind);
+    if (!source?.create) return;
+    setCreatingSource(kind);
     setError(null);
     try {
-      const entry = await createEntry({
-        name: "Untitled",
-        content: EMPTY_DOC,
-        source_id: currentFolderId,
-        project: currentProjectId,
-      });
+      const entry = await source.create({ sourceId: currentFolderId, projectId: currentProjectId });
       setOpen(false);
       const params = new URLSearchParams({ new: "true" });
       if (projectUid) params.set("project", projectUid);
       if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
       if (currentPath) params.set("path", currentPath);
-      const workspace = ModRegistry.getInstance().getWorkspaces().get("eln");
-      if (!workspace) return;
-      navigate(`${workspace.reference.urlFor(entry.display_id)}?${params.toString()}`);
+      const destination = source.navigate?.(entry.display_id, params);
+      if (destination) navigate(destination);
+      setCreatingSource(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create entry");
-      setCreatingEntry(false);
+      setCreatingSource(null);
     }
   };
 
@@ -133,21 +128,21 @@ function LibraryNewDropdown({
             </div>
           ) : (
             <>
-              <button className="library-new-menu-item" onClick={handleNewFolder}>
+              <Button variant="ghost" className="library-new-menu-item" onClick={handleNewFolder}>
                 <FolderPlus size={18} /> New Folder
-              </button>
-              <button
-                className="library-new-menu-item"
-                onClick={handleNewEntry}
-                disabled={creatingEntry}
-              >
-                {creatingEntry ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <FileText size={18} />
-                )}{" "}
-                New ELN Entry
-              </button>
+              </Button>
+              {[...ModRegistry.getInstance().getContentSources().values()]
+                .filter((source) => source.create)
+                .map((source) => (
+                  <Button
+                    key={source.kind}
+                    className="library-new-menu-item"
+                    onClick={() => handleNewSource(source.kind)}
+                    disabled={creatingSource !== null}
+                  >
+                    {creatingSource === source.kind ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />} {source.label}
+                  </Button>
+                ))}
               {error && <div className="library-new-error">{error}</div>}
             </>
           )}

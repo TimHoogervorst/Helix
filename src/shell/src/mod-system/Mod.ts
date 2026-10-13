@@ -14,6 +14,7 @@ import type {
   SettingsSectionConfig,
   SchemaComponentRegistration,
   WorkspaceConfig,
+  ContentSourceConfig,
 } from "./types";
 import { externalRoutePath, registrationId, WorkspaceReference } from "./references";
 
@@ -327,6 +328,13 @@ export class Mod {
       modId: this.id,
       provider: this.id,
     });
+  }
+
+  registerContentSource(
+    kind: string,
+    config: Omit<ContentSourceConfig, "kind">,
+  ): void {
+    ModRegistry.getInstance().registerContentSource({ kind, ...config });
   }
 
   /** Register an optional entity workspace tab for this mod. */

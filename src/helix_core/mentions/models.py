@@ -17,7 +17,7 @@ class Mention(models.Model):
     target = GenericForeignKey("target_type", "target_id")
 
     class Meta:
-        db_table = "eln_mention"
+        db_table = "helix_mention"
 
     def __str__(self):
         return f"Mention in {self.source_type}.{self.source_id} → {self.target_type}.{self.target_id}"

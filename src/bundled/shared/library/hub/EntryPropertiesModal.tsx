@@ -6,8 +6,7 @@ import { IconBadge } from "../../../../shell/src/shared/components/IconBadge";
 import { Select } from "../../../../shell/src/shared/primitives/Input";
 import { listDropdowns } from "../../../datatypes/dropdowns/api";
 import type { LibraryEntryItem, LibraryFolderPath } from "../types";
-import { patchEntry, getLockStatus } from "../../../../mods/eln/api";
-import { patchEntity } from "../../entities/hub/api";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 
 interface ProjectMeta {
   name: string;
@@ -59,11 +58,12 @@ export function EntryPropertiesModal({
   useEffect(() => {
     if (!open) return;
     setStatus(entry.status);
-    if (entry.type === "entity") {
+    const source = ModRegistry.getInstance().getContentSources().get(entry.type);
+    if (!source?.lock) {
       setLockedByOther(false);
       return;
     }
-    getLockStatus(entry.display_id)
+    source.lock(entry.display_id)
       .then((lockStatus) => {
         if (lockStatus.locked && lockStatus.held_by_username) {
           setLockedByOther(true);
@@ -89,11 +89,9 @@ export function EntryPropertiesModal({
     setStatusError(null);
     setSaving(true);
     try {
-      if (entry.type === "entity") {
-        await patchEntity(entry.display_id, { status: newStatus });
-      } else {
-        await patchEntry(entry.display_id, { status: newStatus });
-      }
+      const source = ModRegistry.getInstance().getContentSources().get(entry.type);
+      if (!source?.edit) throw new Error("This content source cannot be edited");
+      await source.edit(entry.display_id, { status: newStatus });
       onMutated();
     } catch (err: unknown) {
       setStatus(entry.status);
@@ -110,11 +108,9 @@ export function EntryPropertiesModal({
     setMoveError(null);
     setSaving(true);
     try {
-      if (entry.type === "entity") {
-        await patchEntity(entry.display_id, { source_id: folderId });
-      } else {
-        await patchEntry(entry.display_id, { source_id: folderId });
-      }
+      const source = ModRegistry.getInstance().getContentSources().get(entry.type);
+      if (!source?.edit) throw new Error("This content source cannot be moved");
+      await source.edit(entry.display_id, { source_id: folderId });
       onMutated();
     } catch (err: unknown) {
       const msg =

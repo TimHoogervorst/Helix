@@ -11,7 +11,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('core', '0003_project'),
-        ('eln', '0002_initial'),
         ('helix_core', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -32,7 +31,6 @@ class Migration(migrations.Migration):
                 ('last_editor', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to=settings.AUTH_USER_MODEL)),
                 ('project', models.ForeignKey(blank=True, help_text='Placeholder FK — the Project model is not yet implemented.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='core.project')),
                 ('schema', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='+', to='helix_core.schema')),
-                ('source_entry', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='lims_entities', to='eln.notebookentry')),
             ],
             options={
                 'verbose_name_plural': 'entities',
@@ -45,15 +43,13 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('action_type', models.CharField(max_length=100)),
-                ('target_type', models.CharField(help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.", max_length=100)),
+                ('target_type', models.CharField(help_text="Namespaced target type, e.g. 'provider.entity' or 'lims.entity'.", max_length=100)),
                 ('target_id', models.IntegerField(help_text='PK of the target record.')),
                 ('request_id', models.UUIDField(blank=True, help_text='Correlation ID tying together action rows from the same HTTP request.', null=True)),
                 ('client_ip', models.GenericIPAddressField(blank=True, help_text='Client IP auto-captured from the request.', null=True)),
                 ('metadata', models.JSONField(blank=True, default=dict)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('performed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_actions', to=settings.AUTH_USER_MODEL)),
-                ('source_entry', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='actions', to='eln.notebookentry')),
-                ('version', models.ForeignKey(blank=True, help_text='Content version produced by this action. Null for non-versioned targets.', null=True, on_delete=django.db.models.deletion.SET_NULL, to='eln.contentversion')),
                 ('entity', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='actions', to='lims.entity')),
             ],
             options={

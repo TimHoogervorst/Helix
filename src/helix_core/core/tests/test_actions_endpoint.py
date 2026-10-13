@@ -125,10 +125,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
     def _setup_action_models(self) -> None:
         """Register ELN and Tags action models with their core actions."""
         from mods.eln.models import ElnAction
-        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
-        register_action_model("tags", TagsAction)
 
     # ── valid action types (core) ────────────────────────────────────────
 
@@ -306,9 +304,6 @@ class TestUnifiedActionEndpoint(BaseTestCase):
 
     def test_custom_action_with_different_core_mapping(self):
         """Custom actions can map to different core verbs; only custom row stored."""
-        from bundled.labelling.tags.models import TagsAction
-
-        register_action_model("tags", TagsAction)
         register_custom_action(
             mod_id="tags",
             action_id="tags.tag.attached",
@@ -379,10 +374,8 @@ class TestUnifiedActionEndpoint(BaseTestCase):
     def test_actions_route_to_correct_mod_table(self):
         """Actions for different mods land in the correct concrete tables."""
         from mods.eln.models import ElnAction
-        from bundled.labelling.tags.models import TagsAction
 
         register_action_model("eln", ElnAction)
-        register_action_model("tags", TagsAction)
 
         # Log an ELN action.
         resp_eln = self.client.post(
@@ -782,10 +775,7 @@ class TestActionTargetAccess(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_non_content_target_skips_edit_check(self):
-        from bundled.labelling.tags.models import TagsAction
         from helix_core.actions.registry import register_action_model
-
-        register_action_model("tags", TagsAction)
         client = APIClient()
         client.force_authenticate(user=self.no_grant)
         response = client.post(

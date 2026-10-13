@@ -14,6 +14,7 @@ from django.urls import include, path
 
 from helix_core.mod_system.manifest import Dependency, ModManifest
 from helix_core.mod_system.registry import BackendModRegistry
+from helix_core.public import ModelReference, ModRegistrar
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -59,6 +60,58 @@ def _mock_sender(mod_id: str, name: str = "FakeModel") -> MagicMock:
     sender.__module__ = f"mods.{mod_id}.models"
     sender.__name__ = name
     return sender
+
+
+def test_content_source_provider_contract_can_be_registered_and_queried():
+    registry = _fresh_registry()
+    model = ModelReference("test.widgets", "widget")
+    visibility = lambda request, queryset: queryset.filter(owner=request.user)
+    serializer = object()
+    create = lambda request, data: data
+
+    registry.register_content_source(
+        "widget",
+        model,
+        visibility_query=visibility,
+        serializer=serializer,
+        display_metadata={"label": "Widget", "icon": "box"},
+        mutation_handlers={"create": create},
+    )
+
+    provider = registry.get_content_source("widget")
+    assert provider.kind == "widget"
+    assert provider.model_reference == model
+    assert provider.visibility_query is visibility
+    assert provider.serializer is serializer
+    assert provider.display_metadata == {"label": "Widget", "icon": "box"}
+    assert provider.mutation_handlers["create"] is create
+    assert registry.get_content_sources() == {"widget": provider}
+
+
+def test_public_registrar_registers_a_content_source_with_owned_model():
+    raw = _fresh_registry()
+    mod = ModRegistrar(_make_manifest("widgets"), raw)
+    model = mod.register_model("widget", object)
+    serializer = object()
+
+    kind = mod.register_content_source(
+        "widget",
+        model,
+        serializer=serializer,
+        display_metadata={"label": "Widget"},
+    )
+
+    assert kind == "test.widgets:widget"
+    assert raw.get_content_source(kind).serializer is serializer
+
+
+def test_content_source_model_is_resolved_from_registered_reference():
+    raw = _fresh_registry()
+    model = object
+    raw.register_model_reference("test.widgets:widget", model)
+    raw.register_content_source("widget", ModelReference("test.widgets", "widget"))
+
+    assert raw.resolve_content_source_model("widget") is model
 
 
 class TestFormulaFunctionRegistration:

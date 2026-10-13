@@ -9,10 +9,6 @@ Usage::
     from helix_core.mod_system.registry import registry
 
     # In mod.py register():
-    registry.register_action_model("eln", ElnAction)
-    registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
-    registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
-    registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
     registry.register_service("lims.cascadeEntryStatus", cascade_handler)
 
     # Cross-mod behavioral call:
@@ -28,7 +24,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Generator, Mapping, Optional
 
 from helix_core.mod_system.manifest import ModManifest
 
@@ -46,6 +43,18 @@ CORE_ACTION_LABELS = {
     "edited": "Edited",
     "deleted": "Deleted",
 }
+
+
+@dataclass(frozen=True, slots=True)
+class ContentSourceProvider:
+    """Backend capabilities for one Library content source."""
+
+    kind: str
+    model_reference: Any
+    visibility_query: Callable[..., Any] | None = None
+    serializer: Any = None
+    display_metadata: Mapping[str, Any] = field(default_factory=dict)
+    mutation_handlers: Mapping[str, Callable[..., Any]] = field(default_factory=dict)
 
 FORMULA_FUNCTION_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$")
 
@@ -70,6 +79,7 @@ class BackendModRegistry:
         self._services: dict[str, Callable[..., Any]] = {}
         self._registered_models: dict[str, type | str] = {}
         self._source_kinds: dict[str, Any] = {}
+        self._content_sources: dict[str, ContentSourceProvider] = {}
         self._formula_functions: dict[str, dict[str, Any]] = {}
 
         # Optional: topological mod order for build_urlpatterns().
@@ -105,13 +115,106 @@ class BackendModRegistry:
     def get_registered_models(self) -> dict[str, type | str]:
         return dict(self._registered_models)
 
-    def register_source_kind(self, kind: str, model_reference: Any) -> None:
+    def register_source_kind(
+        self,
+        kind: str,
+        model_reference: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Register the legacy model-only form of a source kind."""
+        self.register_content_source(kind, model_reference, **kwargs)
+
+    def register_content_source(
+        self,
+        kind: str,
+        model_reference: Any,
+        *,
+        visibility_query: Callable[..., Any] | None = None,
+        serializer: Any = None,
+        display_metadata: Mapping[str, Any] | None = None,
+        mutation_handlers: Mapping[str, Callable[..., Any]] | None = None,
+    ) -> None:
         if kind in self._source_kinds:
             raise ValueError(f"Duplicate source kind '{kind}'")
         self._source_kinds[kind] = model_reference
+        self._content_sources[kind] = ContentSourceProvider(
+            kind=kind,
+            model_reference=model_reference,
+            visibility_query=visibility_query,
+            serializer=serializer,
+            display_metadata=dict(display_metadata or {}),
+            mutation_handlers=dict(mutation_handlers or {}),
+        )
 
     def get_source_kinds(self) -> dict[str, Any]:
         return dict(self._source_kinds)
+
+    def get_content_source(self, kind: str) -> ContentSourceProvider | None:
+        provider = self._content_sources.get(kind)
+        if provider is not None:
+            return provider
+        return next(
+            (item for key, item in self._content_sources.items() if key.rsplit(":", 1)[-1] == kind),
+            None,
+        )
+
+    def resolve_content_source_model(self, kind: str) -> type:
+        """Resolve a provider's model reference without importing its mod."""
+        provider = self.get_content_source(kind)
+        if provider is None:
+            raise KeyError(f"Unknown content source kind '{kind}'")
+        reference = provider.model_reference
+        reference_id = getattr(reference, "id", reference)
+        model = self._registered_models.get(reference_id)
+        if model is None:
+            raise LookupError(f"Model reference '{reference_id}' is unresolved")
+        if isinstance(model, str):
+            from django.apps import apps
+
+            model = apps.get_model(model)
+        return model
+
+    def get_content_sources(self) -> dict[str, ContentSourceProvider]:
+        return dict(self._content_sources)
+
+    def list_content_sources(self) -> tuple[ContentSourceProvider, ...]:
+        """Enumerate providers in registration order for generic consumers."""
+        return tuple(self._content_sources.values())
+
+    def content_source_models(self) -> tuple[tuple[ContentSourceProvider, type], ...]:
+        """Return registered source providers whose models are available.
+
+        Consumers use this instead of importing another mod's model.  A
+        provider can be registered before its optional app is installed, so
+        unresolved providers are intentionally skipped.
+        """
+        resolved = []
+        for provider in self.list_content_sources():
+            try:
+                resolved.append((provider, self.resolve_content_source_model(provider.kind)))
+            except (KeyError, LookupError):
+                continue
+        return tuple(resolved)
+
+    def query_source_kind(self, kind: str, request: Any, queryset: Any = None) -> Any:
+        """Compatibility spelling for consumers that work with source kinds."""
+        return self.query_content_sources(kind, request, queryset)
+
+    def query_content_sources(self, kind: str, request: Any, queryset: Any = None) -> Any:
+        """Apply a provider's visibility query to a queryset.
+
+        Providers may accept either ``(request, queryset)`` or just ``request``;
+        the latter is useful when the provider owns query construction.
+        """
+        provider = self.get_content_source(kind)
+        if provider is None:
+            raise KeyError(f"Unknown content source kind '{kind}'")
+        if provider.visibility_query is None:
+            return queryset
+        try:
+            return provider.visibility_query(request, queryset)
+        except TypeError:
+            return provider.visibility_query(request)
 
     def register_public_signal(
         self, mod_id: str, kind: Any, sender_ref: Any, sender: type, handler: Callable[..., Any]
@@ -670,7 +773,7 @@ class BackendModRegistry:
         """Resolve a sender model class to its mod ID.
 
         Inspects ``sender.__module__``.  Returns the mod ID (e.g. ``"eln"``
-        for a sender in ``mods.eln.models``) or ``None`` if the sender
+        for a sender in an optional model provider) or ``None`` if the sender
         is not part of a known mod package.
         """
         module_name = getattr(sender, "__module__", "")

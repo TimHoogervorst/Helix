@@ -6,8 +6,7 @@
   "artifacts": ["frontend", "backend"],
   "dependsOn": [
     {"id": "helix.access", "version": "^0.1.0"},
-    {"id": "helix.tags", "version": "^0.1.0"},
-    {"id": "helix.eln", "version": "^0.1.0"}
+    {"id": "helix.tags", "version": "^0.1.0"}
   ],
   "description": "Browse, search, and organize your lab's entries, protocols, and folder structure."
 }

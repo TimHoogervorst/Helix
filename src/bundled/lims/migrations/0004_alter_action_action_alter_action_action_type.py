@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='action',
             name='action',
-                field=models.CharField(help_text="Triple-dotted action identifier, e.g. 'lims.entity.created'.", max_length=128),
+                field=models.CharField(help_text="Triple-dotted action identifier, e.g. 'provider.entity.created'.", max_length=128),
         ),
         migrations.AlterField(
             model_name='action',

@@ -29,7 +29,7 @@ class AbstractBaseAction(models.Model):
     )
     action = models.CharField(
         max_length=128,
-        help_text="Triple-dotted action identifier, e.g. 'eln.entry.created'.",
+        help_text="Triple-dotted action identifier, e.g. 'provider.entity.created'.",
     )
     action_type = models.CharField(
         max_length=16,
@@ -37,7 +37,7 @@ class AbstractBaseAction(models.Model):
     )
     target_type = models.CharField(
         max_length=100,
-        help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.",
+        help_text="Namespaced target type, e.g. 'provider.entity' or 'lims.entity'.",
     )
     target_id = models.IntegerField(
         help_text="PK of the target record.",

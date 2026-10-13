@@ -78,7 +78,9 @@ def scan_forbidden_eln_references(
                         findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "eln"))
         else:
             for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if re.search(r"(?:[\"']@helix/eln[\"']|[\"']helix\.eln:[^\"']+[\"'])", line):
+                if re.search(r"[\"']@helix/eln[\"']", line):
+                    findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "@helix/eln"))
+                elif re.search(r"[\"']helix\.eln:[^\"']+[\"']", line):
                     findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "helix.eln"))
     return sorted(findings, key=lambda finding: (finding.path, finding.line, finding.imported))
 

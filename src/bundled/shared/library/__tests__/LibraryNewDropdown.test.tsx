@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import LibraryNewDropdown from "../hub/LibraryNewDropdown";
+import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 
 // ── Hoisted mocks ──────────────────────────────────────────────────────
 
@@ -14,11 +15,6 @@ const { mockPost, mockCreateEntry } = vi.hoisted(() => ({
 vi.mock("../../../../shell/src/api/client", () => ({
   post: mockPost,
   get: vi.fn(),
-}));
-
-// Mock the ELN api's createEntry — the component imports it directly
-vi.mock("../../../../mods/eln/api", () => ({
-  createEntry: mockCreateEntry,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -47,6 +43,18 @@ describe("LibraryNewDropdown", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPost.mockResolvedValue({ id: 99, name: "NewFolder" });
+    ModRegistry._reset();
+    ModRegistry.getInstance().registerContentSource({
+      kind: "entry",
+      label: "New ELN Entry",
+      create: ({ sourceId, projectId }) => mockCreateEntry({
+        name: "Untitled",
+        content: { type: "doc", content: [{ type: "paragraph" }] },
+        source_id: sourceId,
+        project: projectId,
+      }),
+      navigate: (displayId, params) => `/eln/${displayId}?${params.toString()}`,
+    });
   });
 
   it("renders the + button", () => {

@@ -105,6 +105,15 @@ def test_public_registrar_registers_a_content_source_with_owned_model():
     assert raw.get_content_source(kind).serializer is serializer
 
 
+def test_content_source_model_is_resolved_from_registered_reference():
+    raw = _fresh_registry()
+    model = object
+    raw.register_model_reference("test.widgets:widget", model)
+    raw.register_content_source("widget", ModelReference("test.widgets", "widget"))
+
+    assert raw.resolve_content_source_model("widget") is model
+
+
 class TestFormulaFunctionRegistration:
     def test_register_and_serialize_metadata(self):
         reg = _fresh_registry()

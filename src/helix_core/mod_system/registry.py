@@ -154,7 +154,29 @@ class BackendModRegistry:
         return dict(self._source_kinds)
 
     def get_content_source(self, kind: str) -> ContentSourceProvider | None:
-        return self._content_sources.get(kind)
+        provider = self._content_sources.get(kind)
+        if provider is not None:
+            return provider
+        return next(
+            (item for key, item in self._content_sources.items() if key.rsplit(":", 1)[-1] == kind),
+            None,
+        )
+
+    def resolve_content_source_model(self, kind: str) -> type:
+        """Resolve a provider's model reference without importing its mod."""
+        provider = self.get_content_source(kind)
+        if provider is None:
+            raise KeyError(f"Unknown content source kind '{kind}'")
+        reference = provider.model_reference
+        reference_id = getattr(reference, "id", reference)
+        model = self._registered_models.get(reference_id)
+        if model is None:
+            raise LookupError(f"Model reference '{reference_id}' is unresolved")
+        if isinstance(model, str):
+            from django.apps import apps
+
+            model = apps.get_model(model)
+        return model
 
     def get_content_sources(self) -> dict[str, ContentSourceProvider]:
         return dict(self._content_sources)
@@ -173,7 +195,7 @@ class BackendModRegistry:
         Providers may accept either ``(request, queryset)`` or just ``request``;
         the latter is useful when the provider owns query construction.
         """
-        provider = self._content_sources.get(kind)
+        provider = self.get_content_source(kind)
         if provider is None:
             raise KeyError(f"Unknown content source kind '{kind}'")
         if provider.visibility_query is None:

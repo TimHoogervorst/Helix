@@ -11,7 +11,7 @@ from typing import Any, Iterable
 from .bundled import BUNDLED_MODS
 from .catalog import build_catalog, write_catalog
 from .manifest import validate_manifest
-from .imports import scan_forbidden_imports
+from .imports import scan_forbidden_imports, scan_forbidden_eln_references
 
 EXIT_OK = 0
 EXIT_CONTRACT_VIOLATION = 1
@@ -175,6 +175,28 @@ def validate_activation(registry: Any) -> None:
                 str(exc),
             )
         ) from exc
+
+
+def validate_no_eln_references(
+    *, platform_path: str | Path, bundled_paths: Iterable[str | Path]
+) -> None:
+    """Fail startup when bundled or Platform code directly couples to ELN."""
+    roots = [(Path(platform_path), "helix_core"), *[(Path(path), str(path)) for path in bundled_paths]]
+    findings = [
+        finding
+        for root, package_name in roots
+        for finding in scan_forbidden_eln_references(root, package_name=package_name)
+    ]
+    if findings:
+        first = findings[0]
+        raise ValidationFailure(
+            Diagnostic(
+                "FORBIDDEN_ELN_REFERENCE",
+                "error",
+                f"Bundled or Platform code references ELN at {first.path}:{first.line}.",
+                SourceLocation(first.path, first.line, 1),
+            )
+        )
 
 
 class ValidationFailure(RuntimeError):

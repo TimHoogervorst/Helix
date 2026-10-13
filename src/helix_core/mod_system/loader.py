@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import importlib
+import os
 from importlib import metadata
 from pathlib import Path
 
@@ -66,7 +67,12 @@ def _get_all_manifests(
         return _load_manifests_from_packages(helix_mods_override)
 
     manifests, id_to_path = _load_manifests_from_packages(BUNDLED_MODS)
-    for mod_id, package in discover_python_mod_entry_points().items():
+    external_entries = (
+        {}
+        if os.environ.get("HELIX_NO_EXTERNAL_MODS") == "1"
+        else discover_python_mod_entry_points()
+    )
+    for mod_id, package in external_entries.items():
         manifest = load_entry_point_manifest(mod_id, package)
         if manifest.id in manifests:
             if id_to_path[manifest.id] == package:

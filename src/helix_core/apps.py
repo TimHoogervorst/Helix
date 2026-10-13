@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 
 from django.apps import AppConfig
 from django.conf import settings
@@ -21,12 +22,25 @@ class HelixCoreConfig(AppConfig):
         from helix_core.mod_system.registry import registry
         from helix_core.public import ModelReference, ModRegistrar
         from helix_core.mod_system.validator import validate_activation
+        from helix_core.mod_system.validator import validate_no_eln_references
         from helix_core.mod_system.lifecycle import (
             apply_persisted_activation,
             sync_mod_installations,
         )
         from helix_core.mod_system.bundled import BUNDLED_MODS
         from django.db.utils import OperationalError, ProgrammingError
+
+        # Keep the optional provider boundary enforced at the real boot seam,
+        # rather than relying only on the build-time catalog.
+        platform_root = Path(__file__).resolve().parent
+        bundled_roots = [
+            Path(importlib.import_module(package).__file__).resolve().parent
+            for package in BUNDLED_MODS
+        ]
+        validate_no_eln_references(
+            platform_path=platform_root,
+            bundled_paths=bundled_roots,
+        )
 
         # ── Register built-in column types ───────────────────────────────
         for ct in get_builtin_column_types():

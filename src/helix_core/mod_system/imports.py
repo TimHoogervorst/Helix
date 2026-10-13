@@ -46,12 +46,58 @@ def scan_forbidden_imports(
     return sorted(findings, key=lambda finding: (finding.path, finding.line, finding.imported))
 
 
+def scan_forbidden_eln_references(
+    source_dir: str | Path, *, package_name: str
+) -> list[ForbiddenImport]:
+    """Find direct ELN coupling in bundled/Platform source trees.
+
+    ELN identifiers are valid provider data, so this deliberately checks only
+    executable module references: Python imports, migration app dependencies
+    and historical model lookups, plus frontend package imports.  Tests are
+    excluded because they may exercise the optional provider explicitly.
+    """
+    root = Path(source_dir)
+    findings: list[ForbiddenImport] = []
+    dependency = re.compile(r"\(\s*[\"']eln[\"']\s*,")
+    model_lookup = re.compile(r"(?:get_model|to)\s*\(?(?:\s*[\"'])eln(?:[\"']|\.)")
+    for path in sorted(_source_files_including_migrations(root), key=lambda item: item.as_posix()):
+        relative = path.relative_to(root).as_posix()
+        if path.suffix == ".py":
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                imported = None
+                if isinstance(node, ast.Import):
+                    imported = node.names[0].name
+                elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                    imported = node.module
+                if imported and (imported == "mods.eln" or imported.startswith("mods.eln.")):
+                    findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, node.lineno, imported))
+            if "migrations" in path.parts:
+                for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                    if dependency.search(line) or model_lookup.search(line):
+                        findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "eln"))
+        else:
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if re.search(r"[\"']@helix/eln[\"']", line):
+                    findings.append(_finding("FORBIDDEN_ELN_REFERENCE", path, root, line_number, "@helix/eln"))
+    return sorted(findings, key=lambda finding: (finding.path, finding.line, finding.imported))
+
+
 def _source_files(root: Path):
     ignored = {"__pycache__", "migrations", "tests", "__tests__"}
     for path in root.rglob("*"):
         if not path.is_file() or ignored.intersection(path.parts):
             continue
         if path.name.startswith("test_"):
+            continue
+        if path.suffix in {".py", ".ts", ".tsx", ".js", ".jsx"}:
+            yield path
+
+
+def _source_files_including_migrations(root: Path):
+    ignored = {"__pycache__", "tests", "__tests__"}
+    for path in root.rglob("*"):
+        if not path.is_file() or ignored.intersection(path.parts):
             continue
         if path.suffix in {".py", ".ts", ".tsx", ".js", ".jsx"}:
             yield path

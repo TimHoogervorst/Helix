@@ -2,8 +2,10 @@ from django.db import migrations, models
 
 
 def _recreate_constraints(apps, schema_editor):
-    if schema_editor.connection.vendor == "sqlite":
-        return
+    # The state operations below are the portable source of truth.  The old
+    # PostgreSQL view also selected from the optional ELN tables, so do not
+    # recreate that view during an ELN-absent migration.
+    return
     schema_editor.execute("""
         DO $$
         DECLARE
@@ -69,8 +71,7 @@ def _recreate_constraints(apps, schema_editor):
 
 
 def _recreate_constraints_reverse(apps, schema_editor):
-    if schema_editor.connection.vendor == "sqlite":
-        return
+    return
     schema_editor.execute("""
         DO $$
         DECLARE
@@ -139,7 +140,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("lims", "0007_metric_model"),
-        ("eln", "0006_make_folder_project_non_null"),
     ]
 
     operations = [

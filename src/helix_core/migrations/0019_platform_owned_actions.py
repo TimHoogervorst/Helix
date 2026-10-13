@@ -6,11 +6,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ("helix_core", "0018_rewrite_bundled_model_paths"),
         ("helix_core", "0019_mod_lifecycle"),
-        ("eln", "0009_remove_notebookentry_folder"),
-        ("lims", "0013_remove_action_source_entry_remove_entity_folder_and_more"),
-        ("tags", "0003_alter_tagsaction_action_alter_tagsaction_action_type"),
-        ("core_mods_users", "0005_alter_coreaction_action_alter_coreaction_action_type"),
-        ("access", "0005_access_action"),
     ]
 
     operations = [

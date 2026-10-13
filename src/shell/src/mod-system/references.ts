@@ -1,6 +1,6 @@
 /** Canonical identity helpers shared by public frontend registrations. */
 const MOD_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/;
-const LOCAL_KEY = /^[a-z][a-z0-9]*(?:[-.]?[a-z0-9]+)*$/;
+const LOCAL_KEY = /^[a-z][a-z0-9]*(?:[-.][a-z0-9]+)*$/;
 
 export function registrationId(modId: string, localKey: string): string {
   if (!MOD_ID.test(modId)) {

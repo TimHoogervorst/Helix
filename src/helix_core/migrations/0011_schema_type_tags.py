@@ -11,9 +11,6 @@ def seed_schema_type_tags(apps, schema_editor):
     ).update(
         tags=["RegistrationTable"]
     )
-    SchemaType.objects.filter(model="mods.eln.models.NotebookEntry").update(
-        tags=[]
-    )
 
 
 class Migration(migrations.Migration):

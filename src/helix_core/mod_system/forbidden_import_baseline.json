@@ -35,7 +35,6 @@
   "bundled.lims:FORBIDDEN_CROSS_MOD_IMPORT:serializers.py:11:bundled.access.users.serializers",
   "bundled.lims:FORBIDDEN_CROSS_MOD_IMPORT:serializers.py:198:bundled.access.access.policies",
   "bundled.lims:FORBIDDEN_PRIVATE_HELIX_IMPORT:serializers.py:305:helix_core.models",
-  "bundled.lims:FORBIDDEN_CROSS_MOD_IMPORT:services.py:10:mods.eln.models",
   "bundled.lims:FORBIDDEN_PRIVATE_HELIX_IMPORT:views.py:10:helix_core.actions.logger",
   "bundled.lims:FORBIDDEN_PRIVATE_HELIX_IMPORT:views.py:11:helix_core.actions.mixins",
   "bundled.lims:FORBIDDEN_PRIVATE_HELIX_IMPORT:views.py:12:helix_core.source_deletion",

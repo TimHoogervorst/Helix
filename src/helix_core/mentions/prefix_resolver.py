@@ -41,13 +41,9 @@ def _build_prefix_map() -> dict[str, type[Model]]:
     """
     from helix_core.models import Schema
 
-    from mods.eln.models import NotebookEntry
-
-    #: Map display_id prefix letter to the model it identifies.
-    #: Dynamic prefixes are loaded from the Schema table.
-    pmap: dict[str, type[Model]] = {
-        "E": NotebookEntry,
-    }
+    #: Every prefix comes from an active Schema registered by its owning mod.
+    #: In particular, E exists only when the ELN provider is active.
+    pmap: dict[str, type[Model]] = {}
     try:
         for schema in Schema.objects.filter(is_active=True).select_related(
             "schema_type"
@@ -69,15 +65,17 @@ def _build_prefix_map() -> dict[str, type[Model]]:
 
 def _build_model_type_map() -> dict[type[Model], str]:
     """Build the model→type-string map including entity (no caching)."""
-    from mods.eln.models import NotebookEntry
+    from helix_core.models import Schema
 
-    from bundled.lims.models import Entity
-
-    #: Map model class to the short type string used in API responses.
-    mmap: dict[type[Model], str] = {
-        NotebookEntry: "entry",
-    }
-    mmap[Entity] = "entity"
+    mmap: dict[type[Model], str] = {}
+    for schema in Schema.objects.filter(is_active=True).select_related("schema_type"):
+        try:
+            module_path, class_name = schema.schema_type.model.rsplit(".", 1)
+            model = getattr(importlib.import_module(module_path), class_name)
+        except (ImportError, AttributeError, ValueError):
+            continue
+        kind = schema.schema_type.workspace_id
+        mmap[model] = "entry" if kind == "eln" else "entity"
     return mmap
 
 

@@ -15,7 +15,7 @@ from bundled.access.access.permissions import IsOrganizationAdmin
 @api_view(["DELETE"])
 @permission_classes([IsOrganizationAdmin])
 def delete_everything(request):
-    """DELETE EVERYTHING: clears all ELN entries, entities, and schemas.
+    """DELETE EVERYTHING: clears registered content, actions, and schemas.
 
     Danger zone endpoint for testing only. Hard-deletes all data.
     Order matters — delete children before parents to respect FK constraints.
@@ -27,22 +27,17 @@ def delete_everything(request):
     c, _ = Mention.objects.all().delete()
     counts["mentions"] = c
 
-    # 2. ELN entries
-    from mods.eln.models import NotebookEntry
-    c, _ = NotebookEntry.objects.all().delete()
-    counts["eln_entries"] = c
+    # 2. Registered content sources (depend on mentions)
+    for provider, model in registry.content_source_models():
+        c, _ = model.objects.all().delete()
+        counts[provider.kind.rsplit(":", 1)[-1]] = c
 
     # 3. LIMS actions (depend on entities)
     from bundled.lims.models import Action
     c, _ = Action.objects.all().delete()
     counts["actions"] = c
 
-    # 4. LIMS entities (depend on entity types)
-    from bundled.lims.models import Entity
-    c, _ = Entity.objects.all().delete()
-    counts["entities"] = c
-
-    # 5. Schemas (shared model — delete after entities)
+    # 4. Schemas (shared model — delete after registered content)
     from helix_core.models import Schema
     c, _ = Schema.objects.all().delete()
     counts["schemas"] = c

@@ -9,10 +9,6 @@ Usage::
     from helix_core.mod_system.registry import registry
 
     # In mod.py register():
-    registry.register_action_model("eln", ElnAction)
-    registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
-    registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
-    registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
     registry.register_service("lims.cascadeEntryStatus", cascade_handler)
 
     # Cross-mod behavioral call:
@@ -184,6 +180,21 @@ class BackendModRegistry:
     def list_content_sources(self) -> tuple[ContentSourceProvider, ...]:
         """Enumerate providers in registration order for generic consumers."""
         return tuple(self._content_sources.values())
+
+    def content_source_models(self) -> tuple[tuple[ContentSourceProvider, type], ...]:
+        """Return registered source providers whose models are available.
+
+        Consumers use this instead of importing another mod's model.  A
+        provider can be registered before its optional app is installed, so
+        unresolved providers are intentionally skipped.
+        """
+        resolved = []
+        for provider in self.list_content_sources():
+            try:
+                resolved.append((provider, self.resolve_content_source_model(provider.kind)))
+            except (KeyError, LookupError):
+                continue
+        return tuple(resolved)
 
     def query_source_kind(self, kind: str, request: Any, queryset: Any = None) -> Any:
         """Compatibility spelling for consumers that work with source kinds."""
@@ -762,7 +773,7 @@ class BackendModRegistry:
         """Resolve a sender model class to its mod ID.
 
         Inspects ``sender.__module__``.  Returns the mod ID (e.g. ``"eln"``
-        for a sender in ``mods.eln.models``) or ``None`` if the sender
+        for a sender in an optional model provider) or ``None`` if the sender
         is not part of a known mod package.
         """
         module_name = getattr(sender, "__module__", "")

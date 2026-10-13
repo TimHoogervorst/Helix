@@ -349,11 +349,19 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         containing_entry = None
         if entry_id is not None:
-            from mods.eln.models import NotebookEntry
+            from helix_core.mod_system.registry import registry
+
+            entry_provider = registry.get_content_source("entry")
+            if entry_provider is None:
+                return Response(
+                    {"entry_id": "The entry source is not available."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            entry_model = registry.resolve_content_source_model("entry")
 
             try:
-                containing_entry = NotebookEntry.objects.get(pk=entry_id)
-            except NotebookEntry.DoesNotExist:
+                containing_entry = entry_model.objects.get(pk=entry_id)
+            except entry_model.DoesNotExist:
                 return Response(
                     {"detail": f"Entry with id {entry_id} not found."},
                     status=status.HTTP_404_NOT_FOUND,
@@ -854,25 +862,27 @@ class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["entity", "action_type", "target_type", "target_id"]
 
     def get_queryset(self):
+        from helix_core.mod_system.registry import registry
+
         visible_entities = Entity.objects.filter(
             visible_rows_q(self.request.user)
         ).values_list("pk", flat=True)
-        from mods.eln.models import NotebookEntry
-
-        visible_entries = NotebookEntry.objects.filter(
-            visible_rows_q(self.request.user)
-        ).values_list("pk", flat=True)
-
-        return ActionLogEntry.objects.filter(
-            Q(
-                target_model_reference__in=("lims.entity", "lims.entities"),
-                target_object_id__in=[str(pk) for pk in visible_entities],
-            )
-            | Q(
-                target_model_reference="eln.entry",
+        query = Q(
+            target_model_reference__in=("lims.entity", "lims.entities"),
+            target_object_id__in=[str(pk) for pk in visible_entities],
+        )
+        entry_provider = registry.get_content_source("entry")
+        if entry_provider is not None:
+            entry_model = registry.resolve_content_source_model("entry")
+            visible_entries = entry_model.objects.filter(
+                visible_rows_q(self.request.user)
+            ).values_list("pk", flat=True)
+            entry_ref = str(entry_provider.kind)
+            query |= Q(
+                target_model_reference=entry_ref,
                 target_object_id__in=[str(pk) for pk in visible_entries],
             )
-        ).select_related("performed_by")
+        return ActionLogEntry.objects.filter(query).select_related("performed_by")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):

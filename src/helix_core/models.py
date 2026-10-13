@@ -301,6 +301,15 @@ class ActionLogEntry(models.Model):
             ),
         ]
 
+    def save(self, *args, **kwargs):
+        """Keep the audit ledger append-only after its initial insert."""
+        if self.pk is not None:
+            raise ValueError("ActionLogEntry is append-only")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ActionLogEntry is append-only")
+
     @property
     def target_type(self):
         return self.target_model_reference

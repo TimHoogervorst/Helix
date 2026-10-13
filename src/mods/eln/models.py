@@ -92,6 +92,11 @@ class ContentVersion(models.Model):
         default="manual",
     )
 
+    @property
+    def version_reference(self) -> str:
+        from .config import CONTENT_VERSION_REFERENCE
+        return CONTENT_VERSION_REFERENCE
+
     class Meta:
         db_table = "eln_content_version"
         ordering = ["entry", "-version_number"]

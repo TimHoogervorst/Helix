@@ -57,15 +57,14 @@ def _resolve_content_target_model(target_type):
     app and the content mods.
     """
     from helix_core.core.models import Folder
-    from mods.eln.models import NotebookEntry
-    from bundled.lims.models import Entity
-
-    return {
-        "core.folder": Folder,
-        "eln.entry": NotebookEntry,
-        "lims.entities": Entity,
-        "lims.entity": Entity,
-    }.get(target_type)
+    from helix_core.mod_system.registry import registry
+    if target_type == "core.folder":
+        return Folder
+    for provider, model in registry.content_source_models():
+        short = provider.kind.rsplit(":", 1)[-1]
+        if target_type.rsplit(".", 1)[-1] in (short, f"{short}s"):
+            return model
+    return None
 
 # ── Common column descriptors ─────────────────────────────────────────────
 #
@@ -540,12 +539,9 @@ class SchemaViewSet(viewsets.ModelViewSet):
         """
         from django.db.utils import OperationalError
 
-        from bundled.lims.models import Entity
-        from mods.eln.models import NotebookEntry
-
-        # Delete entities first (they have FK to Schema)
-        Entity.objects.all().delete()
-        NotebookEntry.objects.all().delete()
+        from helix_core.mod_system.registry import registry
+        for _provider, model in registry.content_source_models():
+            model.objects.all().delete()
 
         try:
             count, _ = Schema.objects.all().delete()

@@ -10,10 +10,12 @@ def delete_source_descendants(root: models.Model) -> None:
     Source is a generic relation, so Django cannot cascade it.
     """
     from helix_core.core.models import Folder
-    from mods.eln.models import NotebookEntry
-    from bundled.lims.models import Entity
+    from helix_core.mod_system.registry import registry
 
-    source_models = (Folder, NotebookEntry, Entity)
+    source_models = (Folder, *(
+        model for _provider, model in registry.content_source_models()
+        if model is not Folder
+    ))
     source_types = {
         model: ContentType.objects.get_for_model(model, for_concrete_model=False).pk
         for model in source_models

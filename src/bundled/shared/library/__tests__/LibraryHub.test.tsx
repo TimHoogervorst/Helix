@@ -12,6 +12,7 @@ import {
 import LibraryHub from "../hub/LibraryHub";
 import RowMenu from "../hub/RowMenu";
 import { ApiError } from "../../../../shell/src/api/client";
+import { WorkspaceReference } from "../../../../shell/src/mod-system/references";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -71,13 +72,6 @@ vi.mock("../../../datatypes/dropdowns/api", () => ({
 const mockPatchEntry = vi.fn();
 const mockGetLockStatus = vi.fn().mockResolvedValue({ locked: false });
 const mockPatchFolder = vi.fn();
-vi.mock("../../../../mods/eln/api", () => ({
-  patchEntry: (...args: unknown[]) => mockPatchEntry(...args),
-  getLockStatus: (...args: unknown[]) => mockGetLockStatus(...args),
-  acquireLock: vi.fn(),
-  releaseLock: vi.fn(),
-}));
-
 const localStorageStore: Record<string, string> = {};
 const mockLocalStorage = {
   getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
@@ -96,15 +90,16 @@ vi.mock("../../../../shell/src/mod-system/ModRegistry", () => ({
       getWorkspaces: () =>
         new Map([
           [
-            "eln",
+            "fixture",
             {
-              id: "eln",
-              displayName: "ELN",
+              id: "fixture",
+              reference: new WorkspaceReference("test.external", "entry"),
+              displayName: "Fixture Content",
               icon: undefined,
               schemaType: {
-                id: "eln.entry",
-                displayName: "ELN Entry",
-                defaultPrefix: "E",
+                id: "test.external:entity",
+                displayName: "Fixture Content",
+                defaultPrefix: "T",
                 columns: [],
               },
             },
@@ -115,8 +110,8 @@ vi.mock("../../../../shell/src/mod-system/ModRegistry", () => ({
           [
             "entry",
             {
-              kind: "eln.entry",
-              label: "ELN Entry",
+              kind: "test.external:entry",
+              label: "Fixture Content",
               lock: (...args: unknown[]) => mockGetLockStatus(...args),
               edit: (...args: unknown[]) => mockPatchEntry(...args),
             },
@@ -178,7 +173,7 @@ const populatedContentsResponse = makeLibraryContents(
   [
     makeLibraryEntry({
       id: 10,
-      workspace_id: "eln",
+      workspace_id: "fixture",
       display_id: "EXP-0284",
       title: "PCR Results",
       author_username: "testuser",
@@ -551,7 +546,7 @@ describe("LibraryHub", () => {
       fireEvent.click(entryCard);
 
       expect(mockNavigate).toHaveBeenCalledWith(
-        "/eln/EXP-0284?project=proj-001&projectId=1",
+        "/w/test/external/entry/EXP-0284?project=proj-001&projectId=1",
       );
     });
 
@@ -660,7 +655,7 @@ describe("LibraryHub", () => {
     it("renders Load More button when there are more results", async () => {
       const withMore = makeLibraryContents(
         [makeLibraryFolder({ id: 1 })],
-        [makeLibraryEntry({ id: 10, workspace_id: "eln" })],
+        [makeLibraryEntry({ id: 10, workspace_id: "fixture" })],
         {
           next: "/library/children/?source_type=project&source_id=proj-001&page=2",
           project_uid: "proj-001",
@@ -1320,7 +1315,7 @@ describe("LibraryHub", () => {
           [makeLibraryFolder({ id: 1, name: "Experiments" })],
           [
             makeLibraryEntry({
-              id: 10, workspace_id: "eln", display_id: "EXP-0284",
+              id: 10, workspace_id: "fixture", display_id: "EXP-0284",
               title: "PCR Results",
               status: "in_progress",
             }),

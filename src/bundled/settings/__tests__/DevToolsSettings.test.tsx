@@ -40,14 +40,14 @@ describe("DevToolsSettings", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders all four DELETE ALL action buttons", () => {
+  it("renders the built-in cleanup actions without assuming an External Mod", () => {
     render(<DevToolsSettings />);
     expect(
       screen.getByRole("button", { name: "DELETE ALL ENTITIES" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "DELETE ALL ENTRIES" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "DELETE ALL ENTRIES" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "DELETE ALL SCHEMAS" }),
     ).toBeInTheDocument();
@@ -76,19 +76,6 @@ describe("DevToolsSettings", () => {
     fireEvent.click(screen.getByText("Confirm"));
     await waitFor(() => {
       expect(mockDel).toHaveBeenCalledWith("/lims/entities/delete_all/");
-    });
-  });
-
-  it("calls the correct endpoint on DELETE ALL ENTRIES confirm", async () => {
-    mockDel.mockResolvedValue({ deleted: 3 });
-    render(<DevToolsSettings />);
-    clickAction("DELETE ALL ENTRIES");
-    await waitFor(() => {
-      expect(screen.getByText("Confirm")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Confirm"));
-    await waitFor(() => {
-      expect(mockDel).toHaveBeenCalledWith("/eln/entries/delete_all/");
     });
   });
 

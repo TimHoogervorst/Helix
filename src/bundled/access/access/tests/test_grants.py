@@ -15,6 +15,7 @@ from bundled.access.access.models import (
 )
 from bundled.access.access.policies import role
 from bundled.access.access.tests.factories import make_org, make_project, make_user
+from bundled.access.access.tests.api_base import AccessApiTestCase
 
 
 class GrantModelTests(TestCase):
@@ -179,7 +180,7 @@ class GrantModelTests(TestCase):
         self.assertEqual(Grant.objects.filter(user_id=user_id).count(), 0)
 
 
-class GrantApiTests(TestCase):
+class GrantApiTests(AccessApiTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.org = make_org()
@@ -516,7 +517,7 @@ class RoleResolutionTests(TestCase):
         self.assertEqual(role(self.user, self.project.pk), "read")
 
 
-class TeamDeletionWithGrantTests(TestCase):
+class TeamDeletionWithGrantTests(AccessApiTestCase):
     """Team deletion blocked while Grants reference it."""
 
     @classmethod

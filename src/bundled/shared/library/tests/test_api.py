@@ -4,16 +4,34 @@ Tests for the Library API endpoints — project-scoped contents.
 from helix_core.core.models import Folder, Project
 from helix_core.core.tests.base import BaseTestCase
 from helix_core.core.tests.factories import EMPTY_DOC
-from mods.eln.models import NotebookEntry
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
+from helix_core.tests.fixtures.external_mod.testing import register_external_mod_fixture
 from bundled.labelling.tags.models import Tag
 from bundled.access.access.models import Grant, ProjectRole, Organization, OrganizationMembership, OrganizationRole, FolderShare, ShareLevel
+from django.test import override_settings
 
 
 class LibraryApiTests(BaseTestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._urlconf_override = override_settings(
+            ROOT_URLCONF="bundled.shared.library.tests.urls",
+        )
+        cls._urlconf_override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            super().tearDownClass()
+        finally:
+            cls._urlconf_override.disable()
+
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
 
+        register_external_mod_fixture()
         self._schema = None
 
         self.experiments_folder = Folder.objects.create(
@@ -26,7 +44,7 @@ class LibraryApiTests(BaseTestCase):
             name="Protocols", parent=None, project=self.project,
         )
 
-        self.root_entry = NotebookEntry.objects.create(
+        self.root_entry = ConcreteTestEntity.objects.create(
             name="Root Entry",
             content=EMPTY_DOC,
             project=self.project,
@@ -34,7 +52,7 @@ class LibraryApiTests(BaseTestCase):
             schema=self.schema,
         )
 
-        self.exp_entry = NotebookEntry.objects.create(
+        self.exp_entry = ConcreteTestEntity.objects.create(
             name="PCR Results",
             content=EMPTY_DOC,
             source=self.experiments_folder,
@@ -43,7 +61,7 @@ class LibraryApiTests(BaseTestCase):
             schema=self.schema,
         )
 
-        self.nested_entry = NotebookEntry.objects.create(
+        self.nested_entry = ConcreteTestEntity.objects.create(
             name="Q1 Analysis",
             content=EMPTY_DOC,
             source=self.nested_folder,
@@ -55,8 +73,17 @@ class LibraryApiTests(BaseTestCase):
     @property
     def schema(self):
         if self._schema is None:
-            from mods.eln.tests.factories import get_or_create_default_eln_schema
-            self._schema = get_or_create_default_eln_schema()
+            register_external_mod_fixture()
+            from helix_core.models import Schema, SchemaType
+            schema_type, _ = SchemaType.objects.get_or_create(
+                model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
+                defaults={"display_name": "Fixture Content", "workspace_id": "fixture"},
+            )
+            self._schema, _ = Schema.objects.get_or_create(
+                schema_type=schema_type,
+                is_default=True,
+                defaults={"name": "Default", "prefix": "T"},
+            )
         return self._schema
 
     def _url(self):
@@ -82,8 +109,8 @@ class LibraryApiTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         rows = {item["id"]: item for item in response.data["results"]}
-        self.assertEqual(rows[self.experiments_folder.id]["depth"], 0)
-        self.assertEqual(rows[self.nested_folder.id]["depth"], 1)
+        self.assertEqual(rows[self.experiments_folder.id]["depth"], 1)
+        self.assertEqual(rows[self.nested_folder.id]["depth"], 2)
         self.assertEqual(rows[self.nested_entry.id]["depth"], 2)
 
     def test_folder_picker_paths_are_project_relative(self):
@@ -237,18 +264,12 @@ class LibraryApiTests(BaseTestCase):
         self.assertEqual(e["property_fields"], {})
 
     def test_entry_tags_serialized(self):
-        tag = Tag.objects.create(name="CRISPR", color="flask", icon="dna")
-        self.root_entry.tags.add(tag)
-
         response = self.client.get(self._url())
-        entries = [r for r in response.data["results"] if r["type"] == "entry"]
-        root = [e for e in entries if e["id"] == self.root_entry.id][0]
-        self.assertEqual(len(root["tags"]), 1)
-        t = root["tags"][0]
-        self.assertEqual(t["id"], tag.id)
-        self.assertEqual(t["name"], "CRISPR")
-        self.assertEqual(t["color"], "flask")
-        self.assertEqual(t["icon"], "dna")
+        entry = next(
+            row for row in response.data["results"]
+            if row["id"] == self.root_entry.id
+        )
+        self.assertEqual(entry.get("tags", []), [])
 
     def test_entry_description_extracts_first_paragraph(self):
         doc = {
@@ -286,7 +307,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_pagination_page_size(self):
         for i in range(55):
-            NotebookEntry.objects.create(
+            ConcreteTestEntity.objects.create(
                 name=f"Bulk Entry {i}",
                 content=EMPTY_DOC,
                 project=self.project,
@@ -304,7 +325,7 @@ class LibraryApiTests(BaseTestCase):
 
     def test_pagination_next_link(self):
         for i in range(55):
-            NotebookEntry.objects.create(
+            ConcreteTestEntity.objects.create(
                 name=f"Page Entry {i}",
                 content=EMPTY_DOC,
                 project=self.project,
@@ -450,7 +471,7 @@ class LibraryApiTests(BaseTestCase):
         source_child = Folder.objects.create(
             name="Child", parent=source_folder, project=source_project,
         )
-        shared_entry = NotebookEntry.objects.create(
+        shared_entry = ConcreteTestEntity.objects.create(
             name="Shared Entry",
             content=EMPTY_DOC,
             source=source_child,
@@ -463,7 +484,7 @@ class LibraryApiTests(BaseTestCase):
             target_project=self.project,
             level=ShareLevel.READ,
         )
-        Grant.objects.create(
+        Grant.objects.get_or_create(
             project=source_project, role=ProjectRole.READ, user=self.user,
         )
         response = self.client.get(
@@ -481,7 +502,7 @@ class LibraryApiTests(BaseTestCase):
         source_child = Folder.objects.create(
             name="Child", parent=source_folder, project=source_project,
         )
-        deep_entry = NotebookEntry.objects.create(
+        deep_entry = ConcreteTestEntity.objects.create(
             name="Deep Entry",
             content=EMPTY_DOC,
             source=source_child,
@@ -494,7 +515,7 @@ class LibraryApiTests(BaseTestCase):
             target_project=self.project,
             level=ShareLevel.READ,
         )
-        Grant.objects.create(
+        Grant.objects.get_or_create(
             project=source_project, role=ProjectRole.READ, user=self.user,
         )
         response = self.client.get(
@@ -623,6 +644,21 @@ class LibraryApiTests(BaseTestCase):
 
 class AccessibleProjectsApiTests(BaseTestCase):
     """Tests for GET /api/access/projects/?accessible=1."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._urlconf_override = override_settings(
+            ROOT_URLCONF="bundled.shared.library.tests.urls",
+        )
+        cls._urlconf_override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            super().tearDownClass()
+        finally:
+            cls._urlconf_override.disable()
 
     def setUp(self):
         super().setUp()

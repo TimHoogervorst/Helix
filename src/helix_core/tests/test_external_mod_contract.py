@@ -88,7 +88,7 @@ def test_discovered_package_registers_usable_content_and_actions(monkeypatch):
     registry = BackendModRegistry()
     importlib.import_module(f"{package}.mod").register(ModRegistrar(manifest, registry))
     assert registry.get_registered_models()["test.external:entity"] is ConcreteTestEntity
-    assert registry.get_content_source("test.external:content").hub_visible is True
+    assert registry.get_content_source("test.external:entry").hub_visible is True
     assert registry.validate_action("test.external:entity.created")
     from helix_core.core.models import User, Project, Folder
     from helix_core.models import SchemaType, Schema

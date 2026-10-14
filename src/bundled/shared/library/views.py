@@ -190,10 +190,9 @@ class LibraryContentsView(APIView):
             source_type = ContentType.objects.get_for_model(project)
             source_id = project.pk
         entries_qs = []
-        for provider in registry.list_content_sources():
+        for provider, model in registry.content_source_models():
             if provider.kind.rsplit(":", 1)[-1] in {"project", "folder"}:
                 continue
-            model = registry.resolve_content_source_model(provider.kind)
             queryset = model.objects.filter(source_type=source_type, source_id=source_id)
             entries_qs.extend(queryset.order_by("-created_at"))
 
@@ -338,10 +337,9 @@ def _source_fields(item):
 
 def _children_count(item, user):
     count = _children_qs(Folder, item).filter(visible_folders_q(user)).count()
-    for provider in registry.list_content_sources():
+    for provider, model in registry.content_source_models():
         if provider.kind.rsplit(":", 1)[-1] in {"project", "folder"}:
             continue
-        model = registry.resolve_content_source_model(provider.kind)
         queryset = _children_qs(model, item)
         queryset = registry.query_content_sources(provider.kind, type("Request", (), {"user": user})(), queryset)
         count += queryset.count()
@@ -475,10 +473,9 @@ class LibraryChildrenView(APIView):
             raise Http404("Source not found.")
 
         models = [("folder", Folder, visible_folders_q(request.user))]
-        for provider in registry.list_content_sources():
+        for provider, model in registry.content_source_models():
             if provider.kind.rsplit(":", 1)[-1] in {"project", "folder"}:
                 continue
-            model = registry.resolve_content_source_model(provider.kind)
             models.append((provider.kind, model, provider))
         recursive = request.query_params.get("recursive", "0").lower() in {"1", "true", "yes"}
         search = request.query_params.get("search", "").strip().lower()
@@ -490,7 +487,9 @@ class LibraryChildrenView(APIView):
                 queryset = registry.query_content_sources(kind, request, queryset)
             else:
                 queryset = queryset.filter(scope)
-            queue.append((queryset, 0))
+            # Depth is one-based: direct children of the requested source
+            # are depth 1, their children depth 2, and so on.
+            queue.append((queryset, 1))
 
         if isinstance(parent, Project):
             from bundled.access.access.models import FolderShare
@@ -499,7 +498,7 @@ class LibraryChildrenView(APIView):
                 target_project=parent,
                 source_folder__parent__isnull=True,
             ).values_list("source_folder_id", flat=True)
-            queue[0] = (queue[0][0] | Folder.objects.filter(pk__in=shared_ids), 0)
+            queue[0] = (queue[0][0] | Folder.objects.filter(pk__in=shared_ids), 1)
 
         pending = []
         for query, depth in queue:
@@ -531,7 +530,8 @@ class LibraryChildrenView(APIView):
                 for kind, model, scope in models:
                     queryset = _children_qs(model, item)
                     queryset = queryset.filter(scope) if kind == "folder" else registry.query_content_sources(kind, request, queryset)
-                    pending.extend((child, depth + 1) for child in queryset)
+                    child_depth = depth + (1 if kind == "folder" else 0)
+                    pending.extend((child, child_depth) for child in queryset)
 
         type_order = {"folder": 0}
         rows.sort(key=lambda row: (row["depth"], type_order.get(row["type"], 1), row.get("name", row.get("title", "")).lower()))

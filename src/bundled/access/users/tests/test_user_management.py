@@ -1,9 +1,9 @@
 """Tests for admin-only enforcement on UserViewSet."""
 
+from django.test import TestCase
 from rest_framework.test import APIClient
 
 from helix_core.core.models import User
-from helix_core.core.tests.base import BaseTestCase
 from bundled.access.access.models import (
     Organization,
     OrganizationMembership,
@@ -12,11 +12,11 @@ from bundled.access.access.models import (
 from bundled.access.access.policies import can
 
 
-class UserManagementAuthTests(BaseTestCase):
+class UserManagementAuthTests(TestCase):
     """Verify UserViewSet is restricted to Organization Admins."""
 
     def setUp(self):
-        super().setUp()
+        self.client = APIClient()
         self.org = Organization.objects.create(name="Test Lab")
         self.admin = User.objects.create_user(
             username="orgadmin", password="pass",

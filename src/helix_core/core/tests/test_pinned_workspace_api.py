@@ -60,7 +60,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["display_id"], "BLOOD1")
-        self.assertEqual(response.data[0]["url"], "/lims/BLOOD1")
+        self.assertEqual(response.data[0]["url"], "/w/helix/lims/workspace/BLOOD1")
 
     # ── POST (create) ────────────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
         self.assertIn("created_at", response.data)
         self.assertEqual(response.data["display_id"], "BLOOD1")
         self.assertEqual(response.data["label"], "Blood Sample #1")
-        self.assertEqual(response.data["url"], "/lims/BLOOD1")
+        self.assertEqual(response.data["url"], "/w/helix/lims/workspace/BLOOD1")
 
     def test_create_duplicate_url(self):
         """POST /api/core/tabs/ with duplicate (user, url) returns 400."""
@@ -154,7 +154,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["label"], "New name")
-        self.assertEqual(response.data["url"], "/lims/BLOOD1")
+        self.assertEqual(response.data["url"], "/w/helix/lims/workspace/BLOOD1")
 
 
 class TabsActionLoggingTests(BaseTestCase):

@@ -3,6 +3,7 @@ URL configuration for Helix project.
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.urls import clear_url_caches
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -46,10 +47,9 @@ def delete_everything(request):
     return JsonResponse({"deleted": total, "breakdown": counts})
 
 
-urlpatterns = [
+def _static_urlpatterns():
+    return [
     path("admin/", admin.site.urls),
-    # Helix mod URLs — generated from registry in dependency order
-    *registry.build_urlpatterns(),
     # Core shell (non-mod endpoints: csrf, folders, settings, user auth)
     path("api/core/", include("helix_core.core.urls")),
     # Mentions (cross-cutting concern)
@@ -61,4 +61,13 @@ urlpatterns = [
     # OpenAPI schema
     path("api/schema/", SpectacularAPIView.as_view(permission_classes=[IsAuthenticated]), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema", permission_classes=[IsAuthenticated]), name="swagger-ui"),
-]
+    ]
+
+
+urlpatterns = [*registry.build_urlpatterns(), *_static_urlpatterns()]
+
+
+def refresh_mod_urlpatterns():
+    """Refresh routes after Mod registration has completed during app startup."""
+    urlpatterns[:] = [*registry.build_urlpatterns(), *_static_urlpatterns()]
+    clear_url_caches()

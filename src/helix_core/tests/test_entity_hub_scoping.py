@@ -29,18 +29,18 @@ from bundled.access.access.tests.factories import (
 
 
 def _make_entity(folder, author, name):
-    """Create a LIMS Entity in *folder* (project derived from the folder)."""
-    from bundled.lims.models import Entity
+    """Create a Platform fixture entity in *folder*."""
+    from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
     schema_type, _ = SchemaType.objects.get_or_create(
         display_name="Entity",
-        workspace_id="lims",
-        model="bundled.lims.models.Entity",
+        workspace_id="fixture",
+        model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
     )
     schema, _ = Schema.objects.get_or_create(
         name="DNA", prefix="DNA", schema_type=schema_type, is_default=True,
     )
-    return Entity.objects.create(
+    return ConcreteTestEntity.objects.create(
         name=name, author=author, schema=schema, source=folder,
     )
 
@@ -50,6 +50,9 @@ class EntityHubScopingTests(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
+        from helix_core.tests.fixtures.external_mod.testing import register_external_mod_fixture
+
+        register_external_mod_fixture()
         cls.org = make_org()
         cls.admin = make_user("admin", cls.org, OrganizationRole.ADMIN)
         cls.reader = make_user("reader", cls.org)          # no grants
@@ -158,14 +161,14 @@ class EntityHubScopingTests(APITestCase):
         self.assertNotIn(self.other_row.display_id, display_ids)
 
     def test_shared_subtree_scoping_uses_source_path(self):
-        from bundled.lims.models import Entity
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
         Grant.objects.create(
             project=self.target, role=ProjectRole.READ, user=self.sharee,
         )
         self._share(ShareLevel.READ)
         from django.contrib.contenttypes.models import ContentType
-        Entity.objects.filter(pk=self.descendant_row.pk).update(
+        ConcreteTestEntity.objects.filter(pk=self.descendant_row.pk).update(
             source_type=ContentType.objects.get_for_model(self.source_plain).pk,
             source_id=self.source_plain.pk,
         )

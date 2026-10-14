@@ -96,6 +96,7 @@ def test_platform_capability_vocabulary_is_curated_and_versioned():
     assert "RegistrationTable" in PLATFORM_CAPABILITIES
 
 
+@pytest.mark.django_db
 def test_registrations_carry_capabilities_into_hydration_payload():
     raw = BackendModRegistry()
     mod = ModRegistrar(manifest(), raw)
@@ -132,6 +133,7 @@ def test_reference_namespaces_are_distinct_and_object_ids_are_durable():
     assert ActionReference("acme.widgets", "updated").id == "acme.widgets:updated"
 
 
+@pytest.mark.django_db
 def test_deferred_model_reference_resolution_is_order_independent():
     raw = BackendModRegistry()
     consumer = ModRegistrar(manifest("acme.consumer"), raw)

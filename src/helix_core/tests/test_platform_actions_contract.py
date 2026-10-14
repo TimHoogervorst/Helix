@@ -37,7 +37,7 @@ def test_custom_action_identity_is_owned_by_provider_mod():
 
     registrar.register_custom_action("changed", "Changed", "edited", target)
 
-    entry = registrar._registry.get_action_catalog("acme.widgets")[-1]
+    entry = registrar._registry.get_action_catalog(registrar._registry_id)[-1]
     assert entry["id"] == "acme.widgets:changed"
     assert entry["provider_mod_id"] == "acme.widgets"
     assert entry["provider_mod_version"] == "1.2.3"

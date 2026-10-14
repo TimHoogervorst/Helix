@@ -1,12 +1,14 @@
 """Tests for Team model, API, and authorization."""
 
 from django.contrib.auth.models import Group
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from bundled.access.access.models import Organization, Team
 from bundled.access.access.tests.factories import make_org, make_user
+from bundled.access.access.tests.api_base import AccessApiTestCase
 
 
 class TeamModelTests(TestCase):
@@ -39,8 +41,10 @@ class TeamModelTests(TestCase):
     def test_group_one_to_one_protect_on_delete(self):
         group = Group.objects.create(name="Protected")
         team = Team.objects.create(group=group, organization=self.org)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ProtectedError):
             group.delete()
+        self.assertTrue(Group.objects.filter(pk=group.pk).exists())
+        self.assertTrue(Team.objects.filter(pk=team.pk).exists())
 
     def test_blocked_from_deletion_is_false_by_default(self):
         group = Group.objects.create(name="Unblocked")
@@ -52,7 +56,7 @@ class TeamModelTests(TestCase):
         self.assertEqual(team.name, "")
 
 
-class TeamApiTests(TestCase):
+class TeamApiTests(AccessApiTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.org = make_org()
@@ -79,10 +83,6 @@ class TeamApiTests(TestCase):
         )
 
     # ── List ──────────────────────────────────────────────────────────────
-
-    def test_list_teams_requires_auth(self):
-        response = self.client.get("/api/access/teams/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_list_teams_returns_all(self):
         self._create_team("Team A")
@@ -128,15 +128,6 @@ class TeamApiTests(TestCase):
         self.assertEqual(response.data["color_key"], "red")
         self.assertTrue(Team.objects.filter(group__name="New Team").exists())
 
-    def test_create_team_as_regular_user_is_forbidden(self):
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(
-            "/api/access/teams/",
-            {"name": "Hacked Team"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     def test_create_team_without_name_fails(self):
         self.client.force_authenticate(user=self.admin)
         response = self.client.post(
@@ -176,17 +167,6 @@ class TeamApiTests(TestCase):
         self.assertEqual(response.data["name"], "Renamed")
         self.assertEqual(response.data["icon_key"], "star")
 
-    def test_patch_team_as_regular_user_is_forbidden(self):
-        resp = self._create_team("Original")
-        team_id = resp.data["id"]
-        self.client.force_authenticate(user=self.user)
-        response = self.client.patch(
-            f"/api/access/teams/{team_id}/",
-            {"name": "Hacked"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     # ── Delete ────────────────────────────────────────────────────────────
 
     def test_delete_team_as_admin(self):
@@ -196,13 +176,6 @@ class TeamApiTests(TestCase):
         response = self.client.delete(f"/api/access/teams/{team_id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Team.objects.filter(pk=team_id).exists())
-
-    def test_delete_team_as_regular_user_is_forbidden(self):
-        resp = self._create_team("Protected")
-        team_id = resp.data["id"]
-        self.client.force_authenticate(user=self.user)
-        response = self.client.delete(f"/api/access/teams/{team_id}/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     # ── Membership ────────────────────────────────────────────────────────
 
@@ -218,17 +191,6 @@ class TeamApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["members"]), 1)
         self.assertEqual(response.data["members"][0]["username"], "alice")
-
-    def test_add_member_as_regular_user_is_forbidden(self):
-        resp = self._create_team("Members")
-        team_id = resp.data["id"]
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(
-            f"/api/access/teams/{team_id}/add_member/",
-            {"user_id": self.user2.pk},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_add_inactive_member_returns_404(self):
         resp = self._create_team("Members")
@@ -266,19 +228,6 @@ class TeamApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["members"]), 0)
 
-    def test_remove_member_as_regular_user_is_forbidden(self):
-        resp = self._create_team("Members")
-        team_id = resp.data["id"]
-        team = Team.objects.get(pk=team_id)
-        team.group.user_set.add(self.user)
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(
-            f"/api/access/teams/{team_id}/remove_member/",
-            {"user_id": self.user.pk},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     # ── Icon and color persistence ────────────────────────────────────────
 
     def test_team_icon_and_color_persist(self):
@@ -294,7 +243,7 @@ class TeamApiTests(TestCase):
         self.assertEqual(team.color_key, "purple")
 
 
-class TeamAuthTests(TestCase):
+class TeamAuthTests(AccessApiTestCase):
     """Actor-matrix tests for Team endpoints, consolidated via subTest."""
 
     @classmethod
@@ -302,6 +251,7 @@ class TeamAuthTests(TestCase):
         cls.org = make_org()
         cls.admin = make_user("admin", cls.org, "admin")
         cls.user = make_user("regular", cls.org, "user")
+        cls.user2 = make_user("other", cls.org, "user")
         cls.inactive = make_user("inactive", cls.org, "user", is_active=False)
 
     def setUp(self):
@@ -334,10 +284,15 @@ class TeamAuthTests(TestCase):
         for actor, expected in cases:
             with self.subTest(actor=actor):
                 self._authenticate(actor)
+                name = f"Team-{actor}"
                 response = self.client.post(
-                    "/api/access/teams/", {"name": "T"}, format="json",
+                    "/api/access/teams/", {"name": name}, format="json",
                 )
                 self.assertEqual(response.status_code, expected)
+                self.assertEqual(
+                    Team.objects.filter(group__name=name).exists(),
+                    expected == 201,
+                )
 
     def test_patch_team_matrix(self):
         cases = [("user", 403), ("admin", 200)]
@@ -351,6 +306,8 @@ class TeamAuthTests(TestCase):
                     format="json",
                 )
                 self.assertEqual(response.status_code, expected)
+                team = Team.objects.get(pk=team_id)
+                self.assertEqual(team.name, "X" if expected == 200 else f"Patch-{actor}")
 
     def test_delete_team_matrix(self):
         cases = [("user", 403), ("admin", 204)]
@@ -360,6 +317,9 @@ class TeamAuthTests(TestCase):
                 self._authenticate(actor)
                 response = self.client.delete(f"/api/access/teams/{team_id}/")
                 self.assertEqual(response.status_code, expected)
+                self.assertEqual(
+                    Team.objects.filter(pk=team_id).exists(), expected == 403,
+                )
 
     def test_add_member_matrix(self):
         cases = [("user", 403), ("admin", 200)]
@@ -373,3 +333,27 @@ class TeamAuthTests(TestCase):
                     format="json",
                 )
                 self.assertEqual(response.status_code, expected)
+                self.assertEqual(
+                    Team.objects.get(pk=team_id).group.user_set.filter(
+                        pk=self.user.pk,
+                    ).exists(),
+                    expected == 200,
+                )
+
+    def test_remove_member_matrix(self):
+        for actor, expected in (("user", 403), ("admin", 200)):
+            with self.subTest(actor=actor):
+                team_id = self._create_team(f"Remove-{actor}")
+                team = Team.objects.get(pk=team_id)
+                team.group.user_set.add(self.user2)
+                self._authenticate(actor)
+                response = self.client.post(
+                    f"/api/access/teams/{team_id}/remove_member/",
+                    {"user_id": self.user2.pk},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, expected)
+                self.assertEqual(
+                    team.group.user_set.filter(pk=self.user2.pk).exists(),
+                    expected == 403,
+                )

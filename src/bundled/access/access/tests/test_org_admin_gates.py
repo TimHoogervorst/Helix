@@ -1,14 +1,17 @@
 """HTTP authorization tests for organization-admin-only operations."""
 
-from helix_core.core.tests.base import BaseTestCase
+from rest_framework.test import APIClient
+
 from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
+from bundled.access.access.tests.api_base import AccessApiTestCase
 from helix_core.core.models import User
 
 
-class OrganizationAdminGateTests(BaseTestCase):
+class OrganizationAdminGateTests(AccessApiTestCase):
     def setUp(self):
-        super().setUp()
+        self.client = APIClient()
         self.org = Organization.objects.create(name="Test Lab")
+        self.user = User.objects.create_user(username="regular", password="pass")
         self.admin = User.objects.create_user(username="orgadmin", password="pass")
         OrganizationMembership.objects.update_or_create(
             user=self.admin,
@@ -22,11 +25,8 @@ class OrganizationAdminGateTests(BaseTestCase):
     def test_catalog_mutations_reject_non_admin(self):
         cases = [
             "/api/schemas/",
-            "/api/dropdowns/",
-            "/api/colors/",
-            "/api/icons/",
-            "/api/eln/protocols/",
             "/api/core/settings/test/",
+            "/api/access/teams/",
         ]
         for url in cases:
             with self.subTest(url=url):
@@ -36,8 +36,6 @@ class OrganizationAdminGateTests(BaseTestCase):
 
     def test_bulk_wipes_require_admin_and_allow_admin(self):
         urls = [
-            "/api/lims/entities/delete_all/",
-            "/api/eln/entries/delete_all/",
             "/api/schemas/delete_all/",
             "/api/delete-everything/",
         ]
@@ -52,8 +50,6 @@ class OrganizationAdminGateTests(BaseTestCase):
     def test_bulk_wipes_reject_anonymous(self):
         self.client.force_authenticate(user=None)
         for url in (
-            "/api/lims/entities/delete_all/",
-            "/api/eln/entries/delete_all/",
             "/api/schemas/delete_all/",
             "/api/delete-everything/",
         ):

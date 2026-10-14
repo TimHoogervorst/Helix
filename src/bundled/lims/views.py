@@ -3,6 +3,7 @@ import logging
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
+from django_filters import rest_framework as filters
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -853,13 +854,25 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return Response({"results": results, "errors": errors})
 
 
+class ActionLogFilter(filters.FilterSet):
+    """Keep the LIMS action query aliases over the shared action log."""
+
+    entity = filters.CharFilter(field_name="target_object_id")
+    target_type = filters.CharFilter(field_name="target_model_reference")
+    target_id = filters.CharFilter(field_name="target_object_id")
+
+    class Meta:
+        model = ActionLogEntry
+        fields = ["action_type"]
+
+
 class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for LIMS actions (read-only for Phase 1).
     """
 
     serializer_class = ActionSerializer
-    filterset_fields = ["entity", "action_type", "target_type", "target_id"]
+    filterset_class = ActionLogFilter
 
     def get_queryset(self):
         from helix_core.mod_system.registry import registry

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://helix.example.com/schemas/mod-registry-response.json",
   "title": "Mod Registry Response",
-"description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, tags, icon, color}), and actions (array of {id, label, action_type}).",
+"description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, capabilities, icon, color}), and actions (array of {id, label, action_type}).",
   "type": "object",
   "properties": {
     "columnTypes": {
@@ -116,7 +116,7 @@
           "id": { "type": "string" },
           "capabilities": { "type": "array", "items": { "type": "string" } },
           "registration_type": { "type": "string" },
-          "provider_mod_id": { "type": "string" }
+          "provider_mod_id": { "type": ["string", "null"] }
         },
         "required": ["id", "capabilities"]
       }
@@ -129,7 +129,7 @@
         "properties": {
           "id": { "type": "string" },
           "capabilities": { "type": "array", "items": { "type": "string" } },
-          "provider_mod_id": { "type": "string" }
+          "provider_mod_id": { "type": ["string", "null"] }
         },
         "required": ["id", "capabilities"]
       }
@@ -143,7 +143,7 @@
           "id": { "type": "string" },
           "capabilities": { "type": "array", "items": { "type": "string" } },
           "accepts": { "type": "array", "items": { "type": "string" } },
-          "provider_mod_id": { "type": "string" }
+          "provider_mod_id": { "type": ["string", "null"] }
         },
         "required": ["id", "capabilities", "accepts"]
       }
@@ -157,14 +157,14 @@
           "id": { "type": "string" },
           "capabilities": { "type": "array", "items": { "type": "string" } },
           "service": { "type": "string" },
-          "provider_mod_id": { "type": "string" }
+          "provider_mod_id": { "type": ["string", "null"] }
         },
         "required": ["id", "capabilities", "service"]
       }
     }
   },
   "patternProperties": {
-    "^[a-z][a-z0-9_-]*$": {
+    "^(?!columnTypes$|iconLibrary$|colorPalette$|formulaFunctions$|services$|blocks$|slots$|metricProviders$)[a-z][a-z0-9_-]*$": {
       "type": "object",
       "properties": {
         "workspaceId": {
@@ -195,10 +195,10 @@
                 "type": "array",
                 "description": "Column definitions for this schema type."
               },
-              "tags": {
+              "capabilities": {
                 "type": "array",
                 "items": { "type": "string" },
-                "description": "Capability tags declared by the owning mod."
+                "description": "Capability capabilities declared by the owning mod."
               },
               "icon": {
                 "type": "string",
@@ -209,7 +209,7 @@
                 "description": "Color key from the default schema, e.g. 'muted' or 'success'."
               }
             },
-            "required": ["id", "displayName", "prefix", "columns", "tags", "icon", "color"]
+            "required": ["id", "displayName", "prefix", "columns", "capabilities", "icon", "color"]
           }
         },
         "actions": {

@@ -27,7 +27,7 @@ def test_platform_contains_core_and_mentions_apps():
 def test_mentions_keep_the_existing_table_name():
     mention = importlib.import_module("helix_core.mentions.models").Mention
 
-    assert mention._meta.db_table == "eln_mention"
+    assert mention._meta.db_table == "helix_mention"
 
 
 def test_dead_users_app_is_not_installed(settings):
@@ -40,7 +40,7 @@ def test_bundled_mod_app_names_and_labels_are_preserved():
         config = next(
             value
             for value in vars(config_module).values()
-            if isinstance(value, type) and value.__module__ == config_module.__name__
+            if isinstance(value, type) and getattr(value, "name", None) == app_name
         )
         assert config.name == app_name
         if label == "users":

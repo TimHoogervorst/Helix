@@ -6,17 +6,19 @@ GET  /api/mentions/search/    — search by display_id prefix
 """
 from helix_core.core.tests.base import BaseTestCase
 from helix_core.core.tests.factories import EMPTY_DOC
-from mods.eln.models import NotebookEntry
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
+from helix_core.tests.fixtures.external_mod.testing import register_external_mod_fixture
 
 
-def _create_eln_schema():
-    """Create the ELN SchemaType + Schema (idempotent)."""
+def _create_fixture_schema():
+    """Create the fixture SchemaType + Schema (idempotent)."""
+    register_external_mod_fixture()
     from helix_core.models import Schema, SchemaType
     schema_type, _ = SchemaType.objects.get_or_create(
-        model="mods.eln.models.NotebookEntry",
+        model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
         defaults={
-            "display_name": "ELN Entry",
-            "workspace_id": "eln",
+            "display_name": "Fixture Content",
+            "workspace_id": "fixture",
             "columns": [],
         },
     )
@@ -25,7 +27,7 @@ def _create_eln_schema():
         is_default=True,
         defaults={
             "name": "Default",
-            "prefix": "E",
+            "prefix": "T",
             "columns": [],
         },
     )
@@ -52,17 +54,17 @@ class ResolveApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        self.eln_schema = _create_eln_schema()
+        self.fixture_schema = _create_fixture_schema()
 
     def test_resolve_valid_ids(self):
         """Valid display IDs resolve to target details."""
-        e1 = NotebookEntry.objects.create(
+        e1 = ConcreteTestEntity.objects.create(
             name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
-            schema=self.eln_schema,
+            schema=self.fixture_schema,
         )
-        e2 = NotebookEntry.objects.create(
+        e2 = ConcreteTestEntity.objects.create(
             name="Gel Results", properties=EMPTY_DOC, source=self.folder, author=self.user,
-            schema=self.eln_schema,
+            schema=self.fixture_schema,
         )
 
         response = self.client.post(
@@ -76,38 +78,38 @@ class ResolveApiTests(BaseTestCase):
         self.assertEqual(response.data[e1.display_id]["id"], e1.id)
         self.assertEqual(response.data[e1.display_id]["display_id"], e1.display_id)
         self.assertEqual(response.data[e1.display_id]["title"], "PCR Protocol")
-        self.assertEqual(response.data[e1.display_id]["type"], "entry")
-        self.assertEqual(response.data[e1.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[e1.display_id]["type"], "entity")
+        self.assertEqual(response.data[e1.display_id]["workspaceId"], "fixture")
 
         self.assertIn(e2.display_id, response.data)
         self.assertEqual(response.data[e2.display_id]["title"], "Gel Results")
-        self.assertEqual(response.data[e2.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[e2.display_id]["workspaceId"], "fixture")
 
     def test_resolve_invalid_id_returns_null(self):
         """An ID that doesn't match any entry returns null."""
         response = self.client.post(
             "/api/mentions/resolve/",
-            {"ids": ["E99999"]},
+            {"ids": ["T99999"]},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"E99999": None})
+        self.assertEqual(response.data, {"T99999": None})
 
     def test_resolve_mixed_ids(self):
         """Mix of valid and invalid IDs — each gets its own result."""
-        e1 = NotebookEntry.objects.create(
+        e1 = ConcreteTestEntity.objects.create(
             name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
-            schema=self.eln_schema,
+            schema=self.fixture_schema,
         )
 
         response = self.client.post(
             "/api/mentions/resolve/",
-            {"ids": [e1.display_id, "E99999"]},
+            {"ids": [e1.display_id, "T99999"]},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.data[e1.display_id])
-        self.assertIsNone(response.data["E99999"])
+        self.assertIsNone(response.data["T99999"])
 
     def test_resolve_empty_ids(self):
         """Empty list returns empty object."""
@@ -136,15 +138,15 @@ class SearchApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
-        eln_schema = _create_eln_schema()
+        fixture_schema = _create_fixture_schema()
 
-        self.e1 = NotebookEntry.objects.create(
+        self.e1 = ConcreteTestEntity.objects.create(
             name="PCR Protocol", properties=EMPTY_DOC, source=self.folder, author=self.user,
-            schema=eln_schema,
+            schema=fixture_schema,
         )
-        self.e2 = NotebookEntry.objects.create(
+        self.e2 = ConcreteTestEntity.objects.create(
             name="Gel Results", properties=EMPTY_DOC, source=self.folder, author=self.user,
-            schema=eln_schema,
+            schema=fixture_schema,
         )
 
     def test_search_returns_matching_entries(self):
@@ -156,8 +158,8 @@ class SearchApiTests(BaseTestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["display_id"], self.e1.display_id)
         self.assertEqual(results[0]["title"], "PCR Protocol")
-        self.assertEqual(results[0]["type"], "entry")
-        self.assertEqual(results[0]["workspaceId"], "eln")
+        self.assertEqual(results[0]["type"], "entity")
+        self.assertEqual(results[0]["workspaceId"], "fixture")
 
     def test_search_no_matches(self):
         """A query matching nothing returns empty results."""
@@ -175,7 +177,7 @@ class SearchApiTests(BaseTestCase):
 
     def test_search_case_insensitive(self):
         """Prefix matching is case-insensitive ('e1' matches 'E1')."""
-        response = self.client.get(f"/api/mentions/search/?q=e1")
+        response = self.client.get(f"/api/mentions/search/?q=t1")
 
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
@@ -210,7 +212,7 @@ class EntityReferenceTests(BaseTestCase):
             columns=[],
             is_default=True,
         )
-        self.eln_schema = _create_eln_schema()
+        self.fixture_schema = _create_fixture_schema()
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
             schema=self.blood_schema,
@@ -236,10 +238,10 @@ class EntityReferenceTests(BaseTestCase):
 
     def test_resolve_mixed_entry_and_entity_ids(self):
         """Both entry (E#) and entity (prefix#) IDs resolve."""
-        entry = NotebookEntry.objects.create(
+        entry = ConcreteTestEntity.objects.create(
             name="An Entry", properties=EMPTY_DOC,
             source=self.folder, author=self.user,
-            schema=self.eln_schema,
+            schema=self.fixture_schema,
         )
 
         response = self.client.post(
@@ -250,9 +252,9 @@ class EntityReferenceTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.data[entry.display_id])
         self.assertIsNotNone(response.data[self.entity.display_id])
-        self.assertEqual(response.data[entry.display_id]["type"], "entry")
+        self.assertEqual(response.data[entry.display_id]["type"], "entity")
         self.assertEqual(response.data[self.entity.display_id]["type"], "entity")
-        self.assertEqual(response.data[entry.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[entry.display_id]["workspaceId"], "fixture")
         self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")
 
     def test_search_finds_entities_by_prefix(self):
@@ -302,21 +304,21 @@ class IconInMentionsTests(BaseTestCase):
             columns=[],
             is_default=True,
         )
-        self.eln_schema = _create_eln_schema()
+        self.fixture_schema = _create_fixture_schema()
         self.entity = Entity.objects.create(
             name="Patient Blood #1",
             schema=self.blood_schema,
             source=self.folder,
             author=self.user,
         )
-        self.entry = NotebookEntry.objects.create(
+        self.entry = ConcreteTestEntity.objects.create(
             name="A Note", properties=EMPTY_DOC,
             source=self.folder, author=self.user,
-            schema=self.eln_schema,
+            schema=self.fixture_schema,
         )
 
     def test_resolve_entry_includes_icon(self):
-        """Resolving an ELN entry returns icon: '📄'."""
+        """Resolving fixture content returns the generic entity icon."""
         response = self.client.post(
             "/api/mentions/resolve/",
             {"ids": [self.entry.display_id]},
@@ -325,8 +327,8 @@ class IconInMentionsTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         result = response.data[self.entry.display_id]
         self.assertIsNotNone(result)
-        self.assertEqual(result["icon"], "📄")
-        self.assertEqual(result["workspaceId"], "eln")
+        self.assertEqual(result["icon"], "🧪")
+        self.assertEqual(result["workspaceId"], "fixture")
 
     def test_resolve_entity_includes_icon(self):
         """Resolving an entity returns the default test-tube icon."""
@@ -349,8 +351,8 @@ class IconInMentionsTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["icon"], "📄")
-        self.assertEqual(results[0]["workspaceId"], "eln")
+        self.assertEqual(results[0]["icon"], "🧪")
+        self.assertEqual(results[0]["workspaceId"], "fixture")
 
     def test_search_entities_include_icon(self):
         """Search results for entities include the icon field."""
@@ -371,7 +373,7 @@ class IconInMentionsTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data[self.entry.display_id]["icon"], "📄")
-        self.assertEqual(response.data[self.entry.display_id]["workspaceId"], "eln")
+        self.assertEqual(response.data[self.entry.display_id]["icon"], "🧪")
+        self.assertEqual(response.data[self.entry.display_id]["workspaceId"], "fixture")
         self.assertEqual(response.data[self.entity.display_id]["icon"], "🧪")
         self.assertEqual(response.data[self.entity.display_id]["workspaceId"], "lims")

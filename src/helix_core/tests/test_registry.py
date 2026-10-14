@@ -1010,10 +1010,10 @@ class TestBuildURLPatterns:
     def test_include_pattern(self):
         """build_urlpatterns works with include() entries."""
         reg = _fresh_registry()
-        reg.set_mod_order(["mods.eln"])
+        reg.set_mod_order(["test.external"])
 
-        inc_pattern = include("mods.eln.urls")
-        reg.register_urls("eln", [inc_pattern])
+        inc_pattern = include("helix_core.tests.fixtures.external_mod.urls")
+        reg.register_urls("test.external", [inc_pattern])
 
         result = reg.build_urlpatterns()
         assert result == [inc_pattern]
@@ -1556,21 +1556,21 @@ class TestValidateAction:
 
 
 class TestCustomActionRegistrationWithoutModel:
-    """Edge-case tests for register_custom_action."""
+    """Custom actions are owned by providers, independently of action models."""
 
-    def test_register_custom_action_without_action_model_raises(self):
-        """Registering a custom action for a mod without register_action_model
-        should raise ValueError."""
+    def test_register_custom_action_without_action_model_is_supported(self):
         reg = _fresh_registry()
 
-        with pytest.raises(ValueError, match="register_action_model"):
-            reg.register_custom_action(
-                mod_id="fake",
-                action_id="fake.widget.exported",
-                label="Exported",
-                core="edited",
-                target_model="fake.models.Widget",
-            )
+        reg.register_action_provider("fake", "1.0.0")
+        reg.register_custom_action(
+            mod_id="fake",
+            action_id="fake.widget.exported",
+            label="Exported",
+            core="edited",
+            target_model="fake.models.Widget",
+        )
+
+        assert reg.validate_action("fake.widget.exported")
 
     def test_register_custom_action_with_invalid_core_raises(self):
         """register_custom_action rejects an invalid core verb."""

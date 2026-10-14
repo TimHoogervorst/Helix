@@ -121,35 +121,33 @@ class SchemaTypeApiTests(TestCase):
         entity = next(st for st in response.data if st["display_name"] == "Entity")
         self.assertEqual(entity["capabilities"], ["RegistrationTable"])
 
-    def test_migration_seeds_schema_type_tags(self):
-        """The data migration assigns table capability tags by model identity."""
-        lims = SchemaType.objects.create(
-            display_name="Entity",
-            workspace_id="lims",
-            model="bundled.lims.models.Entity",
-        )
-        eln = SchemaType.objects.create(
-            display_name="ELN Entry",
-            workspace_id="eln",
-            model="mods.eln.models.NotebookEntry",
-            capabilities=["RegistrationTable"],
-        )
+    def test_migration_seeds_schema_type_capabilities(self):
+        """The data migration assigns table capabilities by model identity."""
+        updates = []
+
+        class HistoricalQuerySet:
+            def update(self, **values):
+                updates.append(values)
+
+        class HistoricalSchemaType:
+            objects = type(
+                "Manager",
+                (),
+                {"filter": staticmethod(lambda **kwargs: HistoricalQuerySet())},
+            )()
 
         class Apps:
             @staticmethod
             def get_model(app_label, model_name):
                 assert app_label == "helix_core"
                 assert model_name == "SchemaType"
-                return SchemaType
+                return HistoricalSchemaType
 
         import_module(
             "helix_core.migrations.0011_schema_type_tags"
         ).seed_schema_type_tags(Apps(), None)
 
-        lims.refresh_from_db()
-        eln.refresh_from_db()
-        self.assertEqual(lims.capabilities, ["RegistrationTable"])
-        self.assertEqual(eln.capabilities, [])
+        self.assertEqual(updates, [{"tags": ["RegistrationTable"]}])
 
 
 class SchemaCrudTests(TestCase):

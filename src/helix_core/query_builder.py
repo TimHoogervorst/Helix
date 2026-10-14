@@ -123,6 +123,7 @@ def build_filter_q(
     spec: FilterSpec,
     identity: str | None = None,
     column_type_map: dict[str, str] | None = None,
+    system_field_map: dict[str, str] | None = None,
 ) -> Q:
     """Build a single Q object from a FilterSpec.
 
@@ -149,7 +150,9 @@ def build_filter_q(
         ValueError: If the column is unknown (not in system columns and
             not registered as a column type).
     """
-    field_path = _resolve_field_path(spec.column)
+    field_path = (system_field_map or {}).get(
+        spec.column, _resolve_field_path(spec.column)
+    )
     is_system = _is_system_column(spec.column)
 
     # ── Handle is_me operator (valueless, identity-driven) ─────────────
@@ -350,6 +353,7 @@ def build_entity_hub_filters(
     legacy_filters: list[str] | None = None,
     identity: str | None = None,
     column_type_map: dict[str, str] | None = None,
+    system_field_map: dict[str, str] | None = None,
 ) -> Q:
     """Build a combined Q object from a list of filter specs.
 
@@ -371,7 +375,12 @@ def build_entity_hub_filters(
     q = Q()
 
     for spec in filter_specs:
-        q &= build_filter_q(spec, identity=identity, column_type_map=column_type_map)
+        q &= build_filter_q(
+            spec,
+            identity=identity,
+            column_type_map=column_type_map,
+            system_field_map=system_field_map,
+        )
 
     if legacy_filters:
         for lf in legacy_filters:
@@ -530,14 +539,17 @@ def build_metric_aggregation(
         ValueError: If *aggregate_function* is unknown or the required
             database objects cannot be resolved.
     """
-    from helix_core.models import EntityHubView
+    from helix_core.mod_system.registry import registry
 
     agg_info = _AGGREGATE_MAP.get(aggregate_function)
     if agg_info is None:
         raise ValueError(f"Unknown aggregate function: {aggregate_function}")
     agg_cls, distinct_flag = agg_info
 
-    qs = EntityHubView.objects.all()
+    source_kind = getattr(view, "source_kind", "lims:entity")
+    model = registry.resolve_content_source_model(source_kind)
+    qs = model.objects.all()
+    system_field_map = {"schema_type_id": "schema__schema_type_id"}
     if user is not None:
         from bundled.access.access.scoping import visible_rows_q
 
@@ -558,7 +570,24 @@ def build_metric_aggregation(
     # ── Schema type ─────────────────────────────────────────────────────
     schema_type = str(filter_state.get("schema_type", "")).strip()
     if schema_type:
-        qs = qs.filter(schema_type_id=schema_type)
+        from helix_core.models import SchemaType
+
+        schema_type_model = SchemaType.objects.filter(
+            model=f"{model.__module__}.{model.__name__}"
+        ).first()
+        if schema_type_model:
+            model_parts = schema_type_model.model.split(".")
+            canonical_type_id = (
+                f"{model_parts[1]}.{model.__name__.lower()}"
+                if len(model_parts) > 3
+                else schema_type_model.workspace_id
+            )
+            if schema_type in {
+                canonical_type_id,
+                schema_type_model.identity,
+                str(schema_type_model.pk),
+            }:
+                qs = qs.filter(schema__schema_type=schema_type_model)
 
     # ── Schema ──────────────────────────────────────────────────────────
     schema = str(filter_state.get("schema", "")).strip()
@@ -584,7 +613,13 @@ def build_metric_aggregation(
                     )
                 )
         if specs:
-            qs = qs.filter(build_entity_hub_filters(specs, identity=identity))
+            qs = qs.filter(
+                build_entity_hub_filters(
+                    specs,
+                    identity=identity,
+                    system_field_map=system_field_map,
+                )
+            )
 
     # ── Aggregate ───────────────────────────────────────────────────────
     if not column:

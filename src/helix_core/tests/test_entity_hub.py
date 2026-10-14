@@ -1,49 +1,14 @@
-"""Tests for the registry-backed Entity Hub API endpoint.
-
-Tests the registered-source union and the GET /api/registry/entities endpoint.
-"""
+"""Platform integration contracts for the registered Entity Hub source."""
 
 from rest_framework.test import APITestCase
 
 from helix_core.core.models import Folder, Project, User
 from helix_core.models import Schema, SchemaType
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────
-
-
-def _setup_schema_types():
-    """Create the two SchemaTypes and their default Schemas."""
-    eln_type = SchemaType.objects.create(
-        display_name="Entry",
-        workspace_id="eln",
-        model="mods.eln.models.NotebookEntry",
-    )
-    lims_type = SchemaType.objects.create(
-        display_name="Entity",
-        workspace_id="lims",
-        model="bundled.lims.models.Entity",
-    )
-    eln_schema = Schema.objects.create(
-        name="Default",
-        prefix="E",
-        schema_type=eln_type,
-        is_default=True,
-    )
-    lims_schema = Schema.objects.create(
-        name="Default",
-        prefix="LIMS",
-        schema_type=lims_type,
-        is_default=True,
-    )
-    return eln_type, lims_type, eln_schema, lims_schema
-
-
-# Entity Hub API endpoint tests
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
 
 class EntityHubAPITests(APITestCase):
-    """Test the GET /api/registry/entities API endpoint."""
+    """Exercise hub query wiring through a Platform-owned registered model."""
 
     @classmethod
     def setUpTestData(cls):
@@ -52,548 +17,185 @@ class EntityHubAPITests(APITestCase):
             OrganizationMembership,
             OrganizationRole,
         )
+        from helix_core.tests.fixtures.external_mod.testing import register_external_mod_fixture
 
-        cls.user = User.objects.create_user(
-            username="testuser", password="pass"
+        register_external_mod_fixture()
+        cls.user = User.objects.create_user(username="hub-user", password="pass")
+        org = Organization.objects.create(name="Hub Organization")
+        OrganizationMembership.objects.create(
+            user=cls.user, organization=org, role=OrganizationRole.ADMIN
         )
-        # The hub is access-scoped; make the test user an Organization
-        # Admin so the filter/pagination behaviour below is observable.
-        org = Organization.objects.create(name="Test Lab")
-        OrganizationMembership.objects.update_or_create(
-            user=cls.user,
-            defaults={"organization": org, "role": OrganizationRole.ADMIN},
+        cls.schema_type = SchemaType.objects.create(
+            display_name="Fixture Entity",
+            workspace_id="fixture",
+            model=("helix_core.tests.fixtures.external_mod.models."
+                   "ConcreteTestEntity"),
+            columns=[{"name": "sample_type", "type": "text"}],
         )
-        _, _, eln_schema, lims_schema = _setup_schema_types()
-        project = Project.objects.create(name="Test Project")
+        cls.schema = Schema.objects.create(
+            name="Default", prefix="FIX", schema_type=cls.schema_type,
+            is_default=True,
+            columns=[{"name": "sample_type", "type": "text"}],
+        )
+        cls.other_schema = Schema.objects.create(
+            name="Alternate", prefix="ALT", schema_type=cls.schema_type,
+            columns=[{"name": "sample_type", "type": "text"}],
+        )
+        cls.project = Project.objects.create(name="Hub Project")
         cls.folder = Folder.objects.create(
-            name="Test Folder", parent=None, project=project
+            name="Hub Folder", parent=None, project=cls.project
         )
-
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
-
-        cls.eln_entry = NotebookEntry.objects.create(
-            name="ELN Test Entry",
-            author=cls.user,
-            schema=eln_schema,
-            source=cls.folder,
-            content={"type": "doc", "content": []},
+        cls.entity = ConcreteTestEntity.objects.create(
+            name="Fixture Alpha", author=cls.user, schema=cls.schema,
+            source=cls.folder, properties={"sample_type": "A"},
         )
-        cls.lims_entity = Entity.objects.create(
-            name="LIMS Test Entity",
-            author=cls.user,
-            schema=lims_schema,
-            source=cls.folder,
+        cls.second_entity = ConcreteTestEntity.objects.create(
+            name="Fixture Beta", author=cls.user, schema=cls.other_schema,
+            source=cls.folder, properties={"sample_type": "B"},
         )
         cls.url = "/api/registry/entities/"
 
     def setUp(self):
         self.client.force_authenticate(user=self.user)
 
-    def test_list_returns_paginated_results(self):
-        """Default GET returns paginated results with expected envelope fields."""
+    def test_list_exposes_registered_rows_and_common_fields(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertIn("results", data)
-        self.assertIn("total", data)
-        self.assertIn("page", data)
-        self.assertIn("size", data)
-        self.assertIn("available_columns", data)
-
-    def test_list_returns_all_entities(self):
-        """Without filters, the endpoint returns all entities from both tables."""
-        response = self.client.get(self.url)
-        data = response.json()
-        self.assertGreaterEqual(data["total"], 2)
-        display_ids = {r["display_id"] for r in data["results"]}
-        self.assertIn(self.eln_entry.display_id, display_ids)
-        self.assertIn(self.lims_entity.display_id, display_ids)
-
-    def test_each_row_has_workspace_id(self):
-        """Each row in results carries a workspace_id."""
-        response = self.client.get(self.url)
-        data = response.json()
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(
+            {row["display_id"] for row in data["results"]},
+            {self.entity.display_id, self.second_entity.display_id},
+        )
+        self.assertEqual((data["page"], data["size"]), (1, 50))
+        columns = {column["key"]: column for column in data["available_columns"]}
+        self.assertTrue({
+            "display_id", "name", "schema_type_id", "project", "source",
+            "status", "author", "created_at", "updated_at",
+        }.issubset(columns))
+        for column in columns.values():
+            self.assertIsInstance(column["type"], str)
+            self.assertIsInstance(column["filterable"], bool)
+            self.assertIsNone(column["width"])
+        self.assertEqual(columns["display_id"]["type"], "text")
+        self.assertEqual(columns["status"]["type"], "dropdown")
         for row in data["results"]:
-            self.assertIn("workspace_id", row)
-            self.assertIn(row["workspace_id"], ["eln", "lims"])
-
-    def test_each_row_has_expected_fields(self):
-        """Each row has display_id, name, schema_type_id, status, author_username."""
-        response = self.client.get(self.url)
-        data = response.json()
-        for row in data["results"]:
-            self.assertIn("display_id", row)
-            self.assertIn("name", row)
-            self.assertIn("schema_type_id", row)
-            self.assertIn("schema_type_display", row)
-            self.assertIn("status", row)
-            self.assertIn("author_username", row)
-
-    def test_each_row_exposes_direct_source_identity(self):
-        response = self.client.get(self.url)
-        data = response.json()
-        sources = {row["source"]["kind"] for row in data["results"]}
-        self.assertIn("folder", sources)
-        for row in data["results"]:
-            self.assertIn("source", row)
-            self.assertIn("id", row["source"])
-            self.assertIn("kind", row["source"])
-            self.assertIn("source_type", row)
-            self.assertIn("source_id", row)
-
-    def test_default_page_size_is_50(self):
-        """The default page size is 50."""
-        response = self.client.get(self.url)
-        data = response.json()
-        self.assertEqual(data["size"], 50)
-
-    def test_page_size_can_be_customized(self):
-        """The size query parameter controls page size."""
-        response = self.client.get(f"{self.url}?size=2")
-        data = response.json()
-        self.assertEqual(data["size"], 2)
-
-    def test_page_param_selects_page(self):
-        """The page query parameter selects a specific page."""
-        # Create enough entities to span multiple pages at size=1
-        from bundled.lims.models import Entity
-        from helix_core.models import Schema
-
-        schema = Schema.objects.get(prefix="LIMS")
-        for i in range(3):
-            Entity.objects.create(
-                name=f"Extra {i}",
-                author=self.user,
-                schema=schema,
-                source=self.folder,
-            )
-
-        # Page 1 at size=2
-        response = self.client.get(f"{self.url}?size=2&page=1")
-        data = response.json()
-        self.assertEqual(data["page"], 1)
-        self.assertEqual(len(data["results"]), 2)
-
-        # Page 2 at size=2
-        response = self.client.get(f"{self.url}?size=2&page=2")
-        data = response.json()
-        self.assertEqual(data["page"], 2)
-        self.assertGreater(len(data["results"]), 0)
-
-    def test_available_columns_includes_common_columns(self):
-        """available_columns lists the default common columns."""
-        response = self.client.get(self.url)
-        data = response.json()
-        columns = data["available_columns"]
-        keys = {c["key"] for c in columns}
-        expected = {"display_id", "name", "schema_type_id", "project",
-                     "source", "status", "author", "created_at", "updated_at"}
-        self.assertTrue(expected.issubset(keys))
-
-    def test_available_columns_have_type_filterable_width(self):
-        """Every available_column entry carries type, filterable, and width."""
-        response = self.client.get(self.url)
-        data = response.json()
-        for col in data["available_columns"]:
-            self.assertIn("type", col)
-            self.assertIn("filterable", col)
-            self.assertIn("width", col)
-            self.assertIsInstance(col["type"], str)
-            self.assertIsInstance(col["filterable"], bool)
-            # width is None until rendering is wired
-            self.assertIsNone(col["width"])
-
-    def test_available_columns_type_ids_are_lowercase(self):
-        """Common columns use lowercase type IDs from the registry."""
-        response = self.client.get(self.url)
-        data = response.json()
-        type_by_key = {c["key"]: c["type"] for c in data["available_columns"]}
-        self.assertEqual(type_by_key.get("display_id"), "text")
-        self.assertEqual(type_by_key.get("name"), "text")
-        self.assertEqual(type_by_key.get("status"), "dropdown")
-        self.assertEqual(type_by_key.get("author"), "user")
-        self.assertEqual(type_by_key.get("created_at"), "datetime")
-        self.assertEqual(type_by_key.get("updated_at"), "datetime")
-
-    def test_empty_database_returns_empty_results(self):
-        """When no entities exist, results is empty (not an error)."""
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
-        NotebookEntry.objects.all().delete()
-        Entity.objects.all().delete()
-
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["total"], 0)
-        self.assertEqual(len(data["results"]), 0)
-
-    # ── Search filter ────────────────────────────────────────────────────
-
-    def test_search_by_name(self):
-        """?search= filters by name (case-insensitive)."""
-        response = self.client.get(f"{self.url}?search=ELN Test")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertGreaterEqual(data["total"], 1)
-        names = [r["name"] for r in data["results"]]
-        self.assertIn("ELN Test Entry", names)
-
-    def test_search_by_display_id(self):
-        """?search= filters by display_id (case-insensitive)."""
-        response = self.client.get(
-            f"{self.url}?search={self.eln_entry.display_id}"
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertGreaterEqual(data["total"], 1)
-
-    # ── Schema type filter ───────────────────────────────────────────────
-
-    def test_filter_by_schema_type(self):
-        """?schema_type= filters to entities of that type."""
-        response = self.client.get(f"{self.url}?schema_type=eln.notebookentry")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        for row in data["results"]:
-            self.assertEqual(row["schema_type_id"], "eln.notebookentry")
-
-    def test_filter_by_schema_type_lims(self):
-        """?schema_type=lims.entity returns only LIMS entities."""
-        response = self.client.get(f"{self.url}?schema_type=lims.entity")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        for row in data["results"]:
-            self.assertEqual(row["schema_type_id"], "lims.entity")
-
-    # ── Schema filter ────────────────────────────────────────────────────
-
-    def test_filter_by_schema_id(self):
-        """?schema= filters to entities with that specific schema."""
-        from helix_core.models import Schema
-        eln_schema = Schema.objects.get(prefix="E")
-        response = self.client.get(f"{self.url}?schema={eln_schema.id}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        for row in data["results"]:
-            self.assertEqual(row["schema_id"], eln_schema.id)
-
-    # ── Status filter ────────────────────────────────────────────────────
-
-    def test_filter_by_status_in_progress(self):
-        """?status=in_progress returns only in-progress entities."""
-        response = self.client.get(f"{self.url}?status=in_progress")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        for row in data["results"]:
-            self.assertEqual(row["status"], "in_progress")
-
-    def test_filter_by_status_finished(self):
-        """?status=finished returns only finished entities."""
-        # Create a finished entity
-        from bundled.lims.models import Entity
-        from helix_core.models import Schema
-        lims_schema = Schema.objects.get(prefix="LIMS")
-        Entity.objects.create(
-            name="Finished Entity",
-            author=self.user,
-            schema=lims_schema,
-            source=self.folder,
-            status="finished",
-        )
-        response = self.client.get(f"{self.url}?status=finished")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        for row in data["results"]:
-            self.assertEqual(row["status"], "finished")
-
-    # ── Sort ─────────────────────────────────────────────────────────────
-
-    def test_sort_by_name_ascending(self):
-        """?sort=name sorts results by name ascending."""
-        response = self.client.get(f"{self.url}?sort=name")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        names = [r["name"] for r in data["results"]]
-        self.assertEqual(names, sorted(names))
-
-    def test_sort_by_updated_at_descending(self):
-        """?sort=-updated_at sorts by most recently updated first."""
-        response = self.client.get(f"{self.url}?sort=-updated_at")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        if len(data["results"]) >= 2:
-            dates = [r["updated_at"] for r in data["results"]]
-            self.assertEqual(dates, sorted(dates, reverse=True))
-
-    # ── Field filters ────────────────────────────────────────────────────
-
-    def test_field_filter(self):
-        """?f=key:value filters on properties JSON column."""
-        from bundled.lims.models import Entity
-        from helix_core.models import Schema
-        lims_schema = Schema.objects.get(prefix="LIMS")
-        Entity.objects.create(
-            name="Blood Sample A",
-            author=self.user,
-            schema=lims_schema,
-            source=self.folder,
-            properties={"sample_type": "A"},
-        )
-        Entity.objects.create(
-            name="Blood Sample B",
-            author=self.user,
-            schema=lims_schema,
-            source=self.folder,
-            properties={"sample_type": "B"},
-        )
-        response = self.client.get(f"{self.url}?f=sample_type:B")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["total"], 1)
-        self.assertEqual(data["results"][0]["name"], "Blood Sample B")
-
-    # ── Combined filters ─────────────────────────────────────────────────
-
-    def test_combined_search_and_status(self):
-        """Multiple filters combine with AND logic."""
-        response = self.client.get(
-            f"{self.url}?search=ELN&status=in_progress"
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        for row in data["results"]:
-            self.assertEqual(row["status"], "in_progress")
-            self.assertIn("ELN", row["name"].upper())
-
-    def test_combined_schema_type_and_sort(self):
-        """Schema type filter + sort can be combined."""
-        response = self.client.get(
-            f"{self.url}?schema_type=eln.notebookentry&sort=name"
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        names = [r["name"] for r in data["results"]]
-        self.assertEqual(names, sorted(names))
-        for row in data["results"]:
-            self.assertEqual(row["schema_type_id"], "eln.notebookentry")
-
-    def test_combined_search_and_schema_scopes_results(self):
-        """?search= + ?schema= scopes search results to that schema."""
-        from bundled.lims.models import Entity
-        from helix_core.models import Schema, SchemaType
-
-        lims_type = SchemaType.objects.get(workspace_id="lims")
-        extra_schema = Schema.objects.create(
-            name="Special Scheme", prefix="D", schema_type=lims_type,
-            is_default=False,
-        )
-        Entity.objects.create(
-            name="Unique Zebra Fish", schema=extra_schema,
-            author=self.user,
-            source=self.folder,
-        )
-
-        response = self.client.get(
-            f"{self.url}?search=Zebra&schema={extra_schema.id}"
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["total"], 1)
-        self.assertEqual(data["results"][0]["name"], "Unique Zebra Fish")
-
-        # Without the schema param the same search still finds the entity
-        response2 = self.client.get(f"{self.url}?search=Zebra")
-        self.assertEqual(response2.status_code, 200)
-        data2 = response2.json()
-        names2 = [r["name"] for r in data2["results"]]
-        self.assertIn("Unique Zebra Fish", names2)
-
-    def test_combined_search_and_wrong_schema_returns_empty(self):
-        """?search= + ?schema= with a non-matching schema returns no results."""
-        from helix_core.models import Schema
-
-        lims_schema = Schema.objects.get(prefix="LIMS")
-        response = self.client.get(
-            f"{self.url}?search=LIMS Test Entity&schema={lims_schema.id}"
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        if data["total"] > 0:
-            for row in data["results"]:
-                self.assertEqual(row["schema_id"], lims_schema.id)
-                self.assertIn("LIMS", row["name"])
-
-    # ── Project and Source fields on hub rows ─────────────────────────────
-
-    def test_hub_rows_include_project_and_source_fields(self):
-        """Hub rows carry project metadata and source identity."""
-        from helix_core.core.models import Project
-        proj = Project.objects.create(name="Test Project")
-        project_folder = Folder.objects.create(
-            name="Project Folder", parent=None, project=proj,
-        )
-        from bundled.lims.models import Entity
-        from helix_core.models import Schema, SchemaType
-        lims_type = SchemaType.objects.get(workspace_id="lims")
-        schema = Schema.objects.create(
-            name="Proj Schema", prefix="PS", schema_type=lims_type,
-            is_default=False,
-        )
-        Entity.objects.create(
-            name="Project Entity", author=self.user, schema=schema,
-            source=project_folder, project=proj,
-        )
-        response = self.client.get(self.url)
-        data = response.json()
-        for row in data["results"]:
-            self.assertIn("project_id", row)
-            self.assertIn("project_uid", row)
-            self.assertIn("project_name", row)
-            self.assertIn("project_icon", row)
-            self.assertIn("project_color", row)
-            self.assertIn("source_type", row)
-            self.assertIn("source_id", row)
-            self.assertIn("source_path", row)
-            self.assertIn("source", row)
+            self.assertEqual(row["workspace_id"], "fixture")
+            self.assertEqual(row["schema_type_id"], "fixture.concretetestentity")
+            self.assertTrue({
+                "display_id", "name", "schema_type_id", "schema_type_display",
+                "status", "author_username", "source", "source_type", "source_id",
+            }.issubset(row))
             self.assertEqual(row["source"]["kind"], "folder")
+            self.assertEqual(row["source_id"], self.folder.pk)
 
-    def test_sort_by_project_name(self):
-        """?sort=project__name sorts by project name."""
-        from helix_core.core.models import Project
-        proj_a = Project.objects.create(name="Alpha Project")
-        proj_b = Project.objects.create(name="Beta Project")
-        folder_a = Folder.objects.create(name="A Folder", parent=None, project=proj_a)
-        folder_b = Folder.objects.create(name="B Folder", parent=None, project=proj_b)
-        from bundled.lims.models import Entity
-        from helix_core.models import Schema, SchemaType
-        lims_type = SchemaType.objects.get(workspace_id="lims")
-        schema = Schema.objects.create(
-            name="Sort Schema", prefix="SS", schema_type=lims_type,
-            is_default=False,
+    def test_pagination_accepts_size_and_page_parameters(self):
+        response = self.client.get(f"{self.url}?size=1&page=2")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["size"], 1)
+        self.assertEqual(response.json()["page"], 2)
+        self.assertEqual(len(response.json()["results"]), 1)
+
+    def test_search_matches_names_and_display_ids_case_insensitively(self):
+        for query in ("fixture alpha", self.entity.display_id.lower()):
+            with self.subTest(query=query):
+                response = self.client.get(f"{self.url}?search={query}")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["total"], 1)
+                self.assertEqual(
+                    response.json()["results"][0]["display_id"],
+                    self.entity.display_id,
+                )
+
+    def test_schema_type_and_schema_filters_scope_registered_rows(self):
+        response = self.client.get(f"{self.url}?schema_type=fixture.concretetestentity")
+        self.assertEqual(response.json()["total"], 2)
+        response = self.client.get(f"{self.url}?schema={self.schema.pk}")
+        self.assertEqual(response.json()["total"], 1)
+        self.assertEqual(
+            response.json()["results"][0]["schema_id"], self.schema.pk
         )
-        Entity.objects.create(
-            name="Entity B", author=self.user, schema=schema,
-            source=folder_b, project=proj_b,
+        response = self.client.get(f"{self.url}?schema_type=fixture.unknown")
+        self.assertEqual(response.json()["total"], 0)
+
+    def test_status_filter_and_combined_search(self):
+        ConcreteTestEntity.objects.create(
+            name="Finished Fixture", author=self.user, schema=self.schema,
+            source=self.folder, status="finished",
         )
-        Entity.objects.create(
-            name="Entity A", author=self.user, schema=schema,
-            source=folder_a, project=proj_a,
+        finished = self.client.get(f"{self.url}?status=finished").json()
+        self.assertEqual(finished["total"], 1)
+        self.assertEqual(finished["results"][0]["name"], "Finished Fixture")
+        in_progress = self.client.get(f"{self.url}?status=in_progress").json()
+        self.assertEqual(in_progress["total"], 2)
+        combined = self.client.get(
+            f"{self.url}?search=fixture&status=in_progress"
+        ).json()
+        self.assertEqual(combined["total"], 2)
+
+    def test_property_filter_composes_with_schema_and_search(self):
+        response = self.client.get(
+            f"{self.url}?schema={self.schema.pk}&f=sample_type:A&search=alpha"
         )
-        response = self.client.get(f"{self.url}?sort=project__name&schema_type=lims.entity")
-        data = response.json()
-        project_names = [
-            r["project_name"] for r in data["results"]
-            if r["project_name"]
-        ]
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 1)
+        row = response.json()["results"][0]
+        self.assertEqual(row["display_id"], self.entity.display_id)
+        self.assertEqual(row["_expanded"]["sample_type"], "A")
+        wrong_schema = self.client.get(
+            f"{self.url}?schema={self.other_schema.pk}&search=alpha"
+        ).json()
+        self.assertEqual(wrong_schema["total"], 0)
+
+    def test_sorting_uses_requested_name_and_project_fields(self):
+        response = self.client.get(f"{self.url}?sort=name")
+        names = [row["name"] for row in response.json()["results"]]
+        self.assertEqual(names, sorted(names))
+
+        project_a = Project.objects.create(name="Alpha Project")
+        project_b = Project.objects.create(name="Beta Project")
+        folder_a = Folder.objects.create(name="A Folder", parent=None, project=project_a)
+        folder_b = Folder.objects.create(name="B Folder", parent=None, project=project_b)
+        ConcreteTestEntity.objects.create(
+            name="Project B", author=self.user, schema=self.schema, source=folder_b,
+        )
+        ConcreteTestEntity.objects.create(
+            name="Project A", author=self.user, schema=self.schema, source=folder_a,
+        )
+        data = self.client.get(f"{self.url}?sort=project__name").json()
+        project_names = [row["project_name"] for row in data["results"] if row["project_name"]]
         self.assertEqual(project_names, sorted(project_names))
 
-    # ── available_columns dynamic expansion ──────────────────────────────
-
-    def test_available_columns_with_schema_includes_schema_columns(self):
-        """When ?schema= is set, available_columns includes schema columns."""
-        from helix_core.models import Schema
-        eln_schema = Schema.objects.get(prefix="E")
-        response = self.client.get(f"{self.url}?schema={eln_schema.id}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        keys = {c["key"] for c in data["available_columns"]}
-        # Should still include common columns
-        self.assertIn("display_id", keys)
-        self.assertIn("name", keys)
-
-    def test_available_columns_with_schema_uses_column_name_as_key(self):
-        """available_columns keys use column name (not UUID) to match properties."""
-        from helix_core.models import Schema, SchemaType
-        lims_type = SchemaType.objects.get(workspace_id="lims")
-        schema = Schema.objects.create(
-            name="Blood Schema",
-            prefix="BLOOD2",
-            schema_type=lims_type,
-            is_default=False,
-            columns=[
-                {"name": "sample_type", "type": "text"},
-                {"name": "concentration", "type": "number"},
-            ],
-        )
-        response = self.client.get(f"{self.url}?schema={schema.id}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        schema_keys = {
-            c["key"] for c in data["available_columns"] if c["source"] == "schema"
-        }
-        self.assertEqual(schema_keys, {"sample_type", "concentration"})
-
-    # ── _expanded population ────────────────────────────────────────────
-
-    def test_expanded_populated_when_schema_selected(self):
-        """_expanded is populated with column values when ?schema= is set."""
-        from helix_core.models import Schema, SchemaType
-        from bundled.lims.models import Entity
-
-        lims_type = SchemaType.objects.get(workspace_id="lims")
-        schema = Schema.objects.create(
-            name="Blood Schema",
-            prefix="BLOOD3",
-            schema_type=lims_type,
-            is_default=False,
-            columns=[
-                {"name": "sample_type", "type": "text"},
-                {"name": "concentration", "type": "number"},
-            ],
-        )
-        Entity.objects.create(
-            name="Blood Sample X",
-            author=self.user,
-            schema=schema,
-            source=self.folder,
-            properties={"sample_type": "Whole Blood", "concentration": 42},
-        )
-
-        response = self.client.get(f"{self.url}?schema={schema.id}")
-        self.assertEqual(response.status_code, 200)
+    def test_schema_columns_and_expanded_properties_are_returned(self):
+        response = self.client.get(f"{self.url}?schema={self.schema.pk}")
         row = response.json()["results"][0]
-        self.assertEqual(row["schema_id"], schema.id)
-        self.assertIsNotNone(row["_expanded"])
-        self.assertEqual(row["_expanded"]["sample_type"], "Whole Blood")
-        self.assertEqual(row["_expanded"]["concentration"], 42)
+        self.assertEqual(row["_expanded"]["sample_type"], "A")
+        schema_columns = {
+            column["key"] for column in response.json()["available_columns"]
+            if column["source"] == "schema"
+        }
+        self.assertEqual(schema_columns, {"sample_type"})
 
-    def test_expanded_null_when_no_schema_selected(self):
-        """_expanded is null when no schema filter is active."""
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        for row in response.json()["results"]:
-            self.assertIsNone(row["_expanded"])
-
-    def test_expanded_partial_when_some_properties_missing(self):
-        """_expanded only includes keys present in properties."""
-        from helix_core.models import Schema, SchemaType
-        from bundled.lims.models import Entity
-
-        lims_type = SchemaType.objects.get(workspace_id="lims")
-        schema = Schema.objects.create(
-            name="Partial Schema",
-            prefix="PART",
-            schema_type=lims_type,
-            is_default=False,
+        partial_schema = Schema.objects.create(
+            name="Partial", prefix="PART", schema_type=self.schema_type,
             columns=[
                 {"name": "known_field", "type": "text"},
                 {"name": "unknown_field", "type": "text"},
             ],
         )
-        Entity.objects.create(
-            name="Partial Entity",
-            author=self.user,
-            schema=schema,
-            source=self.folder,
-            properties={"known_field": "present"},
+        ConcreteTestEntity.objects.create(
+            name="Partial Fixture", author=self.user, schema=partial_schema,
+            source=self.folder, properties={"known_field": "present"},
         )
-
-        response = self.client.get(f"{self.url}?schema={schema.id}")
-        self.assertEqual(response.status_code, 200)
-        row = response.json()["results"][0]
-        self.assertIsNotNone(row["_expanded"])
+        row = self.client.get(f"{self.url}?schema={partial_schema.pk}").json()["results"][0]
         self.assertEqual(row["_expanded"]["known_field"], "present")
-        # unknown_field was not set on the entity, so it should be absent
         self.assertNotIn("unknown_field", row["_expanded"])
+        unexpanded = self.client.get(self.url).json()["results"]
+        self.assertTrue(all(row["_expanded"] is None for row in unexpanded))
+
+    def test_empty_registered_source_population_returns_no_results(self):
+        ConcreteTestEntity.objects.all().delete()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 0)
+        self.assertEqual(response.json()["results"], [])

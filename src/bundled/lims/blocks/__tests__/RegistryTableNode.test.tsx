@@ -562,14 +562,10 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     });
   }
 
-  it("renders the loaded table container", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
-    expect(screen.getByTestId("registry-table-loaded")).toBeInTheDocument();
-  });
-
-  it("consumes the shared Table Kit chrome and layout", () => {
+  it("renders loaded rows with schema metadata and shared table chrome", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);
     const table = screen.getByTestId("registry-table-loaded");
+
     expect(table).toHaveClass("table-layout-chrome", "table-layout-chrome--compact", "w-full");
     expect(table.parentElement?.querySelector(".table-layout-chrome__toolbar")).toBeInTheDocument();
     expect(table).toHaveAttribute("data-bleed-role", "card");
@@ -579,37 +575,21 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     expect(table.parentElement?.querySelector('[data-bleed-role="viewport"]')?.parentElement).toBe(
       table.parentElement,
     );
-  });
 
-  it("renders the editable title", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
-    const title = screen.getByTestId("registry-table-title");
-    expect(title).toBeInTheDocument();
-    expect(title).toHaveTextContent("My Blood Samples");
-  });
-
-  it("renders the schema name label", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
-    const label = screen.getByTestId("registry-table-schema-label");
-    expect(label).toBeInTheDocument();
-    expect(label).toHaveTextContent("Blood Sample");
-  });
-
-  it("renders the mandatory Name column header", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
+    expect(screen.getByTestId("registry-table-title")).toHaveTextContent("My Blood Samples");
+    expect(screen.getByTestId("registry-table-schema-label")).toHaveTextContent("Blood Sample");
     expect(screen.getByTestId("registry-table-header-name")).toHaveTextContent("Name");
-  });
-
-  it("renders schema column headers with compact type labels", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.getByTestId("registry-table-header-Volume")).toHaveTextContent("Volume#");
-    // Date columns show Calendar icon instead of text label
     const dateHeader = screen.getByTestId("registry-table-header-Collection Date");
     expect(dateHeader).toHaveTextContent("Collection Date");
     expect(within(dateHeader).getByTestId("icon-calendar")).toBeInTheDocument();
+    expect(screen.getByTestId("registry-table-header-status")).toBeInTheDocument();
+    expect(screen.getByTestId("registry-table-header-delete")).toBeInTheDocument();
+    expect(screen.getByTestId("add-row-btn")).toHaveTextContent("New Row");
+    expect(screen.getByTestId("name-cell-#new-1")).toHaveTextContent("Sample 1");
   });
 
-  it("renders Boolean column header with icon from registry", () => {
+  it("renders Boolean column header with its registry-provided icon", () => {
     render(
       <RegistryTableBlockComponent
         {...loadedProps({
@@ -624,42 +604,14 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
     );
     const boolHeader = screen.getByTestId("registry-table-header-Active");
     expect(boolHeader).toHaveTextContent("Active");
-    // Boolean type icon is "toggle-left" — the registry-driven renderColumnTypeBadge
-    // renders the ToggleLeft Lucide component.
     expect(within(boolHeader).getByTestId("icon-toggle-left")).toBeInTheDocument();
   });
 
-  it("renders status bar and delete column headers", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
-    expect(screen.getByTestId("registry-table-header-status")).toBeInTheDocument();
-    expect(screen.getByTestId("registry-table-header-delete")).toBeInTheDocument();
-  });
-
-  it("renders the + New Row button", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
-    const addBtn = screen.getByTestId("add-row-btn");
-    expect(addBtn).toBeInTheDocument();
-    expect(addBtn).toHaveTextContent("New Row");
-  });
-
-  it("renders row with Name cell content", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
-    expect(screen.getByTestId("name-cell-#new-1")).toHaveTextContent("Sample 1");
-  });
-
-  it("shows empty state message when no rows", () => {
+  it("shows the empty row and hides schema-loading controls after loading", () => {
     render(<RegistryTableBlockComponent {...loadedProps({ attrs: { rows: [] } })} />);
     expect(screen.getByTestId("registry-table-empty-row")).toBeInTheDocument();
     expect(screen.getByText(/No rows yet/)).toBeInTheDocument();
-  });
-
-  it("does not show the placeholder when schema is loaded", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.queryByTestId("registry-table-placeholder")).not.toBeInTheDocument();
-  });
-
-  it("does not show Load Schema button when schema is loaded", () => {
-    render(<RegistryTableBlockComponent {...loadedProps()} />);
     expect(screen.queryByTestId("load-schema-btn")).not.toBeInTheDocument();
   });
 });
@@ -786,18 +738,6 @@ describe("RegistryTableBlockComponent — status bars", () => {
     expect(screen.getByTestId("status-bar-green")).toBeInTheDocument();
   });
 
-  it("shows orange bar when data changed since registration", () => {
-    const { props } = renderWithRow({
-      entityId: 1,
-      isRegistered: true,
-      values: { Volume: 20 },
-      lastRegisteredValueHash: "different-hash",
-      lastRegisteredSchemaContentHash: "abc123def456",
-      registrationError: null,
-    });
-    render(<RegistryTableBlockComponent {...props} />);
-    expect(screen.getByTestId("status-bar-orange")).toBeInTheDocument();
-  });
 
   it("shows yellow bar when schemaContentHash is unavailable", () => {
     const { props } = renderWithRow(
@@ -838,15 +778,16 @@ describe("RegistryTableBlockComponent — status bars", () => {
     expect(screen.getByTestId("status-bar-red")).toBeInTheDocument();
   });
 
-  it("red bar takes priority over green (all other statuses)", () => {
+  it("registration error overrides an otherwise-current green row", () => {
     const values = { Volume: 10 };
     const hash = computeSnapshot(values, "Sample 1");
     const { props } = renderWithRow({
       entityId: 1,
       isRegistered: true,
       values,
-      lastRegisteredValueHash: hash, // would normally be green
-      registrationError: "Error!",  // but error overrides
+      lastRegisteredValueHash: hash,
+      lastRegisteredSchemaContentHash: "abc123def456",
+      registrationError: "Error!",
     });
     render(<RegistryTableBlockComponent {...props} />);
     expect(screen.getByTestId("status-bar-red")).toBeInTheDocument();

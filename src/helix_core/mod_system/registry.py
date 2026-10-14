@@ -189,8 +189,19 @@ class BackendModRegistry:
         provider = self._content_sources.get(kind)
         if provider is not None:
             return provider
+        local_kind = kind.rsplit(":", 1)[-1]
+        owner_alias = kind.rsplit(":", 1)[0] if ":" in kind else None
         return next(
-            (item for key, item in self._content_sources.items() if key.rsplit(":", 1)[-1] == kind),
+            (
+                item
+                for key, item in self._content_sources.items()
+                if key.rsplit(":", 1)[-1] == local_kind
+                and (
+                    owner_alias is None
+                    or key.rsplit(":", 1)[0] == owner_alias
+                    or key.rsplit(":", 1)[0].endswith(f".{owner_alias}")
+                )
+            ),
             None,
         )
 

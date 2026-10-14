@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Unit tests for dropdown colour derivation (frontend).
  */

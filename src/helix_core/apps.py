@@ -131,8 +131,22 @@ class HelixCoreConfig(AppConfig):
                     state=ModInstallation.State.ACTIVE
                 ).values_list("mod_id", flat=True)
             )
+            # Bundled Mods are active by default, including a freshly
+            # migrated database whose lifecycle table has no rows yet.
+            active_ids.update(
+                mod_id
+                for mod_id, path in id_to_path.items()
+                if path in BUNDLED_MODS
+            )
         except (OperationalError, ProgrammingError):
-            pass
+            # Bundled Mods are active by default. During migrations and test
+            # database startup the lifecycle table may not exist yet, but the
+            # in-process registry still needs their URL and service contracts.
+            active_ids = {
+                mod_id
+                for mod_id, path in id_to_path.items()
+                if path in BUNDLED_MODS
+            }
 
         for dotted_path in sorted_paths:
             mod_id = next(
@@ -163,3 +177,14 @@ class HelixCoreConfig(AppConfig):
         # All mods have now declared their contributions.  Only now resolve
         # cross-mod references, so registration order cannot affect outcomes.
         validate_activation(registry)
+
+        # Root URLConf may have been imported before app registration. Refresh
+        # its shared list in place so prior ``from config.urls import
+        # urlpatterns`` references and Django's resolver see active Mod routes.
+        try:
+            from config.urls import refresh_mod_urlpatterns
+
+            refresh_mod_urlpatterns()
+        except ModuleNotFoundError:
+            # Small unit-test settings may not install the project URLConf.
+            pass

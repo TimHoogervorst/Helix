@@ -352,19 +352,10 @@ class CardSeedTests(BaseTestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
-        from helix_core.models import SchemaType
 
         cls.admin = User.objects.create_user(
             username="admin", password="pass",
             is_superuser=True, is_staff=True, is_active=True,
-        )
-        SchemaType.objects.create(
-            display_name="Entry", workspace_id="eln",
-            model="mods.eln.models.NotebookEntry",
-        )
-        SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims",
-            model="bundled.lims.models.Entity",
         )
 
     def setUp(self):
@@ -372,41 +363,33 @@ class CardSeedTests(BaseTestCase):
         from bundled.lims.mod import _seed_builtin_metrics
         _seed_builtin_metrics()
 
-    def test_seed_creates_two_global_cards(self):
-        """After seeding, exactly 2 global cards exist for surface home."""
+    def test_seed_creates_the_platform_card_for_home(self):
+        """Home seeds the card backed by a view available in the Platform suite."""
         from bundled.shared.home.mod import _seed_global_cards
 
         _seed_global_cards()
 
         cards = Card.objects.filter(owner__isnull=True, surface="home")
-        self.assertEqual(cards.count(), 2)
+        self.assertEqual(list(cards.values_list("label", flat=True)), ["Entities created"])
 
-    def test_seed_creates_two_global_cards_for_profile_surface(self):
-        """After seeding, exactly 2 global cards exist for surface profile."""
+    def test_seed_creates_the_platform_card_for_profile_surface(self):
+        """Profile seeds the card backed by a view available in the Platform suite."""
         from bundled.shared.home.mod import _seed_global_cards
 
         _seed_global_cards()
 
         cards = Card.objects.filter(owner__isnull=True, surface="profile")
-        self.assertEqual(cards.count(), 2)
+        self.assertEqual(list(cards.values_list("label", flat=True)), ["Entities created"])
 
     def test_seeded_profile_cards_have_correct_properties(self):
-        """Profile-surface seeded cards mirror the home labels, icons, and order."""
+        """The Platform-seeded profile card has its configured label and display metadata."""
         from bundled.shared.home.mod import _seed_global_cards
 
         _seed_global_cards()
 
         cards = Card.objects.filter(owner__isnull=True, surface="profile").order_by("order")
         labels = [c.label for c in cards]
-        self.assertIn("In-progress entries", labels)
         self.assertIn("Entities created", labels)
-
-        in_progress_card = Card.objects.get(
-            owner__isnull=True, surface="profile", label="In-progress entries",
-        )
-        self.assertEqual(in_progress_card.icon, "scroll-text")
-        self.assertEqual(in_progress_card.order, 0)
-        self.assertIsNotNone(in_progress_card.metric)
 
         entities_card = Card.objects.get(
             owner__isnull=True, surface="profile", label="Entities created",
@@ -436,15 +419,7 @@ class CardSeedTests(BaseTestCase):
 
         cards = Card.objects.filter(owner__isnull=True, surface="home").order_by("order")
         labels = [c.label for c in cards]
-        self.assertIn("In-progress entries", labels)
         self.assertIn("Entities created", labels)
-
-        in_progress_card = Card.objects.get(
-            owner__isnull=True, surface="home", label="In-progress entries",
-        )
-        self.assertEqual(in_progress_card.icon, "scroll-text")
-        self.assertEqual(in_progress_card.order, 0)
-        self.assertIsNotNone(in_progress_card.metric)
 
         entities_card = Card.objects.get(
             owner__isnull=True, surface="home", label="Entities created",

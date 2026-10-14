@@ -1,7 +1,7 @@
 # ADR-0030: Test Ownership and External Mod Isolation
 
 > Date: 2026-10-14
-> Status: Accepted; implementation pending
+> Status: Accepted; implementation complete
 > Related: [ADR-0027](0027-repository-tiers-and-golden-rule.md), [ADR-0029](0029-closed-bundled-open-external-discovery.md)
 
 Helix's test suite owns Platform behavior (including the Shell and public Mod API) and Bundled Mod behavior. Bundled Mods keep their dedicated tests inside their own folders. External Mods own their tests independently, even while their source temporarily resides in this repository. Helix CI will exclude External Mod tests; it will not provide an ELN-specific job, including for changes inside ELN. ELN's future repository will own its runner and GitHub Actions.

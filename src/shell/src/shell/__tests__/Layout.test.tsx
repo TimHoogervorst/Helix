@@ -123,31 +123,19 @@ describe("Layout sidebar", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument();
   });
 
-  it("renders Home nav link", () => {
-    renderLayout();
-    expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
-  });
-
-  it("Home nav link points to /home", () => {
+  it("renders the registered Home and Library destinations", () => {
     renderLayout();
     const homeLink = screen.getByRole("link", { name: "Home" });
+    const libraryLink = screen.getByRole("link", { name: "Library" });
     expect(homeLink).toHaveAttribute("href", "/home");
+    expect(homeLink).toHaveAttribute("title", "Home");
+    expect(libraryLink).toHaveAttribute("href", "/library");
+    expect(libraryLink).toHaveAttribute("title", "Library");
   });
 
   it("does not render the old hardcoded Starred button", () => {
     renderLayout();
     expect(screen.queryByRole("button", { name: "Starred" })).not.toBeInTheDocument();
-  });
-
-  it("renders Library nav link", () => {
-    renderLayout();
-    expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
-  });
-
-  it("Library nav link points to /library", () => {
-    renderLayout();
-    const libraryLink = screen.getByRole("link", { name: "Library" });
-    expect(libraryLink).toHaveAttribute("href", "/library");
   });
 
   it("does not show Database nav link (LIMS console removed)", () => {
@@ -201,15 +189,6 @@ describe("Layout sidebar", () => {
     renderLayout();
     const aside = document.querySelector("aside");
     expect(aside).toBeInTheDocument();
-  });
-
-  it("renders all nav links with tooltip titles", () => {
-    renderLayout();
-    const homeLink = screen.getByRole("link", { name: "Home" });
-    expect(homeLink).toHaveAttribute("title", "Home");
-
-    const libraryLink = screen.getByRole("link", { name: "Library" });
-    expect(libraryLink).toHaveAttribute("title", "Library");
   });
 
   it("renders without crashing (CSRF priming runs)", () => {
@@ -317,7 +296,7 @@ describe("Layout settings sidebar", () => {
     mockGet.mockResolvedValue([]);
   });
 
-  it("shows settings sections in the sidebar when on /settings", () => {
+  it("shows registered settings and the return destination on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <ThemeProvider>
@@ -328,32 +307,8 @@ describe("Layout settings sidebar", () => {
 
     expect(screen.getByRole("link", { name: "Users" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Schemas" })).toBeInTheDocument();
-  });
-
-  it("shows a 'Settings' section label when on /settings", () => {
-    render(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <ThemeProvider>
-          <Layout />
-        </ThemeProvider>
-      </MemoryRouter>,
-    );
-
     expect(screen.getByText("Settings")).toBeInTheDocument();
-  });
-
-  it("shows a 'Back to Home' link that navigates to /library when on /settings", () => {
-    render(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <ThemeProvider>
-          <Layout />
-        </ThemeProvider>
-      </MemoryRouter>,
-    );
-
-    const backLink = screen.getByRole("link", { name: "Back to Home" });
-    expect(backLink).toBeInTheDocument();
-    expect(backLink).toHaveAttribute("href", "/library");
+    expect(screen.getByRole("link", { name: "Back to Home" })).toHaveAttribute("href", "/library");
   });
 
   it("highlights the active settings section based on search param", () => {
@@ -384,7 +339,7 @@ describe("Layout settings sidebar", () => {
     expect(usersLink.className).toContain("font-medium");
   });
 
-  it("hides hub links when on /settings", () => {
+  it("hides hub and Tabs navigation on /settings", () => {
     render(
       <MemoryRouter initialEntries={["/settings"]}>
         <ThemeProvider>
@@ -392,20 +347,8 @@ describe("Layout settings sidebar", () => {
         </ThemeProvider>
       </MemoryRouter>,
     );
-
     expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
-  });
-
-  it("hides Tabs section when on /settings", () => {
-    render(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <ThemeProvider>
-          <Layout />
-        </ThemeProvider>
-      </MemoryRouter>,
-    );
-
     expect(screen.queryByText("Tabs")).not.toBeInTheDocument();
   });
 
@@ -422,23 +365,12 @@ describe("Layout settings sidebar", () => {
     expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument();
   });
 
-  it("does not show 'Back to Home' when NOT on /settings", () => {
+  it("shows the normal destinations and Tabs outside settings", () => {
     renderLayout("/library");
-
-    expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
-  });
-
-  it("shows normal nav (hubs) when NOT on /settings", () => {
-    renderLayout("/library");
-
-    expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Library" })).toBeInTheDocument();
-  });
-
-  it("shows Tabs section when NOT on /settings", () => {
-    renderLayout("/library");
-
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/home");
+    expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/library");
     expect(screen.getByText("Tabs")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
   });
 });
 

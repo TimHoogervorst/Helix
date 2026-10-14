@@ -199,8 +199,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         entity = self.get_object()
         result_schema_type_ids = [
             schema_type.pk
-            for schema_type in SchemaType.objects.only("pk", "tags")
-            if "ResultTable" in (schema_type.tags or [])
+            for schema_type in SchemaType.objects.only("pk", "capabilities")
+            if "ResultTable" in (schema_type.capabilities or [])
         ]
         result_entities = (
             Entity.objects.filter(
@@ -426,7 +426,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for name, definition in _column_defs.items()
             if definition.get("type") == "formula"
         }
-        is_result_schema = "ResultTable" in (schema.schema_type.tags or [])
+        is_result_schema = "ResultTable" in (schema.schema_type.capabilities or [])
 
         results = []
         errors = []

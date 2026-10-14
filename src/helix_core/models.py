@@ -145,10 +145,10 @@ class SchemaType(ContentHashedModel):
         blank=True,
         help_text="Ordered array of column definitions: {id, name, type, required, default, units, description}.",
     )
-    tags = models.JSONField(
+    capabilities = models.JSONField(
         default=list,
         blank=True,
-        help_text="Capability tags declared by the owning mod.",
+        help_text="Capabilities declared by the owning mod.",
     )
     is_active = models.BooleanField(
         default=True,

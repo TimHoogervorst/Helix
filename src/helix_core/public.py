@@ -18,10 +18,10 @@ from typing import Any, Callable, Generic, TypeVar
 from helix_core.column_types import ColumnType
 from helix_core.mod_system.manifest import ModManifest
 from helix_core.mod_system.registry import ContentSourceProvider
+from helix_core.capabilities import validate_capabilities
 
 _MOD_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$")
 _LOCAL_KEY = re.compile(r"^[a-z][a-z0-9]*(?:[-.]?[a-z0-9]+)*$")
-_PLATFORM_TAGS = {"RegistrationTable", "ResultTable"}
 
 
 def _reference(mod_id: str, local_key: str) -> str:
@@ -224,7 +224,7 @@ class ModRegistrar:
         model: ModelReference,
         prefix: str,
         columns: list[dict[str, Any]] | None = None,
-        tags: list[str] | None = None,
+        capabilities: list[str] | None = None,
         schema_name: str = "Default",
         icon: str = "",
         color: str = "",
@@ -233,10 +233,7 @@ class ModRegistrar:
             raise TypeError(
                 f"Expected ModelReference, got {type(model).__name__}"
             )
-        tags = list(tags or [])
-        for tag in tags:
-            if tag not in _PLATFORM_TAGS and not tag.startswith(f"{self.id}:"):
-                raise ValueError(f"unknown schema tag '{tag}'")
+        capabilities = validate_capabilities(list(capabilities or []), self.id)
         model_class = self._models.get(model.id) or self._registry.get_registered_models().get(model.id)
         if model_class is None:
             self._registry._pending_schema_types.append({
@@ -245,7 +242,7 @@ class ModRegistrar:
                 "model_ref": model,
                 "prefix": prefix,
                 "columns": columns,
-                "tags": tags,
+                "capabilities": capabilities,
                 "schema_name": schema_name,
                 "icon": icon,
                 "color": color,
@@ -257,7 +254,7 @@ class ModRegistrar:
             workspace_id=workspace_id,
             model=model_path,
             columns=columns,
-            tags=tags,
+            capabilities=capabilities,
             prefix=prefix,
             schema_name=schema_name,
             icon=icon,

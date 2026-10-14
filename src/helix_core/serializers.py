@@ -87,7 +87,7 @@ class SchemaTypeListSerializer(serializers.ModelSerializer):
             "workspace_id",
             "is_active",
             "schema_type_id",
-            "tags",
+            "capabilities",
         ]
 
     def get_schema_type_id(self, obj):
@@ -113,7 +113,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
-    tags = serializers.JSONField(source="schema_type.tags", read_only=True)
+    capabilities = serializers.JSONField(source="schema_type.capabilities", read_only=True)
 
     class Meta:
         model = Schema
@@ -123,7 +123,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
             "prefix",
             "schema_type",
             "schema_type_display",
-            "tags",
+            "capabilities",
             "columns",
             "is_default",
             "is_active",
@@ -145,7 +145,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
-    tags = serializers.JSONField(source="schema_type.tags", read_only=True)
+    capabilities = serializers.JSONField(source="schema_type.capabilities", read_only=True)
 
     class Meta:
         model = Schema
@@ -155,7 +155,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "prefix",
             "schema_type",
             "schema_type_display",
-            "tags",
+            "capabilities",
             "columns",
             "is_default",
             "is_active",

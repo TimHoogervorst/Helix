@@ -122,6 +122,4 @@ def register(mod):
         color="flask",
     )
     mod.register_signal(SignalKind.MODEL_POST_SAVE, entry, update_status_from_source)
-    entity = mod.model_reference("helix.lims", "entity")
-    mod.register_signal(SignalKind.MODEL_POST_SAVE, entity, update_status_from_source)
     mod.register_urls([path("api/eln/", include("mods.eln.urls"))])

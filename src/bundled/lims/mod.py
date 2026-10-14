@@ -1,6 +1,7 @@
 from django.urls import include, path
 
 from helix_core.schema_tags import RegistrationTable, ResultTable
+from helix_core import SignalKind
 
 
 def _seed_builtin_metrics():
@@ -86,6 +87,8 @@ def register(mod):
     mod.register_custom_action("lims.entity.tag_detached", "Tag Detached", "edited", entity)
     mod.register_urls([path("api/lims/", include("bundled.lims.urls"))])
     mod.register_service("lims.cascadeSourceStatus", cascade_source_status)
+    from helix_core.source_status import update_status_from_source
+    mod.register_signal(SignalKind.MODEL_POST_SAVE, entity, update_status_from_source)
 
     # Register LIMS schema type identity.
     mod.register_schema_type(

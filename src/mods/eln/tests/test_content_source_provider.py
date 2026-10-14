@@ -53,3 +53,23 @@ def test_lims_registers_entity_provider_without_eln():
     assert kwargs["display_metadata"]["workspace_id"] == "lims"
     assert {"create", "edit"} <= set(kwargs["mutation_handlers"])
     assert callable(kwargs["visibility_query"])
+
+
+def test_eln_status_signal_only_observes_eln_owned_models():
+    registrar = Registrar("helix.eln")
+
+    eln_mod.register(registrar)
+
+    signal_calls = [call for call in registrar.calls if call[0] == "register_signal"]
+    assert signal_calls
+    assert all(call[1][1].id.startswith("helix.eln:") for call in signal_calls)
+
+
+def test_lims_owns_entity_status_signal():
+    registrar = Registrar("helix.lims")
+
+    lims_mod.register(registrar)
+
+    signal_calls = [call for call in registrar.calls if call[0] == "register_signal"]
+    assert len(signal_calls) == 1
+    assert signal_calls[0][1][1].id == "helix.lims:entity"

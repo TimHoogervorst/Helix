@@ -15,7 +15,7 @@ from django.db.models import F, FloatField, Q
 from django.db.models.functions import Cast
 from rest_framework import serializers, viewsets, mixins, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -768,6 +768,10 @@ class ModRegistryView(APIView):
     and registered action models.
     """
 
+    # ModLoader hydrates the frontend registry before CurrentUserProvider has
+    # established the session. This payload contains Mod metadata only.
+    permission_classes = [AllowAny]
+
     def get(self, request):
         from helix_core.mod_system.registry import registry
 
@@ -781,6 +785,10 @@ class ModBootView(APIView):
     lifecycle surface: normal users need the active graph, but must not be
     able to change it.
     """
+
+    # ModLoader runs before CurrentUserProvider has established the session.
+    # Boot data contains only public Mod metadata and activation state.
+    permission_classes = [AllowAny]
 
     def get(self, request):
         from django.conf import settings

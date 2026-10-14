@@ -122,3 +122,12 @@ class ModLifecycleApiTests(TestCase):
         response = self.client.get("/api/mod-lifecycle/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mods"][0]["state"], "inactive")
+
+    def test_boot_surface_is_available_before_authentication(self):
+        response = APIClient().get("/api/mod-boot/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["activeMods"], [])
+
+        registry_response = APIClient().get("/api/mod-registry/")
+        self.assertEqual(registry_response.status_code, 200)

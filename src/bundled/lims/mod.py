@@ -1,5 +1,6 @@
 from django.urls import include, path
 
+from helix_core import SignalKind
 from helix_core.capabilities import RegistrationTable, ResultTable
 
 

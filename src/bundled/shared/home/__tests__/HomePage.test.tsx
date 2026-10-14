@@ -51,6 +51,7 @@ vi.mock("../../../../shell/src/user/CurrentUserProvider", () => ({
 }));
 
 import HomePage from "../HomePage";
+import { MetricCardsBar } from "../../../../shell/src/shared/components/MetricCards/MetricCardsBar";
 
 // ── Registry helpers ──────────────────────────────────────────────────────
 
@@ -82,6 +83,14 @@ function renderHomePage() {
   return render(
     <MemoryRouter>
       <HomePage />
+    </MemoryRouter>,
+  );
+}
+
+function renderMetricCards() {
+  return render(
+    <MemoryRouter>
+      <MetricCardsBar />
     </MemoryRouter>,
   );
 }
@@ -171,7 +180,7 @@ describe("HomePage", () => {
         .mockResolvedValueOnce({ value: 7 })
         .mockResolvedValueOnce({ value: 42 });
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(screen.getByText("In-progress entries")).toBeInTheDocument();
@@ -186,7 +195,7 @@ describe("HomePage", () => {
       vi.mocked(cardApi.getCards).mockResolvedValue([makeCard()]);
       vi.mocked(cardApi.getMetricValue).mockResolvedValue({ value: 3 });
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(cardApi.getMetricValue).toHaveBeenCalledWith(1, "mkato");
@@ -196,7 +205,7 @@ describe("HomePage", () => {
     it("shows a loading skeleton while cards are loading", () => {
       vi.mocked(cardApi.getCards).mockReturnValue(new Promise(() => {}));
 
-      renderHomePage();
+      renderMetricCards();
 
       const skeletons = document.querySelectorAll(".animate-pulse");
       expect(skeletons.length).toBeGreaterThanOrEqual(4);
@@ -205,7 +214,7 @@ describe("HomePage", () => {
     it("shows empty state when no cards exist for the surface", async () => {
       vi.mocked(cardApi.getCards).mockResolvedValue([]);
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(screen.getByText("Pin a metric to see it here.")).toBeInTheDocument();
@@ -216,7 +225,7 @@ describe("HomePage", () => {
       vi.mocked(cardApi.getCards).mockResolvedValue([makeCard()]);
       vi.mocked(cardApi.getMetricValue).mockRejectedValue(new Error("Network Error"));
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(screen.getByText("Failed to load")).toBeInTheDocument();
@@ -226,7 +235,7 @@ describe("HomePage", () => {
     it("handles cards API failure gracefully (shows empty state)", async () => {
       vi.mocked(cardApi.getCards).mockRejectedValue(new Error("Server Error"));
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(screen.getByText("Pin a metric to see it here.")).toBeInTheDocument();
@@ -239,7 +248,7 @@ describe("HomePage", () => {
       );
       vi.mocked(cardApi.getCards).mockResolvedValue(manyCards);
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(screen.getByText("Card 1")).toBeInTheDocument();
@@ -297,7 +306,7 @@ describe("HomePage", () => {
       ]);
       vi.mocked(cardApi.getMetricValue).mockResolvedValue({ value: 5 });
 
-      renderHomePage();
+      renderMetricCards();
 
       await waitFor(() => {
         expect(screen.getByText("Count — In-progress entries")).toBeInTheDocument();

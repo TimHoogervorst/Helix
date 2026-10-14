@@ -47,7 +47,7 @@ const schema = {
   is_active: true,
   is_default: false,
   content_hash: "hash-1",
-  tags: ["ResultTable"],
+  capabilities: ["ResultTable"],
   columns: [
     {
       id: "entity",
@@ -96,7 +96,7 @@ describe("ResultTableContent", () => {
   it("offers only ResultTable-tagged schemas", async () => {
     mockGet.mockResolvedValue([
       schema,
-      { ...schema, id: 8, name: "Entity", tags: ["RegistrationTable"] },
+      { ...schema, id: 8, name: "Entity", capabilities: ["RegistrationTable"] },
     ]);
     render(<ResultTableContent {...props()} />);
     fireEvent.click(screen.getByTestId("result-load-schema-btn"));

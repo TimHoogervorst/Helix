@@ -110,6 +110,18 @@ vi.mock("../../../../shell/src/mod-system/ModRegistry", () => ({
             },
           ],
         ]),
+      getContentSources: () =>
+        new Map([
+          [
+            "entry",
+            {
+              kind: "eln.entry",
+              label: "ELN Entry",
+              lock: (...args: unknown[]) => mockGetLockStatus(...args),
+              edit: (...args: unknown[]) => mockPatchEntry(...args),
+            },
+          ],
+        ]),
     }),
   },
 }));

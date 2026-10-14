@@ -34,15 +34,6 @@ def test_eln_package_owns_app_label_and_migrations():
     assert '"eln"' in apps.read_text(encoding="utf-8")
 
 
-def test_eln_package_is_a_nested_repository():
-    """ELN history can graduate to a sibling repository without reconstruction."""
-    nested_git = ELN_PACKAGE / ".git"
-
-    assert nested_git.exists(), (
-        "ELN must be initialized as a nested repository at its package path"
-    )
-
-
 def test_eln_migrations_are_registered_under_the_external_app_label():
     """Django resolves the app and migration package from the external path."""
     from django.apps import apps

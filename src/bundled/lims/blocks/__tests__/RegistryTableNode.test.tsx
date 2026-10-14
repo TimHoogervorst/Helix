@@ -189,7 +189,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "abc123def456",
-    tags: ["RegistrationTable"],
+    capabilities: ["RegistrationTable"],
   },
   {
     id: 2,
@@ -202,7 +202,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "xyz789ghi012",
-    tags: ["RegistrationTable"],
+    capabilities: ["RegistrationTable"],
   },
   {
     id: 3,
@@ -212,7 +212,7 @@ const sampleEntityTypes = [
     is_active: false,
     is_default: false,
     content_hash: "deadbeef",
-    tags: ["RegistrationTable"],
+    capabilities: ["RegistrationTable"],
   },
   {
     id: 4,
@@ -222,7 +222,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: true,
     content_hash: "sysdefault",
-    tags: ["RegistrationTable"],
+    capabilities: ["RegistrationTable"],
   },
   {
     id: 5,
@@ -232,7 +232,7 @@ const sampleEntityTypes = [
     is_active: true,
     is_default: false,
     content_hash: "eln-entry",
-    tags: [],
+    capabilities: [],
   },
 ];
 

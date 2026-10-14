@@ -39,6 +39,7 @@ vi.mock("../api", () => ({
   fetchActions: mockFetchActions,
   acquireLock: vi.fn().mockResolvedValue({}),
   releaseLock: vi.fn().mockResolvedValue(undefined),
+  getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
   attachTags: vi.fn(),
   detachTag: vi.fn(),
 }));

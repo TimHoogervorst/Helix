@@ -169,7 +169,7 @@ export default defineConfig({
     css: true,
     include: [
       "src/**/*.{test,spec}.?(c|m)[jt]s?(x)",
-      "../mods/**/*.{test,spec}.?(c|m)[jt]s?(x)",
+      "../mod-api/**/*.{test,spec}.?(c|m)[jt]s?(x)",
       "../bundled/**/*.{test,spec}.?(c|m)[jt]s?(x)",
     ],
     exclude: ["e2e/**", "node_modules/**"],

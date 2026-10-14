@@ -10,8 +10,10 @@ Backend tests live in the Platform and mod trees:
 - `src/bundled/<section>/<id>/tests/` — Bundled Mod tests
 - `src/mods/<id>/tests/` — optional External Mod tests; not part of the canonical suite
 
-The canonical `pytest` suite excludes optional External Mods and disables External
-Mod discovery. Platform integration tests use a small fake External Mod instead.
+The canonical `pytest` suite discovers Platform and Bundled tests only. It does
+not collect tests under `src/mods/`, and CI sets `HELIX_NO_EXTERNAL_MODS=1` so
+runtime discovery does not load optional External Mod packages. Platform
+integration tests use a small fake External Mod instead.
 During implementation, prefer a focused run from the target tree, file, class, or
 keyword below. After implementing a change, always run the full suite as a final check.
 
@@ -49,10 +51,6 @@ pytest helix_core/tests                                 # Platform tree
 pytest bundled/lims/tests/test_api.py::LimsApiTests    # Bundled Mod class
 pytest -k "mention"                                     # keyword match
 
-# Optional ELN suite (requires installing the ELN package separately)
-pip install -e src/mods/eln
-pytest mods/eln/tests
-
 # Docker — Bundled Mods are mounted at /bundled
 docker-compose exec backend pytest /bundled/lims/tests/test_api.py::LimsApiTests  # Bundled Mod
 docker-compose exec backend pytest -k "mention"         # keyword match
@@ -77,9 +75,19 @@ pytest
 ## Frontend
 
 ```bash
-npm test          # vitest run (from repo root)
+npm test          # build and consume Mod API artifacts, then run canonical Vitest suites
 npm run test:watch
 ```
+
+The canonical frontend suite includes Shell, Bundled Mod, and public Mod API
+tests. It excludes all External Mod test trees. CI installs root dependencies
+with `npm ci --workspaces=false`; developers can install the full workspace set
+when they need optional application packages.
+
+`npm test` builds `src/mod-api` before checking its declared package exports
+against the files included by `npm pack --dry-run`, then tests those built
+exports directly. The Vitest public-surface test separately exercises source
+imports. This keeps source aliases from standing in for artifact consumption.
 
 ### Shell and shared UI test decisions (#677)
 
@@ -89,6 +97,20 @@ npm run test:watch
 - Formula parity fixtures remain in place because they compare the independent client evaluator against shared parity examples. No Shell-owned migration test file was found to retire.
 
 The focused frontend validation for this slice passed 10 files and 191 tests with `npm test -- <focused Shell/shared UI paths>` from the repo root. This records the selected run only; test-count changes are not a coverage or speed measurement.
+
+### Canonical discovery and Mod API artifacts (#679)
+
+- Backend discovery targets `server`, `helix_core`, and `bundled`; it omits the
+  entire External Mod tree. Unresolved mixed Platform files remain explicitly
+  ignored until their restoration tickets remove those entries.
+- Frontend discovery includes Shell, Bundled Mod, and public Mod API tests. It
+  excludes every External Mod test tree.
+- Backend CI disables External Mod discovery with `HELIX_NO_EXTERNAL_MODS=1`.
+  Frontend CI installs root dependencies without installing workspace Mod
+  packages, then runs the canonical `npm test` command.
+- `src/mod-api/__tests__/public-surface.test.ts` checks source exports. The
+  package test builds the library, verifies that `npm pack --dry-run` includes
+  every runtime export, and imports the built export targets.
 
 ### Platform fixture and ownership decisions (#671)
 

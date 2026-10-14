@@ -90,6 +90,51 @@ npm run test:watch
 
 The focused frontend validation for this slice passed 10 files and 191 tests with `npm test -- <focused Shell/shared UI paths>` from the repo root. This records the selected run only; test-count changes are not a coverage or speed measurement.
 
+### Platform fixture and ownership decisions (#671)
+
+The private fake package at `src/helix_core/tests/fixtures/external_mod/` owns
+`ConcreteTestEntity`, its manifest, a content provider, one action, and a minimal
+frontend hub. Consumers may extend it for their own contracts; it is not a public
+testing API. Backend discovery uses real entry-point parsing with test metadata,
+then public registration and persisted content. Shell tests use manifest/lazy
+module globs and the real `ModLoader`, proving active contributions render and
+absent active contributions leave no hub. No real External Mod is imported by
+these integration tests.
+
+- Keep all existing abstract-entity behavior checks. Move the concrete model out
+  of the collected test module; create/drop its table through `django_db_setup`.
+  Pure suites no longer request a database through an unconditional fixture.
+- Move hello-world author/catalog/source checks to
+  `src/mods/hello_world/tests/test_contract.py`. Its package defers registration
+  imports so metadata/source inspection does not require installing its Django
+  app. Run these example-owned checks explicitly, outside canonical discovery.
+- Replace the hand-populated ELN registry matrix and package-presence assertion
+  with real fixture boot and rendering. Backend discovery also verifies the
+  genuinely absent package set retains Bundled Mods.
+
+Focused checks from `src/`, with `DATABASE_URL=sqlite:///local.db`:
+
+```bash
+pytest helix_core/tests/test_external_mod_contract.py helix_core/tests/test_abstracts.py helix_core/tests/test_boot_sequence.py -q -p no:cacheprovider
+pytest mods/hello_world/tests/test_contract.py -q -p no:cacheprovider
+pytest helix_core/tests/test_boot_sequence.py -q --setup-show -p no:cacheprovider
+```
+
+The first run passed 20 tests, the example-owned run passed 3 tests, and the pure
+boot run passed 2 tests without `django_db_setup`. The cache plugin was disabled
+only for this sandbox: a faulthandler trace identified its session-finish
+`tempfile.mkdtemp` as the source of filesystem-denial hangs after assertions had
+passed. No test or database lifecycle exclusion was needed.
+
+Frontend validation from `src/shell/`:
+
+```bash
+vitest run src/mod-system/__tests__/external-package.test.ts src/mod-system/__tests__/boot.test.ts src/mod-system/__tests__/ModLoader.test.tsx
+```
+
+This passed 3 files and 8 tests. These focused runs do not establish full-suite
+independence; restoration and canonical-discovery slices own that remaining work.
+
 ## CI
 
 `.github/workflows/test.yml` runs `pytest -n auto` against Postgres on every push/PR. When in doubt about "how tests actually run", that workflow is the source of truth.

@@ -1,0 +1,11 @@
+{
+  "id": "test.external",
+  "displayName": "Platform Fixture",
+  "version": "1.0.0",
+  "requiresHelix": ">=1.0.0",
+  "artifacts": [
+    "backend",
+    "frontend"
+  ],
+  "dependsOn": []
+}

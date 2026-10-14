@@ -7,7 +7,7 @@ from helix_core.mod_system.catalog import build_catalog
 from helix_core.mod_system.validator import validate_author, validate_deployment
 
 
-FIXTURE = Path(__file__).parents[3] / "src" / "mods" / "hello_world"
+FIXTURE = Path(__file__).parents[1]
 
 
 def test_hello_world_mod_is_a_valid_dual_artifact_source_repository():

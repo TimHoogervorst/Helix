@@ -29,6 +29,7 @@ class HelixCoreConfig(AppConfig):
         )
         from helix_core.mod_system.bundled import BUNDLED_MODS
         from django.db.utils import OperationalError, ProgrammingError
+        from django.db.transaction import TransactionManagementError
 
         # Keep the optional provider boundary enforced at the real boot seam,
         # rather than relying only on the build-time catalog.
@@ -83,6 +84,10 @@ class HelixCoreConfig(AppConfig):
                 },
             )
             apply_persisted_activation()
+        except TransactionManagementError:
+            # Transaction bugs must not be mistaken for a missing table on
+            # an unmigrated database, leaving activation silently unapplied.
+            raise
         except (OperationalError, ProgrammingError):
             # Migrations and makemigrations run before the lifecycle table
             # exists; normal application startup always has it.

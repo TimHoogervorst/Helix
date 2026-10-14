@@ -1,10 +1,11 @@
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APIClient
 
 from helix_core.mod_system.lifecycle import (
     ModLifecycleError,
     ModLifecycleState,
     activate_mod,
+    apply_persisted_activation,
     deactivate_mod,
     sync_mod_installations,
 )
@@ -96,6 +97,49 @@ class ModLifecycleServiceTests(TestCase):
         installation = ModInstallation.objects.get(mod_id="acme.app")
         self.assertEqual(installation.desired_state, ModLifecycleState.INACTIVE)
         self.assertEqual(ActionLogEntry.objects.count(), 0)
+
+
+class ModStartupActivationTests(TransactionTestCase):
+    def test_saved_activation_and_deactivation_are_applied_from_autocommit(self):
+        sync_mod_installations(
+            {"acme.app": manifest("acme.app")}, {"acme.app": "mods.app"}
+        )
+        user = User.objects.create_user(username="admin")
+        installation = ModInstallation.objects.get(mod_id="acme.app")
+
+        activate_mod("acme.app", user)
+        installation.refresh_from_db()
+        self.assertEqual(installation.state, ModLifecycleState.INACTIVE)
+        self.assertEqual(installation.desired_state, ModLifecycleState.ACTIVE)
+
+        apply_persisted_activation()
+        installation.refresh_from_db()
+        self.assertEqual(installation.state, ModLifecycleState.ACTIVE)
+
+        deactivate_mod("acme.app", user)
+        installation.refresh_from_db()
+        self.assertEqual(installation.state, ModLifecycleState.ACTIVE)
+
+        apply_persisted_activation()
+        installation.refresh_from_db()
+        self.assertEqual(installation.state, ModLifecycleState.INACTIVE)
+
+    def test_invalid_saved_activation_leaves_all_states_unchanged(self):
+        sync_mod_installations(
+            {
+                "acme.valid": manifest("acme.valid"),
+                "acme.invalid": manifest("acme.invalid", ["missing.mod"]),
+            },
+            {"acme.valid": "mods.valid", "acme.invalid": "mods.invalid"},
+        )
+        ModInstallation.objects.update(desired_state=ModLifecycleState.ACTIVE)
+
+        with self.assertRaises(ModLifecycleError):
+            apply_persisted_activation()
+
+        self.assertFalse(
+            ModInstallation.objects.exclude(state=ModLifecycleState.INACTIVE).exists()
+        )
 
 
 class ModLifecycleApiTests(TestCase):

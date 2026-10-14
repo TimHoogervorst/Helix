@@ -133,6 +133,7 @@ def validate_persisted_activation(installations: dict[str, ModInstallation]) -> 
     _validate_active_graph(installations, active)
 
 
+@transaction.atomic
 def apply_persisted_activation() -> None:
     """Apply desired state at process startup after the graph is validated."""
     installations = _locked_installations()

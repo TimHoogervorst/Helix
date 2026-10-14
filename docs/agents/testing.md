@@ -81,6 +81,15 @@ npm test          # vitest run (from repo root)
 npm run test:watch
 ```
 
+### Shell and shared UI test decisions (#677)
+
+- The `makeMockMentionBadge` factory had no consumers outside its own tests, so the helper and its factory-contract suite were removed. The provider-backed `MentionBadge` component suite remains the behavior owner.
+- Shell route tests combine repeated default/settings navigation checks. They retain registered destinations, settings selection, meaningful absence checks, responsive transitions, manual collapse, and sidebar interactions.
+- `StatusBadge` retains exhaustive known, unknown, and empty status mapping. `BaseCard` focuses on parent composition, view modes, optional metadata, selection, and activation. `IconBadge` retains theme/fallback colors, palette resolution, unknown-icon fallback and warning behavior, actual custom SVG resolution, sizes, and click behavior while duplicate render/warning checks are removed.
+- Formula parity fixtures remain in place because they compare the independent client evaluator against shared parity examples. No Shell-owned migration test file was found to retire.
+
+The focused frontend validation for this slice passed 10 files and 191 tests with `npm test -- <focused Shell/shared UI paths>` from the repo root. This records the selected run only; test-count changes are not a coverage or speed measurement.
+
 ## CI
 
 `.github/workflows/test.yml` runs `pytest -n auto` against Postgres on every push/PR. When in doubt about "how tests actually run", that workflow is the source of truth.

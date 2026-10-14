@@ -17,6 +17,7 @@ import type {
   ContentSourceConfig,
   IconLibraryEntry,
   ColorToken,
+  MetricProviderConfig,
 } from "./types";
 import { WorkspaceReference } from "./references";
 import {
@@ -159,6 +160,7 @@ export class ModRegistry {
   private schemaComponents = new Map<string, SchemaComponentRegistration>();
   private routes = new Map<string, RouteConfig>();
   private services = new Map<string, ServiceConfig>();
+  private metricProviders = new Map<string, MetricProviderConfig>();
   private contentSources = new Map<string, ContentSourceConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private blocks = new Map<string, BlockRegistration>();
@@ -258,6 +260,21 @@ export class ModRegistry {
     this.services.set(config.id, config);
   }
 
+  registerMetricProvider(config: MetricProviderConfig): void {
+    if (this.metricProviders.has(config.id)) {
+      throw new Error(`Duplicate metric provider registration: '${config.id}'`);
+    }
+    this.metricProviders.set(config.id, config);
+  }
+
+  getMetricProviders(): ReadonlyMap<string, MetricProviderConfig> {
+    return this.metricProviders;
+  }
+
+  async callMetricProvider(provider: MetricProviderConfig): Promise<unknown> {
+    return this.call(provider.service);
+  }
+
   /**
    * Hydrate workspace data from the backend mod-registry API response.
    *
@@ -325,6 +342,31 @@ export class ModRegistry {
             hex: e.hex,
             hexDark: e.hexDark ?? e.hex,
             hexLight: e.hexLight ?? e.hex,
+          });
+        }
+        continue;
+      }
+
+      if (key === "metricProviders" && Array.isArray(value)) {
+        this.metricProviders.clear();
+        for (const entry of value) {
+          const metric = entry as MetricProviderConfig & { displayLabel?: string };
+          if (typeof metric.id !== "string" || typeof metric.service !== "string") continue;
+          if (!this.services.has(metric.service)) {
+            this.services.set(metric.service, {
+              id: metric.service,
+              handler: async () => {
+                const response = await fetch(
+                  `/api/home/providers/${encodeURIComponent(metric.id)}/value/`,
+                );
+                if (!response.ok) throw new Error(`Metric provider failed (${response.status})`);
+                return response.json();
+              },
+            });
+          }
+          this.metricProviders.set(metric.id, {
+            ...metric,
+            label: metric.label ?? metric.displayLabel ?? metric.id,
           });
         }
         continue;

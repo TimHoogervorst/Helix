@@ -516,6 +516,13 @@ class BackendModRegistry:
             service=str(service), **metadata
         )
 
+    def list_metric_providers(self) -> dict[str, dict[str, Any]]:
+        """Return the active metric-provider definitions without their handlers."""
+        return {
+            provider_id: dict(entry)
+            for provider_id, entry in self._capability_registrations["metricProviders"].items()
+        }
+
     def register_action_model(self, mod_id: str, model_class: type) -> None:
         """Register a concrete action model class for *mod_id*.
 

@@ -10,6 +10,7 @@ import type {
   BlockRegistration,
   ModManifest,
   SchemaComponentRegistration,
+  MetricProviderConfig,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -26,6 +27,28 @@ function resetRegistry(): ModRegistry {
   (ModRegistry as any).instance = null;
   return ModRegistry.getInstance();
 }
+
+describe("metric providers", () => {
+  it("enumerates providers and invokes their registered service", async () => {
+    const registry = resetRegistry();
+    const provider: MetricProviderConfig = {
+      id: "acme.inventory:low-stock",
+      label: "Low stock",
+      service: "acme.inventory:low-stock-value",
+      refreshMs: 30_000,
+      sourceKind: "inventory.item",
+      aggregate: "count",
+    };
+    registry.registerService({
+      id: provider.service,
+      handler: async () => ({ value: 4 }),
+    });
+    registry.registerMetricProvider(provider);
+
+    expect([...registry.getMetricProviders()]).toEqual([[provider.id, provider]]);
+    await expect(registry.callMetricProvider(provider)).resolves.toEqual({ value: 4 });
+  });
+});
 
 function makeHub(overrides?: Partial<HubConfig>): HubConfig {
   return {

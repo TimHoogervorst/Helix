@@ -2,9 +2,29 @@ from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Card
 from .serializers import CardSerializer
+
+
+class MetricProviderValueView(APIView):
+    """Dispatch a registered backend metric service without naming its mod."""
+
+    def get(self, request, provider_id):
+        from helix_core.mod_system.registry import registry
+
+        provider = registry.list_metric_providers().get(provider_id)
+        if provider is None:
+            return Response({"detail": "Metric provider is unavailable."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            try:
+                value = registry.call(provider["service"], request.user)
+            except TypeError:
+                value = registry.call(provider["service"])
+        except (KeyError, ValueError):
+            return Response({"detail": "Metric provider is unavailable."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(value if isinstance(value, dict) else {"value": value})
 
 
 class CardViewSet(viewsets.ModelViewSet):

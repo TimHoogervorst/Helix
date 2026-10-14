@@ -63,6 +63,7 @@ export type {
   SchemaComponentRegistration,
   RouteConfig,
   ServiceConfig,
+  MetricProviderConfig,
   CurrentWorkspace,
   WorkspaceConfig,
   WorkspaceEventPayload,

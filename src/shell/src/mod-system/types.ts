@@ -158,6 +158,17 @@ export interface ServiceConfig {
   handler: (...args: unknown[]) => Promise<unknown>;
 }
 
+/** A live metric contributed by a mod and displayed on a surface. */
+export interface MetricProviderConfig {
+  id: string;
+  label: string;
+  service: string;
+  refreshMs?: number;
+  refreshPolicy?: string;
+  sourceKind?: string;
+  aggregate?: "count" | "sum" | "avg" | "min" | "max";
+}
+
 /** Frontend capabilities contributed by a Library content source. */
 export interface ContentSourceConfig {
   kind: string;

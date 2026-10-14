@@ -15,6 +15,7 @@ import type {
   SchemaComponentRegistration,
   WorkspaceConfig,
   ContentSourceConfig,
+  MetricProviderConfig,
 } from "./types";
 import { externalRoutePath, registrationId, WorkspaceReference } from "./references";
 
@@ -250,6 +251,27 @@ export class Mod {
   ): void {
     const globalId = this.idFor(name);
     ModRegistry.getInstance().registerHub({ ...config, id: globalId, provider: this.id });
+  }
+
+  /** Register a frontend service that can back a provider or other consumer. */
+  registerService(
+    name: string,
+    handler: (...args: unknown[]) => Promise<unknown>,
+  ): string {
+    const id = this.idFor(name);
+    ModRegistry.getInstance().registerService({ id, handler });
+    return id;
+  }
+
+  /** Register a live metric whose value is fetched through a frontend service. */
+  registerMetricProvider(
+    name: string,
+    config: Omit<MetricProviderConfig, "id" | "service"> & { service: string },
+  ): string {
+    const id = this.idFor(name);
+    const service = config.service.includes(":") ? config.service : this.idFor(config.service);
+    ModRegistry.getInstance().registerMetricProvider({ ...config, id, service });
+    return id;
   }
 
   // ── Route ─────────────────────────────────────────────────────────────

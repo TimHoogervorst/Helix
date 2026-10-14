@@ -54,6 +54,7 @@ class ContentSourceProvider:
     visibility_query: Callable[..., Any] | None = None
     serializer: Any = None
     display_metadata: Mapping[str, Any] = field(default_factory=dict)
+    hub_visible: bool = False
     mutation_handlers: Mapping[str, Callable[..., Any]] = field(default_factory=dict)
     capabilities: tuple[str, ...] = ()
     provider_mod_id: str | None = None
@@ -143,6 +144,7 @@ class BackendModRegistry:
         visibility_query: Callable[..., Any] | None = None,
         serializer: Any = None,
         display_metadata: Mapping[str, Any] | None = None,
+        hub_visible: bool = False,
         mutation_handlers: Mapping[str, Callable[..., Any]] | None = None,
         capabilities: list[str] | None = None,
         provider_mod_id: str | None = None,
@@ -156,6 +158,7 @@ class BackendModRegistry:
             visibility_query=visibility_query,
             serializer=serializer,
             display_metadata=dict(display_metadata or {}),
+            hub_visible=hub_visible,
             mutation_handlers=dict(mutation_handlers or {}),
             capabilities=tuple(dict.fromkeys(capabilities or [])),
             provider_mod_id=provider_mod_id,

@@ -28,7 +28,6 @@ from helix_core.serializers import (
     SchemaTypeListSerializer,
 )
 
-from helix_core.models import EntityHubView
 from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
@@ -216,11 +215,44 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     pagination_class = EntityHubPaginator
 
     def get_queryset(self):
-        qs = EntityHubView.objects.select_related(
-            "author", "schema__schema_type", "project", "source_type"
-        ).all()
-        qs = qs.filter(visible_rows_q(self.request.user))
-        return self._apply_filters(qs)
+        from helix_core.mod_system.registry import registry
+
+        rows = []
+        self._source_providers = {}
+        params = self._parse_filter_params()
+        for provider, model in registry.content_source_models():
+            if not provider.hub_visible:
+                continue
+            qs = model.objects.select_related(
+                "author", "schema__schema_type", "project", "source_type"
+            ).all()
+            qs = registry.query_content_sources(provider.kind, self.request, qs)
+            qs = self._apply_filters(qs)
+            if params["schema_type"]:
+                wanted = params["schema_type"]
+                qs = [row for row in qs if self._schema_type_id(row, provider) == wanted]
+            rows.extend(qs)
+            self._source_providers.update({model: provider})
+        sort = params["sort"] or "-updated_at"
+        descending = sort.startswith("-")
+        key = sort[1:] if descending else sort
+        rows.sort(key=lambda row: self._sort_value(row, key), reverse=descending)
+        return rows
+
+    @staticmethod
+    def _schema_type_id(row, provider):
+        schema_type = getattr(getattr(row, "schema", None), "schema_type", None)
+        metadata = provider.display_metadata
+        if not schema_type:
+            return None
+        return metadata.get("schema_type_id") or f"{metadata.get('workspace_id', schema_type.workspace_id)}.{type(row)._meta.model_name}"
+
+    @staticmethod
+    def _sort_value(row, key):
+        value = getattr(row, key, None)
+        if value is None and key not in SORTABLE_FIELDS:
+            value = (getattr(row, "properties", {}) or {}).get(key)
+        return (value is None, value)
 
     def _parse_filter_params(self):
         """Return a dict of parsed filter params, cached on the viewset.
@@ -263,9 +295,6 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
             )
 
         # ── Schema type filter ─────────────────────────────────────────
-        if params["schema_type"]:
-            qs = qs.filter(schema_type_id=params["schema_type"])
-
         # ── Schema filter ──────────────────────────────────────────────
         if params["schema"]:
             qs = qs.filter(schema_id=params["schema"])
@@ -301,24 +330,14 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                 ordering = f"-{sort}" if descending else sort
                 qs = qs.order_by(ordering)
             elif property_type:
-                field_path = f"properties__{sort}"
-                if property_type == "number":
-                    qs = qs.annotate(
-                        _hub_sort_value=Cast(F(field_path), output_field=FloatField())
-                    )
-                    field_path = "_hub_sort_value"
-                ordering = f"-{field_path}" if descending else field_path
-                qs = qs.order_by(ordering)
-            else:
-                qs = qs.order_by("-updated_at")
-        else:
-            qs = qs.order_by("-updated_at")
-
+                # Property sorting is applied after source querysets are merged.
+                return qs
         return qs
 
     def get_serializer_context(self):
         """Add schema_columns to context so _expanded can be populated."""
         context = super().get_serializer_context()
+        context["source_providers"] = getattr(self, "_source_providers", {})
         params = self._parse_filter_params()
         if params["schema"]:
             try:
@@ -407,58 +426,28 @@ class EntityHubQueryView(APIView):
         if errors:
             raise drf_serializers.ValidationError(errors)
 
-        # ── Build the filtered queryset ────────────────────────────────
-        qs = EntityHubView.objects.select_related("author", "schema", "project").all()
-        qs = qs.filter(visible_rows_q(request.user))
-
-        # Search
-        search = request.data.get("search", "").strip()
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search)
-                | Q(display_id__icontains=search)
-            )
-
-        # Schema type
-        schema_type = request.data.get("schema_type", "").strip()
-        if schema_type:
-            qs = qs.filter(schema_type_id=schema_type)
-
-        # Schema
-        schema = request.data.get("schema", "").strip()
-        if schema:
-            qs = qs.filter(schema_id=schema)
-
-        # Status
-        status_val = request.data.get("status", "").strip()
-        if status_val in ("in_progress", "finished"):
-            qs = qs.filter(status=status_val)
-
-        # Structured filters from POST body
-        if filter_specs:
-            column_type_map = _build_column_type_map(schema, schema_type)
-            qs = qs.filter(
-                build_entity_hub_filters(filter_specs, column_type_map=column_type_map)
-            )
-
-        # Sort
-        sort = request.data.get("sort", "").strip()
-        if sort:
-            descending = False
-            if sort.startswith("-"):
-                descending = True
-                sort = sort[1:]
-            if sort in SORTABLE_FIELDS:
-                ordering = f"-{sort}" if descending else sort
-                qs = qs.order_by(ordering)
-        else:
-            qs = qs.order_by("-updated_at")
+        # Reuse the GET implementation so POST and GET cannot diverge.
+        list_view = EntityHubListView()
+        list_view.request = request
+        schema_type = str(request.data.get("schema_type", "")).strip()
+        schema = str(request.data.get("schema", "")).strip()
+        list_view._filter_params = {
+            "search": str(request.data.get("search", "")).strip(),
+            "schema_type": schema_type,
+            "schema": schema,
+            "status": str(request.data.get("status", "")).strip(),
+            "sort": str(request.data.get("sort", "")).strip(),
+            "filter_specs": filter_specs,
+            "field_filters": [],
+            "column_type_map": _build_column_type_map(schema, schema_type),
+        }
+        qs = list_view.get_queryset()
 
         # ── Paginate ───────────────────────────────────────────────────
         paginator = EntityHubPaginator()
         page = paginator.paginate_queryset(qs, request)
         serializer = EntityHubSerializer(
-            page, many=True, context={"request": request}
+            page, many=True, context={"request": request, "source_providers": list_view._source_providers}
         )
 
         response = paginator.get_paginated_response(serializer.data)

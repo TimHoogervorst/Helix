@@ -75,6 +75,7 @@ def test_content_source_provider_contract_can_be_registered_and_queried():
         visibility_query=visibility,
         serializer=serializer,
         display_metadata={"label": "Widget", "icon": "box"},
+        hub_visible=True,
         mutation_handlers={"create": create},
     )
 
@@ -84,6 +85,7 @@ def test_content_source_provider_contract_can_be_registered_and_queried():
     assert provider.visibility_query is visibility
     assert provider.serializer is serializer
     assert provider.display_metadata == {"label": "Widget", "icon": "box"}
+    assert provider.hub_visible is True
     assert provider.mutation_handlers["create"] is create
     assert registry.get_content_sources() == {"widget": provider}
 

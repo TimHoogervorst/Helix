@@ -202,6 +202,7 @@ class ModRegistrar:
         visibility_query: Callable[..., Any] | None = None,
         serializer: Any = None,
         display_metadata: dict[str, Any] | None = None,
+        hub_visible: bool = False,
         mutation_handlers: dict[str, Callable[..., Any]] | None = None,
         capabilities: list[str] | None = None,
     ) -> str:
@@ -213,6 +214,7 @@ class ModRegistrar:
             visibility_query=visibility_query,
             serializer=serializer,
             display_metadata=display_metadata,
+            hub_visible=hub_visible,
             mutation_handlers=mutation_handlers,
             capabilities=validate_capabilities(list(capabilities or []), self.id),
             provider_mod_id=self.id,

@@ -65,6 +65,7 @@ def register(mod):
             visible_rows_q(request.user)
         ),
         serializer=NotebookEntrySerializer,
+        hub_visible=True,
         display_metadata={
             "label": "ELN Entry",
             "workspace_id": "eln",

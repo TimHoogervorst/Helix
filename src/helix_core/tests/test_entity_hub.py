@@ -1,10 +1,8 @@
-"""Tests for the Entity Hub VIEW and API endpoint.
+"""Tests for the registry-backed Entity Hub API endpoint.
 
-Tests the entity_hub_view PostgreSQL VIEW (UNION ALL across entity
-tables) and the GET /api/registry/entities endpoint.
+Tests the registered-source union and the GET /api/registry/entities endpoint.
 """
 
-from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from helix_core.core.models import Folder, Project, User
@@ -41,134 +39,7 @@ def _setup_schema_types():
     return eln_type, lims_type, eln_schema, lims_schema
 
 
-# ── Entity Hub VIEW tests ──────────────────────────────────────────────────
-
-
-class EntityHubViewTests(TestCase):
-    """Test the entity_hub_view PostgreSQL VIEW."""
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            username="testuser", password="pass"
-        )
-        _, _, eln_schema, lims_schema = _setup_schema_types()
-
-        project = Project.objects.create(name="Test Project")
-        cls.folder = Folder.objects.create(
-            name="Test Folder", parent=None, project=project
-        )
-
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
-
-        cls.eln_entry = NotebookEntry.objects.create(
-            name="ELN Test Entry",
-            author=cls.user,
-            schema=eln_schema,
-            source=cls.folder,
-            content={"type": "doc", "content": []},
-        )
-        cls.lims_entity = Entity.objects.create(
-            name="LIMS Test Entity",
-            author=cls.user,
-            schema=lims_schema,
-            source=cls.folder,
-        )
-
-    def test_view_returns_rows_from_both_tables(self):
-        """The VIEW returns rows from both eln_entry and lims_entity."""
-        from helix_core.models import EntityHubView
-
-        rows = list(EntityHubView.objects.all().order_by("id"))
-        self.assertGreaterEqual(len(rows), 2)
-
-        schema_type_ids = {r.schema_type_id for r in rows}
-        self.assertIn("eln.notebookentry", schema_type_ids)
-        self.assertIn("lims.entity", schema_type_ids)
-
-    def test_view_includes_workspace_id_column(self):
-        """Each row carries a workspace_id computed column."""
-        from helix_core.models import EntityHubView
-
-        rows = list(EntityHubView.objects.all().order_by("schema_type_id"))
-        workspace_ids = {r.workspace_id for r in rows}
-        self.assertIn("eln", workspace_ids)
-        self.assertIn("lims", workspace_ids)
-
-    def test_view_includes_common_columns(self):
-        """Each row includes the common entity columns (name, display_id, etc.)."""
-        from helix_core.models import EntityHubView
-
-        row = EntityHubView.objects.filter(
-            schema_type_id="eln.notebookentry"
-        ).first()
-        self.assertIsNotNone(row)
-        self.assertEqual(row.name, "ELN Test Entry")
-        self.assertIsNotNone(row.display_id)
-        self.assertIsNotNone(row.status)
-        self.assertIsNotNone(row.created_at)
-        self.assertIsNotNone(row.updated_at)
-
-    def test_view_schema_type_id_matches_union_branch(self):
-        """schema_type_id matches the UNION ALL branch."""
-        from helix_core.models import EntityHubView
-
-        row = EntityHubView.objects.filter(
-            schema_type_id="lims.entity"
-        ).first()
-        self.assertIsNotNone(row)
-        self.assertEqual(row.schema_type_id, "lims.entity")
-
-    def test_view_uses_schema_type_for_result_entities(self):
-        """Result entities retain their registered schema type in the view."""
-        from helix_core.models import EntityHubView
-        from bundled.lims.models import Entity
-
-        result_type = SchemaType.objects.create(
-            display_name="Results",
-            workspace_id="results",
-            model="bundled.lims.models.ResultEntity",
-        )
-        result_schema = Schema.objects.create(
-            name="Assay Result",
-            prefix="RESULT",
-            schema_type=result_type,
-            is_default=True,
-        )
-        result = Entity.objects.create(
-            name="Blood assay result",
-            author=self.user,
-            schema=result_schema,
-            source=self.folder,
-        )
-
-        row = EntityHubView.objects.get(id=result.id, schema_id=result_schema.id)
-        self.assertEqual(row.schema_type_id, "lims.result")
-        self.assertEqual(row.workspace_id, "results")
-
-        from helix_core.serializers import EntityHubSerializer
-
-        self.assertEqual(
-            EntityHubSerializer(row).data["schema_type_display"], "Results"
-        )
-
-    def test_view_is_read_only(self):
-        """The VIEW is read-only — writes should fail."""
-        from helix_core.models import EntityHubView
-
-        with self.assertRaises(Exception):
-            EntityHubView.objects.create(
-                name="test",
-                display_id="X1",
-                author=self.user,
-                status="in_progress",
-                schema_type_id="eln.notebookentry",
-                workspace_id="eln",
-            )
-
-
-# ── Entity Hub API endpoint tests ──────────────────────────────────────────
+# Entity Hub API endpoint tests
 
 
 class EntityHubAPITests(APITestCase):

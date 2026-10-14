@@ -71,6 +71,7 @@ def register(mod):
             visible_rows_q(request.user)
         ),
         serializer=EntitySerializer,
+        hub_visible=True,
         display_metadata={
             "label": "Entity",
             "workspace_id": "lims",

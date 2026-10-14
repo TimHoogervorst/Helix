@@ -5,14 +5,14 @@
   "sideEffects": ["./style.css"],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/mod-api/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/mod-api/src/index.d.ts",
       "import": "./dist/index.js"
     },
     "./Mod": {
-      "types": "./dist/Mod.d.ts",
+      "types": "./dist/shell/src/mod-system/Mod.d.ts",
       "import": "./dist/index.js"
     },
     "./editor": {

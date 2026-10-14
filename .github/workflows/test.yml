@@ -47,6 +47,7 @@ jobs:
           DATABASE_URL: postgres://openscience:openscience@localhost:5432/openscience
           SECRET_KEY: ci-secret-key
           DEBUG: "true"
+          HELIX_NO_EXTERNAL_MODS: "1"
 
   frontend:
     runs-on: ubuntu-latest
@@ -55,5 +56,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm ci
+      - run: npm ci --workspaces=false
       - run: npm test

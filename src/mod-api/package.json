@@ -16,19 +16,19 @@
       "import": "./dist/index.js"
     },
     "./editor": {
-      "types": "./dist/editor.d.ts",
+      "types": "./dist/mod-api/src/editor.d.ts",
       "import": "./dist/editor.js"
     },
     "./blocks": {
-      "types": "./dist/blocks.d.ts",
+      "types": "./dist/mod-api/src/blocks.d.ts",
       "import": "./dist/blocks.js"
     },
     "./api": {
-      "types": "./dist/api.d.ts",
+      "types": "./dist/mod-api/src/api.d.ts",
       "import": "./dist/api.js"
     },
     "./theme": {
-      "types": "./dist/theme.d.ts",
+      "types": "./dist/mod-api/src/theme.d.ts",
       "import": "./dist/theme.js"
     },
     "./manifest": "./modManifest.json",

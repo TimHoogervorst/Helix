@@ -352,6 +352,20 @@ class LimsViewSerializer(serializers.ModelSerializer):
     """Serializer for saved Views (LimsView)."""
 
     owner_username = serializers.CharField(source="owner.username", read_only=True)
+    is_inert = serializers.SerializerMethodField()
+    availability = serializers.SerializerMethodField()
+
+    def get_is_inert(self, obj):
+        return self._source_available(obj) is False
+
+    def get_availability(self, obj):
+        return "available" if self._source_available(obj) else "source unavailable"
+
+    @staticmethod
+    def _source_available(obj):
+        from helix_core.mod_system.registry import registry
+
+        return registry.get_content_source(obj.source_kind) is not None
 
     class Meta:
         model = LimsView
@@ -360,8 +374,12 @@ class LimsViewSerializer(serializers.ModelSerializer):
             "owner",
             "owner_username",
             "name",
+            "source_kind",
+            "spec",
             "filter_state",
             "is_public",
+            "is_inert",
+            "availability",
             "created_at",
             "updated_at",
         ]

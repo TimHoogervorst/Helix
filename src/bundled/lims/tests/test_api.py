@@ -2603,6 +2603,66 @@ class LimsViewAccessTests(BaseTestCase):
         self.assertEqual(self.public_view.name, "Public View")
 
 
+class SavedViewSourceTests(BaseTestCase):
+    """Saved views keep a source contract independent of a mod package."""
+
+    def test_saved_view_persists_source_kind_and_spec(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            "/api/lims/views/",
+            {
+                "name": "DNA samples",
+                "source_kind": "lims:entity",
+                "spec": {
+                    "filter": {"status": "active"},
+                    "sort": [{"field": "name", "direction": "asc"}],
+                    "columns": ["display_id", "name"],
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["source_kind"], "lims:entity")
+        self.assertEqual(response.data["spec"]["columns"], ["display_id", "name"])
+        view = LimsView.objects.get(pk=response.data["id"])
+        self.assertEqual(view.source_kind, "lims:entity")
+        self.assertEqual(view.spec["filter"]["status"], "active")
+
+    def test_view_reports_inert_when_source_is_not_registered(self):
+        view = LimsView.objects.create(
+            owner=self.user,
+            name="Removed source",
+            source_kind="missing:source",
+            spec={"filter": {}, "sort": [], "columns": []},
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(f"/api/lims/views/{view.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_inert"])
+        self.assertEqual(response.data["availability"], "source unavailable")
+
+    def test_view_revives_when_source_is_registered(self):
+        from helix_core.mod_system.registry import registry
+
+        registry.register_content_source("test:revivable", "lims.entity")
+        view = LimsView.objects.create(
+            owner=self.user,
+            name="Revivable source",
+            source_kind="test:revivable",
+            spec={"filter": {}, "sort": [], "columns": []},
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(f"/api/lims/views/{view.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_inert"])
+        self.assertEqual(response.data["availability"], "available")
+
+
 # ── Metric API tests ────────────────────────────────────────────────────────
 
 

@@ -97,7 +97,12 @@ export function GlobalViewsBlock(_props: BlockComponentProps) {
             onClick={() => handleClickView(view)}
             title={`Load view: ${view.name} (by ${view.owner_username})`}
           >
-            {view.name}
+                {view.name}
+                {view.is_inert && (
+                  <span className="entities-views-unavailable-badge">
+                    Source unavailable
+                  </span>
+                )}
             <span className="entities-views-owner">
               {view.owner_username}
             </span>

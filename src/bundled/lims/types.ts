@@ -227,8 +227,17 @@ export interface LimsViewItem {
   owner: number;
   owner_username: string;
   name: string;
+  source_kind: string;
+  spec: {
+    filter?: Record<string, unknown>;
+    sort?: unknown[];
+    columns?: string[];
+    [key: string]: unknown;
+  };
   filter_state: ViewFilterState;
   is_public: boolean;
+  is_inert: boolean;
+  availability: "available" | "source unavailable";
   created_at: string;
   updated_at: string;
 }
@@ -236,6 +245,8 @@ export interface LimsViewItem {
 /** Payload for creating a new View. */
 export interface LimsViewCreatePayload {
   name: string;
+  source_kind?: string;
+  spec?: LimsViewItem["spec"];
   filter_state: ViewFilterState;
   is_public?: boolean;
 }
@@ -243,6 +254,8 @@ export interface LimsViewCreatePayload {
 /** Payload for updating a View. */
 export interface LimsViewUpdatePayload {
   name?: string;
+  source_kind?: string;
+  spec?: LimsViewItem["spec"];
   filter_state?: ViewFilterState;
   is_public?: boolean;
 }

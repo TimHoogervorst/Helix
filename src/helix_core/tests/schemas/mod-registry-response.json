@@ -106,6 +106,61 @@
         },
         "required": ["id", "argumentKinds", "resultKind", "description", "clientImplemented"]
       }
+    },
+    "services": {
+      "type": "array",
+      "description": "Registered cross-mod services and content sources.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "registration_type": { "type": "string" },
+          "provider_mod_id": { "type": "string" }
+        },
+        "required": ["id", "capabilities"]
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "description": "Registered content blocks and their capabilities.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "provider_mod_id": { "type": "string" }
+        },
+        "required": ["id", "capabilities"]
+      }
+    },
+    "slots": {
+      "type": "array",
+      "description": "Registered extension slots and accepted capabilities.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "accepts": { "type": "array", "items": { "type": "string" } },
+          "provider_mod_id": { "type": "string" }
+        },
+        "required": ["id", "capabilities", "accepts"]
+      }
+    },
+    "metricProviders": {
+      "type": "array",
+      "description": "Registered metric providers backed by services.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "service": { "type": "string" },
+          "provider_mod_id": { "type": "string" }
+        },
+        "required": ["id", "capabilities", "service"]
+      }
     }
   },
   "patternProperties": {

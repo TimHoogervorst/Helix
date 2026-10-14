@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import type {
   HubConfig,
   SettingsSectionConfig,
@@ -20,6 +21,7 @@ import type {
   MetricProviderConfig,
 } from "./types";
 import { WorkspaceReference } from "./references";
+import Unavailable from "../shared/components/Unavailable";
 import {
   getClientFormulaFunctionIds,
   hydrateFormulaCatalog,
@@ -553,7 +555,29 @@ export class ModRegistry {
     } else for (const binding of rawBindings ?? []) {
       if (slot.accepts === "block") {
         const block = ModRegistry.findById(this.blocks, binding.targetId);
-        if (!block) continue;
+        if (!block) {
+          // Unregistered ephemeral bindings remain ignored. A provider stamp
+          // identifies persisted content whose owning mod may be absent.
+          if (!binding.provider) continue;
+          // Keep persisted bindings visible when their owning mod is absent.
+          // The renderer can then show a safe placeholder instead of silently
+          // dropping document structure.
+          resolved.push({
+            type: "block" as const,
+            id: binding.targetId,
+            label: "Unavailable block",
+            icon: () => null,
+            component: () => createElement(Unavailable, { kind: "Block", name: binding.targetId }),
+            listensTo: [],
+            onEvent: {},
+            overrides: { ...slot.defaults, ...binding.overrides },
+            serialize: (state) => JSON.stringify(state),
+            deserialize: (json) => { try { return JSON.parse(json) as Record<string, unknown>; } catch { return {}; } },
+            defaultState: {},
+            order: binding.order,
+          });
+          continue;
+        }
 
         // Merge slot defaults with binding overrides (binding wins per-key)
         const mergedOverrides: Record<string, unknown> = {

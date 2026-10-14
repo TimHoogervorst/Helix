@@ -6,6 +6,7 @@ import { ErrorBoundary } from "../shared/components/ErrorBoundary";
 import NotFound from "../shared/components/NotFound";
 import type { WorkspaceReference } from "../mod-system/references";
 import { legacyWorkspaceUrl } from "../mod-system/references";
+import Unavailable from "../shared/components/Unavailable";
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -108,9 +109,20 @@ function Router() {
         {layoutRoutes}
         {legacyWorkspaceRoutes}
       </Route>
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<RouteFallback />} />
     </Routes>
   );
+}
+
+/** A route may be left behind in a bookmark after its mod is removed. */
+function RouteFallback() {
+  const location = useLocation();
+  // Keep genuinely unknown URLs as the established not-found state while
+  // making the degradation message useful for route-shaped persisted links.
+  if (location.pathname.split("/").filter(Boolean).length >= 2) {
+    return <Unavailable kind="Route" name={location.pathname} />;
+  }
+  return <NotFound />;
 }
 
 export default Router;

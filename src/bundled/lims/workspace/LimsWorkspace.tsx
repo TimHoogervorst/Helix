@@ -4,6 +4,8 @@ import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { TabBar } from "../../../shell/src/shared/primitives/TabBar";
 import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../shell/src/shared/primitives/Table";
 import { formatDate } from "../../../shell/src/shared/format";
+import JsonDisplayField from "../../../shell/src/shared/components/JsonDisplayField";
+import Unavailable from "../../../shell/src/shared/components/Unavailable";
 import type { EntityListItem } from "../types";
 
 function Overview({ entity }: { entity: EntityListItem }) {
@@ -46,6 +48,12 @@ function Overview({ entity }: { entity: EntityListItem }) {
                 </TableRow>
               );
             })}
+            {(entity.raw_content !== undefined || entity.content !== undefined) && (
+              <TableRow>
+                <TableCell className="font-[var(--font-label)] text-sm text-muted-foreground">Raw content</TableCell>
+                <TableCell><JsonDisplayField value={entity.raw_content ?? entity.content} /></TableCell>
+              </TableRow>
+            )}
           </tbody>
         </Table>
       </section>
@@ -86,7 +94,7 @@ function LimsWorkspace({ entity }: LimsWorkspaceProps) {
       <div className="mb-6 border-b border-hairline pb-1">
         <TabBar tabs={tabs.map(({ id, label }) => ({ id, label }))} activeTab={active.id} onTabChange={setActiveTab} />
       </div>
-      {active.id === "overview" ? <Overview entity={entity} /> : Component ? <Component entity={entity} /> : null}
+      {active.id === "overview" ? <Overview entity={entity} /> : Component ? <Component entity={entity} /> : <Unavailable kind="Workspace component" name={active.id} />}
     </div>
   );
 }

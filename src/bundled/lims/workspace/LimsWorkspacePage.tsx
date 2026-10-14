@@ -50,6 +50,16 @@ function statusLabel(status: string): string {
   return status.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function exportEntity(entity: EntityListItem) {
+  const payload = JSON.stringify(entity, null, 2);
+  const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${entity.display_id}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 function LimsWorkspacePage() {
   const { displayId } = useParams<{ displayId: string }>();
   const navigate = useNavigate();
@@ -113,7 +123,7 @@ function LimsWorkspacePage() {
           </div>
           <div className="flex items-center gap-1">
             <IconButton aria-label="Star" title="Star"><Star className="h-4 w-4" /></IconButton>
-            <IconButton aria-label="Export" title="Export"><Download className="h-4 w-4" /></IconButton>
+             <IconButton aria-label="Export" title="Export" onClick={() => exportEntity(entity)}><Download className="h-4 w-4" /></IconButton>
             <IconButton variant="primary" aria-label={shared ? "Copied!" : "Share"} title="Copy link" onClick={share}>{shared ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}</IconButton>
           </div>
         </div>

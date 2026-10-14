@@ -123,6 +123,9 @@ export interface EntityListItem {
   created_at: string;
   tags: Tag[];
   effective_role: "read" | "edit";
+  /** Portable raw content owned by core, even when a specialized mod is absent. */
+  content?: unknown;
+  raw_content?: unknown;
 }
 
 /** Paginated response wrapper. */

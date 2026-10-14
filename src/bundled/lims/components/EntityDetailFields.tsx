@@ -17,6 +17,7 @@ export interface EntityDetailFieldsProps {
 }
 
 import { formatDate } from "../../../shell/src/shared/format";
+import JsonDisplayField from "../../../shell/src/shared/components/JsonDisplayField";
 
 function EntityDetailFields({
   entity,
@@ -60,7 +61,9 @@ function EntityDetailFields({
                   <TableRow key={key}>
                     <TableCell className="prop-key">{key}</TableCell>
                     <TableCell className="prop-value">
-                      {typeof value === "boolean"
+                      {value !== null && typeof value === "object"
+                        ? <JsonDisplayField value={value} />
+                        : typeof value === "boolean"
                         ? value
                           ? "✓"
                           : "✗"

@@ -14,6 +14,22 @@ import pytest
 from django.db import connection
 
 
+# The canonical suite deliberately runs without the optional ELN package.
+# These legacy tests use ELN concrete models as fixtures and belong in the
+# separate ELN package test job until they are rewritten against the generic
+# external-Mod fixture.
+collect_ignore = [
+    "helix_core/core/tests/test_abstracts.py",
+    "helix_core/core/tests/test_ownership.py",
+    "helix_core/mentions/tests/test_api.py",
+    "helix_core/mentions/tests/test_prefix_resolver.py",
+    "helix_core/mentions/tests/test_sync.py",
+    "helix_core/tests/test_action_consolidation.py",
+    "bundled/lims/tests/test_models.py",
+    "bundled/shared/library/tests/test_api.py",
+]
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _ensure_concrete_test_entity_table(django_db_setup, django_db_blocker):
     """Create the helix_test_concrete_entity table once for the session."""

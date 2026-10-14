@@ -2,9 +2,17 @@
 Django settings for Helix project.
 """
 import os
+import sys
 from pathlib import Path
 
 from helix_core.mod_system.loader import get_helix_mods
+
+# The canonical backend suite tests the platform without optional packages.
+# Keep this test-only default here so a locally installed External Mod cannot
+# silently change the test composition; individual tests can still opt into a
+# fake Mod by patching discovery explicitly.
+if "pytest" in sys.modules:
+    os.environ.setdefault("HELIX_NO_EXTERNAL_MODS", "1")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 

@@ -39,6 +39,7 @@ def test_external_mod_discovery_does_not_depend_on_eln(monkeypatch, tmp_path):
     """The package contract is testable even when ELN is not installed."""
     _write_external_mod(tmp_path)
     monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delenv("HELIX_NO_EXTERNAL_MODS", raising=False)
     monkeypatch.setattr(
         loader,
         "discover_python_mod_entry_points",

@@ -66,7 +66,8 @@ See [CONTEXT.md](CONTEXT.md) for the full domain glossary and [UBIQUITOUS_LANGUA
 
 ## Running Tests
 
-Backend tests use **pytest** — one command runs `helix_core`, `core`, and every mod's tests. Frontend tests use Vitest.
+Backend tests use **pytest** — the canonical suite runs the platform and bundled
+Mods without installing optional External Mods. Frontend tests use Vitest.
 
 ```bash
 # Backend (Docker)

@@ -8,9 +8,12 @@ Backend tests live in the Platform and mod trees:
 
 - `src/helix_core/tests/` — Platform, `core`, and mentions tests
 - `src/bundled/<section>/<id>/tests/` — Bundled Mod tests
-- `src/mods/<id>/tests/` — External Mod tests (currently ELN)
+- `src/mods/<id>/tests/` — optional External Mod tests; not part of the canonical suite
 
-`pytest` is configured (in `src/pytest.ini`) to collect **both** trees. During implementation, prefer a focused run from the target tree, mod, file, class, or keyword below. After implementing a change, always run the full suite as a final check.
+The canonical `pytest` suite excludes optional External Mods and disables External
+Mod discovery. Platform integration tests use a small fake External Mod instead.
+During implementation, prefer a focused run from the target tree, file, class, or
+keyword below. After implementing a change, always run the full suite as a final check.
 
 Full runs use `pytest-xdist` in parallel, use a higher 10-minute Docker exec timeout, and default to four workers when `auto` selects the worker count. `PYTEST_XDIST_AUTO_NUM_WORKERS` is supported by pytest-xdist for this purpose:
 
@@ -43,17 +46,21 @@ The full suite is the slow path. When you're iterating on one area, target just 
 ```bash
 # Local (no Docker) — run from src/; paths are relative to src/
 pytest helix_core/tests                                 # Platform tree
-pytest mods/eln/tests                                   # External Mod
 pytest bundled/lims/tests/test_api.py::LimsApiTests    # Bundled Mod class
 pytest -k "mention"                                     # keyword match
 
-# Docker — External Mods are mounted at /mods; Bundled Mods at /bundled
-docker-compose exec backend pytest /mods/eln/tests      # External Mod
+# Optional ELN suite (requires installing the ELN package separately)
+pip install -e src/mods/eln
+pytest mods/eln/tests
+
+# Docker — Bundled Mods are mounted at /bundled
 docker-compose exec backend pytest /bundled/lims/tests/test_api.py::LimsApiTests  # Bundled Mod
 docker-compose exec backend pytest -k "mention"         # keyword match
 ```
 
-The focused paths above target the current Platform, Bundled, and External Mod trees directly. Drop `-n auto` for targeted runs — a single file or keyword doesn't benefit from parallel workers and starts faster without them.
+The focused paths above target the current Platform and Bundled Mod trees directly.
+Drop `-n auto` for targeted runs — a single file or keyword doesn't benefit from
+parallel workers and starts faster without them.
 
 ### Database: SQLite vs Postgres
 

@@ -32,8 +32,6 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r src/server/requirements.txt -r src/server/requirements-dev.txt
-      - name: Install optional ELN package
-        run: pip install -e src/mods/eln
       - name: Check migrations
         working-directory: src/server
         run: python manage.py makemigrations --check --dry-run
@@ -41,13 +39,7 @@ jobs:
           DATABASE_URL: postgres://openscience:openscience@localhost:5432/openscience
           SECRET_KEY: ci-secret-key
           DEBUG: "true"
-      - name: Run ELN boot matrix
-        working-directory: src
-        run: pytest helix_core/tests/test_eln_boot_matrix.py -q
-        env:
-          DATABASE_URL: postgres://openscience:openscience@localhost:5432/openscience
-          SECRET_KEY: ci-secret-key
-          DEBUG: "true"
+          HELIX_NO_EXTERNAL_MODS: "1"
       - name: Run backend tests
         working-directory: src
         run: pytest -n auto

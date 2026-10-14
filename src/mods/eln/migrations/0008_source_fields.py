@@ -10,7 +10,9 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql="DROP VIEW IF EXISTS entity_hub_view;",
-            reverse_sql=VIEW_SQL,
+            # The view was removed by the generic Entities Hub migration;
+            # there is no ELN-owned view to restore when reversing this step.
+            reverse_sql=migrations.RunSQL.noop,
         ),
         migrations.AddField(
             model_name="notebookentry",

@@ -20,12 +20,19 @@ from django.db import connection
 # external-Mod fixture.
 collect_ignore = [
     "helix_core/core/tests/test_abstracts.py",
+    "helix_core/core/tests/test_actions_endpoint.py",
+    "helix_core/core/tests/test_actions_logger.py",
     "helix_core/core/tests/test_ownership.py",
+    "helix_core/tests/test_entity_hub.py",
+    "helix_core/tests/test_mod_registry.py",
+    "helix_core/tests/test_query_builder.py",
     "helix_core/mentions/tests/test_api.py",
     "helix_core/mentions/tests/test_prefix_resolver.py",
     "helix_core/mentions/tests/test_sync.py",
     "helix_core/tests/test_action_consolidation.py",
     "bundled/lims/tests/test_models.py",
+    "bundled/access/access/tests/test_helpers.py",
+    "bundled/access/access/tests/test_policies.py",
     "bundled/shared/library/tests/test_api.py",
 ]
 

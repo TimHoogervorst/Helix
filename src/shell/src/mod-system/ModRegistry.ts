@@ -33,6 +33,7 @@ interface BackendSchemaType {
   prefix: string;
   columns?: Record<string, unknown>[];
   icon?: string;
+  capabilities?: string[];
 }
 
 /** Operator definition from the backend column type registry. */
@@ -356,6 +357,7 @@ export class ModRegistry {
               displayName: schemaType.displayName,
               defaultPrefix: schemaType.prefix,
               columns: schemaType.columns as SchemaColumnDef[] | undefined,
+              capabilities: schemaType.capabilities,
               ...(schemaType.icon ? { icon: schemaType.icon } : {}),
             }
           : undefined,
@@ -477,11 +479,36 @@ export class ModRegistry {
       ? slotId
       : [...this.bindings.keys()].find((key) => legacyIdFor(key) === slotId);
     const rawBindings = bindingKey ? this.bindings.get(bindingKey) : undefined;
-    if (!rawBindings || rawBindings.length === 0) return null;
+    if ((!rawBindings || rawBindings.length === 0) && !Array.isArray(slot.accepts)) return null;
 
     const resolved: (BlockBinding | ButtonBinding)[] = [];
 
-    for (const binding of rawBindings) {
+    if (Array.isArray(slot.accepts)) {
+      const accepted = new Set(slot.accepts);
+      for (const [blockId, block] of this.blocks.entries()) {
+        if (!block.affinity?.some((capability) => accepted.has(capability))) continue;
+        resolved.push({
+          type: "block" as const,
+          id: block.id,
+          label: block.label,
+          icon: block.icon,
+          component: block.component,
+          listensTo: block.listensTo,
+          onEvent: block.onEvent,
+          getDisplayName: block.getDisplayName,
+          tags: block.tags,
+          affinity: block.affinity,
+          layout: block.layout,
+          emits: block.emits,
+          overrides: { ...slot.defaults },
+          serialize: block.serialize,
+          deserialize: block.deserialize,
+          defaultState: block.defaultState,
+          preserve: block.preserve,
+          order: [...this.blocks.keys()].indexOf(blockId),
+        });
+      }
+    } else for (const binding of rawBindings ?? []) {
       if (slot.accepts === "block") {
         const block = ModRegistry.findById(this.blocks, binding.targetId);
         if (!block) continue;
@@ -502,6 +529,7 @@ export class ModRegistry {
           onEvent: block.onEvent,
           getDisplayName: block.getDisplayName,
           tags: block.tags,
+          affinity: block.affinity,
           layout: block.layout,
           emits: block.emits,
           overrides: mergedOverrides,
@@ -601,6 +629,7 @@ export class ModRegistry {
 
       // Check 2 & 3: each binding's target must exist and match slot accepts
       const validBindings = slotBindings.filter((binding) => {
+        if (Array.isArray(slot.accepts)) return false;
         // Check target exists in blocks or buttons
         const targetInBlocks = this.blocks.has(binding.targetId);
         const targetInButtons = this.buttons.has(binding.targetId);

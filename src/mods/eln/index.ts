@@ -1,15 +1,10 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
-import { BlockEvent } from "@helix/mod-api";
+import { ListChecks, History, Table, Info, Link, Paperclip } from "lucide-react";
 import type { Mod } from "@helix/mod-api";
 import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
 import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
 import { TableBlockComponent } from "./blocks/TableNodeView";
-import { CommentBlockComponent } from "./blocks/CommentNodeView";
-import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
-import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
-import { ResultTableBlockComponent } from "./blocks/ResultTableNode";
 import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFeedBlock";
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
@@ -52,7 +47,7 @@ mod.registerWorkspace("eln", {
 
 // ── Slot: ELN Editor ────────────────────────────────────
 const editorSlot = mod.declareSlot("editor", {
-  accepts: "block",
+  accepts: ["editor"],
   renderer: TipTapRenderer,
   layout: "vertical",
   order: 0,
@@ -60,7 +55,7 @@ const editorSlot = mod.declareSlot("editor", {
 });
 
 // ── Block: Table ───────────────────────────────────────────────────────
-const tableBlock = mod.registerBlock("table", {
+mod.registerBlock("table", {
   label: "Table",
   layout: "dynamic-bleed",
   icon: Table,
@@ -69,6 +64,7 @@ const tableBlock = mod.registerBlock("table", {
   onEvent: {},
   emits: [],
   tags: ["data", "spreadsheet"],
+  affinity: ["editor"],
   getDisplayName: (attrs) => (attrs.title as string) || "Table",
   serialize: (state) => JSON.stringify(state),
   deserialize: (json) => {
@@ -87,116 +83,8 @@ const tableBlock = mod.registerBlock("table", {
   },
 });
 
-// ── Block: Comment ─────────────────────────────────────────────────────
-const commentBlock = mod.registerBlock("comment", {
-  label: "Comment",
-  icon: MessageSquare,
-  component: CommentBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [],
-  tags: ["discussion", "annotation"],
-  getDisplayName: (attrs) => {
-    const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
-    return thread?.[0]?.authorName || "Comment";
-  },
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    resolved: false,
-    thread: [],
-  },
-});
-
-// ── Block: Protocol ────────────────────────────────────────────────────
-const protocolBlock = mod.registerBlock("protocol", {
-  label: "Protocol",
-  icon: FlaskConical,
-  component: ProtocolBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [],
-  tags: ["procedure", "workflow"],
-  preserve: ["protocolId"],
-  getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    protocolId: null,
-    name: "Protocol",
-    items: [],
-    stepStates: {},
-    editable: false,
-  },
-});
-
-// ── Block: Registry Table ──────────────────────────────────────────────
-const registryTableBlock = mod.registerBlock("registry-table", {
-  label: "Registry Table",
-  layout: "dynamic-bleed",
-  icon: Database,
-  component: RegistryTableBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [
-    BlockEvent.action({ id: "entities-registered", core: "edited" }),
-    BlockEvent.action({ id: "row-added", core: "edited" }),
-    BlockEvent.ui({ id: "column-resized" }),
-  ],
-  tags: ["table", "registry", "lims"],
-  preserve: ["schemaId"],
-  getDisplayName: (attrs) =>
-    (attrs.schemaName || attrs.title) as string || "Registry Table",
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    schemaId: null,
-    schemaName: null,
-    schemaContentHash: null,
-    title: "Registry Table",
-    columns: [],
-    rows: [],
-  },
-});
-
-// ── Block: Result Table ───────────────────────────────────────────────────
-const resultTableBlock = mod.registerBlock("result-table", {
-  label: "Result Table",
-  layout: "dynamic-bleed",
-  icon: Database,
-  component: ResultTableBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [BlockEvent.action({ id: "results-registered", core: "edited" })],
-  tags: ["table", "result", "lims"],
-  preserve: ["schemaId"],
-  getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Result Table",
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    schemaId: null,
-    schemaName: null,
-    schemaContentHash: null,
-    title: "Result Table",
-    columns: [],
-    rows: [],
-  },
-});
-
-// ── Bind blocks into editor slot ────────────────────────────────────────
-mod.registerIntoSlot(editorSlot, tableBlock, {}, 0);
-mod.registerIntoSlot(editorSlot, commentBlock, {}, 1);
-mod.registerIntoSlot(editorSlot, protocolBlock, {}, 2);
-mod.registerIntoSlot(editorSlot, registryTableBlock, {}, 3);
-mod.registerIntoSlot(editorSlot, resultTableBlock, {}, 4);
+// Table, protocol, and comment blocks are platform-owned by LIMS. The editor
+// slot pulls every installed block advertising the `editor` capability.
 
 // ── Slot: ELN Sidebar (dogfood #233) ────────────────────────────────────
 const sidebarSlot = mod.declareSlot("sidebar", {

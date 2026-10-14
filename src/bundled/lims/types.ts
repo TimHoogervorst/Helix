@@ -1,5 +1,30 @@
 import type { Tag } from "../labelling/tags/types";
 
+export interface ProtocolItem {
+  type: "step" | "note";
+  text: string;
+}
+
+export interface Protocol {
+  id: number;
+  name: string;
+  items: ProtocolItem[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EntityTypeSummary {
+  id: number;
+  name: string;
+  prefix: string;
+  columns: ColumnDef[];
+  is_active: boolean;
+  is_default?: boolean;
+  content_hash: string;
+  capabilities: string[];
+}
+
 export interface SourcePathSegment {
   kind: "project" | "folder" | "entry" | "entity";
   id: number;

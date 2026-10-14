@@ -56,16 +56,12 @@ describe("eln mod registration", () => {
 
   it("registers tables as dynamic-bleed editor blocks", () => {
     expect(registry.getBlocks().get("helix.eln:table")?.layout).toBe("dynamic-bleed");
-    expect(registry.getBlocks().get("helix.eln:registry-table")?.layout).toBe("dynamic-bleed");
-    expect(registry.getBlocks().get("helix.eln:result-table")?.layout).toBe("dynamic-bleed");
+    expect(registry.getBlocks().get("helix.eln:table")?.affinity).toEqual(["editor"]);
   });
 
   it("declares duplication policies for entity-backed blocks", () => {
     expect(registry.getBlocks().get("helix.eln:table")?.preserve).toBeUndefined();
-    expect(registry.getBlocks().get("helix.eln:comment")?.preserve).toBeUndefined();
-    expect(registry.getBlocks().get("helix.eln:protocol")?.preserve).toEqual(["protocolId"]);
-    expect(registry.getBlocks().get("helix.eln:registry-table")?.preserve).toEqual(["schemaId"]);
-    expect(registry.getBlocks().get("helix.eln:result-table")?.preserve).toEqual(["schemaId"]);
+    expect(registry.getBlocks().get("helix.eln:table")?.preserve).toBeUndefined();
   });
 
   // ── Slot System — Header Toolbar Dogfood (#227) ─────────────────────────

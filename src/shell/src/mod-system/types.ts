@@ -70,7 +70,7 @@ export interface SlotHandle {
   /** Fully-qualified mod identity, e.g. ``"helix.eln"``. */
   readonly modId: string;
   /** What can be bound into this slot. */
-  readonly accepts: "block" | "button";
+  readonly accepts: "block" | "button" | string[];
 }
 
 /**
@@ -202,6 +202,8 @@ export interface SchemaTypeConfig {
   columns?: SchemaColumnDef[];
   /** Icon-library key for the schema's default icon. */
   icon?: string;
+  /** Backend-declared capabilities used by generic consumers. */
+  capabilities?: string[];
 }
 
 /**
@@ -360,6 +362,8 @@ export interface BlockRegistration {
   /** Custom domain actions this block can emit via `context.emitAction()`. */
   emits?: BlockEvent[];
   tags?: string[];
+  /** Capabilities this block offers to capability-based slots. */
+  affinity?: string[];
   /** Layout role used by renderers for blocks that intentionally span the editor. */
   layout?: "default" | "dynamic-bleed";
   /** Serialize block state to a JSON string for persistence. */
@@ -401,7 +405,8 @@ export interface SlotDeclaration {
   id: string;
   provider?: string;
   /** What can be bound into this slot. */
-  accepts: "block" | "button";
+  /** Legacy block/button discriminator, or capabilities pulled by this slot. */
+  accepts: "block" | "button" | string[];
   /** The rendering strategy component. Determines how bound content is presented. */
   renderer: ComponentType<any>;
   /** How contents are arranged within the slot. */
@@ -467,6 +472,7 @@ export interface BlockBinding extends BaseBinding {
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker filtering. */
   tags?: string[];
+  affinity?: string[];
   /** Layout role copied from the block registration. */
   layout?: "default" | "dynamic-bleed";
   /** Custom domain actions this block can emit via `context.emitAction()`. */

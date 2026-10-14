@@ -424,6 +424,28 @@ describe("ModRegistry", () => {
     expect(binding.order).toBe(5);
   });
 
+  it("pulls every block whose affinity matches a capability slot after registration", () => {
+    const registry = resetRegistry();
+    const renderer = (() => null) as never;
+    registry.declareSlot({
+      id: "eln.editor",
+      accepts: ["editor"],
+      renderer,
+      layout: "vertical",
+      order: 0,
+      defaults: {},
+    });
+    registry.registerBlock(makeBlockRegistration({ id: "lims.protocol", affinity: ["editor"] }));
+    registry.registerBlock(makeBlockRegistration({ id: "other.preview", affinity: ["preview"] }));
+    registry.registerBlock(makeBlockRegistration({ id: "lims.comment", affinity: ["editor", "discussion"] }));
+
+    const resolved = registry.resolveSlot("eln.editor");
+    expect(resolved?.bindings.map((binding) => binding.id)).toEqual([
+      "lims.protocol",
+      "lims.comment",
+    ]);
+  });
+
   it("registerIntoSlot defaults overrides to {} and order to 0", () => {
     registry.registerIntoSlot("eln.editor", "eln.table");
     const binding = registry.getBindings().get("eln.editor")![0];

@@ -1153,19 +1153,19 @@ class TestRegisterSchemaType:
             display_name="Entity",
             workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
             prefix="E",
         )
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["ResultTable"],
+            capabilities=["ResultTable"],
             prefix="E",
         )
 
         st = SchemaType.objects.get(model="bundled.lims.models.Entity")
-        assert st.tags == ["ResultTable"]
+        assert st.capabilities == ["ResultTable"]
 
     def test_custom_schema_name(self):
         """The schema_name parameter controls the default Schema's name."""

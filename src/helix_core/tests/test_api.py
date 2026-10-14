@@ -103,7 +103,7 @@ class SchemaTypeApiTests(TestCase):
         SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
         )
         SchemaType.objects.create(
             display_name="ELN Entry", workspace_id="eln",
@@ -119,7 +119,7 @@ class SchemaTypeApiTests(TestCase):
         self.assertIn("Entity", names)
         self.assertNotIn("ELN Entry", names)
         entity = next(st for st in response.data if st["display_name"] == "Entity")
-        self.assertEqual(entity["tags"], ["RegistrationTable"])
+        self.assertEqual(entity["capabilities"], ["RegistrationTable"])
 
     def test_migration_seeds_schema_type_tags(self):
         """The data migration assigns table capability tags by model identity."""
@@ -132,7 +132,7 @@ class SchemaTypeApiTests(TestCase):
             display_name="ELN Entry",
             workspace_id="eln",
             model="mods.eln.models.NotebookEntry",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
         )
 
         class Apps:
@@ -148,8 +148,8 @@ class SchemaTypeApiTests(TestCase):
 
         lims.refresh_from_db()
         eln.refresh_from_db()
-        self.assertEqual(lims.tags, ["RegistrationTable"])
-        self.assertEqual(eln.tags, [])
+        self.assertEqual(lims.capabilities, ["RegistrationTable"])
+        self.assertEqual(eln.capabilities, [])
 
 
 class SchemaCrudTests(TestCase):
@@ -163,7 +163,7 @@ class SchemaCrudTests(TestCase):
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
         )
 
     def test_create_schema(self):
@@ -186,7 +186,7 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(response.data["prefix"], "BLOOD")
         self.assertEqual(response.data["schema_type"], self.schema_type.id)
         self.assertEqual(response.data["schema_type_display"], "Entity")
-        self.assertEqual(response.data["tags"], ["RegistrationTable"])
+        self.assertEqual(response.data["capabilities"], ["RegistrationTable"])
         self.assertEqual(len(response.data["columns"]), 2)
         self.assertTrue(response.data["is_active"])
         self.assertFalse(response.data["is_default"])

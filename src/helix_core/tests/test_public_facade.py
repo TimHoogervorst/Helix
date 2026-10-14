@@ -68,7 +68,7 @@ def test_signal_api_uses_platform_vocabulary_and_model_reference():
 
 
 @pytest.mark.django_db
-def test_schema_tags_allow_platform_and_owner_namespaced_extensions():
+def test_schema_capabilities_allow_platform_and_owner_namespaced_extensions():
     mod = ModRegistrar(manifest(), BackendModRegistry())
     model = mod.register_model("widget", object)
 
@@ -77,17 +77,36 @@ def test_schema_tags_allow_platform_and_owner_namespaced_extensions():
         workspace_id="widgets",
         model=model,
         prefix="W",
-        tags=["RegistrationTable", "acme.widgets:sortable"],
+        capabilities=["RegistrationTable", "acme.widgets:sortable"],
     )
 
-    with pytest.raises(ValueError, match="unknown schema tag"):
+    with pytest.raises(ValueError, match="foreign capability"):
         mod.register_schema_type(
             "Other",
             workspace_id="widgets",
             model=model,
             prefix="O",
-            tags=["foreign.widgets:tag"],
+            capabilities=["foreign.widgets:tag"],
         )
+
+
+def test_registrations_carry_capabilities_into_hydration_payload():
+    raw = BackendModRegistry()
+    mod = ModRegistrar(manifest(), raw)
+    service = mod.register_service("lookup", lambda: None, capabilities=["editor"])
+    block = mod.register_block("widget", capabilities=["editor"])
+    slot = mod.register_slot("toolbar", accepts=["editor"])
+    metric = mod.register_metric_provider("count", service, capabilities=["acme.widgets:sortable"])
+
+    assert service == ServiceReference("acme.widgets", "lookup")
+    assert block == "acme.widgets:widget"
+    assert slot == SlotReference("acme.widgets", "toolbar")
+    assert metric == "acme.widgets:count"
+    payload = raw.get_registry_payload()
+    assert payload["services"][0]["capabilities"] == ["editor"]
+    assert payload["blocks"][0]["capabilities"] == ["editor"]
+    assert payload["slots"][0]["capabilities"] == ["editor"]
+    assert payload["metricProviders"][0]["capabilities"] == ["acme.widgets:sortable"]
 
 
 def test_service_reference_can_be_called_through_public_registrar():

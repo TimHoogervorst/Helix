@@ -167,7 +167,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_groups_linked_rows_and_hides_unlinked_rows(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
         )
         result_schema = Schema.objects.create(
             name="Assay result", prefix="RESULT", schema_type=result_type,
@@ -203,7 +203,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_groups_by_schema_and_returns_schema_metadata(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
             columns=[{"name": "Entity", "type": "reference"}],
         )
         first_schema = Schema.objects.create(
@@ -256,7 +256,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_excludes_rows_in_inaccessible_projects(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
         )
         result_schema = Schema.objects.create(
             name="Assay result", prefix="RESULT", schema_type=result_type,
@@ -278,7 +278,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_hides_inaccessible_source_entity(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
         )
         result_schema = Schema.objects.create(
             name="Assay result", prefix="RESULT", schema_type=result_type,
@@ -1048,8 +1048,8 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 1)
 
     def test_result_row_ids_allow_duplicate_source_results(self):
-        self.schema_type.tags = ["ResultTable"]
-        self.schema_type.save(update_fields=["tags"])
+        self.schema_type.capabilities = ["ResultTable"]
+        self.schema_type.save(update_fields=["capabilities"])
         source_schema = Schema.objects.create(
             name="Source", prefix="SRC", schema_type=self.schema_type,
         )
@@ -1113,7 +1113,7 @@ class BatchRegisterResultSourceTests(BaseTestCase):
             display_name="Result",
             workspace_id="results",
             model="bundled.lims.models.Entity",
-            tags=["ResultTable"],
+            capabilities=["ResultTable"],
         )
 
     def setUp(self):

@@ -18,7 +18,7 @@ from typing import Any, Callable, Generic, TypeVar
 from helix_core.column_types import ColumnType
 from helix_core.mod_system.manifest import ModManifest
 from helix_core.mod_system.registry import ContentSourceProvider
-from helix_core.capabilities import validate_capabilities
+from helix_core.capabilities import validate_accepted_capabilities, validate_capabilities
 
 _MOD_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$")
 _LOCAL_KEY = re.compile(r"^[a-z][a-z0-9]*(?:[-.]?[a-z0-9]+)*$")
@@ -203,6 +203,7 @@ class ModRegistrar:
         serializer: Any = None,
         display_metadata: dict[str, Any] | None = None,
         mutation_handlers: dict[str, Callable[..., Any]] | None = None,
+        capabilities: list[str] | None = None,
     ) -> str:
         self._owned(model)
         kind = _reference(self.id, local_key)
@@ -213,6 +214,8 @@ class ModRegistrar:
             serializer=serializer,
             display_metadata=display_metadata,
             mutation_handlers=mutation_handlers,
+            capabilities=validate_capabilities(list(capabilities or []), self.id),
+            provider_mod_id=self.id,
         )
         return kind
 
@@ -265,6 +268,63 @@ class ModRegistrar:
         from helix_core.column_types import registry
 
         registry.register_column_type(column_type)
+
+    def register_block(
+        self,
+        local_key: str,
+        *,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> str:
+        """Register a block with the capabilities it offers to slots."""
+        block_id = _reference(self.id, local_key)
+        self._registry.register_block(
+            block_id,
+            capabilities=validate_capabilities(list(capabilities or []), self.id),
+            provider_mod_id=self.id,
+            **metadata,
+        )
+        return block_id
+
+    def register_slot(
+        self,
+        local_key: str,
+        *,
+        accepts: list[str] | None = None,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> SlotReference:
+        """Register a slot that accepts matching capabilities."""
+        slot_id = SlotReference(self.id, local_key)
+        accepted = validate_accepted_capabilities(
+            list(accepts if accepts is not None else capabilities or [])
+        )
+        self._registry.register_slot(
+            slot_id.id, accepts=accepted, provider_mod_id=self.id, **metadata
+        )
+        return slot_id
+
+    def register_metric_provider(
+        self,
+        local_key: str,
+        service: ServiceReference | TypedService[Any, Any] | str,
+        *,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> str:
+        """Register a metric provider backed by a service reference."""
+        service_id = service if isinstance(service, str) else (
+            service.reference if isinstance(service, TypedService) else service
+        )
+        provider_id = _reference(self.id, local_key)
+        self._registry.register_metric_provider(
+            provider_id,
+            service_id,
+            capabilities=validate_capabilities(list(capabilities or []), self.id),
+            provider_mod_id=self.id,
+            **metadata,
+        )
+        return provider_id
 
     def register_custom_action(
         self,
@@ -329,6 +389,7 @@ class ModRegistrar:
         *,
         request_type: type | None = None,
         response_type: type | None = None,
+        capabilities: list[str] | None = None,
     ) -> ServiceReference | TypedService[Any, Any]:
         legacy_id = (
             local_key
@@ -340,11 +401,18 @@ class ModRegistrar:
         ).lower()
         reference = ServiceReference(self.id, canonical_key)
         service_id = reference.id
-        self._registry.register_service(reference.id, handler)
+        validated_capabilities = validate_capabilities(list(capabilities or []), self.id)
+        self._registry.register_service(
+            reference.id, handler, capabilities=validated_capabilities,
+            provider_mod_id=self.id,
+        )
         if legacy_id is not None and service_id != legacy_id:
             # Preserve the old internal alias while public callers use the
             # canonical typed reference.
-            self._registry.register_service(legacy_id, handler)
+            self._registry.register_service(
+                legacy_id, handler, capabilities=validated_capabilities,
+                provider_mod_id=self.id,
+            )
         if request_type is not None or response_type is not None:
             return TypedService(reference, request_type, response_type)
         return reference

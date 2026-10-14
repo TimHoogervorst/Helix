@@ -1,7 +1,6 @@
 from django.urls import include, path
 
-from helix_core.schema_tags import RegistrationTable, ResultTable
-from helix_core import SignalKind
+from helix_core.capabilities import RegistrationTable, ResultTable
 
 
 def _seed_builtin_metrics():
@@ -95,7 +94,7 @@ def register(mod):
         display_name="Entity",
         workspace_id="lims",
         model=entity,
-        tags=[RegistrationTable],
+        capabilities=[RegistrationTable],
         prefix="BLOOD",
         icon="flask-conical",
         color="success",
@@ -110,7 +109,7 @@ def register(mod):
         # type identity.  Keep this registration key stable because it is
         # already persisted in SchemaType rows.
         model=result_entity,
-        tags=[ResultTable],
+        capabilities=[ResultTable],
         prefix="RESULT",
         icon="chart-column",
         color="muted",

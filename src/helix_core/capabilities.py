@@ -14,6 +14,8 @@ _NAMESPACED = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+:[a-z][a-z0-9._-]
 # The seed vocabulary is platform-owned.  ``register_platform_capability`` is
 # used by platform extensions to grow it without changing validation code.
 PLATFORM_CAPABILITIES: set[str] = {"RegistrationTable", "ResultTable", "editor"}
+RegistrationTable = "RegistrationTable"
+ResultTable = "ResultTable"
 
 
 def register_platform_capability(name: str) -> None:
@@ -41,6 +43,21 @@ def validate_capabilities(capabilities: list[str], owner_id: str) -> list[str]:
             raise ValueError(
                 f"Mod '{owner_id}' cannot declare foreign capability '{capability}'"
             )
+    return result
+
+
+def validate_accepted_capabilities(capabilities: list[str]) -> list[str]:
+    """Validate a consumer's requirements without claiming ownership.
+
+    Consumers may match any well-formed vendor namespace, including one
+    supplied by an optional mod that is not installed yet.
+    """
+    result = list(dict.fromkeys(capabilities))
+    for capability in result:
+        if capability in PLATFORM_CAPABILITIES:
+            continue
+        if not _NAMESPACED.fullmatch(capability):
+            raise ValueError(f"unknown platform capability '{capability}'")
     return result
 
 

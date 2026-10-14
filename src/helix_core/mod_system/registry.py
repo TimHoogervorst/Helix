@@ -55,6 +55,8 @@ class ContentSourceProvider:
     serializer: Any = None
     display_metadata: Mapping[str, Any] = field(default_factory=dict)
     mutation_handlers: Mapping[str, Callable[..., Any]] = field(default_factory=dict)
+    capabilities: tuple[str, ...] = ()
+    provider_mod_id: str | None = None
 
 FORMULA_FUNCTION_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$")
 
@@ -81,6 +83,15 @@ class BackendModRegistry:
         self._source_kinds: dict[str, Any] = {}
         self._content_sources: dict[str, ContentSourceProvider] = {}
         self._formula_functions: dict[str, dict[str, Any]] = {}
+        # Generic capability-bearing registrations.  Keep the common shape in
+        # one place so new registry citizens do not grow bespoke capability
+        # stores or payload conventions.
+        self._capability_registrations: dict[str, dict[str, dict[str, Any]]] = {
+            "services": {},
+            "blocks": {},
+            "slots": {},
+            "metricProviders": {},
+        }
 
         # Optional: topological mod order for build_urlpatterns().
         # Set via set_mod_order() after loader runs.
@@ -133,6 +144,8 @@ class BackendModRegistry:
         serializer: Any = None,
         display_metadata: Mapping[str, Any] | None = None,
         mutation_handlers: Mapping[str, Callable[..., Any]] | None = None,
+        capabilities: list[str] | None = None,
+        provider_mod_id: str | None = None,
     ) -> None:
         if kind in self._source_kinds:
             raise ValueError(f"Duplicate source kind '{kind}'")
@@ -144,7 +157,27 @@ class BackendModRegistry:
             serializer=serializer,
             display_metadata=dict(display_metadata or {}),
             mutation_handlers=dict(mutation_handlers or {}),
+            capabilities=tuple(dict.fromkeys(capabilities or [])),
+            provider_mod_id=provider_mod_id,
         )
+        self._register_capability(
+            "services", kind, capabilities=capabilities,
+            registration_type="content_source", provider_mod_id=provider_mod_id,
+        )
+
+    def _register_capability(
+        self,
+        kind: str,
+        registration_id: str,
+        *,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> None:
+        self._capability_registrations[kind][registration_id] = {
+            "id": registration_id,
+            "capabilities": list(dict.fromkeys(capabilities or [])),
+            **metadata,
+        }
 
     def get_source_kinds(self) -> dict[str, Any]:
         return dict(self._source_kinds)
@@ -448,6 +481,40 @@ class BackendModRegistry:
             # The schema type will be created on next boot when the DB
             # is available and mod.py.register() runs again.
             pass
+
+    def register_block(
+        self, block_id: str, *, capabilities: list[str] | None = None, **metadata: Any
+    ) -> None:
+        """Register a block and its backend-declared capabilities."""
+        self._register_capability("blocks", block_id, capabilities=capabilities, **metadata)
+
+    def register_slot(
+        self,
+        slot_id: str,
+        *,
+        accepts: list[str] | None = None,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> None:
+        """Register a slot; ``accepts`` is its capability filter."""
+        accepted = list(accepts if accepts is not None else capabilities or [])
+        self._register_capability(
+            "slots", slot_id, capabilities=accepted, accepts=accepted, **metadata
+        )
+
+    def register_metric_provider(
+        self,
+        provider_id: str,
+        service: Any,
+        *,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> None:
+        """Register a metric provider backed by a public service reference."""
+        self._register_capability(
+            "metricProviders", provider_id, capabilities=capabilities,
+            service=str(service), **metadata
+        )
 
     def register_action_model(self, mod_id: str, model_class: type) -> None:
         """Register a concrete action model class for *mod_id*.
@@ -790,7 +857,14 @@ class BackendModRegistry:
 
     # ── service registry ──────────────────────────────────────────────────
 
-    def register_service(self, service_id: str, handler: Callable[..., Any]) -> None:
+    def register_service(
+        self,
+        service_id: str,
+        handler: Callable[..., Any],
+        *,
+        capabilities: list[str] | None = None,
+        provider_mod_id: str | None = None,
+    ) -> None:
         """Register a callable service handler for *service_id*.
 
         Services are the mechanism for cross-mod behavioral calls.  A mod
@@ -802,6 +876,10 @@ class BackendModRegistry:
         (last write wins).
         """
         self._services[service_id] = handler
+        self._register_capability(
+            "services", service_id, capabilities=capabilities,
+            registration_type="service", provider_mod_id=provider_mod_id,
+        )
 
     def call(self, service_id: str, *args: Any, **kwargs: Any) -> Any:
         """Invoke a registered service and return its result.
@@ -891,10 +969,15 @@ class BackendModRegistry:
             )
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations).
-            return {
+            unavailable_payload = {
                 "columnTypes": column_type_registry.get_registry_payload(),
                 "formulaFunctions": self.get_formula_catalog(),
             }
+            unavailable_payload.update({
+                kind: [entries[key] for key in entries]
+                for kind, entries in self._capability_registrations.items()
+            })
+            return unavailable_payload
 
         # Group schema types by workspace_id.
         grouped: dict[str, list[SchemaType]] = {}
@@ -1012,6 +1095,12 @@ class BackendModRegistry:
         # Insert columnTypes at the top level.
         payload["columnTypes"] = column_type_registry.get_registry_payload()
         payload["formulaFunctions"] = self.get_formula_catalog()
+
+        # Generic registrations are hydrated as plain records.  They are
+        # intentionally separate from workspace schema types: consumers can
+        # discover any citizen without importing its provider.
+        for kind, entries in self._capability_registrations.items():
+            payload[kind] = [entries[key] for key in entries]
 
         # ── icon library ──────────────────────────────────────────────
         icon_entries: list[dict[str, Any]] = []

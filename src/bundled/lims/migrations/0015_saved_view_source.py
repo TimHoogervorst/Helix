@@ -4,6 +4,8 @@ from django.db import migrations, models
 def copy_legacy_filter_state(apps, schema_editor):
     LimsView = apps.get_model("lims", "LimsView")
     for view in LimsView.objects.all().iterator():
+        if view.source_kind == "entity":
+            view.source_kind = "lims:entity"
         state = view.filter_state if isinstance(view.filter_state, dict) else {}
         view.spec = {
             "filter": {
@@ -14,7 +16,7 @@ def copy_legacy_filter_state(apps, schema_editor):
             "sort": ([{"field": state["sort"]}] if state.get("sort") else []),
             "columns": state.get("columns", []),
         }
-        view.save(update_fields=["spec"])
+        view.save(update_fields=["source_kind", "spec"])
 
 
 class Migration(migrations.Migration):

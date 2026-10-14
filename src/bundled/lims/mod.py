@@ -62,6 +62,24 @@ def register(mod):
     from bundled.lims.services import cascade_source_status
     from bundled.access.access.scoping import visible_rows_q
 
+    def home_entity_count(user):
+        """Return the public seeded entity aggregate for the Home surface."""
+        from bundled.lims.models import Metric
+        from helix_core.query_builder import build_metric_aggregation
+
+        metric = Metric.objects.filter(
+            view__is_public=True,
+            aggregate_function="count",
+        ).select_related("view").order_by("pk").first()
+        if metric is None:
+            return {"value": 0}
+        return build_metric_aggregation(
+            metric.view,
+            metric.aggregate_function,
+            metric.column or None,
+            user=user,
+        )
+
     entity = mod.register_model("entity", Entity)
     result_entity = mod.register_model("result-entity", "bundled.lims.models.ResultEntity")
     mod.register_source_kind(
@@ -87,6 +105,14 @@ def register(mod):
     mod.register_custom_action("lims.entity.tag_detached", "Tag Detached", "edited", entity)
     mod.register_urls([path("api/lims/", include("bundled.lims.urls"))])
     mod.register_service("lims.cascadeSourceStatus", cascade_source_status)
+    home_metric_service = mod.register_service("lims.homeEntityCount", home_entity_count)
+    mod.register_metric_provider(
+        "home-entity-count",
+        home_metric_service,
+        label="Entities",
+        sourceKind="lims:entity",
+        aggregate="count",
+    )
     from helix_core.source_status import update_status_from_source
     mod.register_signal(SignalKind.MODEL_POST_SAVE, entity, update_status_from_source)
 

@@ -139,7 +139,7 @@ function HubCard({
       </h3>
 
       {/* Placeholder stats line (mono) */}
-      <p className="font-mono text-xs text-muted-foreground">
+       <p className="font-[var(--font-label)] text-xs text-muted-foreground">
         {PLACEHOLDER_STATS}
       </p>
 
@@ -155,7 +155,7 @@ function HubCard({
         <span className="chip">
           <Beaker className="h-3 w-3" aria-hidden="true" /> open
         </span>
-        <span className="font-mono">edited 8 min ago</span>
+         <span className="font-[var(--font-label)]">edited 8 min ago</span>
       </div>
     </Link>
   );
@@ -250,7 +250,7 @@ function RegisteredMetricCards() {
         {providers.map((provider: MetricProviderConfig) => (
           <article key={provider.id} className="rounded-lg border border-border bg-card p-4">
             <p className="text-xs text-muted-foreground">{provider.label}</p>
-            <p className="mt-2 font-mono text-2xl font-semibold">
+            <p className="mt-2 font-[var(--font-label)] text-2xl font-semibold">
               {failed.has(provider.id) ? "—" : values[provider.id] === undefined ? "…" : String(values[provider.id])}
             </p>
           </article>
@@ -344,7 +344,7 @@ function ActivityRow({ item }: { item: RecentActivityItem }) {
           {item.action}{" "}
           <span className="font-medium">{item.target}</span>
         </p>
-        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+        <p className="mt-0.5 font-[var(--font-label)] text-xs text-muted-foreground">
           {item.timestamp} — {item.filePath}
         </p>
       </div>
@@ -422,7 +422,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
   return (
     <div className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
       {/* Time label */}
-      <span className="font-mono text-xs text-muted-foreground shrink-0 w-10">
+      <span className="font-[var(--font-label)] text-xs text-muted-foreground shrink-0 w-10">
         {entry.time}
       </span>
 

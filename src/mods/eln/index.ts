@@ -1,9 +1,6 @@
 import { lazy } from "react";
 import { ListChecks, History, Table, Info, Link, Paperclip } from "lucide-react";
-import type { Mod } from "@helix/mod-api";
-import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
-import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
-import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
+import { type Mod, ButtonGroupRenderer, SlotSidebar, TipTapRenderer } from "@helix/mod-api";
 import { TableBlockComponent } from "./blocks/TableNodeView";
 import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFeedBlock";
 import { MetadataBlock } from "./blocks/MetadataBlock";

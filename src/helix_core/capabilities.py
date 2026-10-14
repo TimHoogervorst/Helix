@@ -11,17 +11,14 @@ import re
 
 _NAMESPACED = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+:[a-z][a-z0-9._-]*$")
 
-# The seed vocabulary is platform-owned.  ``register_platform_capability`` is
-# used by platform extensions to grow it without changing validation code.
-PLATFORM_CAPABILITIES: set[str] = {"RegistrationTable", "ResultTable", "editor"}
+# Versioned platform vocabulary. Extensions use a vendor namespace rather than
+# mutating the platform contract at runtime.
+PLATFORM_CAPABILITY_VERSION = 1
+PLATFORM_CAPABILITIES: frozenset[str] = frozenset(
+    {"RegistrationTable", "ResultTable", "editor"}
+)
 RegistrationTable = "RegistrationTable"
 ResultTable = "ResultTable"
-
-
-def register_platform_capability(name: str) -> None:
-    if not name or ":" in name or "." in name:
-        raise ValueError("Platform capability names must be unnamespaced words")
-    PLATFORM_CAPABILITIES.add(name)
 
 
 def validate_capabilities(capabilities: list[str], owner_id: str) -> list[str]:

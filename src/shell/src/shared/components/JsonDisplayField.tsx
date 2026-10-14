@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "../primitives/Button";
 
 export interface JsonDisplayFieldProps {
   label?: string;
@@ -19,16 +20,18 @@ export function JsonDisplayField({ label, value, className = "" }: JsonDisplayFi
   return (
     <div className={`json-display-field ${className}`} data-testid="json-display-field">
       {label && <span className="detail-label">{label}</span>}
-      <button
+      <Button
         type="button"
-        className="mt-1 block max-w-full overflow-x-auto rounded border border-hairline bg-surface px-2 py-1 text-left font-mono text-xs text-foreground"
+        variant="ghost"
+        size="sm"
+        className="mt-1 block max-w-full overflow-x-auto rounded border border-hairline bg-surface px-2 py-1 text-left font-[var(--font-label)] text-xs text-foreground"
         aria-expanded={expanded}
         onClick={() => setExpanded((current) => !current)}
       >
         <code className={expanded ? "whitespace-pre" : "whitespace-nowrap"}>
           {expanded ? formatted : preview}
         </code>
-      </button>
+      </Button>
     </div>
   );
 }

@@ -287,3 +287,22 @@ export interface LimsViewUpdatePayload {
   filter_state?: ViewFilterState;
   is_public?: boolean;
 }
+
+/** Restore the portable source specification used by saved-view consumers. */
+export function viewFilterState(view: Pick<LimsViewItem, "spec" | "filter_state">): ViewFilterState {
+  const filter = view.spec?.filter ?? {};
+  const sort = view.spec?.sort?.[0];
+  const sortField = typeof sort === "object" && sort !== null && "field" in sort
+    ? String((sort as { field: unknown }).field ?? "")
+    : typeof sort === "string" ? sort : "";
+  return {
+    search: String(filter.search ?? ""),
+    schema_type: String(filter.schema_type ?? ""),
+    schema: String(filter.schema ?? ""),
+    status: String(filter.status ?? ""),
+    sort: sortField,
+    fields: Array.isArray(filter.fields) ? filter.fields.map(String) : [],
+    columns: Array.isArray(view.spec?.columns) ? view.spec.columns.map(String) : [],
+    viewMode: view.filter_state?.viewMode === "compact" ? "compact" : "list",
+  };
+}

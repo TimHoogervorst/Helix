@@ -28,6 +28,18 @@ function EntityDetailFields({
     <>
       <div className="detail-body">
         <div className="detail-field">
+          <span className="detail-label">Display ID</span>
+          <span>{entity.display_id}</span>
+        </div>
+        <div className="detail-field">
+          <span className="detail-label">Name</span>
+          <span>{entity.name || "—"}</span>
+        </div>
+        <div className="detail-field">
+          <span className="detail-label">Status</span>
+          <span>{entity.status || "—"}</span>
+        </div>
+        <div className="detail-field">
           <span className="detail-label">Type</span>
           <span>
             {entity.schema_name} ({entity.schema_prefix})

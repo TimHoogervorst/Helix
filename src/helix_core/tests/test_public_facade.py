@@ -14,6 +14,7 @@ from helix_core import (
 )
 from helix_core.mod_system.manifest import Dependency, ModManifest
 from helix_core.mod_system.registry import BackendModRegistry
+from helix_core.capabilities import PLATFORM_CAPABILITIES
 
 
 def manifest(mod_id: str = "acme.widgets") -> ModManifest:
@@ -88,6 +89,11 @@ def test_schema_capabilities_allow_platform_and_owner_namespaced_extensions():
             prefix="O",
             capabilities=["foreign.widgets:tag"],
         )
+
+
+def test_platform_capability_vocabulary_is_curated_and_versioned():
+    assert isinstance(PLATFORM_CAPABILITIES, frozenset)
+    assert "RegistrationTable" in PLATFORM_CAPABILITIES
 
 
 def test_registrations_carry_capabilities_into_hydration_payload():

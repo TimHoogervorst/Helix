@@ -151,6 +151,9 @@ class EntitySerializer(serializers.ModelSerializer):
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
+    # Keep the portable payload available when the source mod is absent.
+    content = serializers.SerializerMethodField()
+    raw_content = serializers.SerializerMethodField()
 
     class Meta:
         model = Entity
@@ -181,6 +184,8 @@ class EntitySerializer(serializers.ModelSerializer):
             "schema_icon",
             "schema_color",
             "enabled_components",
+            "content",
+            "raw_content",
         ]
         read_only_fields = [
             "id",
@@ -207,6 +212,12 @@ class EntitySerializer(serializers.ModelSerializer):
     def get_source_path(self, obj):
         cache = self.context.setdefault("source_path_cache", {})
         return hydrate_source_path(obj.source_path, cache)
+
+    def get_content(self, obj):
+        return obj.properties or {}
+
+    def get_raw_content(self, obj):
+        return obj.properties or {}
 
     def create(self, validated_data):
         try:

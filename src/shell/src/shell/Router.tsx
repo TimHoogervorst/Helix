@@ -119,7 +119,9 @@ function RouteFallback() {
   const location = useLocation();
   // Keep genuinely unknown URLs as the established not-found state while
   // making the degradation message useful for route-shaped persisted links.
-  if (location.pathname.split("/").filter(Boolean).length >= 2) {
+  // A mod-owned bookmark has a namespace, resource, and usually an ID. Keep
+  // short unknown URLs on the normal not-found surface.
+  if (location.pathname.split("/").filter(Boolean).length >= 3) {
     return <Unavailable kind="Route" name={location.pathname} />;
   }
   return <NotFound />;

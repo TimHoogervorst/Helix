@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Globe } from "lucide-react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import type { LimsViewItem } from "../types";
+import { viewFilterState, type LimsViewItem } from "../types";
 import { getPublicViews } from "../../shared/entities/hub/api";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ export function GlobalViewsBlock(_props: BlockComponentProps) {
   // ── Click view → navigate ───────────────────────────────────────────
   const handleClickView = useCallback(
     (view: LimsViewItem) => {
-      navigate(buildViewURL(view.filter_state));
+       if (!view.is_inert) navigate(buildViewURL(viewFilterState(view)));
     },
     [navigate],
   );
@@ -94,7 +94,8 @@ export function GlobalViewsBlock(_props: BlockComponentProps) {
           <button
             className="entities-views-item-name"
             type="button"
-            onClick={() => handleClickView(view)}
+             onClick={() => handleClickView(view)}
+             disabled={view.is_inert}
             title={`Load view: ${view.name} (by ${view.owner_username})`}
           >
                 {view.name}

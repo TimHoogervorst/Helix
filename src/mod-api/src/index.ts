@@ -7,6 +7,11 @@
  */
 export type { Mod } from "../../shell/src/mod-system/Mod";
 export { Button } from "../../shell/src/shared/primitives/Button";
+export { IconButton } from "../../shell/src/shared/primitives/IconButton";
+export { Menu } from "../../shell/src/shared/primitives/Menu";
+export { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
+export { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
+export { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
 export {
   registrationId,
   ModelReference,

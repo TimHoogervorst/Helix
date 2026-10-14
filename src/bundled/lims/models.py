@@ -19,7 +19,7 @@ class LimsView(models.Model):
     name = models.CharField(max_length=255)
     source_kind = models.CharField(
         max_length=255,
-        default="entity",
+        default="lims:entity",
         help_text="Registry content-source kind, not a model or mod identifier.",
     )
     spec = models.JSONField(

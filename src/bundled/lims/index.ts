@@ -14,6 +14,14 @@ import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
 import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
 import { ResultTableBlockComponent } from "./blocks/ResultTableNode";
 
+const jsonBlockPersistence = {
+  serialize: (state: unknown) => JSON.stringify(state),
+  deserialize: (json: string) => {
+    try { return JSON.parse(json); } catch { return {}; }
+  },
+};
+const emptyBlockState = {};
+
 export function register(mod: Mod) {
   mod.registerContentSource("entity", {
   label: "Entity",
@@ -31,28 +39,28 @@ export function register(mod: Mod) {
     label: "Comment", icon: MessageSquare, component: CommentBlockComponent,
     listensTo: [], onEvent: {}, emits: [], tags: ["discussion", "annotation"],
     getDisplayName: (attrs) => ((attrs.thread as Array<{ authorName?: string }>)?.[0]?.authorName || "Comment"),
-    serialize: (state) => JSON.stringify(state), deserialize: (json) => { try { return JSON.parse(json); } catch { return {}; } },
+     ...jsonBlockPersistence,
     defaultState: { resolved: false, thread: [] },
   });
   editorBlock("protocol", {
     label: "Protocol", icon: FlaskConical, component: ProtocolBlockComponent,
     listensTo: [], onEvent: {}, emits: [], tags: ["procedure", "workflow"], preserve: ["protocolId"],
     getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
-    serialize: (state) => JSON.stringify(state), deserialize: (json) => { try { return JSON.parse(json); } catch { return {}; } },
+     ...jsonBlockPersistence,
     defaultState: { protocolId: null, name: "Protocol", items: [], stepStates: {}, editable: false },
   });
   editorBlock("registry-table", {
     label: "Registry Table", layout: "dynamic-bleed", icon: Database, component: RegistryTableBlockComponent,
     listensTo: [], onEvent: {}, emits: [BlockEvent.action({ id: "entities-registered", core: "edited" }), BlockEvent.action({ id: "row-added", core: "edited" }), BlockEvent.ui({ id: "column-resized" })], tags: ["table", "registry", "lims"], preserve: ["schemaId"],
     getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Registry Table",
-    serialize: (state) => JSON.stringify(state), deserialize: (json) => { try { return JSON.parse(json); } catch { return {}; } },
+     ...jsonBlockPersistence,
     defaultState: { schemaId: null, schemaName: null, schemaContentHash: null, title: "Registry Table", columns: [], rows: [] },
   });
   editorBlock("result-table", {
     label: "Result Table", layout: "dynamic-bleed", icon: Database, component: ResultTableBlockComponent,
     listensTo: [], onEvent: {}, emits: [BlockEvent.action({ id: "results-registered", core: "edited" })], tags: ["table", "result", "lims"], preserve: ["schemaId"],
     getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Result Table",
-    serialize: (state) => JSON.stringify(state), deserialize: (json) => { try { return JSON.parse(json); } catch { return {}; } },
+     ...jsonBlockPersistence,
     defaultState: { schemaId: null, schemaName: null, schemaContentHash: null, title: "Result Table", columns: [], rows: [] },
   });
 
@@ -93,9 +101,8 @@ const selectionBlock = mod.registerBlock("selection", {
   listensTo: [],
   onEvent: {},
   emits: [],
-  serialize: () => "{}",
-  deserialize: () => ({}),
-  defaultState: {},
+   ...jsonBlockPersistence,
+   defaultState: emptyBlockState,
 });
 
 // ── Block: My Views placeholder ───────────────────────────────────────
@@ -106,9 +113,8 @@ const myViewsBlock = mod.registerBlock("my-views", {
   listensTo: [],
   onEvent: {},
   emits: [],
-  serialize: () => "{}",
-  deserialize: () => ({}),
-  defaultState: {},
+   ...jsonBlockPersistence,
+   defaultState: emptyBlockState,
 });
 
 // ── Block: Global Views placeholder ───────────────────────────────────
@@ -119,9 +125,8 @@ const globalViewsBlock = mod.registerBlock("global-views", {
   listensTo: [],
   onEvent: {},
   emits: [],
-  serialize: () => "{}",
-  deserialize: () => ({}),
-  defaultState: {},
+   ...jsonBlockPersistence,
+   defaultState: emptyBlockState,
 });
 
 // ── Block: Entity Activity Feed ─────────────────────────────────────────
@@ -132,9 +137,8 @@ const activityFeedBlock = mod.registerBlock("activity-feed", {
   listensTo: [],
   onEvent: {},
   emits: [],
-  serialize: () => "{}",
-  deserialize: () => ({}),
-  defaultState: {},
+   ...jsonBlockPersistence,
+   defaultState: emptyBlockState,
 });
 
 // ── Bind blocks into the sidebar slot ─────────────────────────────────

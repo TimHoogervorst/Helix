@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contract-backed Blocks — disposable logic prototype</title>
+<style>
+:root{--color-background:oklch(.985 .005 95);--color-card:oklch(.982 .006 95);--color-surface:oklch(.975 .008 95);--color-ink:oklch(.22 .02 260);--color-primary:oklch(.42 .08 195);--color-accent:oklch(.94 .03 180);--color-ink-hairline:color-mix(in oklch,var(--color-ink) 18%,transparent);--color-ink-muted-foreground:color-mix(in oklch,var(--color-ink) 70%,var(--color-background));--font-body:Inter,system-ui,sans-serif;--font-label:'JetBrains Mono',ui-monospace,monospace;--text-xs:.75rem;--text-base:.875rem;--text-lg:1rem;--text-2xl:1.5rem}
+*{box-sizing:border-box}body{margin:0;background:var(--color-background);color:var(--color-ink);font:var(--text-base)/1.6 var(--font-body)}main{max-width:1280px;margin:auto;padding:32px}h1,h2,h3,th,.eyebrow{font-family:var(--font-label)}h1{font-size:var(--text-2xl);margin:8px 0}h2{font-size:var(--text-lg);margin:0 0 12px}h3{font-size:var(--text-base);margin:20px 0 6px}p{margin:8px 0 16px}.muted,.eyebrow,small{color:var(--color-ink-muted-foreground)}.eyebrow{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.1em}.grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px}.card{padding:22px;border:1px solid var(--color-ink-hairline);border-radius:8px;background:var(--color-card);margin:18px 0}.block{padding:18px;border:1px solid var(--color-ink-hairline);margin:16px 0;border-radius:6px}.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}button,select,input{font:inherit;color:inherit;background:var(--color-surface);border:1px solid var(--color-ink-hairline);border-radius:4px;padding:7px 10px}button{cursor:pointer}button:hover,button[aria-selected=true]{background:var(--color-accent)}button.primary{background:var(--color-primary);color:var(--color-background)}button:disabled{opacity:.5;cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--color-accent)}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{text-align:left;padding:7px;border-bottom:1px solid var(--color-ink-hairline);vertical-align:top;overflow-wrap:anywhere}th{font-size:var(--text-xs);background:var(--color-surface)}code,pre,.sequence{font-family:var(--font-label);overflow-wrap:anywhere}pre{white-space:pre-wrap;font-size:var(--text-xs);max-height:440px;overflow:auto}#notice{padding:14px;background:var(--color-accent);border-radius:5px;margin:18px 0}.pill{display:inline-block;padding:2px 8px;background:var(--color-surface);border-radius:4px;font-size:var(--text-xs)}.feed{border-bottom:1px solid var(--color-ink-hairline);padding:10px 0}.walk{margin-top:12px}.wide{grid-column:1/-1}details{margin-top:16px}a{color:var(--color-primary)}@media(max-width:850px){main{padding:16px}.grid{display:block}}
+</style>
+<main>
+<div class="eyebrow">Wayfinder / disposable prototype / in memory only</div>
+<h1>Saved science, replaceable Blocks</h1>
+<p>Can a DNA-cutting Block retain its meaning, inputs and outputs when its Mod disappears? Explore it beside an editable Registry Table inside an ELN document. Split produces two DNA sequence values; Register creates their Entity records. Both are presented in one cutting Block, and neither edits the input.</p>
+<p class="muted">Open this file directly. All operations are simulations; reload to discard everything. Manual save stands in for ELN autosave: commit draft inputs before explicit invocation. Saving never triggers a scientific operation. No enzyme model, provider preference UI, Block copying or historical execution.</p>
+<div class="bar"><label>Scientific Mod / viewer <select id="provider"><option value="original">Original Mod</option><option value="replacement">Compatible replacement</option><option value="partial">Split-only provider + viewer</option><option value="incompatible">Different operation, same input type</option><option value="viewer">Viewer only</option><option value="actions">Actions only, generic viewer</option><option value="none">No provider</option></select></label><label>Register provider <select id="registration-provider"><option value="platform">Shared Platform Register</option><option value="none">Unavailable</option></select></label><label><input type="checkbox" id="readonly"> Read-only access</label><button data-act="reset">Reset demo</button></div>
+<div id="notice" role="status" aria-live="polite"></div>
+<section class="card"><h2>Guided walkthroughs</h2><div class="bar" id="tabs" role="tablist" aria-label="Scenarios"></div><div id="walk" class="walk"></div></section>
+<div class="grid">
+<section class="card"><div class="eyebrow">ELN document / ELN-1</div><h2 id="entry-title"></h2><div id="document"></div></section>
+<aside class="card"><h2>Operation desk</h2><p>Prepare captures the current input and target Revisions. Commit simulates the shared Platform boundary.</p><div id="invocation"></div><h3>Free play</h3><div class="bar" id="freeplay"></div><h3>Current DNA Entities</h3><div id="entities"></div><details><summary>Full relevant state and proposed saved envelope</summary><p class="muted">Proposed shape for discussion, not an implemented API. Exact contract bindings and unknown extension values survive generic load/save. Provider availability is deployment state, outside the saved document.</p><pre id="state"></pre></details></aside>
+<section class="card"><h2>Activity Feed</h2><label>Participant <select id="participant"></select></label><div id="feed"></div></section>
+<section class="card"><h2>Read-only Revision inspection</h2><div id="history"></div></section>
+</div>
+</main>
+<script>
+// Pure, disposable state model. No DOM, network, real storage or scientific library.
+const Demo = (() => {
+ const clone = x => JSON.parse(JSON.stringify(x));
+ const canonical = x => Array.isArray(x) ? '['+x.map(canonical).join(',')+']' : x && typeof x==='object' ? '{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}' : JSON.stringify(x);
+ const dna = 'example.dna-sequence@1.0.0', documentContract = 'helix.document@1.0.0';
+ // The same type notation is used by value contracts and Action ports/parameters.
+ const listOf = contract => ({type:'array',items:{contract}});
+ const actionContracts = {
+  'example.split@1.0.0':{inputs:{sequences:listOf(dna)},parameters:{},outputs:{fragments:listOf(dna)},effects:['produce equal halves of each even-length input; input unchanged']},
+  'helix.register@1.0.0':{inputs:{values:listOf('helix.typed-value@1.0.0')},parameters:{targetSchema:{contract:'helix.schema-reference@1.0.0'},fieldMapping:{type:'object',values:{type:'string'}}},outputs:{records:listOf('helix.record-reference@1.0.0')},effects:['create Entities on the selected Schema using the explicit field mapping; never rerun the producing method']}
+ };
+ // Two Schema fixtures exercise an explicit mapping; this is not a general validator.
+ const schemas = {dna:{field:'sequence'},'dna-alternative':{field:'bases'}};
+ const declarations = {
+  cut: {id:'example.split@1.0.0',steps:[{id:'split',action:'example.split@1.0.0'}],targets:{input:'used',document:'edited'},effects:['retain split outputs in the document']},
+  combined: {id:'example.split-and-register@1.0.0',steps:[{id:'split',action:'example.split@1.0.0'},{id:'register',action:'helix.register@1.0.0',inputs:{values:{step:'split',port:'fragments'}}}],targets:{input:'used',fragments:'created',document:'edited'},effects:['split input','create two DNA Entities','retain output references atomically']},
+  fragments: {id:'example.register-split-results@1.0.0',steps:[{id:'register',action:'helix.register@1.0.0',inputs:{values:{step:'split',port:'fragments'}}}],targets:{document:'used and edited',fragments:'created'},effects:['register recorded split outputs without recalculation']},
+  register: {id:'example.register-rows@1.0.0',steps:[{id:'register',action:'helix.register@1.0.0'}],targets:{document:'used and edited',rows:'created'},effects:['register all saved rows atomically','save row references']},
+  edit: {id:'helix.edit-document@1.0.0',inputs:{document:documentContract},outputs:{document:documentContract},targets:{document:'edited'},effects:['save document'],sequence:[]}
+ };
+ const providers = {
+  original:{name:'Original Mod',version:'1.0.0',viewer:true,tableEditor:true,operations:['cut','combined','fragments','register']},
+  replacement:{name:'Replacement Mod',version:'2.0.0',viewer:true,tableEditor:true,operations:['cut','combined','fragments','register']},
+  partial:{name:'Partial Mod',version:'1.0.0',viewer:true,tableEditor:false,operations:['cut','combined']},
+  viewer:{name:'Viewer Mod',version:'1.0.0',viewer:true,operations:[]},
+  actions:{name:'Action Mod',version:'1.0.0',viewer:false,operations:['cut','combined','fragments','register']},
+  platform:{name:'Platform Register',version:'1.0.0',viewer:false,operations:['register','fragments']},
+  incompatible:{name:'Different operation Mod',version:'1.0.0',viewer:true,operations:[]},
+  none:{name:'Unavailable',version:null,viewer:false,operations:[]}
+ };
+ // Providers implement exact Actions independently. Retained definitions remain
+ // authoritative even when neither provider is available.
+ for(const [id,provider] of Object.entries(providers)){
+  provider.actions={};
+  if(provider.operations.includes('cut'))provider.actions['example.split@1.0.0']=clone(actionContracts['example.split@1.0.0']);
+  if(id==='platform')provider.actions['helix.register@1.0.0']=clone(actionContracts['helix.register@1.0.0']);
+ }
+ providers.incompatible.actions['example.replace-sequence@1.0.0']={...clone(actionContracts['example.split@1.0.0']),effects:['replace original sequence; do not create fragments']};
+ const stepsFor = kind => kind==='combined'?['split','register']:kind==='cut'?['split']:['register'];
+ const selectedProviders = (s,kind) => Object.fromEntries(stepsFor(kind).map(step=>[step,step==='split'?s.provider:s.registrationProvider]));
+ const providerSummary = selected => Object.entries(selected).map(([step,id])=>step+': '+providers[id].name+' '+(providers[id].version||'')).join('; ');
+ const providerIdentity = (selected,step) => ({name:providers[selected[step]].name,version:providers[selected[step]].version});
+ const initial = () => {
+  const document = {contract:documentContract,paragraph:'Split the reference sequence and inspect the resulting fragments.',blocks:[
+   {id:'cut-block',actionSequence:{definition:'example.split-and-register@1.0.0',steps:[
+    {id:'split',action:'example.split@1.0.0',inputs:{sequences:{source:{record:'DNA-1',group:'science',follow:'current'}}},parameters:{},outputs:{fragments:{values:[]}}},
+    {id:'register',action:'helix.register@1.0.0',inputs:{values:{source:{step:'split',port:'fragments'}}},parameters:{targetSchema:'dna',fieldMapping:{sequence:'sequence'}},outputs:{records:{values:[]}}}
+   ]},content:{contract:'example.note@1.0.0',value:{text:'Preserve this unsupported nested content',extra:[1,2,3]}}},
+   {id:'registry-block',originLabel:'Registry Table',content:{contract:'example.registry-table@1.0.0',value:{rows:[{name:'Table sample A',sequence:'AACCGGTT',entity:null},{name:'Table sample B',sequence:'TTGGCCAA',entity:null}]}},actionSequence:{definition:'example.register-rows@1.0.0',steps:[{id:'register',action:'helix.register@1.0.0',inputs:{values:{source:{block:'registry-block',path:'rows'}}},parameters:{targetSchema:'dna',fieldMapping:{sequence:'sequence'}},outputs:{records:{values:[]}}}]}}
+   ,{id:'display-only-block',content:{contract:'helix.text@1.0.0',value:{text:'Display-only content needs no Action Sequence. Rendering this annotation never executes a method.'}}}
+  ]};
+  return {provider:'original',registrationProvider:'platform',readonly:false,title:'DNA split experiment',document, draft:null,docRevision:1,docHistory:{1:clone(document)},entities:{'DNA-1':{name:'Reference DNA',current:1,revisions:{1:{contract:dna,sequence:'ATGCAATTCCGG',provenance:null}}}},actions:[],receipts:{},nextInvocation:1,pending:null,recovery:null,inspection:null,renditions:{1:'Reviewed rendition of ELN-1 / document Revision 1. Original table/map presentation retained here as a simulated immutable attachment.'},notice:'Ready. Viewing and changing provider do not execute methods or create activity.',roundtrip:null};
+ };
+ const block = (doc,id) => doc.blocks.find(b=>b.id===id);
+ const stepBinding = (doc,blockId,stepId) => block(doc,blockId).actionSequence.steps.find(step=>step.id===stepId);
+ const outputValues = (step,port) => step.outputs[port].values;
+ // Proposed read-only objects for Block code, derived from retained contracts and
+ // concrete Action Bindings. Mutations still go through an explicit invocation.
+ const actionContext = (s,blockId,stepId) => {
+  const binding=stepBinding(s.draft||s.document,blockId,stepId),contract=actionContracts[binding.action];
+  const inputs=Object.fromEntries(Object.entries(binding.inputs).map(([port,input])=>{
+   let values=[];
+   if(input.source.record){const entity=s.entities[input.source.record],revision=entity.revisions[entity.current];values=[{contract:revision.contract,value:{sequence:revision.sequence},reference:{record:input.source.record,group:input.source.group,revision:entity.current}}];}
+   if(input.source.step)values=clone(outputValues(stepBinding(s.draft||s.document,blockId,input.source.step),input.source.port));
+   if(input.source.block)values=block(s.draft||s.document,input.source.block).content.value.rows.map(row=>({contract:dna,value:{name:row.name,sequence:row.sequence}}));
+   return [port,{definition:clone(contract.inputs[port]),source:clone(input.source),items:values}];
+  }));
+  return {action:binding.action,inputs,parameters:clone(binding.parameters),outputs:Object.fromEntries(Object.entries(binding.outputs).map(([port,output])=>[port,{definition:clone(contract.outputs[port]),items:clone(output.values)}]))};
+ };
+ const supports = (s,kind) => Object.entries(selectedProviders(s,kind)).every(([step,id])=>{const action=step==='split'?'example.split@1.0.0':'helix.register@1.0.0';return canonical(providers[id].actions[action])===canonical(actionContracts[action]);});
+ const dirty = s => !!s.draft;
+ const writeDoc = (s,doc) => {if(canonical(doc)!==canonical(s.document)){s.document=clone(doc);s.docRevision++;s.docHistory[s.docRevision]=clone(doc);}};
+ const addAction = (s,label,provider,parts,operation,request=null) => {const action={id:'ACT-'+(s.actions.length+1),label,provider,operation,request,participants:parts};s.actions.push(action);return action;};
+ const docPart = (before,after,used=false) => ({record:'ELN-1',roles:used?['used','edited']:['edited'],group:'document',before,after,...(used?{input:before}:{})});
+ const preparedState = (s,kind) => ({document:s.docRevision,...(['cut','combined'].includes(kind)?{input:s.entities['DNA-1'].current}:{})});
+ function transition(previous,event){
+  let s=clone(previous);const e=typeof event==='string'?{type:event}:event;
+  const say=message=>{s.notice=message;return s;};
+  if(e.type==='reset')return initial();
+  if(e.type==='provider'){s.provider=e.value;return say('Deployment provider changed. Recorded data, Action Bindings and activity are unchanged.');}
+  if(e.type==='registration-provider'){s.registrationProvider=e.value;return say('Register provider changed independently of the scientific Mod and viewer.');}
+  if(e.type==='readonly'){s.readonly=e.value;return say(e.value?'Read-only: inspect and export; operations are unavailable.':'Editing access restored.');}
+  if(e.type==='inspect'){s.inspection={record:e.record,revision:Number(e.revision)};return say('Read-only historical inspection. No Action was logged.');}
+  if(e.type==='close-history'){s.inspection=null;return say('Historical inspection closed.');}
+  if(e.type==='browse'){s.inspection={record:'DNA-1',revision:s.entities['DNA-1'].current};return say('Browsing current input values. This does not alter the exact input reference in recorded provenance.');}
+  if(e.type==='roundtrip'){const original=canonical(s.document);s.document=JSON.parse(JSON.stringify(s.document));s.roundtrip=original===canonical(s.document);return say('Generic load/save round trip: full document structure '+(s.roundtrip?'preserved. No changed values, no Revision, no Action.':'changed!'));}
+  if(e.type==='commit'||e.type==='lost'||e.type==='retry'||e.type==='row-error'||e.type==='audit-error'){
+   const request=e.type==='retry'?s.recovery:s.pending;
+   if(!request)return say('Prepare an operation first'+(e.type==='retry'?' and simulate a lost response.':'.'));
+   if(s.receipts[request.id]){if(s.receipts[request.id].fingerprint!==canonical(request))return say('Rejected: invocation identity reused with different content.');s.pending=null;s.recovery=null;return say('Recovered '+s.receipts[request.id].action+' with the same output IDs and Revisions. No repeated writes.');}
+   if(s.readonly)return say('Rejected: read-only access. Nothing committed.');
+   if(!supports(s,request.kind)||canonical(selectedProviders(s,request.kind))!==canonical(request.providers))return say('Rejected: selected operation provider is no longer available. Prepare again explicitly.');
+   if(dirty(s))return say('Save draft changes first, then prepare and invoke explicitly.');
+   if(canonical(preparedState(s,request.kind))!==canonical(request.expected))return say('Rejected: input or document changed since preparation. Refresh and prepare again; nothing committed by this invocation.');
+   if(e.type==='row-error')return say('Rejected: row 2 failed simulated per-row validation. Zero rows, document changes, Revisions or successful Actions committed.');
+   if(e.type==='audit-error')return say('Rejected: audit persistence failed. All proposed scientific changes rolled back.');
+   const before=s.docRevision, doc=clone(s.document), parts=[], outputs=[];
+   const registrationBinding=stepBinding(doc,request.kind==='register'?'registry-block':'cut-block','register');
+   const params=registrationBinding.parameters,schema=schemas[params.targetSchema];
+   if(request.kind!=='cut'&&(!schema||canonical(params.fieldMapping)!==canonical({[schema.field]:'sequence'})))return say('Rejected: target Schema or field mapping is incompatible with the supplied values. Nothing committed.');
+   const create=(name,sequence,provenance)=>{const id='DNA-'+(Object.keys(s.entities).length+1);s.entities[id]={name,current:1,revisions:{1:{contract:dna,sequence,schema:params.targetSchema,properties:{[schema.field]:sequence},provenance:clone(provenance)}}};parts.push({record:id,roles:['created'],group:'science',after:1});return id;};
+   if(request.kind==='register'){
+    const rows=block(doc,'registry-block').content.value.rows;
+    if(rows.some(r=>r.entity))return say('These rows are already registered. This offered Action creates Entities; it does not update existing ones.');
+    if(rows.some(r=>!r.name||!r.sequence||!/^[ACGT]+$/.test(r.sequence)))return say('Rejected: every row needs a name and a DNA sequence. Nothing committed.');
+    const provenance={operation:declarations.register.id,provider:providerIdentity(request.providers,'register'),input:{record:'ELN-1',group:'document',revision:before,path:'registry-block/rows'}};
+    rows.forEach(r=>{r.entity=create(r.name,r.sequence,provenance);});
+    stepBinding(doc,'registry-block','register').outputs.records.values=rows.map(r=>({record:r.entity,group:'science',revision:1}));
+   }else if(request.kind==='fragments'){
+    const split=stepBinding(doc,'cut-block','split'),registration=stepBinding(doc,'cut-block','register'),fragments=outputValues(split,'fragments');
+    if(!fragments.length)return say('Split first. There are no recorded fragment values to register.');
+    if(outputValues(registration,'records').length)return say('These fragments are already registered. Run Split explicitly to generate a new result.');
+    const refs=fragments.map((fragment,i)=>({record:create('Fragment '+(i+1),fragment.value.sequence,split.execution),group:'science',revision:1}));
+    registration.outputs.records.values=refs;
+    registration.execution={operation:declarations.fragments.id,provider:providerIdentity(request.providers,'register'),input:{record:'ELN-1',group:'document',revision:before,step:'split',port:'fragments'}};
+   }else{
+    const input=s.entities['DNA-1'],v=input.revisions[input.current],half=v.sequence.length/2;
+    if(!Number.isInteger(half)||!v.sequence.length||!/^[ACGT]+$/.test(v.sequence))return say('Rejected: this toy method requires an even-length DNA sequence.');
+    const provenance={operation:'example.split@1.0.0',provider:providerIdentity(request.providers,'split'),parameters:{splitAt:half},input:{record:'DNA-1',group:'science',revision:input.current,contract:dna}};
+    for(const [i,sequence] of [v.sequence.slice(0,half),v.sequence.slice(half)].entries()){
+     const output={contract:dna,value:{sequence}};
+     outputs.push(output);
+    }
+    const split=stepBinding(doc,'cut-block','split'),registration=stepBinding(doc,'cut-block','register');
+    split.outputs.fragments.values=outputs;split.execution=provenance;
+    registration.outputs.records.values=[];delete registration.execution;
+    if(request.kind==='combined'){
+     registration.outputs.records.values=outputs.map((fragment,i)=>({record:create('Fragment '+(i+1),fragment.value.sequence,provenance),group:'science',revision:1}));
+     registration.execution={operation:'helix.register@1.0.0',provider:providerIdentity(request.providers,'register')};
+    }
+    parts.unshift({record:'DNA-1',roles:['used'],group:'science',input:input.current});
+   }
+   writeDoc(s,doc);parts.push(docPart(before,s.docRevision,['register','fragments'].includes(request.kind)));
+   const label={combined:'Split DNA and create two fragment Entities',cut:'Split DNA; retain fragment values',fragments:'Register recorded fragments without recalculation',register:'Register both table rows'}[request.kind];
+   const action=addAction(s,label,providerSummary(request.providers),parts,declarations[request.kind].id,request.id);
+   s.receipts[request.id]={fingerprint:canonical(request),action:action.id,participants:clone(parts)};
+   s.pending=null;
+   if(e.type==='lost'){s.recovery=request;return say('The operation committed, but its response was lost. Retry the same invocation to recover its outcome. The feed shows committed activity.');}
+   s.recovery=null;return say(action.id+' committed: all changes, required Revisions and audit together.');
+  }
+  if(s.readonly)return say('Unavailable with read-only access.');
+  if(e.type==='prepare'){
+   if(!supports(s,e.kind))return say('This provider does not implement this exact Action Sequence. Other compatible capabilities remain available.');
+   if(dirty(s))return say('Save draft document content first, then invoke explicitly. Draft values cannot claim a saved input Revision.');
+   s.pending={id:'INV-'+s.nextInvocation++,kind:e.kind,providers:selectedProviders(s,e.kind),expected:preparedState(s,e.kind)};
+   return say('Prepared '+s.pending.id+'. No scientific changes yet. Commit is a separate click in this demo.');
+  }
+  if(e.type==='paragraph'){s.draft=s.draft||clone(s.document);s.draft.paragraph+=' Updated note.';return say('Paragraph changed in draft. Only an unsaved indicator appears in the feed.');}
+  if(e.type==='registration-target'){
+   s.draft=s.draft||clone(s.document);
+   stepBinding(s.draft,e.block,'register').parameters={targetSchema:e.schema,fieldMapping:{[schemas[e.schema].field]:'sequence'}};
+   return say('Context supplied a concrete target Schema and field mapping to this Action Binding. Save the document before invoking.');
+  }
+  if(e.type==='bad-mapping'){
+   s.draft=s.draft||clone(s.document);stepBinding(s.draft,'cut-block','register').parameters.fieldMapping={missingField:'sequence'};
+   return say('Draft now has an incompatible registration mapping. Save, then invoke to see validation fail without partial results.');
+  }
+  if(e.type==='edit-row'){
+   if(!providers[s.provider].tableEditor)return say('This demo has no compatible table editor installed. Its preserved values remain inspectable.');
+   s.draft=s.draft||clone(s.document);block(s.draft,'registry-block').content.value.rows[0].sequence='GGCCAATT';return say('Registry Table row changed in the document draft. No DNA Entity was edited; the cutting Block still reads DNA-1.');
+  }
+  if(e.type==='save'){
+   if(!s.draft)return say('No draft changes to save.');
+   const before=s.docRevision;writeDoc(s,s.draft);s.draft=null;
+   if(before!==s.docRevision)addAction(s,'Edit ELN document','Platform',[docPart(before,s.docRevision)],declarations.edit.id);
+   return say('Saved one document Revision for all paragraph and table edits. No scientific method ran.');
+  }
+  if(e.type==='rename'){s.title+=' (renamed)';addAction(s,'Rename ELN entry','Platform',[{record:'ELN-1',roles:['edited'],group:'metadata'}],'helix.rename@1.0.0');return say('Renamed metadata only. Document Revision unchanged.');}
+  if(e.type==='concurrent'){
+   const ent=s.entities['DNA-1'],before=ent.current;ent.current++;ent.revisions[ent.current]={contract:dna,sequence:ent.revisions[before].sequence==='ATGCAATTCCGG'?'GGCCAATTGGCC':'ATGCAATTCCGG',provenance:null};
+   addAction(s,'Another user edited the input sequence','Other editor',[{record:'DNA-1',roles:['edited'],group:'science',before,after:ent.current}],'example.edit-sequence@1.0.0');
+   return say('Another user saved a new input Revision. Existing recorded provenance still points to its exact earlier input.');
+  }
+  return say('Unknown demo event.');
+ }
+ return {initial,transition,providers,declarations,actionContracts,canonical,block,stepBinding,outputValues,actionContext,supports};
+})();
+</script>
+<script>
+// Thin view over the state model. Text from data is escaped before HTML rendering.
+let state=Demo.initial(),scenario=0,step=0;
+const $=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const names={cut:'Split',fragments:'Register outputs',combined:'Split and register',register:'Register Registry Table rows'};
+const scenarios=[
+ {name:'Create fragments',description:'An explicit Action Sequence uses one exact input Revision, creates two half-sequence Entities and updates the document atomically. The same Action appears in each participant’s separate feed.',steps:[['Prepare split and registration',{type:'prepare',kind:'combined'}],['Commit all effects','commit']]},
+ {name:'One Block, two steps',description:'Split records fragment values in this same Block. Register consumes those recorded outputs without rerunning Split, even if the original Entity has since changed.',steps:[['Prepare Split',{type:'prepare',kind:'cut'}],['Commit Split','commit'],['Change original input','concurrent'],['Prepare Register outputs',{type:'prepare',kind:'fragments'}],['Commit Register','commit']]},
+ {name:'Register without scientific Mod',description:'Recorded fragments remain usable after removing their scientific Mod. The shared Platform Register still creates Entities through the generic view, using the original scientific provenance.',steps:[['Prepare Split',{type:'prepare',kind:'cut'}],['Commit Split','commit'],['Remove scientific Mod',{type:'provider',value:'none'}],['Prepare Register',{type:'prepare',kind:'fragments'}],['Commit Register','commit']]},
+ {name:'Explicit registration context',description:'Context prefills a concrete Schema and stable field mapping. A mapping failure rejects the entire operation. Choosing a valid target persists that configuration before invocation.',steps:[['Set incompatible map','bad-mapping'],['Save configuration','save'],['Prepare',{type:'prepare',kind:'combined'}],['Reject invalid mapping','commit'],['Select alternative Schema',{type:'registration-target',block:'cut-block',schema:'dna-alternative'}],['Save explicit mapping','save'],['Prepare again',{type:'prepare',kind:'combined'}],['Commit into mapped Schema','commit']]},
+ {name:'Deliberate rerun',description:'A new explicit invocation creates new fragment Entities and replaces the currently displayed outputs. Prior output Entities and document Revisions remain; retrying an invocation does not create another run.',steps:[['Prepare first run',{type:'prepare',kind:'combined'}],['Commit first run','commit'],['Prepare new run',{type:'prepare',kind:'combined'}],['Commit new run','commit'],['Inspect first saved result',{type:'inspect',record:'ELN-1',revision:2}]]},
+ {name:'Missing Mod',description:'Save outputs, remove their Mod, edit the surrounding document and preserve unknown nested data. Replace the provider without rewriting the saved operation.',steps:[['Prepare',{type:'prepare',kind:'combined'}],['Commit','commit'],['Remove Mod',{type:'provider',value:'none'}],['Round-trip saved content','roundtrip'],['Edit paragraph','paragraph'],['Save surrounding document','save'],['Install compatible replacement',{type:'provider',value:'replacement'}]]},
+ {name:'Independent capabilities',description:'A provider can display the Block while supporting only one operation. Actions can also remain available while the specialized viewer is missing.',steps:[['Install split-only provider',{type:'provider',value:'partial'}],['Remove Register provider',{type:'registration-provider',value:'none'}],['Try unsupported registration',{type:'prepare',kind:'combined'}],['Prepare supported embedded result',{type:'prepare',kind:'cut'}],['Commit without Entity registration','commit'],['Restore shared Register',{type:'registration-provider',value:'platform'}],['Use Actions with generic viewer',{type:'provider',value:'actions'}]]},
+ {name:'Draft provenance',description:'A Registry Table edit changes values inside the Block, not the input DNA Entity. The demo requires saving first. Paragraph and table edits share one document Revision.',steps:[['Edit table value','edit-row'],['Edit paragraph','paragraph'],['Try registration while dirty',{type:'prepare',kind:'register'}],['Save document','save'],['Prepare registration',{type:'prepare',kind:'register'}],['Commit registration','commit']]},
+ {name:'Atomic failure',description:'No partial rows or phantom scientific activity. Simulated row and audit failures leave the invocation uncommitted; fixing the problem lets the prepared operation commit.',steps:[['Prepare batch',{type:'prepare',kind:'register'}],['Fail row 2','row-error'],['Fail audit write','audit-error'],['Commit successful batch','commit']]},
+ {name:'Stale input',description:'A change after preparation rejects the operation. A new explicit preparation uses the latest input; the failed request never creates outputs.',steps:[['Prepare',{type:'prepare',kind:'combined'}],['Other user changes input','concurrent'],['Reject stale commit','commit'],['Refresh and prepare',{type:'prepare',kind:'combined'}],['Commit new invocation','commit']]},
+ {name:'Lost response',description:'The data and audit committed even though the response was lost. Retrying recovers the same Action, output IDs and Revision associations.',steps:[['Prepare',{type:'prepare',kind:'combined'}],['Commit; lose response','lost'],['Recover same outcome','retry']]},
+ {name:'History and access',description:'Exact historical input and live browsing diverge after an edit. Historical inspection is read-only; unrelated current metadata does not become part of a historical document snapshot.',steps:[['Prepare',{type:'prepare',kind:'combined'}],['Commit','commit'],['Change current input','concurrent'],['Inspect exact input Revision 1',{type:'inspect',record:'DNA-1',revision:1}],['Browse current input','browse'],['Rename current ELN metadata','rename'],['Inspect reviewed document Revision 1',{type:'inspect',record:'ELN-1',revision:1}],['Remove viewer',{type:'provider',value:'none'}],['Switch read-only',{type:'readonly',value:true}]]}
+];
+const button=(label,act,disabled=false)=>`<button data-act="${esc(act)}" ${disabled?'disabled':''}>${esc(label)}</button>`;
+const revisionButton=(record,revision,label)=>`<button data-record="${esc(record)}" data-revision="${revision}">${esc(label||'View Revision '+revision)}</button>`;
+function dispatch(event){state=Demo.transition(state,event);render();}
+function render(){
+ const p=Demo.providers[state.provider],doc=state.draft||state.document,cut=Demo.block(doc,'cut-block'),table=Demo.block(doc,'registry-block');
+ $('notice').textContent=state.notice;$('provider').value=state.provider;$('registration-provider').value=state.registrationProvider;$('readonly').checked=state.readonly;$('entry-title').textContent=state.title;
+ $('tabs').innerHTML=scenarios.map((x,i)=>`<button role="tab" aria-selected="${scenario===i}" data-scenario="${i}">${esc(x.name)}</button>`).join('');
+ const walk=scenarios[scenario];$('walk').innerHTML=`<p>${esc(walk.description)}</p><div class="bar"><button data-start>Restart walkthrough</button>${walk.steps.map(([label],i)=>`<button data-step="${i}" ${i!==step?'disabled':''}>${i+1}. ${esc(label)}</button>`).join('')}</div><small>${step===walk.steps.length?'Walkthrough complete. Explore freely or choose another scenario.':'Each scenario starts from a fresh demo. Free play can change the expected sequence.'}</small>`;
+ const input=state.entities['DNA-1'],value=input.revisions[input.current];
+ const rows=table.content.value.rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="sequence">${esc(r.sequence)}</td><td>${esc(r.entity||'Not registered')}</td></tr>`).join('');
+ const split=Demo.stepBinding(doc,'cut-block','split'),registration=Demo.stepBinding(doc,'cut-block','register');
+ const fragments=Demo.outputValues(split,'fragments'),records=Demo.outputValues(registration,'records');
+ const context={split:Demo.actionContext(state,'cut-block','split'),register:Demo.actionContext(state,'cut-block','register')};
+ const results=fragments.map((o,i)=>`<tr><td>Fragment ${i+1}</td><td class="sequence">${esc(o.value.sequence)}</td><td>${esc(records[i]?.record||'Recorded value; not yet an Entity')}</td><td>${revisionButton(split.execution.input.record,split.execution.input.revision,'Exact input r'+split.execution.input.revision)}</td></tr>`).join('');
+ const operationButton=key=>`<button data-prepare="${key}" ${!Demo.supports(state,key)||state.readonly||(key==='fragments'&&(!fragments.length||records.length))?'disabled':''}>${esc(names[key])}</button>`;
+ const targetControl=(blockId,binding)=>`<label>Target Schema <select data-registration-block="${blockId}" ${state.readonly?'disabled':''}><option value="dna" ${binding.parameters.targetSchema==='dna'?'selected':''}>DNA / sequence field</option><option value="dna-alternative" ${binding.parameters.targetSchema==='dna-alternative'?'selected':''}>DNA alternative / bases field</option></select></label><p class="muted">Explicit field mapping: <code>${esc(JSON.stringify(binding.parameters.fieldMapping))}</code></p>`;
+ $('document').innerHTML=`
+ <div class="bar"><span class="pill">Current document Revision ${state.docRevision}</span>${state.draft?'<span class="pill">Unsaved changes</span>':''}${state.readonly?'<span class="pill">Read-only</span>':''}</div>
+ <p>${esc(doc.paragraph)}</p>
+ <article class="block">
+  <div class="eyebrow">${p.viewer?'DNA cutting Block / '+esc(p.name):'Standard Platform Block / specialized viewer unavailable'}</div>
+  <h3>DNA cutting</h3>
+  <p>One Block owns the Split &rarr; Register sequence. Named ports belong to each Action; the Block presents their values and triggers explicit invocations.</p>
+  <table><tr><th>Input</th><th>Current DNA sequence</th><th>Revision</th></tr><tr><td>DNA-1 / science / follows current</td><td class="sequence">${esc(value.sequence)}</td><td>${revisionButton('DNA-1',input.current)}</td></tr></table>
+  ${!p.viewer?'<p class="muted">The specialized interface is unavailable. Retained contracts still describe each Action and its values. Compatible Action providers can operate through this standard view.</p>':''}
+  ${targetControl('cut-block',registration)}
+  <div class="bar" id="operations">${['cut','fragments','combined'].map(operationButton).join('')}</div>
+  <p class="muted">Split produces sequence values. Register creates Entities from recorded outputs without splitting again. Split and register invokes the full sequence atomically. These buttons prepare an invocation; commit it at the operation desk.</p>
+  <h3>Outputs</h3>
+  ${results?'<table><tr><th>Output</th><th>Recorded sequence</th><th>Registration</th><th>Scientific input</th></tr>'+results+'</table>':'<p class="muted">No recorded outputs. The Split contract declares a list of DNA sequence values; Register declares a list of Entity references.</p>'}
+  ${split.execution?'<p>Actually executed: '+esc(split.execution.operation)+' by '+esc(split.execution.provider.name)+' '+esc(split.execution.provider.version)+'.</p>':''}
+  <details open><summary>Action Sequence and its connections</summary>
+   <table><tr><th>Step</th><th>Exact Action Contract</th><th>Input port / source</th><th>Output port</th></tr>
+   <tr><td>1. Split</td><td><code>${esc(split.action)}</code></td><td><code>sequences[]</code> &larr; DNA-1 sequence</td><td><code>fragments[]</code> / DNA values</td></tr>
+   <tr><td>2. Register</td><td><code>${esc(registration.action)}</code></td><td><code>values[]</code> &larr; Split.fragments</td><td><code>records[]</code> / Entity references</td></tr></table>
+   <p>Registration target: Schema <code>${esc(registration.parameters.targetSchema)}</code>. The shared Register contract is used here and by the Registry Table. This simulation exercises DNA values and two Schema fixtures only. Definitions, handles and storage syntax are illustrative; this is not a production API or migration.</p>
+  </details>
+  <details><summary>Proposed objects accessible to Block code</summary>
+   <p class="muted">Read-only, resolved objects derived from the retained contracts and the Action Bindings. Code addresses stable port IDs; it does not parse arbitrary JSON or mutate Recorded Values.</p>
+   <pre>const split = actionContext("split");
+const sequences = split.inputs.sequences.items;
+const fragments = split.outputs.fragments.items;
+const register = actionContext("register");
+const candidates = register.inputs.values.items;
+const target = register.parameters.targetSchema;
+// Buttons invoke a declared step or offered sequence through the Platform.</pre>
+   <pre>${esc(JSON.stringify(context,null,2))}</pre>
+  </details>
+  <details><summary>Saved Block instance / exact references, no copied definitions</summary><pre>${esc(JSON.stringify(cut,null,2))}</pre></details>
+  <details><summary>Platform-retained Action definitions / stored once</summary><pre>${esc(JSON.stringify(Demo.actionContracts,null,2))}</pre></details>
+ </article>
+ <article class="block"><div class="eyebrow">${p.tableEditor?'Editable Registry Table':'Standard Platform value table / editor unavailable'}</div>
+  <h3>Separate document-editing example</h3><p>This independent Registry Table is only for exercising document drafts. The cutting Block above performs its own registration.</p>
+  <table><tr><th>Name</th><th>Sequence</th><th>Registered Entity</th></tr>${rows}</table>
+  ${targetControl('registry-block',Demo.stepBinding(doc,'registry-block','register'))}
+  <div class="bar">${button('Edit first row in draft','edit-row',state.readonly||!p.tableEditor)}${operationButton('register')}</div>
+ </article>
+ <article class="block"><div class="eyebrow">Display-only Block / no Action Sequence</div><p>${esc(Demo.block(doc,'display-only-block').content.value.text)}</p></article>
+ <p class="muted">Nested note preserved: ${esc(cut.content.value.text)}. Generic round-trip: ${state.roundtrip===null?'not checked':state.roundtrip?'preserved':'changed'}.</p>`;
+ $('operations').insertAdjacentHTML('afterend','<p class="muted">'+['cut','fragments','combined'].map(key=>esc(names[key])+': '+(Demo.supports(state,key)?'compatible':state.provider==='incompatible'&&key!=='fragments'?'different operation; incompatible':'unavailable')).join(' / ')+'</p>');
+ $('invocation').innerHTML=`<h3>${state.pending?'Prepared '+esc(state.pending.id):'No prepared invocation'}</h3>${state.pending?'<p>'+esc(names[state.pending.kind])+' · document r'+state.pending.expected.document+(state.pending.expected.input?' / input r'+state.pending.expected.input:' / uses saved document values')+'</p>':''}<div class="bar">${button('Commit invocation','commit')}${button('Simulate row 2 error','row-error')}${button('Simulate audit failure','audit-error')}${button('Commit; lose response','lost')}${button('Retry lost response','retry')}</div><p class="muted">Errors are diagnostics, not successful scientific activity. Pending invocation: ${state.pending?'awaiting commit':'none'}; response recovery: ${state.recovery?esc(state.recovery.id):'none'}.</p>`;
+ $('freeplay').innerHTML=[['Try incompatible registration map','bad-mapping'],['Edit paragraph','paragraph'],['Save document','save'],['Round-trip saved content','roundtrip'],['Simulate another user editing DNA-1','concurrent'],['Rename ELN metadata','rename'],['Browse current input','browse'],['Export saved document JSON','export']].map(([label,act])=>button(label,act)).join('');
+ $('entities').innerHTML='<table><tr><th>Entity</th><th>Saved sequence</th><th>Revision</th></tr>'+Object.entries(state.entities).map(([id,e])=>`<tr><td>${esc(id)}<br><small>${esc(e.name)}</small></td><td class="sequence">${esc(e.revisions[e.current].sequence)}</td><td>${revisionButton(id,e.current)}</td></tr>`).join('')+'</table>';
+ const selected=$('participant').value||'ELN-1';$('participant').innerHTML=['ELN-1',...Object.keys(state.entities)].map(id=>`<option ${id===selected?'selected':''}>${esc(id)}</option>`).join('');
+ const participant=$('participant').value,actions=state.actions.filter(a=>a.participants.some(x=>x.record===participant));
+ $('feed').innerHTML=(participant==='ELN-1'&&state.draft?'<p class="muted">Unsaved changes…</p>':'')+(state.pending?'<p class="muted">Invocation pending; no success recorded yet.</p>':'')+(actions.length?actions.slice().reverse().map(a=>`<div class="feed"><strong>${esc(a.id)} · ${esc(a.label)}</strong><br><small>${esc(a.provider)} · ${esc(a.operation)}</small><p>${a.participants.filter(x=>x.record===participant).map(x=>`${esc(x.roles.join(', '))} · ${esc(x.group)} ${x.input?revisionButton(x.record,x.input,'Used r'+x.input):''} ${x.before?revisionButton(x.record,x.before,'Before r'+x.before):''} ${x.after?revisionButton(x.record,x.after,'After r'+x.after):''}`).join('')}</p><small>Other participants: ${esc(a.participants.filter(x=>x.record!==participant).map(x=>x.record).join(', ')||'none')}</small></div>`).join(''):'<p class="muted">No committed activity for this participant.</p>');
+ const inspection=state.inspection;
+ if(!inspection)$('history').innerHTML='<p>Choose View Revision in a feed or beside a value. This pane inspects only the selected Revision Group.</p>'+revisionButton('ELN-1',1,'View reviewed document r1');
+ else {
+  const isDoc=inspection.record==='ELN-1',snapshot=isDoc?state.docHistory[inspection.revision]:state.entities[inspection.record]?.revisions[inspection.revision];
+  $('history').innerHTML=`<p><strong>${esc(inspection.record)} · ${isDoc?'document':'science'} · Revision ${inspection.revision}</strong></p><p>${p.viewer?'Compatible specialized inspection available.':'Specialized viewer unavailable; retained contracts provide generic inspection.'} Read-only. Unrelated current fields are excluded.</p>${isDoc&&state.renditions[inspection.revision]?'<h3>Retained Historical Rendition</h3><p>'+esc(state.renditions[inspection.revision])+'</p><p class="muted">An immutable reviewed artifact, separate from the presentation below.</p>':''}<h3>${p.viewer?'Presentation of saved structured values':'Generic saved values'}</h3>${isDoc?'<p>'+esc(snapshot.paragraph)+'</p><p>'+snapshot.blocks.length+' preserved Blocks; see full snapshot below.</p>':'<p class="sequence">'+esc(snapshot.sequence)+'</p>'}<details><summary>Full immutable group snapshot</summary><pre>${esc(JSON.stringify(snapshot,null,2))}</pre></details>${button('Close inspection','close-history')}`;
+ }
+ $('state').textContent=JSON.stringify(state,null,2);
+}
+document.addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.scenario!==undefined){scenario=Number(b.dataset.scenario);step=0;state=Demo.initial();render();return;}
+ if(b.hasAttribute('data-start')){step=0;state=Demo.initial();render();return;}
+ if(b.dataset.step!==undefined){const i=Number(b.dataset.step);if(i===step){step++;dispatch(scenarios[scenario].steps[i][1]);}return;}
+ if(b.dataset.record){dispatch({type:'inspect',record:b.dataset.record,revision:b.dataset.revision});return;}
+ if(b.dataset.prepare){dispatch({type:'prepare',kind:b.dataset.prepare});return;}
+ if(b.dataset.act==='export'){const url=URL.createObjectURL(new Blob([JSON.stringify(state.document,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='eln-document.prototype.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
+ if(b.dataset.act)dispatch(b.dataset.act);
+});
+document.addEventListener('change',e=>{if(e.target.dataset.registrationBlock)dispatch({type:'registration-target',block:e.target.dataset.registrationBlock,schema:e.target.value});});
+$('provider').addEventListener('change',e=>dispatch({type:'provider',value:e.target.value}));
+$('registration-provider').addEventListener('change',e=>dispatch({type:'registration-provider',value:e.target.value}));
+$('readonly').addEventListener('change',e=>dispatch({type:'readonly',value:e.target.checked}));
+$('participant').addEventListener('change',render);
+render();
+</script>
+</html>

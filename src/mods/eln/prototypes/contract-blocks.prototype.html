@@ -15,6 +15,18 @@
 <div class="bar"><label>Scientific Mod / viewer <select id="provider"><option value="original">Original Mod</option><option value="replacement">Compatible replacement</option><option value="partial">Split-only provider + viewer</option><option value="incompatible">Different operation, same input type</option><option value="viewer">Viewer only</option><option value="actions">Actions only, generic viewer</option><option value="none">No provider</option></select></label><label>Register provider <select id="registration-provider"><option value="platform">Shared Platform Register</option><option value="none">Unavailable</option></select></label><label><input type="checkbox" id="readonly"> Read-only access</label><button data-act="reset">Reset demo</button></div>
 <div id="notice" role="status" aria-live="polite"></div>
 <section class="card"><h2>Guided walkthroughs</h2><div class="bar" id="tabs" role="tablist" aria-label="Scenarios"></div><div id="walk" class="walk"></div></section>
+<section class="card" aria-labelledby="json-review-title">
+ <h2 id="json-review-title">JSON examples for every case</h2>
+ <p>Review any walkthrough without running it. Choose an individual step to see drafts, failures and prepared requests as well as successful results. Current live state follows your free-play actions.</p>
+ <div class="bar">
+  <label>Case <select id="json-case"><option value="live">Current live state</option><option value="initial">Initial content</option></select></label>
+  <label id="json-step-label" hidden>Snapshot <select id="json-step"></select></label>
+  <button data-act="export-example">Download this JSON example</button>
+ </div>
+ <p id="json-caption" role="status" aria-live="polite"></p>
+ <p class="muted">These are illustrative model snapshots. Saved content, retained definitions, committed records and runtime diagnostics are shown separately; the downloaded review bundle is not an API envelope.</p>
+ <div id="json-examples"></div>
+</section>
 <div class="grid">
 <section class="card"><div class="eyebrow">ELN document / ELN-1</div><h2 id="entry-title"></h2><div id="document"></div></section>
 <aside class="card"><h2>Operation desk</h2><p>Prepare captures the current input and target Revisions. Commit simulates the shared Platform boundary.</p><div id="invocation"></div><h3>Free play</h3><div class="bar" id="freeplay"></div><h3>Current DNA Entities</h3><div id="entities"></div><details><summary>Full relevant state and proposed saved envelope</summary><p class="muted">Proposed shape for discussion, not an implemented API. Exact contract bindings and unknown extension values survive generic load/save. Provider availability is deployment state, outside the saved document.</p><pre id="state"></pre></details></aside>
@@ -222,6 +234,48 @@ const scenarios=[
 ];
 const button=(label,act,disabled=false)=>`<button data-act="${esc(act)}" ${disabled?'disabled':''}>${esc(label)}</button>`;
 const revisionButton=(record,revision,label)=>`<button data-record="${esc(record)}" data-revision="${revision}">${esc(label||'View Revision '+revision)}</button>`;
+// Replay the existing model for review only; this never changes the live demo.
+let jsonCase='live',jsonStep=0;
+const jsonSnapshots=scenarios.map(walk=>{
+ let snapshot=Demo.initial();
+ const snapshots=[{label:'Before the walkthrough',state:snapshot}];
+ for(const [label,event] of walk.steps){snapshot=Demo.transition(snapshot,event);snapshots.push({label,state:snapshot});}
+ return snapshots;
+});
+function jsonExample(){
+ const selected=jsonCase==='live'?state:jsonCase==='initial'?Demo.initial():jsonSnapshots[Number(jsonCase)][jsonStep].state;
+ return {
+  savedContent:{documentRevision:selected.docRevision,document:selected.document},
+  retainedDefinitions:{actionContracts:Demo.actionContracts,offeredSequences:Demo.declarations},
+  committedRecords:{entities:selected.entities,actions:selected.actions,invocationReceipts:selected.receipts},
+  retainedHistory:{documentRevisions:selected.docHistory,historicalRenditions:selected.renditions},
+  runtimeOnly:{scientificProvider:selected.provider,registrationProvider:selected.registrationProvider,availableOperations:Object.fromEntries(Object.keys(names).map(kind=>[kind,Demo.supports(selected,kind)&&!selected.readonly])),readOnly:selected.readonly,draft:selected.draft,preparedInvocation:selected.pending,lostResponseRecovery:selected.recovery,inspection:selected.inspection,roundtrip:selected.roundtrip,diagnostic:selected.notice,resolvedBindings:{split:Demo.actionContext(selected,'cut-block','split'),register:Demo.actionContext(selected,'cut-block','register')}}
+ };
+}
+function renderJsonExamples(){
+ $('json-case').value=jsonCase;
+ const isWalkthrough=jsonCase!=='live'&&jsonCase!=='initial';
+ $('json-step-label').hidden=!isWalkthrough;
+ if(isWalkthrough)$('json-step').innerHTML=jsonSnapshots[Number(jsonCase)].map((snapshot,i)=>`<option value="${i}" ${i===jsonStep?'selected':''}>${i}. ${esc(snapshot.label)}</option>`).join('');
+ const example=jsonExample(),saved=example.savedContent.document;
+ const caption=isWalkthrough?scenarios[Number(jsonCase)].name+' / '+jsonSnapshots[Number(jsonCase)][jsonStep].label:jsonCase==='live'?'Current live state':'Initial content';
+ $('json-caption').textContent=caption+': '+example.runtimeOnly.diagnostic;
+ const panel=(title,value,open=false)=>`<details ${open?'open':''}><summary>${esc(title)}</summary><pre data-example-json>${esc(JSON.stringify(value,null,2))}</pre></details>`;
+ $('json-examples').innerHTML=
+  panel('Saved DNA cutting Block',Demo.block(saved,'cut-block'),true)+
+  panel('Saved Registry Table Block',Demo.block(saved,'registry-block'))+
+  panel('Saved display-only Block',Demo.block(saved,'display-only-block'))+
+  panel('Full saved document / one Revision Group',example.savedContent)+
+  panel('Platform-retained Action Contracts / definitions stored once',example.retainedDefinitions.actionContracts)+
+  panel('Platform-retained offered sequences / composition and effects',example.retainedDefinitions.offeredSequences)+
+  panel('Committed Entity values, shared Actions and retry receipts',example.committedRecords)+
+  panel('Retained Revisions and Historical Renditions',example.retainedHistory)+
+  panel('Runtime only / draft, request, availability and diagnostics',example.runtimeOnly);
+}
+function downloadJson(value,filename){
+ const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'})),link=document.createElement('a');
+ link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function dispatch(event){state=Demo.transition(state,event);render();}
 function render(){
  const p=Demo.providers[state.provider],doc=state.draft||state.document,cut=Demo.block(doc,'cut-block'),table=Demo.block(doc,'registry-block');
@@ -293,6 +347,7 @@ const target = register.parameters.targetSchema;
   $('history').innerHTML=`<p><strong>${esc(inspection.record)} · ${isDoc?'document':'science'} · Revision ${inspection.revision}</strong></p><p>${p.viewer?'Compatible specialized inspection available.':'Specialized viewer unavailable; retained contracts provide generic inspection.'} Read-only. Unrelated current fields are excluded.</p>${isDoc&&state.renditions[inspection.revision]?'<h3>Retained Historical Rendition</h3><p>'+esc(state.renditions[inspection.revision])+'</p><p class="muted">An immutable reviewed artifact, separate from the presentation below.</p>':''}<h3>${p.viewer?'Presentation of saved structured values':'Generic saved values'}</h3>${isDoc?'<p>'+esc(snapshot.paragraph)+'</p><p>'+snapshot.blocks.length+' preserved Blocks; see full snapshot below.</p>':'<p class="sequence">'+esc(snapshot.sequence)+'</p>'}<details><summary>Full immutable group snapshot</summary><pre>${esc(JSON.stringify(snapshot,null,2))}</pre></details>${button('Close inspection','close-history')}`;
  }
  $('state').textContent=JSON.stringify(state,null,2);
+ renderJsonExamples();
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
@@ -301,7 +356,8 @@ document.addEventListener('click',e=>{
  if(b.dataset.step!==undefined){const i=Number(b.dataset.step);if(i===step){step++;dispatch(scenarios[scenario].steps[i][1]);}return;}
  if(b.dataset.record){dispatch({type:'inspect',record:b.dataset.record,revision:b.dataset.revision});return;}
  if(b.dataset.prepare){dispatch({type:'prepare',kind:b.dataset.prepare});return;}
- if(b.dataset.act==='export'){const url=URL.createObjectURL(new Blob([JSON.stringify(state.document,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='eln-document.prototype.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
+ if(b.dataset.act==='export-example'){downloadJson(jsonExample(),'contract-blocks-'+(jsonCase==='live'||jsonCase==='initial'?jsonCase:'case-'+jsonCase+'-step-'+jsonStep)+'.prototype.json');return;}
+ if(b.dataset.act==='export'){downloadJson(state.document,'eln-document.prototype.json');return;}
  if(b.dataset.act)dispatch(b.dataset.act);
 });
 document.addEventListener('change',e=>{if(e.target.dataset.registrationBlock)dispatch({type:'registration-target',block:e.target.dataset.registrationBlock,schema:e.target.value});});
@@ -309,6 +365,9 @@ $('provider').addEventListener('change',e=>dispatch({type:'provider',value:e.tar
 $('registration-provider').addEventListener('change',e=>dispatch({type:'registration-provider',value:e.target.value}));
 $('readonly').addEventListener('change',e=>dispatch({type:'readonly',value:e.target.checked}));
 $('participant').addEventListener('change',render);
+$('json-case').insertAdjacentHTML('beforeend',scenarios.map((walk,i)=>`<option value="${i}">${esc(walk.name)}</option>`).join(''));
+$('json-case').addEventListener('change',e=>{jsonCase=e.target.value;jsonStep=jsonCase==='live'||jsonCase==='initial'?0:jsonSnapshots[Number(jsonCase)].length-1;renderJsonExamples();});
+$('json-step').addEventListener('change',e=>{jsonStep=Number(e.target.value);renderJsonExamples();});
 render();
 </script>
 </html>
